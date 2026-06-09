@@ -4734,7 +4734,21 @@ final class MarkdownReader
             return null;
         }
 
-        if ($this->yamlMetadataSchemaVersion === '1.2' && str_contains($trimmed, ':')) {
+        if ($this->yamlMetadataSchemaVersion === '1.2') {
+            if (str_contains($trimmed, ':')) {
+                return null;
+            }
+
+            $integer = $this->parseYaml12PlainIntegerScalar($trimmed);
+            if ($integer !== null) {
+                return $integer;
+            }
+
+            $float = $this->parseYamlExplicitFloatScalar($trimmed);
+            if (is_float($float)) {
+                return $float;
+            }
+
             return null;
         }
 
@@ -4749,6 +4763,38 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function parseYaml12PlainIntegerScalar(string $value): ?int
+    {
+        $normalized = str_replace('_', '', trim($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $sign = 1;
+        if ($normalized[0] === '+' || $normalized[0] === '-') {
+            $sign = $normalized[0] === '-' ? -1 : 1;
+            $normalized = substr($normalized, 1);
+        }
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $base = 10;
+        $digits = $normalized;
+        if (preg_match('/^0o([0-7]+)$/i', $normalized, $m) === 1) {
+            $base = 8;
+            $digits = $m[1];
+        } elseif (preg_match('/^0x([0-9a-f]+)$/i', $normalized, $m) === 1) {
+            $base = 16;
+            $digits = $m[1];
+        } elseif (preg_match('/^[0-9]+$/', $normalized) !== 1) {
+            return null;
+        }
+
+        return $sign * intval($digits, $base);
     }
 
     /**

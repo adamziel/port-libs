@@ -1694,6 +1694,117 @@ final class ArchiveCompressionStream
      *     frameCount:int,
      *     dataFrameCount:int,
      *     skippableFrameCount:int,
+     *     declaredContentSizeFrameCount:int,
+     *     missingContentSizeFrameCount:int,
+     *     mismatchedContentSizeFrameCount:int,
+     *     firstMismatchedFrameIndex:?int,
+     *     firstMismatchedDataFrameIndex:?int,
+     *     declaredContentSizeBytes:int,
+     *     decodedContentBytes:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectLz4ContentSizePolicy(
+        string $bytes,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $policy = Lz4Frame::contentSizePolicyPreflight($bytes, $maxUncompressedBytes);
+        $frames = [];
+        foreach ($policy['frames'] as $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $payload = (string) ($frame['data'] ?? '');
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => (int) $frame['frameIndex'],
+                    'id' => (int) $frame['id'],
+                    'payloadSize' => strlen($payload),
+                    'payloadSha256' => hash('sha256', $payload),
+                    'payloadPreview' => self::boundedPrintablePreview($payload, 64),
+                    'frameOffset' => (int) $frame['frameOffset'],
+                    'frameSize' => (int) $frame['frameSize'],
+                    'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                    'policy' => 'metadata-only-no-extraction',
+                    'diagnostics' => [],
+                ];
+                continue;
+            }
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => (int) $frame['frameIndex'],
+                'dataFrameIndex' => (int) $frame['dataFrameIndex'],
+                'contentSize' => $frame['contentSize'],
+                'decodedDataSize' => (int) $frame['decodedDataSize'],
+                'contentSizeMatches' => $frame['contentSizeMatches'],
+                'contentSizeDelta' => $frame['contentSizeDelta'],
+                'dictionaryId' => $frame['dictionaryId'],
+                'blockMaxSize' => (int) $frame['blockMaxSize'],
+                'blockIndependent' => (bool) $frame['blockIndependent'],
+                'blockChecksum' => (bool) $frame['blockChecksum'],
+                'contentChecksum' => (bool) $frame['contentChecksum'],
+                'blockCount' => (int) $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => (int) $frame['compressedSize'],
+                'decodedDataOffset' => (int) $frame['decodedDataOffset'],
+                'decodedDataEndOffset' => (int) $frame['decodedDataEndOffset'],
+                'frameOffset' => (int) $frame['frameOffset'],
+                'frameSize' => (int) $frame['frameSize'],
+                'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                'policy' => (string) $frame['policy'],
+                'diagnostics' => $frame['diagnostics'],
+            ];
+        }
+
+        $diagnostics = $policy['mismatchedContentSizeFrameCount'] > 0
+            ? ['lz4-content-size-mismatch']
+            : [];
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'format' => 'lz4',
+            'type' => 'lz4-content-size-policy',
+            'compressedSize' => strlen($bytes),
+            'frameCount' => $policy['frameCount'],
+            'dataFrameCount' => $policy['dataFrameCount'],
+            'skippableFrameCount' => $policy['skippableFrameCount'],
+            'declaredContentSizeFrameCount' => $policy['declaredContentSizeFrameCount'],
+            'missingContentSizeFrameCount' => $policy['missingContentSizeFrameCount'],
+            'mismatchedContentSizeFrameCount' => $policy['mismatchedContentSizeFrameCount'],
+            'firstMismatchedFrameIndex' => $policy['firstMismatchedFrameIndex'],
+            'firstMismatchedDataFrameIndex' => $policy['firstMismatchedDataFrameIndex'],
+            'declaredContentSizeBytes' => $policy['declaredContentSizeBytes'],
+            'decodedContentBytes' => $policy['decodedContentBytes'],
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'lz4-content-size-review',
+            'diagnostics' => $diagnostics,
+            'stream' => [
+                'frameCount' => $policy['frameCount'],
+                'dataFrameCount' => $policy['dataFrameCount'],
+                'skippableFrameCount' => $policy['skippableFrameCount'],
+                'declaredContentSizeFrameCount' => $policy['declaredContentSizeFrameCount'],
+                'missingContentSizeFrameCount' => $policy['missingContentSizeFrameCount'],
+                'mismatchedContentSizeFrameCount' => $policy['mismatchedContentSizeFrameCount'],
+                'extractionPolicy' => $policy['extractionPolicy'],
+                'frames' => $frames,
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     type:string,
+     *     compressedSize:int,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
      *     dictionaryFrameCount:int,
      *     blockCount:int,
      *     maxBlockPayloadBytes:int,

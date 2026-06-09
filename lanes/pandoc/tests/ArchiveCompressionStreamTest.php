@@ -7711,6 +7711,96 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4BlockSizePolicy($smallStream, 0));
     },
 
+    'preflights lz4 declared content size mismatches before package handoff' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"lz4-content-size","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# LZ4 content-size review\n\nReady for WordPress archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $valid = Lz4Frame::build($tarBytes, [
+            'blockChecksum' => true,
+            'contentChecksum' => true,
+            'contentSize' => true,
+        ]);
+        $declaredSize = strlen($tarBytes) + 7;
+        $mismatched = substr_replace($valid, pack('V2', $declaredSize, 0), 6, 8);
+        $mismatched = substr_replace($mismatched, $lz4HeaderChecksum(substr($mismatched, 4, 10)), 14, 1);
+        $noDeclaredSize = Lz4Frame::build('sidecar-less review packet', [
+            'contentChecksum' => true,
+            'contentSize' => false,
+        ]);
+        $skippablePayload = 'wordpress-lz4-content-size-review';
+        $stream = Lz4Frame::skippableFrame($skippablePayload, 6) . $mismatched . $noDeclaredSize;
+
+        $inspection = ArchiveCompressionStream::inspectLz4ContentSizePolicy($stream);
+        $cleanInspection = ArchiveCompressionStream::inspectLz4ContentSizePolicy($valid, strlen($tarBytes));
+
+        $t->same('lz4', $inspection['format']);
+        $t->same('lz4-content-size-policy', $inspection['type']);
+        $t->same(strlen($stream), $inspection['compressedSize']);
+        $t->same(3, $inspection['frameCount']);
+        $t->same(2, $inspection['dataFrameCount']);
+        $t->same(1, $inspection['skippableFrameCount']);
+        $t->same(1, $inspection['declaredContentSizeFrameCount']);
+        $t->same(1, $inspection['missingContentSizeFrameCount']);
+        $t->same(1, $inspection['mismatchedContentSizeFrameCount']);
+        $t->same(1, $inspection['firstMismatchedFrameIndex']);
+        $t->same(0, $inspection['firstMismatchedDataFrameIndex']);
+        $t->same($declaredSize, $inspection['declaredContentSizeBytes']);
+        $t->same(strlen($tarBytes) + strlen('sidecar-less review packet'), $inspection['decodedContentBytes']);
+        $t->same('review-before-conversion', $inspection['handoffPolicy']);
+        $t->same('lz4-content-size-review', $inspection['extractionPolicy']);
+        $t->same(['lz4-content-size-mismatch'], $inspection['diagnostics']);
+        $t->same('lz4-content-size-mismatch-blocked', $inspection['stream']['extractionPolicy']);
+
+        $t->same('skippable', $inspection['stream']['frames'][0]['type']);
+        $t->same(0, $inspection['stream']['frames'][0]['frameIndex']);
+        $t->same(6, $inspection['stream']['frames'][0]['id']);
+        $t->same(strlen($skippablePayload), $inspection['stream']['frames'][0]['payloadSize']);
+        $t->same(hash('sha256', $skippablePayload), $inspection['stream']['frames'][0]['payloadSha256']);
+        $t->same($skippablePayload, $inspection['stream']['frames'][0]['payloadPreview']);
+        $t->same(false, array_key_exists('data', $inspection['stream']['frames'][0]));
+
+        $t->same('frame', $inspection['stream']['frames'][1]['type']);
+        $t->same(1, $inspection['stream']['frames'][1]['frameIndex']);
+        $t->same(0, $inspection['stream']['frames'][1]['dataFrameIndex']);
+        $t->same($declaredSize, $inspection['stream']['frames'][1]['contentSize']);
+        $t->same(strlen($tarBytes), $inspection['stream']['frames'][1]['decodedDataSize']);
+        $t->same(false, $inspection['stream']['frames'][1]['contentSizeMatches']);
+        $t->same(7, $inspection['stream']['frames'][1]['contentSizeDelta']);
+        $t->same(1, $inspection['stream']['frames'][1]['blockCount']);
+        $t->same('review-before-conversion', $inspection['stream']['frames'][1]['policy']);
+        $t->same(['lz4-content-size-mismatch'], $inspection['stream']['frames'][1]['diagnostics']);
+        $t->same(false, array_key_exists('data', $inspection['stream']['frames'][1]));
+
+        $t->same('frame', $inspection['stream']['frames'][2]['type']);
+        $t->same(1, $inspection['stream']['frames'][2]['dataFrameIndex']);
+        $t->same(null, $inspection['stream']['frames'][2]['contentSize']);
+        $t->same(strlen('sidecar-less review packet'), $inspection['stream']['frames'][2]['decodedDataSize']);
+        $t->same(null, $inspection['stream']['frames'][2]['contentSizeMatches']);
+        $t->same(null, $inspection['stream']['frames'][2]['contentSizeDelta']);
+        $t->same('metadata-only-no-extraction', $inspection['stream']['frames'][2]['policy']);
+        $t->same([], $inspection['stream']['frames'][2]['diagnostics']);
+
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->same(1, $cleanInspection['declaredContentSizeFrameCount']);
+        $t->same(0, $cleanInspection['mismatchedContentSizeFrameCount']);
+        $t->same(true, $cleanInspection['stream']['frames'][0]['contentSizeMatches']);
+        $t->same($tarBytes, Lz4Frame::decode($valid));
+        $t->throws(\RuntimeException::class, static fn (): string => Lz4Frame::decode($mismatched));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4ContentSizePolicy(
+            $valid,
+            strlen($tarBytes) - 1
+        ));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

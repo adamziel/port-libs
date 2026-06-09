@@ -51,6 +51,8 @@ Symbol override alias audit $\arg z + \hbar\omega + \digamma + \varnothing + a \
 
 Extended relation alias audit $\beth + \gimel + \daleth + a \leqq b + c \geqq d + x \doteq y + P \nsubseteq Q + u \nparallel v$ stays semantic.
 
+Variant Greek and underbar audit $\varGamma + \varDelta + \varrho_i + \varsigma + \upUpsilon + \overbar{x_i + y_i} + \underbar{\operatorname{draft}}$ stays semantic.
+
 Display audit:
 $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]{x_i + y_i} + \binom{n}{k} + \tbinom{p_i}{2} + \dbinom{a+b}{c} + \dfrac{q_i}{r_i} + \genfrac{\langle}{\rangle}{0pt}{0}{n}{k} + \widehat{\operatorname{quality}} + \vec{v}_i + \begin{pmatrix}p_1 & m_1 \\ p_2 & m_2\end{pmatrix} + \begin{aligned}x_i &= \operatorname{score}(p_i) \\ y_i &= \frac{a_i}{b_i}\end{aligned} + \begin{array}{l|c|r}\alpha & \beta & \omega \\ \hline 1 & 2 & 3\end{array} + \begin{cases}p_i & p_i \in P \\ 0 & \text{otherwise}\end{cases} + \forall p_i \in P \Rightarrow p_i \notin \emptyset + \alpha \times \omega$$
 
@@ -247,6 +249,7 @@ $summary = [
     'relationHarpoonAliasMathml' => $converter->texToMathMl('A \\prec B + C \\succ D + E \\ll F + G \\gg H + x \\nearrow y + a \\searrow b + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + p \\because q + f \\multimap g'),
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'extendedRelationAliasMathml' => $converter->texToMathMl('\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v'),
+    'variantGreekUnderbarAliasMathml' => $converter->texToMathMl('\\varGamma + \\varDelta + \\varrho_i + \\varsigma + \\upUpsilon + \\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}}'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
     'texTokenArgumentMathml' => $converter->texToMathMl('\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k + \\overset\\alpha q_i + \\underset 0 r_i + \\boxed s_i + \\phantom t_i + \\hphantom u_i + \\vphantom v_i + \\cancel w_i + \\bcancel x + \\xcancel y'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
@@ -545,6 +548,18 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['extendedRelationAliasMathml'], '<mi>P</mi><mo>⊈</mo><mi>Q</mi><mo>+</mo><mi>u</mi><mo>∦</mo><mi>v</mi>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map extended relation aliases');
+    }
+
+    if (
+        str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\varGamma</mi>')
+        || str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\varrho</mi>')
+        || str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\overbar</mi>')
+        || str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>\\underbar</mi>')
+        || !str_contains($summary['variantGreekUnderbarAliasMathml'], '<mi>𝛤</mi><mo>+</mo><mi>𝛥</mi><mo>+</mo><msub><mi>𝜚</mi><mi>i</mi></msub><mo>+</mo><mi>𝜍</mi><mo>+</mo><mi>ϒ</mi>')
+        || !str_contains($summary['variantGreekUnderbarAliasMathml'], '<mover accent="true"><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mo>¯</mo></mover>')
+        || !str_contains($summary['variantGreekUnderbarAliasMathml'], '<munder accentunder="true"><mi>draft</mi><mo>̱</mo></munder>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map variant Greek and underbar aliases');
     }
 
     if (
@@ -867,6 +882,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mi>ℶ</mi><mo>+</mo><mi>ℷ</mi><mo>+</mo><mi>ℸ</mi><mo>+</mo><mi>a</mi><mo>≦</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>≧</mo><mi>d</mi><mo>+</mo><mi>x</mi><mo>≐</mo><mi>y</mi>',
         '<mi>P</mi><mo>⊈</mo><mi>Q</mi><mo>+</mo><mi>u</mi><mo>∦</mo><mi>v</mi>',
         '<annotation encoding="application/x-tex">\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v</annotation>',
+        '<mi>𝛤</mi><mo>+</mo><mi>𝛥</mi><mo>+</mo><msub><mi>𝜚</mi><mi>i</mi></msub><mo>+</mo><mi>𝜍</mi><mo>+</mo><mi>ϒ</mi>',
+        '<mover accent="true"><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mo>¯</mo></mover><mo>+</mo><munder accentunder="true"><mi>draft</mi><mo>̱</mo></munder>',
+        '<annotation encoding="application/x-tex">\\varGamma + \\varDelta + \\varrho_i + \\varsigma + \\upUpsilon + \\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}}</annotation>',
         '<annotation encoding="application/x-tex">\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\phantom{p_i + m_i} + \\hphantom{draft} + \\vphantom{\\frac{a}{b}} + \\cancel{x_i} + \\bcancel{y_i} + \\xcancel{z_i} + \\cancelto{0}{\\operatorname{draft}_i}</annotation>',
         '<annotation encoding="application/x-tex">\\textcolor[HTML]{336699}{\\operatorname{media}} + \\textcolor[rgb]{0.2,0.4,0.6}{p_i} + \\color[gray]{.5} m_i + q_i</annotation>',
         '<annotation encoding="application/x-tex">\\colorbox{yellow}{p_i + m_i} + \\colorbox[HTML]{fff9cc}{\\operatorname{media}} + \\fcolorbox{red}{yellow}{q_i} + \\fcolorbox[RGB]{51,102,153}{255,249,204}{\\frac{a}{b}}</annotation>',

@@ -315,6 +315,121 @@ final class Lz4Frame
     }
 
     /**
+     * @return array{
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     declaredContentSizeFrameCount:int,
+     *     missingContentSizeFrameCount:int,
+     *     mismatchedContentSizeFrameCount:int,
+     *     firstMismatchedFrameIndex:?int,
+     *     firstMismatchedDataFrameIndex:?int,
+     *     declaredContentSizeBytes:int,
+     *     decodedContentBytes:int,
+     *     extractionPolicy:string,
+     *     frames:list<array<string, mixed>>
+     * }
+     */
+    public static function contentSizePolicyPreflight(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        $frames = [];
+        $dataFrameIndex = 0;
+        $skippableFrameCount = 0;
+        $declaredContentSizeFrameCount = 0;
+        $missingContentSizeFrameCount = 0;
+        $mismatchedContentSizeFrameCount = 0;
+        $firstMismatchedFrameIndex = null;
+        $firstMismatchedDataFrameIndex = null;
+        $declaredContentSizeBytes = 0;
+        $decodedContentBytes = 0;
+
+        foreach (self::parseFrames($bytes, $maxUncompressedBytes, null, false) as $frameIndex => $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $skippableFrameCount++;
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => $frameIndex,
+                    'id' => $frame['id'],
+                    'data' => $frame['data'],
+                    'frameSize' => $frame['frameSize'],
+                    'frameOffset' => $frame['frameOffset'],
+                    'nextFrameOffset' => $frame['nextFrameOffset'],
+                ];
+                continue;
+            }
+
+            $decodedSize = strlen($frame['data']);
+            $decodedContentBytes += $decodedSize;
+            $contentSize = $frame['contentSize'];
+            $matches = null;
+            $delta = null;
+            $diagnostics = [];
+
+            if ($contentSize === null) {
+                $missingContentSizeFrameCount++;
+            } else {
+                $declaredContentSizeFrameCount++;
+                $declaredContentSizeBytes += $contentSize;
+                $matches = $contentSize === $decodedSize;
+                $delta = $contentSize - $decodedSize;
+                if (!$matches) {
+                    $diagnostics[] = 'lz4-content-size-mismatch';
+                    $mismatchedContentSizeFrameCount++;
+                    if ($firstMismatchedFrameIndex === null) {
+                        $firstMismatchedFrameIndex = $frameIndex;
+                    }
+                    if ($firstMismatchedDataFrameIndex === null) {
+                        $firstMismatchedDataFrameIndex = $dataFrameIndex;
+                    }
+                }
+            }
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => $frameIndex,
+                'dataFrameIndex' => $dataFrameIndex,
+                'contentSize' => $contentSize,
+                'decodedDataSize' => $decodedSize,
+                'contentSizeMatches' => $matches,
+                'contentSizeDelta' => $delta,
+                'dictionaryId' => $frame['dictionaryId'],
+                'blockMaxSize' => $frame['blockMaxSize'],
+                'blockIndependent' => $frame['blockIndependent'],
+                'blockChecksum' => $frame['blockChecksum'],
+                'contentChecksum' => $frame['contentChecksum'],
+                'blockCount' => $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => $frame['compressedSize'],
+                'frameSize' => $frame['frameSize'],
+                'frameOffset' => $frame['frameOffset'],
+                'nextFrameOffset' => $frame['nextFrameOffset'],
+                'decodedDataOffset' => $frame['decodedDataOffset'],
+                'decodedDataEndOffset' => $frame['decodedDataEndOffset'],
+                'policy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'review-before-conversion',
+                'diagnostics' => $diagnostics,
+            ];
+            $dataFrameIndex++;
+        }
+
+        return [
+            'frameCount' => count($frames),
+            'dataFrameCount' => $dataFrameIndex,
+            'skippableFrameCount' => $skippableFrameCount,
+            'declaredContentSizeFrameCount' => $declaredContentSizeFrameCount,
+            'missingContentSizeFrameCount' => $missingContentSizeFrameCount,
+            'mismatchedContentSizeFrameCount' => $mismatchedContentSizeFrameCount,
+            'firstMismatchedFrameIndex' => $firstMismatchedFrameIndex,
+            'firstMismatchedDataFrameIndex' => $firstMismatchedDataFrameIndex,
+            'declaredContentSizeBytes' => $declaredContentSizeBytes,
+            'decodedContentBytes' => $decodedContentBytes,
+            'extractionPolicy' => $mismatchedContentSizeFrameCount === 0
+                ? 'lz4-content-size-consistent-or-absent'
+                : 'lz4-content-size-mismatch-blocked',
+            'frames' => $frames,
+        ];
+    }
+
+    /**
      * @return list<array{
      *     type:string,
      *     data:string,
@@ -373,7 +488,8 @@ final class Lz4Frame
     private static function parseFrames(
         string $bytes,
         ?int $maxUncompressedBytes,
-        ?array $dictionaryMap
+        ?array $dictionaryMap,
+        bool $enforceContentSize = true
     ): array
     {
         if ($bytes === '') {
@@ -539,7 +655,8 @@ final class Lz4Frame
             }
             $decodedDataEndOffset = $totalUncompressedBytes;
 
-            if ($contentSize !== null && strlen($data) !== $contentSize) {
+            $contentSizeMatches = $contentSize === null ? null : strlen($data) === $contentSize;
+            if ($contentSizeMatches === false && $enforceContentSize) {
                 throw new \RuntimeException('LZ4 content size does not match decoded payload length');
             }
 
@@ -563,6 +680,7 @@ final class Lz4Frame
                 'decodedDataOffset' => $decodedDataOffset,
                 'decodedDataEndOffset' => $decodedDataEndOffset,
                 'contentSize' => $contentSize,
+                'contentSizeMatches' => $contentSizeMatches,
                 'dictionaryId' => $dictionaryId,
                 'blockMaxSize' => $blockMaxSize,
                 'blockIndependent' => $blockIndependent,

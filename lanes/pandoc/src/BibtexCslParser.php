@@ -643,6 +643,7 @@ final class BibtexCslParser
         $item = [
             'id' => $key,
             'type' => self::cslTypeForEntry($type, $fields),
+            'source' => self::firstField($fields, ['source', 'sourcetitle', 'source-title']),
             'citation-aliases' => self::biblatexKeyList($fields['ids'] ?? ''),
             'citation-label' => self::firstField($fields, ['shorthand', 'label']),
             'label' => self::firstField($fields, ['label']),
@@ -699,7 +700,9 @@ final class BibtexCslParser
             'number-of-volumes' => self::firstField($fields, ['volumes']),
             'number-of-pages' => self::firstField($fields, ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages']),
             'chapter-number' => self::firstField($fields, ['chapter']),
+            'section' => self::firstField($fields, ['section']),
             'part' => self::firstField($fields, ['part']),
+            'supplement' => self::firstField($fields, ['supplement']),
             'genre' => self::firstField($fields, ['type', 'entrysubtype']),
             'entry-subtype' => self::firstField($fields, ['entrysubtype', 'entry-subtype']),
             'gender' => self::firstField($fields, ['gender']),

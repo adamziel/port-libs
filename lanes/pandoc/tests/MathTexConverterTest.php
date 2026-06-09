@@ -841,6 +841,32 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\doteq</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\nsubseteq</mi>'));
     },
+    'converts bounded texmath variant greek and underbar aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $variantGreekMathml = $converter->texToMathMl('\\varGamma + \\varDelta + \\varTheta + \\varLambda + \\varXi + \\varPi + \\varSigma + \\varUpsilon + \\varPhi + \\varPsi + \\varOmega', true);
+        $lowerVariantMathml = $converter->texToMathMl('\\varrho_i + \\varsigma + \\upUpsilon');
+        $barMathml = $converter->texToMathMl('\\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}} + \\overbar z_0');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\varDelta + \\varrho + \\overbar{x} + \\underbar{y}');
+        $combinedMathml = $variantGreekMathml . $lowerVariantMathml . $barMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $variantGreekMathml);
+        $t->contains('<mi>𝛤</mi><mo>+</mo><mi>𝛥</mi><mo>+</mo><mi>𝛩</mi><mo>+</mo><mi>𝛬</mi><mo>+</mo><mi>𝛯</mi><mo>+</mo><mi>𝛱</mi><mo>+</mo><mi>𝛴</mi><mo>+</mo><mi>𝛶</mi><mo>+</mo><mi>𝛷</mi><mo>+</mo><mi>𝛹</mi><mo>+</mo><mi>𝛺</mi>', $variantGreekMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\varGamma + \\varDelta + \\varTheta + \\varLambda + \\varXi + \\varPi + \\varSigma + \\varUpsilon + \\varPhi + \\varPsi + \\varOmega</annotation>', $variantGreekMathml);
+        $t->contains('<msub><mi>𝜚</mi><mi>i</mi></msub><mo>+</mo><mi>𝜍</mi><mo>+</mo><mi>ϒ</mi>', $lowerVariantMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\varrho_i + \\varsigma + \\upUpsilon</annotation>', $lowerVariantMathml);
+        $t->contains('<mover accent="true"><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mo>¯</mo></mover>', $barMathml);
+        $t->contains('<munder accentunder="true"><mi>draft</mi><mo>̱</mo></munder><mo>+</mo><msub><mover accent="true"><mi>z</mi><mo>¯</mo></mover><mn>0</mn></msub>', $barMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}} + \\overbar z_0</annotation>', $barMathml);
+        $t->contains('alttext="delta plus rho plus x over bar plus y under underbar"', $accessibleMathml);
+        $t->contains('intent="row(delta,plus,rho,plus,over(x,bar),plus,under(y,underbar))"', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\varGamma</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\varrho</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\overbar</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\underbar</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbar'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbar'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbar_1'));
+    },
     'converts bounded tex explicit operator limits to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $limitsMathml = $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\prod\\limits^{N} q', true);

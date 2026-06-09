@@ -117,6 +117,14 @@ schema-number-review:
   explicit-duration: !!int 1:20:30
   explicit-fractional-duration: !!float 1:20:30.5
 schema-number-flow-review: {elapsed: 0:01:05, explicit-elapsed: !!int 0:01:05}
+schema-integer-review:
+  leading-zero-ticket: 052
+  signed-leading-zero-ticket: -052
+  modern-octal-ticket: 0o52
+  hexadecimal-ticket: 0x2A
+  binary-ticket: 0b101010
+  explicit-binary-ticket: !!int 0b101010
+schema-integer-flow-review: {leading-zero-ticket: 010, modern-octal-ticket: 0o10, binary-ticket: 0b1000, explicit-binary-ticket: !!int 0b1000}
 tag-directive-review:
   owner: !wpd!reviewer Directive Desk
   ticket: !yaml!str 010
@@ -1266,6 +1274,65 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('YAML metadata self-test has wrong explicit YAML 1.2 sexagesimal provenance ' . $expectedPath);
         }
     }
+    if (($meta['schema-integer-review']['leading-zero-ticket'] ?? null) !== 52) {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 leading-zero decimal as legacy octal');
+    }
+    if (($meta['schema-integer-review']['signed-leading-zero-ticket'] ?? null) !== -52) {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 signed leading-zero decimal as legacy octal');
+    }
+    if (($meta['schema-integer-review']['modern-octal-ticket'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missed YAML 1.2 0o octal integer');
+    }
+    if (($meta['schema-integer-review']['hexadecimal-ticket'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missed YAML 1.2 hexadecimal integer');
+    }
+    if (($meta['schema-integer-review']['binary-ticket'] ?? '') !== '0b101010') {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 implicit binary integer');
+    }
+    if (($meta['schema-integer-review']['explicit-binary-ticket'] ?? null) !== 42) {
+        throw new RuntimeException('YAML metadata self-test missed explicit YAML 1.2 binary integer');
+    }
+    if (($meta['schema-integer-flow-review']['leading-zero-ticket'] ?? null) !== 10) {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 flow leading-zero decimal as legacy octal');
+    }
+    if (($meta['schema-integer-flow-review']['modern-octal-ticket'] ?? null) !== 8) {
+        throw new RuntimeException('YAML metadata self-test missed YAML 1.2 flow 0o octal integer');
+    }
+    if (($meta['schema-integer-flow-review']['binary-ticket'] ?? '') !== '0b1000') {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 flow implicit binary integer');
+    }
+    if (($meta['schema-integer-flow-review']['explicit-binary-ticket'] ?? null) !== 8) {
+        throw new RuntimeException('YAML metadata self-test missed explicit YAML 1.2 flow binary integer');
+    }
+    foreach ([
+        '/schema-integer-review/binary-ticket',
+        '/schema-integer-flow-review/binary-ticket',
+    ] as $yaml12ImplicitBinaryPath) {
+        if (array_key_exists($yaml12ImplicitBinaryPath, $yamlTypedScalarProvenance)) {
+            throw new RuntimeException('YAML metadata self-test recorded YAML 1.2 implicit binary scalar as typed ' . $yaml12ImplicitBinaryPath);
+        }
+    }
+    foreach ([
+        '/schema-integer-review/leading-zero-ticket' => ['number', null, '052'],
+        '/schema-integer-review/signed-leading-zero-ticket' => ['number', null, '-052'],
+        '/schema-integer-review/modern-octal-ticket' => ['number', null, '0o52'],
+        '/schema-integer-review/hexadecimal-ticket' => ['number', null, '0x2A'],
+        '/schema-integer-review/explicit-binary-ticket' => ['number', 'int', '0b101010'],
+        '/schema-integer-flow-review/leading-zero-ticket' => ['number', null, '010'],
+        '/schema-integer-flow-review/modern-octal-ticket' => ['number', null, '0o10'],
+        '/schema-integer-flow-review/explicit-binary-ticket' => ['number', 'int', '0b1000'],
+    ] as $expectedPath => [$expectedType, $expectedTag, $expectedSource]) {
+        $entry = $yamlTypedScalarProvenance[$expectedPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing YAML 1.2 integer provenance ' . $expectedPath);
+        }
+        if (($entry['scalarType'] ?? '') !== $expectedType || ($entry['source'] ?? '') !== $expectedSource) {
+            throw new RuntimeException('YAML metadata self-test has wrong YAML 1.2 integer provenance ' . $expectedPath);
+        }
+        if ($expectedTag !== null && ($entry['explicitTag'] ?? '') !== $expectedTag) {
+            throw new RuntimeException('YAML metadata self-test missing YAML 1.2 integer explicit tag ' . $expectedPath);
+        }
+    }
     if (array_key_exists('/typed-block-review/invalid-priority', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded invalid explicit block integer as a typed scalar');
     }
@@ -2357,6 +2424,13 @@ echo 'Boolean synonym review: '
     . (($meta['boolean-synonym-flow-review']['enabled'] ?? null) === 'ON' ? 'ON=string' : 'ON=missing')
     . ' / '
     . (($meta['boolean-synonym-flow-review']['disabled'] ?? null) === 'OFF' ? 'OFF=string' : 'OFF=missing')
+    . "\n";
+echo 'YAML 1.2 integer review: '
+    . ($meta['schema-integer-review']['leading-zero-ticket'] ?? '')
+    . ' / '
+    . ($meta['schema-integer-review']['binary-ticket'] ?? '')
+    . ' / flow '
+    . ($meta['schema-integer-flow-review']['leading-zero-ticket'] ?? '')
     . "\n";
 echo 'Tag directive review: ' . ($meta['tag-directive-review']['owner'] ?? '') . ' / priority ' . ($meta['tag-directive-review']['priority'] ?? '') . "\n";
 echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";

@@ -1236,6 +1236,92 @@ return [
         $t->same('yaml-1-2-numeric-body', $yaml12->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-1-2-numeric-body">YAML 1.2 numeric body</h1>', $blocks);
     },
+    'maps pandoc yaml 1.2 integer base schema without implicit legacy octal or binary scalars' => static function (TestRunner $t): void {
+        $yaml12 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '---',
+            'title: YAML 1.2 integer base **Packet**',
+            'review:',
+            '  leading-zero-ticket: 052',
+            '  signed-leading-zero-ticket: -052',
+            '  decimal-nine-ticket: 09',
+            '  modern-octal-ticket: 0o52',
+            '  hexadecimal-ticket: 0x2A',
+            '  binary-ticket: 0b101010',
+            '  explicit-binary-ticket: !!int 0b101010',
+            'flow-review: {leading-zero: 010, modern-octal: 0o10, binary: 0b1000, explicit-binary: !!int 0b1000}',
+            '...',
+            '',
+            '# YAML 1.2 integer base body',
+        ]));
+        $yaml11 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.1',
+            '---',
+            'title: YAML 1.1 integer base **Packet**',
+            'review: {leading-zero-ticket: 052, binary-ticket: 0b101010, modern-octal-ticket: 0o52}',
+            '...',
+            '',
+            '# YAML 1.1 integer base body',
+        ]));
+        $yaml12Meta = $yaml12->attr('meta');
+        $yaml11Meta = $yaml11->attr('meta');
+        $yaml12Typed = [];
+        foreach ($yaml12->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml12Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $yaml11Typed = [];
+        foreach ($yaml11->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml11Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($yaml12);
+
+        $t->same('YAML 1.2 integer base **Packet**', $yaml12Meta['title']);
+        $t->same(52, $yaml12Meta['review']['leading-zero-ticket']);
+        $t->same(-52, $yaml12Meta['review']['signed-leading-zero-ticket']);
+        $t->same(9, $yaml12Meta['review']['decimal-nine-ticket']);
+        $t->same(42, $yaml12Meta['review']['modern-octal-ticket']);
+        $t->same(42, $yaml12Meta['review']['hexadecimal-ticket']);
+        $t->same('0b101010', $yaml12Meta['review']['binary-ticket']);
+        $t->same(42, $yaml12Meta['review']['explicit-binary-ticket']);
+        $t->same(10, $yaml12Meta['flow-review']['leading-zero']);
+        $t->same(8, $yaml12Meta['flow-review']['modern-octal']);
+        $t->same('0b1000', $yaml12Meta['flow-review']['binary']);
+        $t->same(8, $yaml12Meta['flow-review']['explicit-binary']);
+        $t->same(42, $yaml11Meta['review']['leading-zero-ticket']);
+        $t->same(42, $yaml11Meta['review']['binary-ticket']);
+        $t->same(42, $yaml11Meta['review']['modern-octal-ticket']);
+        foreach ([
+            '/review/leading-zero-ticket' => ['number', null, '052'],
+            '/review/signed-leading-zero-ticket' => ['number', null, '-052'],
+            '/review/decimal-nine-ticket' => ['number', null, '09'],
+            '/review/modern-octal-ticket' => ['number', null, '0o52'],
+            '/review/hexadecimal-ticket' => ['number', null, '0x2A'],
+            '/review/explicit-binary-ticket' => ['number', 'int', '0b101010'],
+            '/flow-review/leading-zero' => ['number', null, '010'],
+            '/flow-review/modern-octal' => ['number', null, '0o10'],
+            '/flow-review/explicit-binary' => ['number', 'int', '0b1000'],
+        ] as $expectedPath => [$expectedType, $expectedTag, $expectedSource]) {
+            $entry = $yaml12Typed[$expectedPath] ?? null;
+            $t->true($entry !== null, 'missing YAML 1.2 integer provenance ' . $expectedPath);
+            $t->same($expectedType, $entry['scalarType'] ?? null);
+            $t->same($expectedSource, $entry['source'] ?? null);
+            if ($expectedTag !== null) {
+                $t->same($expectedTag, $entry['explicitTag'] ?? null);
+            }
+        }
+        $t->same(false, array_key_exists('/review/binary-ticket', $yaml12Typed));
+        $t->same(false, array_key_exists('/flow-review/binary', $yaml12Typed));
+        $t->same('number', $yaml11Typed['/review/leading-zero-ticket']['scalarType'] ?? null);
+        $t->same('number', $yaml11Typed['/review/binary-ticket']['scalarType'] ?? null);
+        $t->same('yaml-1-2-integer-base-body', $yaml12->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-1-2-integer-base-body">YAML 1.2 integer base body</h1>', $blocks);
+    },
     'records pandoc yaml invalid tag directive diagnostics before metadata document' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

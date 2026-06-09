@@ -18662,6 +18662,109 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: supplements third-fourth</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: supplement appendix packet</dd>', $blocks);
     },
+    'maps bounded bibtex csl source section and supplement fields into rendered variables' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@legislation{source-section-rule,
+  author  = {Smith, Ada},
+  title   = {Sectioned Import Rule},
+  year    = {2026},
+  source  = {Legacy Drupal export batch 42},
+  section = {2}
+}
+
+@report{supplement-review,
+  author       = {Ng, Nia},
+  title        = {Supplement Review Packet},
+  year         = {2025},
+  source-title = {MediaWiki export queue},
+  supplement   = {3-4}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Legacy Drupal export batch 42', $items[0]['source'] ?? null);
+        $t->same('2', $items[0]['section'] ?? null);
+        $t->same('MediaWiki export queue', $items[1]['source'] ?? null);
+        $t->same('3-4', $items[1]['supplement'] ?? null);
+        $t->same('source-title', array_key_exists('source-title', $items[1]['rawBibtex']['fields'] ?? []) ? 'source-title' : null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibTeX Source Locator Review</title>
+    <id>https://example.test/styles/bounded-bibtex-source-locator-review</id>
+    <updated>2026-06-09T02:19:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="source"/>
+        <choose>
+          <if variable="section">
+            <group delimiter=" ">
+              <label variable="section" form="symbol"/>
+              <number variable="section" form="ordinal"/>
+            </group>
+          </if>
+          <else-if variable="supplement">
+            <group delimiter=" ">
+              <label variable="supplement" form="short"/>
+              <number variable="supplement" form="ordinal"/>
+            </group>
+          </else-if>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source"/>
+      <choose>
+        <if variable="section">
+          <group delimiter=" ">
+            <label variable="section" form="short"/>
+            <text variable="section" form="long-ordinal"/>
+          </group>
+        </if>
+        <else-if variable="supplement">
+          <group delimiter=" ">
+            <label variable="supplement"/>
+            <text variable="supplement" form="long-ordinal"/>
+          </group>
+        </else-if>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $branches = $citationChildren[2]['branches'] ?? [];
+        $t->same('source', $citationChildren[1]['variable'] ?? null);
+        $t->same(['section'], $branches[0]['variables'] ?? null);
+        $t->same(['supplement'], $branches[1]['variables'] ?? null);
+
+        $t->same('Legacy Drupal export batch 42', $processor->item('source-section-rule')['source'] ?? null);
+        $t->same('2', $processor->item('source-section-rule')['section'] ?? null);
+        $t->same('MediaWiki export queue', $processor->item('supplement-review')['source'] ?? null);
+        $t->same('3-4', $processor->item('supplement-review')['supplement'] ?? null);
+        $t->same('(Smith | Legacy Drupal export batch 42 | § 2nd; Ng | MediaWiki export queue | supps. 3rd-4th)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-section-rule', 'text' => '[@source-section-rule]']),
+            new AstNode('citation', ['id' => 'supplement-review', 'text' => '[@supplement-review]']),
+        ]));
+        $t->same('Sectioned Import Rule :: Legacy Drupal export batch 42 :: sec. second', $processor->renderBibliographyEntry('source-section-rule'));
+        $t->same('Supplement Review Packet :: MediaWiki export queue :: supplements third-fourth', $processor->renderBibliographyEntry('supplement-review'));
+
+        $document = (new MarkdownReader())->read('BibTeX source fields [@source-section-rule; @supplement-review] keep imported provenance and locator metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibTeX source fields (Smith | Legacy Drupal export batch 42 | § 2nd; Ng | MediaWiki export queue | supps. 3rd-4th) keep imported provenance and locator metadata visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Sectioned Import Rule :: Legacy Drupal export batch 42 :: sec. second</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Supplement Review Packet :: MediaWiki export queue :: supplements third-fourth</dd>', $blocks);
+    },
     'renders bounded csl source variables for bibliography provenance' => static function (TestRunner $t): void {
         $items = [
             [
