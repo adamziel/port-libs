@@ -364,9 +364,50 @@ final class PandocJsonWriter
             return $this->writeInlines($inlines);
         }
 
+        $blockInlines = $this->writeShortCaptionBlockInlines($node->attr('shortCaptionBlocks', []));
+        if ($blockInlines !== []) {
+            return $blockInlines;
+        }
+
         $text = trim((string) $node->attr('shortCaption', ''));
 
         return $text === '' ? null : $this->writeInlines($this->textInlines($text));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function writeShortCaptionBlockInlines(mixed $blocks): array
+    {
+        if (!is_array($blocks) || $blocks === []) {
+            return [];
+        }
+
+        $blocks = array_values($blocks);
+        if (!$this->allAstNodes($blocks)) {
+            return [];
+        }
+
+        $inlines = [];
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode || !in_array($block->type, ['plain', 'paragraph'], true)) {
+                return [];
+            }
+            if (!$this->allInlineNodes($block->children)) {
+                return [];
+            }
+
+            $blockInlines = $this->writeInlines($block->children);
+            if ($blockInlines === []) {
+                continue;
+            }
+            if ($inlines !== []) {
+                $inlines[] = ['t' => 'SoftBreak'];
+            }
+            array_push($inlines, ...$blockInlines);
+        }
+
+        return $inlines;
     }
 
     /**

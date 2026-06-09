@@ -761,6 +761,57 @@ return [
         $t->same('Fallback short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Fallback long', $generatedRoundTrip->children[0]->attr('caption'));
     },
+    'writes shared short caption blocks as pandoc json caption inlines' => static function (TestRunner $t): void {
+        $sourceTable = new AstNode('table', [
+            'captionBlocks' => [
+                new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'JSON']),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [
+                        new AstNode('text', ['text' => 'long']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'caption']),
+                ]),
+            ],
+            'shortCaptionBlocks' => [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Review']),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [
+                        new AstNode('text', ['text' => 'queue']),
+                    ]),
+                ]),
+            ],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [], [
+                        new AstNode('text', ['text' => 'Cell']),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $document = new AstNode('document', [], [$sourceTable]);
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+
+        $sourcePacket = TableGeometry::reviewPacket($sourceTable, ['accessibility' => false]);
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+        $table = $roundTrip->children[0];
+        $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
+        $t->same('Review', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Space', $encoded['blocks'][0]['c'][1][0][1]['t']);
+        $t->same('Emph', $encoded['blocks'][0]['c'][1][0][2]['t']);
+        $t->same('Plain', $encoded['blocks'][0]['c'][1][1][0]['t']);
+        $t->same('JSON long caption', $table->attr('caption'));
+        $t->same('Review queue', $table->attr('shortCaption'));
+        $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
+        $t->same(['text', 'space', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
+    },
     'maps pandoc definition lists into term and definition ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

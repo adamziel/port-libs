@@ -419,4 +419,53 @@ return [
         $t->same([0.3, null], $table->attr('widths'));
         $t->same('center', $table->children[1]->children[0]->children[1]->attr('align'));
     },
+    'writes shared table short caption blocks as pandoc native ast inlines' => static function (TestRunner $t): void {
+        $sourceTable = new AstNode('table', [
+            'captionBlocks' => [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Block']),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [
+                        new AstNode('text', ['text' => 'long']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'caption']),
+                ]),
+            ],
+            'shortCaptionBlocks' => [
+                new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Queue']),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [
+                        new AstNode('text', ['text' => 'short']),
+                    ]),
+                ]),
+            ],
+        ], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', [], [
+                        new AstNode('text', ['text' => 'Cell']),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [$sourceTable]);
+
+        $sourcePacket = TableGeometry::reviewPacket($sourceTable, ['accessibility' => false]);
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $table = $roundTrip->children[0];
+        $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
+        $t->same('Queue', $native['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Space', $native['blocks'][0]['c'][1][0][1]['t']);
+        $t->same('Emph', $native['blocks'][0]['c'][1][0][2]['t']);
+        $t->same('Para', $native['blocks'][0]['c'][1][1][0]['t']);
+        $t->same('Block long caption', $table->attr('caption'));
+        $t->same('Queue short', $table->attr('shortCaption'));
+        $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
+        $t->same(['text', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
+    },
 ];
