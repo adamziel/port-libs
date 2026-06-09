@@ -4941,16 +4941,21 @@ final class UnicodeText
     ];
 
     /**
-     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, normalization?:array{form:string, changed:bool, implementation:string}}
+     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, diagnostics?:list<string>, normalization?:array{form:string, changed:bool, implementation:string}}
      */
     public static function decodeBytes(string $bytes, ?string $encoding = null, ?string $normalizationForm = null): array
     {
-        $normalized = self::normalizeEncoding($encoding);
+        $requestedEncoding = self::normalizeEncoding($encoding);
+        $normalized = $requestedEncoding;
+        $diagnostics = self::requestedEncodingDiagnostics($encoding, $requestedEncoding);
         $bom = null;
         $bomInfo = self::byteOrderMarkEncoding($bytes);
         if ($bomInfo !== null) {
             $bom = $bomInfo['encoding'];
             $bytes = substr($bytes, $bomInfo['length']);
+            if ($requestedEncoding !== null && !self::isBomCompatibleEncoding($requestedEncoding, $bomInfo['encoding'])) {
+                $diagnostics[] = 'byte-order-mark-overrode-encoding:' . $requestedEncoding;
+            }
             $normalized = $bomInfo['encoding'];
         }
 
@@ -4965,13 +4970,13 @@ final class UnicodeText
         if ($normalized === 'utf-32le' || $normalized === 'utf-32be') {
             [$text, $repairs] = self::decodeUtf32($bytes, $normalized === 'utf-32le');
 
-            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm, $diagnostics);
         }
 
         if ($normalized === 'utf-16le' || $normalized === 'utf-16be') {
             [$text, $repairs] = self::decodeUtf16($bytes, $normalized === 'utf-16le');
 
-            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm, $diagnostics);
         }
 
         if ($normalized === 'windows-1252'
@@ -5037,7 +5042,7 @@ final class UnicodeText
         ) {
             [$text, $repairs] = self::decodeSingleByte($bytes, $normalized);
 
-            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm, $diagnostics);
         }
         if ($normalized === 'shift_jis'
             || $normalized === 'euc-jp'
@@ -5073,12 +5078,15 @@ final class UnicodeText
                 default => self::decodeHzGb2312($bytes),
             };
 
-            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm);
+            return self::decodedResult($text, $normalized, $bom, $repairs, $normalizationForm, $diagnostics);
         }
 
         [$text, $repairs] = self::repairUtf8($bytes);
+        if ($repairs > 0) {
+            $diagnostics[] = 'invalid-utf8-repaired:' . $repairs;
+        }
 
-        return self::decodedResult($text, $repairs === 0 ? 'utf-8' : 'utf-8-repaired', $bom, $repairs, $normalizationForm);
+        return self::decodedResult($text, $repairs === 0 ? 'utf-8' : 'utf-8-repaired', $bom, $repairs, $normalizationForm, $diagnostics);
     }
 
     /**
@@ -5490,9 +5498,17 @@ final class UnicodeText
     }
 
     /**
-     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, normalization?:array{form:string, changed:bool, implementation:string}}
+     * @param list<string> $diagnostics
+     * @return array{text:string, encoding:string, bom:string|null, repairs:int, lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int}, diagnostics?:list<string>, normalization?:array{form:string, changed:bool, implementation:string}}
      */
-    private static function decodedResult(string $text, string $encoding, ?string $bom, int $repairs, ?string $normalizationForm): array
+    private static function decodedResult(
+        string $text,
+        string $encoding,
+        ?string $bom,
+        int $repairs,
+        ?string $normalizationForm,
+        array $diagnostics = []
+    ): array
     {
         [$text, $lineEndings] = self::normalizeLineEndings($text);
         $result = [
@@ -5502,6 +5518,10 @@ final class UnicodeText
             'repairs' => $repairs,
             'lineEndings' => $lineEndings,
         ];
+
+        if ($diagnostics !== []) {
+            $result['diagnostics'] = array_values(array_unique($diagnostics));
+        }
 
         if ($normalizationForm !== null && trim($normalizationForm) !== '') {
             $normalization = self::normalize($text, $normalizationForm);
@@ -5514,6 +5534,39 @@ final class UnicodeText
         }
 
         return $result;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function requestedEncodingDiagnostics(?string $label, ?string $encoding): array
+    {
+        if ($label === null || trim($label) === '') {
+            return [];
+        }
+
+        if ($encoding === 'utf-8' && !self::isExplicitUtf8EncodingLabel($label)) {
+            return ['unknown-charset-label-defaulted-to-utf-8'];
+        }
+
+        return [];
+    }
+
+    private static function isBomCompatibleEncoding(string $requestedEncoding, string $bomEncoding): bool
+    {
+        if ($requestedEncoding === $bomEncoding) {
+            return true;
+        }
+
+        if ($requestedEncoding === 'utf-16') {
+            return $bomEncoding === 'utf-16le' || $bomEncoding === 'utf-16be';
+        }
+
+        if ($requestedEncoding === 'utf-32') {
+            return $bomEncoding === 'utf-32le' || $bomEncoding === 'utf-32be';
+        }
+
+        return false;
     }
 
     /**

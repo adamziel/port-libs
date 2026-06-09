@@ -89,12 +89,16 @@ final class MarkdownReader
     {
         $decoded = UnicodeText::decodeBytes($bytes, $encoding, $normalizationForm);
         $document = $this->read($decoded['text']);
+        $sourceEncoding = [
+            'encoding' => $decoded['encoding'],
+            'bom' => $decoded['bom'],
+            'repairs' => $decoded['repairs'],
+        ];
+        if (($decoded['diagnostics'] ?? []) !== []) {
+            $sourceEncoding['diagnostics'] = $decoded['diagnostics'];
+        }
         $attrs = array_replace($document->attrs, [
-            'sourceEncoding' => [
-                'encoding' => $decoded['encoding'],
-                'bom' => $decoded['bom'],
-                'repairs' => $decoded['repairs'],
-            ],
+            'sourceEncoding' => $sourceEncoding,
         ]);
         if (($decoded['lineEndings']['conversions'] ?? 0) > 0) {
             $attrs['sourceLineEndings'] = $decoded['lineEndings'];

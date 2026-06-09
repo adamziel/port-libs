@@ -2080,11 +2080,18 @@ return [
         $t->same('utf-8', $utf8['bom']);
         $t->same("# Cafe\u{0301}\n\nUTF-8 source", $utf8['text']);
         $t->same(0, $utf8['repairs']);
+        $t->same(['byte-order-mark-overrode-encoding:windows-1252'], $utf8['diagnostics']);
         $t->same('utf-16le', $utf16['encoding']);
         $t->same('utf-16le', $utf16['bom']);
         $t->same("# \u{9B5A}\n\nBOM override", $utf16['text']);
         $t->same(0, $utf16['repairs']);
-        $t->same(['encoding' => 'utf-16be', 'bom' => 'utf-16be', 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same(['byte-order-mark-overrode-encoding:windows-1252'], $utf16['diagnostics']);
+        $t->same([
+            'encoding' => 'utf-16be',
+            'bom' => 'utf-16be',
+            'repairs' => 0,
+            'diagnostics' => ['byte-order-mark-overrode-encoding:windows-1252'],
+        ], $document->attr('sourceEncoding'));
         $t->same('計画', $document->children[0]->attr('text'));
         $t->same('BE', $document->children[1]->attr('text'));
         $t->contains('<h1 id="計画">計画</h1>', $blocks);
@@ -2179,7 +2186,12 @@ return [
         $t->same('utf-32be', $decodedBe['encoding']);
         $t->same('utf-32be', $decodedBe['bom']);
         $t->same("# 計画\n\nBE", $decodedBe['text']);
-        $t->same(['encoding' => 'utf-32be', 'bom' => 'utf-32be', 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same([
+            'encoding' => 'utf-32be',
+            'bom' => 'utf-32be',
+            'repairs' => 0,
+            'diagnostics' => ['byte-order-mark-overrode-encoding:windows-1252'],
+        ], $document->attr('sourceEncoding'));
         $t->same('計画', $document->children[0]->attr('text'));
         $t->same('BE', $document->children[1]->attr('text'));
         $t->contains('<h1 id="計画">計画</h1>', $blocks);
@@ -2194,9 +2206,33 @@ return [
 
         $t->same('utf-8-repaired', $decoded['encoding']);
         $t->same(2, $decoded['repairs']);
+        $t->same(['invalid-utf8-repaired:2'], $decoded['diagnostics']);
         $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $decoded['text']);
-        $t->same(['encoding' => 'utf-8-repaired', 'bom' => null, 'repairs' => 2], $document->attr('sourceEncoding'));
+        $t->same([
+            'encoding' => 'utf-8-repaired',
+            'bom' => null,
+            'repairs' => 2,
+            'diagnostics' => ['invalid-utf8-repaired:2'],
+        ], $document->attr('sourceEncoding'));
         $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $document->children[0]->attr('text'));
+    },
+    'preserves unicode decode diagnostics for review handoff' => static function (TestRunner $t) use ($utf16le): void {
+        $bomOverride = UnicodeText::decodeBytes("\xFF\xFE" . $utf16le([0x004F, 0x004B]), 'windows-1252');
+        $unknown = UnicodeText::decodeBytes('Plain text', 'x-pandoc-fallback');
+        $document = (new MarkdownReader())->readBytes("Bad \xED\xA0\x80 scalar", 'utf-8');
+
+        $t->same('utf-16le', $bomOverride['encoding']);
+        $t->same('OK', $bomOverride['text']);
+        $t->same(['byte-order-mark-overrode-encoding:windows-1252'], $bomOverride['diagnostics']);
+        $t->same('utf-8', $unknown['encoding']);
+        $t->same(['unknown-charset-label-defaulted-to-utf-8'], $unknown['diagnostics']);
+        $t->same([
+            'encoding' => 'utf-8-repaired',
+            'bom' => null,
+            'repairs' => 1,
+            'diagnostics' => ['invalid-utf8-repaired:1'],
+        ], $document->attr('sourceEncoding'));
+        $t->same("Bad \u{FFFD} scalar", $document->children[0]->attr('text'));
     },
     'repairs complete invalid utf8 scalar sequences once' => static function (TestRunner $t): void {
         $bytes = "# UTF-8 Repair\n\nBad \xED\xA0\x80 high \xED\xB0\x80 low \xE0\x80\x80 overlong \xF0\x80\x80\x80 wide \xF4\x90\x80\x80 beyond.";
@@ -2207,8 +2243,14 @@ return [
 
         $t->same('utf-8-repaired', $decoded['encoding']);
         $t->same(5, $decoded['repairs']);
+        $t->same(['invalid-utf8-repaired:5'], $decoded['diagnostics']);
         $t->same("# UTF-8 Repair\n\n{$text}", $decoded['text']);
-        $t->same(['encoding' => 'utf-8-repaired', 'bom' => null, 'repairs' => 5], $document->attr('sourceEncoding'));
+        $t->same([
+            'encoding' => 'utf-8-repaired',
+            'bom' => null,
+            'repairs' => 5,
+            'diagnostics' => ['invalid-utf8-repaired:5'],
+        ], $document->attr('sourceEncoding'));
         $t->same('UTF-8 Repair', $document->children[0]->attr('text'));
         $t->same($text, $document->children[1]->attr('text'));
         $t->same(44, UnicodeText::displayWidth($text));
@@ -2219,6 +2261,7 @@ return [
         $broken = UnicodeText::decodeBytes("Broken \xE2(\xA1 UTF-8");
         $t->same("Broken \u{FFFD}(\u{FFFD} UTF-8", $broken['text']);
         $t->same(2, $broken['repairs']);
+        $t->same(['invalid-utf8-repaired:2'], $broken['diagnostics']);
     },
     'normalizes decoded carriage return line endings before markdown parsing' => static function (TestRunner $t) use ($utf16le): void {
         $decoded = UnicodeText::decodeBytes("# Import\r\n\r\nFirst paragraph\rSecond paragraph", 'utf-8');
