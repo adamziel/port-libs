@@ -2294,6 +2294,9 @@ XML;
         $network = new OpcRelationship('rIdNetworkType', '//schemas.openxmlformats.org/relationships/image', 'media/review.png');
         $fragment = new OpcRelationship('rIdFragmentType', '#relationship-type', 'media/review.png');
         $space = new OpcRelationship('rIdSpaceType', 'http://example.test/relationship type', 'media/review.png');
+        $badPercent = new OpcRelationship('rIdBadPercentType', 'http://example.test/relationships/%ZZ', 'media/review.png');
+        $encodedControl = new OpcRelationship('rIdEncodedControlType', 'http://example.test/relationships/%00image', 'media/review.png');
+        $encodedSpace = new OpcRelationship('rIdEncodedSpaceType', 'http://example.test/relationships/source%20image', 'media/review.png');
 
         $t->same([
             'kind' => 'absolute-uri',
@@ -2313,11 +2316,17 @@ XML;
         $t->same('fragment-reference', $fragment->relationshipTypePreflight()['kind']);
         $t->same(['relationship-type-not-absolute-uri'], $fragment->relationshipTypePreflight()['issues']);
         $t->same(['relationship-type-invalid-uri-bytes'], $space->relationshipTypePreflight()['issues']);
+        $t->same(['relationship-type-malformed-percent-escape'], $badPercent->relationshipTypePreflight()['issues']);
+        $t->same(['relationship-type-unsafe-percent-encoded-byte'], $encodedControl->relationshipTypePreflight()['issues']);
+        $t->same([], $encodedSpace->relationshipTypePreflight()['issues']);
 
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
   <Relationship Id="rIdBadType" Type="officeDocument/relationships/hyperlink" Target="https://example.test/source" TargetMode="External"/>
+  <Relationship Id="rIdBadPercentType" Type="http://example.test/relationships/%ZZ" Target="media/review-image.PNG"/>
+  <Relationship Id="rIdEncodedControlType" Type="http://example.test/relationships/%00image" Target="media/review-image.PNG"/>
+  <Relationship Id="rIdEncodedSpaceType" Type="http://example.test/relationships/source%20image" Target="media/review-image.PNG"/>
 </Relationships>
 XML;
 
@@ -2327,6 +2336,7 @@ XML;
             ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
             ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
             ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
         ]));
 
@@ -2347,6 +2357,21 @@ XML;
         $t->same(['relationship-type-not-absolute-uri'], $preflight['rIdBadType']['relationshipTypeIssues']);
         $t->same(false, $preflight['rIdBadType']['valid']);
         $t->same(['relationship-type-not-absolute-uri'], $preflight['rIdBadType']['issues']);
+        $t->same('absolute-uri', $preflight['rIdBadPercentType']['relationshipTypeKind']);
+        $t->same('http', $preflight['rIdBadPercentType']['relationshipTypeScheme']);
+        $t->same(false, $preflight['rIdBadPercentType']['relationshipTypeValid']);
+        $t->same(['relationship-type-malformed-percent-escape'], $preflight['rIdBadPercentType']['relationshipTypeIssues']);
+        $t->same(false, $preflight['rIdBadPercentType']['valid']);
+        $t->same(['relationship-type-malformed-percent-escape'], $preflight['rIdBadPercentType']['issues']);
+        $t->same(true, $preflight['rIdBadPercentType']['exists']);
+        $t->same('image/png', $preflight['rIdBadPercentType']['contentType']);
+        $t->same(false, $preflight['rIdEncodedControlType']['relationshipTypeValid']);
+        $t->same(['relationship-type-unsafe-percent-encoded-byte'], $preflight['rIdEncodedControlType']['relationshipTypeIssues']);
+        $t->same(false, $preflight['rIdEncodedControlType']['valid']);
+        $t->same(['relationship-type-unsafe-percent-encoded-byte'], $preflight['rIdEncodedControlType']['issues']);
+        $t->same(true, $preflight['rIdEncodedSpaceType']['relationshipTypeValid']);
+        $t->same([], $preflight['rIdEncodedSpaceType']['relationshipTypeIssues']);
+        $t->same(true, $preflight['rIdEncodedSpaceType']['valid']);
 
         $closureById = [];
         foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
@@ -2355,6 +2380,9 @@ XML;
 
         $t->same('relative-reference', $closureById['rIdBadType']['relationshipTypeKind']);
         $t->same(['relationship-type-not-absolute-uri'], $closureById['rIdBadType']['issues']);
+        $t->same(['relationship-type-malformed-percent-escape'], $closureById['rIdBadPercentType']['issues']);
+        $t->same(['relationship-type-unsafe-percent-encoded-byte'], $closureById['rIdEncodedControlType']['issues']);
+        $t->same([], $closureById['rIdEncodedSpaceType']['relationshipTypeIssues']);
     },
     'preflights OPC digital signature origin and signature parts' => static function (TestRunner $t): void {
         $signedContentTypesXml = <<<'XML'

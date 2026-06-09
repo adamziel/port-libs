@@ -60,6 +60,12 @@ final class OpcRelationship
             $issues[] = 'relationship-type-invalid-uri-bytes';
         }
 
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $this->type) === 1) {
+            $issues[] = 'relationship-type-malformed-percent-escape';
+        } elseif (self::uriReferenceContainsPercentEncodedControlByte($this->type)) {
+            $issues[] = 'relationship-type-unsafe-percent-encoded-byte';
+        }
+
         if ($kind === 'absolute-uri' && substr($this->type, strlen((string) $scheme) + 1) === '') {
             $issues[] = 'relationship-type-empty-uri-body';
         }
@@ -104,7 +110,7 @@ final class OpcRelationship
 
         if (preg_match('/%(?![0-9A-Fa-f]{2})/', $this->target) === 1) {
             $issues[] = 'external-target-malformed-percent-escape';
-        } elseif (self::externalTargetContainsPercentEncodedControlByte($this->target)) {
+        } elseif (self::uriReferenceContainsPercentEncodedControlByte($this->target)) {
             $issues[] = 'external-target-unsafe-percent-encoded-byte';
         }
 
@@ -127,7 +133,7 @@ final class OpcRelationship
         }
     }
 
-    private static function externalTargetContainsPercentEncodedControlByte(string $target): bool
+    private static function uriReferenceContainsPercentEncodedControlByte(string $target): bool
     {
         if (preg_match_all('/%([0-9A-Fa-f]{2})/', $target, $matches) === 0) {
             return false;

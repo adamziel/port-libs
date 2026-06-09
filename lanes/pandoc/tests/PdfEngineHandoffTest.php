@@ -8646,6 +8646,98 @@ MARKDOWN);
         $t->same($expectedFiles, $sequence['finalPdfEmbeddedFiles']);
     },
 
+    'fake runner summarizes bounded pdf collection portfolio review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/portfolio-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Collection 20 0 R /Names << /EmbeddedFiles << /Names [(dataset.csv) 22 0 R (loose.txt) 24 0 R] >> >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Type /Collection /View /D /D (missing.zip) /Schema << /Title 21 0 R /Size << /Type /CollectionField /Subtype /Size /N (Attachment size) /O 2 /V false /E false >> /Reviewed << /Type /CollectionField /Subtype /S /N (Reviewed) /O 3 /V true /E false >> >> /Sort << /S [/Title /MissingSort] /A [true false] >> >>',
+            'endobj',
+            '21 0 obj',
+            '<< /Type /CollectionField /Subtype /S /N (Review title) /O 1 /V true /E true >>',
+            'endobj',
+            '22 0 obj',
+            '<< /Type /Filespec /F (dataset.csv) /Desc (Portfolio dataset) /AFRelationship /Data /CI << /Title (Dataset export) /Reviewed true /ExtraField (legacy) >> >>',
+            'endobj',
+            '24 0 obj',
+            '<< /Type /Filespec /F (loose.txt) /Desc (Loose portfolio note) /AFRelationship /Supplement >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/portfolio-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/portfolio-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'reviewStatus' => 'review',
+            'defaultDocument' => 'missing.zip',
+            'defaultDocumentMatched' => false,
+            'embeddedFileCount' => 2,
+            'collectionItemFileCount' => 1,
+            'schemaFieldCount' => 3,
+            'sortFieldCount' => 2,
+            'visibleFieldCount' => 2,
+            'editableFieldCount' => 1,
+            'undefinedSortFields' => ['MissingSort'],
+            'embeddedFiles' => [
+                [
+                    'name' => 'dataset.csv',
+                    'collectionItemCount' => 3,
+                    'missingSchemaFields' => ['Size'],
+                    'extraCollectionItems' => ['ExtraField'],
+                ],
+                [
+                    'name' => 'loose.txt',
+                    'collectionItemCount' => 0,
+                    'missingSchemaFields' => ['Reviewed', 'Size', 'Title'],
+                    'extraCollectionItems' => [],
+                ],
+            ],
+            'issues' => [
+                'collection-item-field-not-in-schema',
+                'default-document-not-embedded',
+                'embedded-file-missing-collection-items',
+                'schema-field-missing-on-collection-item',
+                'sort-field-not-in-schema',
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfCollectionPolicy'] ?? null);
+        $t->contains('pdf-byte-collection-policy:review', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-embedded-files:2', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-collection-items:1', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-undefined-sort-fields:1', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-default-missing', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-issue:default-document-not-embedded:1', $diagnostics);
+        $t->contains('pdf-byte-collection-policy-issue:schema-field-missing-on-collection-item:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfCollectionPolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf article thread bead metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/threaded.pdf']);

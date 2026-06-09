@@ -407,6 +407,7 @@ final class PdfEngineHandoff
      *     pdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     pdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     pdfCollectionPolicy: array<string, mixed>,
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -899,6 +900,7 @@ final class PdfEngineHandoff
         $pdfOptionalContentConfig = [];
         $pdfOptionalContentMemberships = [];
         $pdfCollectionMetadata = [];
+        $pdfCollectionPolicy = [];
         $pdfAcroFormMetadata = [];
         $pdfAcroFormCalculationOrder = [];
         $pdfThreads = [];
@@ -1035,6 +1037,7 @@ final class PdfEngineHandoff
                 $pdfOptionalContentConfig = $pdfInspection['optionalContentConfig'];
                 $pdfOptionalContentMemberships = $pdfInspection['optionalContentMemberships'];
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
+                $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
                 $pdfThreads = $pdfInspection['threads'];
@@ -2770,6 +2773,40 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-collection-sort-fields:' . count($pdfCollectionMetadata['sort']['fields']);
                     }
                 }
+                if ($pdfCollectionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-collection-policy:' . ($pdfCollectionPolicy['reviewStatus'] ?? 'unknown');
+                    if (isset($pdfCollectionPolicy['embeddedFileCount']) && is_int($pdfCollectionPolicy['embeddedFileCount'])) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-embedded-files:' . $pdfCollectionPolicy['embeddedFileCount'];
+                    }
+                    if (isset($pdfCollectionPolicy['collectionItemFileCount']) && is_int($pdfCollectionPolicy['collectionItemFileCount'])) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-collection-items:' . $pdfCollectionPolicy['collectionItemFileCount'];
+                    }
+                    if (isset($pdfCollectionPolicy['schemaFieldCount']) && is_int($pdfCollectionPolicy['schemaFieldCount'])) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-schema-fields:' . $pdfCollectionPolicy['schemaFieldCount'];
+                    }
+                    if (isset($pdfCollectionPolicy['sortFieldCount']) && is_int($pdfCollectionPolicy['sortFieldCount'])) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-sort-fields:' . $pdfCollectionPolicy['sortFieldCount'];
+                    }
+                    if (isset($pdfCollectionPolicy['undefinedSortFields']) && is_array($pdfCollectionPolicy['undefinedSortFields']) && $pdfCollectionPolicy['undefinedSortFields'] !== []) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-undefined-sort-fields:' . count($pdfCollectionPolicy['undefinedSortFields']);
+                    }
+                    if (($pdfCollectionPolicy['defaultDocumentMatched'] ?? null) === false) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-default-missing';
+                    }
+                    if (isset($pdfCollectionPolicy['issues']) && is_array($pdfCollectionPolicy['issues']) && $pdfCollectionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-collection-policy-issues:' . count($pdfCollectionPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfCollectionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-collection-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfAcroFormMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-acroform';
                     if (($pdfAcroFormMetadata['fieldCount'] ?? 0) > 0) {
@@ -4026,6 +4063,7 @@ final class PdfEngineHandoff
             'pdfOptionalContentConfig' => $pdfOptionalContentConfig,
             'pdfOptionalContentMemberships' => $pdfOptionalContentMemberships,
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
+            'pdfCollectionPolicy' => $pdfCollectionPolicy,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
             'pdfThreads' => $pdfThreads,
@@ -4183,6 +4221,7 @@ final class PdfEngineHandoff
      *     finalPdfOptionalContentConfig: array{name:string|null, creator:string|null, baseState:string|null, listMode:string|null, on:list<string>, off:list<string>, order:list<string>, orderLabels:list<string>, locked?:list<string>, radioButtonGroups?:list<list<string>>}|array{},
      *     finalPdfOptionalContentMemberships: list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, type:string|null, groups:list<string>, policy:string|null, visibilityExpressionOperators:list<string>, visibilityExpressionGroups:list<string>}>,
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     finalPdfCollectionPolicy: array<string, mixed>,
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
@@ -4485,6 +4524,7 @@ final class PdfEngineHandoff
             'finalPdfOptionalContentConfig' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentConfig'] ?? null) ? $finalRun['pdfOptionalContentConfig'] : [],
             'finalPdfOptionalContentMemberships' => is_array($finalRun) && is_array($finalRun['pdfOptionalContentMemberships'] ?? null) ? $finalRun['pdfOptionalContentMemberships'] : [],
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
+            'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
@@ -5874,6 +5914,7 @@ final class PdfEngineHandoff
      *     markedContentProperties:list<array{page:int, pageObject:string|null, propertyName:string, propertyObject:string|null, inherited:bool, mcid:int|null, language:string|null, alt:string|null, actualText:string|null, expanded:string|null, associatedFiles:list<string>}>,
      *     markedContentArtifacts:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, operator:string, type:string|null, subtype:string|null, bbox:list<float>|null, attached:list<string>, mcid:int|null, propertyName:string|null}>,
      *     collectionMetadata:array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
+     *     collectionPolicy:array<string, mixed>,
      *     threads:list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     catalogPermissions:list<array{permission:string, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
      *     signatures:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, filter:string|null, subFilter:string|null, name:string|null, reason:string|null, location:string|null, contactInfo:string|null, signingTime:string|null, byteRange:list<int>, byteRangeSegmentCount:int, coveredBytes:int|null, contentsBytes:int|null, contentsSha256:string|null, contentsSkipped:string|null, referenceTransforms:list<array{transformMethod:string|null, transformParamsType:string|null, permissions:int|null, action:string|null, fields:list<string>}>}>,
@@ -5959,6 +6000,7 @@ final class PdfEngineHandoff
         $signatureAppearancePolicy = $this->summarizePdfSignatureAppearancePolicy($signatures, $annotationAppearances, $signatureAppearanceByteRanges);
         $annotationAppearancePolicy = $this->summarizePdfAnnotationAppearancePolicy($annotationAppearances);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
+        $collectionMetadata = $this->extractPdfCollectionMetadata($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
@@ -6089,7 +6131,8 @@ final class PdfEngineHandoff
             'optionalContentGroups' => $optionalContent['groups'],
             'optionalContentConfig' => $optionalContent['config'],
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
-            'collectionMetadata' => $this->extractPdfCollectionMetadata($pdfBytes, $catalog),
+            'collectionMetadata' => $collectionMetadata,
+            'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
             'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
             'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
             'threads' => $this->extractPdfThreads($pdfBytes, $catalog),
@@ -14736,6 +14779,171 @@ final class PdfEngineHandoff
             'fields' => $fields,
             'ascending' => $ascending,
         ];
+    }
+
+    /**
+     * @param array{type?:string|null, view?:string|null, defaultDocument?:string|null, schemaFields?:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort?:array{fields?:list<string>, ascending?:list<bool>}} $collection
+     * @param list<array{source?:string, name:string|null, unicodeName:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>}> $embeddedFiles
+     * @return array{reviewStatus:string, defaultDocument:string|null, defaultDocumentMatched:bool|null, embeddedFileCount:int, collectionItemFileCount:int, schemaFieldCount:int, sortFieldCount:int, visibleFieldCount:int, editableFieldCount:int, undefinedSortFields:list<string>, embeddedFiles:list<array{name:string|null, collectionItemCount:int, missingSchemaFields:list<string>, extraCollectionItems:list<string>>>, issues:list<string>}|array{}
+     */
+    private function summarizePdfCollectionPolicy(array $collection, array $embeddedFiles): array
+    {
+        if ($collection === []) {
+            return [];
+        }
+
+        $schemaFields = isset($collection['schemaFields']) && is_array($collection['schemaFields'])
+            ? $collection['schemaFields']
+            : [];
+        $schemaNames = [];
+        $visibleFieldCount = 0;
+        $editableFieldCount = 0;
+        foreach ($schemaFields as $field) {
+            $name = is_string($field['name'] ?? null) ? trim($field['name']) : '';
+            if ($name !== '') {
+                $schemaNames[$name] = true;
+            }
+            if (($field['visible'] ?? null) === true) {
+                $visibleFieldCount++;
+            }
+            if (($field['editable'] ?? null) === true) {
+                $editableFieldCount++;
+            }
+        }
+        $schemaNames = array_keys($schemaNames);
+        sort($schemaNames);
+        $schemaNameSet = array_fill_keys($schemaNames, true);
+
+        $sortFields = isset($collection['sort']['fields']) && is_array($collection['sort']['fields'])
+            ? array_values(array_filter($collection['sort']['fields'], static fn (mixed $value): bool => is_string($value) && $value !== ''))
+            : [];
+        $undefinedSortFields = [];
+        foreach ($sortFields as $sortField) {
+            if (!isset($schemaNameSet[$sortField])) {
+                $undefinedSortFields[$sortField] = true;
+            }
+        }
+        $undefinedSortFields = array_keys($undefinedSortFields);
+        sort($undefinedSortFields);
+
+        $issues = [];
+        if ($undefinedSortFields !== []) {
+            $issues['sort-field-not-in-schema'] = true;
+        }
+
+        $collectionEmbeddedFiles = array_values(array_filter(
+            $embeddedFiles,
+            static fn (array $embeddedFile): bool => ($embeddedFile['source'] ?? null) === 'catalog.Names.EmbeddedFiles'
+        ));
+        $embeddedFileNames = [];
+        $policyFiles = [];
+        $collectionItemFileCount = 0;
+        if ($collectionEmbeddedFiles === []) {
+            $issues['collection-without-embedded-files'] = true;
+        }
+        foreach ($collectionEmbeddedFiles as $embeddedFile) {
+            $name = $this->pdfCollectionPolicyFileName($embeddedFile);
+            if ($name !== null && $name !== '') {
+                $embeddedFileNames[$name] = true;
+            }
+
+            $collectionItems = isset($embeddedFile['collectionItems']) && is_array($embeddedFile['collectionItems'])
+                ? $embeddedFile['collectionItems']
+                : [];
+            if ($collectionItems !== []) {
+                $collectionItemFileCount++;
+            }
+
+            $itemNames = [];
+            foreach ($collectionItems as $item) {
+                $itemName = is_string($item['name'] ?? null) ? trim($item['name']) : '';
+                if ($itemName !== '') {
+                    $itemNames[$itemName] = true;
+                }
+            }
+            $itemNames = array_keys($itemNames);
+            sort($itemNames);
+            $itemNameSet = array_fill_keys($itemNames, true);
+
+            $missingSchemaFields = [];
+            foreach ($schemaNames as $schemaName) {
+                if (!isset($itemNameSet[$schemaName])) {
+                    $missingSchemaFields[] = $schemaName;
+                }
+            }
+
+            $extraCollectionItems = [];
+            foreach ($itemNames as $itemName) {
+                if (!isset($schemaNameSet[$itemName])) {
+                    $extraCollectionItems[] = $itemName;
+                }
+            }
+
+            if ($collectionItems === [] && $schemaNames !== []) {
+                $issues['embedded-file-missing-collection-items'] = true;
+            }
+            if ($missingSchemaFields !== []) {
+                $issues['schema-field-missing-on-collection-item'] = true;
+            }
+            if ($extraCollectionItems !== []) {
+                $issues['collection-item-field-not-in-schema'] = true;
+            }
+
+            $policyFiles[] = [
+                'name' => $name,
+                'collectionItemCount' => count($collectionItems),
+                'missingSchemaFields' => $missingSchemaFields,
+                'extraCollectionItems' => $extraCollectionItems,
+            ];
+        }
+        usort(
+            $policyFiles,
+            static fn (array $left, array $right): int => strcmp((string) ($left['name'] ?? ''), (string) ($right['name'] ?? ''))
+        );
+
+        $defaultDocument = is_string($collection['defaultDocument'] ?? null) && $collection['defaultDocument'] !== ''
+            ? $collection['defaultDocument']
+            : null;
+        $defaultDocumentMatched = null;
+        if ($defaultDocument !== null) {
+            $defaultDocumentMatched = isset($embeddedFileNames[$defaultDocument]);
+            if (!$defaultDocumentMatched) {
+                $issues['default-document-not-embedded'] = true;
+            }
+        }
+
+        $issues = array_keys($issues);
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'defaultDocument' => $defaultDocument,
+            'defaultDocumentMatched' => $defaultDocumentMatched,
+            'embeddedFileCount' => count($collectionEmbeddedFiles),
+            'collectionItemFileCount' => $collectionItemFileCount,
+            'schemaFieldCount' => count($schemaNames),
+            'sortFieldCount' => count($sortFields),
+            'visibleFieldCount' => $visibleFieldCount,
+            'editableFieldCount' => $editableFieldCount,
+            'undefinedSortFields' => $undefinedSortFields,
+            'embeddedFiles' => $policyFiles,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{name?:string|null, unicodeName?:string|null} $embeddedFile
+     */
+    private function pdfCollectionPolicyFileName(array $embeddedFile): ?string
+    {
+        foreach (['name', 'unicodeName'] as $key) {
+            $name = is_string($embeddedFile[$key] ?? null) ? trim((string) $embeddedFile[$key]) : '';
+            if ($name !== '') {
+                return $name;
+            }
+        }
+
+        return null;
     }
 
     /**
