@@ -734,6 +734,96 @@ return [
             $t->same('', $review['outputImplementation'], "Rich package {$format} must not register a native writer");
         }
     },
+    'builds rich package unsupported-format packets without external converter claims' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::richPackageUnsupportedFormatReviewPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::richPackageUnsupportedFormatSummary(), $packet['unsupportedFormatSummary']);
+        $t->same([
+            'ipynb',
+            'pptx',
+            'xlsx',
+        ], $packet['unsupportedInputFormats']);
+        $t->same([
+            'chunkedhtml',
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'icml',
+            'ipynb',
+            'odt',
+            'opendocument',
+            'pdf',
+            'pptx',
+        ], $packet['unsupportedOutputFormats']);
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+            'xlsx',
+            'chunkedhtml',
+            'epub2',
+            'epub3',
+            'icml',
+            'opendocument',
+            'pdf',
+        ], $packet['unsupportedFormats']);
+        $t->same(12, $packet['unsupportedFormatCount']);
+        $t->same(3, $packet['inputUnsupportedCount']);
+        $t->same(11, $packet['outputUnsupportedCount']);
+
+        $docx = $packet['formats']['docx'];
+        $t->same(true, $docx['input']);
+        $t->same(true, $docx['output']);
+        $t->same('input-output', $docx['direction']);
+        $t->same(['output'], $docx['unsupportedDirections']);
+        $t->same('partial', $docx['inputStatus']);
+        $t->same('unsupported', $docx['outputStatus']);
+        $t->same(DocxReader::class, $docx['inputImplementation']);
+        $t->same('', $docx['outputImplementation']);
+        $t->contains('DOCX package import slices', $docx['inputNotes']);
+        $t->contains('No native PHP reader or writer is registered', $docx['outputNotes']);
+
+        $ipynb = $packet['formats']['ipynb'];
+        $t->same(['input', 'output'], $ipynb['unsupportedDirections']);
+        $t->same('unsupported', $ipynb['inputStatus']);
+        $t->same('unsupported', $ipynb['outputStatus']);
+        $t->same('', $ipynb['inputImplementation']);
+        $t->same('', $ipynb['outputImplementation']);
+        $t->contains('No native PHP reader or writer is registered', $ipynb['inputNotes']);
+        $t->contains('No native PHP reader or writer is registered', $ipynb['outputNotes']);
+
+        $xlsx = $packet['formats']['xlsx'];
+        $t->same('input-only', $xlsx['direction']);
+        $t->same(['input'], $xlsx['unsupportedDirections']);
+        $t->same('unsupported', $xlsx['inputStatus']);
+        $t->same('not-applicable', $xlsx['outputStatus']);
+        $t->same('', $xlsx['outputNotes']);
+
+        $pdf = $packet['formats']['pdf'];
+        $t->same('output-only', $pdf['direction']);
+        $t->same(['output'], $pdf['unsupportedDirections']);
+        $t->same('not-applicable', $pdf['inputStatus']);
+        $t->same('unsupported', $pdf['outputStatus']);
+        $t->same('', $pdf['inputNotes']);
+        $t->contains('No native PHP reader or writer is registered', $pdf['outputNotes']);
+
+        foreach ($packet['formats'] as $format => $review) {
+            $t->same(true, $review['externalToolFree'], "Rich package unsupported-format packet {$format} must stay native PHP only");
+            $t->same(false, $review['unsupportedDirections'] === [], "Rich package unsupported-format packet {$format} must expose an unsupported direction");
+            if (in_array('input', $review['unsupportedDirections'], true)) {
+                $t->same('', $review['inputImplementation'], "Rich package unsupported input {$format} must not register a reader implementation");
+            }
+            if (in_array('output', $review['unsupportedDirections'], true)) {
+                $t->same('', $review['outputImplementation'], "Rich package unsupported output {$format} must not register a writer implementation");
+            }
+        }
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();

@@ -1260,6 +1260,84 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     unsupportedFormats:list<string>,
+     *     unsupportedFormatCount:int,
+     *     inputUnsupportedCount:int,
+     *     outputUnsupportedCount:int,
+     *     unsupportedFormatSummary:array{
+     *         anyUnsupported:list<string>,
+     *         unsupportedBoth:list<string>,
+     *         partialInputUnsupportedOutput:list<string>,
+     *         unsupportedInputOnly:list<string>,
+     *         unsupportedOutputOnly:list<string>,
+     *         noNativeReader:list<string>,
+     *         noNativeWriter:list<string>
+     *     },
+     *     formats:array<string, array{input:bool, output:bool, direction:string, unsupportedDirections:list<string>, inputStatus:string, outputStatus:string, inputImplementation:string, outputImplementation:string, inputNotes:string, outputNotes:string, externalToolFree:bool}>
+     * }
+     */
+    public static function richPackageUnsupportedFormatReviewPacket(): array
+    {
+        $directions = self::richPackageFormatDirections();
+        $inputSupport = self::richPackageInputSupport();
+        $outputSupport = self::richPackageOutputSupport();
+        $formats = [];
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+            $unsupportedDirections = [];
+
+            if ($hasInput && $direction['inputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'input';
+            }
+            if ($hasOutput && $direction['outputStatus'] === 'unsupported') {
+                $unsupportedDirections[] = 'output';
+            }
+            if ($unsupportedDirections === []) {
+                continue;
+            }
+
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'unsupportedDirections' => $unsupportedDirections,
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+                'inputNotes' => $hasInput ? $inputSupport[$format]['notes'] : '',
+                'outputNotes' => $hasOutput ? $outputSupport[$format]['notes'] : '',
+                'externalToolFree' => true,
+            ];
+        }
+
+        $unsupportedInputFormats = self::formatsWithStatus($inputSupport, 'unsupported');
+        $unsupportedOutputFormats = self::formatsWithStatus($outputSupport, 'unsupported');
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedOutputFormats' => $unsupportedOutputFormats,
+            'unsupportedFormats' => array_keys($formats),
+            'unsupportedFormatCount' => count($formats),
+            'inputUnsupportedCount' => count($unsupportedInputFormats),
+            'outputUnsupportedCount' => count($unsupportedOutputFormats),
+            'unsupportedFormatSummary' => self::richPackageUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function richPackageBidirectionalFormats(): array
