@@ -577,6 +577,52 @@ return [
             $t->same(true, $directions[$format]['outputStatus'] === 'unsupported' || $directions[$format]['outputStatus'] === 'not-applicable', "Rich package extension-inferred format {$format} must not claim output parity");
         }
     },
+    'classifies rich package unsupported formats from file extensions without converter claims' => static function (TestRunner $t): void {
+        $docx = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('DOCX');
+        $t->same([
+            'extension' => '.docx',
+            'format' => 'docx',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'partial',
+            'outputStatus' => 'unsupported',
+            'unsupportedInput' => false,
+            'unsupportedOutput' => true,
+            'partialInput' => true,
+            'partialOutput' => false,
+            'inputImplementation' => DocxReader::class,
+            'outputImplementation' => '',
+        ], $docx);
+
+        $ipynb = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.ipynb');
+        $t->same('unsupported', $ipynb['inputStatus']);
+        $t->same('unsupported', $ipynb['outputStatus']);
+        $t->same(true, $ipynb['unsupportedInput']);
+        $t->same(true, $ipynb['unsupportedOutput']);
+        $t->same('', $ipynb['inputImplementation']);
+        $t->same('', $ipynb['outputImplementation']);
+
+        $xlsx = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.xlsx');
+        $t->same('input-only', $xlsx['direction']);
+        $t->same('unsupported', $xlsx['inputStatus']);
+        $t->same('not-applicable', $xlsx['outputStatus']);
+        $t->same(true, $xlsx['unsupportedInput']);
+        $t->same(false, $xlsx['unsupportedOutput']);
+
+        $pdf = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('pdf');
+        $t->same('output-only', $pdf['direction']);
+        $t->same('not-applicable', $pdf['inputStatus']);
+        $t->same('unsupported', $pdf['outputStatus']);
+        $t->same(false, $pdf['unsupportedInput']);
+        $t->same(true, $pdf['unsupportedOutput']);
+
+        $opendocument = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.fodt');
+        $t->same('opendocument', $opendocument['format']);
+        $t->same('output-only', $opendocument['direction']);
+        $t->same('unsupported', $opendocument['outputStatus']);
+        $t->same(null, PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.zip'));
+    },
     'builds rich package review packets without direct converter parity claims' => static function (TestRunner $t): void {
         $packet = PandocFormatRegistry::richPackageFormatReviewPacket();
 

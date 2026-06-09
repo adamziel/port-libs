@@ -1143,6 +1143,41 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{extension:string, format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, unsupportedInput:bool, unsupportedOutput:bool, partialInput:bool, partialOutput:bool, inputImplementation:string, outputImplementation:string}|null
+     */
+    public static function richPackageUnsupportedFormatForExtension(string $extension): ?array
+    {
+        $classification = self::classifyRichPackageExtension($extension);
+        $format = $classification['format'];
+        if ($format === null) {
+            return null;
+        }
+
+        $directions = self::richPackageFormatDirections();
+        $inputSupport = self::richPackageInputSupport();
+        $outputSupport = self::richPackageOutputSupport();
+        $direction = $directions[$format];
+        $hasInput = $direction['input'];
+        $hasOutput = $direction['output'];
+
+        return [
+            'extension' => $classification['normalizedExtension'],
+            'format' => $format,
+            'input' => $hasInput,
+            'output' => $hasOutput,
+            'direction' => $direction['direction'],
+            'inputStatus' => $direction['inputStatus'],
+            'outputStatus' => $direction['outputStatus'],
+            'unsupportedInput' => $hasInput && $direction['inputStatus'] === 'unsupported',
+            'unsupportedOutput' => $hasOutput && $direction['outputStatus'] === 'unsupported',
+            'partialInput' => $hasInput && $direction['inputStatus'] === 'partial',
+            'partialOutput' => $hasOutput && $direction['outputStatus'] === 'partial',
+            'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+            'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function richPackageFormatsWithExtensionInference(): array
