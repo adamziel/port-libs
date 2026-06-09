@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 10:28:13 UTC",
-    "sourceCommit": "a93829e8049e921808dbe71abcbbd478192a22f0",
-    "sourceCommitShort": "a93829e8049e",
+    "generated": "2026-06-09 10:34:04 UTC",
+    "sourceCommit": "0a1635bec5a0d7ed3ad1a87bcad3bcd2a060dcfb",
+    "sourceCommitShort": "0a1635bec5a0",
     "sourceBranch": "unknown",
-    "dashboardCommit": "a93829e8049e921808dbe71abcbbd478192a22f0",
-    "dashboardCommitShort": "a93829e8049e",
+    "dashboardCommit": "0a1635bec5a0d7ed3ad1a87bcad3bcd2a060dcfb",
+    "dashboardCommitShort": "0a1635bec5a0",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,644 pass / 0 fail",
-            "phase": "native PHP Pandoc HTML5 reader review markup; standalone SVG text, sw...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-svg-more current-base slice on ac...",
-            "currentWork": "Pandoc HTML reader review now preserves standalone SVG desc/metadata/switch/view/tspa...",
+            "php": "2,661 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; standalone MathML token...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-mathml-core current-base slice on...",
+            "currentWork": "Pandoc HTML reader review now preserves standalone MathML mi/mo/mn/mtext/mrow/msup/ms...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
