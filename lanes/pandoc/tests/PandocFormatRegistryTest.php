@@ -118,6 +118,33 @@ return [
         $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
+    'tracks roff manual input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
+        $directions = PandocFormatRegistry::roffManualFormatDirections();
+        $inputFormats = PandocFormatRegistry::roffManualInputFormats();
+        $outputFormats = PandocFormatRegistry::roffManualOutputFormats();
+
+        $t->same([
+            'man',
+            'mdoc',
+            'ms',
+        ], array_keys($directions));
+        $t->same(['man'], PandocFormatRegistry::roffManualBidirectionalFormats());
+        $t->same(['mdoc'], PandocFormatRegistry::roffManualInputOnlyFormats());
+        $t->same(['ms'], PandocFormatRegistry::roffManualOutputOnlyFormats());
+        $t->same(3, count($directions));
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = in_array($format, $inputFormats, true);
+            $hasOutput = in_array($format, $outputFormats, true);
+            $expectedDirection = $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only');
+
+            $t->same($hasInput, $direction['input'], "Roff manual format {$format} input direction mismatch");
+            $t->same($hasOutput, $direction['output'], "Roff manual format {$format} output direction mismatch");
+            $t->same($expectedDirection, $direction['direction'], "Roff manual format {$format} direction bucket mismatch");
+            $t->same($hasInput ? 'unsupported' : 'not-applicable', $direction['inputStatus'], "Roff manual format {$format} input status mismatch");
+            $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Roff manual format {$format} output status mismatch");
+        }
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();

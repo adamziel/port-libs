@@ -423,24 +423,12 @@ final class PandocFormatRegistry
      */
     public static function wikiFormatDirections(): array
     {
-        $inputSupport = self::wikiInputSupport();
-        $outputSupport = self::wikiOutputSupport();
-        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
-        $directions = [];
-
-        foreach ($formats as $format) {
-            $hasInput = array_key_exists($format, $inputSupport);
-            $hasOutput = array_key_exists($format, $outputSupport);
-            $directions[$format] = [
-                'input' => $hasInput,
-                'output' => $hasOutput,
-                'direction' => $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only'),
-                'inputStatus' => $hasInput ? $inputSupport[$format]['status'] : 'not-applicable',
-                'outputStatus' => $hasOutput ? $outputSupport[$format]['status'] : 'not-applicable',
-            ];
-        }
-
-        return $directions;
+        return self::formatDirections(
+            self::wikiInputSupport(),
+            self::wikiOutputSupport(),
+            self::WIKI_INPUT_FORMATS,
+            self::WIKI_OUTPUT_FORMATS
+        );
     }
 
     /**
@@ -489,6 +477,43 @@ final class PandocFormatRegistry
     public static function roffManualExtensionInference(): array
     {
         return self::ROFF_MANUAL_EXTENSION_INFERENCE;
+    }
+
+    /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function roffManualFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::roffManualInputSupport(),
+            self::roffManualOutputSupport(),
+            self::ROFF_MANUAL_INPUT_FORMATS,
+            self::ROFF_MANUAL_OUTPUT_FORMATS
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualBidirectionalFormats(): array
+    {
+        return self::roffManualFormatsWithDirection('input-output');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualInputOnlyFormats(): array
+    {
+        return self::roffManualFormatsWithDirection('input-only');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function roffManualOutputOnlyFormats(): array
+    {
+        return self::roffManualFormatsWithDirection('output-only');
     }
 
     /**
@@ -622,17 +647,61 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @param array<string, array{status:string, implementation:string, notes:string}> $inputSupport
+     * @param array<string, array{status:string, implementation:string, notes:string}> $outputSupport
+     * @param list<string> $inputFormats
+     * @param list<string> $outputFormats
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    private static function formatDirections(array $inputSupport, array $outputSupport, array $inputFormats, array $outputFormats): array
+    {
+        $formats = array_values(array_unique(array_merge($inputFormats, $outputFormats)));
+        $directions = [];
+
+        foreach ($formats as $format) {
+            $hasInput = array_key_exists($format, $inputSupport);
+            $hasOutput = array_key_exists($format, $outputSupport);
+            $directions[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only'),
+                'inputStatus' => $hasInput ? $inputSupport[$format]['status'] : 'not-applicable',
+                'outputStatus' => $hasOutput ? $outputSupport[$format]['status'] : 'not-applicable',
+            ];
+        }
+
+        return $directions;
+    }
+
+    /**
+     * @param array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}> $directions
      * @return list<string>
      */
-    private static function wikiFormatsWithDirection(string $direction): array
+    private static function formatsWithDirection(array $directions, string $direction): array
     {
         $formats = [];
-        foreach (self::wikiFormatDirections() as $format => $entry) {
+        foreach ($directions as $format => $entry) {
             if ($entry['direction'] === $direction) {
                 $formats[] = $format;
             }
         }
 
         return $formats;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function wikiFormatsWithDirection(string $direction): array
+    {
+        return self::formatsWithDirection(self::wikiFormatDirections(), $direction);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function roffManualFormatsWithDirection(string $direction): array
+    {
+        return self::formatsWithDirection(self::roffManualFormatDirections(), $direction);
     }
 }
