@@ -581,10 +581,16 @@ final class OpcRelationshipGraph
             if ($relationship->isExternal()) {
                 $externalTarget = $relationship->externalTargetPreflight();
                 $externalRewrite = self::externalTargetRewritePolicy($sourcePartName, $externalTarget);
+                $externalPackagePartIssues = $this->externalTargetPackagePartIssues(
+                    $sourcePartName,
+                    $relationship->target,
+                    $externalTarget,
+                );
                 $issues = array_values(array_unique(array_merge(
                     $typePreflight['issues'],
                     $externalTarget['issues'],
                     $externalRewrite['issues'],
+                    $externalPackagePartIssues,
                 )));
                 $preflight[] = [
                     'id' => $relationship->id,
@@ -6676,6 +6682,34 @@ final class OpcRelationshipGraph
             'reason' => null,
             'issues' => [],
         ];
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, allowed:bool, issues:list<string>} $externalTarget
+     * @return list<string>
+     */
+    private function externalTargetPackagePartIssues(string $sourcePartName, string $target, array $externalTarget): array
+    {
+        if ($externalTarget['kind'] !== 'relative-reference' && $externalTarget['kind'] !== 'fragment-reference') {
+            return [];
+        }
+
+        if (strcspn($target, '?#') === 0) {
+            return [];
+        }
+
+        try {
+            $resolvedTarget = OpcPackagePath::resolveInternalTarget($sourcePartName, $target);
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        $targetPartName = OpcPackagePath::stripQueryAndFragment($resolvedTarget);
+        if ($targetPartName === '/' || $this->packagePartNameForEquivalent($targetPartName) === null) {
+            return [];
+        }
+
+        return ['external-target-matches-package-part'];
     }
 
     /**

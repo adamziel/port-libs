@@ -2309,6 +2309,58 @@ XML;
         $t->same('/word/document.xml', $closureById['rIdRelative']['externalTargetRewriteBasePart']);
         $t->same('external-target-fragment-reference', $closureById['rIdFragment']['externalTargetRewriteReason']);
     },
+    'flags external OPC relationship targets that shadow package parts' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdExternalLocalImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review-image.PNG" TargetMode="External"/>
+  <Relationship Id="rIdExternalLocalCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml#packet" TargetMode="External"/>
+  <Relationship Id="rIdExternalAbsolutePackagePath" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="/word/styles.xml" TargetMode="External"/>
+  <Relationship Id="rIdExternalRemoteRelative" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../review/source.html#packet" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same(true, $preflight['rIdExternalLocalImage']['external']);
+        $t->same('relative-reference', $preflight['rIdExternalLocalImage']['externalTargetKind']);
+        $t->same(true, $preflight['rIdExternalLocalImage']['externalTargetAllowed']);
+        $t->same(true, $preflight['rIdExternalLocalImage']['externalTargetRequiresBaseUri']);
+        $t->same('/word/document.xml', $preflight['rIdExternalLocalImage']['externalTargetRewriteBasePart']);
+        $t->same(false, $preflight['rIdExternalLocalImage']['valid']);
+        $t->same(['external-target-matches-package-part'], $preflight['rIdExternalLocalImage']['issues']);
+
+        $t->same(false, $preflight['rIdExternalLocalCustomXml']['valid']);
+        $t->same(['external-target-matches-package-part'], $preflight['rIdExternalLocalCustomXml']['issues']);
+        $t->same(false, $preflight['rIdExternalAbsolutePackagePath']['valid']);
+        $t->same(['external-target-matches-package-part'], $preflight['rIdExternalAbsolutePackagePath']['issues']);
+
+        $t->same(true, $preflight['rIdExternalRemoteRelative']['valid']);
+        $t->same([], $preflight['rIdExternalRemoteRelative']['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['external-target-matches-package-part'], $closureById['rIdExternalLocalImage']['issues']);
+        $t->same(['external-target-matches-package-part'], $closureById['rIdExternalLocalCustomXml']['issues']);
+        $t->same([], $closureById['rIdExternalRemoteRelative']['issues']);
+        $t->same(false, $graph->preflightPackageConsistency()['relationshipTargetsValid']);
+    },
     'preflights package root external relative targets without implicit source part' => static function (TestRunner $t) use ($contentTypesXml): void {
         $packageRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
