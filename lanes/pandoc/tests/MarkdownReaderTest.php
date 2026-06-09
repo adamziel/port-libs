@@ -10193,6 +10193,39 @@ MD;
             ]),
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer angle wrapped destinations for spaces and parentheses' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Source asset: '),
+                new AstNode('link', [
+                    'url' => '/wp-content/uploads/alpha beta).jpg',
+                    'title' => 'Migration "asset"',
+                ], [$text('asset')]),
+                $text(' and '),
+                new AstNode('image', [
+                    'url' => '/wp-content/uploads/chart (final).png',
+                    'alt' => 'chart',
+                ], [$text('chart')]),
+                $text('.'),
+            ]),
+        ]);
+        $referenceDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('link', [
+                    'url' => '/wp-content/uploads/review packet).pdf',
+                    'title' => 'PDF source',
+                ], [$text('packet')]),
+            ]),
+        ]);
+
+        $t->same('Source asset: [asset](</wp-content/uploads/alpha beta).jpg> "Migration \\"asset\\"") and ![chart](</wp-content/uploads/chart (final).png>).', (new MarkdownWriter())->write($document));
+        $t->same(implode("\n", [
+            '[packet]',
+            '',
+            '  [packet]: </wp-content/uploads/review packet).pdf> "PDF source"',
+        ]), (new MarkdownWriter(['referenceLinks' => true]))->write($referenceDocument));
+    },
     'maps upstream markdown writer definition lists with multiple block bodies' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
