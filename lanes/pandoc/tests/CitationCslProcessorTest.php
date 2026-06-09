@@ -22312,6 +22312,131 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote</dd>', $blocks);
     },
+    'renders bounded csl archive collection aliases from direct items' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'archive-city',
+                'type' => 'manuscript',
+                'title' => 'City Archive Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'archive' => 'City Archive',
+                'archive-collection' => 'Migration Papers',
+                'archive-place' => 'Portland',
+                'archive_location' => 'Box 4',
+            ],
+            [
+                'id' => 'archive-field',
+                'type' => 'manuscript',
+                'title' => 'Field Notes Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'archive' => 'Field Notes Library',
+                'archiveCollection' => 'Audit Series',
+                'archive-location' => 'Folder 2',
+            ],
+            [
+                'id' => 'archive-legacy',
+                'type' => 'document',
+                'title' => 'Legacy Ledger Packet',
+                'author' => [
+                    ['literal' => 'Repository Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'archive_collection' => 'Legacy Ledgers',
+                'archive_location' => 'Shelf 8',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Archive Collection Review</title>
+    <id>https://example.test/styles/bounded-archive-collection-review</id>
+    <updated>2026-06-09T07:17:50+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="archive_collection"/>
+    </sort>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <choose>
+        <if variable="archive_collection archive-location" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="archive"/>
+            <text variable="archive_collection"/>
+            <text variable="archive-place"/>
+            <text variable="archive_location"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-archive-collection"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="archive_collection"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-collection"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $city = $processor->item('archive-city');
+        $field = $processor->item('archive-field');
+        $legacy = $processor->item('archive-legacy');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Archive Collection Review', $summary['title'] ?? null);
+        $t->same(['archive_collection', 'archive-location'], $branch['variables'] ?? null);
+        $t->same('Migration Papers', $city['archiveCollection'] ?? null);
+        $t->same('City Archive:Migration Papers:Box 4 [Portland]', $city['archiveSummary'] ?? null);
+        $t->same('Audit Series', $field['archiveCollection'] ?? null);
+        $t->same('Field Notes Library:Audit Series:Folder 2', $field['archiveSummary'] ?? null);
+        $t->same('Legacy Ledgers', $legacy['archiveCollection'] ?? null);
+        $t->same('Legacy Ledgers:Shelf 8', $legacy['archiveSummary'] ?? null);
+
+        $t->same('(Ng | Field Notes Library | Audit Series | Folder 2; Repository Desk | Legacy Ledgers | Shelf 8; Smith | City Archive | Migration Papers | Portland | Box 4)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'archive-city', 'text' => '[@archive-city]']),
+            new AstNode('citation', ['id' => 'archive-field', 'text' => '[@archive-field]']),
+            new AstNode('citation', ['id' => 'archive-legacy', 'text' => '[@archive-legacy]']),
+        ]));
+        $t->same('City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]', $processor->renderBibliographyEntry('archive-city'));
+        $t->same('Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2', $processor->renderBibliographyEntry('archive-field'));
+        $t->same('Legacy Ledger Packet :: Legacy Ledgers :: Legacy Ledgers:Shelf 8', $processor->renderBibliographyEntry('archive-legacy'));
+
+        $default = CitationCslProcessor::fromItems([[
+            'id' => 'archive-city',
+            'type' => 'manuscript',
+            'title' => 'City Archive Packet',
+            'author' => [
+                ['family' => 'Smith', 'given' => 'Ada'],
+            ],
+            'issued' => ['date-parts' => [[2026]]],
+            'archive' => 'City Archive',
+            'archive-collection' => 'Migration Papers',
+            'archive-place' => 'Portland',
+            'archive_location' => 'Box 4',
+        ]]);
+        $t->same('Smith, Ada. City Archive Packet. 2026. Archive: City Archive Migration Papers Portland Box 4.', $default->renderBibliographyEntry('archive-city'));
+
+        $document = (new MarkdownReader())->read('Archive collections [@archive-city; @archive-field; @archive-legacy] keep reviewer locations visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Archive collections (Ng | Field Notes Library | Audit Series | Folder 2; Repository Desk | Legacy Ledgers | Shelf 8; Smith | City Archive | Migration Papers | Portland | Box 4) keep reviewer locations visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2</dd>', $blocks);
+        $t->contains('<dt>Repository Desk 2024</dt><dd>Legacy Ledger Packet :: Legacy Ledgers :: Legacy Ledgers:Shelf 8</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

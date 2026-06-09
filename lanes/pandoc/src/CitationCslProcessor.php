@@ -964,10 +964,11 @@ final class CitationCslProcessor
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'origlocation', 'origaddress']);
         $archive = self::stringField($item, 'archive');
+        $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace']);
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'eprint-summary', 'eprintSummary'])
-            ?: self::archiveSummary($archive, $archivePlace, $archiveLocation);
+            ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
@@ -1154,6 +1155,7 @@ final class CitationCslProcessor
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
             'archive' => $archive,
+            'archiveCollection' => $archiveCollection,
             'archivePlace' => $archivePlace,
             'archiveLocation' => $archiveLocation,
             'archiveSummary' => $archiveSummary,
@@ -1399,8 +1401,17 @@ final class CitationCslProcessor
         return self::firstStringField($item, ['shorthand']);
     }
 
-    private static function archiveSummary(string $archive, string $archivePlace, string $archiveLocation): string
+    private static function archiveSummary(string $archive, string $archiveCollection, string $archivePlace, string $archiveLocation): string
     {
+        if ($archiveCollection !== '') {
+            $summary = implode(':', array_values(array_filter(
+                [$archive, $archiveCollection, $archiveLocation],
+                static fn (string $value): bool => $value !== ''
+            )));
+
+            return $summary . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
+        }
+
         if ($archive !== '' && $archiveLocation !== '') {
             return $archive . ':' . $archiveLocation . ($archivePlace !== '' ? ' [' . $archivePlace . ']' : '');
         }
@@ -4659,6 +4670,8 @@ final class CitationCslProcessor
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
             'source' => $this->normalizeSortText((string) ($item['source'] ?? '')),
+            'archive', 'archive-place', 'archiveplace', 'archive_collection', 'archive-collection', 'archivecollection',
+            'archive_location', 'archive-location', 'archivelocation', 'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'first-reference-note-number' => $this->numberVariableSortValue($item, $variable, $scope),
@@ -6540,6 +6553,7 @@ final class CitationCslProcessor
 
         $archive = array_values(array_filter([
             (string) ($item['archive'] ?? ''),
+            (string) ($item['archiveCollection'] ?? ''),
             (string) ($item['archivePlace'] ?? ''),
             (string) ($item['archiveLocation'] ?? ''),
         ], static fn (string $value): bool => $value !== ''));
@@ -8679,9 +8693,10 @@ final class CitationCslProcessor
             'pmid' => (string) ($item['pmid'] ?? ''),
             'pmcid' => (string) ($item['pmcid'] ?? ''),
             'archive' => (string) $item['archive'],
-            'archive-place' => (string) $item['archivePlace'],
-            'archive_location', 'archive-location' => (string) $item['archiveLocation'],
-            'archive-summary', 'archive-summary-text', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
+            'archive_collection', 'archive-collection', 'archivecollection' => (string) ($item['archiveCollection'] ?? ''),
+            'archive-place', 'archiveplace' => (string) $item['archivePlace'],
+            'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
+            'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language' => (string) $item['language'],
             'language-list' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),

@@ -132,6 +132,9 @@ $ibm862Text = (string) $ibm862Source->children[1]->attr('text');
 $ibm864Bytes = "# DOS 864\n\nArabic \xC7\xE4\xDF\xD1\xC8\xEA\xC9; digits \xB1\xB2\xB3; lam-alef \x9D\x9E; marks \xF0\xF1; box \x8D\x85\x8C; soft\xA1hyphen.";
 $ibm864Source = (new MarkdownReader())->readBytes($ibm864Bytes, 'csibm864');
 $ibm864Text = (string) $ibm864Source->children[1]->attr('text');
+$cp165Bytes = "# CP165 Arabic\n\nArabic \xC7\xE4\xDF\xD1\xC8\xEA\xC9; percent \x2420; lam-alef \x9D\x9E; extras \x9B\x9C\x9F\xA6\xA7\xFF.";
+$cp165Source = (new MarkdownReader())->readBytes($cp165Bytes, 'csibm165');
+$cp165Text = (string) $cp165Source->children[1]->attr('text');
 $ibm852Bytes = "# DOS 852\n\nCzech \xAC\x9F \xB7\xD8 \xE6\xE7 \xA6\xA7 \xFC\xFD; Polish \x9D\x88 \xA4\xA5 \xBD\xBE; Hungarian \x8A\x8B \xEB\xFB; box \xC9\xCD\xBB; \xF1.";
 $ibm852Source = (new MarkdownReader())->readBytes($ibm852Bytes, 'cspc852');
 $ibm852Text = (string) $ibm852Source->children[1]->attr('text');
@@ -813,6 +816,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm864Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm864Text) . '/' . UnicodeText::displayWidth($ibm864Text, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'CP165 source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $cp165Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($cp165Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($cp165Text) . '/' . UnicodeText::displayWidth($cp165Text, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM852 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm852Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm852Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm852Text) . '/' . UnicodeText::displayWidth($ibm852Text, 'wide')])]),
@@ -1414,6 +1422,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>IBM864 source</td><td>Arabic \u{FE8D}\u{FEDF}\u{FEC9}\u{FEAD}\u{FE91}\u{FEF3}\u{FE93}; digits \u{0661}\u{0662}\u{0663}; lam-alef \u{FEFB}\u{FEFC}; marks \u{FE7D}\u{0651}; box ┌─┐; soft\u{00AD}hyphen.</td><td>ibm864:70/73</td>")) {
         throw new RuntimeException('charset handoff self-test missing IBM864 DOS Arabic decode audit row');
+    }
+    if (($cp165Source->attr('sourceEncoding')['encoding'] ?? '') !== 'cp165') {
+        throw new RuntimeException('charset handoff self-test missing CP165 source encoding');
+    }
+    if (!str_contains($blocks, "<td>CP165 source</td><td>Arabic \u{FE8D}\u{FEDF}\u{FEC9}\u{FEAD}\u{FE91}\u{FEF3}\u{FE93}; percent \u{066A}20; lam-alef \u{FEFB}\u{FEFC}; extras \u{FEF9}\u{FEFA}\u{FE73}\u{FE87}\u{FE88}\u{00A0}.</td><td>cp165:56/56</td>")) {
+        throw new RuntimeException('charset handoff self-test missing CP165 DOS Arabic variant decode audit row');
     }
     if (($ibm852Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm852') {
         throw new RuntimeException('charset handoff self-test missing IBM852 source encoding');

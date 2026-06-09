@@ -864,6 +864,30 @@ return [
         $t->contains('<h1 id="dos-864">DOS 864</h1>', $blocks);
         $t->contains("<p>{$body}</p>", $blocks);
     },
+    'decodes cp165 dos arabic variant source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# CP165 Arabic\n\nArabic \xC7\xE4\xDF\xD1\xC8\xEA\xC9; percent \x2420; lam-alef \x9D\x9E; extras \x9B\x9C\x9F\xA6\xA7\xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp165');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm165');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x24\x9B\x9C\x9F\xA6\xA7\xFF", 'ibm165');
+        $ibm864Comparison = UnicodeText::decodeBytes("\x24\x9B\x9C\x9F\xA6\xA7\xFF", 'ibm864');
+        $body = "Arabic \u{FE8D}\u{FEDF}\u{FEC9}\u{FEAD}\u{FE91}\u{FEF3}\u{FE93}; percent \u{066A}20; lam-alef \u{FEFB}\u{FEFC}; extras \u{FEF9}\u{FEFA}\u{FE73}\u{FE87}\u{FE88}\u{00A0}.";
+
+        $t->same('cp165', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# CP165 Arabic\n\n{$body}", $decoded['text']);
+        $t->same("\u{066A}\u{FEF9}\u{FEFA}\u{FE73}\u{FE87}\u{FE88}\u{00A0}", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same('$������', $ibm864Comparison['text']);
+        $t->same(6, $ibm864Comparison['repairs']);
+        $t->same(['encoding' => 'cp165', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('CP165 Arabic', $document->children[0]->attr('text'));
+        $t->same($body, $document->children[1]->attr('text'));
+        $t->same(56, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(56, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="cp165-arabic">CP165 Arabic</h1>', $blocks);
+        $t->contains("<p>{$body}</p>", $blocks);
+    },
     'decodes ibm852 dos central european source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# DOS 852\n\nCzech \xAC\x9F \xB7\xD8 \xE6\xE7 \xA6\xA7 \xFC\xFD; Polish \x9D\x88 \xA4\xA5 \xBD\xBE; Hungarian \x8A\x8B \xEB\xFB; box \xC9\xCD\xBB; \xF1.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp852');

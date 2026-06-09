@@ -762,6 +762,17 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const CP165_OVERRIDES = [
+        0x24 => 0x066a,
+        0x9b => 0xfef9,
+        0x9c => 0xfefa,
+        0x9f => 0xfe73,
+        0xa6 => 0xfe87,
+        0xa7 => 0xfe88,
+        0xff => 0x00a0,
+    ];
+
+    /** @var array<int, int> */
     private const KOI8_R_REPLACEMENTS = [
         0x80 => 0x2500,
         0x81 => 0x2502,
@@ -4909,6 +4920,7 @@ final class UnicodeText
             || $normalized === 'windows-1257'
             || $normalized === 'windows-1258'
             || $normalized === 'windows-874'
+            || $normalized === 'cp165'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
             || $normalized === 'koi8-ru'
@@ -5725,6 +5737,7 @@ final class UnicodeText
             'windows1257', 'cp1257', 'microsoftcp1257', 'ms1257', 'xcp1257' => 'windows-1257',
             'windows1258', 'cp1258', 'microsoftcp1258', 'ms1258', 'xcp1258' => 'windows-1258',
             'windows874', 'cp874', 'microsoftcp874', 'ms874', 'xcp874', 'dos874' => 'windows-874',
+            'cp165', 'ibm165', 'dos165', 'xcp165', 'csibm165' => 'cp165',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
             'koi8ru', 'cskoi8ru', 'koi8russianukrainian' => 'koi8-ru',
@@ -6507,6 +6520,16 @@ final class UnicodeText
 
                 $out .= self::fromCodepoint(self::TIS_620_REPLACEMENTS[$byte]);
                 continue;
+            }
+            if ($encoding === 'cp165') {
+                if (isset(self::CP165_OVERRIDES[$byte])) {
+                    $out .= self::fromCodepoint(self::CP165_OVERRIDES[$byte]);
+                    continue;
+                }
+                if ($byte >= 0x80) {
+                    $out .= self::fromCodepoint(self::IBM864_REPLACEMENTS[$byte]);
+                    continue;
+                }
             }
             if ($encoding === 'koi8-t' && $byte >= 0x80) {
                 if (isset(self::KOI8_T_REPLACEMENTS[$byte])) {
