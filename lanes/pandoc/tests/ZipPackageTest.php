@@ -3436,6 +3436,54 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip64MarkerZip));
     },
 
+    'preflights trailing bytes after the zip end of central directory before raw import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD trailing bytes</w:p></w:document>',
+                'method' => 8,
+            ],
+        ], 'review comment');
+        $eocdOffset = strrpos($zip, "PK\x05\x06");
+        if ($eocdOffset === false) {
+            throw new RuntimeException('EOCD fixture not found');
+        }
+        $trailingBytes = "detached reviewer bytes\n";
+        $tailedZip = $zip . $trailingBytes;
+
+        $safeSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($zip);
+        $summary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($tailedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($tailedZip, 512, 20.0, 512);
+
+        $t->same(true, $safeSummary['hasEndOfCentralDirectoryCandidate']);
+        $t->same(false, $safeSummary['hasTrailingBytes']);
+        $t->same(0, $safeSummary['trailingByteCount']);
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same([], $safeSummary['issues']);
+
+        $t->same(true, $summary['hasEndOfCentralDirectoryCandidate']);
+        $t->same($eocdOffset, $summary['eocdOffset']);
+        $t->same(strlen($tailedZip), $summary['archiveLength']);
+        $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
+        $t->same(strlen('review comment'), $summary['declaredPackageCommentLength']);
+        $t->same(strlen('review comment'), $summary['availablePackageCommentBytes']);
+        $t->same(1, $summary['totalEntryCount']);
+        $t->same(true, $summary['hasTrailingBytes']);
+        $t->same(false, $summary['hasTruncatedComment']);
+        $t->same(strlen($trailingBytes), $summary['trailingByteCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['eocd-trailing-bytes'], $summary['issues']);
+
+        $t->same(false, $raw['isValid']);
+        $t->same(false, $raw['canInstantiate']);
+        $t->same(1, $raw['entryCount']);
+        $t->same($summary, $raw['endOfCentralDirectoryTrailingBytes']);
+        $t->same(null, $raw['archive']);
+        $t->contains('eocd-trailing-bytes', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailedZip));
+    },
+
     'preflights zip central directory inventory counts before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

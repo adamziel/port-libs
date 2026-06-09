@@ -1617,9 +1617,9 @@ XML;
     </navPoint>
   </navMap>
   <navList id="review-nav-list" class="review-list" xml:lang="en">
-    <navLabel><text>Reviewer reference list</text></navLabel>
+    <navLabel id="review-list-label" class="review-list-label"><text id="review-list-title" class="review-list-title">Reviewer reference list</text></navLabel>
     <navTarget id="glossary-target" class="glossary entry" playOrder="10">
-      <navLabel><text>Media glossary</text></navLabel>
+      <navLabel id="glossary-label" class="glossary-label"><text id="glossary-text" class="glossary-text">Media glossary</text></navLabel>
       <content src="text/chapter2.xhtml#media"/>
     </navTarget>
     <navTarget id="remote-target" playOrder="11">
@@ -1653,6 +1653,10 @@ XML;
         $t->same(['review-list'], $list['classes']);
         $t->same('en', $list['language']);
         $t->same('Reviewer reference list', $list['title']);
+        $t->same('review-list-label', $list['labelAttributes']['id']);
+        $t->same('review-list-label', $list['labelAttributes']['class']);
+        $t->same('review-list-title', $list['labelTextAttributes']['id']);
+        $t->same('review-list-title', $list['labelTextAttributes']['class']);
         $t->same(3, $list['itemCount']);
         $t->same(2, count($list['diagnostics']));
 
@@ -1662,6 +1666,10 @@ XML;
         $t->same(['glossary', 'entry'], $local['classes']);
         $t->same('10', $local['playOrder']);
         $t->same('Media glossary', $local['title']);
+        $t->same('glossary-label', $local['labelAttributes']['id']);
+        $t->same('glossary-label', $local['labelAttributes']['class']);
+        $t->same('glossary-text', $local['labelTextAttributes']['id']);
+        $t->same('glossary-text', $local['labelTextAttributes']['class']);
         $t->same('text/chapter2.xhtml#media', $local['href']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $local['target']);
         $t->same('/OEBPS/text/chapter2.xhtml', $local['part']);
@@ -1704,6 +1712,8 @@ XML;
         $t->same('review-nav-list', $supplemental[0]['listId']);
         $t->same('Reviewer reference list', $supplemental[0]['listTitle']);
         $t->same('glossary-target', $supplemental[0]['id']);
+        $t->same('glossary-label', $supplemental[0]['labelAttributes']['id']);
+        $t->same('glossary-text', $supplemental[0]['labelTextAttributes']['id']);
         $t->same('/OEBPS/text/chapter2.xhtml#media', $supplemental[0]['target']);
         $t->same(1, $supplemental[0]['spineIndex']);
         $t->same('chapter-2', $supplemental[0]['spineIdref']);

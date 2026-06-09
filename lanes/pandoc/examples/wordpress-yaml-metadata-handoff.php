@@ -265,6 +265,12 @@ merge-sequence-audit:
     - *merge_review_base
   status: needs-review
 flow-merge-review: {<<: [*merge_review_override, *merge_review_base], reviewer: Flow Desk}
+invalid-merge-review:
+  <<: [ignored, *merge_review_base, [not, a, map], {labels: [diagnostic]}]
+  owner: Merge Audit Desk
+invalid-direct-merge:
+  <<: ignored
+  owner: Direct Merge Desk
 merge-tag-review:
   !!merge <<: [*merge_review_override, *merge_review_base]
   priority: 9
@@ -559,6 +565,10 @@ $aliasYamlDiagnostics = array_values(array_filter(
 $mergeShadowDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'merge-sequence-shadowed-key'
+));
+$invalidMergeDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-merge-value'
 ));
 $streamOverrideDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
@@ -1462,11 +1472,26 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-merge-review']['reviewer'] ?? '') !== 'Flow Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow merge-sequence override');
     }
+    if (($meta['invalid-merge-review']['status'] ?? '') !== 'queued' || ($meta['invalid-merge-review']['owner'] ?? '') !== 'Merge Audit Desk') {
+        throw new RuntimeException('YAML metadata self-test failed to keep valid maps from invalid merge sequence');
+    }
+    if (($meta['invalid-direct-merge']['owner'] ?? '') !== 'Direct Merge Desk' || array_key_exists('status', $meta['invalid-direct-merge'] ?? [])) {
+        throw new RuntimeException('YAML metadata self-test failed to keep invalid direct merge diagnostic-only');
+    }
     $mergeShadowPaths = array_column($mergeShadowDiagnostics, 'path');
     foreach (['/merge-sequence-review/status', '/merge-sequence-review/labels', '/merge-sequence-audit/status', '/flow-merge-review/status'] as $expectedPath) {
         if (!in_array($expectedPath, $mergeShadowPaths, true)) {
             throw new RuntimeException('YAML metadata self-test missing merge precedence diagnostic path ' . $expectedPath);
         }
+    }
+    $invalidMergePaths = array_column($invalidMergeDiagnostics, 'path');
+    foreach (['/invalid-merge-review/<<', '/invalid-direct-merge/<<'] as $expectedPath) {
+        if (!in_array($expectedPath, $invalidMergePaths, true)) {
+            throw new RuntimeException('YAML metadata self-test missing invalid merge diagnostic path ' . $expectedPath);
+        }
+    }
+    if (array_column($invalidMergeDiagnostics, 'valueKind') !== ['scalar', 'sequence', 'scalar']) {
+        throw new RuntimeException('YAML metadata self-test missing invalid merge value-kind metadata');
     }
     if (($meta['merge-tag-review']['status'] ?? '') !== 'approved') {
         throw new RuntimeException('YAML metadata self-test missing explicit merge-tag block merge');
@@ -2183,6 +2208,7 @@ echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYaml
 echo 'Quoted ambiguous fields: ' . ($meta['no'] ?? '') . ' / ' . ($meta['Off'] ?? '') . ' / ' . ($meta['3.14'] ?? '') . ' / ' . ($meta['0o52'] ?? '') . "\n";
 echo 'YAML diagnostics: ' . count($yamlDiagnostics) . "\n";
 echo 'YAML invalid TAG directives: ' . count($invalidTagDiagnostics) . "\n";
+echo 'YAML invalid merge diagnostics: ' . count($invalidMergeDiagnostics) . "\n";
 echo 'YAML alias diagnostic paths: ' . implode(', ', array_column($aliasYamlDiagnostics, 'path')) . "\n";
 echo 'YAML custom tag provenance: ' . count($yamlTagProvenance) . "\n";
 echo 'YAML custom tag provenance paths: ' . implode(', ', array_filter(array_column($yamlTagProvenance, 'path'))) . "\n";

@@ -285,9 +285,9 @@ $ncxXml = <<<'XML'
     </navPoint>
   </navMap>
   <navList id="review-references" class="review-links">
-    <navLabel><text>Reviewer reference list</text></navLabel>
+    <navLabel id="review-references-label" class="review-list-label"><text id="review-references-title" class="review-list-title">Reviewer reference list</text></navLabel>
     <navTarget id="review-glossary" class="glossary" playOrder="10">
-      <navLabel><text>Source glossary entry</text></navLabel>
+      <navLabel id="review-glossary-label" class="glossary-label"><text id="review-glossary-title" class="glossary-title">Source glossary entry</text></navLabel>
       <content src="text/chapter.xhtml#source"/>
     </navTarget>
     <navTarget id="remote-review-record" playOrder="11">
@@ -680,8 +680,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['ncx']['navListCount'] ?? null) !== 1 || ($result['ncx']['navLists'][0]['title'] ?? null) !== 'Reviewer reference list') {
         throw new RuntimeException('Expected NCX navList reviewer references to stay visible in the import report');
     }
+    if (($result['ncx']['navLists'][0]['labelAttributes']['id'] ?? null) !== 'review-references-label' || ($result['ncx']['navLists'][0]['labelTextAttributes']['id'] ?? null) !== 'review-references-title') {
+        throw new RuntimeException('Expected NCX navList label source attributes to stay visible for review');
+    }
     if (($result['ncx']['navLists'][0]['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected local NCX navTarget to resolve to the source chapter fragment');
+    }
+    if (($result['ncx']['navLists'][0]['items'][0]['labelAttributes']['id'] ?? null) !== 'review-glossary-label' || ($result['ncx']['navLists'][0]['items'][0]['labelTextAttributes']['id'] ?? null) !== 'review-glossary-title') {
+        throw new RuntimeException('Expected NCX navTarget label source attributes to stay visible for review');
     }
     if (($result['importReport']['ncx']['navListDiagnostics'][0]['type'] ?? null) !== 'external-ncx-nav-list-reference') {
         throw new RuntimeException('Expected remote NCX navTarget to stay unfetched with a review diagnostic');
@@ -697,6 +703,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->attr('navigation')['supplementalItems'][0]['listId'] ?? null) !== 'review-references') {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX navList provenance');
+    }
+    if (($result['document']->attr('navigation')['supplementalItems'][0]['labelTextAttributes']['id'] ?? null) !== 'review-glossary-title') {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX label text provenance');
     }
     if (($result['navigation']['cfiTargetCount'] ?? null) !== 1 || ($result['document']->attr('navigation')['cfiTargets'][0]['fragmentKind'] ?? null) !== 'epub-cfi') {
         throw new RuntimeException('Expected EPUB navigation report to summarize CFI targets');

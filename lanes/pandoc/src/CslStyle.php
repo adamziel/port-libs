@@ -15,6 +15,9 @@ final class CslStyle
         'limitDayOrdinalsToDay1' => false,
     ];
 
+    /** @var list<string> */
+    private const TERM_FORMS = ['long', 'short', 'verb', 'verb-short', 'symbol'];
+
     /** @var array<string, array{single:string, multiple:string, match?:string, gender?:string}> */
     private const DEFAULT_TERMS = [
         'and|long' => ['single' => 'and', 'multiple' => 'and'],
@@ -1438,11 +1441,15 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL ' . $scope . ' text element must declare exactly one variable, term, value, or macro');
         }
 
+        $form = $term !== ''
+            ? self::termFormAttribute($text, $scope . ' text term')
+            : (self::optionalAttribute($text, 'form') !== '' ? self::optionalAttribute($text, 'form') : 'long');
+
         $element = [
             'type' => 'text',
             'prefix' => self::optionalAttribute($text, 'prefix'),
             'suffix' => self::optionalAttribute($text, 'suffix'),
-            'form' => self::optionalAttribute($text, 'form') !== '' ? self::optionalAttribute($text, 'form') : 'long',
+            'form' => $form,
             'plural' => self::booleanRenderingAttribute($text, 'plural', false, $scope),
             'quotes' => self::booleanRenderingAttribute($text, 'quotes', false, $scope),
             'stripPeriods' => self::booleanRenderingAttribute($text, 'strip-periods', false, $scope),
@@ -1925,6 +1932,20 @@ final class CslStyle
         return $element->hasAttribute($name) ? $element->getAttribute($name) : '';
     }
 
+    private static function termFormAttribute(\DOMElement $element, string $label): string
+    {
+        $form = strtolower(trim($element->getAttribute('form')));
+        if ($form === '') {
+            return 'long';
+        }
+
+        if (!in_array($form, self::TERM_FORMS, true)) {
+            throw new \InvalidArgumentException('CSL ' . $label . ' form must be long, short, verb, verb-short, or symbol');
+        }
+
+        return $form;
+    }
+
     private static function booleanRenderingAttribute(\DOMElement $element, string $name, bool $default, string $scope): bool
     {
         if (!$element->hasAttribute($name)) {
@@ -2119,10 +2140,7 @@ final class CslStyle
                 throw new \InvalidArgumentException('CSL locale term is missing a name');
             }
 
-            $form = trim($termElement->getAttribute('form'));
-            if ($form === '') {
-                $form = 'long';
-            }
+            $form = self::termFormAttribute($termElement, 'locale term');
             $gender = self::termGenderAttribute($termElement, 'gender', $name);
             $genderForm = self::termGenderAttribute($termElement, 'gender-form', $name);
             if ($genderForm !== '' && !self::isGenderFormOrdinalTerm($name)) {

@@ -2914,6 +2914,83 @@ final class ZipPackage
 
     /**
      * @return array{
+     *     archiveLength:int,
+     *     hasEndOfCentralDirectoryCandidate:bool,
+     *     eocdOffset:?int,
+     *     declaredArchiveEndOffset:?int,
+     *     declaredPackageCommentLength:?int,
+     *     availablePackageCommentBytes:?int,
+     *     trailingByteCount:int,
+     *     hasTrailingBytes:bool,
+     *     hasTruncatedComment:bool,
+     *     totalEntryCount:?int,
+     *     centralDirectoryOffset:?int,
+     *     centralDirectorySize:?int,
+     *     centralDirectoryEnd:?int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public static function endOfCentralDirectoryTrailingBytesPreflight(string $bytes): array
+    {
+        $archiveLength = strlen($bytes);
+        $candidate = self::findEndOfCentralDirectoryCandidate($bytes);
+        if ($candidate === null) {
+            return [
+                'archiveLength' => $archiveLength,
+                'hasEndOfCentralDirectoryCandidate' => false,
+                'eocdOffset' => null,
+                'declaredArchiveEndOffset' => null,
+                'declaredPackageCommentLength' => null,
+                'availablePackageCommentBytes' => null,
+                'trailingByteCount' => 0,
+                'hasTrailingBytes' => false,
+                'hasTruncatedComment' => false,
+                'totalEntryCount' => null,
+                'centralDirectoryOffset' => null,
+                'centralDirectorySize' => null,
+                'centralDirectoryEnd' => null,
+                'isSupportedByBoundedReader' => false,
+                'issues' => ['eocd-record-not-found'],
+            ];
+        }
+
+        $eocdOffset = $candidate['offset'];
+        $commentLength = self::readUInt16($bytes, $eocdOffset + 20);
+        $declaredArchiveEndOffset = $eocdOffset + 22 + $commentLength;
+        $availablePackageCommentBytes = max(0, min($commentLength, $archiveLength - ($eocdOffset + 22)));
+        $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
+        $hasTrailingBytes = $trailingByteCount > 0;
+        $hasTruncatedComment = $declaredArchiveEndOffset > $archiveLength;
+        $issues = [];
+        if ($hasTrailingBytes) {
+            $issues[] = 'eocd-trailing-bytes';
+        }
+        if ($hasTruncatedComment) {
+            $issues[] = 'eocd-comment-truncated';
+        }
+
+        return [
+            'archiveLength' => $archiveLength,
+            'hasEndOfCentralDirectoryCandidate' => true,
+            'eocdOffset' => $eocdOffset,
+            'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+            'declaredPackageCommentLength' => $commentLength,
+            'availablePackageCommentBytes' => $availablePackageCommentBytes,
+            'trailingByteCount' => $trailingByteCount,
+            'hasTrailingBytes' => $hasTrailingBytes,
+            'hasTruncatedComment' => $hasTruncatedComment,
+            'totalEntryCount' => self::readUInt16($bytes, $eocdOffset + 10),
+            'centralDirectoryOffset' => $candidate['centralDirectoryOffset'],
+            'centralDirectorySize' => $candidate['centralDirectorySize'],
+            'centralDirectoryEnd' => $candidate['centralDirectoryEnd'],
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{
      *     eocdOffset:int,
      *     requiresZip64:bool,
      *     hasZip64EndOfCentralDirectoryLocator:bool,
@@ -4889,6 +4966,7 @@ final class ZipPackage
      *     maxExpansionRatio:?float,
      *     maxEntryUncompressedBytes:?int,
      *     archive:?array<string, mixed>,
+     *     endOfCentralDirectoryTrailingBytes:array<string, mixed>,
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
@@ -4951,6 +5029,11 @@ final class ZipPackage
             return is_array($summary) ? $summary : null;
         };
 
+        $endOfCentralDirectoryTrailingBytes = self::endOfCentralDirectoryTrailingBytesPreflight($bytes);
+        if (!$endOfCentralDirectoryTrailingBytes['isSupportedByBoundedReader']) {
+            $addDiagnostics($endOfCentralDirectoryTrailingBytes['issues']);
+        }
+
         $archive = $runPreflight(
             'end-of-central-directory',
             static fn (): array => self::endOfCentralDirectoryPreflight($bytes)
@@ -4961,8 +5044,14 @@ final class ZipPackage
         );
 
         if ($archive === null) {
+            $addDiagnostic('zip-package-instantiation-failed');
+
             return [
-                'entryCount' => 0,
+                'entryCount' => (int) (
+                    $zip64EndOfCentralDirectory['totalEntryCount']
+                    ?? $endOfCentralDirectoryTrailingBytes['totalEntryCount']
+                    ?? 0
+                ),
                 'canInstantiate' => false,
                 'instantiationError' => $preflightErrors[0]['error'] ?? 'ZIP end-of-central-directory record was not found',
                 'isValid' => false,
@@ -4971,6 +5060,7 @@ final class ZipPackage
                 'maxExpansionRatio' => $maxExpansionRatio,
                 'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
                 'archive' => null,
+                'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
@@ -5141,6 +5231,7 @@ final class ZipPackage
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
             ?? $zip64EndOfCentralDirectory['totalEntryCount']
+            ?? $endOfCentralDirectoryTrailingBytes['totalEntryCount']
             ?? $archive['totalEntryCount']
             ?? 0
         );
@@ -5155,6 +5246,7 @@ final class ZipPackage
             'maxExpansionRatio' => $maxExpansionRatio,
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
+            'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
@@ -6838,10 +6930,28 @@ final class ZipPackage
 
     private static function findEndOfCentralDirectory(string $bytes): int
     {
+        $minimumSize = 22;
+        if (strlen($bytes) < $minimumSize) {
+            throw new \RuntimeException('ZIP package is too short to contain an end-of-central-directory record');
+        }
+
+        $candidate = self::findEndOfCentralDirectoryCandidate($bytes, true);
+        if ($candidate !== null) {
+            return $candidate['offset'];
+        }
+
+        throw new \RuntimeException('ZIP end-of-central-directory record not found');
+    }
+
+    /**
+     * @return array{offset:int, declaredArchiveEndOffset:int, centralDirectoryOffset:int, centralDirectorySize:int, centralDirectoryEnd:int}|null
+     */
+    private static function findEndOfCentralDirectoryCandidate(string $bytes, bool $mustEndAtArchiveEnd = false): ?array
+    {
         $length = strlen($bytes);
         $minimumSize = 22;
         if ($length < $minimumSize) {
-            throw new \RuntimeException('ZIP package is too short to contain an end-of-central-directory record');
+            return null;
         }
 
         $searchStart = max(0, $length - ($minimumSize + 0xffff));
@@ -6851,15 +6961,28 @@ final class ZipPackage
             }
 
             $commentLength = self::readUInt16($bytes, $offset + 20);
-            if (
-                $offset + $minimumSize + $commentLength === $length
-                && self::isEndOfCentralDirectoryCandidatePlausible($bytes, $offset)
-            ) {
-                return $offset;
+            $declaredArchiveEndOffset = $offset + $minimumSize + $commentLength;
+            if ($mustEndAtArchiveEnd && $declaredArchiveEndOffset !== $length) {
+                continue;
             }
+
+            if (!self::isEndOfCentralDirectoryCandidatePlausible($bytes, $offset)) {
+                continue;
+            }
+
+            $centralDirectorySize = self::readUInt32($bytes, $offset + 12);
+            $centralDirectoryOffset = self::readUInt32($bytes, $offset + 16);
+
+            return [
+                'offset' => $offset,
+                'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+                'centralDirectoryOffset' => $centralDirectoryOffset,
+                'centralDirectorySize' => $centralDirectorySize,
+                'centralDirectoryEnd' => $centralDirectoryOffset + $centralDirectorySize,
+            ];
         }
 
-        throw new \RuntimeException('ZIP end-of-central-directory record not found');
+        return null;
     }
 
     private static function isEndOfCentralDirectoryCandidatePlausible(string $bytes, int $offset): bool

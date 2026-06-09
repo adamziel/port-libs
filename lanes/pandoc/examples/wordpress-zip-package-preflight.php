@@ -2605,6 +2605,9 @@ $strictImportPackage = ZipPackage::fromParts([
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
 $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
+$rawStrictTrailingEocdBytes = $strictImportPackage->bytes() . "detached reviewer bytes\n";
+$rawStrictTrailingEocdSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($rawStrictTrailingEocdBytes);
+$rawStrictTrailingEocdPreflight = ZipPackage::rawStrictImportPreflight($rawStrictTrailingEocdBytes, 4096, 100.0, 4096);
 $emptyStrictImportPackage = ZipPackage::fromParts([]);
 $emptyStrictImportPreflight = $emptyStrictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $emptyRawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($emptyStrictImportPackage->bytes(), 4096, 100.0, 4096);
@@ -4300,6 +4303,21 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawStrictTrailingEocdPreflight['isValid'] ?? null) !== false
+        || ($rawStrictTrailingEocdPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictTrailingEocdPreflight['entryCount'] ?? null) !== 3
+        || ($rawStrictTrailingEocdPreflight['endOfCentralDirectoryTrailingBytes'] ?? null) !== $rawStrictTrailingEocdSummary
+        || ($rawStrictTrailingEocdSummary['hasEndOfCentralDirectoryCandidate'] ?? null) !== true
+        || ($rawStrictTrailingEocdSummary['hasTrailingBytes'] ?? null) !== true
+        || ($rawStrictTrailingEocdSummary['trailingByteCount'] ?? null) !== strlen("detached reviewer bytes\n")
+        || ($rawStrictTrailingEocdSummary['totalEntryCount'] ?? null) !== 3
+        || !in_array('eocd-trailing-bytes', $rawStrictTrailingEocdPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictTrailingEocdPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to report bytes after EOCD');
+    }
+
+    if (
         ($emptyStrictImportPreflight['isValid'] ?? null) !== false
         || ($emptyStrictImportPreflight['diagnostics'] ?? null) !== ['empty-package']
         || ($emptyStrictImportPreflight['contentPresence']['hasEntries'] ?? null) !== false
@@ -5810,6 +5828,9 @@ echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'acce
 echo 'zipRawStrictImportCanInstantiate=' . ($rawStrictImportPreflight['canInstantiate'] ? 'true' : 'false') . "\n";
 echo 'zipRawStrictImportDiagnostics=' . implode(',', $rawStrictImportPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['preflightErrors']) . "\n";
+echo 'zipRawStrictTrailingEocdPolicy=' . ($rawStrictTrailingEocdPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictTrailingEocdBytes=' . $rawStrictTrailingEocdSummary['trailingByteCount'] . "\n";
+echo 'zipRawStrictTrailingEocdDiagnostics=' . implode(',', $rawStrictTrailingEocdPreflight['diagnostics']) . "\n";
 echo 'zipEmptyStrictImportPolicy=' . ($emptyStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipEmptyStrictContentPresence=' . ($emptyStrictImportPreflight['contentPresence']['hasEntries'] ? 'has-entries' : 'empty') . "\n";
 echo 'zipEmptyRawStrictImportPolicy=' . ($emptyRawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";

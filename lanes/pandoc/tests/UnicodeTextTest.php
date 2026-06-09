@@ -453,6 +453,29 @@ return [
         $t->contains('<h1 id="mac-iceland">Mac Iceland</h1>', $blocks);
         $t->contains('<p>Ritstjóri “ísland” — €20; Þorn og ðaý; Ð/ð, Ý/ý; ’.</p>', $blocks);
     },
+    'decodes mac central european source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Central\n\nCzech \x89esk\x8E \xE4kola \xDBeka; Polish Za\xFD\x97\xB8\x8D g\xAB\xE6l\x88 ja\x90\xC4; Hungarian \xCC\xCE \xF4\xF5; quotes \xD2text\xD3 \xD1 \xA310.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-cent-euro');
+        $document = (new MarkdownReader())->readBytes($bytes, 'mac-ce');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x89\x8B\xE1\xE4\xEB\xEC\xCC\xCE\xF4\xF5\xD2\xD3\xD1\xA3", 'maccenteuro');
+        $macRomanComparison = UnicodeText::decodeBytes("\x89\xDB\xFC", 'macintosh');
+
+        $t->same('mac-central-europe', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Central\n\nCzech České škola Řeka; Polish Zażółć gęślą jaźń; Hungarian Őő Űű; quotes “text” — £10.", $decoded['text']);
+        $t->same('ČčŠšŽžŐőŰű“”—£', $specials['text']);
+        $t->same('mac-central-europe', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same('â€¸', $macRomanComparison['text']);
+        $t->same(['encoding' => 'mac-central-europe', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Central', $document->children[0]->attr('text'));
+        $t->same('Czech České škola Řeka; Polish Zażółć gęślą jaźń; Hungarian Őő Űű; quotes “text” — £10.', $document->children[1]->attr('text'));
+        $t->same(87, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(94, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="mac-central">Mac Central</h1>', $blocks);
+        $t->contains('<p>Czech České škola Řeka; Polish Zażółć gęślą jaźń; Hungarian Őő Űű; quotes “text” — £10.</p>', $blocks);
+    },
     'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp866');

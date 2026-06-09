@@ -695,6 +695,12 @@ return [
         $t->same([], $audit['packageExtraFileClosure']['presentExtraTmpFiles']['pandoc-server/pandoc-server.cabal']);
         $t->same([], $audit['packageExtraFileClosure']['presentExtraTmpFiles']['pandoc-cli/pandoc-cli.cabal']);
         $t->same([], $audit['packageExtraFileClosure']['unexpectedExtraTmpFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageNativeSystemFields(), $audit['packageNativeSystemFieldClosure']['expectedNativeSystemFields']);
+        $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc.cabal']);
+        $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-server/pandoc-server.cabal']);
+        $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -859,6 +865,7 @@ return [
         $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
         $t->contains('package flag definitions for cabal.project flags', $audit['nonMutatingPlan'][0]);
         $t->contains('exact package-level extra-doc-files and extra-source-files closure', $audit['nonMutatingPlan'][0]);
+        $t->contains('no unexpected package-level extra-tmp-files or native/system dependency fields', $audit['nonMutatingPlan'][0]);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
         $t->contains('cabal.project package/flag closure', $audit['nonMutatingPlan'][0]);
         $t->contains('runner entry-point semantics', $audit['nonMutatingPlan'][0]);
@@ -5724,7 +5731,117 @@ return [
         $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (tmp/lua-runner-cache)', $blocked);
         $t->contains('pandoc-server/pandoc-server.cabal (tmp/server-runner-cache)', $blocked);
         $t->contains('pandoc-cli/pandoc-cli.cabal (tmp/cli-runner-cache)', $blocked);
-        $t->contains('no unexpected package-level extra-doc-files, extra-source-files, or extra-tmp-files', $audit['activationGate']);
+        $t->contains('no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks package-level cabal native system fields before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "build-type: Simple\n",
+            implode("\n", [
+                'build-type: Simple',
+                'c-sources: cbits/pandoc-runner-audit.c',
+                'pkgconfig-depends: zlib >= 1.2, libarchive >= 3',
+                'ld-options:',
+                '  -Wl,--as-needed',
+                '  -Wl,--export-dynamic',
+                '',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            "build-type: Simple\n",
+            implode("\n", [
+                'build-type: Simple',
+                'extra-libraries: lua5.4 pandoclua',
+                'hsc2hs-options:',
+                '  --cross-compile',
+                '  --template=cbits/lua-template.hsc',
+                '',
+            ]),
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+        $files['pandoc-server/pandoc-server.cabal'] = str_replace(
+            "build-type: Simple\n",
+            implode("\n", [
+                'build-type: Simple',
+                'include-dirs: include cbits/server',
+                'includes: server-audit.h',
+                '',
+            ]),
+            $files['pandoc-server/pandoc-server.cabal']
+        );
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(
+            "build-type: Simple\n",
+            implode("\n", [
+                'build-type: Simple',
+                'frameworks: CoreFoundation',
+                'extra-framework-dirs: /System/Library/Frameworks',
+                'cxx-options: -DCLI_AUDIT',
+                '',
+            ]),
+            $files['pandoc-cli/pandoc-cli.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageNativeSystemFields(), $audit['packageNativeSystemFieldClosure']['expectedNativeSystemFields']);
+        $t->same([
+            'c-sources' => ['cbits/pandoc-runner-audit.c'],
+            'ld-options' => ['-Wl,--as-needed', '-Wl,--export-dynamic'],
+            'pkgconfig-depends' => ['libarchive >= 3', 'zlib >= 1.2'],
+        ], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc.cabal']);
+        $t->same([
+            'extra-libraries' => ['lua5.4', 'pandoclua'],
+            'hsc2hs-options' => ['--cross-compile', '--template=cbits/lua-template.hsc'],
+        ], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([
+            'include-dirs' => ['cbits/server', 'include'],
+            'includes' => ['server-audit.h'],
+        ], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-server/pandoc-server.cabal']);
+        $t->same([
+            'cxx-options' => ['-DCLI_AUDIT'],
+            'extra-framework-dirs' => ['/System/Library/Frameworks'],
+            'frameworks' => ['CoreFoundation'],
+        ], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([
+            'c-sources: cbits/pandoc-runner-audit.c',
+            'ld-options: -Wl,--as-needed',
+            'ld-options: -Wl,--export-dynamic',
+            'pkgconfig-depends: libarchive >= 3',
+            'pkgconfig-depends: zlib >= 1.2',
+        ], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']['pandoc.cabal']);
+        $t->same([
+            'extra-libraries: lua5.4',
+            'extra-libraries: pandoclua',
+            'hsc2hs-options: --cross-compile',
+            'hsc2hs-options: --template=cbits/lua-template.hsc',
+        ], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([
+            'include-dirs: cbits/server',
+            'include-dirs: include',
+            'includes: server-audit.h',
+        ], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']['pandoc-server/pandoc-server.cabal']);
+        $t->same([
+            'cxx-options: -DCLI_AUDIT',
+            'extra-framework-dirs: /System/Library/Frameworks',
+            'frameworks: CoreFoundation',
+        ], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']['pandoc-cli/pandoc-cli.cabal']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal package native/system dependencies: pandoc.cabal (c-sources: cbits/pandoc-runner-audit.c, ld-options: -Wl,--as-needed, ld-options: -Wl,--export-dynamic, pkgconfig-depends: libarchive >= 3, pkgconfig-depends: zlib >= 1.2)', $blocked);
+        $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (extra-libraries: lua5.4, extra-libraries: pandoclua, hsc2hs-options: --cross-compile, hsc2hs-options: --template=cbits/lua-template.hsc)', $blocked);
+        $t->contains('pandoc-server/pandoc-server.cabal (include-dirs: cbits/server, include-dirs: include, includes: server-audit.h)', $blocked);
+        $t->contains('pandoc-cli/pandoc-cli.cabal (cxx-options: -DCLI_AUDIT, extra-framework-dirs: /System/Library/Frameworks, frameworks: CoreFoundation)', $blocked);
+        $t->contains('no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
 ];

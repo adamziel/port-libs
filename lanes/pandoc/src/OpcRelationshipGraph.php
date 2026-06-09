@@ -2601,7 +2601,7 @@ final class OpcRelationshipGraph
     /**
      * @param list<string> $sourceIds
      * @param list<string> $sourceTypes
-     * @return array{source:string, relationshipPartName:string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, relationshipIds:list<string>, relationshipCount:int, selectorValid:bool, relationshipTargetsValid:bool, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}
+     * @return array{source:string, relationshipPartName:string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, relationshipIds:list<string>, relationshipCount:int, selectorValid:bool, relationshipTargetsValid:bool, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}
      */
     public function materializeRelationshipTransform(string $sourcePartName = '/', array $sourceIds = [], array $sourceTypes = []): array
     {
@@ -2640,6 +2640,10 @@ final class OpcRelationshipGraph
             $issues[] = 'selected-relationship-target-issues';
         }
 
+        $relationshipXml = $relationships instanceof OpcRelationships
+            ? self::relationshipTransformXml($selectedForTransform)
+            : null;
+
         return [
             'source' => $sourcePartName,
             'relationshipPartName' => OpcRelationships::relationshipPartNameForSource($sourcePartName),
@@ -2658,14 +2662,14 @@ final class OpcRelationshipGraph
             'valid' => $issues === [],
             'issues' => array_values(array_unique($issues)),
             'relationships' => $selector['relationships'],
-            'relationshipXml' => $relationships instanceof OpcRelationships
-                ? self::relationshipTransformXml($selectedForTransform)
-                : null,
+            'relationshipXml' => $relationshipXml,
+            'relationshipXmlBytes' => $relationshipXml === null ? null : strlen($relationshipXml),
+            'relationshipXmlSha256' => $relationshipXml === null ? null : hash('sha256', $relationshipXml),
         ];
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, referenceUri:string, relationshipPartName:?string, referenceRelationshipPartExists:?bool, referenceTargetContentType:?string, referenceContentType:?string, referenceContentTypeMatches:?bool, source:?string, transformAlgorithm:string, sourceIds:list<string>, sourceTypes:list<string>, invalidSourceTypes:list<string>, sourceTypeIssues:array<string, list<string>>, selectorChildCount:int, selectorRelationshipReferenceCount:int, selectorRelationshipGroupReferenceCount:int, selectorUnsupportedChildCount:int, selectorUnsupportedContentCount:int, followingCanonicalizationAlgorithm:?string, followingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, followedByCanonicalization:bool, relationshipIds:list<string>, relationshipCount:int, selectorValid:?bool, relationshipTargetsValid:?bool, valid:bool, issues:list<string>, parseError:?string, relationships:list<array{source:string, id:string, type:string, selectedBySourceId:bool, selectedBySourceType:bool, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>, relationshipXml:?string, relationshipXmlBytes:?int, relationshipXmlSha256:?string}>
      */
     public function preflightSignatureRelationshipTransforms(string $signaturePartName): array
     {
@@ -2772,6 +2776,8 @@ final class OpcRelationshipGraph
                 $relationshipTargetsValid = null;
                 $relationships = [];
                 $relationshipXml = null;
+                $relationshipXmlBytes = null;
+                $relationshipXmlSha256 = null;
 
                 if ($sourcePartName !== null) {
                     try {
@@ -2788,6 +2794,8 @@ final class OpcRelationshipGraph
                         $relationshipTargetsValid = $materialized['relationshipTargetsValid'];
                         $relationships = $materialized['relationships'];
                         $relationshipXml = $materialized['relationshipXml'];
+                        $relationshipXmlBytes = $materialized['relationshipXmlBytes'];
+                        $relationshipXmlSha256 = $materialized['relationshipXmlSha256'];
                         $issues = array_merge($issues, $materialized['issues']);
                     } catch (\InvalidArgumentException $exception) {
                         $issues[] = 'invalid-relationship-transform-selector';
@@ -2828,6 +2836,8 @@ final class OpcRelationshipGraph
                     'parseError' => $parseError,
                     'relationships' => $relationships,
                     'relationshipXml' => $relationshipXml,
+                    'relationshipXmlBytes' => $relationshipXmlBytes,
+                    'relationshipXmlSha256' => $relationshipXmlSha256,
                 ];
             }
         }

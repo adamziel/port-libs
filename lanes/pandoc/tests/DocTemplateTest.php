@@ -425,6 +425,33 @@ TPL, [
         ]), $output);
     },
 
+    'preserves source-aligned blank lines inside explicit pandoc doctemplate nesting' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render(<<<'TPL'
+<aside>
+<p>$^$Intro: $summary$
+
+   Note: $note$
+   $details$</p>
+</aside>
+TPL, [
+            'summary' => "First line\nSecond line",
+            'note' => "Third line\nFourth line",
+            'details' => "Fifth line\nSixth line",
+        ]);
+
+        $t->same(implode("\n", [
+            '<aside>',
+            '<p>Intro: First line',
+            '   Second line',
+            '   ',
+            '   Note: Third line',
+            '   Fourth line',
+            '   Fifth line',
+            '   Sixth line</p>',
+            '</aside>',
+        ]), $output);
+    },
+
     'dedents pandoc doctemplate source-aligned literal lines inside explicit nesting' => static function (TestRunner $t): void {
         $output = (new DocTemplate())->render(<<<'TPL'
 <ul>

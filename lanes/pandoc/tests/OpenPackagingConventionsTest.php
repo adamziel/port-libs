@@ -3798,6 +3798,85 @@ XML;
         $t->same(['relationship-source-not-loaded', 'unmatched-source-id'], $missingSource['issues']);
         $t->same(null, $missingSource['relationshipXml']);
     },
+    'summarizes OPC relationship transform payload fingerprints' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-fingerprint.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review?post=42&amp;stage=import" TargetMode="External"/>
+  <Relationship Id="rIdDraft" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:opc="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <opc:RelationshipReference SourceId="rIdImage"/>
+          <opc:RelationshipReference SourceId="rIdExternal"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-fingerprint.xml', 'data' => $signatureXml],
+        ]));
+
+        $expectedXml = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Target="https://example.test/review?post=42&amp;stage=import" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship><Relationship Id="rIdImage" Target="media/hero.png" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship></Relationships>';
+        $expectedHash = hash('sha256', $expectedXml);
+        $materialized = $graph->materializeRelationshipTransform(
+            '/word/document.xml',
+            ['rIdImage', 'rIdExternal'],
+        );
+
+        $t->same(['rIdExternal', 'rIdImage'], $materialized['relationshipIds']);
+        $t->same($expectedXml, $materialized['relationshipXml']);
+        $t->same(strlen($expectedXml), $materialized['relationshipXmlBytes']);
+        $t->same($expectedHash, $materialized['relationshipXmlSha256']);
+        $t->same(64, strlen((string) $materialized['relationshipXmlSha256']));
+        $t->same(true, ctype_xdigit((string) $materialized['relationshipXmlSha256']));
+        $t->same(false, str_contains((string) $materialized['relationshipXml'], 'rIdDraft'));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-fingerprint.xml');
+        $t->same(1, count($transforms));
+        $t->same(true, $transforms[0]['valid']);
+        $t->same($expectedXml, $transforms[0]['relationshipXml']);
+        $t->same(strlen($expectedXml), $transforms[0]['relationshipXmlBytes']);
+        $t->same($expectedHash, $transforms[0]['relationshipXmlSha256']);
+        $t->same($materialized['relationshipXmlBytes'], $transforms[0]['relationshipXmlBytes']);
+        $t->same($materialized['relationshipXmlSha256'], $transforms[0]['relationshipXmlSha256']);
+
+        $missingSource = $graph->materializeRelationshipTransform('/word/missing.xml', ['rIdImage'], []);
+        $t->same(null, $missingSource['relationshipXml']);
+        $t->same(null, $missingSource['relationshipXmlBytes']);
+        $t->same(null, $missingSource['relationshipXmlSha256']);
+    },
     'omits internal TargetMode attributes from OPC relationship transform XML' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

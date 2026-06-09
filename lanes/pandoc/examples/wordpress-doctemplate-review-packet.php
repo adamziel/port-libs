@@ -39,6 +39,9 @@ for $title$$~$</p>
 <p class="derived-missing-count">${ missingWarnings/length:components/missing-count() }</p>
 <pre class="plain-text-summary">$wrappedPlainSummary$</pre>
 <p class="labeled-note">$^$Note: $summaryNote$</p>
+<p>$^$Blank: $blankLineNote$
+
+   Follow-up: $blankLineFollowup$</p>
 <p class="dedented-note">$^$$dedentedNote$
 </p>
 <p>$^$$reviewStatus$
@@ -130,6 +133,8 @@ $context = [
         ],
     ],
     'summaryNote' => "Review imported title blocks\nConfirm reviewer packet spacing",
+    'blankLineNote' => "First review line\nSecond review line",
+    'blankLineFollowup' => "Follow-up first\nFollow-up second",
     'dedentedNote' => 'Dedented review packet close',
     'reviewStatus' => 'Ready for import',
     'reviewOwner' => "Migration desk\nReview desk",
@@ -192,6 +197,7 @@ if (in_array('--self-test', $argv, true)) {
         $labeledNotePrefix . 'Note: Review imported title blocks' . "\n"
             . str_repeat(' ', UnicodeText::displayWidth($labeledNotePrefix))
             . 'Confirm reviewer packet spacing</p>',
+        "<p>Blank: First review line\n   Second review line\n   \n   Follow-up: Follow-up first\n   Follow-up second</p>",
         "<p class=\"dedented-note\">Dedented review packet close\n</p>",
         "<p>Ready for import\n   Owner: Migration desk\n   Review desk</p>",
         "<p class=\"comment-spacing\">Before preserved comment whitespace</p>\n  \n<p class=\"comment-spacing\">After preserved comment whitespace</p>",

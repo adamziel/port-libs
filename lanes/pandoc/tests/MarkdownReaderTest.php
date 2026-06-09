@@ -2360,6 +2360,51 @@ return [
         $t->same('yaml-merge-shadow-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-merge-shadow-body">YAML merge shadow body</h1>', $blocks);
     },
+    'records pandoc yaml invalid merge value diagnostics without dropping valid maps' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Invalid merge **Packet**',
+            'review-base_: &review_base {status: queued, priority: 5, reviewer: Base Desk}',
+            'review:',
+            '  <<: [missing, *review_base, [bad, merge], {labels: [import]}]',
+            '  owner: Import Desk',
+            'direct-review:',
+            '  <<: skipped',
+            '  owner: Direct Desk',
+            'flow-review: {<<: [invalid, *review_base, {status: approved}], reviewer: Flow Desk}',
+            '...',
+            '',
+            '# Invalid merge YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $invalidMergeDiagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-merge-value'
+        ));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Invalid merge **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(5, $meta['review']['priority']);
+        $t->same('Base Desk', $meta['review']['reviewer']);
+        $t->same(['import'], $meta['review']['labels']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same('Direct Desk', $meta['direct-review']['owner']);
+        $t->same(false, array_key_exists('status', $meta['direct-review']));
+        $t->same('queued', $meta['flow-review']['status']);
+        $t->same('Flow Desk', $meta['flow-review']['reviewer']);
+        $t->same(4, count($invalidMergeDiagnostics));
+        $t->same(array_fill(0, 4, 'yaml-merge'), array_column($invalidMergeDiagnostics, 'type'));
+        $t->same(array_fill(0, 4, 'invalid-merge-value'), array_column($invalidMergeDiagnostics, 'reason'));
+        $t->same(['/review/<<', '/review/<<', '/direct-review/<<', '/flow-review/<<'], array_column($invalidMergeDiagnostics, 'path'));
+        $t->same(['scalar', 'sequence', 'scalar', 'scalar'], array_column($invalidMergeDiagnostics, 'valueKind'));
+        $t->same(['0', '2', null, '0'], array_map(static fn (array $diagnostic): ?string => $diagnostic['mergeIndex'] ?? null, $invalidMergeDiagnostics));
+        $t->same(['5', '5', '8', '10'], array_column($invalidMergeDiagnostics, 'sourceLine'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('invalid-merge-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="invalid-merge-yaml-body">Invalid merge YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit merge tag keys as merge metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

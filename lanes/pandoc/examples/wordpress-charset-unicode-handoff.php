@@ -84,6 +84,9 @@ $macGreekText = (string) $macGreekSource->children[1]->attr('text');
 $macIcelandBytes = "# Mac Iceland\n\nRitstj\x97ri \xD2\x92sland\xD3 \xD1 \xDB20; \xDEorn og \xDDa\xE0; \xDC/\xDD, \xA0/\xE0; \xD5.";
 $macIcelandSource = (new MarkdownReader())->readBytes($macIcelandBytes, 'x-mac-icelandic');
 $macIcelandText = (string) $macIcelandSource->children[1]->attr('text');
+$macCentralBytes = "# Mac Central\n\nCzech \x89esk\x8E \xE4kola \xDBeka; Polish Za\xFD\x97\xB8\x8D g\xAB\xE6l\x88 ja\x90\xC4; Hungarian \xCC\xCE \xF4\xF5; quotes \xD2text\xD3 \xD1 \xA310.";
+$macCentralSource = (new MarkdownReader())->readBytes($macCentralBytes, 'x-mac-cent-euro');
+$macCentralText = (string) $macCentralSource->children[1]->attr('text');
 $ibm855Bytes = "# DOS 855\n\n\xE2\xA8\xA6\xA0\xC6\xE5\xD6\xE1 \xD8\xE1\xB7\xEB\xA8\xE5; \x85\xD0\xC6\xA0; \x91\x90 \x93\x92; box \xB3\xC4\xDA; \xEF\xFD.";
 $ibm855Source = (new MarkdownReader())->readBytes($ibm855Bytes, 'cp855');
 $ibm855Text = (string) $ibm855Source->children[1]->attr('text');
@@ -609,6 +612,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macIcelandSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macIcelandText) . '/' . UnicodeText::displayWidth($macIcelandText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Central European source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macCentralText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macCentralSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macCentralText) . '/' . UnicodeText::displayWidth($macCentralText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM855 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm855Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm855Text) . '/' . UnicodeText::displayWidth($ibm855Text, 'wide')])]),
@@ -1047,6 +1055,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Mac Iceland source</td><td>Ritstjóri “ísland” — €20; Þorn og ðaý; Ð/ð, Ý/ý; ’.</td><td>mac-iceland:51/62</td>')) {
         throw new RuntimeException('charset handoff self-test missing Mac Iceland decode audit row');
+    }
+    if (($macCentralSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-central-europe') {
+        throw new RuntimeException('charset handoff self-test missing Mac Central European source encoding');
+    }
+    if (!str_contains($blocks, '<td>Mac Central European source</td><td>Czech České škola Řeka; Polish Zażółć gęślą jaźń; Hungarian Őő Űű; quotes “text” — £10.</td><td>mac-central-europe:87/94</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Mac Central European decode audit row');
     }
     if (($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm855') {
         throw new RuntimeException('charset handoff self-test missing IBM855 source encoding');

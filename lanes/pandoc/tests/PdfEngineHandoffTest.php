@@ -3397,6 +3397,168 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageOutputIntents']);
     },
 
+    'fake runner summarizes pdfx xmp and output intent consistency policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $okPlan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfx-policy-ok.pdf']);
+        $reviewPlan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfx-policy-review.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:pdfxid="http://www.npes.org/pdfx/ns/id/">',
+            '<pdfxid:GTS_PDFXVersion>PDF/X-4</pdfxid:GTS_PDFXVersion>',
+            '<pdfxid:GTS_PDFXConformance>PDF/X-4p</pdfxid:GTS_PDFXConformance>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $iccProfile = "fake CMYK output profile bytes\n";
+        $okPdf = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R /OutputIntents [9 0 R] >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /OutputIntent /S /GTS_PDFX /OutputConditionIdentifier (FOGRA39) /OutputCondition (FOGRA39 coated proof) /RegistryName (https://www.color.org) /Info (Document proof intent) /DestOutputProfile 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /N 4 /Alternate /DeviceCMYK /Length ' . strlen($iccProfile) . ' >>',
+            'stream',
+            $iccProfile,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+        $reviewPdf = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /OutputIntents [9 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /OutputIntent /S /GTS_PDFX /RegistryName (https://www.color.org) /Info (Page-only proof intent) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $ok = $handoff->fakeRun($okPlan, [
+            'files' => [
+                'packets/pdfx-policy-ok.pdf' => $okPdf,
+            ],
+        ]);
+        $review = $handoff->fakeRun($reviewPlan, [
+            'files' => [
+                'packets/pdfx-policy-review.pdf' => $reviewPdf,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($okPlan, [
+            [
+                'files' => [
+                    'packets/pdfx-policy-ok.pdf' => $okPdf,
+                ],
+            ],
+        ]);
+
+        $expectedOk = [
+            'reviewStatus' => 'ok',
+            'pdfxVersion' => 'PDF/X-4',
+            'pdfxConformance' => 'PDF/X-4p',
+            'pdfxIntentCount' => 1,
+            'documentPdfxIntentCount' => 1,
+            'pagePdfxIntentCount' => 0,
+            'embeddedProfileCount' => 1,
+            'issues' => [],
+            'intents' => [
+                [
+                    'scope' => 'document',
+                    'page' => null,
+                    'source' => 'catalog.OutputIntents[0]',
+                    'subtype' => 'GTS_PDFX',
+                    'outputConditionIdentifier' => 'FOGRA39',
+                    'registryName' => 'https://www.color.org',
+                    'hasDestOutputProfile' => true,
+                    'profileComponents' => 4,
+                    'profileSkipped' => null,
+                    'pdfxIntent' => true,
+                ],
+            ],
+        ];
+        $expectedReview = [
+            'reviewStatus' => 'review',
+            'pdfxVersion' => 'PDF/X-4',
+            'pdfxConformance' => 'PDF/X-4p',
+            'pdfxIntentCount' => 1,
+            'documentPdfxIntentCount' => 0,
+            'pagePdfxIntentCount' => 1,
+            'embeddedProfileCount' => 0,
+            'issues' => [
+                'pdfx-output-intent-page-scoped',
+                'missing-output-condition-identifier',
+                'missing-dest-output-profile',
+            ],
+            'intents' => [
+                [
+                    'scope' => 'page',
+                    'page' => 1,
+                    'source' => 'page:3 0 R.OutputIntents',
+                    'subtype' => 'GTS_PDFX',
+                    'outputConditionIdentifier' => null,
+                    'registryName' => 'https://www.color.org',
+                    'hasDestOutputProfile' => false,
+                    'profileComponents' => null,
+                    'profileSkipped' => null,
+                    'pdfxIntent' => true,
+                ],
+            ],
+        ];
+
+        $t->same(true, $ok['ok']);
+        $t->same($expectedOk, $ok['pdfOutputIntentPolicy']);
+        $t->contains('pdf-byte-output-intent-policy:ok', implode(',', $ok['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-document-pdfx-intents:1', implode(',', $ok['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-embedded-profiles:1', implode(',', $ok['diagnostics']));
+        $t->same(true, $review['ok']);
+        $t->same($expectedReview, $review['pdfOutputIntentPolicy']);
+        $t->contains('pdf-byte-output-intent-policy:review', implode(',', $review['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-page-pdfx-intents:1', implode(',', $review['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-issues:3', implode(',', $review['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-issue:missing-dest-output-profile:1', implode(',', $review['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-issue:missing-output-condition-identifier:1', implode(',', $review['diagnostics']));
+        $t->contains('pdf-byte-output-intent-policy-issue:pdfx-output-intent-page-scoped:1', implode(',', $review['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedOk, $sequence['finalPdfOutputIntentPolicy']);
+    },
+
     'fake runner extracts bounded pdf catalog presentation preferences from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/presentation.pdf']);

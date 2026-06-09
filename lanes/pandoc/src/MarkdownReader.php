@@ -5374,14 +5374,48 @@ final class MarkdownReader
             $merged = $mergeValue;
         } elseif (is_array($mergeValue)) {
             $this->recordYamlMergeSequenceShadowDiagnostics($mergeValue);
+            $this->recordYamlInvalidMergeSequenceValueDiagnostics($mergeValue);
             foreach (array_reverse($mergeValue) as $item) {
                 if ($this->isYamlAssociativeArray($item)) {
                     $merged = array_replace($merged, $item);
                 }
             }
+        } else {
+            $this->recordYamlInvalidMergeValueDiagnostic($mergeValue);
         }
 
         return array_replace($merged, $current);
+    }
+
+    /**
+     * @param array<int, mixed> $mergeValue
+     */
+    private function recordYamlInvalidMergeSequenceValueDiagnostics(array $mergeValue): void
+    {
+        foreach ($mergeValue as $index => $item) {
+            if ($this->isYamlAssociativeArray($item)) {
+                continue;
+            }
+
+            $this->recordYamlInvalidMergeValueDiagnostic($item, $index);
+        }
+    }
+
+    private function recordYamlInvalidMergeValueDiagnostic(mixed $value, int|string|null $mergeIndex = null): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-merge',
+            'reason' => 'invalid-merge-value',
+            'path' => $this->yamlMetadataPathWithSegment('<<'),
+            'valueKind' => $this->yamlMetadataValueKind($value),
+            'expected' => 'mapping or sequence of mappings',
+        ];
+        if ($mergeIndex !== null) {
+            $diagnostic['mergeIndex'] = (string) $mergeIndex;
+        }
+        $diagnostic += $this->yamlMetadataSourceLineAttrs();
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic;
     }
 
     /**

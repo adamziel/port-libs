@@ -893,6 +893,8 @@ foreach ($caseEquivalentTargetGraph->preflightSignatureRelationshipTransforms('/
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 
@@ -1056,6 +1058,8 @@ foreach ($relationshipPartContentTypeGuardGraph->preflightSignatureRelationshipT
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 
@@ -1619,6 +1623,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 $signatureRelationshipTransformGuards = [];
@@ -1665,6 +1671,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-m
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 $signatureFragmentReferenceGuards = [];
@@ -1686,6 +1694,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-f
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 $signatureDotSegmentReferenceGuards = [];
@@ -1705,6 +1715,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-d
         'issues' => $transform['issues'],
         'parseError' => $transform['parseError'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 $signatureReferenceUriKindGuards = [];
@@ -1726,6 +1738,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-r
         'valid' => $transform['valid'],
         'issues' => $transform['issues'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 $signatureUnsafeReferenceGuards = [];
@@ -1745,6 +1759,8 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-u
         'issues' => $transform['issues'],
         'parseError' => $transform['parseError'],
         'relationshipXml' => $transform['relationshipXml'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
 
@@ -2112,6 +2128,8 @@ $summary = [
         'valid' => $relationshipTransform['valid'],
         'issues' => $relationshipTransform['issues'],
         'relationshipXml' => $relationshipTransform['relationshipXml'],
+        'relationshipXmlBytes' => $relationshipTransform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $relationshipTransform['relationshipXmlSha256'],
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
@@ -2408,6 +2426,12 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['relationshipSourceInventory']['/word/document.xml']['issues'][0] ?? null,
         $summary['relationshipSourceInventory']['/word/document.xml']['issues'][1] ?? null,
     ];
+    $relationshipTransformXml = (string) ($summary['relationshipTransform']['relationshipXml'] ?? '');
+    $relationshipTransformXmlBytes = strlen($relationshipTransformXml);
+    $relationshipTransformXmlSha256 = hash('sha256', $relationshipTransformXml);
+    $signatureRelationshipTransformXml = (string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? '');
+    $signatureRelationshipTransformXmlBytes = strlen($signatureRelationshipTransformXml);
+    $signatureRelationshipTransformXmlSha256 = hash('sha256', $signatureRelationshipTransformXml);
     if (
         $actual !== $expected
         || $summary['wordpressImport']['hasReviewerEditLink'] !== true
@@ -3164,6 +3188,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationshipTransform']['relationshipTargetsValid'] ?? null) !== true
         || ($summary['relationshipTransform']['valid'] ?? null) !== true
         || ($summary['relationshipTransform']['issues'] ?? null) !== []
+        || ($summary['relationshipTransform']['relationshipXmlBytes'] ?? null) !== $relationshipTransformXmlBytes
+        || ($summary['relationshipTransform']['relationshipXmlSha256'] ?? null) !== $relationshipTransformXmlSha256
+        || strlen((string) ($summary['relationshipTransform']['relationshipXmlSha256'] ?? '')) !== 64
+        || !ctype_xdigit((string) ($summary['relationshipTransform']['relationshipXmlSha256'] ?? ''))
         || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="Internal"')
         || !str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'TargetMode="External"')
         || str_contains((string) ($summary['relationshipTransform']['relationshipXml'] ?? ''), 'rIdDraftReview')
@@ -3193,6 +3221,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureRelationshipTransforms'][0]['relationshipTargetsValid'] ?? null) !== true
         || ($summary['signatureRelationshipTransforms'][0]['valid'] ?? null) !== true
         || ($summary['signatureRelationshipTransforms'][0]['issues'] ?? null) !== []
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipXmlBytes'] ?? null) !== $signatureRelationshipTransformXmlBytes
+        || ($summary['signatureRelationshipTransforms'][0]['relationshipXmlSha256'] ?? null) !== $signatureRelationshipTransformXmlSha256
+        || strlen((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXmlSha256'] ?? '')) !== 64
+        || !ctype_xdigit((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXmlSha256'] ?? ''))
         || !str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'Id="rIdEmbeddedWorkbook"')
         || str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'rIdDraftReview')
         || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 1

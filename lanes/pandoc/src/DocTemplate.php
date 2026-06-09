@@ -6584,6 +6584,7 @@ CSS;
 
             $sourceIndent = substr($value, $afterLineEnding, $indentEnd - $afterLineEnding);
             if ($indentEnd < $length && ($value[$indentEnd] === "\r" || $value[$indentEnd] === "\n")) {
+                $output .= $indent;
                 $offset = $indentEnd;
                 continue;
             }

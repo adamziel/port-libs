@@ -7692,6 +7692,129 @@ XML);
         $t->contains('<dt>Smith and exact Ng 2026</dt><dd>Smith, Ada; Ng, Nia. Locale Source Packet. 2026. https://example.test/locale-source. Inspected 2026-06-06.</dd>', $blocks);
         $t->contains('<dt>Undated Locale Packet exact n.d.</dt><dd>Undated Locale Packet.</dd>', $blocks);
     },
+    'applies bounded csl text term forms and locale fallbacks' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'term-form-source',
+                'type' => 'review',
+                'title' => 'Term Form Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'editor' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'reviewed-author' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'accessed' => ['date-parts' => [[2026, 6, 9]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Text Term Forms Review</title>
+    <id>https://example.test/styles/bounded-text-term-forms-review</id>
+    <updated>2026-06-09T00:10:21+00:00</updated>
+  </info>
+  <locale xml:lang="en-US">
+    <terms>
+      <term name="editor" form="verb-short"><single>ed.</single><multiple>eds.</multiple></term>
+      <term name="reviewed-author" form="verb">review of</term>
+      <term name="section" form="symbol"><single>§</single><multiple>§§</multiple></term>
+      <term name="accessed" form="short">acc.</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <text term="editor" form="verb-short" plural="true"/>
+          <names variable="editor"/>
+        </group>
+        <group delimiter=" ">
+          <text term="reviewed-author" form="verb-short"/>
+          <names variable="reviewed-author"/>
+        </group>
+        <group delimiter=" ">
+          <text term="section" form="symbol" plural="true"/>
+          <text value="4-5"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <text term="accessed" form="short"/>
+        <date variable="accessed"/>
+      </group>
+      <group delimiter=" ">
+        <text term="section" form="symbol"/>
+        <text value="review appendix"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Text Term Forms Review', $summary['title'] ?? null);
+        $t->same('verb-short', $children[1]['children'][0]['form'] ?? null);
+        $t->same('editor', $children[1]['children'][0]['term'] ?? null);
+        $t->same(true, $children[1]['children'][0]['plural'] ?? null);
+        $t->same('verb-short', $children[2]['children'][0]['form'] ?? null);
+        $t->same('reviewed-author', $children[2]['children'][0]['term'] ?? null);
+        $t->same('symbol', $children[3]['children'][0]['form'] ?? null);
+        $t->same(true, $children[3]['children'][0]['plural'] ?? null);
+        $t->same('short', $summary['bibliographyRendering'][1]['children'][0]['form'] ?? null);
+        $t->same('accessed', $summary['bibliographyRendering'][1]['children'][0]['term'] ?? null);
+
+        $t->same('(Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'term-form-source', 'text' => '[@term-form-source]']),
+        ]));
+        $t->same('Term Form Packet :: acc. 2026-06-09 :: § review appendix', $processor->renderBibliographyEntry('term-form-source'));
+
+        $document = (new MarkdownReader())->read('Term form review [@term-form-source] keeps CSL locale forms visible.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $t->contains('Term form review (Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5) keeps CSL locale forms visible.', $markdown);
+        $t->contains('Smith 2026' . "\n" . ':   Term Form Packet :: acc. 2026-06-09 :: § review appendix', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Term form review (Smith | eds. Ng and Roe | review of Archive Desk | §§ 4-5) keeps CSL locale forms visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Term Form Packet :: acc. 2026-06-09 :: § review appendix</dd>', $blocks);
+
+        try {
+            CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation><layout><text term="editor" form="nickname"/></layout></citation>
+</style>
+XML);
+            throw new RuntimeException('Expected invalid text term form to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('CSL citation text term form must be long, short, verb, verb-short, or symbol', $exception->getMessage());
+        }
+
+        try {
+            CitationCslProcessor::fromItems([])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <locale xml:lang="en-US"><terms><term name="editor" form="nickname">ed?</term></terms></locale>
+  <citation><layout><text term="editor"/></layout></citation>
+</style>
+XML);
+            throw new RuntimeException('Expected invalid locale term form to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('CSL locale term form must be long, short, verb, verb-short, or symbol', $exception->getMessage());
+        }
+    },
     'applies bounded csl bibliography layout affixes and accessed locale term' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
