@@ -713,7 +713,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains("```{data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
-        $t->contains('<pre class="wp-block-code"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
+        $t->contains('<pre class="wp-block-code" data-odf-preformatted="true" data-odf-style-name="InheritedSourceCode"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
     },
@@ -1009,8 +1009,8 @@ XML;
         $t->contains('# Heading from source bookmark {#source-review-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Source Review Anchor" data-odf-heading-anchor-id="source-review-anchor"}', $markdown);
         $t->contains('## Styled heading from bookmark {#styled-source-anchor data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Styled Source Anchor" data-odf-heading-anchor-id="styled-source-anchor"}', $markdown);
         $t->contains('## Source Review Anchor {#source-review-anchor-1}', $markdown);
-        $t->contains('<h1 id="source-review-anchor">Heading from source bookmark</h1>', $blocksHtml);
-        $t->contains('<h2 id="styled-source-anchor">Styled heading from bookmark</h2>', $blocksHtml);
+        $t->contains('<h1 id="source-review-anchor" data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Source Review Anchor" data-odf-heading-anchor-id="source-review-anchor">Heading from source bookmark</h1>', $blocksHtml);
+        $t->contains('<h2 id="styled-source-anchor" data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="Styled Source Anchor" data-odf-heading-anchor-id="styled-source-anchor">Styled heading from bookmark</h2>', $blocksHtml);
         $t->contains('<h2 id="source-review-anchor-1">Source Review Anchor</h2>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'class="anchor odf-bookmark"'), 'Heading bookmarks should become heading ids, not nested empty anchors');
     },
@@ -1068,9 +1068,9 @@ XML;
         $t->contains('# Heading with text id {#source-review-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id"}', $markdown);
         $t->contains('## Styled heading with XML id {#styled-source-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="styled-source-id" data-odf-heading-anchor-id="styled-source-id"}', $markdown);
         $t->contains('## Duplicate source id {#source-review-id-1 data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id-1"}', $markdown);
-        $t->contains('<h1 id="source-review-id">Heading with text id</h1>', $blocksHtml);
-        $t->contains('<h2 id="styled-source-id">Styled heading with XML id</h2>', $blocksHtml);
-        $t->contains('<h2 id="source-review-id-1">Duplicate source id</h2>', $blocksHtml);
+        $t->contains('<h1 id="source-review-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id">Heading with text id</h1>', $blocksHtml);
+        $t->contains('<h2 id="styled-source-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="styled-source-id" data-odf-heading-anchor-id="styled-source-id">Styled heading with XML id</h2>', $blocksHtml);
+        $t->contains('<h2 id="source-review-id-1" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="text:id" data-odf-heading-source-id="source-review-id" data-odf-heading-anchor-id="source-review-id-1">Duplicate source id</h2>', $blocksHtml);
     },
     'maps ODT table names and protection metadata into review table handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedProtectedTable = <<<'XML'

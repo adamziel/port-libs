@@ -5128,7 +5128,7 @@ return [
         ]))->write($document);
 
         $t->contains('<!-- wp:code -->', $plainBlocks);
-        $t->contains('<pre class="wp-block-code"><code class="language-php">&lt;?php', $plainBlocks);
+        $t->contains('<pre class="wp-block-code php numberLines lineAnchors" id="migration-review"><code class="language-php">&lt;?php', $plainBlocks);
         $t->contains('<!-- wp:html -->', $highlightedBlocks);
         $t->contains('<style data-pandoc-highlight-style="kate">', $highlightedBlocks);
         $t->contains('.sourceCode .kw', $highlightedBlocks);

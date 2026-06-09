@@ -16743,6 +16743,41 @@ XML;
         $t->contains('<!-- wp:separator -->', $blocks);
         $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
     },
+    'writes wordpress html writer attributes for headings and code blocks' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'writer-attrs',
+                'classes' => ['source-heading'],
+                'attributes' => [
+                    'data-pandoc-source' => 'writer.html5',
+                    'lang' => 'en-US',
+                    'onclick' => 'alert(1)',
+                    'style' => 'color:red',
+                ],
+            ], [new AstNode('text', ['text' => 'Writer attributes'])]),
+            new AstNode('code_block', [
+                'id' => 'snippet-1',
+                'classes' => ['php', 'numberLines'],
+                'attributes' => [
+                    'data-startfrom' => '7',
+                    'aria-label' => 'Source snippet',
+                    'title' => 'Escaped "review" snippet',
+                    'onclick' => 'alert(1)',
+                ],
+                'text' => "echo esc_html(\$title);\n",
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<h2 id="writer-attrs" class="source-heading" data-pandoc-source="writer.html5" lang="en-US">Writer attributes</h2>', $blocks);
+        $t->contains(
+            '<pre class="wp-block-code php numberLines" id="snippet-1" data-startfrom="7" aria-label="Source snippet" title="Escaped &quot;review&quot; snippet"><code class="language-php">echo esc_html($title);' . "\n" . '</code></pre>',
+            $blocks
+        );
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style="color:red"'), 'Unsafe heading style attributes should not survive HTML writer attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);

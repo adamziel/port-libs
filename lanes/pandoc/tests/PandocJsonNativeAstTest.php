@@ -537,7 +537,7 @@ JSON;
 
         $blocks = (new WordPressBlockWriter())->write((new PandocJsonReader())->read($json));
 
-        $t->contains('<h2 id="json-review" class="wp-import">JSON Review</h2>', $blocks);
+        $t->contains('<h2 id="json-review" class="wp-import" data-source="json-filter">JSON Review</h2>', $blocks);
         $t->contains('<a href="https://example.test/source">source</a>', $blocks);
         $t->contains('<code class="php">wp_insert_post</code>', $blocks);
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Keep review</p>', $blocks);

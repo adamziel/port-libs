@@ -234,33 +234,7 @@ final class WordPressBlockWriter
 
     private function renderHeadingAttrs(AstNode $node): string
     {
-        $htmlAttributes = $node->attr('htmlAttributes', []);
-        if (is_array($htmlAttributes) && $htmlAttributes !== []) {
-            $attrs = '';
-            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
-            if ($id !== '') {
-                $attrs .= ' id="' . $this->esc($id) . '"';
-            }
-
-            $class = (string) ($htmlAttributes['class'] ?? '');
-            if ($class !== '') {
-                $attrs .= ' class="' . $this->esc($class) . '"';
-            }
-
-            return $attrs;
-        }
-
-        $id = (string) $node->attr('id', '');
-        $attrs = $id === '' ? '' : ' id="' . $this->esc($id) . '"';
-        $classes = $node->attr('classes', []);
-        if (is_array($classes) && $classes !== []) {
-            $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
-            if ($class !== '') {
-                $attrs .= ' class="' . $this->esc($class) . '"';
-            }
-        }
-
-        return $attrs;
+        return $this->renderHtmlWriterAttrs($node, includeIdentity: true);
     }
 
     private function orderedListHtmlType(string $style): string
@@ -2274,7 +2248,48 @@ final class WordPressBlockWriter
         $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
 
-        return '<pre class="wp-block-code"><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+        return '<pre' . $this->renderCodeBlockPreAttrs($node) . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    private function renderCodeBlockPreAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $hasStoredAttributes = false;
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name !== 'class' && $this->isAllowedHtmlWriterAttr($name) && is_scalar($value)) {
+                $hasStoredAttributes = true;
+                break;
+            }
+        }
+
+        $classes = ['wp-block-code'];
+        if ($hasStoredAttributes && isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                $classes[] = $class;
+            }
+        }
+
+        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+        if (!$hasStoredAttributes) {
+            return $attrs;
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderRawTexBlockHtml(AstNode $node): string
@@ -2770,6 +2785,61 @@ final class WordPressBlockWriter
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
             || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'title'], true);
+    }
+
+    private function renderHtmlWriterAttrs(AstNode $node, bool $includeIdentity): string
+    {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $attrs = '';
+        if ($includeIdentity) {
+            foreach (['id', 'class'] as $identityName) {
+                foreach ($htmlAttributes as $name => $value) {
+                    $name = strtolower((string) $name);
+                    if ($name !== $identityName || !is_scalar($value)) {
+                        continue;
+                    }
+
+                    $value = (string) $value;
+                    if ($value === '') {
+                        continue 2;
+                    }
+
+                    $attrs .= ' ' . $identityName . '="' . $this->esc($value) . '"';
+                    continue 2;
+                }
+            }
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                !$this->isAllowedHtmlWriterAttr($name)
+                || ($name === 'id' || $name === 'class')
+                || !is_scalar($value)
+            ) {
+                continue;
+            }
+
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $attrs;
+    }
+
+    private function isAllowedHtmlWriterAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'title', 'xml:lang'], true);
     }
 
     private function renderMathInline(AstNode $node): string
