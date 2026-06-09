@@ -2411,6 +2411,71 @@ return [
         $t->true(!str_contains($blocks, ' for='), 'Expected WordPress blocks to omit source output for attributes');
         $t->true(!str_contains($blocks, ' form='), 'Expected WordPress blocks to omit source output form attributes');
     },
+    'adds source line metadata to html helper metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<p style=\"background:url(javascript:alert(1)); color:red\">Styled</p>\n"
+            . "<track kind=\"transcript\" srclang=\"bad<tag\" src=\"javascript:alert(1)\">\n"
+            . "<time datetime=\"2026-13-40\">Bad date</time>\n"
+            . "<progress value=\"bad\" max=\"0\">Bad progress</progress>\n"
+            . "<output for=\"good bad<tag\" form=\"bad id\" name=\"bad<tag\">Total</output>\n"
+            . '</article>'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/html-helper-metadata-lines.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagnosticFilter = static function (array $diagnostic): bool {
+            return in_array((string) ($diagnostic['tag'] ?? ''), ['p', 'track', 'time', 'progress', 'output'], true)
+                && in_array((string) ($diagnostic['code'] ?? ''), [
+                    'unsafe-attribute',
+                    'unsafe-url',
+                    'style-review-metadata',
+                    'time-metadata-review',
+                    'value-metadata-review',
+                    'output-metadata-review',
+                ], true);
+        };
+        $metadataDiagnostics = array_values(array_filter($fragment->diagnostics(), $diagnosticFilter));
+        $astMetadataDiagnostics = array_values(array_filter($document->children[0]->attr('diagnostics'), $diagnosticFilter));
+
+        $t->same("<article>\n<p data-pandoc-style=\"color: red\">Styled</p>\n<track>\n<time>Bad date</time>\n<progress>Bad progress</progress>\n<output data-pandoc-output-for=\"good\">Total</output>\n</article>", $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/html-helper-metadata-lines.html', $document->children[0]->attr('part'));
+        $t->same([
+            'unsafe-attribute',
+            'style-review-metadata',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-url',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'unsafe-attribute',
+            'output-metadata-review',
+            'unsafe-attribute',
+            'unsafe-attribute',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $metadataDiagnostics));
+        $t->same(
+            ['p', 'p', 'track', 'track', 'track', 'time', 'progress', 'progress', 'output', 'output', 'output', 'output'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $metadataDiagnostics)
+        );
+        $t->same(
+            ['style', 'style', 'kind', 'srclang', 'src', 'datetime', 'value', 'max', 'for', 'for', 'form', 'name'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $metadataDiagnostics)
+        );
+        $t->same([2, 2, 3, 3, 3, 4, 5, 5, 6, 6, 6, 6], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $metadataDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astMetadataDiagnostics)
+        );
+        $t->same('background', $metadataDiagnostics[0]['property'] ?? null);
+        $t->same('transcript', $metadataDiagnostics[2]['value'] ?? null);
+        $t->same('good', $fragment->nodes()[0]['children'][9]['attrs']['data-pandoc-output-for'] ?? null);
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe helper metadata URLs to stay diagnostic-only');
+        $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed helper metadata values to stay diagnostic-only');
+    },
     'converts ins and del revision metadata into inert reviewer attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article><p>'

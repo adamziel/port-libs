@@ -72,6 +72,15 @@ $documentMetadataLineFragment = Html5DomFragment::fromHtml(
     . "<p>after</p>\n"
     . '</section>'
 );
+$helperMetadataLineFragment = Html5DomFragment::fromHtml(
+    "<article>\n"
+    . "<p style=\"background:url(javascript:alert(1)); color:red\">Styled</p>\n"
+    . "<track kind=\"transcript\" srclang=\"bad<tag\" src=\"javascript:alert(1)\">\n"
+    . "<time datetime=\"2026-13-40\">Bad date</time>\n"
+    . "<progress value=\"bad\" max=\"0\">Bad progress</progress>\n"
+    . "<output for=\"good bad<tag\" form=\"bad id\" name=\"bad<tag\">Total</output>\n"
+    . '</article>'
+);
 $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
     $fragment->toRawHtmlAst(['part' => '/migration/review-fragment.html']),
 ]);
@@ -88,7 +97,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<img src="/uploads/mapped-preview.png" dynsrc="/uploads/clip.avi" lowsrc="https://example.test/preview-low.jpg" usemap="#review-map" alt="Mapped preview">',
         '<a href="/review" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Review map">Review map</a>',
         '<a href="mailto:review@example.test">Mail reviewer</a><span data-pandoc-image-alt-fallback="true">Unsafe media link</span>',
-        '<p>Reviewer choice <span data-pandoc-button-type="submit">Keep visible label</span></p><p>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
+        '<p>Reviewer choice <span data-pandoc-button-type="submit">Keep visible label</span></p><p><span data-pandoc-select-selected="Draft">Select: Draft</span>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
         'Iframe fallback <b>caption</b>',
         '<p>Object fallback <a href="/review">review</a></p>',
         '<a href="/wp-content/uploads/review.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a><p>PDF fallback</p>',
@@ -226,6 +235,49 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
+    $helperMetadataLineHtml = $helperMetadataLineFragment->serialize();
+    $helperMetadataLineAst = $helperMetadataLineFragment->toRawHtmlAst(['part' => '/migration/html-helper-metadata-lines.html']);
+    $helperMetadataLineBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [
+        $helperMetadataLineAst,
+    ]));
+    $helperDiagnosticFilter = static function (array $diagnostic): bool {
+        return in_array((string) ($diagnostic['tag'] ?? ''), ['p', 'track', 'time', 'progress', 'output'], true)
+            && in_array((string) ($diagnostic['code'] ?? ''), [
+                'unsafe-attribute',
+                'unsafe-url',
+                'style-review-metadata',
+                'time-metadata-review',
+                'value-metadata-review',
+                'output-metadata-review',
+            ], true);
+    };
+    $helperMetadataLineDiagnostics = array_values(array_filter(
+        $helperMetadataLineFragment->diagnostics(),
+        $helperDiagnosticFilter
+    ));
+    $helperMetadataLineAstDiagnostics = array_values(array_filter(
+        $helperMetadataLineAst->attr('diagnostics'),
+        $helperDiagnosticFilter
+    ));
+    $helperMetadataLineNumbers = array_map(
+        static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null,
+        $helperMetadataLineDiagnostics
+    );
+    if (!str_contains($helperMetadataLineHtml, 'data-pandoc-style="color: red"') || !str_contains($helperMetadataLineBlocks, 'data-pandoc-output-for="good"')) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not preserve helper metadata after source-line diagnostics');
+    }
+    if ($helperMetadataLineNumbers !== [2, 2, 3, 3, 3, 4, 5, 5, 6, 6, 6, 6]) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not carry source lines on helper metadata diagnostics');
+    }
+    if ($helperMetadataLineNumbers !== array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $helperMetadataLineAstDiagnostics)) {
+        throw new RuntimeException('HTML5 DOM handoff self-test did not carry helper metadata source lines into raw HTML AST diagnostics');
+    }
+    foreach (['javascript:', 'bad&lt;tag', 'bad id', 'transcript'] as $blockedMetadata) {
+        if (str_contains($helperMetadataLineHtml, $blockedMetadata) || str_contains($helperMetadataLineBlocks, $blockedMetadata)) {
+            throw new RuntimeException('HTML5 DOM handoff self-test leaked unsafe helper metadata source value: ' . $blockedMetadata);
+        }
+    }
+
     if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'canvas', 'embed', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
@@ -290,3 +342,4 @@ echo "unsafeBaseReview:\n" . $unsafeBaseFragment->serialize() . "\n";
 echo "duplicateBaseReview:\n" . $duplicateBaseFragment->serialize() . "\n";
 echo "semanticMetadataLineReview:\n" . $semanticMetadataLineFragment->serialize() . "\n";
 echo "documentMetadataLineReview:\n" . $documentMetadataLineFragment->serialize() . "\n";
+echo "helperMetadataLineReview:\n" . $helperMetadataLineFragment->serialize() . "\n";

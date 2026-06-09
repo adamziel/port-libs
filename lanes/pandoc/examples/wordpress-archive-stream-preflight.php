@@ -1628,6 +1628,67 @@ $externalAttributeZipInspection = ArchiveCompressionStream::inspectZipExternalAt
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($creatorExternalZipBytes)
 );
+$platformMetadataZipCentralName = 'word/document.xml';
+$platformMetadataZipLocalName = 'word/documenx.xml';
+$platformMetadataZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => $platformMetadataZipCentralName,
+        'data' => '<w:document><w:p>Platform sidecar metadata</w:p></w:document>',
+        'flags' => 0x0800,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => '__MACOSX/word/media/._review.png',
+        'data' => "AppleDouble resource fork metadata stays review-only\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/.DS_Store',
+        'data' => "Finder metadata stays review-only\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/Thumbs.db',
+        'data' => "Windows thumbnail cache stays review-only\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/desktop.ini',
+        'data' => "Windows folder metadata stays review-only\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/media/review.png',
+        'data' => "Visible reviewer media bytes\n",
+        'compressionMethod' => 0,
+    ],
+], 'platform metadata stream review fixture');
+$platformMetadataZipNameOffset = strpos($platformMetadataZipBytes, $platformMetadataZipCentralName);
+if (!is_int($platformMetadataZipNameOffset)) {
+    throw new RuntimeException('ZIP platform metadata fixture is missing the local header name.');
+}
+$platformMetadataZipBytes = substr_replace(
+    $platformMetadataZipBytes,
+    $platformMetadataZipLocalName,
+    $platformMetadataZipNameOffset,
+    strlen($platformMetadataZipCentralName)
+);
+$platformMetadataZipGzip = GzipStream::build($platformMetadataZipBytes, [
+    'filename' => 'wordpress-platform-metadata.zip',
+    'comment' => 'ZIP platform metadata preflight fixture',
+    'headerCrc' => true,
+]);
+$platformMetadataZipInspection = ArchiveCompressionStream::inspectZipPlatformMetadataPolicy(
+    $platformMetadataZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($platformMetadataZipBytes)
+);
+$platformMetadataZipExtractionBlocked = false;
+try {
+    ZipPackage::fromString($platformMetadataZipBytes);
+} catch (RuntimeException) {
+    $platformMetadataZipExtractionBlocked = true;
+}
 $lz4DictionaryId = 0x1a2b3c4d;
 $lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
     . chr(0x40)
@@ -2584,6 +2645,33 @@ if (in_array('--self-test', $argv, true)) {
         'zipExternalAttributeSymlinkEntry' => 'word/media/link.png',
         'zipExternalAttributeDirectoryMismatchEntry' => 'word/media/reviewer-folder',
         'zipExternalAttributeGzipFilename' => 'wordpress-zip-creator-external.zip',
+        'zipPlatformMetadataFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipPlatformMetadataType' => 'zip-platform-metadata-policy',
+        'zipPlatformMetadataEntryCount' => 6,
+        'zipPlatformMetadataSidecarCount' => 4,
+        'zipPlatformMetadataMacosCount' => 1,
+        'zipPlatformMetadataAppleDoubleCount' => 1,
+        'zipPlatformMetadataFinderCount' => 1,
+        'zipPlatformMetadataWindowsCount' => 2,
+        'zipPlatformMetadataThumbsCount' => 1,
+        'zipPlatformMetadataDesktopIniCount' => 1,
+        'zipPlatformMetadataIssues' => [
+            'platform-metadata-entries',
+            'macos-sidecar-entries',
+            'appledouble-resource-entries',
+            'finder-metadata-entries',
+            'windows-sidecar-entries',
+            'windows-thumbnail-cache-entries',
+            'windows-desktop-ini-entries',
+        ],
+        'zipPlatformMetadataEntries' => [
+            '__MACOSX/word/media/._review.png',
+            'word/media/.DS_Store',
+            'word/media/Thumbs.db',
+            'word/media/desktop.ini',
+        ],
+        'zipPlatformMetadataPolicies' => ['blocked', 'blocked', 'blocked', 'blocked'],
+        'zipPlatformMetadataGzipFilename' => 'wordpress-platform-metadata.zip',
         'lz4DictionaryFormat' => 'lz4',
         'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
         'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
@@ -3483,6 +3571,27 @@ if (in_array('--self-test', $argv, true)) {
         || ($externalAttributeZipInspection['directoryAttributeMismatchEntries'][0]['diagnostics'] ?? []) !== ['zip-dos-directory-attribute-name-mismatch']
         || ($externalAttributeZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipExternalAttributeGzipFilename']
         || isset($externalAttributeZipInspection['package'])
+        || $platformMetadataZipInspection['format'] !== $expected['zipPlatformMetadataFormat']
+        || $platformMetadataZipInspection['zipBytes'] !== $platformMetadataZipBytes
+        || $platformMetadataZipInspection['packageByteSize'] !== strlen($platformMetadataZipBytes)
+        || $platformMetadataZipInspection['type'] !== $expected['zipPlatformMetadataType']
+        || $platformMetadataZipInspection['entryCount'] !== $expected['zipPlatformMetadataEntryCount']
+        || $platformMetadataZipInspection['platformMetadataEntryCount'] !== $expected['zipPlatformMetadataSidecarCount']
+        || $platformMetadataZipInspection['macosSidecarEntryCount'] !== $expected['zipPlatformMetadataMacosCount']
+        || $platformMetadataZipInspection['appleDoubleEntryCount'] !== $expected['zipPlatformMetadataAppleDoubleCount']
+        || $platformMetadataZipInspection['finderMetadataEntryCount'] !== $expected['zipPlatformMetadataFinderCount']
+        || $platformMetadataZipInspection['windowsSidecarEntryCount'] !== $expected['zipPlatformMetadataWindowsCount']
+        || $platformMetadataZipInspection['windowsThumbnailCacheEntryCount'] !== $expected['zipPlatformMetadataThumbsCount']
+        || $platformMetadataZipInspection['windowsDesktopIniEntryCount'] !== $expected['zipPlatformMetadataDesktopIniCount']
+        || $platformMetadataZipInspection['handoffPolicy'] !== 'review-before-conversion'
+        || $platformMetadataZipInspection['extractionPolicy'] !== 'zip-platform-metadata-review'
+        || $platformMetadataZipInspection['issues'] !== $expected['zipPlatformMetadataIssues']
+        || $platformMetadataZipInspection['diagnostics'] !== $expected['zipPlatformMetadataIssues']
+        || array_column($platformMetadataZipInspection['platformMetadataEntries'], 'name') !== $expected['zipPlatformMetadataEntries']
+        || array_column($platformMetadataZipInspection['platformMetadataEntries'], 'policy') !== $expected['zipPlatformMetadataPolicies']
+        || ($platformMetadataZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipPlatformMetadataGzipFilename']
+        || isset($platformMetadataZipInspection['package'])
+        || !$platformMetadataZipExtractionBlocked
         || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
         || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
         || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
@@ -4021,6 +4130,11 @@ echo 'zipExternalAttribute.issueCount=' . $externalAttributeZipInspection['issue
 echo 'zipExternalAttribute.symlinkEntry=' . $externalAttributeZipInspection['symlinkEntries'][0]['name'] . "\n";
 echo 'zipExternalAttribute.directoryMismatchEntry=' . $externalAttributeZipInspection['directoryAttributeMismatchEntries'][0]['name'] . "\n";
 echo 'zipExternalAttribute.issues=' . implode(',', $externalAttributeZipInspection['issues']) . "\n";
+echo 'zipPlatformMetadata.format=' . $platformMetadataZipInspection['format'] . "\n";
+echo 'zipPlatformMetadata.sidecarCount=' . $platformMetadataZipInspection['platformMetadataEntryCount'] . "\n";
+echo 'zipPlatformMetadata.entries=' . implode(',', array_column($platformMetadataZipInspection['platformMetadataEntries'], 'name')) . "\n";
+echo 'zipPlatformMetadata.issues=' . implode(',', $platformMetadataZipInspection['issues']) . "\n";
+echo 'zipPlatformMetadata.extractionBlocked=' . ($platformMetadataZipExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
 echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
 echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";

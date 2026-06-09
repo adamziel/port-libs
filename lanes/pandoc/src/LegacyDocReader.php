@@ -6996,9 +6996,7 @@ final class LegacyDocReader
         $valueOffset = $offset + 4;
 
         return match ($type) {
-            0x0002 => $valueOffset + 2 <= strlen($bytes)
-                ? ['value' => self::signed16(self::u16($bytes, $valueOffset)), 'bytes' => 8]
-                : null,
+            0x0002 => $this->readPadded16TypedValue($bytes, $valueOffset, 'i2'),
             0x0003 => $valueOffset + 4 <= strlen($bytes)
                 ? ['value' => self::signed32(self::u32($bytes, $valueOffset)), 'bytes' => 8]
                 : null,
@@ -7014,12 +7012,8 @@ final class LegacyDocReader
             0x0007 => $valueOffset + 8 <= strlen($bytes)
                 ? ['value' => self::oleAutomationDateIso8601($bytes, $valueOffset), 'bytes' => 12]
                 : null,
-            0x000b => $valueOffset + 2 <= strlen($bytes)
-                ? ['value' => $this->readVariantBool($bytes, $valueOffset), 'bytes' => 8]
-                : null,
-            0x0012 => $valueOffset + 2 <= strlen($bytes)
-                ? ['value' => self::u16($bytes, $valueOffset), 'bytes' => 8]
-                : null,
+            0x000b => $this->readPadded16TypedValue($bytes, $valueOffset, 'bool'),
+            0x0012 => $this->readPadded16TypedValue($bytes, $valueOffset, 'ui2'),
             0x0013 => $valueOffset + 4 <= strlen($bytes)
                 ? ['value' => self::u32($bytes, $valueOffset), 'bytes' => 8]
                 : null,
@@ -7043,6 +7037,32 @@ final class LegacyDocReader
             0x101f => $this->typedSizedValue($this->readLpwstrVectorWithSize($bytes, $valueOffset)),
             default => null,
         };
+    }
+
+    /**
+     * @return array{value:int|bool,bytes:int}|null
+     */
+    private function readPadded16TypedValue(string $bytes, int $valueOffset, string $kind): ?array
+    {
+        if ($valueOffset + 4 > strlen($bytes)) {
+            return null;
+        }
+        if (substr($bytes, $valueOffset + 2, 2) !== "\0\0") {
+            throw new \RuntimeException('Legacy DOC OLE property value contains nonzero 16-bit value padding');
+        }
+
+        $raw = self::u16($bytes, $valueOffset);
+        $value = match ($kind) {
+            'i2' => self::signed16($raw),
+            'bool' => $raw !== 0,
+            'ui2' => $raw,
+            default => throw new \RuntimeException('Legacy DOC OLE property value uses an unsupported 16-bit scalar type'),
+        };
+
+        return [
+            'value' => $value,
+            'bytes' => 8,
+        ];
     }
 
     /**

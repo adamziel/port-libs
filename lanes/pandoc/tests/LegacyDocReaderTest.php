@@ -4380,6 +4380,43 @@ return [
             ])));
         }
     },
+    'rejects nonzero legacy DOC OLE 16-bit value padding before metadata exposure' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedI2, $typedBool, $u16): void {
+        $reader = new LegacyDocReader();
+        $propertyValueOffset = static function (string $propertySet, int $propertyId): int {
+            $sectionOffset = 48;
+            $propertyCount = unpack('Vvalue', substr($propertySet, $sectionOffset + 4, 4))['value'];
+            for ($index = 0; $index < $propertyCount; $index++) {
+                $entryOffset = $sectionOffset + 8 + ($index * 8);
+                $id = unpack('Vvalue', substr($propertySet, $entryOffset, 4))['value'];
+                if ($id === $propertyId) {
+                    $relativeOffset = unpack('Vvalue', substr($propertySet, $entryOffset + 4, 4))['value'];
+
+                    return $sectionOffset + $relativeOffset;
+                }
+            }
+
+            throw new RuntimeException('Unable to locate OLE property-set fixture property');
+        };
+        $mutateValuePadding = static function (string $propertySet, int $propertyId) use ($propertyValueOffset, $u16): string {
+            return substr_replace($propertySet, $u16(0x0100 + $propertyId), $propertyValueOffset($propertySet, $propertyId) + 6, 2);
+        };
+
+        $summaryInformation = $typedPropertySet([
+            1 => $typedI2(1252),
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Malformed 16-bit codepage padding packet\r"),
+            "\x05SummaryInformation" => $mutateValuePadding($summaryInformation, 1),
+        ])));
+
+        $documentSummaryInformation = $typedPropertySet([
+            11 => $typedBool(true),
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Malformed 16-bit bool padding packet\r"),
+            "\x05DocumentSummaryInformation" => $mutateValuePadding($documentSummaryInformation, 11),
+        ])));
+    },
     'extracts legacy DOC reserved hyperlink custom properties as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedBool, $typedUnicodeBlob, $typedHyperlinks, $typedBlob, $typedI4, $u32): void {
         $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
         $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');

@@ -48,6 +48,13 @@ $directoryEntry = static function (
         . $u32($startSector)
         . $u64($size);
 };
+$unallocatedDirectoryEntry = static function () use ($u32): string {
+    return str_repeat("\0", 68)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . str_repeat("\0", 48);
+};
 $buildWordDocument = static function (string $text): string {
     $textBytes = iconv('UTF-8', 'Windows-1252//TRANSLIT', $text);
     if (!is_string($textBytes)) {
@@ -102,7 +109,7 @@ $typedPropertySet = static function (array $properties) use ($u32, $typedI2): st
         . $u32(48)
         . $set;
 };
-$buildCfb = static function (string $wordDocument, string $summaryInformation) use ($u16, $u32, $directoryEntry, $padTo): string {
+$buildCfb = static function (string $wordDocument, string $summaryInformation) use ($u16, $u32, $directoryEntry, $unallocatedDirectoryEntry, $padTo): string {
     $sectorSize = 512;
     $miniSectorSize = 64;
     $free = 0xffffffff;
@@ -147,7 +154,7 @@ $buildCfb = static function (string $wordDocument, string $summaryInformation) u
     }
 
     $miniFatBytes = '';
-    for ($index = 0, $count = count($miniFat); $index < $count; $index++) {
+    for ($index = 0, $count = intdiv($sectorSize, 4); $index < $count; $index++) {
         $miniFatBytes .= $u32($miniFat[$index] ?? $free);
     }
 
@@ -171,6 +178,9 @@ $buildCfb = static function (string $wordDocument, string $summaryInformation) u
             $free,
             0
         );
+    while (strlen($directory) < $sectorSize) {
+        $directory .= $unallocatedDirectoryEntry();
+    }
 
     $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
         . str_repeat("\0", 16)
@@ -195,17 +205,18 @@ $buildCfb = static function (string $wordDocument, string $summaryInformation) u
     return str_pad($header, $sectorSize, "\0")
         . substr($fatBytes, 0, $sectorSize)
         . $padTo($directory, $sectorSize)
-        . $padTo($miniFatBytes, $sectorSize)
+        . substr($miniFatBytes, 0, $sectorSize)
         . implode('', $miniStreamChunks);
 };
 
 $thumbnailBytes = 'DIB legacy thumbnail review packet';
+$summaryInformation = $typedPropertySet([
+    2 => $typedLpstr('Legacy DOC thumbnail packet'),
+    17 => $typedThumbnail(0xffffffff, 0x00000008, $thumbnailBytes),
+]);
 $docBytes = $buildCfb(
     $buildWordDocument("Thumbnail metadata review packet\r"),
-    $typedPropertySet([
-        2 => $typedLpstr('Legacy DOC thumbnail packet'),
-        17 => $typedThumbnail(0xffffffff, 0x00000008, $thumbnailBytes),
-    ])
+    $summaryInformation
 );
 $result = (new LegacyDocReader())->readBytes($docBytes);
 $blocks = (new WordPressBlockWriter())->write($result['document']);
@@ -243,6 +254,20 @@ if (($argv[1] ?? '') === '--self-test') {
     $metadataJson = json_encode($metadata, JSON_THROW_ON_ERROR);
     if (str_contains($metadataJson, 'DIB legacy thumbnail review packet') || str_contains($blocks, 'DIB legacy thumbnail review packet')) {
         throw new RuntimeException('Legacy DOC thumbnail smoke exposed raw thumbnail bytes');
+    }
+
+    $dirtyCodepagePadding = substr_replace($summaryInformation, $u16(0x0101), 48 + 8 + (3 * 8) + 6, 2);
+    try {
+        (new LegacyDocReader())->readBytes($buildCfb(
+            $buildWordDocument("Malformed thumbnail metadata packet\r"),
+            $dirtyCodepagePadding
+        ));
+
+        throw new RuntimeException('Legacy DOC thumbnail smoke accepted nonzero OLE codepage value padding');
+    } catch (RuntimeException $exception) {
+        if (!str_contains($exception->getMessage(), '16-bit value padding')) {
+            throw $exception;
+        }
     }
 
     echo "Legacy DOC thumbnail handoff self-test passed\n";

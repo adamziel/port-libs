@@ -7565,6 +7565,157 @@ return [
         );
     },
 
+    'preflights zip platform metadata across archive streams without package exposure' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $centralName = 'word/document.xml';
+        $localName = 'word/documenx.xml';
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => $centralName,
+                'data' => '<w:document><w:p>platform metadata review</w:p></w:document>',
+                'compressionMethod' => 0,
+                'flags' => 0x0800,
+            ],
+            [
+                'name' => '__MACOSX/word/media/._review.png',
+                'data' => "AppleDouble resource fork metadata stays review-only\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/.DS_Store',
+                'data' => "Finder metadata stays review-only\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/Thumbs.db',
+                'data' => "Windows thumbnail cache stays review-only\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/desktop.ini',
+                'data' => "Windows folder metadata stays review-only\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "Visible reviewer media bytes\n",
+                'compressionMethod' => 0,
+            ],
+        ], 'platform metadata stream fixture');
+        $nameOffset = strpos($zipBytes, $centralName);
+        if (!is_int($nameOffset)) {
+            throw new RuntimeException('Expected local header name in ZIP platform metadata fixture.');
+        }
+        $zipBytes = substr_replace($zipBytes, $localName, $nameOffset, strlen($centralName));
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-platform-metadata.zip',
+                'comment' => 'ZIP platform metadata preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('platform metadata reviewer notes', 11)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipPlatformMetadataPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same('zip-platform-metadata-policy', $inspection['type']);
+            $t->same(6, $inspection['entryCount']);
+            $t->same(4, $inspection['platformMetadataEntryCount']);
+            $t->same(1, $inspection['macosSidecarEntryCount']);
+            $t->same(1, $inspection['appleDoubleEntryCount']);
+            $t->same(1, $inspection['finderMetadataEntryCount']);
+            $t->same(2, $inspection['windowsSidecarEntryCount']);
+            $t->same(1, $inspection['windowsThumbnailCacheEntryCount']);
+            $t->same(1, $inspection['windowsDesktopIniEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same([
+                'platform-metadata-entries',
+                'macos-sidecar-entries',
+                'appledouble-resource-entries',
+                'finder-metadata-entries',
+                'windows-sidecar-entries',
+                'windows-thumbnail-cache-entries',
+                'windows-desktop-ini-entries',
+            ], $inspection['issues']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('zip-platform-metadata-review', $inspection['extractionPolicy']);
+            $t->same($inspection['issues'], $inspection['diagnostics']);
+            $t->same([
+                '__MACOSX/word/media/._review.png',
+                'word/media/.DS_Store',
+                'word/media/Thumbs.db',
+                'word/media/desktop.ini',
+            ], array_column($inspection['platformMetadataEntries'], 'name'));
+            $t->same('macos', $inspection['platformMetadataEntries'][0]['platform']);
+            $t->same(['macos-sidecar-entry', 'appledouble-resource-entry'], $inspection['platformMetadataEntries'][0]['issues']);
+            $t->same(['zip-macos-sidecar-entry', 'zip-appledouble-resource-entry'], $inspection['platformMetadataEntries'][0]['diagnostics']);
+            $t->same('macos', $inspection['platformMetadataEntries'][1]['platform']);
+            $t->same(['finder-metadata-entry'], $inspection['platformMetadataEntries'][1]['issues']);
+            $t->same(['zip-finder-metadata-entry'], $inspection['platformMetadataEntries'][1]['diagnostics']);
+            $t->same('windows', $inspection['platformMetadataEntries'][2]['platform']);
+            $t->same(['windows-thumbnail-cache-entry'], $inspection['platformMetadataEntries'][2]['issues']);
+            $t->same(['zip-windows-thumbnail-cache-entry'], $inspection['platformMetadataEntries'][2]['diagnostics']);
+            $t->same('windows', $inspection['platformMetadataEntries'][3]['platform']);
+            $t->same(['windows-desktop-ini-entry'], $inspection['platformMetadataEntries'][3]['issues']);
+            $t->same(['zip-windows-desktop-ini-entry'], $inspection['platformMetadataEntries'][3]['diagnostics']);
+            $t->same('metadata', $inspection['entries'][5]['policy']);
+            $t->same([], $inspection['entries'][5]['issues']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStream($bytes, $format, strlen($zipBytes)));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipPlatformMetadataPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipPlatformMetadataPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-platform-metadata.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP platform metadata preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('platform metadata reviewer notes', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipPlatformMetadataPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipPlatformMetadataPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+                strlen($zipBytes) - 1
+            )
+        );
+    },
+
     'preflights unsupported zip compression methods across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $zipBytes = $zipFixtureBytes([

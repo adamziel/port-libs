@@ -5541,7 +5541,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && strtolower($name) === 'style') {
-                $style = self::normalizeHtmlStyleAttribute($value, $tagName, $diagnostics);
+                $style = self::normalizeHtmlStyleAttribute($value, $tagName, $element, $diagnostics);
                 if ($style !== null) {
                     $attrs['data-pandoc-style'] = $style;
                 }
@@ -5707,7 +5707,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && strtolower($tagName) === 'time' && strtolower($name) === 'datetime') {
-                $timeMetadata = self::normalizeHtmlTimeDatetimeAttribute($value, $tagName, $diagnostics);
+                $timeMetadata = self::normalizeHtmlTimeDatetimeAttribute($value, $tagName, $element, $diagnostics);
                 if ($timeMetadata !== null) {
                     [$kind, $datetime] = $timeMetadata;
                     $attrs['data-pandoc-time-datetime'] = $datetime;
@@ -5717,7 +5717,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isHtmlValueMetadataAttribute($tagName, $name)) {
-                $valueMetadata = self::normalizeHtmlValueMetadataAttribute($tagName, $name, $value, $diagnostics);
+                $valueMetadata = self::normalizeHtmlValueMetadataAttribute($tagName, $name, $value, $element, $diagnostics);
                 foreach ($valueMetadata as $metadataName => $metadataValue) {
                     $attrs[$metadataName] = $metadataValue;
                 }
@@ -5725,7 +5725,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isHtmlOutputMetadataAttribute($tagName, $name)) {
-                $outputMetadata = self::normalizeHtmlOutputMetadataAttribute($name, $value, $diagnostics);
+                $outputMetadata = self::normalizeHtmlOutputMetadataAttribute($name, $value, $element, $diagnostics);
                 foreach ($outputMetadata as $metadataName => $metadataValue) {
                     $attrs[$metadataName] = $metadataValue;
                 }
@@ -5735,14 +5735,14 @@ final class Html5DomFragment
             if ($mode === 'html' && strtolower($tagName) === 'track') {
                 $trackAttributeName = strtolower($name);
                 if ($trackAttributeName === 'kind') {
-                    $kind = self::normalizeHtmlTrackKindAttribute($value, $diagnostics);
+                    $kind = self::normalizeHtmlTrackKindAttribute($value, $element, $diagnostics);
                     if ($kind !== null) {
                         $attrs[$name] = $kind;
                     }
                     continue;
                 }
                 if ($trackAttributeName === 'srclang') {
-                    $language = self::normalizeHtmlTrackLanguageAttribute($value, $diagnostics);
+                    $language = self::normalizeHtmlTrackLanguageAttribute($value, $element, $diagnostics);
                     if ($language !== null) {
                         $attrs[$name] = $language;
                     }
@@ -5866,13 +5866,14 @@ final class Html5DomFragment
     private static function normalizeHtmlOutputMetadataAttribute(
         string $name,
         string $value,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $attribute = strtolower($name);
         if ($attribute === 'for') {
             $tokens = self::splitHtmlSemanticTokens($value);
             if ($tokens === []) {
-                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $element);
 
                 return [];
             }
@@ -5880,7 +5881,7 @@ final class Html5DomFragment
             $normalized = [];
             foreach ($tokens as $token) {
                 if (!self::isSafeHtmlAriaIdToken($token)) {
-                    self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $token);
+                    self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $element, $token);
                     continue;
                 }
                 if (!in_array($token, $normalized, true)) {
@@ -5892,7 +5893,7 @@ final class Html5DomFragment
                 return [];
             }
 
-            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-for');
+            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-for', $element);
 
             return ['data-pandoc-output-for' => implode(' ', $normalized)];
         }
@@ -5900,24 +5901,24 @@ final class Html5DomFragment
         if ($attribute === 'form') {
             $form = self::cleanHtmlMetadataAttribute($value);
             if ($form === '' || strlen($form) > 128 || !self::isSafeHtmlAriaIdToken($form)) {
-                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+                self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $element);
 
                 return [];
             }
 
-            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-form');
+            self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-form', $element);
 
             return ['data-pandoc-output-form' => $form];
         }
 
         $outputName = self::cleanHtmlMetadataAttribute($value);
         if ($outputName === '' || strlen($outputName) > 128 || preg_match('/[<>{}`]/u', $outputName) === 1) {
-            self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute);
+            self::addHtmlInvalidOutputMetadataDiagnostic($diagnostics, $attribute, $element);
 
             return [];
         }
 
-        self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-name');
+        self::addHtmlOutputMetadataDiagnostic($diagnostics, $attribute, 'data-pandoc-output-name', $element);
 
         return ['data-pandoc-output-name' => $outputName];
     }
@@ -5928,15 +5929,16 @@ final class Html5DomFragment
     private static function addHtmlOutputMetadataDiagnostic(
         array &$diagnostics,
         string $attributeName,
-        string $metadataAttribute
+        string $metadataAttribute,
+        \DOMElement $element
     ): void {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'output-metadata-review',
             'tag' => 'output',
             'attribute' => $attributeName,
             'metadataAttribute' => $metadataAttribute,
             'reason' => 'calculation-output-association-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     /**
@@ -5945,6 +5947,7 @@ final class Html5DomFragment
     private static function addHtmlInvalidOutputMetadataDiagnostic(
         array &$diagnostics,
         string $attributeName,
+        \DOMElement $element,
         ?string $token = null
     ): void {
         $diagnostic = [
@@ -5957,7 +5960,7 @@ final class Html5DomFragment
             $diagnostic['token'] = $token;
         }
 
-        $diagnostics[] = $diagnostic;
+        $diagnostics[] = self::diagnosticWithSourceLine($diagnostic, $element);
     }
 
     /**
@@ -5968,6 +5971,7 @@ final class Html5DomFragment
         string $tagName,
         string $name,
         string $value,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $tag = strtolower($tagName);
@@ -5975,12 +5979,12 @@ final class Html5DomFragment
         if ($tag === 'data') {
             $metadataValue = self::normalizeHtmlDataValueAttribute($value);
             if ($metadataValue === null) {
-                self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute);
+                self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute, $element);
 
                 return [];
             }
 
-            self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-data-value');
+            self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, 'data-pandoc-data-value', $element);
 
             return ['data-pandoc-data-value' => $metadataValue];
         }
@@ -5991,13 +5995,13 @@ final class Html5DomFragment
             || ($tag === 'progress' && $attribute === 'value' && self::isNegativeHtmlNumericValue($metadataValue))
             || ($tag === 'progress' && $attribute === 'max' && !self::isPositiveHtmlNumericValue($metadataValue))
         ) {
-            self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute);
+            self::addHtmlInvalidValueMetadataDiagnostic($diagnostics, $tagName, $attribute, $element);
 
             return [];
         }
 
         $metadataAttribute = 'data-pandoc-' . $tag . '-' . $attribute;
-        self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, $metadataAttribute);
+        self::addHtmlValueMetadataDiagnostic($diagnostics, $tagName, $attribute, $metadataAttribute, $element);
 
         return [$metadataAttribute => $metadataValue];
     }
@@ -6060,15 +6064,16 @@ final class Html5DomFragment
         array &$diagnostics,
         string $tagName,
         string $attributeName,
-        string $metadataAttribute
+        string $metadataAttribute,
+        \DOMElement $element
     ): void {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'value-metadata-review',
             'tag' => $tagName,
             'attribute' => $attributeName,
             'metadataAttribute' => $metadataAttribute,
             'reason' => 'semantic-value-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     /**
@@ -6077,14 +6082,15 @@ final class Html5DomFragment
     private static function addHtmlInvalidValueMetadataDiagnostic(
         array &$diagnostics,
         string $tagName,
-        string $attributeName
+        string $attributeName,
+        \DOMElement $element
     ): void {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unsafe-attribute',
             'tag' => $tagName,
             'attribute' => $attributeName,
             'reason' => 'invalid-semantic-value-metadata',
-        ];
+        ], $element);
     }
 
     private static function isHtmlLanguageDirectionAttribute(string $name): bool
@@ -6579,8 +6585,11 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlTrackKindAttribute(string $value, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlTrackKindAttribute(
+        string $value,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string {
         $kind = strtolower(self::cleanHtmlMetadataAttribute($value));
         if ($kind === '') {
             return null;
@@ -6590,12 +6599,12 @@ final class Html5DomFragment
             return $kind;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unsafe-attribute',
             'tag' => 'track',
             'attribute' => 'kind',
             'value' => $kind,
-        ];
+        ], $element);
 
         return null;
     }
@@ -6603,8 +6612,11 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlTrackLanguageAttribute(string $value, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlTrackLanguageAttribute(
+        string $value,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string {
         $language = self::cleanHtmlMetadataAttribute($value);
         if ($language === '') {
             return null;
@@ -6614,24 +6626,24 @@ final class Html5DomFragment
         $canonical = [];
         foreach ($parts as $index => $part) {
             if (preg_match('/^[A-Za-z0-9]{1,8}$/', $part) !== 1) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'track',
                     'attribute' => 'srclang',
                     'value' => $language,
-                ];
+                ], $element);
 
                 return null;
             }
 
             if ($index === 0) {
                 if (preg_match('/^(?:[A-Za-z]{2,8}|x)$/', $part) !== 1) {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'unsafe-attribute',
                         'tag' => 'track',
                         'attribute' => 'srclang',
                         'value' => $language,
-                    ];
+                    ], $element);
 
                     return null;
                 }
@@ -6656,12 +6668,12 @@ final class Html5DomFragment
         }
 
         if ($canonical[0] === 'x' && count($canonical) === 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'track',
                 'attribute' => 'srclang',
                 'value' => $language,
-            ];
+            ], $element);
 
             return null;
         }
@@ -6676,25 +6688,26 @@ final class Html5DomFragment
     private static function normalizeHtmlTimeDatetimeAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?array {
         $datetime = self::normalizeHtmlTimeDatetimeValue(self::cleanHtmlMetadataAttribute($value));
         if ($datetime === null) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => 'datetime',
-            ];
+            ], $element);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'time-metadata-review',
             'tag' => $tagName,
             'attribute' => 'datetime',
             'kind' => $datetime[0],
-        ];
+        ], $element);
 
         return $datetime;
     }
@@ -7939,8 +7952,12 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlStyleAttribute(string $value, string $tagName, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlStyleAttribute(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): ?string {
         $declarations = [];
         foreach (self::splitCssDeclarations($value) as $declaration) {
             $declaration = trim($declaration);
@@ -7950,19 +7967,28 @@ final class Html5DomFragment
 
             $colon = strpos($declaration, ':');
             if ($colon === false) {
-                $diagnostics[] = self::unsafeStyleDiagnostic($tagName);
+                $diagnostics[] = self::diagnosticWithSourceLine(
+                    self::unsafeStyleDiagnostic($tagName),
+                    $element
+                );
                 continue;
             }
 
             $property = strtolower(trim(substr($declaration, 0, $colon)));
             if (!self::isReviewableHtmlStyleProperty($property)) {
-                $diagnostics[] = self::unsafeStyleDiagnostic($tagName, $property);
+                $diagnostics[] = self::diagnosticWithSourceLine(
+                    self::unsafeStyleDiagnostic($tagName, $property),
+                    $element
+                );
                 continue;
             }
 
             $propertyValue = self::normalizeReviewableHtmlStyleValue(substr($declaration, $colon + 1));
             if ($propertyValue === null) {
-                $diagnostics[] = self::unsafeStyleDiagnostic($tagName, $property);
+                $diagnostics[] = self::diagnosticWithSourceLine(
+                    self::unsafeStyleDiagnostic($tagName, $property),
+                    $element
+                );
                 continue;
             }
 
@@ -7973,12 +7999,12 @@ final class Html5DomFragment
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'style-review-metadata',
             'tag' => $tagName,
             'attribute' => 'style',
             'declarations' => count($declarations),
-        ];
+        ], $element);
 
         return implode('; ', array_values($declarations));
     }
