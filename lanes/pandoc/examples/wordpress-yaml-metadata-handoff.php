@@ -581,6 +581,7 @@ $yamlTagProvenance = $document->attr('yamlMetadataTagProvenance', []);
 $yamlDirectiveProvenance = $document->attr('yamlMetadataDirectiveProvenance', []);
 $yamlCommentProvenance = $document->attr('yamlMetadataCommentProvenance', []);
 $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
+$yamlAliasProvenance = $document->attr('yamlMetadataAliasProvenance', []);
 $yamlScalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
 $yamlCollectionProvenance = $document->attr('yamlMetadataCollectionProvenance', []);
 $yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
@@ -1300,6 +1301,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_key_exists('__yamlMetadataAnchorProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked anchor provenance into plain metadata');
     }
+    if (array_key_exists('__yamlMetadataAliasProvenance', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked alias provenance into plain metadata');
+    }
     if (array_key_exists('__yamlMetadataStreamProvenance', $meta)) {
         throw new RuntimeException('YAML metadata self-test leaked stream provenance into plain metadata');
     }
@@ -1638,6 +1642,22 @@ if (($argv[1] ?? '') === '--self-test') {
     ] as $expectedAnchorPair) {
         if (!in_array($expectedAnchorPair, $yamlAnchorPairs, true)) {
             throw new RuntimeException('YAML metadata self-test missing anchor provenance ' . str_replace("\0", ' ', $expectedAnchorPair));
+        }
+    }
+    $yamlAliasPairs = [];
+    foreach ($yamlAliasProvenance as $entry) {
+        $yamlAliasPairs[] = ($entry['alias'] ?? '') . "\0" . ($entry['path'] ?? '') . "\0" . ($entry['valueKind'] ?? '') . "\0" . ($entry['resolved'] ?? '');
+    }
+    foreach ([
+        "*review_defaults\0/review/<<\0mapping\0true",
+        "*source:review/defaults\0/source-anchor-review/<<\0mapping\0true",
+        "*source:review/defaults\0/flow-source-anchor-review/defaults\0mapping\0true",
+        "*review_labels\0/aliases/labels\0sequence\0true",
+        "*missing_alias\0/alias-diagnostics/missing\0scalar\0false",
+        "*source/ref-primary\0/punctuation-anchor-references/1/<<\0mapping\0true",
+    ] as $expectedAliasPair) {
+        if (!in_array($expectedAliasPair, $yamlAliasPairs, true)) {
+            throw new RuntimeException('YAML metadata self-test missing alias provenance ' . str_replace("\0", ' ', $expectedAliasPair));
         }
     }
     if (($meta['multiline-flow-labels'] ?? []) !== ['migration', 'Data Liberation', 'wordpress']) {
@@ -2682,6 +2702,8 @@ echo 'YAML comment provenance: ' . count($yamlCommentProvenance) . "\n";
 echo 'YAML comment provenance paths: ' . implode(', ', array_filter(array_column($yamlCommentProvenance, 'path'))) . "\n";
 echo 'YAML anchor provenance: ' . count($yamlAnchorProvenance) . "\n";
 echo 'YAML anchor provenance paths: ' . implode(', ', array_filter(array_column($yamlAnchorProvenance, 'path'))) . "\n";
+echo 'YAML alias provenance: ' . count($yamlAliasProvenance) . "\n";
+echo 'YAML alias provenance paths: ' . implode(', ', array_filter(array_column($yamlAliasProvenance, 'path'))) . "\n";
 echo 'YAML collection provenance: ' . count($yamlCollectionProvenance) . "\n";
 echo 'YAML collection provenance paths: ' . implode(', ', array_filter(array_column($yamlCollectionProvenance, 'path'))) . "\n";
 echo 'YAML stream provenance: ' . count($yamlStreamProvenance) . "\n";

@@ -2540,6 +2540,88 @@ return [
         $t->same('key-anchor-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="key-anchor-provenance-body">Key anchor provenance body</h1>', $blocks);
     },
+    'records pandoc yaml alias provenance with metadata paths' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Alias provenance **Packet**',
+            'defaults_: &defaults',
+            '  status: queued',
+            '  labels: &labels [import, review]',
+            'source-uri_: &source_uri https://example.test/export#alias-provenance',
+            'review:',
+            '  <<: *defaults',
+            '  labels: *labels',
+            '  owner: Import Desk',
+            'aliases:',
+            '  defaults-copy: *defaults',
+            '  labels-copy: *labels',
+            'flow-review: {defaults: *defaults, labels: [*labels, approved], source: *source_uri}',
+            'references:',
+            '  - &source_ref',
+            '    id: alias-provenance-ref',
+            '    metadata: {source-uri: *source_uri}',
+            '  - *source_ref',
+            '...',
+            '',
+            '# Alias provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $aliasProvenance = $document->attr('yamlMetadataAliasProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Alias provenance **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same(['import', 'review'], $meta['review']['labels']);
+        $t->same('Import Desk', $meta['review']['owner']);
+        $t->same(['status' => 'queued', 'labels' => ['import', 'review']], $meta['aliases']['defaults-copy']);
+        $t->same(['import', 'review'], $meta['aliases']['labels-copy']);
+        $t->same(['import', 'review'], $meta['flow-review']['labels'][0]);
+        $t->same('approved', $meta['flow-review']['labels'][1]);
+        $t->same('https://example.test/export#alias-provenance', $meta['flow-review']['source']);
+        $t->same('alias-provenance-ref', $meta['references'][0]['id']);
+        $t->same('https://example.test/export#alias-provenance', $meta['references'][0]['metadata']['source-uri']);
+        $t->same('alias-provenance-ref', $meta['references'][1]['id']);
+        $t->same(false, array_key_exists('__yamlMetadataAliasProvenance', $meta));
+        $t->same(9, count($aliasProvenance));
+        $t->same(array_fill(0, 9, 'yaml-alias'), array_column($aliasProvenance, 'type'));
+        $t->same(array_fill(0, 9, 'true'), array_column($aliasProvenance, 'resolved'));
+        $t->same([
+            '*defaults',
+            '*labels',
+            '*defaults',
+            '*labels',
+            '*defaults',
+            '*labels',
+            '*source_uri',
+            '*source_uri',
+            '*source_ref',
+        ], array_column($aliasProvenance, 'alias'));
+        $t->same([
+            '/review/<<',
+            '/review/labels',
+            '/aliases/defaults-copy',
+            '/aliases/labels-copy',
+            '/flow-review/defaults',
+            '/flow-review/labels/0',
+            '/flow-review/source',
+            '/references/0/metadata/source-uri',
+            '/references/1',
+        ], array_column($aliasProvenance, 'path'));
+        $t->same([
+            'mapping',
+            'sequence',
+            'mapping',
+            'sequence',
+            'mapping',
+            'sequence',
+            'scalar',
+            'scalar',
+            'mapping',
+        ], array_column($aliasProvenance, 'valueKind'));
+        $t->same(['8', '9', '12', '13', '14', '14', '14', '18', '19'], array_column($aliasProvenance, 'sourceLine'));
+        $t->same('alias-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="alias-provenance-body">Alias provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml alias diagnostics without hiding metadata values' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

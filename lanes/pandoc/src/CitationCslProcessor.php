@@ -1083,6 +1083,8 @@ final class CitationCslProcessor
             'containerTitleAddon' => self::stringField($item, 'container-title-addon'),
             'mainTitle' => self::firstStringField($item, ['main-title', 'mainTitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
+            'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),
+            'partTitle' => self::firstStringField($item, ['part-title', 'partTitle', 'parttitle']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon']),
             'eventPlace' => $eventPlace,
@@ -6352,6 +6354,16 @@ final class CitationCslProcessor
             $parts[] = 'Main title addendum: ' . rtrim($mainTitleAddon, '.') . '.';
         }
 
+        $volumeTitle = (string) ($item['volumeTitle'] ?? '');
+        if ($volumeTitle !== '') {
+            $parts[] = 'Volume title: ' . rtrim($volumeTitle, '.') . '.';
+        }
+
+        $partTitle = (string) ($item['partTitle'] ?? '');
+        if ($partTitle !== '') {
+            $parts[] = 'Part title: ' . rtrim($partTitle, '.') . '.';
+        }
+
         $containerTitleShort = (string) ($item['containerTitleShort'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.') . '.';
@@ -8549,6 +8561,7 @@ final class CitationCslProcessor
             'scale' => (string) ($item['scale'] ?? ''),
             'number' => (string) $item['number'],
             'volume' => (string) $item['volume'],
+            'volume-title', 'volumetitle' => (string) ($item['volumeTitle'] ?? ''),
             'issue' => (string) $item['issue'],
             'issue-title', 'issuetitle' => (string) ($item['issueTitle'] ?? ''),
             'issue-title-addon', 'issuetitleaddon' => (string) ($item['issueTitleAddon'] ?? ''),
@@ -8560,6 +8573,7 @@ final class CitationCslProcessor
             'number-of-pages' => (string) $item['numberOfPages'],
             'chapter-number' => (string) $item['chapterNumber'],
             'section' => (string) $item['section'],
+            'part-title', 'parttitle' => (string) ($item['partTitle'] ?? ''),
             'part', 'part-number' => (string) $item['part'],
             'printing-number' => (string) ($item['printingNumber'] ?? ''),
             'supplement' => (string) ($item['supplement'] ?? ''),

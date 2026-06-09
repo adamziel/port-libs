@@ -21069,6 +21069,100 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: printing number advance press :: supplement number legacy appendix</dd>', $blocks);
     },
+    'maps bounded bibtex volume and part titles into csl output' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{volume-part-source,
+  author = {Smith, Ada},
+  title = {Migration Packet Leaf},
+  maintitle = {Migration Source Set},
+  volumetitle = {Review Volume},
+  volume = {2},
+  parttitle = {Archive Part},
+  part = {1},
+  date = {2026}
+}
+BIB;
+
+        $defaultProcessor = CitationCslProcessor::fromBibtex($bibtex);
+        $first = $defaultProcessor->item('volume-part-source');
+        $t->same('Review Volume', $first['raw']['volume-title'] ?? null);
+        $t->same('Archive Part', $first['raw']['part-title'] ?? null);
+        $t->same('Review Volume', $first['volumeTitle'] ?? null);
+        $t->same('Archive Part', $first['partTitle'] ?? null);
+        $t->same('Review Volume', $first['raw']['rawBibtex']['fields']['volumetitle'] ?? null);
+        $t->same('Archive Part', $first['raw']['rawBibtex']['fields']['parttitle'] ?? null);
+        $t->same('Smith, Ada. Migration Packet Leaf. Main title: Migration Source Set. Volume title: Review Volume. Part title: Archive Part. Vol. 2. Part 1. 2026.', $defaultProcessor->renderBibliographyEntry('volume-part-source'));
+
+        $styleXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibTeX Volume Part Title Review</title>
+    <id>https://example.test/styles/bounded-bibtex-volume-part-title-review</id>
+    <updated>2026-06-09T05:59:07+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title"/>
+        <text variable="part-title"/>
+        <text variable="volume"/>
+        <text variable="part"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+      <text variable="volume"/>
+      <text variable="part"/>
+    </layout>
+  </bibliography>
+</style>
+XML;
+        $processor = $defaultProcessor->withCslStyle($styleXml);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibTeX Volume Part Title Review', $summary['title'] ?? null);
+        $t->same('volume-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('part-title', $citationChildren[2]['variable'] ?? null);
+        $t->same('volume-title', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('part-title', $bibliographyChildren[2]['variable'] ?? null);
+        $t->same('[Smith | Review Volume | Archive Part | 2 | 1]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'volume-part-source', 'text' => '[@volume-part-source]']),
+        ]));
+        $t->same('Migration Packet Leaf :: Review Volume :: Archive Part :: 2 :: 1', $processor->renderBibliographyEntry('volume-part-source'));
+
+        $directCsl = CitationCslProcessor::fromItems([[
+            'id' => 'direct-csl-source',
+            'type' => 'book',
+            'title' => 'Direct CSL Packet',
+            'author' => [
+                ['family' => 'Ng', 'given' => 'Nia'],
+            ],
+            'issued' => ['date-parts' => [[2025]]],
+            'volume-title' => 'Direct Volume',
+            'volume' => '3',
+            'part-title' => 'Direct Part',
+            'part' => '2',
+        ]])->withCslStyle($styleXml);
+        $t->same('Direct Volume', $directCsl->item('direct-csl-source')['volumeTitle'] ?? null);
+        $t->same('Direct Part', $directCsl->item('direct-csl-source')['partTitle'] ?? null);
+        $t->same('[Ng | Direct Volume | Direct Part | 3 | 2]', $directCsl->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-csl-source', 'text' => '[@direct-csl-source]']),
+        ]));
+        $t->same('Direct CSL Packet :: Direct Volume :: Direct Part :: 3 :: 2', $directCsl->renderBibliographyEntry('direct-csl-source'));
+
+        $document = (new MarkdownReader())->read('Volume-part source [@volume-part-source] keeps source divisions visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Volume-part source [Smith | Review Volume | Archive Part | 2 | 1] keeps source divisions visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Migration Packet Leaf :: Review Volume :: Archive Part :: 2 :: 1</dd>', $blocks);
+    },
     'sorts bounded csl numeric variables as integers for citation and bibliography keys' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
