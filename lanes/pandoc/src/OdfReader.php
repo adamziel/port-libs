@@ -269,6 +269,7 @@ final class OdfReader
                     'contentValidationConditionCount' => (int) ($content['contentDeclarations']['contentValidationConditionCount'] ?? 0),
                     'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
                     'labelRangeCount' => (int) ($content['contentDeclarations']['labelRangeCount'] ?? 0),
+                    'calculationSettingCount' => (int) ($content['contentDeclarations']['calculationSettingCount'] ?? 0),
                     'namedExpressionCount' => (int) ($content['contentDeclarations']['namedExpressionCount'] ?? 0),
                     'namedRangeCount' => (int) ($content['contentDeclarations']['namedRangeCount'] ?? 0),
                     'namedFormulaExpressionCount' => (int) ($content['contentDeclarations']['namedFormulaExpressionCount'] ?? 0),
@@ -3551,6 +3552,7 @@ final class OdfReader
                 $labelRangeOrientationCounts[$orientation] = ($labelRangeOrientationCounts[$orientation] ?? 0) + 1;
             }
         }
+        $calculationSettings = $this->calculationSettingsFromText($text);
 
         $databaseRanges = $this->databaseRangesFromText($text);
         $databaseRangesByName = [];
@@ -3658,6 +3660,8 @@ final class OdfReader
             'labelRangeCount' => count($labelRanges),
             'labelRanges' => $labelRanges,
             'labelRangeOrientationCounts' => $labelRangeOrientationCounts,
+            'calculationSettingCount' => $calculationSettings === [] ? 0 : 1,
+            'calculationSettings' => $calculationSettings,
             'namedExpressionCount' => count($namedExpressions),
             'namedRangeCount' => $namedRangeCount,
             'namedFormulaExpressionCount' => $namedFormulaExpressionCount,
@@ -3884,6 +3888,40 @@ final class OdfReader
             'labelCellRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'label-cell-range-address')),
             'dataCellRangeAddress' => self::nullable(self::attr($range, self::TABLE_NS, 'data-cell-range-address')),
             'orientation' => self::nullable(self::attr($range, self::TABLE_NS, 'orientation')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function calculationSettingsFromText(\DOMElement $text): array
+    {
+        foreach (self::childElements($text, 'calculation-settings', self::TABLE_NS) as $settings) {
+            $definition = $this->calculationSettingsDefinition($settings);
+            if ($definition !== []) {
+                return $definition;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function calculationSettingsDefinition(\DOMElement $settings): array
+    {
+        return self::withoutEmpty([
+            'caseSensitive' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'case-sensitive')),
+            'precisionAsShown' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'precision-as-shown')),
+            'searchCriteriaMustApplyToWholeCell' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'search-criteria-must-apply-to-whole-cell')),
+            'automaticFindLabels' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'automatic-find-labels')),
+            'useRegularExpressions' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'use-regular-expressions')),
+            'useWildcards' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'use-wildcards')),
+            'nullYear' => self::nullableInt(self::attr($settings, self::TABLE_NS, 'null-year')),
+            'iteration' => self::nullableBool(self::attr($settings, self::TABLE_NS, 'iteration')),
+            'iterationCount' => self::nullableInt(self::attr($settings, self::TABLE_NS, 'iteration-count')),
+            'iterationTolerance' => self::nullable(self::attr($settings, self::TABLE_NS, 'iteration-tolerance')),
         ]);
     }
 

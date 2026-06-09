@@ -52,6 +52,7 @@ $contentXml = <<<'XML'
         <table:label-range table:label-cell-range-address="Review.A1:Review.D1" table:data-cell-range-address="Review.A2:Review.D12" table:orientation="column"/>
         <table:label-range table:label-cell-range-address="Review.A2:Review.A12" table:data-cell-range-address="Review.B2:Review.D12" table:orientation="row"/>
       </table:label-ranges>
+      <table:calculation-settings table:case-sensitive="true" table:precision-as-shown="false" table:search-criteria-must-apply-to-whole-cell="true" table:automatic-find-labels="true" table:use-regular-expressions="false" table:use-wildcards="true" table:null-year="1930" table:iteration="true" table:iteration-count="75" table:iteration-tolerance="0.0001"/>
       <table:data-pilot-tables>
         <table:data-pilot-table table:name="ReadyPostPivot" table:application-data="wp-import-review" table:target-range-address="Pivot.A1:Pivot.D8" table:buttons="true" table:show-filter-button="true" table:grand-total="both" table:ignore-empty-rows="true" table:identify-categories="false">
           <table:source-cell-range table:cell-range-address="Review.A1:Review.D12"/>
@@ -162,6 +163,19 @@ if (in_array('--self-test', $argv, true)) {
         || ($labelOrientationCounts['column'] ?? 0) !== 1
         || ($labelOrientationCounts['row'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT label-range orientation counts to be preserved');
+    }
+    if (($declarations['calculationSettingCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT calculation settings to be counted in the import report');
+    }
+    $calculationSettings = $result['document']->attr('contentDeclarations')['calculationSettings'] ?? [];
+    if (!is_array($calculationSettings)
+        || ($calculationSettings['caseSensitive'] ?? null) !== true
+        || ($calculationSettings['precisionAsShown'] ?? null) !== false
+        || ($calculationSettings['searchCriteriaMustApplyToWholeCell'] ?? null) !== true
+        || ($calculationSettings['useWildcards'] ?? null) !== true
+        || ($calculationSettings['iterationCount'] ?? null) !== 75
+        || ($calculationSettings['iterationTolerance'] ?? '') !== '0.0001') {
+        throw new RuntimeException('Expected ODT calculation settings policy metadata to be preserved');
     }
     $namedExpressions = $result['document']->attr('contentDeclarations')['namedExpressionsByName'] ?? [];
     $readyRows = is_array($namedExpressions) ? ($namedExpressions['ReadyPostRows'] ?? null) : null;

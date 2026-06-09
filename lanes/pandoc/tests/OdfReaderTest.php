@@ -4663,6 +4663,57 @@ XML;
         $t->contains('Label ranges stay metadata-only.', $markdown);
         $t->contains('<p>Label ranges stay metadata-only.</p>', $blocksHtml);
     },
+    'maps ODT calculation settings into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithCalculationSettings = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:calculation-settings
+        table:case-sensitive="true"
+        table:precision-as-shown="false"
+        table:search-criteria-must-apply-to-whole-cell="true"
+        table:automatic-find-labels="true"
+        table:use-regular-expressions="false"
+        table:use-wildcards="true"
+        table:null-year="1930"
+        table:iteration="true"
+        table:iteration-count="75"
+        table:iteration-tolerance="0.0001"/>
+      <text:p>Calculation settings stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithCalculationSettings));
+        $declarations = $result['contentDeclarations'];
+        $settings = is_array($declarations['calculationSettings'] ?? null) ? $declarations['calculationSettings'] : [];
+
+        $t->same(1, $declarations['calculationSettingCount'] ?? null);
+        $t->same(true, $settings['caseSensitive'] ?? null);
+        $t->same(false, $settings['precisionAsShown'] ?? null);
+        $t->same(true, $settings['searchCriteriaMustApplyToWholeCell'] ?? null);
+        $t->same(true, $settings['automaticFindLabels'] ?? null);
+        $t->same(false, $settings['useRegularExpressions'] ?? null);
+        $t->same(true, $settings['useWildcards'] ?? null);
+        $t->same(1930, $settings['nullYear'] ?? null);
+        $t->same(true, $settings['iteration'] ?? null);
+        $t->same(75, $settings['iterationCount'] ?? null);
+        $t->same('0.0001', $settings['iterationTolerance'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(1, $result['importReport']['contentDeclarations']['calculationSettingCount'] ?? null);
+        $t->same('0.0001', $result['importReport']['contentDeclarations']['calculationSettings']['iterationTolerance'] ?? null);
+        $t->same(1, $result['importReport']['content']['calculationSettingCount'] ?? null);
+        $t->same('Calculation settings stay metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Calculation settings stay metadata-only.', $markdown);
+        $t->contains('<p>Calculation settings stay metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT source metadata fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSourceMetadataFields = <<<'XML'
 <office:document-content
