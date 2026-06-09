@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\MarkdownReader;
+use PortLibs\Pandoc\MarkdownWriter;
 
 return [
     'round trips pandoc native json metadata constructors without loss' => static function (TestRunner $t): void {
@@ -55,5 +57,43 @@ return [
         $t->same($native['meta'], $roundTrip['meta']);
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
+    },
+    'round trips markdown paragraph inlines through pandoc native ast json' => static function (TestRunner $t): void {
+        $markdown = "Native *AST* **roundtrip** with `code` and [link](https://example.test/source)\nnext line.";
+        $document = (new MarkdownReader())->read($markdown);
+
+        $nativeJson = (new NativeWriter())->write($document);
+        $native = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
+        $nativeInlineTypes = array_map(
+            static fn (array $inline): string => $inline['t'],
+            $native['blocks'][0]['c']
+        );
+
+        $roundTrip = (new NativeReader())->read($nativeJson);
+        $roundTripMarkdown = (new MarkdownWriter())->write($roundTrip);
+
+        $t->same('Para', $native['blocks'][0]['t']);
+        $t->same([
+            'Str',
+            'Space',
+            'Emph',
+            'Space',
+            'Strong',
+            'Space',
+            'Str',
+            'Space',
+            'Code',
+            'Space',
+            'Str',
+            'Space',
+            'Link',
+            'SoftBreak',
+            'Str',
+            'Space',
+            'Str',
+        ], $nativeInlineTypes);
+        $t->same('paragraph', $roundTrip->children[0]->type);
+        $t->same('Native AST roundtrip with code and link next line.', $roundTrip->children[0]->attr('text'));
+        $t->same($markdown, $roundTripMarkdown);
     },
 ];

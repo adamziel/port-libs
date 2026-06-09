@@ -169,6 +169,40 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{partName:string, present:bool, valid:bool, parseError:?string, recordCount:int, defaultCount:int, overrideCount:int, invalidCount:int, duplicateDefaultExtensionCount:int, duplicateOverridePartNameCount:int, duplicateDefaultExtensions:list<string>, duplicateOverridePartNames:list<string>, duplicateDefaultExtensionGroups:array<string, list<string>>, duplicateOverridePartNameGroups:array<string, list<string>>, issueCounts:array<string, int>, issues:list<string>, records:list<array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>}>}
+     */
+    public static function preflightContentTypesInPackage(ZipPackage $package): array
+    {
+        if (!$package->has('[Content_Types].xml')) {
+            return [
+                'partName' => '/[Content_Types].xml',
+                'present' => false,
+                'valid' => false,
+                'parseError' => null,
+                'recordCount' => 0,
+                'defaultCount' => 0,
+                'overrideCount' => 0,
+                'invalidCount' => 0,
+                'duplicateDefaultExtensionCount' => 0,
+                'duplicateOverridePartNameCount' => 0,
+                'duplicateDefaultExtensions' => [],
+                'duplicateOverridePartNames' => [],
+                'duplicateDefaultExtensionGroups' => [],
+                'duplicateOverridePartNameGroups' => [],
+                'issueCounts' => ['missing-content-types-item' => 1],
+                'issues' => ['missing-content-types-item'],
+                'records' => [],
+            ];
+        }
+
+        return [
+            'partName' => '/[Content_Types].xml',
+            'present' => true,
+            ...OpcContentTypes::preflightXml($package->read('[Content_Types].xml')),
+        ];
+    }
+
+    /**
      * @return list<array{partName:string, equivalenceKey:string, equivalentPartNames:list<string>, valid:bool, issues:list<string>}>
      */
     public static function preflightPackagePartNameEquivalence(ZipPackage $package): array

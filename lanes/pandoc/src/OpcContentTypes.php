@@ -60,6 +60,51 @@ final class OpcContentTypes
         return $types;
     }
 
+    /**
+     * @return array{valid:bool, parseError:?string, recordCount:int, defaultCount:int, overrideCount:int, invalidCount:int, duplicateDefaultExtensionCount:int, duplicateOverridePartNameCount:int, duplicateDefaultExtensions:list<string>, duplicateOverridePartNames:list<string>, duplicateDefaultExtensionGroups:array<string, list<string>>, duplicateOverridePartNameGroups:array<string, list<string>>, issueCounts:array<string, int>, issues:list<string>, records:list<array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>}>}
+     */
+    public static function preflightXml(string $xml): array
+    {
+        $summary = self::contentTypesPreflightSkeleton();
+
+        try {
+            $dom = self::loadXml($xml);
+            $root = $dom->documentElement;
+            if (!$root instanceof \DOMElement || $root->localName !== 'Types' || $root->namespaceURI !== self::NAMESPACE_URI) {
+                throw new \InvalidArgumentException('OPC content-types XML must use the package content-types namespace');
+            }
+
+            $ignorableNamespaces = OpcMarkupCompatibility::ignorableNamespacesForElement($root, self::NAMESPACE_URI, 'OPC content-types XML root');
+            $processContentElements = OpcMarkupCompatibility::processContentElementsForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
+            OpcMarkupCompatibility::preserveElementsForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
+            OpcMarkupCompatibility::preserveAttributesForElement($root, $ignorableNamespaces, 'OPC content-types XML root');
+            self::assertRootShape($root, $ignorableNamespaces);
+            $children = OpcMarkupCompatibility::packageChildElements(
+                $root,
+                self::NAMESPACE_URI,
+                $ignorableNamespaces,
+                $processContentElements,
+                'OPC content-types children must use the package namespace',
+                'OPC content-types XML root may not contain text content'
+            );
+        } catch (\Throwable $exception) {
+            $summary['valid'] = false;
+            $summary['parseError'] = $exception->getMessage();
+            self::appendPreflightIssue($summary, 'content-types-xml-parse-error');
+
+            return $summary;
+        }
+
+        foreach ($children as $child) {
+            $summary['records'][] = self::preflightRecord($child, count($summary['records']), $ignorableNamespaces);
+        }
+
+        self::markDuplicatePreflightRecords($summary);
+        self::refreshPreflightSummary($summary);
+
+        return $summary;
+    }
+
     public function addDefault(string $extension, string $contentType): void
     {
         $extension = self::normalizeExtension($extension);
@@ -369,5 +414,262 @@ final class OpcContentTypes
     private static function loadXml(string $xml): \DOMDocument
     {
         return XmlHtmlDom::loadXmlDocument($xml, 'OPC content-types XML');
+    }
+
+    /**
+     * @return array{valid:bool, parseError:?string, recordCount:int, defaultCount:int, overrideCount:int, invalidCount:int, duplicateDefaultExtensionCount:int, duplicateOverridePartNameCount:int, duplicateDefaultExtensions:list<string>, duplicateOverridePartNames:list<string>, duplicateDefaultExtensionGroups:array<string, list<string>>, duplicateOverridePartNameGroups:array<string, list<string>>, issueCounts:array<string, int>, issues:list<string>, records:list<array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>}>}
+     */
+    private static function contentTypesPreflightSkeleton(): array
+    {
+        return [
+            'valid' => true,
+            'parseError' => null,
+            'recordCount' => 0,
+            'defaultCount' => 0,
+            'overrideCount' => 0,
+            'invalidCount' => 0,
+            'duplicateDefaultExtensionCount' => 0,
+            'duplicateOverridePartNameCount' => 0,
+            'duplicateDefaultExtensions' => [],
+            'duplicateOverridePartNames' => [],
+            'duplicateDefaultExtensionGroups' => [],
+            'duplicateOverridePartNameGroups' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'records' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, true> $ignorableNamespaces
+     * @return array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>}
+     */
+    private static function preflightRecord(\DOMElement $element, int $recordIndex, array $ignorableNamespaces): array
+    {
+        $record = [
+            'recordIndex' => $recordIndex,
+            'kind' => $element->localName,
+            'extension' => null,
+            'normalizedExtension' => null,
+            'partName' => null,
+            'normalizedPartName' => null,
+            'contentType' => null,
+            'equivalenceKey' => null,
+            'valid' => true,
+            'issues' => [],
+        ];
+
+        if ($element->localName === 'Default') {
+            self::preflightDefaultRecord($element, $record, $ignorableNamespaces);
+        } elseif ($element->localName === 'Override') {
+            self::preflightOverrideRecord($element, $record, $ignorableNamespaces);
+        } else {
+            self::appendRecordIssue($record, 'unsupported-content-type-record');
+        }
+
+        $record['valid'] = $record['issues'] === [];
+
+        return $record;
+    }
+
+    /**
+     * @param array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>} $record
+     * @param array<string, true> $ignorableNamespaces
+     */
+    private static function preflightDefaultRecord(\DOMElement $element, array &$record, array $ignorableNamespaces): void
+    {
+        try {
+            self::assertRecordShape($element, ['Extension', 'ContentType'], 'OPC Default content-type record', $ignorableNamespaces);
+        } catch (\InvalidArgumentException) {
+            self::appendRecordIssue($record, 'content-type-record-shape-error');
+        }
+
+        $extension = $element->hasAttribute('Extension') ? $element->getAttribute('Extension') : null;
+        $contentType = $element->hasAttribute('ContentType') ? $element->getAttribute('ContentType') : null;
+        $record['extension'] = $extension;
+        $record['contentType'] = $contentType;
+
+        if ($extension === null || $extension === '') {
+            self::appendRecordIssue($record, 'missing-default-extension');
+        } else {
+            try {
+                self::assertXmlDefaultExtension($extension);
+                $normalizedExtension = self::normalizeExtension($extension);
+                $record['normalizedExtension'] = $normalizedExtension;
+                $record['equivalenceKey'] = strtolower($normalizedExtension);
+            } catch (\InvalidArgumentException) {
+                self::appendRecordIssue($record, 'invalid-default-extension');
+            }
+        }
+
+        if ($contentType === null || $contentType === '') {
+            self::appendRecordIssue($record, 'missing-content-type');
+        } elseif (!self::isValidContentType($contentType)) {
+            self::appendRecordIssue($record, 'invalid-content-type');
+        }
+    }
+
+    /**
+     * @param array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>} $record
+     * @param array<string, true> $ignorableNamespaces
+     */
+    private static function preflightOverrideRecord(\DOMElement $element, array &$record, array $ignorableNamespaces): void
+    {
+        try {
+            self::assertRecordShape($element, ['PartName', 'ContentType'], 'OPC Override content-type record', $ignorableNamespaces);
+        } catch (\InvalidArgumentException) {
+            self::appendRecordIssue($record, 'content-type-record-shape-error');
+        }
+
+        $partName = $element->hasAttribute('PartName') ? $element->getAttribute('PartName') : null;
+        $contentType = $element->hasAttribute('ContentType') ? $element->getAttribute('ContentType') : null;
+        $record['partName'] = $partName;
+        $record['contentType'] = $contentType;
+
+        if ($partName === null || $partName === '') {
+            self::appendRecordIssue($record, 'missing-override-part-name');
+        } else {
+            try {
+                self::assertXmlOverridePartName($partName);
+                $normalizedPartName = OpcPackagePath::canonicalPartNameFromUri($partName);
+                $record['normalizedPartName'] = $normalizedPartName;
+                $record['equivalenceKey'] = self::partNameEquivalenceKey($normalizedPartName);
+            } catch (\InvalidArgumentException) {
+                self::appendRecordIssue($record, 'invalid-override-part-name');
+            }
+        }
+
+        if ($contentType === null || $contentType === '') {
+            self::appendRecordIssue($record, 'missing-content-type');
+        } elseif (!self::isValidContentType($contentType)) {
+            self::appendRecordIssue($record, 'invalid-content-type');
+        }
+    }
+
+    /**
+     * @param array{records:list<array{recordIndex:int, kind:string, extension:?string, normalizedExtension:?string, partName:?string, normalizedPartName:?string, contentType:?string, equivalenceKey:?string, valid:bool, issues:list<string>}>, duplicateDefaultExtensions:list<string>, duplicateOverridePartNames:list<string>, duplicateDefaultExtensionGroups:array<string, list<string>>, duplicateOverridePartNameGroups:array<string, list<string>>} $summary
+     */
+    private static function markDuplicatePreflightRecords(array &$summary): void
+    {
+        $defaultIndexesByKey = [];
+        $overrideIndexesByKey = [];
+        foreach ($summary['records'] as $index => $record) {
+            if ($record['equivalenceKey'] === null) {
+                continue;
+            }
+
+            if ($record['kind'] === 'Default') {
+                $defaultIndexesByKey[$record['equivalenceKey']][] = $index;
+            } elseif ($record['kind'] === 'Override') {
+                $overrideIndexesByKey[$record['equivalenceKey']][] = $index;
+            }
+        }
+
+        foreach ($defaultIndexesByKey as $key => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $extensions = [];
+            foreach ($indexes as $index) {
+                $extension = $summary['records'][$index]['normalizedExtension'];
+                if ($extension !== null) {
+                    self::appendPreflightString($extensions, $extension);
+                }
+                self::appendRecordIssue($summary['records'][$index], 'duplicate-default-extension');
+            }
+            sort($extensions, SORT_STRING);
+            self::appendPreflightString($summary['duplicateDefaultExtensions'], $key);
+            $summary['duplicateDefaultExtensionGroups'][$key] = $extensions;
+        }
+
+        foreach ($overrideIndexesByKey as $key => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $partNames = [];
+            foreach ($indexes as $index) {
+                $partName = $summary['records'][$index]['normalizedPartName'];
+                if ($partName !== null) {
+                    self::appendPreflightString($partNames, $partName);
+                }
+                self::appendRecordIssue($summary['records'][$index], 'duplicate-override-part-name');
+            }
+            sort($partNames, SORT_STRING);
+            self::appendPreflightString($summary['duplicateOverridePartNames'], $key);
+            $summary['duplicateOverridePartNameGroups'][$key] = $partNames;
+        }
+
+        sort($summary['duplicateDefaultExtensions'], SORT_STRING);
+        sort($summary['duplicateOverridePartNames'], SORT_STRING);
+        ksort($summary['duplicateDefaultExtensionGroups'], SORT_STRING);
+        ksort($summary['duplicateOverridePartNameGroups'], SORT_STRING);
+    }
+
+    /**
+     * @param array{valid:bool, recordCount:int, defaultCount:int, overrideCount:int, invalidCount:int, duplicateDefaultExtensionCount:int, duplicateOverridePartNameCount:int, duplicateDefaultExtensions:list<string>, duplicateOverridePartNames:list<string>, issueCounts:array<string, int>, issues:list<string>, records:list<array{recordIndex:int, kind:string, valid:bool, issues:list<string>}>} $summary
+     */
+    private static function refreshPreflightSummary(array &$summary): void
+    {
+        $summary['recordCount'] = count($summary['records']);
+        $summary['defaultCount'] = 0;
+        $summary['overrideCount'] = 0;
+        $summary['invalidCount'] = 0;
+        $summary['issueCounts'] = [];
+        $summary['issues'] = [];
+
+        foreach ($summary['records'] as &$record) {
+            $record['issues'] = array_values(array_unique($record['issues']));
+            $record['valid'] = $record['issues'] === [];
+
+            if ($record['kind'] === 'Default') {
+                $summary['defaultCount']++;
+            } elseif ($record['kind'] === 'Override') {
+                $summary['overrideCount']++;
+            }
+
+            if (!$record['valid']) {
+                $summary['invalidCount']++;
+            }
+
+            foreach ($record['issues'] as $issue) {
+                self::appendPreflightIssue($summary, $issue);
+            }
+        }
+        unset($record);
+
+        ksort($summary['issueCounts'], SORT_STRING);
+        sort($summary['issues'], SORT_STRING);
+        $summary['duplicateDefaultExtensionCount'] = count($summary['duplicateDefaultExtensions']);
+        $summary['duplicateOverridePartNameCount'] = count($summary['duplicateOverridePartNames']);
+        $summary['valid'] = $summary['invalidCount'] === 0;
+    }
+
+    /**
+     * @param array{issueCounts:array<string, int>, issues:list<string>} $summary
+     */
+    private static function appendPreflightIssue(array &$summary, string $issue): void
+    {
+        $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+        self::appendPreflightString($summary['issues'], $issue);
+    }
+
+    /**
+     * @param array{issues:list<string>} $record
+     */
+    private static function appendRecordIssue(array &$record, string $issue): void
+    {
+        self::appendPreflightString($record['issues'], $issue);
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private static function appendPreflightString(array &$values, string $value): void
+    {
+        if (!in_array($value, $values, true)) {
+            $values[] = $value;
+        }
     }
 }

@@ -218,6 +218,67 @@ XML;
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($badXml));
         }
     },
+    'preflights OPC content type declaration collisions before graph construction' => static function (TestRunner $t): void {
+        $collisionContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="XML" ContentType="text/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/WORD/document.xml" ContentType="application/xml"/>
+  <Override PartName="/word/media/hero.png" ContentType="image/png"/>
+</Types>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $collisionContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+        ]);
+
+        $preflight = OpcRelationshipGraph::preflightContentTypesInPackage($package);
+        $records = [];
+        foreach ($preflight['records'] as $record) {
+            $records[$record['kind'] . ':' . ($record['normalizedExtension'] ?? $record['normalizedPartName'])] = $record;
+        }
+
+        $t->same('/[Content_Types].xml', $preflight['partName']);
+        $t->same(true, $preflight['present']);
+        $t->same(false, $preflight['valid']);
+        $t->same(null, $preflight['parseError']);
+        $t->same(6, $preflight['recordCount']);
+        $t->same(3, $preflight['defaultCount']);
+        $t->same(3, $preflight['overrideCount']);
+        $t->same(4, $preflight['invalidCount']);
+        $t->same(1, $preflight['duplicateDefaultExtensionCount']);
+        $t->same(1, $preflight['duplicateOverridePartNameCount']);
+        $t->same(['xml'], $preflight['duplicateDefaultExtensions']);
+        $t->same(['/word/document.xml'], $preflight['duplicateOverridePartNames']);
+        $t->same(['xml' => ['XML', 'xml']], $preflight['duplicateDefaultExtensionGroups']);
+        $t->same(['/word/document.xml' => ['/WORD/document.xml', '/word/document.xml']], $preflight['duplicateOverridePartNameGroups']);
+        $t->same([
+            'duplicate-default-extension' => 2,
+            'duplicate-override-part-name' => 2,
+        ], $preflight['issueCounts']);
+        $t->same(['duplicate-default-extension', 'duplicate-override-part-name'], $preflight['issues']);
+
+        $t->same(['duplicate-default-extension'], $records['Default:xml']['issues']);
+        $t->same(['duplicate-default-extension'], $records['Default:XML']['issues']);
+        $t->same([], $records['Default:png']['issues']);
+        $t->same(['duplicate-override-part-name'], $records['Override:/word/document.xml']['issues']);
+        $t->same(['duplicate-override-part-name'], $records['Override:/WORD/document.xml']['issues']);
+        $t->same([], $records['Override:/word/media/hero.png']['issues']);
+
+        $missing = OpcRelationshipGraph::preflightContentTypesInPackage(ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+        ]));
+        $t->same(false, $missing['present']);
+        $t->same(['missing-content-types-item'], $missing['issues']);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($collisionContentTypesXml));
+        $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
+    },
     'validates OPC content type media type grammar including parameters' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('xml', 'application/xml');
