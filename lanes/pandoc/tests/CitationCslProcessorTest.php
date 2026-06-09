@@ -19634,6 +19634,89 @@ XML);
         $t->contains('<p>Secondary credits (Roe and Ng, commentators | Lee and Kim, annotators | Diaz, redactors | Review Desk and Iqbal, collaborators | 2026) keep plural CSL role labels visible.</p>', $blocks);
         $t->contains('<dt>Secondary Credit Packet 2026</dt><dd>Secondary Credit Packet :: Archive Founders Guild, founders :: Singh, T.; Park, E., continuators :: Cruz, C.; Lopez, L., revisers :: Khan, N.; Stone, S., introductions :: Mills, M.; Nash, N., forewords :: Young, Y.; Zed, Z., afterwords</dd>', $blocks);
     },
+    'renders bounded csl multi variable names with labels for extended creator roles' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'extended-credit-packet',
+                'type' => 'book',
+                'title' => 'Extended Credit Packet',
+                'issued' => ['date-parts' => [[2026]]],
+                'founder' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'continuator' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['family' => 'Park', 'given' => 'Eva'],
+                ],
+                'reviser' => [
+                    ['literal' => 'Revision Desk'],
+                ],
+                'collaborator' => [
+                    ['literal' => 'Source Review Desk'],
+                    ['family' => 'Iqbal', 'given' => 'Iman'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Multi Creator Variable Label Review</title>
+    <id>https://example.test/styles/bounded-multi-creator-variable-label-review</id>
+    <updated>2026-06-09T05:27:46+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="founder" form="verb">founded by</term>
+      <term name="continuator" form="verb">continued by</term>
+      <term name="reviser" form="verb">revised by</term>
+      <term name="collaborator" form="verb">with</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" | ">
+        <names variable="founder continuator reviser collaborator" delimiter="; ">
+          <label form="verb" suffix=" "/>
+          <name/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="founder continuator reviser collaborator" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <label form="long" plural="contextual" prefix=", "/>
+      </names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationNames = $summary['citationRendering'][0]['children'][0] ?? [];
+        $bibliographyNames = $summary['bibliographyRendering'][1] ?? [];
+        $t->same('Bounded Multi Creator Variable Label Review', $summary['title'] ?? null);
+        $t->same('founder continuator reviser collaborator', $citationNames['variable'] ?? null);
+        $t->same('verb', $citationNames['nameRendering']['label']['form'] ?? null);
+        $t->same('before', $citationNames['nameRendering']['label']['position'] ?? null);
+        $t->same('founder continuator reviser collaborator', $bibliographyNames['variable'] ?? null);
+        $t->same('long', $bibliographyNames['nameRendering']['label']['form'] ?? null);
+        $t->same('contextual', $bibliographyNames['nameRendering']['label']['plural'] ?? null);
+        $t->same('after', $bibliographyNames['nameRendering']['label']['position'] ?? null);
+
+        $t->same('(founded by Roe; continued by Ng and Park; revised by Revision Desk; with Source Review Desk and Iqbal | 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'extended-credit-packet', 'text' => '[@extended-credit-packet]']),
+        ]));
+        $t->same('Extended Credit Packet :: Roe, P., founder; Ng, N.; Park, E., continuators; Revision Desk, reviser; Source Review Desk; Iqbal, I., collaborators', $processor->renderBibliographyEntry('extended-credit-packet'));
+
+        $document = (new MarkdownReader())->read('Extended creator credits [@extended-credit-packet] keep grouped CSL role labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Extended creator credits (founded by Roe; continued by Ng and Park; revised by Revision Desk; with Source Review Desk and Iqbal | 2026) keep grouped CSL role labels visible.</p>', $blocks);
+        $t->contains('<dt>Extended Credit Packet 2026</dt><dd>Extended Credit Packet :: Roe, P., founder; Ng, N.; Park, E., continuators; Revision Desk, reviser; Source Review Desk; Iqbal, I., collaborators</dd>', $blocks);
+    },
     'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

@@ -7068,7 +7068,7 @@ final class CitationCslProcessor
                 return [];
             }
 
-            if ($this->rendersIndependentNamesVariableGroups($element, $variable, $nameGroups)) {
+            if ($this->rendersIndependentNamesVariableGroups($element, $nameGroups)) {
                 return array_values(array_map(
                     static fn (array $group): string => $group['variable'],
                     $nameGroups
@@ -7694,7 +7694,7 @@ final class CitationCslProcessor
             return $this->applyNamesLabel($rendered, 'editortranslator', $names, $options);
         }
 
-        if (!$this->rendersIndependentNamesVariableGroups($element, $variable, $nameGroups)) {
+        if (!$this->rendersIndependentNamesVariableGroups($element, $nameGroups)) {
             $names = $nameGroups[0]['names'];
             $selectedVariable = $nameGroups[0]['variable'];
             $rendered = $this->renderNameList(
@@ -7788,15 +7788,9 @@ final class CitationCslProcessor
     /**
      * @param list<array{variable:string, names:list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool}>}> $nameGroups
      */
-    private function rendersIndependentNamesVariableGroups(array $element, string $variable, array $nameGroups): bool
+    private function rendersIndependentNamesVariableGroups(array $element, array $nameGroups): bool
     {
         if (count($nameGroups) < 2) {
-            return false;
-        }
-
-        $variables = preg_split('/\s+/', strtolower(trim($variable))) ?: [];
-        $variables = array_values(array_filter($variables, static fn (string $value): bool => $value !== ''));
-        if ($variables !== ['editor', 'translator']) {
             return false;
         }
 
