@@ -570,11 +570,35 @@ $luaLibraryArtifacts = static function (): array {
 
 $benchmarkArtifacts = static function () use ($benchmarkEntryPoint): array {
     $files = [];
+    $benchmarkTestsuiteFixture = implode("\n\n", [
+        '% Pandoc Test Suite',
+        '# Headers',
+        '# Code Blocks',
+        '# Block Quotes',
+        '# Lists',
+        '# Definition Lists',
+        '# HTML Blocks',
+        '# Inline Markup',
+        '# Smart quotes, ellipses, dashes',
+        '# LaTeX',
+        '# Special Characters',
+        '# Links',
+        '# Images',
+        '![lalune][]',
+        '   [lalune]: lalune.jpg "Voyage dans la Lune"',
+        'Here is a movie ![movie](movie.jpg) icon.',
+        '# Footnotes',
+    ]) . "\n";
+    $jpegFixture = "\xff\xd8" . 'benchmark-jpeg-fixture' . "\xff\xd9";
     foreach (UpstreamRunnerDependencyAudit::expectedBenchmarkArtifacts() as $relativePath => $kind) {
         if ($kind === 'directory') {
             $files[$relativePath . '/.audit-keep'] = 'fixture root present';
         } elseif ($relativePath === 'benchmark/benchmark-pandoc.hs') {
             $files[$relativePath] = $benchmarkEntryPoint();
+        } elseif ($relativePath === 'test/testsuite.txt') {
+            $files[$relativePath] = $benchmarkTestsuiteFixture;
+        } elseif ($relativePath === 'test/lalune.jpg' || $relativePath === 'test/movie.jpg') {
+            $files[$relativePath] = $jpegFixture;
         } else {
             $files[$relativePath] = 'benchmark fixture artifact present';
         }
@@ -1085,6 +1109,8 @@ return [
         $t->same([], $audit['benchmarkArtifactClosure']['missing']);
         $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
         $t->same([], $audit['benchmarkArtifactClosure']['emptyFiles']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkArtifactSemantics(), $audit['benchmarkArtifactClosure']['expectedSemantics']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missingSemantics']);
 
         foreach (UpstreamRunnerDependencyAudit::expectedRunnerArtifacts() as $relativePath => $kind) {
             if ($kind !== 'file') {
@@ -1108,8 +1134,9 @@ return [
 
         $t->contains('runner source/golden artifact hashes', $audit['nonMutatingPlan'][0]);
         $t->contains('benchmark source/data artifact hashes', $audit['nonMutatingPlan'][3]);
+        $t->contains('benchmark fixture semantics', $audit['nonMutatingPlan'][3]);
         $t->contains('non-empty runner source/golden fixtures with artifact hashes', $audit['activationGate']);
-        $t->contains('non-empty benchmark component dependency/artifact closure with artifact hashes', $audit['activationGate']);
+        $t->contains('non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark fixture semantics', $audit['activationGate']);
     },
     'flags missing and mismatched cabal project git pins' => static function (TestRunner $t) use ($makeTree, $removeTree, $requiredFiles): void {
         $project = implode("\n", [
@@ -3865,6 +3892,65 @@ return [
         $t->contains('benchmark source/data artifacts', $audit['activationGate']);
         $t->contains('benchmark build-depends', $audit['activationGate']);
         $t->contains('benchmark executable options', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks benchmark fixture semantic drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['test/testsuite.txt'] = implode("\n", [
+            '% Pandoc Test Suite',
+            '# Headers',
+            '# Images',
+            '![lalune][]',
+            '# Footnotes',
+        ]);
+        $files['test/lalune.jpg'] = 'not-a-jpeg';
+        $files['test/movie.jpg'] = "\xff\xd8" . 'missing-eoi-marker';
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkArtifactClosure']['wrongType']);
+        $t->same([], $audit['benchmarkArtifactClosure']['emptyFiles']);
+        $t->same([
+            'test/testsuite.txt' => [
+                'contains code blocks section',
+                'contains block quotes section',
+                'contains lists section',
+                'contains definition lists section',
+                'contains html blocks section',
+                'contains inline markup section',
+                'contains smart punctuation section',
+                'contains latex section',
+                'contains special characters section',
+                'contains links section',
+                'contains lalune reference definition',
+                'contains movie inline image',
+            ],
+            'test/lalune.jpg' => [
+                'has jpeg soi marker',
+                'has jpeg eoi marker',
+            ],
+            'test/movie.jpg' => [
+                'has jpeg eoi marker',
+            ],
+        ], $audit['benchmarkArtifactClosure']['missingSemantics']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing upstream benchmark fixture semantics', $blocked);
+        $t->contains('test/testsuite.txt (contains code blocks section', $blocked);
+        $t->contains('test/lalune.jpg (has jpeg soi marker, has jpeg eoi marker)', $blocked);
+        $t->contains('test/movie.jpg (has jpeg eoi marker)', $blocked);
+        $t->contains('benchmark source/data artifacts with artifact hashes and fixture semantics', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks benchmark entry point source semantic drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
