@@ -5504,6 +5504,78 @@ final class Html5DomFragment
             $nodes[] = self::htmlDocumentMetadataSpan('direction', $direction, 'Direction');
         }
 
+        $bodyElement = $dom->getElementsByTagName('body')->item(0);
+        if ($bodyElement instanceof \DOMElement) {
+            array_push($nodes, ...self::htmlBodyElementMetadataNodes($bodyElement, $diagnostics));
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlBodyElementMetadataNodes(\DOMElement $bodyElement, array &$diagnostics): array
+    {
+        $nodes = [];
+        $languageAttribute = $bodyElement->hasAttribute('lang') ? 'lang' : ($bodyElement->hasAttribute('xml:lang') ? 'xml:lang' : '');
+        if ($languageAttribute !== '') {
+            $language = self::normalizeHtmlLanguageTag($bodyElement->getAttribute($languageAttribute));
+            if ($language === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'body',
+                    'attribute' => $languageAttribute,
+                    'reason' => 'invalid-body-language-metadata',
+                ], $bodyElement);
+            } else {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'document-metadata-review',
+                    'tag' => 'body',
+                    'attribute' => $languageAttribute,
+                    'name' => 'body-language',
+                    'reason' => 'body-language-preserved-as-metadata',
+                ], $bodyElement);
+                $nodes[] = self::nodeWithSourceLine(
+                    self::htmlSourceMetadataSpan('body-language', 'body', $language, 'Body language'),
+                    $bodyElement
+                );
+            }
+        }
+
+        if (!$bodyElement->hasAttribute('dir')) {
+            return $nodes;
+        }
+
+        $direction = self::normalizeHtmlDirectionValue($bodyElement->getAttribute('dir'));
+        if ($direction === null) {
+            $sourceDirection = strtolower(self::cleanHtmlMetadataAttribute($bodyElement->getAttribute('dir')));
+            if ($sourceDirection !== '') {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'body',
+                    'attribute' => 'dir',
+                    'value' => $sourceDirection,
+                    'reason' => 'invalid-body-direction-metadata',
+                ], $bodyElement);
+            }
+
+            return $nodes;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'document-metadata-review',
+            'tag' => 'body',
+            'attribute' => 'dir',
+            'name' => 'body-direction',
+            'reason' => 'body-direction-preserved-as-metadata',
+        ], $bodyElement);
+        $nodes[] = self::nodeWithSourceLine(
+            self::htmlSourceMetadataSpan('body-direction', 'body', $direction, 'Body direction'),
+            $bodyElement
+        );
+
         return $nodes;
     }
 
@@ -5539,6 +5611,26 @@ final class Html5DomFragment
         }
 
         return substr($html, $offset);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlSourceMetadataSpan(string $name, string $source, string $content, string $label): array
+    {
+        return [
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => [
+                'data-pandoc-meta-name' => $name,
+                'data-pandoc-meta-source' => $source,
+                'data-pandoc-meta-content' => $content,
+            ],
+            'children' => [[
+                'type' => 'text',
+                'text' => $label . ': ' . $content,
+            ]],
+        ];
     }
 
     /**

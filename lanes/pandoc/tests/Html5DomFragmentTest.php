@@ -3670,6 +3670,92 @@ return [
         $t->true(!str_contains($invalidHtml, 'Language:'), 'Expected invalid language metadata to stay hidden');
         $t->true(!str_contains($invalidHtml, 'Direction:'), 'Expected invalid direction metadata to stay hidden');
     },
+    'converts html body language and direction wrappers into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<html lang=\"en-US\" dir=\"ltr\">\n"
+            . "<head><title>Body localized packet</title></head>\n"
+            . "<body lang=\" sr-cyrl-rs \" dir=\"RTL\" data-pandoc-meta-source=\"source-spoof\"><article><p>Localized body copy</p></article></body>\n"
+            . '</html>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/body-language-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+
+        $expected = '<span data-pandoc-meta-name="language" data-pandoc-meta-source="html" data-pandoc-meta-content="en-US">Language: en-US</span>'
+            . '<span data-pandoc-meta-name="direction" data-pandoc-meta-source="html" data-pandoc-meta-content="ltr">Direction: ltr</span>'
+            . '<span data-pandoc-meta-name="body-language" data-pandoc-meta-source="body" data-pandoc-meta-content="sr-Cyrl-RS">Body language: sr-Cyrl-RS</span>'
+            . '<span data-pandoc-meta-name="body-direction" data-pandoc-meta-source="body" data-pandoc-meta-content="rtl">Body direction: rtl</span>'
+            . "\n"
+            . '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Body localized packet">Title: Body localized packet</span>'
+            . "\n"
+            . '<article><p>Localized body copy</p></article>'
+            . "\n";
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same("Language: en-USDirection: ltrBody language: sr-Cyrl-RSBody direction: rtl\nTitle: Body localized packet\nLocalized body copy\n", $fragment->textContent());
+        $t->same(['article', 'p', 'span'], $summary['elementNames']);
+        $t->same(['title'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['document-metadata-review', 'document-metadata-review', 'document-metadata-review', 'document-metadata-review', 'blocked-tag'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $policyDiagnostics
+        ));
+        $t->same(['html', 'html', 'body', 'body', 'title'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''),
+            $policyDiagnostics
+        ));
+        $t->same(['language', 'direction', 'body-language', 'body-direction', ''], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['name'] ?? ''),
+            $policyDiagnostics
+        ));
+        $t->same(3, $nodes[2]['line'] ?? null);
+        $t->same(3, $nodes[3]['line'] ?? null);
+        $t->same([
+            'data-pandoc-meta-name' => 'body-language',
+            'data-pandoc-meta-source' => 'body',
+            'data-pandoc-meta-content' => 'sr-Cyrl-RS',
+        ], $nodes[2]['attrs']);
+        $t->same('Body language: sr-Cyrl-RS', $nodes[2]['children'][0]['text']);
+        $t->same([
+            'data-pandoc-meta-name' => 'body-direction',
+            'data-pandoc-meta-source' => 'body',
+            'data-pandoc-meta-content' => 'rtl',
+        ], $nodes[3]['attrs']);
+        $t->same('Body direction: rtl', $nodes[3]['children'][0]['text']);
+        $t->same("\n", $nodes[4]['text']);
+        $t->same('title', $nodes[5]['attrs']['data-pandoc-meta-name']);
+        $t->same("\n", $nodes[6]['text']);
+        $t->same('article', $nodes[7]['name']);
+        $t->same('/migration/body-language-review.html', $document->children[0]->attr('part'));
+        foreach (['<html', '<body', ' lang=', ' dir=', 'source-spoof'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected document wrapper metadata to stay inert: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit live document wrapper metadata: ' . $blocked);
+        }
+
+        $invalid = Html5DomFragment::fromHtml('<html><body lang="bad lang" dir="sideways"><p>after</p></body></html>');
+        $invalidDiagnostics = array_values(array_filter(
+            $invalid->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+
+        $t->same('<p>after</p>', $invalid->serialize());
+        $t->same(['unsafe-attribute', 'unsafe-attribute'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $invalidDiagnostics
+        ));
+        $t->same(['body', 'body'], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $invalidDiagnostics));
+        $t->true(!str_contains($invalid->serialize(), 'Body language:'), 'Expected invalid body language metadata to stay hidden');
+        $t->true(!str_contains($invalid->serialize(), 'Body direction:'), 'Expected invalid body direction metadata to stay hidden');
+    },
     'preserves html document metadata after leading comments before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "\n<!-- exported by legacy CMS -->\n<html lang=\" fr-ca \" dir=\"AUTO\"><head><title>Commented packet</title></head><body><p>Salut</p></body></html>"
