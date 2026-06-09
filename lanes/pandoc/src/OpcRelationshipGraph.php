@@ -3773,6 +3773,119 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{signaturePart:string, valid:bool, transformCount:int, validTransformCount:int, invalidTransformCount:int, relationshipPartCount:int, sourceCount:int, selectedRelationshipCount:int, selectedInternalTargetPartCount:int, selectedExternalTargetCount:int, relationshipXmlPayloadCount:int, relationshipPartNames:list<string>, sources:list<string>, selectedRelationshipIds:list<string>, selectedInternalTargetParts:list<string>, selectedExternalTargets:list<string>, invalidReferenceUris:list<string>, invalidRelationshipPartNames:list<string>, relationshipXmlSha256s:list<string>, issueCounts:array<string, int>, issues:list<string>, transforms:list<array{referenceIndex:int, referenceUri:string, relationshipPartName:?string, source:?string, relationshipCount:int, relationshipXmlBytes:?int, relationshipXmlSha256:?string, valid:bool, issues:list<string>}>}
+     */
+    public function signatureRelationshipTransformSummary(string $signaturePartName): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        $summary = [
+            'signaturePart' => $signaturePartName,
+            'valid' => true,
+            'transformCount' => 0,
+            'validTransformCount' => 0,
+            'invalidTransformCount' => 0,
+            'relationshipPartCount' => 0,
+            'sourceCount' => 0,
+            'selectedRelationshipCount' => 0,
+            'selectedInternalTargetPartCount' => 0,
+            'selectedExternalTargetCount' => 0,
+            'relationshipXmlPayloadCount' => 0,
+            'relationshipPartNames' => [],
+            'sources' => [],
+            'selectedRelationshipIds' => [],
+            'selectedInternalTargetParts' => [],
+            'selectedExternalTargets' => [],
+            'invalidReferenceUris' => [],
+            'invalidRelationshipPartNames' => [],
+            'relationshipXmlSha256s' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'transforms' => [],
+        ];
+
+        foreach ($this->preflightSignatureRelationshipTransforms($signaturePartName) as $transform) {
+            $summary['transformCount']++;
+            if ($transform['valid']) {
+                $summary['validTransformCount']++;
+            } else {
+                $summary['valid'] = false;
+                $summary['invalidTransformCount']++;
+                self::appendUniqueString($summary['invalidReferenceUris'], $transform['referenceUri']);
+                if (
+                    $transform['relationshipPartName'] !== null
+                    && OpcRelationships::isRelationshipPartName($transform['relationshipPartName'])
+                ) {
+                    self::appendUniqueString($summary['invalidRelationshipPartNames'], $transform['relationshipPartName']);
+                }
+            }
+
+            if (
+                $transform['relationshipPartName'] !== null
+                && OpcRelationships::isRelationshipPartName($transform['relationshipPartName'])
+            ) {
+                self::appendUniqueString($summary['relationshipPartNames'], $transform['relationshipPartName']);
+            }
+            if ($transform['source'] !== null) {
+                self::appendUniqueString($summary['sources'], $transform['source']);
+            }
+            if ($transform['relationshipXmlSha256'] !== null) {
+                $summary['relationshipXmlPayloadCount']++;
+                self::appendUniqueString($summary['relationshipXmlSha256s'], $transform['relationshipXmlSha256']);
+            }
+
+            foreach ($transform['relationshipIds'] as $relationshipId) {
+                self::appendUniqueString($summary['selectedRelationshipIds'], $relationshipId);
+            }
+            foreach ($transform['relationships'] as $relationship) {
+                if ($relationship['external']) {
+                    self::appendUniqueString($summary['selectedExternalTargets'], $relationship['target']);
+                } elseif ($relationship['targetPart'] !== null) {
+                    self::appendUniqueString($summary['selectedInternalTargetParts'], $relationship['targetPart']);
+                }
+            }
+            foreach ($transform['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+
+            $summary['transforms'][] = [
+                'referenceIndex' => $transform['referenceIndex'],
+                'referenceUri' => $transform['referenceUri'],
+                'relationshipPartName' => $transform['relationshipPartName'],
+                'source' => $transform['source'],
+                'relationshipCount' => $transform['relationshipCount'],
+                'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+                'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
+                'valid' => $transform['valid'],
+                'issues' => $transform['issues'],
+            ];
+        }
+
+        foreach ([
+            'relationshipPartNames',
+            'sources',
+            'selectedRelationshipIds',
+            'selectedInternalTargetParts',
+            'selectedExternalTargets',
+            'invalidReferenceUris',
+            'invalidRelationshipPartNames',
+            'relationshipXmlSha256s',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey]);
+        }
+        ksort($summary['issueCounts']);
+
+        $summary['relationshipPartCount'] = count($summary['relationshipPartNames']);
+        $summary['sourceCount'] = count($summary['sources']);
+        $summary['selectedRelationshipCount'] = count($summary['selectedRelationshipIds']);
+        $summary['selectedInternalTargetPartCount'] = count($summary['selectedInternalTargetParts']);
+        $summary['selectedExternalTargetCount'] = count($summary['selectedExternalTargets']);
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array

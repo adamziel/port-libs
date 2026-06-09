@@ -4350,6 +4350,118 @@ XML;
         $t->same(null, $missingSource['relationshipXmlBytes']);
         $t->same(null, $missingSource['relationshipXmlSha256']);
     },
+    'summarizes OPC signature relationship transform provenance for importer review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-transform-summary.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdReviewer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+  <Relationship Id="rIdEmbeddedWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/source-workbook.xlsx"/>
+  <Relationship Id="rIdDraft" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="draft.xml"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:opc="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <opc:RelationshipReference SourceId="rIdHero"/>
+          <opc:RelationshipReference SourceId="rIdReviewer"/>
+          <opc:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+    <ds:Reference URI="/word/document.xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <opc:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      </ds:Transforms>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK'],
+            ['name' => '_xmlsignatures/sig-transform-summary.xml', 'data' => $signatureXml],
+        ]));
+
+        $expectedXml = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdEmbeddedWorkbook" Target="embeddings/source-workbook.xlsx" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"></Relationship><Relationship Id="rIdHero" Target="media/hero.png" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"></Relationship><Relationship Id="rIdReviewer" Target="https://example.test/review" TargetMode="External" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"></Relationship></Relationships>';
+        $expectedHash = hash('sha256', $expectedXml);
+        $summary = $graph->signatureRelationshipTransformSummary('/_xmlsignatures/sig-transform-summary.xml');
+
+        $t->same('/_xmlsignatures/sig-transform-summary.xml', $summary['signaturePart']);
+        $t->same(false, $summary['valid']);
+        $t->same(2, $summary['transformCount']);
+        $t->same(1, $summary['validTransformCount']);
+        $t->same(1, $summary['invalidTransformCount']);
+        $t->same(1, $summary['relationshipPartCount']);
+        $t->same(1, $summary['sourceCount']);
+        $t->same(3, $summary['selectedRelationshipCount']);
+        $t->same(2, $summary['selectedInternalTargetPartCount']);
+        $t->same(1, $summary['selectedExternalTargetCount']);
+        $t->same(1, $summary['relationshipXmlPayloadCount']);
+        $t->same(['/word/_rels/document.xml.rels'], $summary['relationshipPartNames']);
+        $t->same(['/word/document.xml'], $summary['sources']);
+        $t->same(['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer'], $summary['selectedRelationshipIds']);
+        $t->same(['/word/embeddings/source-workbook.xlsx', '/word/media/hero.png'], $summary['selectedInternalTargetParts']);
+        $t->same(['https://example.test/review'], $summary['selectedExternalTargets']);
+        $t->same(['/word/document.xml'], $summary['invalidReferenceUris']);
+        $t->same([], $summary['invalidRelationshipPartNames']);
+        $t->same([$expectedHash], $summary['relationshipXmlSha256s']);
+        $t->same(['reference-not-relationship-part' => 1], $summary['issueCounts']);
+        $t->same(['reference-not-relationship-part'], $summary['issues']);
+        $t->same([
+            [
+                'referenceIndex' => 0,
+                'referenceUri' => '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml',
+                'relationshipPartName' => '/word/_rels/document.xml.rels',
+                'source' => '/word/document.xml',
+                'relationshipCount' => 3,
+                'relationshipXmlBytes' => strlen($expectedXml),
+                'relationshipXmlSha256' => $expectedHash,
+                'valid' => true,
+                'issues' => [],
+            ],
+            [
+                'referenceIndex' => 1,
+                'referenceUri' => '/word/document.xml',
+                'relationshipPartName' => '/word/document.xml',
+                'source' => null,
+                'relationshipCount' => 0,
+                'relationshipXmlBytes' => null,
+                'relationshipXmlSha256' => null,
+                'valid' => false,
+                'issues' => ['reference-not-relationship-part'],
+            ],
+        ], $summary['transforms']);
+    },
     'omits internal TargetMode attributes from OPC relationship transform XML' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

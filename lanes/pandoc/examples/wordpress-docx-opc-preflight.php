@@ -1829,6 +1829,7 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig1.
         'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
+$signatureRelationshipTransformSummary = $graph->signatureRelationshipTransformSummary('/_xmlsignatures/sig1.xml');
 $signatureRelationshipTransformGuards = [];
 foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-selector-shape.xml') as $transform) {
     $signatureRelationshipTransformGuards[] = [
@@ -2459,6 +2460,7 @@ $summary = [
         'relationshipXmlSha256' => $relationshipTransform['relationshipXmlSha256'],
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
+    'signatureRelationshipTransformSummary' => $signatureRelationshipTransformSummary,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
     'signatureRelationshipPartContentTypeGuards' => $signatureRelationshipPartContentTypeGuards,
@@ -2557,6 +2559,19 @@ $summary = [
             'issues' => $relationshipPartLoadSummary['issues'],
         ],
         'packageConsistencySummary' => $packageConsistencySummary,
+        'signatureRelationshipTransformSummary' => [
+            'valid' => $signatureRelationshipTransformSummary['valid'],
+            'transformCount' => $signatureRelationshipTransformSummary['transformCount'],
+            'validTransformCount' => $signatureRelationshipTransformSummary['validTransformCount'],
+            'invalidTransformCount' => $signatureRelationshipTransformSummary['invalidTransformCount'],
+            'relationshipPartNames' => $signatureRelationshipTransformSummary['relationshipPartNames'],
+            'sources' => $signatureRelationshipTransformSummary['sources'],
+            'selectedRelationshipIds' => $signatureRelationshipTransformSummary['selectedRelationshipIds'],
+            'selectedInternalTargetParts' => $signatureRelationshipTransformSummary['selectedInternalTargetParts'],
+            'selectedExternalTargets' => $signatureRelationshipTransformSummary['selectedExternalTargets'],
+            'relationshipXmlSha256s' => $signatureRelationshipTransformSummary['relationshipXmlSha256s'],
+            'issues' => $signatureRelationshipTransformSummary['issues'],
+        ],
         'relationshipClosureReview' => [
             'source' => $relationshipSourceClosureSummary['source'],
             'expandedSourceCount' => $relationshipSourceClosureSummary['expandedSourceCount'],
@@ -3961,6 +3976,27 @@ if (($argv[1] ?? '') === '--self-test') {
         || !ctype_xdigit((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXmlSha256'] ?? ''))
         || !str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'Id="rIdEmbeddedWorkbook"')
         || str_contains((string) ($summary['signatureRelationshipTransforms'][0]['relationshipXml'] ?? ''), 'rIdDraftReview')
+        || ($summary['signatureRelationshipTransformSummary']['valid'] ?? null) !== true
+        || ($summary['signatureRelationshipTransformSummary']['transformCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformSummary']['validTransformCount'] ?? null) !== 1
+        || ($summary['signatureRelationshipTransformSummary']['invalidTransformCount'] ?? null) !== 0
+        || ($summary['signatureRelationshipTransformSummary']['relationshipPartNames'] ?? null) !== ['/word/_rels/document.xml.rels']
+        || ($summary['signatureRelationshipTransformSummary']['sources'] ?? null) !== ['/word/document.xml']
+        || ($summary['signatureRelationshipTransformSummary']['selectedRelationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
+        || ($summary['signatureRelationshipTransformSummary']['selectedInternalTargetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx', '/word/media/hero image.PNG']
+        || ($summary['signatureRelationshipTransformSummary']['selectedExternalTargets'] ?? null) !== ['https://example.test/wp-admin/post.php?post=42&action=edit']
+        || ($summary['signatureRelationshipTransformSummary']['relationshipXmlSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
+        || ($summary['signatureRelationshipTransformSummary']['issues'] ?? null) !== []
+        || ($summary['signatureRelationshipTransformSummary']['transforms'][0]['relationshipXmlBytes'] ?? null) !== $signatureRelationshipTransformXmlBytes
+        || ($summary['signatureRelationshipTransformSummary']['transforms'][0]['relationshipXmlSha256'] ?? null) !== $signatureRelationshipTransformXmlSha256
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['transformCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['relationshipPartNames'] ?? null) !== ['/word/_rels/document.xml.rels']
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['selectedRelationshipIds'] ?? null) !== ['rIdEmbeddedWorkbook', 'rIdHero', 'rIdReviewer']
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['selectedInternalTargetParts'] ?? null) !== ['/word/embeddings/source workbook.xlsx', '/word/media/hero image.PNG']
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['selectedExternalTargets'] ?? null) !== ['https://example.test/wp-admin/post.php?post=42&action=edit']
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['relationshipXmlSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
+        || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['issues'] ?? null) !== []
         || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 2
         || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
