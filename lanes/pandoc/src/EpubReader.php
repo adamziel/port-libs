@@ -574,7 +574,6 @@ final class EpubReader
         );
         $spineProperties = self::spinePropertiesWithItemDiagnostics($spineProperties, $spine);
         $manifest = array_values($manifestById);
-        $resourceProperties = self::resourcePropertyReport($manifest);
         $mediaTypes = self::manifestMediaTypeReport($manifest);
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
@@ -589,6 +588,7 @@ final class EpubReader
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine, $xhtmlResourceReport);
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
         $remoteResources = self::remoteResourceReport($manifest, $xhtmlAssets, $xhtmlResourceReport, $cssResourceReport);
+        $resourceProperties = self::resourcePropertyReport($manifest, $xhtmlAssets);
 
         return [
             'metadata' => $metadata,
@@ -8190,16 +8190,18 @@ final class EpubReader
 
     /**
      * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $xhtmlAssets
      *
      * @return array{
      *     summary:array<string, int>,
      *     items:list<array<string, mixed>>,
      *     itemsById:array<string, array<string, mixed>>,
      *     itemsByProperty:array<string, list<array<string, mixed>>>,
-     *     reviewItems:list<array<string, mixed>>
+     *     reviewItems:list<array<string, mixed>>,
+     *     contentFeatureReconciliation:array<string, mixed>
      * }
      */
-    private static function resourcePropertyReport(array $manifest): array
+    private static function resourcePropertyReport(array $manifest, array $xhtmlAssets = []): array
     {
         $propertyVocabulary = self::manifestPropertyVocabularySummary($manifest);
         $items = [];
@@ -8277,6 +8279,154 @@ final class EpubReader
             'itemsByProperty' => $itemsByProperty,
             'reviewItems' => $reviewItems,
             'propertyVocabulary' => $propertyVocabulary,
+            'contentFeatureReconciliation' => self::contentFeatureReconciliationReport($xhtmlAssets),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $xhtmlAssets
+     *
+     * @return array<string, mixed>
+     */
+    private static function contentFeatureReconciliationReport(array $xhtmlAssets): array
+    {
+        $featureProperties = [
+            'mathml' => 'mathml',
+            'svg' => 'svg',
+            'scripted' => 'scripted',
+            'switch' => 'switch',
+        ];
+        $featureNames = array_values($featureProperties);
+        $items = [];
+        $itemsById = [];
+        $itemsByPart = [];
+        $undeclaredItems = [];
+        $declaredButUnobservedItems = [];
+        $diagnostics = [];
+        $declaredFeatureCount = 0;
+        $observedFeatureCount = 0;
+        $matchedFeatureCount = 0;
+        $undeclaredFeatureCount = 0;
+        $declaredButUnobservedFeatureCount = 0;
+
+        foreach ($xhtmlAssets as $asset) {
+            $resourceFlags = is_array($asset['resourceFlags'] ?? null) ? $asset['resourceFlags'] : [];
+            $contentResourceFlags = is_array($asset['contentResourceFlags'] ?? null) ? $asset['contentResourceFlags'] : [];
+            $declaredFeatures = [];
+            $observedFeatures = [];
+            $matchedFeatures = [];
+            $undeclaredFeatures = [];
+            $declaredButUnobservedFeatures = [];
+
+            foreach ($featureProperties as $flag => $property) {
+                $declared = ($resourceFlags[$flag] ?? false) === true;
+                $observed = ($contentResourceFlags[$flag] ?? false) === true;
+
+                if ($declared) {
+                    $declaredFeatures[] = $property;
+                }
+                if ($observed) {
+                    $observedFeatures[] = $property;
+                }
+                if ($declared && $observed) {
+                    $matchedFeatures[] = $property;
+                } elseif ($observed) {
+                    $undeclaredFeatures[] = $property;
+                } elseif ($declared) {
+                    $declaredButUnobservedFeatures[] = $property;
+                }
+            }
+
+            if ($declaredFeatures === [] && $observedFeatures === []) {
+                continue;
+            }
+
+            $itemDiagnostics = [];
+            $id = (string) ($asset['id'] ?? '');
+            $part = is_string($asset['part'] ?? null) ? $asset['part'] : '';
+            if ($undeclaredFeatures !== []) {
+                $diagnostic = [
+                    'type' => 'undeclared-xhtml-content-feature-properties',
+                    'id' => $id,
+                    'part' => $part === '' ? null : $part,
+                    'features' => $undeclaredFeatures,
+                    'message' => 'EPUB XHTML content uses review-significant content features not declared in the OPF manifest item properties',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+            if ($declaredButUnobservedFeatures !== []) {
+                $diagnostic = [
+                    'type' => 'declared-xhtml-content-feature-properties-not-observed',
+                    'id' => $id,
+                    'part' => $part === '' ? null : $part,
+                    'features' => $declaredButUnobservedFeatures,
+                    'message' => 'EPUB OPF manifest item declares content feature properties that were not observed by the bounded XHTML scan',
+                ];
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+
+            $item = [
+                'id' => $id,
+                'href' => (string) ($asset['href'] ?? ''),
+                'target' => is_string($asset['target'] ?? null) ? $asset['target'] : null,
+                'part' => $part === '' ? null : $part,
+                'mediaType' => is_string($asset['mediaType'] ?? null) ? $asset['mediaType'] : self::XHTML_MEDIA_TYPE,
+                'manifestProperties' => is_array($asset['properties'] ?? null) ? array_values($asset['properties']) : [],
+                'declaredFeatures' => $declaredFeatures,
+                'observedFeatures' => $observedFeatures,
+                'matchedFeatures' => $matchedFeatures,
+                'undeclaredFeatures' => $undeclaredFeatures,
+                'declaredButUnobservedFeatures' => $declaredButUnobservedFeatures,
+                'manifestReviewFlags' => is_array($asset['resourceReviewFlags'] ?? null)
+                    ? array_values($asset['resourceReviewFlags'])
+                    : self::resourceReviewFlags($resourceFlags),
+                'contentReviewFlags' => is_array($asset['contentResourceReviewFlags'] ?? null)
+                    ? array_values($asset['contentResourceReviewFlags'])
+                    : self::xhtmlContentReviewFlags($contentResourceFlags),
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            $items[] = $item;
+            if ($id !== '') {
+                $itemsById[$id] = $item;
+            }
+            if ($part !== '') {
+                $itemsByPart[$part] = $item;
+            }
+            if ($undeclaredFeatures !== []) {
+                $undeclaredItems[] = $item;
+            }
+            if ($declaredButUnobservedFeatures !== []) {
+                $declaredButUnobservedItems[] = $item;
+            }
+
+            $declaredFeatureCount += count($declaredFeatures);
+            $observedFeatureCount += count($observedFeatures);
+            $matchedFeatureCount += count($matchedFeatures);
+            $undeclaredFeatureCount += count($undeclaredFeatures);
+            $declaredButUnobservedFeatureCount += count($declaredButUnobservedFeatures);
+        }
+
+        return [
+            'present' => $items !== [],
+            'features' => $featureNames,
+            'itemCount' => count($items),
+            'declaredFeatureCount' => $declaredFeatureCount,
+            'observedFeatureCount' => $observedFeatureCount,
+            'matchedFeatureCount' => $matchedFeatureCount,
+            'undeclaredFeatureCount' => $undeclaredFeatureCount,
+            'declaredButUnobservedFeatureCount' => $declaredButUnobservedFeatureCount,
+            'undeclaredItemCount' => count($undeclaredItems),
+            'declaredButUnobservedItemCount' => count($declaredButUnobservedItems),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByPart' => $itemsByPart,
+            'undeclaredItems' => $undeclaredItems,
+            'declaredButUnobservedItems' => $declaredButUnobservedItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

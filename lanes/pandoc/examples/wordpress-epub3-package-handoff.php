@@ -1126,6 +1126,19 @@ XML;
     if (($result['document']->children[1]->attr('resourceReviewFlags') ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected WordPress fallback handoff block to expose scripted resource review flag');
     }
+    $contentFeatureReconciliation = $result['resourceProperties']['contentFeatureReconciliation'] ?? [];
+    if (($contentFeatureReconciliation['undeclaredItemCount'] ?? null) !== 1 || ($contentFeatureReconciliation['undeclaredFeatureCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB resource-property report to flag undeclared XHTML content features');
+    }
+    if (($contentFeatureReconciliation['itemsById']['chapter']['undeclaredFeatures'] ?? []) !== ['switch']) {
+        throw new RuntimeException('Expected EPUB chapter feature reconciliation to flag the undeclared switch property');
+    }
+    if (($contentFeatureReconciliation['diagnostics'][0]['type'] ?? null) !== 'undeclared-xhtml-content-feature-properties') {
+        throw new RuntimeException('Expected EPUB content feature reconciliation diagnostics to identify undeclared properties');
+    }
+    if (($result['document']->attr('resourceProperties')['contentFeatureReconciliation']['itemsById']['chapter']['undeclaredFeatures'] ?? []) !== ['switch']) {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose content feature reconciliation diagnostics');
+    }
     if (($result['mediaTypes']['manifestItemCount'] ?? null) !== 17 || ($result['mediaTypes']['coreMediaTypeCount'] ?? null) !== 14) {
         throw new RuntimeException('Expected EPUB OPF media-type report to count core manifest resources');
     }
@@ -1830,6 +1843,8 @@ echo 'accessibilityRecord=' . ($result['accessibility']['linkedRecords'][0]['tar
 echo 'resourceReviewItems=' . ($result['resourceProperties']['summary']['reviewRequiredCount'] ?? 0) . "\n";
 echo 'chapterReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) . "\n";
 echo 'fallbackReviewFlags=' . implode(',', $result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) . "\n";
+echo 'contentFeatureMismatches=' . ($result['resourceProperties']['contentFeatureReconciliation']['diagnosticCount'] ?? 0) . "\n";
+echo 'chapterUndeclaredFeatures=' . implode(',', $result['resourceProperties']['contentFeatureReconciliation']['itemsById']['chapter']['undeclaredFeatures'] ?? []) . "\n";
 echo 'mediaCoreTypes=' . ($result['mediaTypes']['coreMediaTypeCount'] ?? 0) . "\n";
 echo 'mediaForeignResources=' . ($result['mediaTypes']['foreignResourceCount'] ?? 0) . "\n";
 echo 'mediaReviewRequired=' . ($result['mediaTypes']['reviewRequiredCount'] ?? 0) . "\n";

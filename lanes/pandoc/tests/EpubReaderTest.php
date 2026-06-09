@@ -6167,6 +6167,98 @@ XML;
         $t->same(['remote-resources'], $cleanBlock->attr('resourceReviewFlags'));
         $t->same([], $cleanBlock->attr('contentResourceReviewFlags'));
     },
+    'reconciles OPF content feature properties with observed XHTML scans' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $undeclaredFeaturesXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <script>window.reviewFeature = true;</script>
+    <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"/></svg>
+    <epub:switch><epub:default><p>Fallback branch.</p></epub:default></epub:switch>
+  </body>
+</html>
+XML;
+        $overdeclaredFeaturesXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body><p>Manifest declares optional content features that are not visible in the bounded XHTML scan.</p></body>
+</html>
+XML;
+        $mixedFeaturesXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>y</mi></math>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title>Review icon</title></svg>
+  </body>
+</html>
+XML;
+        $opfWithFeatureReconciliation = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="undeclared-features" href="text/undeclared-features.xhtml" media-type="application/xhtml+xml"/>'
+            . '<item id="overdeclared-features" href="text/overdeclared-features.xhtml" media-type="application/xhtml+xml" properties="mathml svg scripted switch"/>'
+            . '<item id="mixed-features" href="text/mixed-features.xhtml" media-type="application/xhtml+xml" properties="mathml"/>',
+            $opfXml
+        );
+        $opfWithFeatureReconciliation = str_replace(
+            '</spine>',
+            '<itemref idref="undeclared-features"/>'
+            . '<itemref idref="overdeclared-features"/>'
+            . '<itemref idref="mixed-features"/>'
+            . '</spine>',
+            $opfWithFeatureReconciliation
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithFeatureReconciliation,
+            null,
+            [
+                ['name' => 'OEBPS/text/undeclared-features.xhtml', 'data' => $undeclaredFeaturesXhtml],
+                ['name' => 'OEBPS/text/overdeclared-features.xhtml', 'data' => $overdeclaredFeaturesXhtml],
+                ['name' => 'OEBPS/text/mixed-features.xhtml', 'data' => $mixedFeaturesXhtml],
+            ]
+        ));
+
+        $report = $result['resourceProperties']['contentFeatureReconciliation'];
+        $t->same(true, $report['present']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $report['features']);
+        $t->same(3, $report['itemCount']);
+        $t->same(5, $report['declaredFeatureCount']);
+        $t->same(6, $report['observedFeatureCount']);
+        $t->same(1, $report['matchedFeatureCount']);
+        $t->same(5, $report['undeclaredFeatureCount']);
+        $t->same(4, $report['declaredButUnobservedFeatureCount']);
+        $t->same(2, $report['undeclaredItemCount']);
+        $t->same(1, $report['declaredButUnobservedItemCount']);
+        $t->same(3, $report['diagnosticCount']);
+
+        $undeclared = $report['itemsById']['undeclared-features'];
+        $t->same([], $undeclared['declaredFeatures']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $undeclared['observedFeatures']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $undeclared['undeclaredFeatures']);
+        $t->same('undeclared-xhtml-content-feature-properties', $undeclared['diagnostics'][0]['type']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $undeclared['diagnostics'][0]['features']);
+
+        $overdeclared = $report['itemsById']['overdeclared-features'];
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $overdeclared['declaredFeatures']);
+        $t->same([], $overdeclared['observedFeatures']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $overdeclared['declaredButUnobservedFeatures']);
+        $t->same('declared-xhtml-content-feature-properties-not-observed', $overdeclared['diagnostics'][0]['type']);
+        $t->same(['mathml', 'svg', 'scripted', 'switch'], $overdeclared['diagnostics'][0]['features']);
+
+        $mixed = $report['itemsById']['mixed-features'];
+        $t->same(['mathml'], $mixed['declaredFeatures']);
+        $t->same(['mathml', 'svg'], $mixed['observedFeatures']);
+        $t->same(['mathml'], $mixed['matchedFeatures']);
+        $t->same(['svg'], $mixed['undeclaredFeatures']);
+        $t->same([], $mixed['declaredButUnobservedFeatures']);
+        $t->same('/OEBPS/text/mixed-features.xhtml', $report['itemsByPart']['/OEBPS/text/mixed-features.xhtml']['part']);
+
+        $t->same('undeclared-xhtml-content-feature-properties', $report['diagnostics'][0]['type']);
+        $t->same('declared-xhtml-content-feature-properties-not-observed', $report['diagnostics'][1]['type']);
+        $t->same('undeclared-xhtml-content-feature-properties', $report['diagnostics'][2]['type']);
+        $t->same($report, $result['importReport']['resourceProperties']['contentFeatureReconciliation']);
+        $t->same($report, $result['document']->attr('resourceProperties')['contentFeatureReconciliation']);
+    },
     'summarizes EPUB XHTML embedded media object and frame resources for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $embeddedXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
