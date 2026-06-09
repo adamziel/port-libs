@@ -2582,6 +2582,7 @@ final class WordPressBlockWriter
             'strikeout' => '<del>' . $this->renderInlines($node) . '</del>',
             'superscript' => '<sup>' . $this->renderInlines($node) . '</sup>',
             'subscript' => '<sub>' . $this->renderInlines($node) . '</sub>',
+            'space' => ' ',
             'softbreak' => "\n",
             'linebreak' => '<br/>',
             'span' => '<span' . $this->renderInlineSpanAttrs($node) . '>' . $this->renderInlines($node) . '</span>',
