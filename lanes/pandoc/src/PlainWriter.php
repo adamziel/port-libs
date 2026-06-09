@@ -29,6 +29,8 @@ final class PlainWriter
      *     wrappedBlockCount:int,
      *     outputLineCount:int,
      *     maxOutputDisplayWidth:int,
+     *     overColumnLineCount:int,
+     *     maxOverColumnDisplayWidth:int,
      *     hardBreakCount:int,
      *     softBreakOpportunityCount:int,
      *     zeroWidthSpaceBreakOpportunityCount:int,
@@ -43,6 +45,8 @@ final class PlainWriter
      *       outputLineCount:int,
      *       maxSourceDisplayWidth:int,
      *       maxOutputDisplayWidth:int,
+     *       overColumnLineCount:int,
+     *       maxOverColumnDisplayWidth:int,
      *       wrapped:bool,
      *       zeroWidthSpaceBreakOpportunityCount:int,
      *       softHyphenBreakOpportunityCount:int,
@@ -67,6 +71,8 @@ final class PlainWriter
         $wrappedBlockCount = 0;
         $outputLineCount = 0;
         $maxOutputDisplayWidth = 0;
+        $overColumnLineCount = 0;
+        $maxOverColumnDisplayWidth = 0;
         $hardBreakCount = 0;
         $softBreakOpportunityCount = 0;
         $zeroWidthSpaceBreakOpportunityCount = 0;
@@ -100,7 +106,10 @@ final class PlainWriter
 
             $sourceMax = $this->maxDisplayWidth($sourceLines, $ambiguousWidth);
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
+            $overColumn = $this->overColumnLineMetrics($wrappedLines, $columns, $ambiguousWidth);
             $maxOutputDisplayWidth = max($maxOutputDisplayWidth, $outputMax);
+            $overColumnLineCount += $overColumn['count'];
+            $maxOverColumnDisplayWidth = max($maxOverColumnDisplayWidth, $overColumn['maxDisplayWidth']);
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
 
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
@@ -120,6 +129,8 @@ final class PlainWriter
                 'outputLineCount' => $wrappedLineCount,
                 'maxSourceDisplayWidth' => $sourceMax,
                 'maxOutputDisplayWidth' => $outputMax,
+                'overColumnLineCount' => $overColumn['count'],
+                'maxOverColumnDisplayWidth' => $overColumn['maxDisplayWidth'],
                 'wrapped' => $wrapped,
                 'zeroWidthSpaceBreakOpportunityCount' => $typeCounts['zeroWidthSpace'],
                 'softHyphenBreakOpportunityCount' => $typeCounts['softHyphen'],
@@ -139,6 +150,8 @@ final class PlainWriter
                 'wrappedBlockCount' => $wrappedBlockCount,
                 'outputLineCount' => $outputLineCount,
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
+                'overColumnLineCount' => $overColumnLineCount,
+                'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
                 'zeroWidthSpaceBreakOpportunityCount' => $zeroWidthSpaceBreakOpportunityCount,
@@ -371,6 +384,31 @@ final class PlainWriter
         }
 
         return $max;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{count:int, maxDisplayWidth:int}
+     */
+    private function overColumnLineMetrics(array $lines, int $columns, string $ambiguousWidth): array
+    {
+        if ($columns <= 0) {
+            return ['count' => 0, 'maxDisplayWidth' => 0];
+        }
+
+        $count = 0;
+        $max = 0;
+        foreach ($lines as $line) {
+            $width = UnicodeText::displayWidth($line, $ambiguousWidth);
+            if ($width <= $columns) {
+                continue;
+            }
+
+            ++$count;
+            $max = max($max, $width);
+        }
+
+        return ['count' => $count, 'maxDisplayWidth' => $max];
     }
 
     /**

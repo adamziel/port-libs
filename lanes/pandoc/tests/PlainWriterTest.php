@@ -52,6 +52,8 @@ return [
             'outputLineCount' => 3,
             'maxSourceDisplayWidth' => 51,
             'maxOutputDisplayWidth' => 22,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
@@ -60,6 +62,41 @@ return [
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
         $t->same(false, $result['diagnostics']['blocks'][1]['wrapped']);
+    },
+    'reports over column lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "LongIdentifierWithoutBreaks short\nTiny\nReviewer diagnostics overflow"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 12, 'wrap' => 'none']))->writeWithDiagnostics($document);
+
+        $t->same("LongIdentifierWithoutBreaks short\nTiny\nReviewer diagnostics overflow", $result['text']);
+        $t->same('none', $result['diagnostics']['wrapMode']);
+        $t->same(12, $result['diagnostics']['columns']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(0, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(3, $result['diagnostics']['outputLineCount']);
+        $t->same(33, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(2, $result['diagnostics']['overColumnLineCount']);
+        $t->same(33, $result['diagnostics']['maxOverColumnDisplayWidth']);
+        $t->same(2, $result['diagnostics']['hardBreakCount']);
+        $t->same(3, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 3,
+            'outputLineCount' => 3,
+            'maxSourceDisplayWidth' => 33,
+            'maxOutputDisplayWidth' => 33,
+            'overColumnLineCount' => 2,
+            'maxOverColumnDisplayWidth' => 33,
+            'wrapped' => false,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
     },
     'uses unicode display width for plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
@@ -102,6 +139,8 @@ return [
             'outputLineCount' => 3,
             'maxSourceDisplayWidth' => 18,
             'maxOutputDisplayWidth' => 13,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
@@ -139,6 +178,8 @@ return [
             'outputLineCount' => 6,
             'maxSourceDisplayWidth' => 33,
             'maxOutputDisplayWidth' => 8,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
             'zeroWidthSpaceBreakOpportunityCount' => 1,
             'softHyphenBreakOpportunityCount' => 1,
