@@ -355,6 +355,60 @@ XML);
         $t->contains('<p>Macro source Smith (2026) keeps review text visible.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Packet Review Draft v2. Import Desk. Review Press, 2026. Note: macro-wrapper source. https://example.test/macro-source.</dd>', $blocks);
     },
+    'decodes bounded latex punctuation macros in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{punctuation-source,
+  author       = {Smith, Ada},
+  title        = {\textquotedblleft Source Review\textquotedblright{} \textemdash{} import notes\ldots},
+  journaltitle = {Review \textquoteleft Desk\textquoteright},
+  note         = {\textquoteleft queued\textquoteright{} \textemdash{} source \textellipsis{}},
+  date         = {2026},
+  url          = {https://example.test/punctuation-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('“Source Review” — import notes…', $items[0]['title'] ?? null);
+        $t->same('Review ‘Desk’', $items[0]['container-title'] ?? null);
+        $t->same('‘queued’ — source …', $items[0]['note'] ?? null);
+        $t->same('\\textquotedblleft Source Review\\textquotedblright{} \\textemdash{} import notes\\ldots', $items[0]['rawBibtex']['fields']['title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('punctuation-source');
+        $t->same('“Source Review” — import notes…', $item['title'] ?? null);
+        $t->same('Review ‘Desk’', $item['containerTitle'] ?? null);
+        $t->same('‘queued’ — source …', $item['note'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="container-title"/>
+        <text variable="note"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <text variable="note"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[“Source Review” — import notes… | Review ‘Desk’ | ‘queued’ — source …]', $styled->renderCitationCluster([$citation('punctuation-source', '[@punctuation-source]')]));
+        $t->same('“Source Review” — import notes… :: Review ‘Desk’ :: ‘queued’ — source …', $styled->renderBibliographyEntry('punctuation-source'));
+
+        $document = (new MarkdownReader())->read('Punctuation source [@punctuation-source] keeps TeX title punctuation readable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Punctuation source [“Source Review” — import notes… | Review ‘Desk’ | ‘queued’ — source …] keeps TeX title punctuation readable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>“Source Review” — import notes… :: Review ‘Desk’ :: ‘queued’ — source …</dd>', $blocks);
+    },
     'inherits bounded bibtex crossref fields into child csl items' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{conf2026,

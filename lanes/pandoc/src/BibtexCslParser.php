@@ -2705,8 +2705,52 @@ final class BibtexCslParser
     private static function decodeLatexText(string $value): string
     {
         $value = self::decodeLatexAccentCommands($value);
+        $value = self::decodeLatexPunctuationCommands($value);
 
         return self::decodeLatexSpecialLetters($value);
+    }
+
+    private static function decodeLatexPunctuationCommands(string $value): string
+    {
+        $map = [
+            'dots' => "\u{2026}",
+            'ldots' => "\u{2026}",
+            'textellipsis' => "\u{2026}",
+            'textemdash' => "\u{2014}",
+            'textquoteleft' => "\u{2018}",
+            'textquoteright' => "\u{2019}",
+            'textquotedblleft' => "\u{201C}",
+            'textquotedblright' => "\u{201D}",
+            'textquotesingle' => "'",
+            'textquotedbl' => '"',
+        ];
+        $macros = array_keys($map);
+        usort($macros, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
+        $alternation = implode('|', array_map(static fn (string $macro): string => preg_quote($macro, '/'), $macros));
+
+        $quoteMacros = [
+            'textquoteleft' => true,
+            'textquoteright' => true,
+            'textquotedblleft' => true,
+            'textquotedblright' => true,
+        ];
+
+        $value = preg_replace_callback(
+            '/\\\\(' . $alternation . ')(?:(\s*\{\s*\})|(\s+)|(?![A-Za-z]))/u',
+            static function (array $matches) use ($map, $quoteMacros): string {
+                $macro = $matches[1];
+                $suffix = (string) ($matches[3] ?? '');
+                $replacement = $map[$macro] ?? $matches[0];
+                if ($suffix !== '' && !isset($quoteMacros[$macro])) {
+                    return $replacement . $suffix;
+                }
+
+                return $replacement;
+            },
+            $value
+        ) ?? $value;
+
+        return str_replace(['``', "''"], ["\u{201C}", "\u{201D}"], $value);
     }
 
     private static function stripLatexTextWrappers(string $value): string
