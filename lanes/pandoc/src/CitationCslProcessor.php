@@ -1019,6 +1019,14 @@ final class CitationCslProcessor
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
+        $dateEraSummary = self::dateEraSummary([
+            'issued' => $issuedDate,
+            'accessed' => $accessedDate,
+            'available-date' => $availableDate,
+            'original-date' => $originalDate,
+            'submitted' => $submittedDate,
+            'event-date' => $eventDate,
+        ]);
         $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords']);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
         $biblatexSkipBibliography = self::biblatexSkipBibliography($biblatexOptions);
@@ -1218,6 +1226,7 @@ final class CitationCslProcessor
             'dateMarkerSummary' => $dateMarkerSummary,
             'dateTimeSummary' => $dateTimeSummary,
             'dateSeasonSummary' => $dateSeasonSummary,
+            'dateEraSummary' => $dateEraSummary,
             'biblatexOptions' => $biblatexOptions,
             'biblatexOptionSummary' => implode('; ', $biblatexOptions),
             'biblatexSkipBibliography' => $biblatexSkipBibliography,
@@ -2431,7 +2440,7 @@ final class CitationCslProcessor
     }
 
     /**
-     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, circa?:bool, uncertain?:bool, season?:int, seasonName?:string, openEnded?:string, rangeParts?:list<list<int>>}
+     * @return array{year:?int, parts:list<int>, display:string, literal:string, raw?:string, time?:string, endTime?:string, era?:string, circa?:bool, uncertain?:bool, season?:int, seasonName?:string, openEnded?:string, rangeParts?:list<list<int>>}
      */
     private static function dateVariable(mixed $date, string $id, string $field): array
     {
@@ -2452,6 +2461,7 @@ final class CitationCslProcessor
         $raw = self::stringField($date, 'raw');
         $time = self::dateTimeField($date, 'time', $id, $field);
         $endTime = self::firstDateTimeField($date, ['end-time', 'endTime'], $id, $field);
+        $era = self::dateEraField($date, $id, $field);
         $circa = self::boolField($date, 'circa', false);
         $uncertain = self::boolField($date, 'uncertain', false);
         $openEnded = self::openEndedDateBoundary($date, $id, $field);
@@ -2482,6 +2492,10 @@ final class CitationCslProcessor
 
             if ($endTime !== '') {
                 $normalized['endTime'] = $endTime;
+            }
+
+            if ($era !== '') {
+                $normalized['era'] = $era;
             }
 
             if ($circa) {
@@ -2553,6 +2567,10 @@ final class CitationCslProcessor
             $normalized['endTime'] = $endTime;
         }
 
+        if ($era !== '') {
+            $normalized['era'] = $era;
+        }
+
         if ($circa) {
             $normalized['circa'] = true;
         }
@@ -2562,6 +2580,26 @@ final class CitationCslProcessor
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     */
+    private static function dateEraField(array $date, string $id, string $field): string
+    {
+        foreach (['era', 'date-era', 'dateEra'] as $key) {
+            if (!array_key_exists($key, $date) || $date[$key] === null || $date[$key] === '') {
+                continue;
+            }
+
+            if (!is_scalar($date[$key])) {
+                throw new \InvalidArgumentException('CSL item ' . $id . ' ' . $field . ' era field must be scalar');
+            }
+
+            return strtolower(str_replace('_', '-', trim((string) $date[$key])));
+        }
+
+        return '';
     }
 
     /**
@@ -2683,6 +2721,24 @@ final class CitationCslProcessor
         }
 
         return $parts === [] ? '' : 'Date seasons: ' . implode('; ', $parts);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $dates
+     */
+    private static function dateEraSummary(array $dates): string
+    {
+        $parts = [];
+        foreach ($dates as $label => $date) {
+            $era = trim((string) ($date['era'] ?? ''));
+            if ($era === '') {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . $era;
+        }
+
+        return $parts === [] ? '' : 'Date eras: ' . implode('; ', $parts);
     }
 
     private static function dateSeasonName(int $season): string
@@ -6639,6 +6695,11 @@ final class CitationCslProcessor
             $parts[] = $this->withTerminalPunctuation($dateSeasonSummary);
         }
 
+        $dateEraSummary = trim((string) ($item['dateEraSummary'] ?? ''));
+        if ($dateEraSummary !== '') {
+            $parts[] = $this->withTerminalPunctuation($dateEraSummary);
+        }
+
         $fieldAnnotationSummary = trim((string) ($item['biblatexFieldAnnotationSummary'] ?? ''));
         if ($fieldAnnotationSummary !== '') {
             $parts[] = 'BibLaTeX field annotations: ' . $this->withTerminalPunctuation($fieldAnnotationSummary);
@@ -8730,6 +8791,7 @@ final class CitationCslProcessor
             'date-marker-summary', 'date-status', 'date-status-summary' => (string) ($item['dateMarkerSummary'] ?? ''),
             'date-time-summary', 'time-summary' => (string) ($item['dateTimeSummary'] ?? ''),
             'date-season-summary', 'season-summary' => (string) ($item['dateSeasonSummary'] ?? ''),
+            'date-era-summary', 'era-summary' => (string) ($item['dateEraSummary'] ?? ''),
             'issued-time', 'date-time' => $this->dateTimeForVariable($item, 'issued'),
             'issued-end-time', 'date-end-time' => $this->dateEndTimeForVariable($item, 'issued'),
             'accessed-time' => $this->dateTimeForVariable($item, 'accessed'),

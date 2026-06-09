@@ -1072,6 +1072,7 @@ final class BibtexCslParser
             'endtimezone' => 'endtimezone',
         ], ['endyear', 'endmonth', 'endday']);
         if ($issued !== null) {
+            $issued = self::dateWithEra($issued, $fields, ['dateera']);
             $item['issued'] = $issued;
         }
 
@@ -1086,6 +1087,7 @@ final class BibtexCslParser
             'endtimezone' => 'origendtimezone',
         ], ['origendyear', 'origendmonth', 'origendday']);
         if ($originalDate !== null) {
+            $originalDate = self::dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
             $item['original-date'] = $originalDate;
         }
 
@@ -1100,6 +1102,7 @@ final class BibtexCslParser
             'endtimezone' => 'eventendtimezone',
         ], ['eventendyear', 'eventendmonth', 'eventendday']);
         if ($eventDate !== null) {
+            $eventDate = self::dateWithEra($eventDate, $fields, ['eventdateera', 'event-date-era']);
             $item['event-date'] = $eventDate;
         }
 
@@ -1114,6 +1117,7 @@ final class BibtexCslParser
             'endtimezone' => 'availableendtimezone',
         ], ['availableendyear', 'availableendmonth', 'availableendday']);
         if ($availableDate !== null) {
+            $availableDate = self::dateWithEra($availableDate, $fields, ['availabledateera', 'available-date-era']);
             $item['available-date'] = $availableDate;
         }
 
@@ -1128,6 +1132,7 @@ final class BibtexCslParser
             'endtimezone' => 'submittedendtimezone',
         ], ['submittedendyear', 'submittedendmonth', 'submittedendday']);
         if ($submittedDate !== null) {
+            $submittedDate = self::dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era']);
             $item['submitted'] = $submittedDate;
         }
 
@@ -1142,6 +1147,7 @@ final class BibtexCslParser
             'endtimezone' => 'urlendtimezone',
         ], ['urlendyear', 'urlendmonth', 'urlendday']);
         if ($accessed !== null) {
+            $accessed = self::dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'accesseddateera', 'accessed-date-era']);
             $item['accessed'] = $accessed;
         }
 
@@ -2575,6 +2581,28 @@ final class BibtexCslParser
         $endTime = self::timeFromDatePartFields($fields, $timeFields, 'end', $field);
         if ($endTime !== '') {
             $date['end-time'] = $endTime;
+        }
+
+        return $date;
+    }
+
+    /**
+     * @param array<string, mixed> $date
+     * @param array<string, string> $fields
+     * @param list<string> $eraFields
+     * @return array<string, mixed>
+     */
+    private static function dateWithEra(array $date, array $fields, array $eraFields): array
+    {
+        foreach ($eraFields as $field) {
+            $era = self::cleanBibtexText($fields[$field] ?? '');
+            if ($era === '') {
+                continue;
+            }
+
+            $date['era'] = strtolower(str_replace('_', '-', $era));
+
+            return $date;
         }
 
         return $date;

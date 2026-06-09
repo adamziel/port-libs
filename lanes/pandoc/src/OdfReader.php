@@ -1054,7 +1054,18 @@ final class OdfReader
     private function documentStatistics(\DOMElement $element): array
     {
         $statistics = [];
-        foreach (['page-count', 'table-count', 'image-count', 'object-count', 'paragraph-count', 'word-count', 'character-count'] as $name) {
+        foreach ([
+            'page-count',
+            'table-count',
+            'image-count',
+            'object-count',
+            'paragraph-count',
+            'word-count',
+            'sentence-count',
+            'character-count',
+            'non-whitespace-character-count',
+            'syllable-count',
+        ] as $name) {
             $value = self::attr($element, self::META_NS, $name);
             if ($value !== '' && ctype_digit($value)) {
                 $statistics[self::camelCase($name)] = (int) $value;
@@ -6583,6 +6594,14 @@ final class OdfReader
                 'editing-duration' => $this->fieldStringMetadata('editingDuration'),
                 'template-name' => $this->fieldTemplateMetadata(),
                 'user-defined' => $this->fieldUserDefinedPackageMetadata((string) ($metadata['name'] ?? '')),
+                'page-count',
+                'table-count',
+                'image-count',
+                'object-count',
+                'paragraph-count',
+                'word-count',
+                'sentence-count',
+                'character-count' => $this->fieldStatisticMetadata($field->localName),
                 default => [],
             };
         }
@@ -6754,6 +6773,24 @@ final class OdfReader
         }
 
         return [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldStatisticMetadata(string $fieldType): array
+    {
+        $statistics = $this->packageMetadata['statistics'] ?? null;
+        if (!is_array($statistics)) {
+            return [];
+        }
+
+        $value = $statistics[self::camelCase($fieldType)] ?? null;
+        if (!is_int($value)) {
+            return [];
+        }
+
+        return ['currentValue' => (string) $value];
     }
 
     /**

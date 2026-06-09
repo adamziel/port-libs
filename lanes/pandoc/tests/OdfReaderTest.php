@@ -6075,6 +6075,64 @@ XML;
         $t->contains('<span class="odf-field odf-field-file-name" data-odf-field-type="file-name" data-odf-field-display="full">source/review.odt</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-word-count" data-odf-field-type="word-count">128</span>', $blocksHtml);
     },
+    'fills empty ODT statistic fields from meta xml document statistics' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithEmptyStatisticFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Package counts <text:word-count/>/<text:sentence-count/>/<text:paragraph-count/>/<text:page-count/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $metaWithExtendedStatistics = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:document-statistic
+      meta:page-count="12"
+      meta:word-count="128"
+      meta:sentence-count="9"
+      meta:paragraph-count="7"
+      meta:character-count="640"
+      meta:non-whitespace-character-count="600"
+      meta:syllable-count="210"
+      meta:table-count="2"
+      meta:image-count="1"
+      meta:object-count="3"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithEmptyStatisticFields, null, null, $metaWithExtendedStatistics));
+        $paragraph = $result['document']->children[0];
+        $wordCount = $paragraph->children[1];
+        $sentenceCount = $paragraph->children[3];
+        $paragraphCount = $paragraph->children[5];
+        $pageCount = $paragraph->children[7];
+
+        $t->same(9, $result['metadata']['statistics']['sentenceCount']);
+        $t->same(600, $result['metadata']['statistics']['nonWhitespaceCharacterCount']);
+        $t->same(210, $result['metadata']['statistics']['syllableCount']);
+        $t->same('Package counts 128/9/7/12.', $paragraph->attr('text'));
+        $t->same('word-count', $wordCount->attr('fieldType'));
+        $t->same('128', $wordCount->attr('fieldMetadata')['currentValue']);
+        $t->same('meta.xml', $wordCount->attr('fieldMetadata')['metadataSource']);
+        $t->same('sentence-count', $sentenceCount->attr('fieldType'));
+        $t->same('9', $sentenceCount->attr('fieldMetadata')['currentValue']);
+        $t->same('9', $sentenceCount->children[0]->attr('text'));
+        $t->same('paragraph-count', $paragraphCount->attr('fieldType'));
+        $t->same('7', $paragraphCount->attr('attributes')['data-odf-field-current-value']);
+        $t->same('page-count', $pageCount->attr('fieldType'));
+        $t->same('12', $pageCount->attr('fieldMetadata')['currentValue']);
+        $t->same(4, $result['importReport']['content']['fieldCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<span class="odf-field odf-field-sentence-count" data-odf-field-type="sentence-count" data-odf-field-current-value="9" data-odf-field-metadata-source="meta.xml">9</span>', $blocksHtml);
+    },
     'maps ODT page continuation fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPageContinuationFields = <<<'XML'
 <office:document-content

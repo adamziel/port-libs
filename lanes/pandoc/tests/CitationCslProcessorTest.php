@@ -3444,6 +3444,37 @@ XML);
         ]));
         $t->same('Uncertain Review Rule | Date markers: issued uncertain (2024?); event-date circa and uncertain (2025-01-01%) | circa and uncertain | 2024?', $styled->renderBibliographyEntry('uncertain-rule'));
     },
+    'maps bounded biblatex date era metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{era-source,
+  author      = {Historian, Hera},
+  title       = {Era Packet},
+  date        = {0044-03-15},
+  dateera     = {bce},
+  origdate    = {0001},
+  origdateera = {ce},
+  url         = {https://example.test/era-source}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('bce', $items[0]['issued']['era'] ?? null);
+        $t->same('ce', $items[0]['original-date']['era'] ?? null);
+        $t->same('bce', $items[0]['rawBibtex']['fields']['dateera'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('era-source');
+        $t->same([44, 3, 15], $item['issuedDate']['parts'] ?? null);
+        $t->same('bce', $item['issuedDate']['era'] ?? null);
+        $t->same([1], $item['originalDate']['parts'] ?? null);
+        $t->same('ce', $item['originalDate']['era'] ?? null);
+        $t->same('Date eras: issued bce; original-date ce', $item['dateEraSummary'] ?? null);
+        $t->same('(Historian 44)', $processor->renderCitationCluster([$citation('era-source', '[@era-source]')]));
+        $t->same(
+            'Historian, Hera. Era Packet. 44. Date eras: issued bce; original-date ce. Original work published 1. https://example.test/era-source.',
+            $processor->renderBibliographyEntry('era-source')
+        );
+    },
     'renders bounded csl available and submitted date variables' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
