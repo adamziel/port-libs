@@ -437,7 +437,7 @@ final class MediaBag
 
     private static function pathOnlyRelativeSource(string $source): string
     {
-        if (str_starts_with($source, 'data:') || self::isUri($source)) {
+        if (str_starts_with($source, 'data:')) {
             return $source;
         }
 

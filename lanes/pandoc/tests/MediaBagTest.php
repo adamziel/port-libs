@@ -269,4 +269,69 @@ return [
         $t->same($bytes, $extracted['entries'][0]['contents']);
         $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
     },
+
+    'maps remote media urls through path-only uri resource keys' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $loadedBytes = "<svg><text>remote loaded chart</text></svg>\n";
+        $preloadedBytes = "remote preloaded photo bytes\n";
+        $loadedSource = 'https://cdn.example.test/media/loaded.svg?download=1#review';
+        $loadedKey = 'https://cdn.example.test/media/loaded.svg';
+        $preloadedSource = 'https://assets.example.test/media/preloaded.jpg?cache=20260609#xywh=10,10,20,20';
+        $preloadedKey = 'https://assets.example.test/media/preloaded.jpg';
+        $bag->insertMedia($preloadedKey, null, $preloadedBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $loadedSource,
+                    'title' => 'Remote loaded chart',
+                ], [new AstNode('text', ['text' => 'Remote loaded chart'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $preloadedSource,
+                    'title' => 'Remote preloaded photo',
+                ], [new AstNode('text', ['text' => 'Remote preloaded photo'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            $loadedKey => [
+                'contents' => $loadedBytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+        ]);
+        $directoryBySource = [];
+        foreach ($bag->directory() as $entry) {
+            $directoryBySource[$entry['source']] = $entry;
+        }
+        $loadedPath = sha1($loadedBytes) . '.svg';
+        $preloadedPath = sha1($preloadedBytes) . '.jpg';
+
+        $t->same(['media-resource-loaded:' . $loadedSource], $filled['diagnostics']);
+        $t->same(2, count($directoryBySource));
+        $t->same($loadedPath, $directoryBySource[$loadedSource]['path']);
+        $t->same('image/svg+xml', $directoryBySource[$loadedSource]['mimeType']);
+        $t->same($preloadedPath, $directoryBySource[$preloadedKey]['path']);
+        $t->same('image/jpeg', $directoryBySource[$preloadedKey]['mimeType']);
+        $t->true(!str_contains(implode(',', array_column($directoryBySource, 'path')), '?'), 'Remote query delimiters must not become media path characters');
+        $t->true(!str_contains(implode(',', array_column($directoryBySource, 'path')), '#'), 'Remote fragment delimiters must not become media path characters');
+
+        $extracted = $bag->extractMedia($filled['document'], 'remote-media');
+        $mappedDocument = $extracted['document'];
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+
+        $t->same('remote-media/' . $loadedPath, $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('remote-media/' . $preloadedPath, $mappedDocument->children[1]->children[0]->attr('url'));
+        $t->same(2, count($extracted['entries']));
+        $t->same($loadedBytes, $entriesBySource[$loadedSource]['contents']);
+        $t->same($preloadedBytes, $entriesBySource[$preloadedKey]['contents']);
+        $t->same([
+            'media-resource-mapped:' . $loadedSource,
+            'media-resource-mapped:' . $preloadedSource,
+        ], $extracted['diagnostics']);
+    },
 ];
