@@ -107,7 +107,7 @@ final class OdtReader
     }
 
     /**
-     * @return array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>}
+     * @return array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>}
      */
     private function loadStyleCatalog(ZipPackage $package): array
     {
@@ -115,6 +115,7 @@ final class OdtReader
             'paragraphStyles' => [],
             'textStyles' => [],
             'listStyles' => [],
+            'fontFaces' => [],
         ];
 
         if ($package->has('styles.xml')) {
@@ -129,7 +130,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $catalog
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
      */
     private function mergeAutomaticStyles(array &$catalog, \DOMElement $contentRoot): void
     {
@@ -141,7 +142,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $catalog
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
      */
     private function mergeStyleElements(array &$catalog, \DOMElement $container): void
     {
@@ -153,8 +154,22 @@ final class OdtReader
             if (
                 $this->isElement($child, self::OFFICE_NS, 'styles')
                 || $this->isElement($child, self::OFFICE_NS, 'automatic-styles')
+                || $this->isElement($child, self::OFFICE_NS, 'font-face-decls')
             ) {
                 $this->mergeStyleElements($catalog, $child);
+                continue;
+            }
+
+            if ($this->isElement($child, self::STYLE_NS, 'font-face')) {
+                $name = $this->styleAttr($child, 'name');
+                if ($name !== null && $name !== '') {
+                    $catalog['fontFaces'][$name] = [
+                        'name' => $name,
+                        'fontFamily' => $this->svgAttr($child, 'font-family'),
+                        'genericFamily' => $this->styleAttr($child, 'font-family-generic'),
+                        'pitch' => $this->styleAttr($child, 'font-pitch'),
+                    ];
+                }
                 continue;
             }
 
@@ -191,10 +206,14 @@ final class OdtReader
         $definition = [
             'family' => $family,
             'parent' => $this->styleAttr($styleElement, 'parent-style-name'),
+            'listStyle' => $this->styleAttr($styleElement, 'list-style-name'),
+            'styleMaps' => $this->styleMapDefinitions($styleElement),
         ];
 
         $textProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'text-properties');
         if ($textProperties instanceof \DOMElement) {
+            $definition['fontName'] = $this->styleAttr($textProperties, 'font-name');
+
             $fontWeight = strtolower((string) ($this->foAttr($textProperties, 'font-weight') ?? ''));
             if ($fontWeight === 'bold' || (is_numeric($fontWeight) && (int) $fontWeight >= 600)) {
                 $definition['strong'] = true;
@@ -225,6 +244,7 @@ final class OdtReader
 
         $paragraphProperties = $this->firstChildElement($styleElement, self::STYLE_NS, 'paragraph-properties');
         if ($paragraphProperties instanceof \DOMElement) {
+            $definition['listStyle'] = $this->styleAttr($paragraphProperties, 'list-style-name') ?? $definition['listStyle'];
             $alignment = strtolower((string) ($this->foAttr($paragraphProperties, 'text-align') ?? ''));
             if (in_array($alignment, ['left', 'right', 'center'], true)) {
                 $definition['align'] = $alignment;
@@ -232,6 +252,32 @@ final class OdtReader
         }
 
         return $definition;
+    }
+
+    /**
+     * @return list<array{condition:string, applyStyleName:string, baseCellAddress:?string}>
+     */
+    private function styleMapDefinitions(\DOMElement $styleElement): array
+    {
+        $maps = [];
+        foreach ($styleElement->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isElement($child, self::STYLE_NS, 'map')) {
+                continue;
+            }
+
+            $applyStyleName = (string) ($this->styleAttr($child, 'apply-style-name') ?? '');
+            if ($applyStyleName === '') {
+                continue;
+            }
+
+            $maps[] = [
+                'condition' => (string) ($this->styleAttr($child, 'condition') ?? ''),
+                'applyStyleName' => $applyStyleName,
+                'baseCellAddress' => $this->tableAttr($child, 'base-cell-address'),
+            ];
+        }
+
+        return $maps;
     }
 
     /**
@@ -260,6 +306,13 @@ final class OdtReader
                 'displayLevels' => $this->positiveIntAttr($child, self::TEXT_NS, 'display-levels', 1),
             ];
 
+            $textProperties = $this->firstChildElement($child, self::STYLE_NS, 'text-properties');
+            if ($textProperties instanceof \DOMElement) {
+                $definition['textProperties'] = [
+                    'fontName' => $this->styleAttr($textProperties, 'font-name'),
+                ];
+            }
+
             $start = $this->textAttr($child, 'start-value');
             if ($start !== null && preg_match('/^\d+$/', $start) === 1) {
                 $definition['start'] = max(1, (int) $start);
@@ -272,7 +325,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      * @return list<AstNode>
      */
     private function bodyBlocks(\DOMElement $text, ZipPackage $package, array $styles): array
@@ -288,7 +341,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      * @return list<AstNode>
      */
     private function blockNodes(\DOMElement $element, ZipPackage $package, array $styles): array
@@ -348,7 +401,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function paragraphNode(\DOMElement $paragraph, ZipPackage $package, array $styles): ?AstNode
     {
@@ -372,7 +425,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      * @return list<AstNode>
      */
     private function inlineNodes(\DOMElement $element, ZipPackage $package, array $styles): array
@@ -454,7 +507,7 @@ final class OdtReader
 
     /**
      * @param list<AstNode> $nodes
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      * @return list<AstNode>
      */
     private function applyTextStyle(array $nodes, ?string $styleName, array $styles): array
@@ -504,7 +557,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function noteNode(\DOMElement $note, ZipPackage $package, array $styles): AstNode
     {
@@ -537,7 +590,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function annotationSpan(\DOMElement $annotation, ZipPackage $package, array $styles): AstNode
     {
@@ -585,7 +638,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function listNode(\DOMElement $list, ZipPackage $package, array $styles): AstNode
     {
@@ -628,7 +681,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function tableNode(\DOMElement $table, ZipPackage $package, array $styles): AstNode
     {
@@ -668,7 +721,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function tableRowNode(\DOMElement $row, ZipPackage $package, array $styles): AstNode
     {
@@ -689,7 +742,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function tableCellNode(\DOMElement $cell, ZipPackage $package, array $styles): AstNode
     {
@@ -716,7 +769,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function frameBlockNode(\DOMElement $frame, ZipPackage $package, array $styles): ?AstNode
     {
@@ -748,7 +801,7 @@ final class OdtReader
     }
 
     /**
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styles
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styles
      */
     private function frameInlineNode(\DOMElement $frame, ZipPackage $package, array $styles): ?AstNode
     {
@@ -800,7 +853,7 @@ final class OdtReader
 
     /**
      * @param list<array{path:string, mediaType:string, encrypted:bool, size:?int}> $manifest
-     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>} $styleCatalog
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styleCatalog
      * @return array<string, mixed>
      */
     private function importReport(ZipPackage $package, array $manifest, AstNode $document, array $styleCatalog, string $mimetype): array
@@ -815,6 +868,7 @@ final class OdtReader
             $manifest,
             static fn (array $entry): bool => $entry['encrypted'] === true
         ));
+        $styleDiagnostics = $this->styleDiagnostics($styleCatalog);
 
         return [
             'mimetype' => $mimetype === '' ? self::ODT_MIMETYPE : $mimetype,
@@ -826,6 +880,11 @@ final class OdtReader
                 'paragraphCount' => count($styleCatalog['paragraphStyles']),
                 'textCount' => count($styleCatalog['textStyles']),
                 'listCount' => count($styleCatalog['listStyles']),
+                'fontFaceCount' => count($styleCatalog['fontFaces']),
+                'styleMapCount' => $this->styleMapCount($styleCatalog),
+                'diagnosticCount' => count($styleDiagnostics),
+                'diagnosticCodeCounts' => $this->diagnosticCodeCounts($styleDiagnostics),
+                'diagnostics' => $styleDiagnostics,
             ],
             'annotations' => [
                 'count' => $this->countNodesOfType($document, 'span', 'odt-annotation'),
@@ -910,6 +969,221 @@ final class OdtReader
         }
 
         return $count;
+    }
+
+    /**
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     * @return list<array<string, mixed>>
+     */
+    private function styleDiagnostics(array $catalog): array
+    {
+        $diagnostics = [];
+        $styleBuckets = [
+            'paragraph' => $catalog['paragraphStyles'],
+            'text' => $catalog['textStyles'],
+        ];
+        $allStyles = $catalog['paragraphStyles'] + $catalog['textStyles'];
+
+        foreach ($styleBuckets as $family => $styles) {
+            foreach ($styles as $styleName => $style) {
+                $this->appendMissingReferenceDiagnostic(
+                    $diagnostics,
+                    'odt-style-missing-parent',
+                    $styleName,
+                    $family,
+                    'parentName',
+                    (string) ($style['parent'] ?? ''),
+                    $styles
+                );
+
+                if ($family === 'paragraph') {
+                    $this->appendMissingReferenceDiagnostic(
+                        $diagnostics,
+                        'odt-style-missing-list-style',
+                        $styleName,
+                        $family,
+                        'listStyleName',
+                        (string) ($style['listStyle'] ?? ''),
+                        $catalog['listStyles']
+                    );
+                }
+
+                $this->appendMissingReferenceDiagnostic(
+                    $diagnostics,
+                    'odt-style-missing-font-face',
+                    $styleName,
+                    $family,
+                    'fontName',
+                    (string) ($style['fontName'] ?? ''),
+                    $catalog['fontFaces']
+                );
+
+                $styleMaps = $style['styleMaps'] ?? [];
+                if (!is_array($styleMaps)) {
+                    continue;
+                }
+
+                foreach ($styleMaps as $index => $styleMap) {
+                    if (!is_array($styleMap)) {
+                        continue;
+                    }
+
+                    $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
+                    if ($applyStyleName === '' || isset($allStyles[$applyStyleName])) {
+                        continue;
+                    }
+
+                    $diagnostics[] = $this->withoutEmpty([
+                        'code' => 'odt-style-map-missing-target',
+                        'styleName' => $styleName,
+                        'styleFamily' => $family,
+                        'mapIndex' => $index,
+                        'applyStyleName' => $applyStyleName,
+                        'condition' => $styleMap['condition'] ?? null,
+                        'baseCellAddress' => $styleMap['baseCellAddress'] ?? null,
+                    ]);
+                }
+            }
+
+            array_push($diagnostics, ...$this->styleParentCycleDiagnostics($styles, $family));
+        }
+
+        foreach ($catalog['listStyles'] as $listStyleName => $levels) {
+            foreach ($levels as $level => $definition) {
+                if (!is_array($definition)) {
+                    continue;
+                }
+
+                $textProperties = $definition['textProperties'] ?? [];
+                if (!is_array($textProperties)) {
+                    continue;
+                }
+
+                $fontName = (string) ($textProperties['fontName'] ?? '');
+                if ($fontName === '' || isset($catalog['fontFaces'][$fontName])) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'code' => 'odt-list-style-missing-font-face',
+                    'listStyleName' => $listStyleName,
+                    'level' => is_int($level) ? $level : (int) $level,
+                    'fontName' => $fontName,
+                ];
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, mixed> $known
+     */
+    private function appendMissingReferenceDiagnostic(array &$diagnostics, string $code, string $styleName, string $family, string $field, string $value, array $known): void
+    {
+        if ($value === '' || isset($known[$value])) {
+            return;
+        }
+
+        $diagnostics[] = [
+            'code' => $code,
+            'styleName' => $styleName,
+            'styleFamily' => $family,
+            $field => $value,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function styleParentCycleDiagnostics(array $styles, string $family): array
+    {
+        $diagnostics = [];
+        $reported = [];
+        foreach (array_keys($styles) as $styleName) {
+            $path = [];
+            $seenAt = [];
+            $current = $styleName;
+            while ($current !== '' && isset($styles[$current])) {
+                if (isset($seenAt[$current])) {
+                    $cyclePath = array_slice($path, $seenAt[$current]);
+                    $cyclePath[] = $current;
+                    $cycleMembers = array_slice($cyclePath, 0, -1);
+                    sort($cycleMembers);
+                    $key = $family . ':' . implode('>', $cycleMembers);
+                    if (!isset($reported[$key])) {
+                        $reported[$key] = true;
+                        $diagnostics[] = [
+                            'code' => 'odt-style-parent-cycle',
+                            'styleName' => $styleName,
+                            'styleFamily' => $family,
+                            'cyclePath' => $cyclePath,
+                        ];
+                    }
+                    break;
+                }
+
+                $seenAt[$current] = count($path);
+                $path[] = $current;
+                $parent = $styles[$current]['parent'] ?? null;
+                $current = is_string($parent) ? $parent : '';
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $catalog
+     */
+    private function styleMapCount(array $catalog): int
+    {
+        $count = 0;
+        foreach ([$catalog['paragraphStyles'], $catalog['textStyles']] as $styles) {
+            foreach ($styles as $style) {
+                $styleMaps = $style['styleMaps'] ?? [];
+                if (is_array($styleMaps)) {
+                    $count += count($styleMaps);
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticCodeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code === '') {
+                continue;
+            }
+
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private function withoutEmpty(array $values): array
+    {
+        return array_filter(
+            $values,
+            static fn (mixed $value): bool => $value !== null && $value !== ''
+        );
     }
 
     /**
