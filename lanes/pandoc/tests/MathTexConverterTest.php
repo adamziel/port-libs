@@ -263,6 +263,29 @@ return [
         $t->true(!str_contains($concentrationMathml . $frequencyPressureMathml . $powerAmountMathml, '<mi>\\us</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\qqmol}'));
     },
+    'converts bounded siunitx electric energy and derived unit aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $resistanceMathml = $converter->texToMathMl('\\si{\\mohm\\per\\kohm} + \\unit{\\Mohm}', true);
+        $voltageForceMathml = $converter->texToMathMl('\\qty{12}{\\pV\\per\\uV} + \\SI{3}{\\MN} + \\si{\\nV}');
+        $energyCapacitanceMathml = $converter->texToMathMl('\\si{\\meV\\per\\GeV} + \\unit{\\keV\\per\\MeV} + \\unit{\\fF\\per\\pF}');
+        $doseMathml = $converter->texToMathMl('\\qty{5}{\\gray\\per\\sievert}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\qty{5}{\\gray\\per\\sievert}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $resistanceMathml);
+        $t->contains('<mrow><mtext>mΩ</mtext><mtext>/</mtext><mtext>kΩ</mtext></mrow><mo>+</mo><mtext>MΩ</mtext>', $resistanceMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\si{\\mohm\\per\\kohm} + \\unit{\\Mohm}</annotation>', $resistanceMathml);
+        $t->contains('<mrow><mn>12</mn><mspace width="0.2222em"></mspace><mrow><mtext>pV</mtext><mtext>/</mtext><mtext>μV</mtext></mrow></mrow><mo>+</mo><mrow><mn>3</mn><mspace width="0.2222em"></mspace><mtext>MN</mtext></mrow><mo>+</mo><mtext>nV</mtext>', $voltageForceMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\qty{12}{\\pV\\per\\uV} + \\SI{3}{\\MN} + \\si{\\nV}</annotation>', $voltageForceMathml);
+        $t->contains('<mrow><mtext>meV</mtext><mtext>/</mtext><mtext>GeV</mtext></mrow><mo>+</mo><mrow><mtext>keV</mtext><mtext>/</mtext><mtext>MeV</mtext></mrow><mo>+</mo><mrow><mtext>fF</mtext><mtext>/</mtext><mtext>pF</mtext></mrow>', $energyCapacitanceMathml);
+        $t->contains('<mrow><mn>5</mn><mspace width="0.2222em"></mspace><mrow><mtext>Gy</mtext><mtext>/</mtext><mtext>Sv</mtext></mrow></mrow>', $doseMathml);
+        $t->contains('alttext="5 space Gy slash Sv"', $accessibleMathml);
+        $t->contains('intent="row(5,space,row(gy,slash,sv))"', $accessibleMathml);
+        $t->true(!str_contains($resistanceMathml . $voltageForceMathml . $energyCapacitanceMathml . $doseMathml, '<mi>\\mohm</mi>'));
+        $t->true(!str_contains($resistanceMathml . $voltageForceMathml . $energyCapacitanceMathml . $doseMathml, '<mi>\\pV</mi>'));
+        $t->true(!str_contains($resistanceMathml . $voltageForceMathml . $energyCapacitanceMathml . $doseMathml, '<mi>\\meV</mi>'));
+        $t->true(!str_contains($resistanceMathml . $voltageForceMathml . $energyCapacitanceMathml . $doseMathml, '<mi>\\gray</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\qqV}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

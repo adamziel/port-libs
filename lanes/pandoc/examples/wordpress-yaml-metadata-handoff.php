@@ -630,6 +630,10 @@ $duplicateSetDiagnostics = array_values(array_filter(
             || str_starts_with($diagnostic['path'] ?? '', '/block-label-set')
             || str_starts_with($diagnostic['path'] ?? '', '/sequence-label-sets/'))
 ));
+$documentMarkerComments = array_values(array_filter(
+    $yamlCommentProvenance,
+    static fn (array $comment): bool => ($comment['context'] ?? '') === 'document-marker'
+));
 $blocks = (new WordPressBlockWriter())->write($document);
 $abstractBlocks = $meta['abstractBlocks'] ?? [];
 $abstractWordPress = $abstractBlocks === []
@@ -848,6 +852,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($invalidTagDiagnostics[0]['expected'] ?? '') !== '%TAG <handle> <prefix>') {
         throw new RuntimeException('YAML metadata self-test missing invalid TAG directive expectation');
+    }
+    if (array_column($documentMarkerComments, 'comment') !== ['source export front matter', 'YAML document starts after directives', 'source metadata block ends before body']) {
+        throw new RuntimeException('YAML metadata self-test missing document marker comments');
+    }
+    if (array_column($documentMarkerComments, 'markerRole') !== ['opening', 'document-start', 'closing']) {
+        throw new RuntimeException('YAML metadata self-test missing document marker comment roles');
+    }
+    if (array_column($documentMarkerComments, 'marker') !== ['---', '---', '---']) {
+        throw new RuntimeException('YAML metadata self-test missing document marker names');
+    }
+    if (array_column($documentMarkerComments, 'sourceLine') !== ['3', '8', '539']) {
+        throw new RuntimeException('YAML metadata self-test missing document marker source lines');
     }
     if (($lateDirectiveMeta['review']['owner'] ?? '') !== 'Import Desk' || ($lateDirectiveMeta['late-review']['owner'] ?? '') !== 'Late Desk') {
         throw new RuntimeException('YAML metadata self-test missing late directive review metadata');

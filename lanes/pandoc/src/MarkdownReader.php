@@ -514,6 +514,18 @@ final class MarkdownReader
                     return null;
                 }
 
+                $metadata = $this->mergeYamlDocumentMarkerCommentProvenance(
+                    $metadata,
+                    [],
+                    [
+                        $this->yamlDocumentMarkerCommentProvenanceEntry(
+                            $lines[$cursor],
+                            'closing',
+                            $cursor + 1
+                        ),
+                    ]
+                );
+
                 return ['end' => $cursor, 'endMarker' => $marker, 'metadata' => $metadata];
             }
 
@@ -586,6 +598,24 @@ final class MarkdownReader
                     return null;
                 }
 
+                $metadata = $this->mergeYamlDocumentMarkerCommentProvenance(
+                    $metadata,
+                    [
+                        $this->yamlDocumentMarkerCommentProvenanceEntry(
+                            $lines[$start],
+                            'opening',
+                            $start + 1
+                        ),
+                    ],
+                    [
+                        $this->yamlDocumentMarkerCommentProvenanceEntry(
+                            $lines[$cursor],
+                            'closing',
+                            $cursor + 1
+                        ),
+                    ]
+                );
+
                 return ['end' => $cursor, 'endMarker' => $marker, 'metadata' => $metadata];
             }
 
@@ -593,6 +623,62 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, string>|null> $prefixEntries
+     * @param list<array<string, string>|null> $suffixEntries
+     * @return array<string, mixed>
+     */
+    private function mergeYamlDocumentMarkerCommentProvenance(
+        array $metadata,
+        array $prefixEntries,
+        array $suffixEntries
+    ): array {
+        $prefixEntries = array_values(array_filter($prefixEntries));
+        $suffixEntries = array_values(array_filter($suffixEntries));
+        if ($prefixEntries === [] && $suffixEntries === []) {
+            return $metadata;
+        }
+
+        $comments = $this->yamlMetadataCommentProvenanceList($metadata['__yamlMetadataCommentProvenance'] ?? []);
+        $metadata['__yamlMetadataCommentProvenance'] = array_merge($prefixEntries, $comments, $suffixEntries);
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function yamlDocumentMarkerCommentProvenanceEntry(
+        string $line,
+        string $markerRole,
+        ?int $sourceLine = null
+    ): ?array {
+        [$source, $comment] = $this->splitYamlTrailingComment($line);
+        if ($comment === null || $comment === '') {
+            return null;
+        }
+
+        $marker = trim($source);
+        if ($marker !== '---' && $marker !== '...') {
+            return null;
+        }
+
+        $entry = [
+            'type' => 'yaml-comment',
+            'context' => 'document-marker',
+            'comment' => $comment,
+            'path' => '',
+            'marker' => $marker,
+            'markerRole' => $markerRole,
+        ];
+        if ($sourceLine !== null) {
+            $entry['sourceLine'] = (string) $sourceLine;
+        }
+
+        return $entry;
     }
 
     /**
@@ -1333,6 +1419,20 @@ final class MarkdownReader
         ] + $this->yamlMetadataSourceLineAttrs();
     }
 
+    private function recordYamlDocumentMarkerCommentProvenance(string $line, string $markerRole): void
+    {
+        $entry = $this->yamlDocumentMarkerCommentProvenanceEntry(
+            $line,
+            $markerRole,
+            $this->yamlMetadataCurrentSourceLine
+        );
+        if ($entry === null) {
+            return;
+        }
+
+        $this->yamlMetadataCommentProvenance[] = $entry;
+    }
+
     /**
      * @param list<string> $lines
      * @param list<int|null>|null $sourceLines
@@ -1555,6 +1655,10 @@ final class MarkdownReader
         }
 
         if ($this->yamlMetadataDocumentMarker($lines[$index] ?? '') === '---') {
+            $this->withYamlMetadataSourceLine(
+                $sourceLines[$index] ?? null,
+                fn (): mixed => $this->recordYamlDocumentMarkerCommentProvenance($lines[$index], 'document-start')
+            );
             $index++;
         }
 

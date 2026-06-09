@@ -1570,6 +1570,46 @@ return [
         $t->same('implicit-commented-body', $implicit->children[0]->attr('id'));
         $t->contains('<h1 id="implicit-commented-body">Implicit commented body</h1>', $implicitBlocks);
     },
+    'records pandoc yaml document marker comments as review provenance' => static function (TestRunner $t): void {
+        $explicit = (new MarkdownReader())->read(implode("\n", [
+            '--- # source export front matter',
+            '%YAML 1.2',
+            '%TAG !wp! tag:example.test,2026:',
+            '--- # YAML document starts after directives',
+            'title: Commented marker **Packet**',
+            'review:',
+            '  owner: !wp!reviewer Import Desk',
+            '  status: queued',
+            '... # metadata ends before body',
+            '',
+            '# Commented marker body',
+        ]));
+        $implicit = (new MarkdownReader())->read(implode("\n", [
+            'title: Implicit commented marker **Packet**',
+            'review: {owner: Flow Desk, priority: !!int "5"}',
+            '... # implicit YAML metadata ends',
+            '',
+            '# Implicit commented body',
+        ]));
+
+        $explicitComments = $explicit->attr('yamlMetadataCommentProvenance', []);
+        $implicitComments = $implicit->attr('yamlMetadataCommentProvenance', []);
+
+        $t->same('Commented marker **Packet**', $explicit->attr('meta')['title']);
+        $t->same(['source export front matter', 'YAML document starts after directives', 'metadata ends before body'], array_column($explicitComments, 'comment'));
+        $t->same(['document-marker', 'document-marker', 'document-marker'], array_column($explicitComments, 'context'));
+        $t->same(['opening', 'document-start', 'closing'], array_column($explicitComments, 'markerRole'));
+        $t->same(['---', '---', '...'], array_column($explicitComments, 'marker'));
+        $t->same(['1', '4', '9'], array_column($explicitComments, 'sourceLine'));
+        $t->same(['', '', ''], array_column($explicitComments, 'path'));
+        $t->same('Implicit commented marker **Packet**', $implicit->attr('meta')['title']);
+        $t->same(['implicit YAML metadata ends'], array_column($implicitComments, 'comment'));
+        $t->same(['document-marker'], array_column($implicitComments, 'context'));
+        $t->same(['closing'], array_column($implicitComments, 'markerRole'));
+        $t->same(['...'], array_column($implicitComments, 'marker'));
+        $t->same(['3'], array_column($implicitComments, 'sourceLine'));
+        $t->same([''], array_column($implicitComments, 'path'));
+    },
     'maps pandoc yaml folded metadata and scalar author aliases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
