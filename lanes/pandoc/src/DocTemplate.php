@@ -6096,6 +6096,14 @@ CSS;
 
             try {
                 $variable = $this->parseVariableExpression($variableSource);
+                if ($variable['separator'] !== null) {
+                    throw new DocTemplateRelativeLocationException(
+                        "Doctemplate applied partial separators must follow the partial call in {$expression}",
+                        0,
+                    );
+                }
+            } catch (DocTemplateRelativeLocationException $exception) {
+                throw $exception;
             } catch (\UnexpectedValueException) {
                 continue;
             }

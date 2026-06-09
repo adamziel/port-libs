@@ -244,6 +244,23 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    try {
+        (new DocTemplate())->render('${ warnings[, ]:components/warning-row() }', [
+            'warnings' => [
+                ['source' => 'media', 'message' => 'Confirm alt text'],
+            ],
+        ], [
+            'components/warning-row' => '<li>$it.source$: $it.message$</li>',
+        ]);
+        fwrite(STDERR, "Expected doctemplate applied partial separator diagnostic\n");
+        exit(1);
+    } catch (UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Doctemplate applied partial separators must follow the partial call')) {
+            fwrite(STDERR, "Unexpected doctemplate applied partial separator diagnostic\n");
+            exit(1);
+        }
+    }
+
     $userDataDefaultPacket = $renderer->renderResource('templates/default', [
         'wp-data/templates/default.html5' => '<article class="wp-user-default"><h2>$title$</h2><section>${ default.plain() }</section></article>',
         'wp-data/templates/default.plain' => 'Body: $body$',

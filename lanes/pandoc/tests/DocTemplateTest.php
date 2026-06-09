@@ -1669,6 +1669,23 @@ TPL;
         ));
     },
 
+    'rejects pandoc doctemplate variable separators before applied partial colons' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('${ warnings[, ]:warning-row() }', [
+                'warnings' => [
+                    ['source' => 'media'],
+                    ['source' => 'links'],
+                ],
+            ], [
+                'warning-row' => '$it.source$',
+            ]),
+            'Doctemplate applied partial separators must follow the partial call in warnings[, ]:warning-row() at <template>:1:4',
+        );
+    },
+
     'renders pandoc doctemplate partials inside explicit loops with current item context' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Warnings:
