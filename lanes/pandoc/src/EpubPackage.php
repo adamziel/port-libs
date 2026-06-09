@@ -16,6 +16,14 @@ final class EpubPackage
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
+    private const RESERVED_PACKAGE_PREFIXES = [
+        'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
+        'dcterms' => 'http://purl.org/dc/terms/',
+        'media' => 'http://www.idpf.org/epub/vocab/overlays/#',
+        'rendition' => 'http://www.idpf.org/vocab/rendition/#',
+        'schema' => 'http://schema.org/',
+        'xsd' => 'http://www.w3.org/2001/XMLSchema#',
+    ];
 
     /**
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
@@ -275,6 +283,9 @@ final class EpubPackage
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
+        $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
+            ? $this->metadata['linkVocabulary']
+            : self::metadataLinkVocabularySummary($this->packageLinks);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
 
         return [
@@ -285,6 +296,7 @@ final class EpubPackage
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
             'packageLinkRelCounts' => $packageLinkReport['relCounts'],
             'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
+            'packageLinkVocabulary' => $packageLinkVocabulary,
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
             'guide' => $this->guideReferences,
@@ -325,6 +337,8 @@ final class EpubPackage
                 'packageLinksByRel' => $packageLinkReport['linksByRel'],
                 'packageLinkTargets' => self::packageLinkTargets($this->packageLinks),
                 'packageLinkDiagnostics' => $packageLinkReport['diagnostics'],
+                'packageLinkVocabulary' => $packageLinkVocabulary,
+                'packageLinkVocabularyDiagnostics' => $packageLinkVocabulary['diagnostics'],
                 'remoteResourcePolicy' => $remoteResourcePolicy,
                 'remoteResourceExternalTargets' => $remoteResourcePolicy['externalTargets'],
                 'remoteResourcePolicyDiagnostics' => $remoteResourcePolicy['diagnostics'],
@@ -428,12 +442,19 @@ final class EpubPackage
 
         $metadata = self::parseMetadata($metadataElement, $root);
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
-        $packageLinks = self::parsePackageLinks($metadataElement, $opfPartName, $package, self::manifestByPart($manifestById));
+        $packageLinks = self::parsePackageLinks(
+            $metadataElement,
+            $opfPartName,
+            $package,
+            self::manifestByPart($manifestById),
+            is_array($metadata['prefixBindings'] ?? null) ? $metadata['prefixBindings'] : [],
+        );
         $packageLinkReport = self::collectionLinkReport($packageLinks);
         $metadata['links'] = $packageLinks;
         $metadata['linksByRel'] = $packageLinkReport['linksByRel'];
         $metadata['linkRelCounts'] = $packageLinkReport['relCounts'];
         $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
+        $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($packageLinks);
         $spine = self::parseSpine($spineElement, $manifestById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
@@ -467,6 +488,8 @@ final class EpubPackage
         $propertyValues = [];
         $refinementsById = [];
         $coverImageId = null;
+        $prefixReport = self::packagePrefixReport($packageElement->hasAttribute('prefix') ? $packageElement->getAttribute('prefix') : '');
+        $prefixBindings = self::metadataVocabularyPrefixBindings($prefixReport['bindingsByPrefix']);
 
         foreach (self::childElements($metadataElement) as $child) {
             if ($child->namespaceURI === self::DC_NAMESPACE) {
@@ -600,7 +623,79 @@ final class EpubPackage
             'meta' => $meta,
             'refinementsById' => $refinementsById,
             'coverImageId' => $coverImageId,
+            'prefix' => $prefixReport['raw'],
+            'prefixDeclarations' => $prefixReport['bindings'],
+            'prefixBindings' => $prefixBindings,
+            'prefixDiagnostics' => $prefixReport['diagnostics'],
         ];
+    }
+
+    /**
+     * @return array{raw:string, bindings:list<array{index:int, prefix:string, iri:string}>, bindingsByPrefix:array<string, string>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function packagePrefixReport(string $raw): array
+    {
+        $value = trim($raw);
+        $bindings = [];
+        $bindingsByPrefix = [];
+        $diagnostics = [];
+
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $offset += strspn($value, " \t\r\n", $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $segment = substr($value, $offset);
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-package-prefix-declaration',
+                    'offset' => $offset,
+                    'value' => $segment,
+                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
+                ];
+                break;
+            }
+
+            $prefix = $match[1];
+            $iri = $match[2];
+            if (isset($bindingsByPrefix[$prefix])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-package-prefix-declaration',
+                    'prefix' => $prefix,
+                    'previousIri' => $bindingsByPrefix[$prefix],
+                    'iri' => $iri,
+                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
+                ];
+            }
+
+            $bindingsByPrefix[$prefix] = $iri;
+            $bindings[] = [
+                'index' => count($bindings),
+                'prefix' => $prefix,
+                'iri' => $iri,
+            ];
+            $offset += strlen($match[0]);
+        }
+
+        return [
+            'raw' => $value,
+            'bindings' => $bindings,
+            'bindingsByPrefix' => $bindingsByPrefix,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, string>
+     */
+    private static function metadataVocabularyPrefixBindings(array $prefixBindings): array
+    {
+        return array_replace(self::RESERVED_PACKAGE_PREFIXES, $prefixBindings);
     }
 
     /**
@@ -1199,11 +1294,12 @@ final class EpubPackage
         \DOMElement $metadataElement,
         string $opfPartName,
         ZipPackage $package,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings = []
     ): array {
         $links = [];
         foreach (self::childElements($metadataElement, 'link', self::OPF_NAMESPACE) as $index => $linkElement) {
-            $links[] = self::parsePackageLink($linkElement, $index, $opfPartName, $package, $manifestByPart);
+            $links[] = self::parsePackageLink($linkElement, $index, $opfPartName, $package, $manifestByPart, $prefixBindings);
         }
 
         return $links;
@@ -1219,10 +1315,12 @@ final class EpubPackage
         int $index,
         string $opfPartName,
         ZipPackage $package,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings = []
     ): array {
         $href = self::emptyToNull($linkElement->getAttribute('href'));
         $rel = self::splitTokens($linkElement->getAttribute('rel'));
+        $properties = self::splitTokens($linkElement->getAttribute('properties'));
         $target = null;
         $partName = null;
         $external = false;
@@ -1290,7 +1388,9 @@ final class EpubPackage
             'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
-            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'properties' => $properties,
+            'relVocabulary' => self::metadataLinkTokenReport($rel, $prefixBindings, 'rel', $index),
+            'propertyVocabulary' => self::metadataLinkTokenReport($properties, $prefixBindings, 'properties', $index),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
             'language' => self::metadataElementLanguage($linkElement),
@@ -1500,6 +1600,202 @@ final class EpubPackage
             'relTokens' => array_keys($relCounts),
             'relCounts' => $relCounts,
             'linksByRel' => $linksByRel,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLinkTokenReport(array $tokens, array $prefixBindings, string $kind, int $linkIndex): array
+    {
+        $prefixBindings = self::metadataVocabularyPrefixBindings($prefixBindings);
+        $items = [];
+        $diagnostics = [];
+        $seen = [];
+        $validCount = 0;
+        $resolvedCount = 0;
+        $absoluteUrlCount = 0;
+        $duplicateCount = 0;
+
+        foreach ($tokens as $index => $token) {
+            $value = trim((string) $token);
+            if ($value === '') {
+                continue;
+            }
+
+            $diagnosticsForToken = [];
+            $prefix = null;
+            $localName = null;
+            $iri = null;
+            $resolved = false;
+            $absoluteUrlWithFragment = self::isAbsoluteUrlWithFragment($value);
+            $looksAbsolute = self::isAbsoluteUri($value);
+            $tokenKind = 'nmtoken';
+            $valid = true;
+
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_.-]*):([A-Za-z_][A-Za-z0-9_.-]*)$/', $value, $matches) === 1) {
+                $tokenKind = 'prefixed-nmtoken';
+                $prefix = $matches[1];
+                $localName = $matches[2];
+                if (isset($prefixBindings[$prefix])) {
+                    $resolved = true;
+                    $iri = $prefixBindings[$prefix] . $localName;
+                    ++$resolvedCount;
+                } else {
+                    $diagnosticsForToken[] = [
+                        'type' => 'unknown-metadata-link-' . $kind . '-prefix',
+                        'kind' => $kind,
+                        'linkIndex' => $linkIndex,
+                        'index' => (int) $index,
+                        'value' => $value,
+                        'prefix' => $prefix,
+                        'message' => 'EPUB OPF metadata link vocabulary token uses a prefix that is not declared on the package element',
+                    ];
+                }
+            } elseif ($absoluteUrlWithFragment) {
+                $tokenKind = 'absolute-url-with-fragment';
+                $iri = $value;
+                ++$absoluteUrlCount;
+            } elseif ($looksAbsolute) {
+                $tokenKind = 'absolute-url';
+                $valid = false;
+                $diagnosticsForToken[] = [
+                    'type' => 'invalid-metadata-link-' . $kind . '-url-fragment',
+                    'kind' => $kind,
+                    'linkIndex' => $linkIndex,
+                    'index' => (int) $index,
+                    'value' => $value,
+                    'message' => 'EPUB OPF metadata link vocabulary URLs must include a fragment identifier',
+                ];
+            } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $value) !== 1) {
+                $tokenKind = 'invalid';
+                $valid = false;
+                $diagnosticsForToken[] = [
+                    'type' => 'invalid-metadata-link-' . $kind . '-token',
+                    'kind' => $kind,
+                    'linkIndex' => $linkIndex,
+                    'index' => (int) $index,
+                    'value' => $value,
+                    'message' => 'EPUB OPF metadata link vocabulary values must be NMTOKENs, prefixed names, or absolute URLs with fragments',
+                ];
+            }
+
+            if (isset($seen[$value])) {
+                ++$duplicateCount;
+                $diagnosticsForToken[] = [
+                    'type' => 'duplicate-metadata-link-' . $kind . '-token',
+                    'kind' => $kind,
+                    'linkIndex' => $linkIndex,
+                    'index' => (int) $index,
+                    'previousIndex' => $seen[$value],
+                    'value' => $value,
+                    'message' => 'EPUB OPF metadata link vocabulary value is repeated',
+                ];
+            } else {
+                $seen[$value] = (int) $index;
+            }
+
+            if ($valid) {
+                ++$validCount;
+            }
+
+            $item = [
+                'index' => (int) $index,
+                'value' => $value,
+                'kind' => $tokenKind,
+                'valid' => $valid,
+                'prefix' => $prefix,
+                'localName' => $localName,
+                'iri' => $iri,
+                'resolved' => $resolved,
+                'absoluteUrlWithFragment' => $absoluteUrlWithFragment,
+                'diagnostics' => $diagnosticsForToken,
+            ];
+
+            foreach ($diagnosticsForToken as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'raw' => array_values($tokens),
+            'kind' => $kind,
+            'linkIndex' => $linkIndex,
+            'count' => count($items),
+            'validCount' => $validCount,
+            'invalidCount' => count($items) - $validCount,
+            'resolvedCount' => $resolvedCount,
+            'absoluteUrlCount' => $absoluteUrlCount,
+            'duplicateCount' => $duplicateCount,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLinkVocabularySummary(array $links): array
+    {
+        $rels = [];
+        $properties = [];
+        $diagnostics = [];
+        $relTokenCount = 0;
+        $propertyTokenCount = 0;
+        $resolvedTokenCount = 0;
+        $absoluteUrlTokenCount = 0;
+        $duplicateTokenCount = 0;
+
+        foreach ($links as $link) {
+            foreach (['rel' => 'relVocabulary', 'properties' => 'propertyVocabulary'] as $tokenField => $reportField) {
+                $tokens = is_array($link[$tokenField] ?? null) ? array_values($link[$tokenField]) : [];
+                foreach ($tokens as $token) {
+                    if (!is_string($token) || $token === '') {
+                        continue;
+                    }
+
+                    if ($tokenField === 'rel') {
+                        $rels[$token] = ($rels[$token] ?? 0) + 1;
+                        ++$relTokenCount;
+                    } else {
+                        $properties[$token] = ($properties[$token] ?? 0) + 1;
+                        ++$propertyTokenCount;
+                    }
+                }
+
+                $report = is_array($link[$reportField] ?? null) ? $link[$reportField] : [];
+                $resolvedTokenCount += (int) ($report['resolvedCount'] ?? 0);
+                $absoluteUrlTokenCount += (int) ($report['absoluteUrlCount'] ?? 0);
+                $duplicateTokenCount += (int) ($report['duplicateCount'] ?? 0);
+                foreach (($report['diagnostics'] ?? []) as $diagnostic) {
+                    if (is_array($diagnostic)) {
+                        $diagnostics[] = $diagnostic;
+                    }
+                }
+            }
+        }
+
+        ksort($rels);
+        ksort($properties);
+
+        return [
+            'present' => $relTokenCount > 0 || $propertyTokenCount > 0,
+            'linkCount' => count($links),
+            'relTokenCount' => $relTokenCount,
+            'propertyTokenCount' => $propertyTokenCount,
+            'resolvedTokenCount' => $resolvedTokenCount,
+            'absoluteUrlTokenCount' => $absoluteUrlTokenCount,
+            'duplicateTokenCount' => $duplicateTokenCount,
+            'diagnosticCount' => count($diagnostics),
+            'rels' => $rels,
+            'properties' => $properties,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -1978,6 +2274,11 @@ final class EpubPackage
     private static function isAbsoluteUri(string $value): bool
     {
         return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $value) === 1;
+    }
+
+    private static function isAbsoluteUrlWithFragment(string $value): bool
+    {
+        return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:[^#\s]*#[^\s]+$/', $value) === 1;
     }
 
     /**

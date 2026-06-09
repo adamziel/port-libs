@@ -331,6 +331,7 @@ final class PdfEngineHandoff
      *     pdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
+     *     pdfViewerPreferencePolicy: array<string, mixed>,
      *     pdfNeedsRendering: bool|null,
      *     pdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     pdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
@@ -803,6 +804,7 @@ final class PdfEngineHandoff
         $pdfNameTreePolicies = [];
         $pdfUriBase = null;
         $pdfViewerPreferences = [];
+        $pdfViewerPreferencePolicy = [];
         $pdfNeedsRendering = null;
         $pdfCatalogRequirements = [];
         $pdfLegalAttestationMetadata = [];
@@ -933,6 +935,7 @@ final class PdfEngineHandoff
                 $pdfNameTreePolicies = $pdfInspection['nameTreePolicies'];
                 $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
+                $pdfViewerPreferencePolicy = $pdfInspection['viewerPreferencePolicy'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
                 $pdfCatalogRequirements = $pdfInspection['catalogRequirements'];
                 $pdfLegalAttestationMetadata = $pdfInspection['legalAttestationMetadata'];
@@ -2040,6 +2043,39 @@ final class PdfEngineHandoff
                     }
                     if (isset($pdfViewerPreferences['Enforce']) && is_array($pdfViewerPreferences['Enforce'])) {
                         $diagnostics[] = 'pdf-byte-viewer-enforced-preferences:' . count($pdfViewerPreferences['Enforce']);
+                    }
+                }
+                if ($pdfViewerPreferencePolicy !== []) {
+                    $reviewStatus = is_string($pdfViewerPreferencePolicy['reviewStatus'] ?? null)
+                        ? $pdfViewerPreferencePolicy['reviewStatus']
+                        : 'unknown';
+                    $diagnostics[] = 'pdf-byte-viewer-preference-policy:' . $reviewStatus;
+                    foreach ([
+                        'uiPreferences' => 'ui',
+                        'printPreferences' => 'print',
+                        'enforcedPreferences' => 'enforced',
+                        'enforcedUiPreferences' => 'enforced-ui',
+                        'enforcedPrintPreferences' => 'enforced-print',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfViewerPreferencePolicy[$policyKey]) && is_array($pdfViewerPreferencePolicy[$policyKey]) && $pdfViewerPreferencePolicy[$policyKey] !== []) {
+                            $diagnostics[] = 'pdf-byte-viewer-preference-policy-' . $diagnosticName . ':' . count($pdfViewerPreferencePolicy[$policyKey]);
+                        }
+                    }
+                    if (isset($pdfViewerPreferencePolicy['printPageRangePairs']) && is_int($pdfViewerPreferencePolicy['printPageRangePairs']) && $pdfViewerPreferencePolicy['printPageRangePairs'] > 0) {
+                        $diagnostics[] = 'pdf-byte-viewer-preference-policy-print-ranges:' . $pdfViewerPreferencePolicy['printPageRangePairs'];
+                    }
+                    if (isset($pdfViewerPreferencePolicy['issues']) && is_array($pdfViewerPreferencePolicy['issues']) && $pdfViewerPreferencePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-viewer-preference-policy-issues:' . count($pdfViewerPreferencePolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfViewerPreferencePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-viewer-preference-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfNeedsRendering !== null) {
@@ -3606,6 +3642,7 @@ final class PdfEngineHandoff
             'pdfNameTreePolicies' => $pdfNameTreePolicies,
             'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
+            'pdfViewerPreferencePolicy' => $pdfViewerPreferencePolicy,
             'pdfNeedsRendering' => $pdfNeedsRendering,
             'pdfCatalogRequirements' => $pdfCatalogRequirements,
             'pdfLegalAttestationMetadata' => $pdfLegalAttestationMetadata,
@@ -3757,6 +3794,7 @@ final class PdfEngineHandoff
      *     finalPdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
+     *     finalPdfViewerPreferencePolicy: array<string, mixed>,
      *     finalPdfNeedsRendering: bool|null,
      *     finalPdfCatalogRequirements: list<array{object:string|null, type:string|null, subtype:string|null, handlerObject:string|null, handlerType:string|null, handlerName:string|null, handlerCode:string|null, handlerVersion:string|null, keys:list<string>}>,
      *     finalPdfLegalAttestationMetadata: array{object:string|null, type:string|null, language:string|null, status:string|null, jurisdiction:string|null, attestation:string|null, attestationObject:string|null, attestationBytes:int|null, attestationSha256:string|null, attestationSkipped:string|null, associatedFiles:list<string>, keys:list<string>}|array{},
@@ -4022,6 +4060,7 @@ final class PdfEngineHandoff
             'finalPdfNameTreePolicies' => is_array($finalRun) && is_array($finalRun['pdfNameTreePolicies'] ?? null) ? $finalRun['pdfNameTreePolicies'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
+            'finalPdfViewerPreferencePolicy' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferencePolicy'] ?? null) ? $finalRun['pdfViewerPreferencePolicy'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
             'finalPdfCatalogRequirements' => is_array($finalRun) && is_array($finalRun['pdfCatalogRequirements'] ?? null) ? $finalRun['pdfCatalogRequirements'] : [],
             'finalPdfLegalAttestationMetadata' => is_array($finalRun) && is_array($finalRun['pdfLegalAttestationMetadata'] ?? null) ? $finalRun['pdfLegalAttestationMetadata'] : [],
@@ -5164,7 +5203,8 @@ final class PdfEngineHandoff
      *     openAction:array<string, mixed>|null,
      *     namedDestinations:list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     destinationOptions:list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
-     *     viewerPreferences:array<string, bool|int|string>,
+     *     viewerPreferences:array<string, bool|int|string|list<int>|list<string>>,
+     *     viewerPreferencePolicy:array<string, mixed>,
      *     taggingMetadata:array{marked:bool|null, userProperties:bool|null, suspects:bool|null, structTreeRoot:string|null, roleMap:array<string, string>, structureChildren:int|null, parentTree:string|null, parentTreeNextKey:int|null, idTree:string|null}|array{},
      *     structureParentTree:list<array{source:string, nodeObject:string|null, mcid:int, valueKind:string, valueObject:string|null, arrayCount:int|null, structureReferences:list<string>, missingReferences:list<string>, limits:list<int>}>,
      *     structureParentTreePolicy:array<string, mixed>,
@@ -5276,6 +5316,7 @@ final class PdfEngineHandoff
         $outputIntents = $this->extractPdfOutputIntents($pdfBytes, $catalog);
         $pageOutputIntents = $this->extractPdfPageOutputIntents($pdfBytes, $catalog);
         $language = $this->extractPdfCatalogLanguage($pdfBytes, $catalog);
+        $viewerPreferences = $this->extractPdfViewerPreferences($pdfBytes, $catalog);
         $taggingMetadata = $this->extractPdfTaggingMetadata($pdfBytes, $catalog);
         $structureParentTree = $this->extractPdfStructureParentTree($pdfBytes, $catalog);
         $structureIdTree = $this->extractPdfStructureIdTree($pdfBytes, $catalog);
@@ -5362,7 +5403,8 @@ final class PdfEngineHandoff
             'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
             'nameTreePolicies' => $this->extractPdfNameTreePolicies($pdfBytes, $catalog),
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
-            'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
+            'viewerPreferences' => $viewerPreferences,
+            'viewerPreferencePolicy' => $this->summarizePdfViewerPreferencePolicy($viewerPreferences),
             'needsRendering' => $this->extractPdfNeedsRendering($catalog),
             'catalogRequirements' => $this->extractPdfCatalogRequirements($pdfBytes, $catalog),
             'legalAttestationMetadata' => $this->extractPdfLegalAttestationMetadata($pdfBytes, $catalog),
@@ -11098,7 +11140,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array<string, bool|int|string>
+     * @return array<string, bool|int|string|list<int>|list<string>>
      */
     private function extractPdfViewerPreferences(string $pdfBytes, ?string $catalog): array
     {
@@ -11156,6 +11198,119 @@ final class PdfEngineHandoff
         }
 
         return $preferences;
+    }
+
+    /**
+     * @param array<string, bool|int|string|list<int>|list<string>> $preferences
+     * @return array{
+     *     reviewStatus:string,
+     *     preferenceCount:int,
+     *     uiPreferences:array<string, bool|int|string|list<int>|list<string>>,
+     *     printPreferences:array<string, bool|int|string|list<int>|list<string>>,
+     *     enforcedPreferences:list<string>,
+     *     enforcedUiPreferences:list<string>,
+     *     enforcedPrintPreferences:list<string>,
+     *     printPageRangePairs:int,
+     *     printPageRanges:list<array{start:int, end:int}>,
+     *     issues:list<string>
+     * }|array{}
+     */
+    private function summarizePdfViewerPreferencePolicy(array $preferences): array
+    {
+        if ($preferences === []) {
+            return [];
+        }
+
+        $uiPreferences = [];
+        foreach (['HideToolbar', 'HideMenubar', 'HideWindowUI', 'FitWindow', 'CenterWindow', 'DisplayDocTitle', 'NonFullScreenPageMode', 'Direction'] as $key) {
+            if (array_key_exists($key, $preferences)) {
+                $uiPreferences[$key] = $preferences[$key];
+            }
+        }
+
+        $printPreferences = [];
+        foreach (['PickTrayByPDFSize', 'ViewArea', 'ViewClip', 'PrintArea', 'PrintClip', 'PrintScaling', 'Duplex', 'NumCopies', 'PrintPageRange'] as $key) {
+            if (array_key_exists($key, $preferences)) {
+                $printPreferences[$key] = $preferences[$key];
+            }
+        }
+
+        $enforcedPreferences = [];
+        if (isset($preferences['Enforce']) && is_array($preferences['Enforce'])) {
+            foreach ($preferences['Enforce'] as $preference) {
+                if (is_string($preference) && $preference !== '' && !in_array($preference, $enforcedPreferences, true)) {
+                    $enforcedPreferences[] = $preference;
+                }
+            }
+        }
+
+        $enforcedUiPreferences = [];
+        $enforcedPrintPreferences = [];
+        foreach ($enforcedPreferences as $preference) {
+            if (array_key_exists($preference, $uiPreferences)) {
+                $enforcedUiPreferences[] = $preference;
+            }
+            if (array_key_exists($preference, $printPreferences)) {
+                $enforcedPrintPreferences[] = $preference;
+            }
+        }
+
+        $printPageRanges = [];
+        $printPageRange = isset($preferences['PrintPageRange']) && is_array($preferences['PrintPageRange'])
+            ? $preferences['PrintPageRange']
+            : [];
+        for ($i = 0; $i + 1 < count($printPageRange); $i += 2) {
+            if (is_int($printPageRange[$i]) && is_int($printPageRange[$i + 1])) {
+                $printPageRanges[] = [
+                    'start' => $printPageRange[$i],
+                    'end' => $printPageRange[$i + 1],
+                ];
+            }
+        }
+
+        $issues = [];
+        if ($printPageRanges !== []) {
+            $issues[] = 'bounded-print-page-range';
+        }
+        if (isset($preferences['Duplex']) && is_string($preferences['Duplex']) && $preferences['Duplex'] !== '' && $preferences['Duplex'] !== 'Simplex') {
+            $issues[] = 'duplex-printing-requested';
+        }
+        if ($enforcedPreferences !== []) {
+            $issues[] = 'enforces-viewer-preferences';
+        }
+        if (($preferences['HideToolbar'] ?? false) === true || ($preferences['HideMenubar'] ?? false) === true || ($preferences['HideWindowUI'] ?? false) === true) {
+            $issues[] = 'hides-viewer-ui';
+        }
+        if (isset($preferences['NumCopies']) && is_int($preferences['NumCopies']) && $preferences['NumCopies'] > 1) {
+            $issues[] = 'multiple-print-copies';
+        }
+        if (isset($preferences['PrintScaling']) && is_string($preferences['PrintScaling']) && $preferences['PrintScaling'] !== '' && $preferences['PrintScaling'] !== 'AppDefault') {
+            $issues[] = 'non-default-print-scaling';
+        }
+        if (($preferences['PickTrayByPDFSize'] ?? false) === true) {
+            $issues[] = 'print-tray-by-pdf-size';
+        }
+        if (($preferences['Direction'] ?? null) === 'R2L') {
+            $issues[] = 'right-to-left-viewer-direction';
+        }
+        if ($printPageRange !== [] && count($printPageRange) % 2 !== 0) {
+            $issues[] = 'odd-print-page-range-bound';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'preferenceCount' => count($preferences),
+            'uiPreferences' => $uiPreferences,
+            'printPreferences' => $printPreferences,
+            'enforcedPreferences' => $enforcedPreferences,
+            'enforcedUiPreferences' => $enforcedUiPreferences,
+            'enforcedPrintPreferences' => $enforcedPrintPreferences,
+            'printPageRangePairs' => count($printPageRanges),
+            'printPageRanges' => $printPageRanges,
+            'issues' => $issues,
+        ];
     }
 
     private function extractPdfNeedsRendering(?string $catalog): ?bool

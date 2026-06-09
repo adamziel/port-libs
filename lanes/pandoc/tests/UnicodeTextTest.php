@@ -1741,6 +1741,40 @@ return [
         $t->same("\u{FFFD}", $missingTrailBeforeShift['text']);
         $t->same(1, $missingTrailBeforeShift['repairs']);
     },
+    'decodes bounded iso 2022 cn gb2312 shift states into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "\x1B\$)A# \x0E\x3C\x72\x4C\x65\x0F\n\n\x0E\x56\x50\x4E\x44\x0F ISO-2022-CN \x0E\x32\x62\x4A\x54\x0F, \x0E\x31\x31\x3E\x29\x0F.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso2022cn');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csiso2022cn');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $invalidEscape = UnicodeText::decodeBytes("A\x1B(B", 'iso-2022-cn');
+        $shiftWithoutDesignation = UnicodeText::decodeBytes("\x0E\x56\x50\x0F", 'iso-2022-cn');
+        $unmappedPair = UnicodeText::decodeBytes("\x1B\$)A\x0E!!\x0F", 'iso-2022-cn');
+        $missingTrailBeforeShift = UnicodeText::decodeBytes("\x1B\$)A\x0E\x56\x0F", 'iso-2022-cn');
+        $unsupportedCnsDesignation = UnicodeText::decodeBytes("A\x1B\$)GB", 'iso-2022-cn');
+        $finalStateRepair = UnicodeText::decodeBytes("\x1B\$)A\x0E\x56\x50", 'iso-2022-cn');
+
+        $t->same('iso-2022-cn', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# 简体\n\n中文 ISO-2022-CN 测试, 北京.", $decoded['text']);
+        $t->same(['encoding' => 'iso-2022-cn', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('简体', $document->children[0]->attr('text'));
+        $t->same('中文 ISO-2022-CN 测试, 北京.', $document->children[1]->attr('text'));
+        $t->same(28, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="简体">简体</h1>', $blocks);
+        $t->contains('<p>中文 ISO-2022-CN 测试, 北京.</p>', $blocks);
+        $t->same("A\u{FFFD}", $invalidEscape['text']);
+        $t->same(1, $invalidEscape['repairs']);
+        $t->same("\u{FFFD}", $shiftWithoutDesignation['text']);
+        $t->same(1, $shiftWithoutDesignation['repairs']);
+        $t->same("\u{FFFD}", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+        $t->same("\u{FFFD}", $missingTrailBeforeShift['text']);
+        $t->same(1, $missingTrailBeforeShift['repairs']);
+        $t->same("A\u{FFFD}B", $unsupportedCnsDesignation['text']);
+        $t->same(1, $unsupportedCnsDesignation['repairs']);
+        $t->same("中\u{FFFD}", $finalStateRepair['text']);
+        $t->same(1, $finalStateRepair['repairs']);
+    },
     'decodes bounded hz gb 2312 escape states into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}\nEscaped ~~ tilde and line~\njoin.";
         $decoded = UnicodeText::decodeBytes($bytes, 'hz-gb-2312');

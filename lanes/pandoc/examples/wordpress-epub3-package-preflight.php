@@ -16,7 +16,7 @@ $containerXml = <<<'XML'
 XML;
 
 $opfXml = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review#">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="bookid">urn:uuid:wordpress-import-epub</dc:identifier>
     <dc:title id="main-title">WordPress EPUB Import Packet</dc:title>
@@ -27,7 +27,7 @@ $opfXml = <<<'XML'
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
     <meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
-    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
+    <link id="review-record" rel="record alternate schema:associatedMedia https://example.invalid/link-rel#review record" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org review:packet https://example.invalid/props#review" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.invalid/onix.xml" media-type="application/xml" properties="onix"/>
     <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg" properties="pronunciation"/>
     <link id="missing-record" rel="record" href="meta/missing-record.json" media-type="application/json"/>
@@ -133,6 +133,10 @@ if (($argv[1] ?? '') === '--self-test') {
         ['local-package' => 3, 'remote-no-fetch' => 2, 'missing-package' => 1],
         ['https://metadata.example.invalid/onix.xml', 'https://example.invalid/epub/series.json'],
         ['external-package-link-target', 'missing-package-link-target', 'external-collection-link-target'],
+        [8, 5, 2, 2, 1, 1],
+        'https://schema.org/associatedMedia',
+        'https://example.invalid/epub-review#packet',
+        'duplicate-metadata-link-rel-token',
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -162,6 +166,17 @@ if (($argv[1] ?? '') === '--self-test') {
             static fn (array $diagnostic): string => (string) $diagnostic['type'],
             $summary['wordpressImport']['remoteResourcePolicyDiagnostics'],
         ),
+        [
+            $summary['wordpressImport']['packageLinkVocabulary']['relTokenCount'],
+            $summary['wordpressImport']['packageLinkVocabulary']['propertyTokenCount'],
+            $summary['wordpressImport']['packageLinkVocabulary']['resolvedTokenCount'],
+            $summary['wordpressImport']['packageLinkVocabulary']['absoluteUrlTokenCount'],
+            $summary['wordpressImport']['packageLinkVocabulary']['duplicateTokenCount'],
+            $summary['wordpressImport']['packageLinkVocabulary']['diagnosticCount'],
+        ],
+        $summary['wordpressImport']['packageLinks'][0]['relVocabulary']['items'][2]['iri'] ?? null,
+        $summary['wordpressImport']['packageLinks'][0]['propertyVocabulary']['items'][1]['iri'] ?? null,
+        $summary['wordpressImport']['packageLinkVocabularyDiagnostics'][0]['type'] ?? null,
     ];
 
     if ($actual !== $expected) {

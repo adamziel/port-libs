@@ -4761,6 +4761,7 @@ final class UnicodeText
             || $normalized === 'euc-kr'
             || $normalized === 'windows-949'
             || $normalized === 'iso-2022-kr'
+            || $normalized === 'iso-2022-cn'
             || $normalized === 'hz-gb-2312'
         ) {
             [$text, $repairs] = match ($normalized) {
@@ -4776,6 +4777,7 @@ final class UnicodeText
                 'euc-kr' => self::decodeEucKr($bytes),
                 'windows-949' => self::decodeEucKr($bytes, true),
                 'iso-2022-kr' => self::decodeIso2022Kr($bytes),
+                'iso-2022-cn' => self::decodeIso2022Cn($bytes),
                 default => self::decodeHzGb2312($bytes),
             };
 
@@ -5582,6 +5584,7 @@ final class UnicodeText
             'ksc56011989' => 'euc-kr',
             'windows949', 'cp949', 'ms949', 'uhc' => 'windows-949',
             'iso2022kr', 'csiso2022kr' => 'iso-2022-kr',
+            'iso2022cn', 'csiso2022cn' => 'iso-2022-cn',
             'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
@@ -7372,6 +7375,116 @@ final class UnicodeText
             }
 
             $out .= self::fromCodepoint(self::EUC_KR_PAIRS[$pair]);
+            $offset++;
+        }
+
+        if ($state !== 'ascii') {
+            $out .= self::REPLACEMENT;
+            $repairs++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeIso2022Cn(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $state = 'ascii';
+        $soDesignation = null;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte === 0x1b) {
+                if ($offset + 3 < $length && ord($bytes[$offset + 1]) === 0x24) {
+                    $kind = ord($bytes[$offset + 2]);
+                    $final = ord($bytes[$offset + 3]);
+                    if ($kind === 0x29 && $final === 0x41) {
+                        $soDesignation = 'gb2312';
+                        $offset += 3;
+                        continue;
+                    }
+                    if ($kind === 0x29 && $final === 0x47) {
+                        $soDesignation = 'unsupported';
+                        $out .= self::REPLACEMENT;
+                        $repairs++;
+                        $offset += 3;
+                        continue;
+                    }
+                    if (($kind === 0x2a || $kind === 0x2b) && $final >= 0x40 && $final <= 0x7e) {
+                        $out .= self::REPLACEMENT;
+                        $repairs++;
+                        $offset += 3;
+                        continue;
+                    }
+                }
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset += min(2, $length - $offset - 1);
+                $state = 'ascii';
+                continue;
+            }
+
+            if ($byte === 0x0e) {
+                if ($soDesignation === 'gb2312') {
+                    $state = 'gb2312';
+                    continue;
+                }
+
+                $state = 'unsupported';
+                continue;
+            }
+            if ($byte === 0x0f) {
+                $state = 'ascii';
+                continue;
+            }
+
+            if ($state === 'ascii') {
+                if ($byte <= 0x7f) {
+                    $out .= self::fromCodepoint($byte);
+                } else {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                }
+                continue;
+            }
+
+            if ($byte <= 0x20) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte < 0x21 || $byte > 0x7e || $offset + 1 >= $length) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            $trail = ord($bytes[$offset + 1]);
+            if ($trail < 0x21 || $trail > 0x7e) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                continue;
+            }
+
+            if ($state !== 'gb2312') {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $pair = (($byte + 0x80) << 8) | ($trail + 0x80);
+            if (!isset(self::GBK_PAIRS[$pair])) {
+                $out .= self::REPLACEMENT;
+                $repairs++;
+                $offset++;
+                continue;
+            }
+
+            $out .= self::fromCodepoint(self::GBK_PAIRS[$pair]);
             $offset++;
         }
 

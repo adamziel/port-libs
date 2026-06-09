@@ -3934,6 +3934,89 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfViewerPreferences']);
     },
 
+    'fake runner summarizes bounded pdf viewer preference review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/viewer-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /ViewerPreferences << /HideToolbar true /DisplayDocTitle true /PickTrayByPDFSize true /Direction /R2L /PrintScaling /None /Duplex /DuplexFlipShortEdge /NumCopies 3 /PrintPageRange [1 2 5 5] /Enforce [/PrintScaling /Duplex /HideToolbar] >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewer-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewer-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'reviewStatus' => 'review',
+            'preferenceCount' => 9,
+            'uiPreferences' => [
+                'HideToolbar' => true,
+                'DisplayDocTitle' => true,
+                'Direction' => 'R2L',
+            ],
+            'printPreferences' => [
+                'PickTrayByPDFSize' => true,
+                'PrintScaling' => 'None',
+                'Duplex' => 'DuplexFlipShortEdge',
+                'NumCopies' => 3,
+                'PrintPageRange' => [1, 2, 5, 5],
+            ],
+            'enforcedPreferences' => ['PrintScaling', 'Duplex', 'HideToolbar'],
+            'enforcedUiPreferences' => ['HideToolbar'],
+            'enforcedPrintPreferences' => ['PrintScaling', 'Duplex'],
+            'printPageRangePairs' => 2,
+            'printPageRanges' => [
+                ['start' => 1, 'end' => 2],
+                ['start' => 5, 'end' => 5],
+            ],
+            'issues' => [
+                'bounded-print-page-range',
+                'duplex-printing-requested',
+                'enforces-viewer-preferences',
+                'hides-viewer-ui',
+                'multiple-print-copies',
+                'non-default-print-scaling',
+                'print-tray-by-pdf-size',
+                'right-to-left-viewer-direction',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfViewerPreferencePolicy']);
+        $t->contains('pdf-byte-viewer-preference-policy:review', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-ui:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-print:5', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-enforced:3', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-print-ranges:2', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issues:8', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issue:hides-viewer-ui:1', $diagnostics);
+        $t->contains('pdf-byte-viewer-preference-policy-issue:non-default-print-scaling:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfViewerPreferencePolicy']);
+    },
+
     'fake runner extracts bounded pdf catalog requirements and rendering policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/requirements.pdf']);

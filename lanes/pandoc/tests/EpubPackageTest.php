@@ -513,6 +513,83 @@ return [
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'summarizes OPF metadata link vocabulary tokens for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPrefix = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review# review: https://example.invalid/review-vocab-2# bad-prefix">',
+            $epub3OpfXml
+        );
+        $opfWithPrefix = str_replace(
+            '</metadata>',
+            '    <link id="vocab-record" rel="record schema:associatedMedia https://example.invalid/link-rel#review bad/token record unknown:missing" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org review:packet https://example.invalid/props#review bad/property schema-org unknown:flag"/>
+  </metadata>',
+            $opfWithPrefix
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPrefix],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => '{"name":"package record"}'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $link = $epub->packageLinks()[0];
+        $summary = $epub->summary();
+        $relVocabulary = $link['relVocabulary'];
+        $propertyVocabulary = $link['propertyVocabulary'];
+
+        $t->same('https://schema.org/', $metadata['prefixBindings']['schema']);
+        $t->same('https://example.invalid/review-vocab-2#', $metadata['prefixBindings']['review']);
+        $t->same(['duplicate-package-prefix-declaration', 'invalid-package-prefix-declaration'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $metadata['prefixDiagnostics']));
+
+        $t->same(6, $relVocabulary['count']);
+        $t->same(5, $relVocabulary['validCount']);
+        $t->same(1, $relVocabulary['invalidCount']);
+        $t->same(1, $relVocabulary['resolvedCount']);
+        $t->same(1, $relVocabulary['absoluteUrlCount']);
+        $t->same(1, $relVocabulary['duplicateCount']);
+        $t->same('prefixed-nmtoken', $relVocabulary['items'][1]['kind']);
+        $t->same('schema', $relVocabulary['items'][1]['prefix']);
+        $t->same('associatedMedia', $relVocabulary['items'][1]['localName']);
+        $t->same('https://schema.org/associatedMedia', $relVocabulary['items'][1]['iri']);
+        $t->same('absolute-url-with-fragment', $relVocabulary['items'][2]['kind']);
+        $t->same('invalid-metadata-link-rel-token', $relVocabulary['items'][3]['diagnostics'][0]['type']);
+        $t->same('duplicate-metadata-link-rel-token', $relVocabulary['items'][4]['diagnostics'][0]['type']);
+        $t->same('unknown-metadata-link-rel-prefix', $relVocabulary['items'][5]['diagnostics'][0]['type']);
+
+        $t->same(6, $propertyVocabulary['count']);
+        $t->same(5, $propertyVocabulary['validCount']);
+        $t->same(1, $propertyVocabulary['invalidCount']);
+        $t->same(1, $propertyVocabulary['resolvedCount']);
+        $t->same(1, $propertyVocabulary['absoluteUrlCount']);
+        $t->same(1, $propertyVocabulary['duplicateCount']);
+        $t->same('schema-org', $propertyVocabulary['items'][0]['value']);
+        $t->same('https://example.invalid/review-vocab-2#packet', $propertyVocabulary['items'][1]['iri']);
+        $t->same('absolute-url-with-fragment', $propertyVocabulary['items'][2]['kind']);
+        $t->same('invalid-metadata-link-properties-token', $propertyVocabulary['items'][3]['diagnostics'][0]['type']);
+        $t->same('duplicate-metadata-link-properties-token', $propertyVocabulary['items'][4]['diagnostics'][0]['type']);
+        $t->same('unknown-metadata-link-properties-prefix', $propertyVocabulary['items'][5]['diagnostics'][0]['type']);
+
+        $vocabulary = $summary['packageLinkVocabulary'];
+        $t->same(true, $vocabulary['present']);
+        $t->same(1, $vocabulary['linkCount']);
+        $t->same(6, $vocabulary['relTokenCount']);
+        $t->same(6, $vocabulary['propertyTokenCount']);
+        $t->same(2, $vocabulary['resolvedTokenCount']);
+        $t->same(2, $vocabulary['absoluteUrlTokenCount']);
+        $t->same(2, $vocabulary['duplicateTokenCount']);
+        $t->same(6, $vocabulary['diagnosticCount']);
+        $t->same($vocabulary, $metadata['linkVocabulary']);
+        $t->same($vocabulary, $summary['wordpressImport']['packageLinkVocabulary']);
+        $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['packageLinkVocabularyDiagnostics']);
+    },
+
     'summarizes OPF package and collection remote link policy for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithLinks = str_replace(
             '</metadata>',
