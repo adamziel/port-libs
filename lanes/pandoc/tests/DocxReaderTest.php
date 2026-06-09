@@ -12035,6 +12035,8 @@ return [
 
         $template = $settings['attachedTemplate'];
         $t->same('rIdTemplate', $template['id']);
+        $t->same('/word/settings.xml', $template['sourcePart']);
+        $t->same('/word/_rels/settings.xml.rels', $template['relationshipsPart']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate', $template['relationshipType']);
         $t->same('file:///C:/source-templates/review.dotx', $template['target']);
         $t->same(true, $template['external']);

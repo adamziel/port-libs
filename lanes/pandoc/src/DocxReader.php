@@ -15876,7 +15876,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{id:?string, relationshipType:?string, target:?string, targetPart:?string, contentType:?string, external:?bool, exists:?bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, issues:list<string>}|null
+     * @return array{id:?string, sourcePart:string, relationshipsPart:?string, relationshipType:?string, target:?string, targetPart:?string, contentType:?string, external:?bool, exists:?bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, issues:list<string>}|null
      */
     private function settingsRelationshipChildSummary(
         \DOMElement $owner,
@@ -15893,6 +15893,8 @@ final class DocxReader
         $id = $this->relationshipAttr($child, 'id');
         $summary = [
             'id' => $id,
+            'sourcePart' => $settingsPart,
+            'relationshipsPart' => null,
             'relationshipType' => null,
             'target' => null,
             'targetPart' => null,
@@ -15919,6 +15921,7 @@ final class DocxReader
         }
 
         $relationship = $relationships->byId($id);
+        $summary['relationshipsPart'] = $relationships->relationshipPartName();
         if (!$relationship instanceof OpcRelationship) {
             $summary['issues'][] = 'unknown-relationship';
 
@@ -16066,6 +16069,8 @@ final class DocxReader
         $id = $this->relationshipAttr($attachedTemplate, 'id');
         $summary = [
             'id' => $id,
+            'sourcePart' => $settingsPart,
+            'relationshipsPart' => null,
             'relationshipType' => null,
             'target' => null,
             'targetPart' => null,
@@ -16092,6 +16097,7 @@ final class DocxReader
         }
 
         $relationship = $relationships->byId($id);
+        $summary['relationshipsPart'] = $relationships->relationshipPartName();
         if (!$relationship instanceof OpcRelationship) {
             $summary['issues'][] = 'unknown-relationship';
 
