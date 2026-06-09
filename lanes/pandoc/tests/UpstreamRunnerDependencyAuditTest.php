@@ -159,6 +159,10 @@ $pandocCabal = static function (array $without = [], ?string $mainIs = null, ?st
         'extra-source-files:',
         '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc.cabal']),
         '',
+        'source-repository head',
+        '  type: git',
+        '  location: https://github.com/jgm/pandoc.git',
+        '',
         'flag embed_data_files',
         '  description: Embed data files in the built executable',
         '  default: False',
@@ -198,6 +202,10 @@ $luaCabal = static function (array $without = [], ?string $mainIs = null, ?strin
         'extra-source-files:',
         '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-lua-engine/pandoc-lua-engine.cabal']),
         '',
+        'source-repository head',
+        '  type: git',
+        '  location: https://github.com/jgm/pandoc.git',
+        '',
         'common test-options',
         '  build-depends: ' . implode(', ', $formatRunnerDependencies('test:test-pandoc-lua-engine', $commonDependencies)),
         $defaultLanguage === null || $defaultLanguage === '' ? '' : '  default-language: ' . $defaultLanguage,
@@ -235,6 +243,10 @@ $serverCabal = static function (): string {
         'version: 0.1.2',
         'build-type: Simple',
         '',
+        'source-repository head',
+        '  type: git',
+        '  location: https://github.com/jgm/pandoc.git',
+        '',
         'common common-options',
         '  default-language: Haskell2010',
         '  build-depends: base >= 4.12 && < 5',
@@ -270,6 +282,10 @@ $cliCabal = static function (): string {
         'build-type: Simple',
         'extra-source-files:',
         '  ' . implode(",\n  ", UpstreamRunnerDependencyAudit::expectedPackageExtraSourceFiles()['pandoc-cli/pandoc-cli.cabal']),
+        '',
+        'source-repository head',
+        '  type: git',
+        '  location: https://github.com/jgm/pandoc.git',
         '',
         'flag lua',
         '  description: Support custom modifications and conversions with the pandoc Lua scripting engine.',
@@ -815,6 +831,13 @@ return [
         $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-server/pandoc-server.cabal']);
         $t->same([], $audit['packageNativeSystemFieldClosure']['presentNativeSystemFields']['pandoc-cli/pandoc-cli.cabal']);
         $t->same([], $audit['packageNativeSystemFieldClosure']['unexpectedNativeSystemFields']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageSourceRepositories(), $audit['packageSourceRepositoryClosure']['expected']);
+        $t->same('git', $audit['packageSourceRepositoryClosure']['present']['pandoc.cabal']['head']['type']);
+        $t->same('https://github.com/jgm/pandoc.git', $audit['packageSourceRepositoryClosure']['present']['pandoc-cli/pandoc-cli.cabal']['head']['location']);
+        $t->same([], $audit['packageSourceRepositoryClosure']['missing']);
+        $t->same([], $audit['packageSourceRepositoryClosure']['mismatched']);
+        $t->same([], $audit['packageSourceRepositoryClosure']['unexpected']);
+        $t->same([], $audit['packageSourceRepositoryClosure']['unexpectedFields']);
         $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $audit['runnerTargets']);
         $t->same('pandoc.cabal', $audit['runnerEntryPoints']['test:test-pandoc']['packageFile']);
         $t->same('exitcode-stdio-1.0', $audit['runnerEntryPoints']['test:test-pandoc']['type']);
@@ -1032,6 +1055,7 @@ return [
         $t->contains('non-mutating solver/build plan', $audit['activationGate']);
         $t->contains('record Cabal package identity/version headers', $audit['nonMutatingPlan'][0]);
         $t->contains('package flag definitions plus default/manual values for cabal.project flags', $audit['nonMutatingPlan'][0]);
+        $t->contains('exact package-level source-repository head closure', $audit['nonMutatingPlan'][0]);
         $t->contains('exact package-level extra-doc-files and extra-source-files closure', $audit['nonMutatingPlan'][0]);
         $t->contains('no unexpected package-level extra-tmp-files or native/system dependency fields', $audit['nonMutatingPlan'][0]);
         $t->contains('pandoc.cabal tested-with GHC matrix', $audit['nonMutatingPlan'][0]);
@@ -6788,6 +6812,89 @@ return [
         $t->contains('pandoc-server/pandoc-server.cabal (tmp/server-runner-cache)', $blocked);
         $t->contains('pandoc-cli/pandoc-cli.cabal (tmp/cli-runner-cache)', $blocked);
         $t->contains('no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks package-level cabal source repository drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $expectedRepository = implode("\n", [
+            'source-repository head',
+            '  type: git',
+            '  location: https://github.com/jgm/pandoc.git',
+        ]);
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            $expectedRepository,
+            implode("\n", [
+                'source-repository head',
+                '  type: hg',
+                '  location: https://example.invalid/jgm/pandoc',
+                '  branch: runner-audit',
+            ]),
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] = str_replace(
+            $expectedRepository,
+            '',
+            $files['pandoc-lua-engine/pandoc-lua-engine.cabal']
+        );
+        $files['pandoc-server/pandoc-server.cabal'] .= implode("\n", [
+            '',
+            '',
+            'source-repository this',
+            '  type: git',
+            '  location: https://github.com/jgm/pandoc-old.git',
+        ]);
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(
+            $expectedRepository,
+            $expectedRepository . "\n  subdir: pandoc-cli",
+            $files['pandoc-cli/pandoc-cli.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedPackageSourceRepositories(), $audit['packageSourceRepositoryClosure']['expected']);
+        $t->same([
+            'pandoc-lua-engine/pandoc-lua-engine.cabal' => ['head'],
+        ], $audit['packageSourceRepositoryClosure']['missing']);
+        $t->same([
+            'pandoc.cabal' => [
+                'head' => [
+                    'expected' => [
+                        'type' => 'git',
+                        'location' => 'https://github.com/jgm/pandoc.git',
+                    ],
+                    'actual' => [
+                        'type' => 'hg',
+                        'location' => 'https://example.invalid/jgm/pandoc',
+                    ],
+                ],
+            ],
+        ], $audit['packageSourceRepositoryClosure']['mismatched']);
+        $t->same([
+            'pandoc-server/pandoc-server.cabal' => ['this'],
+        ], $audit['packageSourceRepositoryClosure']['unexpected']);
+        $t->same([
+            'pandoc.cabal' => [
+                'head' => ['branch: runner-audit'],
+            ],
+            'pandoc-cli/pandoc-cli.cabal' => [
+                'head' => ['subdir: pandoc-cli'],
+            ],
+        ], $audit['packageSourceRepositoryClosure']['unexpectedFields']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Cabal package source-repository stanzas: pandoc-lua-engine/pandoc-lua-engine.cabal (head)', $blocked);
+        $t->contains('mismatched Cabal package source-repository stanzas: pandoc.cabal (head.type expected git, found hg, head.location expected https://github.com/jgm/pandoc.git, found https://example.invalid/jgm/pandoc)', $blocked);
+        $t->contains('unexpected Cabal package source-repository stanzas: pandoc-server/pandoc-server.cabal (this)', $blocked);
+        $t->contains('unexpected Cabal package source-repository fields: pandoc.cabal (head (branch: runner-audit)); pandoc-cli/pandoc-cli.cabal (head (subdir: pandoc-cli))', $blocked);
+        $t->contains('exact package-level source-repository head closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks package-level cabal native system fields before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
