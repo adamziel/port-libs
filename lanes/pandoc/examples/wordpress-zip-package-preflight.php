@@ -2966,6 +2966,7 @@ $centralDirectoryUnderstatedBytes = $rewriteZipEndOfCentralDirectory(
     ]
 );
 $centralDirectoryUnderstatedInventory = ZipPackage::centralDirectoryInventoryPreflight($centralDirectoryUnderstatedBytes);
+$centralDirectoryUnderstatedRepairPlan = ZipPackage::centralDirectoryRepairPlanPreflight($centralDirectoryUnderstatedBytes);
 $centralDirectoryUnderstatedRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
     $centralDirectoryUnderstatedBytes,
     4096,
@@ -4859,15 +4860,24 @@ if (in_array('--self-test', $argv, true)) {
         || ($centralDirectoryUnderstatedInventory['hasRecoverableCentralDirectoryGapEntries'] ?? null) !== true
         || ($centralDirectoryUnderstatedInventory['recoverableGapEntryCount'] ?? null) !== 2
         || array_column($centralDirectoryUnderstatedInventory['recoverableGapEntries'] ?? [], 'name') !== ['word/media/', 'word/media/review.txt']
+        || ($centralDirectoryUnderstatedRepairPlan['repairAvailable'] ?? null) !== true
+        || ($centralDirectoryUnderstatedRepairPlan['policy'] ?? null) !== 'review-only-central-directory-size-repair'
+        || ($centralDirectoryUnderstatedRepairPlan['plannedEntryCount'] ?? null) !== 3
+        || ($centralDirectoryUnderstatedRepairPlan['correctedCentralDirectorySize'] ?? null) !== $strictImportCentralDirectoryInventory['centralDirectorySize']
+        || ($centralDirectoryUnderstatedRepairPlan['unrecoveredGapBytes'] ?? null) !== 0
+        || array_column($centralDirectoryUnderstatedRepairPlan['plannedEntries'] ?? [], 'name') !== ['word/document.xml', 'word/media/', 'word/media/review.txt']
         || ($centralDirectoryUnderstatedInventory['issues'] ?? null) !== [
             'central-directory-entry-count-mismatch',
             'central-directory-eocd-gap',
             'central-directory-eocd-gap-central-headers',
         ]
+        || ($centralDirectoryUnderstatedRawStrictPreflight['centralDirectoryRepairPlan'] ?? null) !== $centralDirectoryUnderstatedRepairPlan
         || ($centralDirectoryUnderstatedRawStrictPreflight['isValid'] ?? null) !== false
         || !in_array('central-directory-eocd-gap-central-headers', $centralDirectoryUnderstatedRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('central-directory-repair-plan-review', $centralDirectoryUnderstatedRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('central-directory-size-understatement-repair-available', $centralDirectoryUnderstatedRawStrictPreflight['diagnostics'] ?? [], true)
     ) {
-        throw new RuntimeException('Expected ZIP central-directory understated size to expose recoverable central headers');
+        throw new RuntimeException('Expected ZIP central-directory understated size to expose a review-only repair plan');
     }
 
     if (
@@ -6590,6 +6600,9 @@ echo 'zipCentralDirectoryDeclaredHighMissing=' . $centralDirectoryDeclaredHighIn
 echo 'zipCentralDirectoryGapBytes=' . $centralDirectoryGapInventory['centralDirectoryEocdGapBytes'] . "\n";
 echo 'zipCentralDirectoryUnderstatedRecoverableEntries=' . $centralDirectoryUnderstatedInventory['recoverableGapEntryCount'] . "\n";
 echo 'zipCentralDirectoryUnderstatedGapSignature=' . ($centralDirectoryUnderstatedInventory['centralDirectoryEocdGapSignature'] ?? 'none') . "\n";
+echo 'zipCentralDirectoryUnderstatedRepairPolicy=' . $centralDirectoryUnderstatedRepairPlan['policy'] . "\n";
+echo 'zipCentralDirectoryUnderstatedRepairPlannedEntries=' . $centralDirectoryUnderstatedRepairPlan['plannedEntryCount'] . "\n";
+echo 'zipCentralDirectoryUnderstatedRepairRecoveredBytes=' . $centralDirectoryUnderstatedRepairPlan['recoveredGapBytes'] . "\n";
 echo 'zipCentralDirectoryTailBytes=' . $centralDirectoryTailInventory['centralDirectoryTailBytes'] . "\n";
 echo 'zipCentralDirectoryTailSignature=' . ($centralDirectoryTailInventory['unexpectedRecordSignatureHex'] ?? 'none') . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";

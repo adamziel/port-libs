@@ -2214,6 +2214,72 @@ XML;
         $t->same('external-navigation-target', $navigation['diagnostics'][1]['type']);
         $t->same('missing-navigation-target', $navigation['diagnostics'][2]['type']);
     },
+    'builds EPUB navigation outline review handoff from nav and NCX sources' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $result = (new EpubReader())->readPackage($buildEpubPackage());
+        $outline = $result['navigationOutline'] ?? [];
+
+        $t->same(true, $outline['present'] ?? null);
+        $t->same('nav', $outline['source'] ?? null);
+        $t->same(3, $outline['itemCount'] ?? null);
+        $t->same(3, $outline['localTargetCount'] ?? null);
+        $t->same(0, $outline['externalTargetCount'] ?? null);
+        $t->same(0, $outline['missingTargetCount'] ?? null);
+        $t->same(3, $outline['mappedSpineTargetCount'] ?? null);
+        $t->same(1, $outline['maxDepth'] ?? null);
+        $t->same('Imported packet', $outline['items'][0]['label'] ?? null);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $outline['items'][0]['target'] ?? null);
+        $t->same(0, $outline['items'][0]['spineIndex'] ?? null);
+        $t->same('Review appendix', $outline['items'][1]['label'] ?? null);
+        $t->same(1, $outline['items'][1]['childCount'] ?? null);
+        $t->same('Media audit', $outline['items'][1]['children'][0]['label'] ?? null);
+        $t->same(1, $outline['items'][1]['children'][0]['spineIndex'] ?? null);
+        $t->same('Media audit', $outline['flatItems'][2]['label'] ?? null);
+        $t->contains('class="epub-navigation-outline"', $outline['html'] ?? '');
+        $t->contains('data-epub-source="nav"', $outline['html'] ?? '');
+        $t->contains('data-epub-target="/OEBPS/text/chapter2.xhtml#media"', $outline['html'] ?? '');
+        $t->same($outline, $result['importReport']['navigationOutline'] ?? null);
+        $t->same($outline, $result['document']->attr('navigationOutline'));
+
+        $escapedNavXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported &lt;packet&gt; &amp; audit</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $escapedResult = (new EpubReader())->readPackage($buildEpubPackage(overrideNavXhtml: $escapedNavXhtml));
+        $escapedOutline = $escapedResult['navigationOutline'] ?? [];
+        $t->same('Imported <packet> & audit', $escapedOutline['items'][0]['label'] ?? null);
+        $t->contains('Imported &lt;packet&gt; &amp; audit', $escapedOutline['html'] ?? '');
+
+        $navWithoutToc = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="landmarks">
+      <ol>
+        <li><a epub:type="bodymatter" href="text/chapter1.xhtml#intro">Start reading</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $ncxResult = (new EpubReader())->readPackage($buildEpubPackage(overrideNavXhtml: $navWithoutToc));
+        $ncxOutline = $ncxResult['navigationOutline'] ?? [];
+        $t->same(true, $ncxOutline['present'] ?? null);
+        $t->same('ncx', $ncxOutline['source'] ?? null);
+        $t->same(3, $ncxOutline['itemCount'] ?? null);
+        $t->same('Imported packet', $ncxOutline['items'][0]['label'] ?? null);
+        $t->same('1', $ncxOutline['items'][0]['playOrder'] ?? null);
+        $t->same('Review appendix', $ncxOutline['items'][1]['label'] ?? null);
+        $t->same(1, $ncxOutline['items'][1]['childCount'] ?? null);
+        $t->same('Media audit', $ncxOutline['items'][1]['children'][0]['label'] ?? null);
+        $t->same('3', $ncxOutline['items'][1]['children'][0]['playOrder'] ?? null);
+        $t->contains('data-epub-source="ncx"', $ncxOutline['html'] ?? '');
+    },
     'parses typed EPUB3 landmarks and page-list navigation sections' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $result = (new EpubReader())->readPackage($buildEpubPackage());
         $nav = $result['nav'];

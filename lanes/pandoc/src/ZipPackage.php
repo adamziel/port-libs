@@ -5162,6 +5162,192 @@ final class ZipPackage
     }
 
     /**
+     * Build a non-instantiating review plan for archives whose EOCD understates
+     * the central-directory byte size but leaves complete central-directory
+     * headers in the gap before EOCD.
+     *
+     * @return array{
+     *     declaredEntryCount:int,
+     *     scannedEntryCount:int,
+     *     recoverableGapEntryCount:int,
+     *     plannedEntryCount:int,
+     *     plannedMatchesDeclaredEntryCount:bool,
+     *     centralDirectoryOffset:int,
+     *     declaredCentralDirectorySize:int,
+     *     correctedCentralDirectorySize:int,
+     *     recoveredGapBytes:int,
+     *     unrecoveredGapBytes:int,
+     *     gapFullyRecovered:bool,
+     *     repairAvailable:bool,
+     *     policy:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     duplicatePlannedEntryNameGroupCount:int,
+     *     duplicatePlannedRawNameGroupCount:int,
+     *     duplicatePlannedLocalHeaderOffsetGroupCount:int,
+     *     duplicatePlannedEntryNameGroups:list<array{name:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
+     *     duplicatePlannedRawNameGroups:list<array{rawName:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
+     *     duplicatePlannedLocalHeaderOffsetGroups:list<array{localHeaderOffset:int,count:int,names:list<string>,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>}>,
+     *     retainedEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
+     *     recoverableEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
+     *     plannedEntries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}>,
+     *     inventory:array<string, mixed>
+     * }
+     */
+    public static function centralDirectoryRepairPlanPreflight(string $bytes): array
+    {
+        $inventory = self::centralDirectoryInventoryPreflight($bytes);
+        $retainedEntries = array_map(
+            static fn (array $entry): array => self::centralDirectoryRepairPlanEntry(
+                $entry,
+                'retain-declared-central-directory-entry',
+                'declared-central-directory'
+            ),
+            $inventory['entries']
+        );
+        $recoverableEntries = array_map(
+            static fn (array $entry): array => self::centralDirectoryRepairPlanEntry(
+                $entry,
+                'append-recoverable-gap-central-directory-entry',
+                'central-directory-eocd-gap'
+            ),
+            $inventory['recoverableGapEntries']
+        );
+        $plannedEntries = array_merge($retainedEntries, $recoverableEntries);
+        $recoveredGapBytes = 0;
+        if ($recoverableEntries !== []) {
+            $lastRecoverable = $recoverableEntries[count($recoverableEntries) - 1];
+            $recoveredGapBytes = $lastRecoverable['recordEnd'] - (int) $inventory['centralDirectoryEocdGapOffset'];
+        }
+        $unrecoveredGapBytes = max(0, $inventory['centralDirectoryEocdGapBytes'] - $recoveredGapBytes);
+        $gapFullyRecovered = $inventory['hasCentralDirectoryEocdGap']
+            && $recoverableEntries !== []
+            && $unrecoveredGapBytes === 0;
+        $plannedMatchesDeclaredEntryCount = count($plannedEntries) === $inventory['declaredEntryCount'];
+        $duplicatePlannedEntryNameGroups = self::centralDirectoryDuplicateEntryGroups($plannedEntries, 'name', 'name');
+        $duplicatePlannedRawNameGroups = self::centralDirectoryDuplicateEntryGroups($plannedEntries, 'rawName', 'rawName');
+        $duplicatePlannedLocalHeaderOffsetGroups = self::centralDirectoryLocalHeaderOffsetGroups($plannedEntries);
+
+        $repairAvailable = $recoverableEntries !== []
+            && $gapFullyRecovered
+            && $plannedMatchesDeclaredEntryCount
+            && $duplicatePlannedEntryNameGroups === []
+            && $duplicatePlannedRawNameGroups === []
+            && $duplicatePlannedLocalHeaderOffsetGroups === []
+            && $inventory['scanCompletedCentralDirectory']
+            && !$inventory['hasUnexpectedCentralDirectoryTail'];
+
+        $issues = [];
+        if ($recoverableEntries !== []) {
+            $issues[] = 'central-directory-repair-plan-review';
+        }
+        if ($repairAvailable) {
+            $issues[] = 'central-directory-size-understatement-repair-available';
+        } elseif ($recoverableEntries !== []) {
+            $issues[] = 'central-directory-repair-not-complete';
+        }
+        if (!$gapFullyRecovered && $recoverableEntries !== []) {
+            $issues[] = 'central-directory-repair-gap-unrecovered';
+        }
+        if (!$plannedMatchesDeclaredEntryCount && $recoverableEntries !== []) {
+            $issues[] = 'central-directory-repair-entry-count-mismatch';
+        }
+        if ($duplicatePlannedEntryNameGroups !== []) {
+            $issues[] = 'central-directory-repair-duplicate-entry-names';
+        }
+        if ($duplicatePlannedRawNameGroups !== []) {
+            $issues[] = 'central-directory-repair-duplicate-raw-names';
+        }
+        if ($duplicatePlannedLocalHeaderOffsetGroups !== []) {
+            $issues[] = 'central-directory-repair-duplicate-local-header-offsets';
+        }
+
+        $policy = 'no-central-directory-repair-needed';
+        if ($repairAvailable) {
+            $policy = 'review-only-central-directory-size-repair';
+        } elseif ($recoverableEntries !== []) {
+            $policy = 'central-directory-repair-not-complete';
+        }
+
+        return [
+            'declaredEntryCount' => $inventory['declaredEntryCount'],
+            'scannedEntryCount' => $inventory['scannedEntryCount'],
+            'recoverableGapEntryCount' => count($recoverableEntries),
+            'plannedEntryCount' => count($plannedEntries),
+            'plannedMatchesDeclaredEntryCount' => $plannedMatchesDeclaredEntryCount,
+            'centralDirectoryOffset' => $inventory['centralDirectoryOffset'],
+            'declaredCentralDirectorySize' => $inventory['centralDirectorySize'],
+            'correctedCentralDirectorySize' => $inventory['centralDirectorySize'] + $recoveredGapBytes,
+            'recoveredGapBytes' => $recoveredGapBytes,
+            'unrecoveredGapBytes' => $unrecoveredGapBytes,
+            'gapFullyRecovered' => $gapFullyRecovered,
+            'repairAvailable' => $repairAvailable,
+            'policy' => $policy,
+            'isSupportedByBoundedReader' => $recoverableEntries === [],
+            'issues' => $issues,
+            'duplicatePlannedEntryNameGroupCount' => count($duplicatePlannedEntryNameGroups),
+            'duplicatePlannedRawNameGroupCount' => count($duplicatePlannedRawNameGroups),
+            'duplicatePlannedLocalHeaderOffsetGroupCount' => count($duplicatePlannedLocalHeaderOffsetGroups),
+            'duplicatePlannedEntryNameGroups' => $duplicatePlannedEntryNameGroups,
+            'duplicatePlannedRawNameGroups' => $duplicatePlannedRawNameGroups,
+            'duplicatePlannedLocalHeaderOffsetGroups' => $duplicatePlannedLocalHeaderOffsetGroups,
+            'retainedEntries' => $retainedEntries,
+            'recoverableEntries' => $recoverableEntries,
+            'plannedEntries' => $plannedEntries,
+            'inventory' => $inventory,
+        ];
+    }
+
+    /**
+     * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int, action:string, source:string}
+     */
+    private static function centralDirectoryRepairPlanEntry(array $entry, string $action, string $source): array
+    {
+        return [
+            'name' => $entry['name'],
+            'rawName' => $entry['rawName'],
+            'nameEncoding' => $entry['nameEncoding'],
+            'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+            'offset' => $entry['offset'],
+            'recordEnd' => $entry['recordEnd'],
+            'localHeaderOffset' => $entry['localHeaderOffset'],
+            'action' => $action,
+            'source' => $source,
+        ];
+    }
+
+    /**
+     * @param list<array{name:string, centralDirectoryIndex:int, offset:int, localHeaderOffset:int}> $entries
+     * @return list<array{localHeaderOffset:int,count:int,names:list<string>,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>}>
+     */
+    private static function centralDirectoryLocalHeaderOffsetGroups(array $entries): array
+    {
+        $groups = [];
+        foreach ($entries as $entry) {
+            $offset = $entry['localHeaderOffset'];
+            if (!isset($groups[$offset])) {
+                $groups[$offset] = [
+                    'localHeaderOffset' => $offset,
+                    'count' => 0,
+                    'names' => [],
+                    'centralDirectoryIndexes' => [],
+                    'centralDirectoryOffsets' => [],
+                ];
+            }
+
+            $groups[$offset]['count']++;
+            $groups[$offset]['names'][] = $entry['name'];
+            $groups[$offset]['centralDirectoryIndexes'][] = $entry['centralDirectoryIndex'];
+            $groups[$offset]['centralDirectoryOffsets'][] = $entry['offset'];
+        }
+
+        return array_values(array_filter(
+            $groups,
+            static fn (array $group): bool => $group['count'] > 1
+        ));
+    }
+
+    /**
      * @return array{
      *     entryCount:int,
      *     centralDirectoryOffset:int,
@@ -6122,6 +6308,7 @@ final class ZipPackage
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
+     *     centralDirectoryRepairPlan:?array<string, mixed>,
      *     localHeaderNames:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
      *     localHeaderSpans:?array<string, mixed>,
@@ -6220,6 +6407,7 @@ final class ZipPackage
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
+                'centralDirectoryRepairPlan' => null,
                 'localHeaderNames' => null,
                 'localHeaderMetadata' => null,
                 'localHeaderSpans' => null,
@@ -6248,6 +6436,7 @@ final class ZipPackage
 
         $splitArchive = null;
         $centralDirectoryInventory = null;
+        $centralDirectoryRepairPlan = null;
         $localHeaderNames = null;
         $localHeaderMetadata = null;
         $localHeaderSpans = null;
@@ -6281,6 +6470,14 @@ final class ZipPackage
             if ($centralDirectoryInventory !== null && !$centralDirectoryInventory['isSupportedByBoundedReader']) {
                 $addDiagnostic('central-directory-inventory-issues');
                 $addDiagnostics($centralDirectoryInventory['issues']);
+            }
+
+            $centralDirectoryRepairPlan = $runPreflight(
+                'central-directory-repair-plan',
+                static fn (): array => self::centralDirectoryRepairPlanPreflight($bytes)
+            );
+            if ($centralDirectoryRepairPlan !== null && !$centralDirectoryRepairPlan['isSupportedByBoundedReader']) {
+                $addDiagnostics($centralDirectoryRepairPlan['issues']);
             }
 
             $localHeaderNames = $runPreflight(
@@ -6417,6 +6614,7 @@ final class ZipPackage
         $entryCount = (int) (
             $strictImport['entryCount']
             ?? $centralDirectoryInventory['entryCount']
+            ?? $centralDirectoryRepairPlan['scannedEntryCount']
             ?? $localHeaderNames['entryCount']
             ?? $localHeaderMetadata['entryCount']
             ?? $localHeaderSpans['entryCount']
@@ -6451,6 +6649,7 @@ final class ZipPackage
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
             'localHeaderNames' => $localHeaderNames,
             'localHeaderMetadata' => $localHeaderMetadata,
             'localHeaderSpans' => $localHeaderSpans,

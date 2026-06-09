@@ -1810,6 +1810,35 @@ return [
         $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mi>score</mi><mo>(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>)</mo></mtd></mtr>', $alignedMathml);
         $t->contains('<mtr><mtd><msub><mi>y</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><mfrac><msub><mi>a</mi><mi>i</mi></msub><msub><mi>b</mi><mi>i</mi></msub></mfrac></mtd></mtr></mtable>', $alignedMathml);
     },
+    'converts bounded plain tex matrix commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $matrixMathml = $converter->texToMathMl('\\matrix{p_1 & m_1 \\cr p_2 & m_2}', true);
+        $pmatrixMathml = $converter->texToMathMl('\\pmatrix{a & b \\cr c & d}');
+        $bmatrixMathml = $converter->texToMathMl('\\bmatrix{x & y \\cr z & w}');
+        $casesMathml = $converter->texToMathMl('\\cases{p_i & p_i \\in P \\cr 0 & \\text{otherwise}}');
+        $spacedRowsMathml = $converter->texToMathMl('\\pmatrix{a & b \\cr[2pt] c & d\\cr}');
+        $crcrRowsMathml = $converter->texToMathMl('\\matrix{a & b \\crcr c & d}');
+        $combined = $matrixMathml . $pmatrixMathml . $bmatrixMathml . $casesMathml . $spacedRowsMathml . $crcrRowsMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $matrixMathml);
+        $t->contains('<mtable><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd></mtr></mtable>', $matrixMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\matrix{p_1 &amp; m_1 \\cr p_2 &amp; m_2}</annotation>', $matrixMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>', $pmatrixMathml);
+        $t->contains('<mo fence="true" stretchy="true">[</mo><mtable><mtr><mtd><mi>x</mi></mtd><mtd><mi>y</mi></mtd></mtr><mtr><mtd><mi>z</mi></mtd><mtd><mi>w</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">]</mo>', $bmatrixMathml);
+        $t->contains('<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable>', $casesMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\cases{p_i &amp; p_i \\in P \\cr 0 &amp; \\text{otherwise}}</annotation>', $casesMathml);
+        $t->contains('<mtable rowspacing="2pt" data-tex-rowspacing="after-row-1:2pt"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>', $spacedRowsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\pmatrix{a &amp; b \\cr[2pt] c &amp; d\\cr}</annotation>', $spacedRowsMathml);
+        $t->contains('<mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>', $crcrRowsMathml);
+        $t->true(!str_contains($combined, '<mi>\\matrix</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\pmatrix</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\bmatrix</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\cases</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\cr</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\matrix'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\matrix{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\matrix{a & {b \\cr c}'));
+    },
     'preserves bounded tex optional row spacing as mathml review metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $alignedMathml = $converter->texToMathMl('\\begin{aligned}a &= b \\\\[.5em] c &= d\\end{aligned}', true);

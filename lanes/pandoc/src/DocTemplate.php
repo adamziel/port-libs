@@ -38,6 +38,22 @@ final class DocTemplateBlockOutput
     }
 }
 
+/**
+ * @internal
+ */
+final class DocTemplateRelativeLocationException extends \UnexpectedValueException
+{
+    public function __construct(string $message, private int $relativeOffset, ?\Throwable $previous = null)
+    {
+        parent::__construct($message, 0, $previous);
+    }
+
+    public function relativeOffset(): int
+    {
+        return $this->relativeOffset;
+    }
+}
+
 final class DocTemplate
 {
     private const MAX_PARTIAL_DEPTH = 50;
@@ -4562,7 +4578,8 @@ CSS;
 
                 $this->appendTextToken($tokens, $buffer, $breakableSpaces);
                 $buffer = '';
-                $directive = trim(substr($template, $index + 2, $closing - $index - 2), " \t");
+                $rawDirective = substr($template, $index + 2, $closing - $index - 2);
+                $directive = trim($rawDirective, " \t");
                 if ($directive === '~') {
                     $breakableSpaceStart = $breakableSpaces ? null : $index;
                     $breakableSpaces = !$breakableSpaces;
@@ -4571,12 +4588,15 @@ CSS;
                 }
 
                 $location = $this->sourceLocation($template, $index);
+                $directiveLocation = $this->sourceLocation($template, $index + 2 + strspn($rawDirective, " \t"));
                 $tokens[] = [
                     'type' => 'directive',
                     'value' => $directive,
                     'source' => $sourceName,
                     'line' => $location['line'],
                     'column' => $location['column'],
+                    'directiveLine' => $directiveLocation['line'],
+                    'directiveColumn' => $directiveLocation['column'],
                     'breakable' => $breakableSpaces,
                 ];
                 $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
@@ -4600,7 +4620,8 @@ CSS;
 
             $this->appendTextToken($tokens, $buffer, $breakableSpaces);
             $buffer = '';
-            $directive = trim(substr($template, $index + 1, $closing - $index - 1), " \t");
+            $rawDirective = substr($template, $index + 1, $closing - $index - 1);
+            $directive = trim($rawDirective, " \t");
             if ($directive === '~') {
                 $breakableSpaceStart = $breakableSpaces ? null : $index;
                 $breakableSpaces = !$breakableSpaces;
@@ -4609,12 +4630,15 @@ CSS;
             }
 
             $location = $this->sourceLocation($template, $index);
+            $directiveLocation = $this->sourceLocation($template, $index + 1 + strspn($rawDirective, " \t"));
             $tokens[] = [
                 'type' => 'directive',
                 'value' => $directive,
                 'source' => $sourceName,
                 'line' => $location['line'],
                 'column' => $location['column'],
+                'directiveLine' => $directiveLocation['line'],
+                'directiveColumn' => $directiveLocation['column'],
                 'breakable' => $breakableSpaces,
             ];
             $index = $this->skipDirectiveLineTrailingHorizontalWhitespace($template, $closing);
@@ -4809,6 +4833,20 @@ CSS;
     {
         if ($this->messageHasTemplateLocation($exception->getMessage())) {
             return $exception;
+        }
+
+        if ($exception instanceof DocTemplateRelativeLocationException) {
+            $relativeLocation = $this->sourceLocation((string) $token['value'], $exception->relativeOffset());
+            $line = (int) ($token['directiveLine'] ?? $token['line']) + $relativeLocation['line'] - 1;
+            $column = $relativeLocation['line'] === 1
+                ? (int) ($token['directiveColumn'] ?? $token['column']) + $relativeLocation['column'] - 1
+                : $relativeLocation['column'];
+
+            return new \UnexpectedValueException(
+                $exception->getMessage() . ' at ' . $token['source'] . ':' . $line . ':' . $column,
+                0,
+                $exception,
+            );
         }
 
         return new \UnexpectedValueException(
@@ -5838,6 +5876,7 @@ CSS;
             return null;
         }
 
+        $firstPipeOffset = $suffix === '' ? strlen($expression) : strlen($expression) - strlen($suffix);
         $pipeSource = $suffix === '' ? '' : substr($suffix, 1);
         [$pipeSource, $trailingSeparator] = $this->extractTrailingSeparator($pipeSource);
         if ($trailingSeparator !== null) {
@@ -5851,20 +5890,20 @@ CSS;
         return [
             'name' => $this->normalizePartialName($matches[1]),
             'separator' => $separator,
-            'pipes' => $this->parsePipeSuffix($pipeSource, $expression),
+            'pipes' => $this->parsePipeSuffix($pipeSource, $expression, $firstPipeOffset),
         ];
     }
 
     /**
      * @return list<array{name:string, args:list<int|string>}>
      */
-    private function parsePipeSuffix(string $pipeSource, string $expression): array
+    private function parsePipeSuffix(string $pipeSource, string $expression, int $firstPipeOffset): array
     {
         if ($pipeSource === '') {
             return [];
         }
 
-        return $this->parsePipeSpecs($this->splitPipeExpression($pipeSource), $expression);
+        return $this->parsePipeSpecs($this->splitPipeExpression($pipeSource), $expression, $firstPipeOffset);
     }
 
     /**
@@ -5937,7 +5976,7 @@ CSS;
         return [
             'name' => $name,
             'separator' => $separator,
-            'pipes' => $this->parsePipeSpecs($parts, $expression),
+            'pipes' => $this->parsePipeSpecs($parts, $expression, strlen($base)),
         ];
     }
 
@@ -6044,22 +6083,25 @@ CSS;
      * @param list<string> $pipeSpecs
      * @return list<array{name:string, args:list<int|string>}>
      */
-    private function parsePipeSpecs(array $pipeSpecs, string $expression): array
+    private function parsePipeSpecs(array $pipeSpecs, string $expression, int $firstPipeOffset): array
     {
         $pipes = [];
+        $pipeOffset = $firstPipeOffset;
         foreach ($pipeSpecs as $pipeSpec) {
+            $rawPipeSpec = $pipeSpec;
+            $pipeNameOffset = $pipeOffset + 1 + strspn($rawPipeSpec, " \t");
             $pipeSpec = trim($pipeSpec, " \t");
             if ($pipeSpec === '') {
                 throw new \UnexpectedValueException("Unsupported doctemplate directive {$expression}");
             }
 
             if (!preg_match('/^([A-Za-z][A-Za-z0-9_-]*)(?:\\s+(.+))?$/s', $pipeSpec, $pipeMatches)) {
-                throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipeSpec}");
+                throw new DocTemplateRelativeLocationException("Unsupported doctemplate pipe {$pipeSpec}", $pipeNameOffset);
             }
 
             $pipeName = $pipeMatches[1];
             if (!$this->isSupportedPipeName($pipeName)) {
-                throw new \UnexpectedValueException("Unsupported doctemplate pipe {$pipeName}");
+                throw new DocTemplateRelativeLocationException("Unsupported doctemplate pipe {$pipeName}", $pipeNameOffset);
             }
 
             $argumentSource = isset($pipeMatches[2]) ? trim($pipeMatches[2]) : '';
@@ -6068,6 +6110,7 @@ CSS;
                     'name' => $pipeName,
                     'args' => $this->parseBlockPipeArguments($pipeName, $argumentSource),
                 ];
+                $pipeOffset += 1 + strlen($rawPipeSpec);
                 continue;
             }
 
@@ -6079,6 +6122,7 @@ CSS;
                 'name' => $pipeName,
                 'args' => [],
             ];
+            $pipeOffset += 1 + strlen($rawPipeSpec);
         }
 
         return $pipes;

@@ -453,8 +453,23 @@ TYPST,
     } catch (UnexpectedValueException $exception) {
         $unicodeDiagnostic = $exception->getMessage();
     }
-    if ($unicodeDiagnostic !== 'Unsupported doctemplate pipe no-such-pipe at <template>:1:8') {
+    if ($unicodeDiagnostic !== 'Unsupported doctemplate pipe no-such-pipe at <template>:1:15') {
         fwrite(STDERR, "Unexpected doctemplate Unicode-column diagnostic: " . (string) $unicodeDiagnostic . "\n");
+        exit(1);
+    }
+
+    $unsupportedPipeDiagnostic = null;
+    try {
+        (new DocTemplate())->renderResource('review-packets/broken.html', [
+            'review-packets/broken.html' => "<p>\n" . '$title/unknown$',
+        ], [
+            'title' => 'Review',
+        ]);
+    } catch (UnexpectedValueException $exception) {
+        $unsupportedPipeDiagnostic = $exception->getMessage();
+    }
+    if ($unsupportedPipeDiagnostic !== 'Unsupported doctemplate pipe unknown at review-packets/broken.html:2:8') {
+        fwrite(STDERR, "Unexpected doctemplate unsupported-pipe diagnostic: " . (string) $unsupportedPipeDiagnostic . "\n");
         exit(1);
     }
 
@@ -1803,7 +1818,7 @@ HTML);
         fwrite(STDERR, "Expected inactive doctemplate branch parser validation\n");
         exit(1);
     } catch (\UnexpectedValueException $exception) {
-        if (!str_contains($exception->getMessage(), 'Unsupported doctemplate pipe no-such-pipe at review-packets/invalid.html:1:20')) {
+        if (!str_contains($exception->getMessage(), 'Unsupported doctemplate pipe no-such-pipe at review-packets/invalid.html:1:27')) {
             fwrite(STDERR, "Unexpected inactive branch parser validation diagnostic: {$exception->getMessage()}\n");
             exit(1);
         }

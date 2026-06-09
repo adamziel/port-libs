@@ -805,6 +805,17 @@ final class MathTexConverter
         'Vmatrix' => ['open' => '‖', 'close' => '‖'],
     ];
 
+    /** @var array<string, string> */
+    private const MATRIX_COMMAND_ENVIRONMENTS = [
+        'matrix' => 'matrix',
+        'pmatrix' => 'pmatrix',
+        'bmatrix' => 'bmatrix',
+        'Bmatrix' => 'Bmatrix',
+        'vmatrix' => 'vmatrix',
+        'Vmatrix' => 'Vmatrix',
+        'cases' => 'cases',
+    ];
+
     /** @var array<string, array{columnalign: string, columns: int}> */
     private const AMS_ROW_ENVIRONMENTS = [
         'align' => ['columnalign' => 'right left', 'columns' => 2],
@@ -2969,6 +2980,10 @@ final class MathTexConverter
             return $this->parseBinomialCommand($source, $offset, true);
         }
 
+        if (isset(self::MATRIX_COMMAND_ENVIRONMENTS[$command])) {
+            return $this->parsePlainMatrixCommand($source, $offset, $command);
+        }
+
         if (array_key_exists($command, self::TEXT_MODE_COMMANDS)) {
             return $this->parseTextModeCommand($source, $offset, $command);
         }
@@ -3325,6 +3340,91 @@ final class MathTexConverter
         $attributes .= $positionAttributes;
         $attributes .= $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
+        return $this->matrixTableForRows($rows, $matrixEnvironment, $attributes);
+    }
+
+    private function parsePlainMatrixCommand(string $source, int &$offset, string $command): string
+    {
+        $matrixEnvironment = self::MATRIX_COMMAND_ENVIRONMENTS[$command];
+        $content = $this->readRequiredGroupText($source, $offset);
+        $normalizedContent = $this->normalizePlainMatrixCommandRows($content, $command);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($normalizedContent, $command);
+        $rows = $splitRows['rows'];
+        $spec = self::MATRIX_ENVIRONMENTS[$matrixEnvironment];
+        $attributes = '';
+        if (isset($spec['columnalign'])) {
+            $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"';
+        }
+        $attributes .= $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
+
+        return $this->matrixTableForRows($rows, $matrixEnvironment, $attributes);
+    }
+
+    private function normalizePlainMatrixCommandRows(string $content, string $command): string
+    {
+        $normalized = '';
+        $depth = 0;
+        $offset = 0;
+        $length = strlen($content);
+
+        while ($offset < $length) {
+            $char = $content[$offset];
+            if ($char === '\\') {
+                $commandOffset = $offset + 1;
+                $rowCommand = $this->readCommandName($content, $commandOffset);
+                if ($depth === 0 && ($rowCommand === 'cr' || $rowCommand === 'crcr')) {
+                    $normalized .= '\\\\';
+                    $offset = $commandOffset;
+                    continue;
+                }
+
+                $normalized .= substr($content, $offset, $commandOffset - $offset);
+                $offset = $commandOffset;
+                continue;
+            }
+
+            if ($char === '%') {
+                $this->skipTexLineComment($content, $offset);
+                if ($normalized !== '' && !ctype_space(substr($normalized, -1))) {
+                    $normalized .= ' ';
+                }
+                continue;
+            }
+
+            if ($char === '{') {
+                $depth++;
+                $normalized .= $char;
+                $offset++;
+                continue;
+            }
+
+            if ($char === '}') {
+                if ($depth === 0) {
+                    throw new \InvalidArgumentException('Unexpected TeX group end in \\' . $command . ' command at offset ' . $offset);
+                }
+                $depth--;
+                $normalized .= $char;
+                $offset++;
+                continue;
+            }
+
+            $normalized .= $char;
+            $offset++;
+        }
+
+        if ($depth !== 0) {
+            throw new \InvalidArgumentException('Unclosed TeX group in \\' . $command . ' command');
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     */
+    private function matrixTableForRows(array $rows, string $matrixEnvironment, string $attributes): string
+    {
+        $spec = self::MATRIX_ENVIRONMENTS[$matrixEnvironment];
         $table = $this->environmentTable($rows, $attributes);
         if (($spec['displaystyle'] ?? false) === true) {
             $table = '<mstyle displaystyle="true">' . $table . '</mstyle>';

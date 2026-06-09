@@ -769,6 +769,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['navigation']['externalTargetCount'] ?? null) !== 2 || ($result['document']->attr('navigation')['mappedSpineTargetCount'] ?? null) !== 3) {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose navigation coverage metadata');
     }
+    if (($result['navigationOutline']['source'] ?? null) !== 'nav' || ($result['navigationOutline']['itemCount'] ?? null) !== 3) {
+        throw new RuntimeException('Expected EPUB navigation outline to prefer the primary nav TOC for review handoff');
+    }
+    if (($result['navigationOutline']['mappedSpineTargetCount'] ?? null) !== 2 || ($result['navigationOutline']['externalTargetCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB navigation outline to summarize mapped and remote targets');
+    }
+    if (($result['navigationOutline']['items'][0]['children'][0]['fragmentKind'] ?? null) !== 'epub-cfi') {
+        throw new RuntimeException('Expected EPUB navigation outline to preserve nested CFI targets');
+    }
+    if (!str_contains((string) ($result['navigationOutline']['html'] ?? ''), 'data-epub-source="nav"')) {
+        throw new RuntimeException('Expected EPUB navigation outline review HTML to expose source metadata');
+    }
+    if (($result['document']->attr('navigationOutline')['htmlSha256'] ?? null) !== ($result['navigationOutline']['htmlSha256'] ?? null)) {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose navigation outline review HTML');
+    }
     if (($result['nav']['landmarks'][0]['type'] ?? null) !== 'bodymatter') {
         throw new RuntimeException('Expected EPUB nav landmarks to preserve item type');
     }
@@ -1801,6 +1816,10 @@ echo 'navigationSupplementalExternalTargets=' . ($result['navigation']['suppleme
 echo 'navigationCfiTargets=' . ($result['navigation']['cfiTargetCount'] ?? 0) . "\n";
 echo 'navigationExternalTargets=' . ($result['navigation']['externalTargetCount'] ?? 0) . "\n";
 echo 'navigationUncoveredLinear=' . ($result['navigation']['uncoveredLinearSpineItemCount'] ?? 0) . "\n";
+echo 'navigationOutlineSource=' . ($result['navigationOutline']['source'] ?? '') . "\n";
+echo 'navigationOutlineItems=' . ($result['navigationOutline']['itemCount'] ?? 0) . "\n";
+echo 'navigationOutlineExternal=' . ($result['navigationOutline']['externalTargetCount'] ?? 0) . "\n";
+echo 'navigationOutlineHtmlSha256=' . ($result['navigationOutline']['htmlSha256'] ?? '') . "\n";
 echo 'landmarkTarget=' . ($result['nav']['landmarks'][0]['target'] ?? '') . "\n";
 echo 'tocItemTypeSource=' . ($result['nav']['items'][0]['typeSource'] ?? '') . "\n";
 echo 'tocItemTypes=' . implode(',', $result['nav']['items'][0]['itemTypes'] ?? []) . "\n";

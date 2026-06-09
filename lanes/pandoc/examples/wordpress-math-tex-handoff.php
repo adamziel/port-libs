@@ -325,6 +325,7 @@ $summary = [
     'compactEnvironmentMathml' => $converter->texToMathMl('\\left(\\begin{smallmatrix}p_1 & m_1 \\\\ p_2 & m_2\\end{smallmatrix}\\right) + \\sum_{\\begin{subarray}{c}i=1 \\\\ i\\ne j\\end{subarray}}^{n} a_i'),
     'mathtoolsCasesMathml' => $converter->texToMathMl('\\begin{dcases}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{dcases} + \\begin{rcases}q_i & q_i \\in Q \\\\ 0 & \\text{otherwise}\\end{rcases} + \\begin{drcases*}r_i & r_i \\in R \\\\ 0 & \\text{otherwise}\\end{drcases*}', true),
     'starredMatrixAliasMathml' => $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*} + \\begin{cases*}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases*}', true),
+    'texMatrixCommandMathml' => $converter->texToMathMl('\\matrix{p_1 & m_1 \\cr p_2 & m_2} + \\pmatrix{a & b \\cr c & d} + \\cases{p_i & p_i \\in P \\cr 0 & \\text{otherwise}}', true),
     'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'mathChoiceMathml' => $converter->texToMathMl('\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i'),
     'siunitxUnitAliasMathml' => $converter->texToMathMl('\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}'),
@@ -616,6 +617,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['starredMatrixAliasMathml'], '<annotation encoding="application/x-tex">\\begin{pmatrix*}p_i &amp; m_i \\\\ q_i &amp; n_i\\end{pmatrix*} + \\begin{cases*}p_i &amp; p_i \\in P \\\\ 0 &amp; \\text{otherwise}\\end{cases*}</annotation>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not keep starred matrix aliases metadata-only');
+    }
+
+    if (
+        str_contains($summary['texMatrixCommandMathml'], '<mi>\\matrix</mi>')
+        || str_contains($summary['texMatrixCommandMathml'], '<mi>\\pmatrix</mi>')
+        || str_contains($summary['texMatrixCommandMathml'], '<mi>\\cases</mi>')
+        || str_contains($summary['texMatrixCommandMathml'], '<mi>\\cr</mi>')
+        || !str_contains($summary['texMatrixCommandMathml'], '<mtable><mtr><mtd><msub><mi>p</mi><mn>1</mn></msub></mtd><mtd><msub><mi>m</mi><mn>1</mn></msub></mtd></mtr><mtr><mtd><msub><mi>p</mi><mn>2</mn></msub></mtd><mtd><msub><mi>m</mi><mn>2</mn></msub></mtd></mtr></mtable>')
+        || !str_contains($summary['texMatrixCommandMathml'], '<mo fence="true" stretchy="true">(</mo><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable><mo fence="true" stretchy="true">)</mo>')
+        || !str_contains($summary['texMatrixCommandMathml'], '<mo fence="true" stretchy="true">{</mo><mtable columnalign="left left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>∈</mo><mi>P</mi></mtd></mtr><mtr><mtd><mn>0</mn></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable>')
+        || !str_contains($summary['texMatrixCommandMathml'], '<annotation encoding="application/x-tex">\\matrix{p_1 &amp; m_1 \\cr p_2 &amp; m_2} + \\pmatrix{a &amp; b \\cr c &amp; d} + \\cases{p_i &amp; p_i \\in P \\cr 0 &amp; \\text{otherwise}}</annotation>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map plain TeX matrix commands');
     }
 
     if (str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\ldots</mi>') || str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\cong</mi>')) {

@@ -89,6 +89,7 @@ final class EpubReader
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     navigation:array<string, mixed>,
+     *     navigationOutline:array<string, mixed>,
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     renditions:array<string, mixed>,
@@ -136,6 +137,7 @@ final class EpubReader
             $opf['mediaOverlayStyles'],
             $opf['pageBreaks'],
             $opf['navigation'],
+            $opf['navigationOutline'],
             $opf['xhtmlResourceReport'],
             $opf['cssResourceReport'],
             $opf['assetReport'],
@@ -156,6 +158,7 @@ final class EpubReader
             'nav' => $opf['nav'],
             'ncx' => $opf['ncx'],
             'navigation' => $opf['navigation'],
+            'navigationOutline' => $opf['navigationOutline'],
             'guide' => $opf['guide'],
             'collections' => $opf['collections'],
             'renditions' => $renditions,
@@ -187,6 +190,7 @@ final class EpubReader
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
                 'navigation' => $opf['navigation'],
+                'navigationOutline' => $opf['navigationOutline'],
                 'guide' => $opf['guide'],
                 'collections' => $opf['collections'],
                 'renditions' => $renditions,
@@ -487,6 +491,7 @@ final class EpubReader
      *     nav:?array<string, mixed>,
      *     ncx:?array<string, mixed>,
      *     navigation:array<string, mixed>,
+     *     navigationOutline:array<string, mixed>,
      *     guide:array<string, mixed>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
@@ -590,6 +595,7 @@ final class EpubReader
         $nav = $nav === null ? null : self::navWithPrimaryNavigationTargetPolicy($nav, $spine);
         $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem, $manifestByPart);
         $navigation = self::navigationReport($nav, $ncx, $spine);
+        $navigationOutline = self::navigationOutlineReport($nav, $ncx, $navigation);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine, $xhtmlResourceReport);
@@ -620,6 +626,7 @@ final class EpubReader
             'nav' => $nav,
             'ncx' => $ncx,
             'navigation' => $navigation,
+            'navigationOutline' => $navigationOutline,
             'guide' => $guide,
             'collections' => $collections,
             'bindings' => $bindings,
@@ -11550,6 +11557,382 @@ final class EpubReader
     }
 
     /**
+     * @param ?array<string, mixed> $nav
+     * @param ?array<string, mixed> $ncx
+     * @param array<string, mixed> $navigation
+     *
+     * @return array<string, mixed>
+     */
+    private static function navigationOutlineReport(?array $nav, ?array $ncx, array $navigation): array
+    {
+        $source = 'none';
+        $sourceNavigationType = null;
+        $navigationSource = null;
+        $sourceItems = [];
+
+        if (is_array($nav)) {
+            $sectionsByType = is_array($nav['sectionsByType'] ?? null) ? $nav['sectionsByType'] : [];
+            $tocSections = is_array($sectionsByType['toc'] ?? null) ? array_values($sectionsByType['toc']) : [];
+            foreach ($tocSections as $section) {
+                if (!is_array($section)) {
+                    continue;
+                }
+                $items = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
+                if ($items === []) {
+                    continue;
+                }
+
+                $source = 'nav';
+                $sourceNavigationType = 'toc';
+                $navigationSource = 'nav';
+                $sourceItems = $items;
+                break;
+            }
+        }
+
+        if ($sourceItems === [] && is_array($ncx)) {
+            $items = is_array($ncx['items'] ?? null) ? array_values($ncx['items']) : [];
+            if ($items !== []) {
+                $source = 'ncx';
+                $sourceNavigationType = 'navMap';
+                $navigationSource = 'ncx';
+                $sourceItems = $items;
+            }
+        }
+
+        if ($sourceItems === [] && is_array($nav)) {
+            $items = is_array($nav['items'] ?? null) ? array_values($nav['items']) : [];
+            if ($items !== []) {
+                $source = 'nav-fallback';
+                $sourceNavigationType = 'fallback';
+                $navigationSource = 'nav';
+                $sourceItems = $items;
+            }
+        }
+
+        if ($sourceItems === [] || $navigationSource === null) {
+            return [
+                'present' => false,
+                'source' => 'none',
+                'sourceNavigationType' => null,
+                'itemCount' => 0,
+                'topLevelItemCount' => 0,
+                'localTargetCount' => 0,
+                'externalTargetCount' => 0,
+                'missingTargetCount' => 0,
+                'mappedSpineTargetCount' => 0,
+                'diagnosticCount' => 0,
+                'maxDepth' => 0,
+                'items' => [],
+                'flatItems' => [],
+                'html' => '',
+                'htmlSha256' => null,
+                'diagnostics' => [],
+            ];
+        }
+
+        $navigationItemsBySourceIndex = [];
+        foreach (is_array($navigation['items'] ?? null) ? $navigation['items'] : [] as $navigationItem) {
+            if (!is_array($navigationItem) || ($navigationItem['source'] ?? null) !== $navigationSource) {
+                continue;
+            }
+            if (is_int($navigationItem['sourceIndex'] ?? null)) {
+                $navigationItemsBySourceIndex[(int) $navigationItem['sourceIndex']] = $navigationItem;
+            }
+        }
+
+        $sourceIndex = 0;
+        $maxDepth = 0;
+        $items = self::navigationOutlineItems(
+            $sourceItems,
+            $source,
+            $navigationItemsBySourceIndex,
+            0,
+            $sourceIndex,
+            $maxDepth
+        );
+        $flatItems = self::flattenNavigationOutlineItems($items);
+        $diagnostics = [];
+        $localTargetCount = 0;
+        $externalTargetCount = 0;
+        $missingTargetCount = 0;
+        $mappedSpineTargetCount = 0;
+
+        foreach ($flatItems as $item) {
+            if (($item['external'] ?? false) === true) {
+                ++$externalTargetCount;
+            } elseif (($item['exists'] ?? false) === true) {
+                ++$localTargetCount;
+            } else {
+                ++$missingTargetCount;
+            }
+
+            if (is_int($item['spineIndex'] ?? null)) {
+                ++$mappedSpineTargetCount;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $item['index'],
+                    'source' => $item['source'],
+                    'sourceIndex' => $item['sourceIndex'],
+                ] + $diagnostic;
+            }
+        }
+
+        $html = self::navigationOutlineHtml($items, $source, count($flatItems));
+
+        return [
+            'present' => $flatItems !== [],
+            'source' => $source,
+            'sourceNavigationType' => $sourceNavigationType,
+            'itemCount' => count($flatItems),
+            'topLevelItemCount' => count($items),
+            'localTargetCount' => $localTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'mappedSpineTargetCount' => $mappedSpineTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'maxDepth' => $maxDepth,
+            'items' => $items,
+            'flatItems' => $flatItems,
+            'html' => $html,
+            'htmlSha256' => $html === '' ? null : hash('sha256', $html),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceItems
+     * @param array<int, array<string, mixed>> $navigationItemsBySourceIndex
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function navigationOutlineItems(
+        array $sourceItems,
+        string $source,
+        array $navigationItemsBySourceIndex,
+        int $depth,
+        int &$sourceIndex,
+        int &$maxDepth
+    ): array {
+        $items = [];
+        foreach ($sourceItems as $sourceItem) {
+            if (!is_array($sourceItem)) {
+                continue;
+            }
+
+            $currentSourceIndex = $sourceIndex;
+            ++$sourceIndex;
+            $navigationItem = $navigationItemsBySourceIndex[$currentSourceIndex] ?? [];
+            $children = is_array($sourceItem['children'] ?? null)
+                ? self::navigationOutlineItems(
+                    array_values($sourceItem['children']),
+                    $source,
+                    $navigationItemsBySourceIndex,
+                    $depth + 1,
+                    $sourceIndex,
+                    $maxDepth
+                )
+                : [];
+            $maxDepth = max($maxDepth, $depth);
+
+            $diagnostics = is_array($navigationItem['diagnostics'] ?? null)
+                ? array_values($navigationItem['diagnostics'])
+                : (is_array($sourceItem['diagnostics'] ?? null) ? array_values($sourceItem['diagnostics']) : []);
+            $sourceDiagnostics = is_array($navigationItem['sourceDiagnostics'] ?? null)
+                ? array_values($navigationItem['sourceDiagnostics'])
+                : (is_array($sourceItem['diagnostics'] ?? null) ? array_values($sourceItem['diagnostics']) : []);
+
+            $items[] = [
+                'index' => $currentSourceIndex,
+                'source' => $source,
+                'sourceIndex' => is_int($navigationItem['sourceIndex'] ?? null)
+                    ? $navigationItem['sourceIndex']
+                    : $currentSourceIndex,
+                'depth' => $depth,
+                'id' => self::navigationOutlineString($navigationItem, 'id') ?? self::navigationOutlineString($sourceItem, 'id'),
+                'itemId' => self::navigationOutlineString($navigationItem, 'itemId') ?? self::navigationOutlineString($sourceItem, 'itemId'),
+                'labelId' => self::navigationOutlineString($navigationItem, 'labelId') ?? self::navigationOutlineString($sourceItem, 'labelId'),
+                'playOrder' => self::navigationOutlineString($navigationItem, 'playOrder') ?? self::navigationOutlineString($sourceItem, 'playOrder'),
+                'label' => self::navigationOutlineString($navigationItem, 'label') ?? self::navigationOutlineString($sourceItem, 'title') ?? '',
+                'href' => self::navigationOutlineString($navigationItem, 'href') ?? self::navigationOutlineString($sourceItem, 'href'),
+                'target' => self::navigationOutlineString($navigationItem, 'target') ?? self::navigationOutlineString($sourceItem, 'target'),
+                'part' => self::navigationOutlineString($navigationItem, 'part') ?? self::navigationOutlineString($sourceItem, 'part'),
+                'fragment' => self::navigationOutlineString($navigationItem, 'fragment') ?? self::navigationOutlineString($sourceItem, 'fragment'),
+                'fragmentKind' => self::navigationOutlineString($navigationItem, 'fragmentKind') ?? self::navigationOutlineString($sourceItem, 'fragmentKind'),
+                'external' => (bool) ($navigationItem['external'] ?? $sourceItem['external'] ?? false),
+                'exists' => (bool) ($navigationItem['exists'] ?? $sourceItem['exists'] ?? false),
+                'manifestId' => self::navigationOutlineString($navigationItem, 'manifestId') ?? self::navigationOutlineString($sourceItem, 'manifestId'),
+                'mediaType' => self::navigationOutlineString($navigationItem, 'mediaType') ?? self::navigationOutlineString($sourceItem, 'mediaType'),
+                'encrypted' => (bool) ($navigationItem['encrypted'] ?? $sourceItem['encrypted'] ?? false),
+                'canExposeBytes' => (bool) ($navigationItem['canExposeBytes'] ?? $sourceItem['canExposeBytes'] ?? false),
+                'spineIndex' => is_int($navigationItem['spineIndex'] ?? null) ? $navigationItem['spineIndex'] : null,
+                'spineIdref' => self::navigationOutlineString($navigationItem, 'spineIdref'),
+                'spineItemId' => self::navigationOutlineString($navigationItem, 'spineItemId'),
+                'spinePart' => self::navigationOutlineString($navigationItem, 'spinePart'),
+                'contentPart' => self::navigationOutlineString($navigationItem, 'contentPart'),
+                'linear' => is_bool($navigationItem['linear'] ?? null) ? $navigationItem['linear'] : null,
+                'type' => self::navigationOutlineString($navigationItem, 'type') ?? self::navigationOutlineString($sourceItem, 'type'),
+                'types' => is_array($navigationItem['types'] ?? null)
+                    ? array_values($navigationItem['types'])
+                    : (is_array($sourceItem['types'] ?? null) ? array_values($sourceItem['types']) : []),
+                'classes' => is_array($navigationItem['classes'] ?? null)
+                    ? array_values($navigationItem['classes'])
+                    : (is_array($sourceItem['classes'] ?? null) ? array_values($sourceItem['classes']) : []),
+                'language' => self::navigationOutlineString($navigationItem, 'language') ?? self::navigationOutlineString($sourceItem, 'language'),
+                'direction' => self::navigationOutlineString($navigationItem, 'direction') ?? self::navigationOutlineString($sourceItem, 'direction'),
+                'hidden' => (bool) ($navigationItem['hidden'] ?? $sourceItem['hidden'] ?? false),
+                'sourceDiagnostics' => $sourceDiagnostics,
+                'diagnostics' => $diagnostics,
+                'childCount' => count($children),
+                'children' => $children,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function flattenNavigationOutlineItems(array $items): array
+    {
+        $flat = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $copy = $item;
+            $children = is_array($copy['children'] ?? null) ? $copy['children'] : [];
+            unset($copy['children']);
+            $flat[] = $copy;
+            if ($children !== []) {
+                array_push($flat, ...self::flattenNavigationOutlineItems($children));
+            }
+        }
+
+        return $flat;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private static function navigationOutlineHtml(array $items, string $source, int $itemCount): string
+    {
+        if ($items === []) {
+            return '';
+        }
+
+        return '<nav'
+            . self::navigationOutlineHtmlAttributes([
+                'class' => 'epub-navigation-outline',
+                'data-epub-source' => $source,
+                'data-epub-item-count' => (string) $itemCount,
+            ])
+            . '><ol>'
+            . self::navigationOutlineItemsHtml($items)
+            . '</ol></nav>';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private static function navigationOutlineItemsHtml(array $items): string
+    {
+        $html = '';
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $attrs = [
+                'data-epub-source' => (string) ($item['source'] ?? ''),
+                'data-epub-index' => (string) ($item['index'] ?? ''),
+                'data-epub-source-index' => (string) ($item['sourceIndex'] ?? ''),
+                'data-epub-depth' => (string) ($item['depth'] ?? ''),
+            ];
+            foreach ([
+                'target' => 'data-epub-target',
+                'part' => 'data-epub-part',
+                'fragmentKind' => 'data-epub-fragment-kind',
+                'manifestId' => 'data-epub-manifest-id',
+                'spineIdref' => 'data-epub-spine-idref',
+            ] as $field => $attribute) {
+                if (is_string($item[$field] ?? null) && $item[$field] !== '') {
+                    $attrs[$attribute] = $item[$field];
+                }
+            }
+            if (is_int($item['spineIndex'] ?? null)) {
+                $attrs['data-epub-spine-index'] = (string) $item['spineIndex'];
+            }
+            if (($item['external'] ?? false) === true) {
+                $attrs['data-epub-external'] = 'true';
+            }
+            if (($item['exists'] ?? true) !== true && ($item['external'] ?? false) !== true) {
+                $attrs['data-epub-missing'] = 'true';
+            }
+            if (($item['hidden'] ?? false) === true) {
+                $attrs['data-epub-hidden'] = 'true';
+            }
+
+            $children = is_array($item['children'] ?? null) ? $item['children'] : [];
+            $html .= '<li' . self::navigationOutlineHtmlAttributes($attrs) . '>'
+                . '<span class="epub-navigation-outline-label">'
+                . self::navigationOutlineHtmlText((string) ($item['label'] ?? ''))
+                . '</span>';
+            if ($children !== []) {
+                $html .= '<ol>' . self::navigationOutlineItemsHtml($children) . '</ol>';
+            }
+            $html .= '</li>';
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private static function navigationOutlineHtmlAttributes(array $attributes): string
+    {
+        $html = '';
+        foreach ($attributes as $name => $value) {
+            if ($value === '') {
+                continue;
+            }
+
+            $html .= ' ' . $name . '="' . self::navigationOutlineHtmlAttribute($value) . '"';
+        }
+
+        return $html;
+    }
+
+    private static function navigationOutlineHtmlAttribute(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    private static function navigationOutlineHtmlText(string $value): string
+    {
+        return htmlspecialchars($value, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function navigationOutlineString(array $item, string $key): ?string
+    {
+        return is_string($item[$key] ?? null) ? $item[$key] : null;
+    }
+
+    /**
      * @param array<string, mixed> $item
      * @param array<string, array<string, mixed>> $spineByContentPart
      *
@@ -18520,6 +18903,7 @@ final class EpubReader
      * @param array<string, mixed> $mediaOverlayStyles
      * @param array<string, mixed> $pageBreaks
      * @param array<string, mixed> $navigation
+     * @param array<string, mixed> $navigationOutline
      * @param array<string, mixed> $xhtmlResourceReport
      * @param array<string, mixed> $cssResourceReport
      * @param array<string, mixed> $assetReport
@@ -18543,6 +18927,7 @@ final class EpubReader
         array $mediaOverlayStyles,
         array $pageBreaks,
         array $navigation,
+        array $navigationOutline,
         array $xhtmlResourceReport,
         array $cssResourceReport,
         array $assetReport,
@@ -18666,6 +19051,7 @@ final class EpubReader
             'mediaTypes' => $mediaTypes,
             'remoteResources' => $remoteResources,
             'navigation' => $navigation,
+            'navigationOutline' => $navigationOutline,
             'xhtmlResourceReport' => $xhtmlResourceReport,
             'cssResourceReport' => $cssResourceReport,
             'assets' => $assetReport,

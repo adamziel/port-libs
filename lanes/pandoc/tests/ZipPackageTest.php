@@ -4266,6 +4266,7 @@ return [
             'centralDirectorySize' => $understatedCentralDirectorySize,
         ]);
         $summary = ZipPackage::centralDirectoryInventoryPreflight($understatedZip);
+        $repairPlan = ZipPackage::centralDirectoryRepairPlanPreflight($understatedZip);
         $raw = ZipPackage::rawStrictImportPreflight($understatedZip, 2048, 100.0, 2048);
 
         $t->same(3, $summary['declaredEntryCount']);
@@ -4300,6 +4301,48 @@ return [
             [$base['entries'][1]['localHeaderOffset'], $base['entries'][2]['localHeaderOffset']],
             array_column($summary['recoverableGapEntries'], 'localHeaderOffset')
         );
+        $t->same(3, $repairPlan['declaredEntryCount']);
+        $t->same(1, $repairPlan['scannedEntryCount']);
+        $t->same(2, $repairPlan['recoverableGapEntryCount']);
+        $t->same(3, $repairPlan['plannedEntryCount']);
+        $t->same(true, $repairPlan['plannedMatchesDeclaredEntryCount']);
+        $t->same($base['centralDirectoryOffset'], $repairPlan['centralDirectoryOffset']);
+        $t->same($understatedCentralDirectorySize, $repairPlan['declaredCentralDirectorySize']);
+        $t->same($base['centralDirectorySize'], $repairPlan['correctedCentralDirectorySize']);
+        $t->same($base['eocdOffset'] - $base['entries'][1]['offset'], $repairPlan['recoveredGapBytes']);
+        $t->same(0, $repairPlan['unrecoveredGapBytes']);
+        $t->same(true, $repairPlan['gapFullyRecovered']);
+        $t->same(true, $repairPlan['repairAvailable']);
+        $t->same('review-only-central-directory-size-repair', $repairPlan['policy']);
+        $t->same(false, $repairPlan['isSupportedByBoundedReader']);
+        $t->same(
+            [
+                'central-directory-repair-plan-review',
+                'central-directory-size-understatement-repair-available',
+            ],
+            $repairPlan['issues']
+        );
+        $t->same(0, $repairPlan['duplicatePlannedEntryNameGroupCount']);
+        $t->same(0, $repairPlan['duplicatePlannedRawNameGroupCount']);
+        $t->same(0, $repairPlan['duplicatePlannedLocalHeaderOffsetGroupCount']);
+        $t->same(['word/document.xml'], array_column($repairPlan['retainedEntries'], 'name'));
+        $t->same(
+            ['word/media/recoverable-one.txt', 'word/media/recoverable-two.txt'],
+            array_column($repairPlan['recoverableEntries'], 'name')
+        );
+        $t->same(
+            [
+                'word/document.xml',
+                'word/media/recoverable-one.txt',
+                'word/media/recoverable-two.txt',
+            ],
+            array_column($repairPlan['plannedEntries'], 'name')
+        );
+        $t->same('retain-declared-central-directory-entry', $repairPlan['plannedEntries'][0]['action']);
+        $t->same('append-recoverable-gap-central-directory-entry', $repairPlan['plannedEntries'][1]['action']);
+        $t->same('declared-central-directory', $repairPlan['plannedEntries'][0]['source']);
+        $t->same('central-directory-eocd-gap', $repairPlan['plannedEntries'][1]['source']);
+        $t->same($summary, $repairPlan['inventory']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
         $t->same(
             [
@@ -4312,10 +4355,79 @@ return [
         $t->same(false, $raw['isValid']);
         $t->same(false, $raw['canInstantiate']);
         $t->same($summary, $raw['centralDirectoryInventory']);
+        $t->same($repairPlan, $raw['centralDirectoryRepairPlan']);
         $t->contains('central-directory-inventory-issues', implode(',', $raw['diagnostics']));
         $t->contains('central-directory-eocd-gap-central-headers', implode(',', $raw['diagnostics']));
+        $t->contains('central-directory-repair-plan-review', implode(',', $raw['diagnostics']));
+        $t->contains('central-directory-size-understatement-repair-available', implode(',', $raw['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($understatedZip));
+
+        $cleanRepairPlan = ZipPackage::centralDirectoryRepairPlanPreflight($zip);
+        $t->same(false, $cleanRepairPlan['repairAvailable']);
+        $t->same('no-central-directory-repair-needed', $cleanRepairPlan['policy']);
+        $t->same(true, $cleanRepairPlan['isSupportedByBoundedReader']);
+        $t->same([], $cleanRepairPlan['issues']);
+    },
+
+    'keeps central directory repair plans incomplete when gap bytes remain' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>partial central repair</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/recoverable.txt',
+                'data' => "recoverable central entry\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 8,
+            ],
+        ]);
+        $base = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $gapTailPayload = 'review-only central repair tail';
+        $gapTail = "PK\x06\x08" . pack('V', strlen($gapTailPayload)) . $gapTailPayload;
+        $zipWithGapTail = substr($zip, 0, $base['eocdOffset']) . $gapTail . substr($zip, $base['eocdOffset']);
+        $understatedZip = $rewriteEndOfCentralDirectory($zipWithGapTail, [
+            'centralDirectorySize' => $base['entries'][0]['recordEnd'] - $base['centralDirectoryOffset'],
+        ]);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($understatedZip);
+        $repairPlan = ZipPackage::centralDirectoryRepairPlanPreflight($understatedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($understatedZip, 2048, 100.0, 2048);
+
+        $t->same(3, $summary['declaredEntryCount']);
+        $t->same(1, $summary['scannedEntryCount']);
+        $t->same(2, $summary['recoverableGapEntryCount']);
+        $t->same(true, $summary['hasRecoverableCentralDirectoryGapEntries']);
+        $t->same(strlen($gapTail), $repairPlan['unrecoveredGapBytes']);
+        $t->same(false, $repairPlan['gapFullyRecovered']);
+        $t->same(false, $repairPlan['repairAvailable']);
+        $t->same('central-directory-repair-not-complete', $repairPlan['policy']);
+        $t->same(false, $repairPlan['isSupportedByBoundedReader']);
+        $t->same(
+            [
+                'central-directory-repair-plan-review',
+                'central-directory-repair-not-complete',
+                'central-directory-repair-gap-unrecovered',
+            ],
+            $repairPlan['issues']
+        );
+        $t->same(3, $repairPlan['plannedEntryCount']);
+        $t->same(true, $repairPlan['plannedMatchesDeclaredEntryCount']);
+        $t->same(
+            ['word/document.xml', 'word/media/recoverable.txt', 'word/styles.xml'],
+            array_column($repairPlan['plannedEntries'], 'name')
+        );
+        $t->same($base['centralDirectorySize'], $repairPlan['correctedCentralDirectorySize']);
+        $t->same(0, $repairPlan['duplicatePlannedLocalHeaderOffsetGroupCount']);
+        $t->same($repairPlan, $raw['centralDirectoryRepairPlan']);
+        $t->contains('central-directory-repair-not-complete', implode(',', $raw['diagnostics']));
+        $t->contains('central-directory-repair-gap-unrecovered', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
     },
 
     'embeds zip central directory inventory in strict package import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {

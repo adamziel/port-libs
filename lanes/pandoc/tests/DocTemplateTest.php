@@ -4939,7 +4939,7 @@ TPL;
             ], [
                 'title' => 'Review',
             ]),
-            'Unsupported doctemplate pipe no-such-pipe at review-packets/review.html:2:1',
+            'Unsupported doctemplate pipe no-such-pipe at review-packets/review.html:2:8',
         );
 
         $expectTemplateErrorContains(
@@ -4962,7 +4962,7 @@ TPL;
             static fn (): string => $renderer->render('Résumé $title/no-such-pipe$', [
                 'title' => 'Review',
             ]),
-            'Unsupported doctemplate pipe no-such-pipe at <template>:1:8',
+            'Unsupported doctemplate pipe no-such-pipe at <template>:1:15',
         );
 
         $expectTemplateErrorContains(
@@ -4977,6 +4977,36 @@ TPL;
         );
     },
 
+    'reports unsupported pandoc doctemplate pipe names at pipe source locations' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('${ title/missing }', [
+                'title' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe missing at <template>:1:10',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('${ components/row()/unknown }', [], [
+                'components/row' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe unknown at <template>:1:21',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/broken.html', [
+                'review-packets/broken.html' => "<p>\n" . '$title/unknown$',
+            ], [
+                'title' => 'Review',
+            ]),
+            'Unsupported doctemplate pipe unknown at review-packets/broken.html:2:8',
+        );
+    },
+
     'validates inactive pandoc doctemplate branches and empty loops before rendering' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
         $renderer = new DocTemplate();
 
@@ -4985,7 +5015,7 @@ TPL;
             static fn (): string => $renderer->render('$if(title)$ok$else$$title/no-such-pipe$$endif$', [
                 'title' => 'Review',
             ]),
-            'Unsupported doctemplate pipe no-such-pipe at <template>:1:20',
+            'Unsupported doctemplate pipe no-such-pipe at <template>:1:27',
         );
 
         $expectTemplateErrorContains(
