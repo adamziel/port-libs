@@ -16620,6 +16620,122 @@ XML);
         ]])->item('manual-presort');
         $t->same('mm', $direct['presort'] ?? null);
     },
+    'maps bounded biblatex label prefix and sort initials into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{label-prefix-zed,
+  author       = {Zed, Zoe},
+  title        = {Zed Prefix Source},
+  date         = {2026},
+  labelprefix  = {WP},
+  extraalpha   = {c},
+  sortinit     = {Z},
+  sortinithash = {hash-zed},
+  sortkey      = {900-zed}
+}
+
+@book{label-prefix-adams,
+  author       = {Adams, Ada},
+  title        = {Adams Prefix Source},
+  date         = {2025},
+  label-prefix = {Media},
+  extra-alpha  = {a},
+  sort-initial = {A},
+  sort-initial-hash = {hash-adams},
+  sortkey      = {001-adams}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('WP', $items[0]['label-prefix'] ?? null);
+        $t->same('c', $items[0]['extra-alpha'] ?? null);
+        $t->same('Z', $items[0]['sort-initial'] ?? null);
+        $t->same('hash-zed', $items[0]['sort-initial-hash'] ?? null);
+        $t->same('Media', $items[1]['label-prefix'] ?? null);
+        $t->same('a', $items[1]['extra-alpha'] ?? null);
+        $t->same('A', $items[1]['sort-initial'] ?? null);
+        $t->same('hash-adams', $items[1]['sort-initial-hash'] ?? null);
+        $t->same('WP', $items[0]['rawBibtex']['fields']['labelprefix'] ?? null);
+        $t->same('hash-zed', $items[0]['rawBibtex']['fields']['sortinithash'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $zed = $processor->item('label-prefix-zed');
+        $adams = $processor->item('label-prefix-adams');
+        $t->same('WP', $zed['labelPrefix'] ?? null);
+        $t->same('c', $zed['extraAlpha'] ?? null);
+        $t->same('Z', $zed['sortInitial'] ?? null);
+        $t->same('hash-zed', $zed['sortInitialHash'] ?? null);
+        $t->same('Media', $adams['labelPrefix'] ?? null);
+        $t->same('a', $adams['extraAlpha'] ?? null);
+        $t->same('A', $adams['sortInitial'] ?? null);
+        $t->same('hash-adams', $adams['sortInitialHash'] ?? null);
+        $t->same(
+            'Zed, Zoe. Zed Prefix Source. 2026. Label prefix: WP. Extra alpha: c. Sort initial: Z. Sort initial hash: hash-zed.',
+            $processor->renderBibliographyEntry('label-prefix-zed')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="label-prefix"/>
+      <key variable="sort-initial"/>
+      <key variable="sort-key"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="label-prefix"/>
+        <text variable="extra-alpha"/>
+        <text variable="sort-initial"/>
+        <text variable="sort-initial-hash"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="label-prefix"/>
+      <key variable="sort-initial"/>
+      <key variable="sort-key"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="labelprefix"/>
+      <text variable="extraalpha"/>
+      <text variable="sortinit"/>
+      <text variable="sortinithash"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $cluster = [
+            $citation('label-prefix-zed', '[@label-prefix-zed]'),
+            $citation('label-prefix-adams', '[@label-prefix-adams]'),
+        ];
+        $t->same('[Adams | Media | a | A | hash-adams; Zed | WP | c | Z | hash-zed]', $styled->renderCitationCluster($cluster));
+        $t->same('Zed Prefix Source :: WP :: c :: Z :: hash-zed', $styled->renderBibliographyEntry('label-prefix-zed'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-label-prefix',
+            'title' => 'Direct Label Prefix Source',
+            'labelprefix' => 'Direct',
+            'extraalpha' => 'd',
+            'sortinit' => 'D',
+            'sortinithash' => 'hash-direct',
+        ]])->item('direct-label-prefix');
+        $t->same('Direct', $direct['labelPrefix'] ?? null);
+        $t->same('d', $direct['extraAlpha'] ?? null);
+        $t->same('D', $direct['sortInitial'] ?? null);
+        $t->same('hash-direct', $direct['sortInitialHash'] ?? null);
+
+        $document = (new MarkdownReader())->read('Label-prefix source [@label-prefix-zed; @label-prefix-adams] keeps generated bibliography grouping visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Label-prefix source [Adams | Media | a | A | hash-adams; Zed | WP | c | Z | hash-zed] keeps generated bibliography grouping visible.</p>', $blocks);
+        $adamsPosition = strpos($blocks, '<dt>Adams 2025</dt><dd>Adams Prefix Source :: Media :: a :: A :: hash-adams</dd>');
+        $zedPosition = strpos($blocks, '<dt>Zed 2026</dt><dd>Zed Prefix Source :: WP :: c :: Z :: hash-zed</dd>');
+        $t->true(is_int($adamsPosition) && is_int($zedPosition) && $adamsPosition < $zedPosition, 'Label-prefix sort should order WordPress bibliography review entries');
+    },
     'maps bounded biblatex index title fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{index-title-manual,
