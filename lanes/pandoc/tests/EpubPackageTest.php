@@ -731,6 +731,126 @@ return [
         $t->same($policy['diagnostics'], $summary['wordpressImport']['remoteResourcePolicyDiagnostics']);
     },
 
+    'summarizes OPF media-overlay preflight without running playback' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMediaOverlay = str_replace(
+            '</metadata>',
+            '    <meta property="media:duration">0:00:07.000</meta>
+    <meta property="media:duration" refines="#mo-chapter">0:00:07.000</meta>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithMediaOverlay = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image" media-overlay="missing-overlay"/>',
+            $opfWithMediaOverlay
+        );
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" media-overlay="mo-chapter"/>',
+            $opfWithMediaOverlay
+        );
+        $opfWithMediaOverlay = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml" media-overlay="bad-overlay"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+    <item id="mo-chapter" href="overlays/chapter.smil" media-type="application/smil+xml"/>
+    <item id="bad-overlay" href="styles/book.css" media-type="text/css"/>',
+            $opfWithMediaOverlay
+        );
+
+        $smil = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <seq id="chapter-seq">
+      <par id="intro">
+        <text src="../text/chapter1.xhtml#intro"/>
+        <audio src="../audio/chapter.mp3" clipBegin="0:00:00.000" clipEnd="0:00:04.250"/>
+      </par>
+      <par id="remote-note">
+        <text src="../text/missing.xhtml"/>
+        <audio src="https://cdn.example.test/audio/review.mp3" clipBegin="4.25s" clipEnd="7s"/>
+      </par>
+      <par id="invalid-clip">
+        <text src="../text/chapter2.xhtml"/>
+        <audio src="../audio/chapter.mp3" clipBegin="bad-clock" clipEnd="6s"/>
+      </par>
+    </seq>
+  </body>
+</smil>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMediaOverlay],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="intro">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/overlays/chapter.smil', 'data' => $smil],
+        ]));
+
+        $overlays = $epub->mediaOverlays();
+        $summary = $epub->summary();
+        $chapter = $overlays['itemsById']['mo-chapter'];
+        $bad = $overlays['itemsById']['bad-overlay'];
+        $missing = $overlays['itemsById']['missing-overlay'];
+
+        $t->same('mo-chapter', $epub->manifestItem('chapter1')['mediaOverlay']);
+        $t->same('mo-chapter', $epub->spine()[0]['mediaOverlay']);
+        $t->same(true, $overlays['present']);
+        $t->same(3, $overlays['overlayCount']);
+        $t->same(3, $overlays['referencedContentItemCount']);
+        $t->same(2, $overlays['resolvedOverlayCount']);
+        $t->same(1, $overlays['missingOverlayCount']);
+        $t->same(2, $overlays['durationCount']);
+
+        $t->same('mo-chapter', $chapter['id']);
+        $t->same('/EPUB/overlays/chapter.smil', $chapter['partName']);
+        $t->same('application/smil+xml', $chapter['mediaType']);
+        $t->same(true, $chapter['exists']);
+        $t->same(strlen($smil), $chapter['byteLength']);
+        $t->same(hash('crc32b', $smil), $chapter['crc32']);
+        $t->same(['chapter1'], $chapter['referencedByIds']);
+        $t->same('0:00:07.000', $chapter['duration']);
+        $t->same(7.0, $chapter['durationSeconds']);
+        $t->same(3, $chapter['itemCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml#intro', '/EPUB/text/missing.xhtml', '/EPUB/text/chapter2.xhtml'], $chapter['textTargets']);
+        $t->same(['/EPUB/audio/chapter.mp3', 'https://cdn.example.test/audio/review.mp3'], $chapter['audioTargets']);
+        $t->same('/EPUB/text/chapter1.xhtml#intro', $chapter['items'][0]['textTarget']);
+        $t->same('chapter1', $chapter['items'][0]['textManifestId']);
+        $t->same('/EPUB/audio/chapter.mp3', $chapter['items'][0]['audioTarget']);
+        $t->same('audio', $chapter['items'][0]['audioManifestId']);
+        $t->same(4.25, $chapter['items'][0]['clipDurationSeconds']);
+        $t->same('missing-media-overlay-text-reference', $chapter['items'][1]['diagnostics'][0]['type']);
+        $t->same('external-media-overlay-audio-reference', $chapter['items'][1]['diagnostics'][1]['type']);
+        $t->same(2.75, $chapter['items'][1]['clipDurationSeconds']);
+        $t->same('invalid-media-overlay-clip-begin', $chapter['items'][2]['diagnostics'][0]['type']);
+
+        $t->same('unexpected-media-overlay-type', $bad['diagnostics'][0]['type']);
+        $t->same('text/css', $bad['mediaType']);
+        $t->same('missing-media-overlay-manifest-item', $missing['diagnostics'][0]['type']);
+        $t->same(['missing-overlay', 'mo-chapter', 'bad-overlay'], array_column($overlays['items'], 'id'));
+        $t->same(['/EPUB/text/chapter1.xhtml#intro', '/EPUB/text/missing.xhtml', '/EPUB/text/chapter2.xhtml'], $overlays['textTargets']);
+        $t->same(['/EPUB/audio/chapter.mp3', 'https://cdn.example.test/audio/review.mp3'], $overlays['audioTargets']);
+        $t->same([
+            'missing-media-overlay-manifest-item',
+            'missing-media-overlay-text-reference',
+            'external-media-overlay-audio-reference',
+            'invalid-media-overlay-clip-begin',
+            'unexpected-media-overlay-type',
+        ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $overlays['diagnostics']));
+
+        $t->same($overlays, $summary['mediaOverlays']);
+        $t->same($overlays, $summary['wordpressImport']['mediaOverlays']);
+        $t->same($overlays['items'], $summary['wordpressImport']['mediaOverlayItems']);
+        $t->same($overlays['textTargets'], $summary['wordpressImport']['mediaOverlayTargets']);
+        $t->same($overlays['audioTargets'], $summary['wordpressImport']['mediaOverlayAudioTargets']);
+        $t->same($overlays['diagnostics'], $summary['wordpressImport']['mediaOverlayDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

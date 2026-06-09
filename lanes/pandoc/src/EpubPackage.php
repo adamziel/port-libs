@@ -12,10 +12,12 @@ final class EpubPackage
     public const EPUB_OPS_NAMESPACE = 'http://www.idpf.org/2007/ops';
     public const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
     public const NCX_NAMESPACE = 'http://www.daisy.org/z3986/2005/ncx/';
+    public const SMIL_NAMESPACE = 'http://www.w3.org/ns/SMIL';
     public const EPUB_MIMETYPE = 'application/epub+zip';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
     public const NCX_MEDIA_TYPE = 'application/x-dtbncx+xml';
+    public const SMIL_MEDIA_TYPE = 'application/smil+xml';
     private const RESERVED_PACKAGE_PREFIXES = [
         'a11y' => 'http://www.idpf.org/epub/vocab/package/a11y/#',
         'dcterms' => 'http://purl.org/dc/terms/',
@@ -29,12 +31,13 @@ final class EpubPackage
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $packageLinks
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
-     * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestItems
-     * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}> $spine
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
+     * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestItems
+     * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}> $spine
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
+     * @param array<string, mixed> $mediaOverlays
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
@@ -50,6 +53,7 @@ final class EpubPackage
         private readonly array $guideReferences,
         private readonly array $collections,
         private readonly array $bindings,
+        private readonly array $mediaOverlays,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
     ) {
@@ -100,6 +104,7 @@ final class EpubPackage
             $opf['guideReferences'],
             $opf['collections'],
             $opf['bindings'],
+            $opf['mediaOverlays'],
             $navigation['navigation'],
             $navigation['sections'],
         );
@@ -140,7 +145,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>
+     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
      */
     public function manifestItems(): array
     {
@@ -148,7 +153,7 @@ final class EpubPackage
     }
 
     /**
-     * @return array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}|null
+     * @return array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}|null
      */
     public function manifestItem(string $id): ?array
     {
@@ -156,7 +161,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>
+     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
      */
     public function spine(): array
     {
@@ -164,7 +169,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>
+     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
      */
     public function readingOrder(): array
     {
@@ -196,6 +201,14 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function mediaOverlays(): array
+    {
+        return $this->mediaOverlays;
+    }
+
+    /**
      * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
      */
     public function navigation(): ?array
@@ -212,7 +225,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>
+     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
      */
     public function xhtmlAssets(): array
     {
@@ -287,6 +300,7 @@ final class EpubPackage
             ? $this->metadata['linkVocabulary']
             : self::metadataLinkVocabularySummary($this->packageLinks);
         $remoteResourcePolicy = $this->remoteResourcePolicy();
+        $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
 
         return [
             'opfPart' => $this->opfPartName,
@@ -302,6 +316,7 @@ final class EpubPackage
             'guide' => $this->guideReferences,
             'collections' => $this->collections,
             'bindings' => $this->bindings,
+            'mediaOverlays' => $this->mediaOverlays,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
@@ -347,6 +362,11 @@ final class EpubPackage
                 'remoteResourcePolicyDiagnostics' => $remoteResourcePolicy['diagnostics'],
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
+                'mediaOverlays' => $this->mediaOverlays,
+                'mediaOverlayItems' => $this->mediaOverlays['items'],
+                'mediaOverlayTargets' => $this->mediaOverlays['textTargets'],
+                'mediaOverlayAudioTargets' => $this->mediaOverlays['audioTargets'],
+                'mediaOverlayDiagnostics' => $mediaOverlayDiagnostics,
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
@@ -462,6 +482,7 @@ final class EpubPackage
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
+        $mediaOverlays = self::parseMediaOverlays($manifestById, $metadata, $package);
 
         return [
             'metadata' => $metadata,
@@ -472,6 +493,7 @@ final class EpubPackage
             'guideReferences' => $guideReferences,
             'collections' => $collections,
             'bindings' => $bindings,
+            'mediaOverlays' => $mediaOverlays,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
     }
@@ -1205,8 +1227,8 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
-     *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>
+     *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>,
+     *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
      * }
      */
     private static function parseManifest(\DOMElement $manifestElement, string $opfPartName, ZipPackage $package): array
@@ -1243,6 +1265,7 @@ final class EpubPackage
                 'mediaType' => $mediaType,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
+                'mediaOverlay' => $itemElement->hasAttribute('media-overlay') ? $itemElement->getAttribute('media-overlay') : null,
             ];
 
             $byId[$id] = $item;
@@ -1257,9 +1280,9 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
      *
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>
+     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
      */
     private static function parseSpine(\DOMElement $spineElement, array $manifestById): array
     {
@@ -1282,6 +1305,7 @@ final class EpubPackage
                 'mediaType' => $item['mediaType'],
                 'linear' => strtolower($itemrefElement->getAttribute('linear')) !== 'no',
                 'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
+                'mediaOverlay' => $item['mediaOverlay'] ?? null,
             ];
         }
 
@@ -1481,9 +1505,9 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
      *
-     * @return array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>
+     * @return array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
      */
     private static function manifestByPart(array $manifestById): array
     {
@@ -1496,7 +1520,7 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestByPart
      *
      * @return list<array<string, mixed>>
      */
@@ -1516,7 +1540,7 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestByPart
      *
      * @return array<string, mixed>
      */
@@ -1614,7 +1638,7 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
      *
      * @return list<array<string, mixed>>
      */
@@ -2273,6 +2297,512 @@ final class EpubPackage
             'policy' => $policy,
             'diagnostics' => is_array($link['diagnostics'] ?? null) ? array_values($link['diagnostics']) : [],
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseMediaOverlays(array $manifestById, array $metadata, ZipPackage $package): array
+    {
+        $manifestByPart = self::manifestByPart($manifestById);
+        $durationReport = self::mediaOverlayDurationReport($metadata);
+        $referencedByOverlay = [];
+        foreach ($manifestById as $item) {
+            $mediaOverlay = self::emptyToNull((string) ($item['mediaOverlay'] ?? ''));
+            if ($mediaOverlay === null) {
+                continue;
+            }
+
+            $referencedByOverlay[$mediaOverlay][] = [
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'partName' => (string) ($item['partName'] ?? ''),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'linear' => null,
+            ];
+        }
+
+        $items = [];
+        $itemsById = [];
+        $textTargets = [];
+        $audioTargets = [];
+        $diagnostics = $durationReport['diagnostics'];
+
+        foreach ($referencedByOverlay as $overlayId => $referencedBy) {
+            $overlay = $manifestById[$overlayId] ?? null;
+            if (!is_array($overlay)) {
+                $item = [
+                    'id' => $overlayId,
+                    'href' => null,
+                    'partName' => null,
+                    'mediaType' => null,
+                    'exists' => false,
+                    'byteLength' => null,
+                    'crc32' => null,
+                    'referencedBy' => $referencedBy,
+                    'referencedByIds' => array_values(array_map(
+                        static fn (array $reference): string => (string) ($reference['id'] ?? ''),
+                        $referencedBy,
+                    )),
+                    'duration' => $durationReport['overlaysById'][$overlayId]['duration'] ?? null,
+                    'durationSeconds' => $durationReport['overlaysById'][$overlayId]['durationSeconds'] ?? null,
+                    'items' => [],
+                    'itemCount' => 0,
+                    'textTargets' => [],
+                    'audioTargets' => [],
+                    'diagnostics' => [[
+                        'type' => 'missing-media-overlay-manifest-item',
+                        'id' => $overlayId,
+                        'message' => 'EPUB OPF media-overlay attribute references an item id that is not in the manifest',
+                    ]],
+                ];
+                $items[] = $item;
+                $itemsById[$overlayId] = $item;
+                array_push($diagnostics, ...self::mediaOverlayItemDiagnostics($item));
+                continue;
+            }
+
+            $item = self::parseMediaOverlayItem(
+                $overlay,
+                $referencedBy,
+                is_array($durationReport['overlaysById'][$overlayId] ?? null) ? $durationReport['overlaysById'][$overlayId] : null,
+                $package,
+                $manifestByPart,
+            );
+            $items[] = $item;
+            $itemsById[$overlayId] = $item;
+            array_push($textTargets, ...$item['textTargets']);
+            array_push($audioTargets, ...$item['audioTargets']);
+            array_push($diagnostics, ...self::mediaOverlayItemDiagnostics($item));
+        }
+
+        return [
+            'present' => $items !== [],
+            'overlayCount' => count($items),
+            'referencedContentItemCount' => array_sum(array_map(
+                static fn (array $item): int => count(is_array($item['referencedBy'] ?? null) ? $item['referencedBy'] : []),
+                $items,
+            )),
+            'resolvedOverlayCount' => count(array_filter($items, static fn (array $item): bool => ($item['exists'] ?? false) === true)),
+            'missingOverlayCount' => count(array_filter($items, static fn (array $item): bool => ($item['exists'] ?? false) !== true)),
+            'durationCount' => count($durationReport['items']),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'textTargets' => array_values(array_unique($textTargets)),
+            'audioTargets' => array_values(array_unique($audioTargets)),
+            'durations' => $durationReport,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array{present:bool, items:list<array<string, mixed>>, overlaysById:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}
+     */
+    private static function mediaOverlayDurationReport(array $metadata): array
+    {
+        $entries = is_array($metadata['metaProperties']['media:duration'] ?? null)
+            ? array_values($metadata['metaProperties']['media:duration'])
+            : [];
+        $items = [];
+        $overlaysById = [];
+        $diagnostics = [];
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $duration = (string) ($entry['content'] ?? $entry['text'] ?? '');
+            $seconds = self::smilClockSeconds($duration);
+            $subjectId = is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null;
+            $itemDiagnostics = [];
+            if ($seconds === null) {
+                $itemDiagnostics[] = [
+                    'type' => 'invalid-media-duration-clock',
+                    'duration' => $duration,
+                    'message' => 'EPUB media:duration must be a bounded SMIL clock value',
+                ];
+            }
+
+            $item = [
+                'index' => $index,
+                'scope' => $subjectId === null ? 'publication' : 'media-overlay',
+                'subjectId' => $subjectId,
+                'refines' => is_string($entry['refines'] ?? null) ? $entry['refines'] : null,
+                'duration' => $duration,
+                'durationSeconds' => $seconds,
+                'validClock' => $seconds !== null,
+                'diagnostics' => $itemDiagnostics,
+            ];
+
+            if ($subjectId !== null && !isset($overlaysById[$subjectId])) {
+                $overlaysById[$subjectId] = $item;
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $diagnostics[] = ['index' => $index] + $diagnostic;
+            }
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $items !== [],
+            'items' => $items,
+            'overlaysById' => $overlaysById,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $overlay
+     * @param list<array<string, mixed>> $referencedBy
+     * @param array<string, mixed>|null $duration
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseMediaOverlayItem(
+        array $overlay,
+        array $referencedBy,
+        ?array $duration,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $partName = (string) ($overlay['partName'] ?? '');
+        $mediaType = (string) ($overlay['mediaType'] ?? '');
+        $entry = $partName !== '' && $package->has($partName) ? $package->entry($partName) : null;
+        $diagnostics = [];
+        $timelineItems = [];
+
+        if ($mediaType !== self::SMIL_MEDIA_TYPE) {
+            $diagnostics[] = [
+                'type' => 'unexpected-media-overlay-type',
+                'id' => (string) ($overlay['id'] ?? ''),
+                'mediaType' => $mediaType,
+                'message' => 'EPUB media-overlay manifest item should use application/smil+xml',
+            ];
+        }
+
+        if (!$entry instanceof ZipPackageEntry) {
+            $diagnostics[] = [
+                'type' => 'missing-media-overlay-part',
+                'id' => (string) ($overlay['id'] ?? ''),
+                'partName' => $partName,
+                'message' => 'EPUB media-overlay SMIL part is missing from the package',
+            ];
+        } elseif ($mediaType === self::SMIL_MEDIA_TYPE) {
+            try {
+                $timelineItems = self::parseMediaOverlaySmil($package->read($partName), $partName, $package, $manifestByPart);
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'media-overlay-scan-failed',
+                    'id' => (string) ($overlay['id'] ?? ''),
+                    'partName' => $partName,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        $textTargets = [];
+        $audioTargets = [];
+        foreach ($timelineItems as $item) {
+            $textTarget = $item['textTarget'] ?? null;
+            if (is_string($textTarget) && $textTarget !== '') {
+                $textTargets[] = $textTarget;
+            }
+            $audioTarget = $item['audioTarget'] ?? null;
+            if (is_string($audioTarget) && $audioTarget !== '') {
+                $audioTargets[] = $audioTarget;
+            }
+        }
+
+        return [
+            'id' => (string) ($overlay['id'] ?? ''),
+            'href' => (string) ($overlay['href'] ?? ''),
+            'partName' => $partName,
+            'mediaType' => $mediaType,
+            'exists' => $entry instanceof ZipPackageEntry,
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'referencedBy' => $referencedBy,
+            'referencedByIds' => array_values(array_map(
+                static fn (array $reference): string => (string) ($reference['id'] ?? ''),
+                $referencedBy,
+            )),
+            'duration' => is_array($duration) ? $duration['duration'] : null,
+            'durationSeconds' => is_array($duration) ? $duration['durationSeconds'] : null,
+            'items' => $timelineItems,
+            'itemCount' => count($timelineItems),
+            'textTargets' => array_values(array_unique($textTargets)),
+            'audioTargets' => array_values(array_unique($audioTargets)),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function parseMediaOverlaySmil(
+        string $xml,
+        string $smilPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $dom = self::loadXml($xml, 'EPUB media-overlay SMIL document');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'smil' || $root->namespaceURI !== self::SMIL_NAMESPACE) {
+            throw new \InvalidArgumentException('EPUB media-overlay SMIL document must use the SMIL namespace');
+        }
+
+        $items = [];
+        foreach ($root->getElementsByTagNameNS(self::SMIL_NAMESPACE, 'par') as $par) {
+            if (!$par instanceof \DOMElement) {
+                continue;
+            }
+
+            $text = self::firstChildElement($par, 'text', self::SMIL_NAMESPACE);
+            $audio = self::firstChildElement($par, 'audio', self::SMIL_NAMESPACE);
+            $textSrc = $text instanceof \DOMElement ? self::emptyToNull($text->getAttribute('src')) : null;
+            $audioSrc = $audio instanceof \DOMElement ? self::emptyToNull($audio->getAttribute('src')) : null;
+            $textReference = self::mediaOverlayReference($textSrc, $smilPartName, $package, $manifestByPart, 'text');
+            $audioReference = self::mediaOverlayReference($audioSrc, $smilPartName, $package, $manifestByPart, 'audio');
+            $clipBegin = $audio instanceof \DOMElement ? self::emptyToNull($audio->getAttribute('clipBegin')) : null;
+            $clipEnd = $audio instanceof \DOMElement ? self::emptyToNull($audio->getAttribute('clipEnd')) : null;
+            $clip = self::mediaOverlayClipTiming($clipBegin, $clipEnd);
+
+            $items[] = [
+                'index' => count($items),
+                'id' => self::emptyToNull($par->getAttribute('id')),
+                'textSrc' => $textSrc,
+                'textTarget' => $textReference['target'],
+                'textPartName' => $textReference['partName'],
+                'textExists' => $textReference['exists'],
+                'textManifestId' => $textReference['manifestId'],
+                'audioSrc' => $audioSrc,
+                'audioTarget' => $audioReference['target'],
+                'audioPartName' => $audioReference['partName'],
+                'audioExists' => $audioReference['exists'],
+                'audioExternal' => $audioReference['external'],
+                'audioManifestId' => $audioReference['manifestId'],
+                'clipBegin' => $clipBegin,
+                'clipBeginSeconds' => $clip['clipBeginSeconds'],
+                'clipEnd' => $clipEnd,
+                'clipEndSeconds' => $clip['clipEndSeconds'],
+                'clipDurationSeconds' => $clip['clipDurationSeconds'],
+                'clipValid' => $clip['valid'],
+                'diagnostics' => array_merge($textReference['diagnostics'], $audioReference['diagnostics'], $clip['diagnostics']),
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array{target:?string, partName:?string, exists:bool, external:bool, manifestId:?string, diagnostics:list<array<string, mixed>>}
+     */
+    private static function mediaOverlayReference(
+        ?string $href,
+        string $smilPartName,
+        ZipPackage $package,
+        array $manifestByPart,
+        string $kind
+    ): array {
+        if ($href === null) {
+            return [
+                'target' => null,
+                'partName' => null,
+                'exists' => false,
+                'external' => false,
+                'manifestId' => null,
+                'diagnostics' => [[
+                    'type' => 'missing-media-overlay-' . $kind . '-reference',
+                    'message' => 'EPUB media-overlay par is missing a ' . $kind . ' source reference',
+                ]],
+            ];
+        }
+
+        try {
+            $target = self::resolvePackageHref($smilPartName, $href);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'partName' => null,
+                'exists' => false,
+                'external' => false,
+                'manifestId' => null,
+                'diagnostics' => [[
+                    'type' => 'invalid-media-overlay-' . $kind . '-reference',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        if (self::isAbsoluteUri($target)) {
+            return [
+                'target' => $target,
+                'partName' => null,
+                'exists' => false,
+                'external' => true,
+                'manifestId' => null,
+                'diagnostics' => [[
+                    'type' => 'external-media-overlay-' . $kind . '-reference',
+                    'href' => $href,
+                    'message' => 'EPUB media-overlay ' . $kind . ' reference points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        $partName = OpcPackagePath::stripQueryAndFragment($target);
+        $exists = $package->has($partName);
+        $manifestItem = $manifestByPart[$partName] ?? null;
+        $diagnostics = [];
+        if (!$exists) {
+            $diagnostics[] = [
+                'type' => 'missing-media-overlay-' . $kind . '-reference',
+                'href' => $href,
+                'partName' => $partName,
+                'message' => 'EPUB media-overlay ' . $kind . ' reference targets a missing package part',
+            ];
+        }
+
+        return [
+            'target' => $target,
+            'partName' => $partName,
+            'exists' => $exists,
+            'external' => false,
+            'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{clipBeginSeconds:?float, clipEndSeconds:?float, clipDurationSeconds:?float, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function mediaOverlayClipTiming(?string $clipBegin, ?string $clipEnd): array
+    {
+        $beginSeconds = $clipBegin === null ? null : self::smilClockSeconds($clipBegin);
+        $endSeconds = $clipEnd === null ? null : self::smilClockSeconds($clipEnd);
+        $diagnostics = [];
+
+        if ($clipBegin !== null && $beginSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-overlay-clip-begin',
+                'clipBegin' => $clipBegin,
+                'message' => 'EPUB media-overlay clipBegin must be a bounded SMIL clock value',
+            ];
+        }
+        if ($clipEnd !== null && $endSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-media-overlay-clip-end',
+                'clipEnd' => $clipEnd,
+                'message' => 'EPUB media-overlay clipEnd must be a bounded SMIL clock value',
+            ];
+        }
+        if ($beginSeconds !== null && $endSeconds !== null && $endSeconds < $beginSeconds) {
+            $diagnostics[] = [
+                'type' => 'media-overlay-clip-end-before-begin',
+                'clipBegin' => $clipBegin,
+                'clipEnd' => $clipEnd,
+                'clipBeginSeconds' => $beginSeconds,
+                'clipEndSeconds' => $endSeconds,
+                'message' => 'EPUB media-overlay clipEnd must not be earlier than clipBegin',
+            ];
+        }
+
+        return [
+            'clipBeginSeconds' => $beginSeconds,
+            'clipEndSeconds' => $endSeconds,
+            'clipDurationSeconds' => $beginSeconds !== null && $endSeconds !== null && $endSeconds >= $beginSeconds
+                ? $endSeconds - $beginSeconds
+                : null,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function smilClockSeconds(string $clock): ?float
+    {
+        $value = trim($clock);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^\d+(?:\.\d+)?ms$/', $value) === 1) {
+            return (float) substr($value, 0, -2) / 1000;
+        }
+        if (preg_match('/^\d+(?:\.\d+)?s$/', $value) === 1) {
+            return (float) substr($value, 0, -1);
+        }
+        if (preg_match('/^\d+(?:\.\d+)?$/', $value) === 1) {
+            return (float) $value;
+        }
+        if (preg_match('/^(\d+):([0-5]?\d):([0-5]?\d(?:\.\d+)?)$/', $value, $match) === 1) {
+            return ((int) $match[1] * 3600) + ((int) $match[2] * 60) + (float) $match[3];
+        }
+        if (preg_match('/^(\d+):([0-5]?\d(?:\.\d+)?)$/', $value, $match) === 1) {
+            return ((int) $match[1] * 60) + (float) $match[2];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $mediaOverlays
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function mediaOverlayDiagnostics(array $mediaOverlays): array
+    {
+        $diagnostics = [];
+        foreach (is_array($mediaOverlays['diagnostics'] ?? null) ? $mediaOverlays['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $diagnostics[] = $diagnostic;
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function mediaOverlayItemDiagnostics(array $item): array
+    {
+        $diagnostics = [];
+        foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $diagnostics[] = [
+                    'overlayId' => $item['id'] ?? null,
+                ] + $diagnostic;
+            }
+        }
+        foreach (is_array($item['items'] ?? null) ? $item['items'] : [] as $par) {
+            foreach (is_array($par['diagnostics'] ?? null) ? $par['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'overlayId' => $item['id'] ?? null,
+                    'itemIndex' => $par['index'] ?? null,
+                    'itemId' => $par['id'] ?? null,
+                ] + $diagnostic;
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**

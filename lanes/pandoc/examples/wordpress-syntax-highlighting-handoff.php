@@ -586,6 +586,12 @@ if (!$agdaCodeBlock instanceof PortLibs\Pandoc\AstNode || $agdaCodeBlock->type !
 }
 $agda = $highlighter->highlightCodeBlock($agdaCodeBlock, 'espresso');
 $agdaWordpressBlock = $highlighter->wordpressHtmlBlock($agdaCodeBlock, 'espresso');
+$purescriptCodeBlock = $document->children[94] ?? null;
+if (!$purescriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $purescriptCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a PureScript review code block');
+}
+$purescript = $highlighter->highlightCodeBlock($purescriptCodeBlock, 'espresso');
+$purescriptWordpressBlock = $highlighter->wordpressHtmlBlock($purescriptCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2597,6 +2603,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($agdaWordpressBlock, '<span class="kw">postulate</span>')) {
         throw new RuntimeException('Expected Agda postulate token handoff');
     }
+    if (($purescript['language'] ?? '') !== 'purescript') {
+        throw new RuntimeException('Expected PureScript language alias handoff');
+    }
+    if (($purescript['requestedLanguage'] ?? '') !== 'purs') {
+        throw new RuntimeException('Expected PureScript requested-language metadata');
+    }
+    if (($purescript['lineNumbering']['start'] ?? null) !== 1565) {
+        throw new RuntimeException('Expected PureScript line-number start handoff');
+    }
+    if (!str_contains($purescript['html'], '<span class="kw">module</span> <span class="dt">WP.Import.Review</span>')) {
+        throw new RuntimeException('Expected PureScript module token handoff');
+    }
+    if (!str_contains($purescript['html'], '<span class="fu">normalizeTitle</span> <span class="op">::</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>')) {
+        throw new RuntimeException('Expected PureScript type signature token handoff');
+    }
+    if (!str_contains($purescriptWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected PureScript WordPress style metadata');
+    }
+    if (!str_contains($purescriptWordpressBlock, '<span class="ot">blocks</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">]</span>')) {
+        throw new RuntimeException('Expected PureScript record-literal token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2708,6 +2735,8 @@ echo "nimHighlightedHtml:\n" . $nim['html'] . "\n";
 echo "vHighlightedHtml:\n" . $v['html'] . "\n";
 echo "idrisHighlightedHtml:\n" . $idris['html'] . "\n";
 echo "coqHighlightedHtml:\n" . $coq['html'] . "\n";
+echo "agdaHighlightedHtml:\n" . $agda['html'] . "\n";
+echo "purescriptHighlightedHtml:\n" . $purescript['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2790,4 +2819,6 @@ echo "nimWordpressBlock:\n" . $nimWordpressBlock . "\n";
 echo "vWordpressBlock:\n" . $vWordpressBlock . "\n";
 echo "idrisWordpressBlock:\n" . $idrisWordpressBlock . "\n";
 echo "coqWordpressBlock:\n" . $coqWordpressBlock . "\n";
+echo "agdaWordpressBlock:\n" . $agdaWordpressBlock . "\n";
+echo "purescriptWordpressBlock:\n" . $purescriptWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

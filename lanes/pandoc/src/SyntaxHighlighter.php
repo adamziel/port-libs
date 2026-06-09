@@ -314,6 +314,10 @@ final class SyntaxHighlighter
         'powershell' => 'powershell',
         'p6' => 'raku',
         'php' => 'php',
+        'pure-script' => 'purescript',
+        'purescript' => 'purescript',
+        'purescript-source' => 'purescript',
+        'purs' => 'purescript',
         'proto' => 'protobuf',
         'proto2' => 'protobuf',
         'proto3' => 'protobuf',
@@ -907,6 +911,7 @@ final class SyntaxHighlighter
             'php' => $this->tokenizePhp($code),
             'powershell' => $this->tokenizePowerShell($code),
             'protobuf' => $this->tokenizeProtobuf($code),
+            'purescript' => $this->tokenizePureScript($code),
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
             'raku' => $this->tokenizeRaku($code),
@@ -3549,6 +3554,29 @@ final class SyntaxHighlighter
             ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
             ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizePureScript(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{-[\\s\\S]*?-\\}/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['keyword', '/^\\b(?:ado|as|case|class|data|derive|do|else|forall|foreign|hiding|if|import|in|infix|infixl|infixr|instance|let|module|newtype|of|then|type|where)\\b/'],
+            ['constant', '/^\\b(?:EQ|False|GT|Just|LT|Left|Nothing|Right|True|false|true|unit)\\b/'],
+            ['datatype', '/^\\b(?:Array|Boolean|Effect|Either|Int|List|Maybe|Number|String|Unit)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?:\\.[A-Z][A-Za-z0-9_\']*)*\\b/'],
+            ['attribute', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*:)(?!\\s*::)/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*::)/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s+(?!(?:as|else|hiding|in|of|then|where)\\b)(?:[A-Za-z_(\\"\\d]))/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d[\\d_]*)?)\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|\\+\\+|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
         ]);
     }
 

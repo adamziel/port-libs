@@ -1843,3 +1843,26 @@ normalizeTitle packet with ReviewPacket.title packet
 postulate
   normalizeTitleIdempotent : (packet : ReviewPacket) -> normalizeTitle packet == normalizeTitle packet
 ```
+
+``` {.purs #purescript-review .numberLines startFrom=1565}
+-- PureScript WordPress import review
+module WP.Import.Review where
+
+import Effect (Effect)
+import Data.Maybe (Maybe(..), fromMaybe)
+
+newtype ReviewPacket = ReviewPacket
+  { sourceId :: Int
+  , title :: Maybe String
+  , blocks :: Array String
+  }
+
+normalizeTitle :: ReviewPacket -> String
+normalizeTitle (ReviewPacket packet) =
+  case packet.title of
+    Just raw -> raw
+    Nothing -> "Untitled"
+
+queueReview :: String -> Effect ReviewPacket
+queueReview raw = pure (ReviewPacket { sourceId: 42, title: Just raw, blocks: ["core/paragraph"] })
+```

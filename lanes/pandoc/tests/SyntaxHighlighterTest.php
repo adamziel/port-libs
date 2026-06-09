@@ -4713,6 +4713,55 @@ return [
         $t->contains('<span class="kw">module</span> <span class="dt">Review</span> <span class="kw">where</span>', $directAgda['html']);
         $t->contains('<span class="kw">postulate</span> <span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directAgda['html']);
     },
+    'highlights purescript review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[94] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a PureScript review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directPureScript = $highlighter->highlight(
+            'normalizeTitle :: ReviewPacket -> String' . "\n" . 'normalizeTitle packet = fromMaybe "Untitled" packet.title',
+            'purescript'
+        );
+
+        $t->same('purs', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('purescript', SyntaxHighlighter::normalizeLanguage('purescript'));
+        $t->same('purescript', SyntaxHighlighter::normalizeLanguage('purs'));
+        $t->same('purescript', SyntaxHighlighter::normalizeLanguage('language-purescript-source'));
+        $t->same('purescript', $highlighted['language']);
+        $t->same('purs', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1565, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource purs numberLines"><code class="sourceCode purescript" style="counter-reset: source-line 1564;">', $highlighted['html']);
+        $t->contains('<span id="purescript-review-1565"><a href="#purescript-review-1565"></a><span class="co">-- PureScript WordPress import review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">WP.Import.Review</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="dt">Effect</span> <span class="op">(</span><span class="dt">Effect</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">newtype</span> <span class="dt">ReviewPacket</span> <span class="op">=</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="fu">sourceId</span> <span class="op">::</span> <span class="dt">Int</span>', $highlighted['html']);
+        $t->contains('<span class="fu">title</span> <span class="op">::</span> <span class="dt">Maybe</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="op">::</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="kw">case</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span> <span class="kw">of</span>', $highlighted['html']);
+        $t->contains('<span class="cn">Just</span> <span class="va">raw</span> <span class="op">-&gt;</span> <span class="fu">raw</span>', $highlighted['html']);
+        $t->contains('<span class="cn">Nothing</span> <span class="op">-&gt;</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">queueReview</span> <span class="op">::</span> <span class="dt">String</span> <span class="op">-&gt;</span> <span class="dt">Effect</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="ot">sourceId</span><span class="op">:</span> <span class="dv">42</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="ot">blocks</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">]</span>', $wordpressBlock);
+        $t->same('purescript', $directPureScript['language']);
+        $t->same('purescript', $directPureScript['requestedLanguage']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="op">::</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directPureScript['html']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="va">packet</span> <span class="op">=</span> <span class="fu">fromMaybe</span> <span class="st">&quot;Untitled&quot;</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span>', $directPureScript['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

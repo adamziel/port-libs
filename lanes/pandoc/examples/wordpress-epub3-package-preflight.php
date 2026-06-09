@@ -27,6 +27,8 @@ $opfXml = <<<'XML'
     <meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
     <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
     <meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta property="media:duration">0:00:04.000</meta>
+    <meta property="media:duration" refines="#mo-intro">0:00:04.000</meta>
     <link id="review-record" rel="record alternate schema:associatedMedia https://example.invalid/link-rel#review record" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org review:packet https://example.invalid/props#review" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.invalid/onix.xml" media-type="application/xml" properties="onix"/>
     <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg" properties="pronunciation"/>
@@ -34,11 +36,13 @@ $opfXml = <<<'XML'
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="chapter1" href="chapters/intro.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter1" href="chapters/intro.xhtml" media-type="application/xhtml+xml" media-overlay="mo-intro"/>
     <item id="chapter2" href="chapters/review.xhtml" media-type="application/xhtml+xml"/>
     <item id="cover" href="media/cover.png" media-type="image/png" properties="cover-image"/>
     <item id="css" href="styles/import.css" media-type="text/css"/>
     <item id="creator-audio" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
+    <item id="intro-audio" href="audio/intro.mp3" media-type="audio/mpeg"/>
+    <item id="mo-intro" href="overlays/intro.smil" media-type="application/smil+xml"/>
     <item id="review-widget" href="widgets/review-widget.bin" media-type="application/x-wordpress-review-widget"/>
     <item id="review-widget-handler" href="widgets/review-widget.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
   </manifest>
@@ -88,6 +92,17 @@ $navXml = <<<'XML'
 </html>
 XML;
 
+$smilXml = <<<'XML'
+<smil xmlns="http://www.w3.org/ns/SMIL">
+  <body>
+    <par id="intro-audio">
+      <text src="../chapters/intro.xhtml"/>
+      <audio src="../audio/intro.mp3" clipBegin="0s" clipEnd="4s"/>
+    </par>
+  </body>
+</smil>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
     ['name' => 'META-INF/container.xml', 'data' => $containerXml],
@@ -99,6 +114,8 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/styles/import.css', 'data' => 'body { line-height: 1.5; }'],
     ['name' => 'EPUB/meta/review-record.json', 'data' => '{"@context":"https://schema.org","name":"WordPress EPUB review record"}'],
     ['name' => 'EPUB/audio/creator-name.mp3', 'data' => 'MP3-CREATOR-NAME'],
+    ['name' => 'EPUB/audio/intro.mp3', 'data' => 'MP3-INTRO'],
+    ['name' => 'EPUB/overlays/intro.smil', 'data' => $smilXml],
     ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"Import packet series"}'],
     ['name' => 'EPUB/widgets/review-widget.bin', 'data' => 'WIDGET'],
     ['name' => 'EPUB/widgets/review-widget.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review widget fallback</h1></body></html>'],
@@ -138,6 +155,9 @@ if (($argv[1] ?? '') === '--self-test') {
         'https://schema.org/associatedMedia',
         'https://example.invalid/epub-review#packet',
         'duplicate-metadata-link-rel-token',
+        [true, 1, 1, ['chapter1'], 4.0, 1],
+        ['/EPUB/chapters/intro.xhtml'],
+        ['/EPUB/audio/intro.mp3'],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -185,6 +205,16 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['packageLinks'][0]['relVocabulary']['items'][2]['iri'] ?? null,
         $summary['wordpressImport']['packageLinks'][0]['propertyVocabulary']['items'][1]['iri'] ?? null,
         $summary['wordpressImport']['packageLinkVocabularyDiagnostics'][0]['type'] ?? null,
+        [
+            $summary['wordpressImport']['mediaOverlays']['present'] ?? null,
+            $summary['wordpressImport']['mediaOverlays']['overlayCount'] ?? null,
+            $summary['wordpressImport']['mediaOverlays']['resolvedOverlayCount'] ?? null,
+            $summary['wordpressImport']['mediaOverlays']['itemsById']['mo-intro']['referencedByIds'] ?? null,
+            $summary['wordpressImport']['mediaOverlays']['itemsById']['mo-intro']['durationSeconds'] ?? null,
+            $summary['wordpressImport']['mediaOverlays']['itemsById']['mo-intro']['itemCount'] ?? null,
+        ],
+        $summary['wordpressImport']['mediaOverlayTargets'],
+        $summary['wordpressImport']['mediaOverlayAudioTargets'],
     ];
 
     if ($actual !== $expected) {
