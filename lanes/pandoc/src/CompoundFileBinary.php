@@ -813,14 +813,14 @@ final class CompoundFileBinary
         if ($type === 2 && (($entry['hasCreationTimeBytes'] ?? false) === true || ($entry['hasModificationTimeBytes'] ?? false) === true)) {
             throw new \RuntimeException('CFB stream directory entry must not declare storage timestamps: ' . $name);
         }
-        if ($type === 2 && $size === 0 && self::isRegularSector($startSector)) {
-            throw new \RuntimeException('CFB zero-length stream directory entry must not reference stream sectors: ' . $name);
+        if ($type === 2 && $size === 0 && $startSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB zero-length stream directory entry must use ENDOFCHAIN start sector: ' . $name);
         }
         if ($type === 1 && $size !== 0) {
             throw new \RuntimeException('CFB storage directory entry must not declare stream bytes: ' . $name);
         }
-        if ($type === 1 && self::isRegularSector($startSector)) {
-            throw new \RuntimeException('CFB storage directory entry must not reference stream sectors: ' . $name);
+        if ($type === 1 && $startSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB storage directory entry must use ENDOFCHAIN start sector: ' . $name);
         }
         if ($type === 5 && (int) ($entry['directoryId'] ?? -1) !== 0) {
             throw new \RuntimeException('CFB directory contains a duplicate Root Entry storage: ' . $name);
@@ -831,8 +831,8 @@ final class CompoundFileBinary
         if ($type === 5 && ($entry['hasCreationTimeBytes'] ?? false) === true) {
             throw new \RuntimeException('CFB root directory entry must not declare a creation timestamp');
         }
-        if ($type === 5 && $size === 0 && self::isRegularSector($startSector)) {
-            throw new \RuntimeException('CFB root directory entry must not reference a mini stream when its size is zero');
+        if ($type === 5 && $size === 0 && $startSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB root directory entry must use ENDOFCHAIN start sector when the mini stream is empty');
         }
     }
 

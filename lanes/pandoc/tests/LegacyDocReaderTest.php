@@ -2588,6 +2588,18 @@ return [
         ], false);
         $rootStartSector = substr_replace($rootWithoutMiniStreamBytes, $u32(2), $directorySectorOffset + 116, 4);
         $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootStartSector));
+
+        foreach ([0xffffffff, 0xfffffffd, 0xfffffffc] as $reservedMarker) {
+            $storageReservedStart = substr_replace($bytes, $u32($reservedMarker), $directorySectorOffset + (2 * 128) + 116, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($storageReservedStart));
+
+            $zeroLengthStreamReservedStart = substr_replace($bytes, $u64(0), $directorySectorOffset + 128 + 120, 8);
+            $zeroLengthStreamReservedStart = substr_replace($zeroLengthStreamReservedStart, $u32($reservedMarker), $directorySectorOffset + 128 + 116, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($zeroLengthStreamReservedStart));
+
+            $rootReservedStart = substr_replace($rootWithoutMiniStreamBytes, $u32($reservedMarker), $directorySectorOffset + 116, 4);
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($rootReservedStart));
+        }
     },
     'rejects malformed active CFB directory entry names before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16, $u32, $utf16le): void {
         $bytes = $buildCfb([

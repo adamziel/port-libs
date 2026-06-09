@@ -3216,6 +3216,11 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff fixture did not preserve an unused CFB directory entry');
     }
     $dirtyUnallocatedDirectoryEntry = substr_replace($docBytes, "X\0", $directoryFieldOffset($unusedDirectoryEntryId, 0), 2);
+    $zeroLengthWordDocumentStartSentinel = static function (int $startSector) use ($docBytes, $u32, $u64, $directoryFieldOffset, $wordDocumentDirectoryId): string {
+        $bytes = substr_replace($docBytes, $u64(0), $directoryFieldOffset($wordDocumentDirectoryId, 120), 8);
+
+        return substr_replace($bytes, $u32($startSector), $directoryFieldOffset($wordDocumentDirectoryId, 116), 4);
+    };
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -3246,7 +3251,16 @@ if (($argv[1] ?? '') === '--self-test') {
         'duplicate CFB root storage object' => substr_replace($docBytes, "\x05", $directoryFieldOffset($objectPoolDirectoryId, 66), 1),
         'CFB storage stream-data bytes' => substr_replace($docBytes, $u64(64), $directoryFieldOffset($objectPoolDirectoryId, 120), 8),
         'CFB storage start-sector reference' => substr_replace($docBytes, $u32($rootMiniStart), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
+        'CFB storage FREESECT start sentinel' => substr_replace($docBytes, $u32($free), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
+        'CFB storage FATSECT start sentinel' => substr_replace($docBytes, $u32($fatSector), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
+        'CFB storage DIFSECT start sentinel' => substr_replace($docBytes, $u32(0xfffffffc), $directoryFieldOffset($objectPoolDirectoryId, 116), 4),
         'CFB zero-length stream start-sector reference' => substr_replace($docBytes, $u64(0), $directoryFieldOffset($wordDocumentDirectoryId, 120), 8),
+        'CFB zero-length stream FREESECT start sentinel' => $zeroLengthWordDocumentStartSentinel($free),
+        'CFB zero-length stream FATSECT start sentinel' => $zeroLengthWordDocumentStartSentinel($fatSector),
+        'CFB zero-length stream DIFSECT start sentinel' => $zeroLengthWordDocumentStartSentinel(0xfffffffc),
+        'CFB empty root FREESECT start sentinel' => substr_replace($regularOnlyCfb, $u32($free), $directoryFieldOffset(0, 116), 4),
+        'CFB empty root FATSECT start sentinel' => substr_replace($regularOnlyCfb, $u32($fatSector), $directoryFieldOffset(0, 116), 4),
+        'CFB empty root DIFSECT start sentinel' => substr_replace($regularOnlyCfb, $u32(0xfffffffc), $directoryFieldOffset(0, 116), 4),
         'red CFB root storage entry' => substr_replace($docBytes, "\0", $directoryFieldOffset(0, 67), 1),
         'red CFB sibling-tree root' => substr_replace($docBytes, "\0", $directoryFieldOffset((int) ($childIds[0] ?? $wordDocumentDirectoryId), 67), 1),
         'unequal CFB sibling-tree black height' => substr_replace($docBytes, "\x01", $directoryFieldOffset($redDirectoryId, 67), 1),
