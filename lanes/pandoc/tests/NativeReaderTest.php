@@ -445,6 +445,88 @@ return [
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
         $t->same(['text', 'code'], $packet['captions']['short']['inlineTypes'] ?? null);
     },
+    'maps tuple native ast short caption constructors into shared table metadata' => static function (TestRunner $t): void {
+        $nativeTable = [
+            't' => 'Table',
+            'c' => [
+                ['', ['native-short-caption'], []],
+                [
+                    [
+                        't' => 'ShortCaption',
+                        'c' => [[
+                            ['t' => 'Str', 'c' => 'Reviewer'],
+                            ['t' => 'Space'],
+                            ['t' => 'Strong', 'c' => [
+                                ['t' => 'Str', 'c' => 'queue'],
+                            ]],
+                        ]],
+                    ],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Detailed'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                [
+                    ['', [], []],
+                    [],
+                ],
+                [
+                    [
+                        ['', [], []],
+                        0,
+                        [],
+                        [
+                            [
+                                ['', [], []],
+                                [
+                                    [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        1,
+                                        1,
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Ready'],
+                                            ]],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    ['', [], []],
+                    [],
+                ],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$nativeTable],
+        ], JSON_THROW_ON_ERROR));
+        $table = $document->children[0];
+        $shortCaptionInlines = $table->attr('shortCaptionInlines');
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('table', $table->type);
+        $t->same('Reviewer queue', $table->attr('shortCaption'));
+        $t->same('Detailed caption', $table->attr('caption'));
+        $t->same(true, is_array($shortCaptionInlines));
+        $t->same(['text', 'strong'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
+        $t->same('ShortCaption', $roundTrip['blocks'][0]['c'][1][0]['t']);
+        $t->same('Reviewer', $roundTrip['blocks'][0]['c'][1][0]['c'][0][0]['c']);
+        $t->contains('data-pandoc-short-caption="Reviewer queue"', $blocks);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+    },
     'writes shared table captions as pandoc native ast json' => static function (TestRunner $t): void {
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
             new AstNode('table', [
