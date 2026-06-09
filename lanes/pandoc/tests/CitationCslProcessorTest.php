@@ -11725,6 +11725,87 @@ XML
         $t->contains('<dt>Container Author Chapter 2024</dt><dd>by Container, C. :: Container Author Chapter</dd>', $blocks);
         $t->contains('<dt>Original Author Translation 2023</dt><dd>by Original, O. :: Original Author Translation</dd>', $blocks);
     },
+    'applies bounded csl event organizer default label forms' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'community-review',
+                'type' => 'event',
+                'title' => 'Community Review Clinic',
+                'event-organizer' => [
+                    ['literal' => 'Migration Desk'],
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'solo-review',
+                'type' => 'event',
+                'title' => 'Solo Review Session',
+                'event-organizer' => [
+                    ['family' => 'Organizer', 'given' => 'Ora'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Event Organizer Term Review</title>
+    <id>https://example.test/styles/bounded-event-organizer-term-review</id>
+    <updated>2026-06-09T06:13:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="event-organizer">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". "/>
+        </names>
+        <date variable="issued"><date-part name="year"/></date>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <names variable="event-organizer">
+        <name form="long" initialize-with=". " name-as-sort-order="all"/>
+        <label form="short" plural="contextual" prefix=", "/>
+      </names>
+      <names variable="organizer">
+        <label form="verb-short" suffix=" "/>
+        <name form="long" initialize-with=". " name-as-sort-order="all"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Event Organizer Term Review', $summary['title'] ?? null);
+        $t->same('event-organizer', $summary['citationRendering'][0]['children'][0]['variable'] ?? null);
+        $t->same('verb', $summary['citationRendering'][0]['children'][0]['nameRendering']['label']['form'] ?? null);
+        $t->same('short', $summary['bibliographyRendering'][0]['nameRendering']['label']['form'] ?? null);
+        $t->same('organizer', $summary['bibliographyRendering'][1]['variable'] ?? null);
+        $t->same('verb-short', $summary['bibliographyRendering'][1]['nameRendering']['label']['form'] ?? null);
+        $t->same('Event organizer', $summary['terms']['eventOrganizer'] ?? null);
+
+        $t->same('[organized by Migration Desk and Curator | 2026 | Community Review Clinic; organized by Organizer | 2025 | Solo Review Session]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'community-review', 'text' => '[@community-review]']),
+            new AstNode('citation', ['id' => 'solo-review', 'text' => '[@solo-review]']),
+        ]));
+        $t->same('Migration Desk; Curator, E., orgs. :: org. by Migration Desk; Curator, E. :: Community Review Clinic', $processor->renderBibliographyEntry('community-review'));
+        $t->same('Organizer, O., org. :: org. by Organizer, O. :: Solo Review Session', $processor->renderBibliographyEntry('solo-review'));
+
+        $document = (new MarkdownReader())->read('Organizer credits [@community-review; @solo-review] stay visible for import review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Organizer credits [organized by Migration Desk and Curator | 2026 | Community Review Clinic; organized by Organizer | 2025 | Solo Review Session] stay visible for import review.</p>', $blocks);
+        $t->contains('<dt>Community Review Clinic 2026</dt><dd>Migration Desk; Curator, E., orgs. :: org. by Migration Desk; Curator, E. :: Community Review Clinic</dd>', $blocks);
+        $t->contains('<dt>Solo Review Session 2025</dt><dd>Organizer, O., org. :: org. by Organizer, O. :: Solo Review Session</dd>', $blocks);
+    },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

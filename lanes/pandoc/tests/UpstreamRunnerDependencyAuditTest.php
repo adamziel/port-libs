@@ -751,6 +751,9 @@ return [
             'packages',
         ], $audit['projectUnconditionalFieldClosure']['presentFields']);
         $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedProjectConditionalBranches(), $audit['projectConditionalBranchClosure']['expectedBranches']);
+        $t->same([], $audit['projectConditionalBranchClosure']['presentBranches']);
+        $t->same([], $audit['projectConditionalBranchClosure']['unexpectedBranches']);
         $t->same(UpstreamRunnerDependencyAudit::expectedCompilerGhcVersions(), $audit['compilerTestedWithClosure']['presentGhcVersions']);
         $t->same([], $audit['compilerTestedWithClosure']['missingGhcVersions']);
         $t->same('9.10.3', $audit['compilerTestedWithClosure']['toolGhcVersion']);
@@ -5268,6 +5271,54 @@ return [
         $t->contains('no unexpected runner or benchmark module interface fields', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks cabal project conditional branches before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $project = $pinnedProject() . implode("\n", [
+            'if os(windows)',
+            '  packages: pandoc-runner-windows',
+            '  constraints: Win32 >= 2.13',
+            'elif arch(wasm32)',
+            '  source-repository-package',
+            '    type: git',
+            '    location: https://example.invalid/pandoc-wasm-runner.git',
+            '    tag: deadbeef',
+            'else',
+            '  package pandoc',
+            '    flags: -http',
+            '',
+        ]);
+
+        $root = $makeTree($requiredFiles($project));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedPackages']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedFlags']);
+        $t->same([], $audit['projectPackageClosure']['unexpectedPackageFields']);
+        $t->same([], $audit['projectConstraintClosure']['unexpectedConstraints']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['unexpected']);
+        $t->same([], $audit['projectSourceRepositoryClosure']['unexpectedFields']);
+        $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
+        $t->same([], $audit['projectConditionalBranchClosure']['expectedBranches']);
+        $t->same([
+            'if os(windows)',
+            'elif arch(wasm32)',
+            'else after elif arch(wasm32)',
+        ], $audit['projectConditionalBranchClosure']['presentBranches']);
+        $t->same($audit['projectConditionalBranchClosure']['presentBranches'], $audit['projectConditionalBranchClosure']['unexpectedBranches']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project conditional branches: if os(windows), elif arch(wasm32), else after elif arch(wasm32)', $blocked);
+        $t->contains('no unexpected cabal.project conditional branches', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner and benchmark native system dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(
@@ -6583,7 +6634,7 @@ return [
         $t->contains('cabal.project package entries/flags/constraints', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
-    'ignores conditional cabal project fields when auditing unconditional closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+    'blocks conditional cabal project branches without polluting unconditional closure' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $project = $pinnedProject() . "\n" . implode("\n", [
             '',
             'if arch(wasm32)',
@@ -6616,7 +6667,7 @@ return [
             $removeTree($root);
         }
 
-        $t->same(true, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
         $t->same([
             'embed_data_files' => true,
             'http' => true,
@@ -6628,7 +6679,12 @@ return [
         $t->same([], $audit['projectSourceRepositoryPins']['mismatched']);
         $t->same([], $audit['projectSourceRepositoryClosure']['mismatched']);
         $t->same([], $audit['projectUnconditionalFieldClosure']['unexpectedFields']);
-        $t->same([], $audit['blockedReasons']);
+        $t->same(['if arch(wasm32)'], $audit['projectConditionalBranchClosure']['presentBranches']);
+        $t->same(['if arch(wasm32)'], $audit['projectConditionalBranchClosure']['unexpectedBranches']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected cabal.project conditional branches: if arch(wasm32)', $blocked);
+        $t->contains('no unexpected cabal.project conditional branches', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks lua engine library file artifact globs before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
