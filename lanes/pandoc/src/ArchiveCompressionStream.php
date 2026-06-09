@@ -836,6 +836,173 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     expectedKind:string,
+     *     format:string,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     compressedSize:int,
+     *     decodedSize:int,
+     *     combinedPackageStatus:string,
+     *     combinedPackageError:?string,
+     *     combinedEntryCount:int,
+     *     combinedEntryNames:list<string>,
+     *     standalonePackageFrameCount:int,
+     *     policy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     frames:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectLz4FrameSourceBoundaryPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+
+        $expectedKind = match ($format) {
+            self::FORMAT_LZ4_TAR => self::PACKAGE_KIND_TAR,
+            self::FORMAT_LZ4_ZIP => self::PACKAGE_KIND_ZIP,
+            default => throw new \RuntimeException("LZ4 frame source-boundary policy requires an LZ4 archive stream format: {$format}"),
+        };
+
+        $rawFrames = Lz4Frame::frames($bytes, $maxUncompressedBytes);
+        $decodedBytes = '';
+        foreach ($rawFrames as $frame) {
+            if (($frame['type'] ?? null) === 'frame') {
+                $decodedBytes .= (string) $frame['data'];
+            }
+        }
+
+        $combined = self::archivePackageBoundarySummary(
+            $decodedBytes,
+            $expectedKind,
+            $maxUnpackedBytes,
+            'LZ4 frame source-boundary'
+        );
+
+        $frames = [];
+        $dataFrameIndex = 0;
+        $skippableFrameCount = 0;
+        $standalonePackageFrameCount = 0;
+
+        foreach ($rawFrames as $frameIndex => $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $payload = (string) ($frame['data'] ?? '');
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => $frameIndex,
+                    'id' => (int) $frame['id'],
+                    'payloadSize' => strlen($payload),
+                    'payloadSha256' => hash('sha256', $payload),
+                    'payloadPreview' => self::boundedPrintablePreview($payload, 64),
+                    'frameOffset' => (int) $frame['frameOffset'],
+                    'frameSize' => (int) $frame['frameSize'],
+                    'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                    'policy' => 'metadata-only-no-extraction',
+                    'diagnostics' => [],
+                ];
+                $skippableFrameCount++;
+                continue;
+            }
+
+            if (($frame['type'] ?? null) !== 'frame') {
+                throw new \RuntimeException('Unexpected LZ4 frame metadata record');
+            }
+
+            $frameData = (string) $frame['data'];
+            $summary = self::archivePackageBoundarySummary(
+                $frameData,
+                $expectedKind,
+                $maxUnpackedBytes,
+                'LZ4 frame source-boundary'
+            );
+            $standalonePackage = $summary['status'] === 'package';
+            $frameDiagnostics = $standalonePackage ? ['lz4-frame-is-standalone-package'] : [];
+            if ($standalonePackage) {
+                $standalonePackageFrameCount++;
+            }
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => $frameIndex,
+                'dataFrameIndex' => $dataFrameIndex,
+                'contentSize' => $frame['contentSize'],
+                'dictionaryId' => $frame['dictionaryId'],
+                'blockMaxSize' => (int) $frame['blockMaxSize'],
+                'blockIndependent' => (bool) $frame['blockIndependent'],
+                'blockChecksum' => (bool) $frame['blockChecksum'],
+                'contentChecksum' => (bool) $frame['contentChecksum'],
+                'blockCount' => (int) $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => (int) $frame['compressedSize'],
+                'decodedDataOffset' => (int) $frame['decodedDataOffset'],
+                'decodedDataEndOffset' => (int) $frame['decodedDataEndOffset'],
+                'decodedSize' => strlen($frameData),
+                'frameOffset' => (int) $frame['frameOffset'],
+                'frameSize' => (int) $frame['frameSize'],
+                'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                'standalonePackage' => $standalonePackage,
+                'packageStatus' => $summary['status'],
+                'packageError' => $summary['error'],
+                'kind' => $standalonePackage ? $expectedKind : null,
+                'format' => $standalonePackage
+                    ? ($expectedKind === self::PACKAGE_KIND_TAR ? self::FORMAT_TAR : self::FORMAT_ZIP)
+                    : null,
+                'entryCount' => $summary['entryCount'],
+                'entryNames' => $summary['entryNames'],
+                'policy' => $standalonePackage ? 'standalone-lz4-frame-package' : 'package-segment',
+                'diagnostics' => $frameDiagnostics,
+            ];
+            $dataFrameIndex++;
+        }
+
+        $diagnostics = [];
+        if ($combined['status'] !== 'package') {
+            $diagnostics[] = 'lz4-combined-package-decode-failed';
+        }
+
+        if ($dataFrameIndex > 1 && $standalonePackageFrameCount > 0) {
+            $diagnostics[] = 'lz4-frames-contain-standalone-packages';
+        }
+
+        if ($standalonePackageFrameCount > 1) {
+            $diagnostics[] = 'lz4-multiple-standalone-package-frames';
+        }
+
+        $policy = $diagnostics === []
+            ? ($dataFrameIndex === 1 ? 'single-lz4-frame-package-stream' : 'single-decoded-package-stream')
+            : 'review-before-conversion';
+
+        return [
+            'type' => 'archive-lz4-frame-source-boundary-policy',
+            'expectedKind' => $expectedKind,
+            'format' => $format,
+            'frameCount' => count($rawFrames),
+            'dataFrameCount' => $dataFrameIndex,
+            'skippableFrameCount' => $skippableFrameCount,
+            'compressedSize' => strlen($bytes),
+            'decodedSize' => strlen($decodedBytes),
+            'combinedPackageStatus' => $combined['status'],
+            'combinedPackageError' => $combined['error'],
+            'combinedEntryCount' => $combined['entryCount'],
+            'combinedEntryNames' => $combined['entryNames'],
+            'standalonePackageFrameCount' => $standalonePackageFrameCount,
+            'policy' => $policy,
+            'extractionPolicy' => $diagnostics === []
+                ? 'metadata-only-no-extraction'
+                : 'lz4-frame-source-boundary-review',
+            'diagnostics' => $diagnostics,
+            'frames' => $frames,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function inspectGzipTarRecordBoundaryPolicy(
@@ -3783,6 +3950,24 @@ final class ArchiveCompressionStream
      */
     private static function gzipMemberPackageSummary(string $bytes, string $expectedKind, ?int $maxUnpackedBytes): array
     {
+        return self::archivePackageBoundarySummary(
+            $bytes,
+            $expectedKind,
+            $maxUnpackedBytes,
+            'gzip member package-boundary'
+        );
+    }
+
+    /**
+     * @return array{status:string, error:?string, entryCount:int, entryNames:list<string>}
+     */
+    private static function archivePackageBoundarySummary(
+        string $bytes,
+        string $expectedKind,
+        ?int $maxUnpackedBytes,
+        string $label
+    ): array
+    {
         try {
             if ($expectedKind === self::PACKAGE_KIND_TAR) {
                 $archive = TarArchive::fromString($bytes, $maxUnpackedBytes);
@@ -3816,7 +4001,7 @@ final class ArchiveCompressionStream
             ];
         }
 
-        throw new \RuntimeException("Unsupported gzip member package-boundary kind: {$expectedKind}");
+        throw new \RuntimeException("Unsupported {$label} kind: {$expectedKind}");
     }
 
     private static function gzipMemberReviewLabel(array $member): ?string

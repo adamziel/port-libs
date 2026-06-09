@@ -8233,6 +8233,166 @@ return [
         ));
     },
 
+    'preflights concatenated lz4 source package frame boundaries before package handoff' => static function (TestRunner $t): void {
+        $primaryArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"lz4-source-boundary","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# LZ4 source boundary\n\nPrimary packet for WordPress archive review.\n",
+            ],
+        ]);
+        $sidecarArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/unexpected-second.md',
+                'data' => "# Unexpected package\n\nThis came from a second LZ4 data frame.\n",
+            ],
+        ]);
+        $primaryBytes = $primaryArchive->bytes();
+        $sidecarBytes = $sidecarArchive->bytes();
+        $primaryUnpackedBytes = strlen($primaryArchive->read('/packet/manifest.json'))
+            + strlen($primaryArchive->read('/packet/content.md'));
+        $combinedUnpackedBytes = $primaryUnpackedBytes
+            + strlen($sidecarArchive->read('/packet/unexpected-second.md'));
+        $metadata = 'wordpress-lz4-source-boundary';
+        $reviewMetadata = 'unexpected-second-lz4-package';
+        $primaryFrame = Lz4Frame::build($primaryBytes, [
+            'blockChecksum' => true,
+            'contentChecksum' => true,
+            'contentSize' => true,
+        ]);
+        $sidecarFrame = Lz4Frame::build($sidecarBytes, [
+            'contentChecksum' => true,
+            'contentSize' => true,
+        ]);
+        $concatenated = Lz4Frame::skippableFrame($metadata, 5)
+            . $primaryFrame
+            . Lz4Frame::skippableFrame($reviewMetadata, 6)
+            . $sidecarFrame;
+
+        $inspection = ArchiveCompressionStream::inspectLz4FrameSourceBoundaryPolicy(
+            $concatenated,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($primaryBytes) + strlen($sidecarBytes),
+            $combinedUnpackedBytes
+        );
+
+        $t->same('archive-lz4-frame-source-boundary-policy', $inspection['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $inspection['format']);
+        $t->same(strlen($concatenated), $inspection['compressedSize']);
+        $t->same(strlen($primaryBytes) + strlen($sidecarBytes), $inspection['decodedSize']);
+        $t->same(4, $inspection['frameCount']);
+        $t->same(2, $inspection['dataFrameCount']);
+        $t->same(2, $inspection['skippableFrameCount']);
+        $t->same('invalid', $inspection['combinedPackageStatus']);
+        $t->contains('non-zero bytes after the end marker', (string) $inspection['combinedPackageError']);
+        $t->same(0, $inspection['combinedEntryCount']);
+        $t->same([], $inspection['combinedEntryNames']);
+        $t->same(2, $inspection['standalonePackageFrameCount']);
+        $t->same('review-before-conversion', $inspection['policy']);
+        $t->same('lz4-frame-source-boundary-review', $inspection['extractionPolicy']);
+        $t->same([
+            'lz4-combined-package-decode-failed',
+            'lz4-frames-contain-standalone-packages',
+            'lz4-multiple-standalone-package-frames',
+        ], $inspection['diagnostics']);
+        $t->same(['skippable', 'frame', 'skippable', 'frame'], array_column($inspection['frames'], 'type'));
+
+        $t->same(0, $inspection['frames'][0]['frameIndex']);
+        $t->same(5, $inspection['frames'][0]['id']);
+        $t->same(strlen($metadata), $inspection['frames'][0]['payloadSize']);
+        $t->same(hash('sha256', $metadata), $inspection['frames'][0]['payloadSha256']);
+        $t->same($metadata, $inspection['frames'][0]['payloadPreview']);
+        $t->same(0, $inspection['frames'][0]['frameOffset']);
+        $t->same(strlen(Lz4Frame::skippableFrame($metadata, 5)), $inspection['frames'][0]['nextFrameOffset']);
+        $t->same('metadata-only-no-extraction', $inspection['frames'][0]['policy']);
+        $t->same(false, array_key_exists('data', $inspection['frames'][0]));
+
+        $t->same(1, $inspection['frames'][1]['frameIndex']);
+        $t->same(0, $inspection['frames'][1]['dataFrameIndex']);
+        $t->same(strlen($primaryBytes), $inspection['frames'][1]['contentSize']);
+        $t->same(0, $inspection['frames'][1]['decodedDataOffset']);
+        $t->same(strlen($primaryBytes), $inspection['frames'][1]['decodedDataEndOffset']);
+        $t->same(strlen($primaryBytes), $inspection['frames'][1]['decodedSize']);
+        $t->same(true, $inspection['frames'][1]['standalonePackage']);
+        $t->same('package', $inspection['frames'][1]['packageStatus']);
+        $t->same(null, $inspection['frames'][1]['packageError']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $inspection['frames'][1]['kind']);
+        $t->same(ArchiveCompressionStream::FORMAT_TAR, $inspection['frames'][1]['format']);
+        $t->same(2, $inspection['frames'][1]['entryCount']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $inspection['frames'][1]['entryNames']);
+        $t->same('standalone-lz4-frame-package', $inspection['frames'][1]['policy']);
+        $t->same(['lz4-frame-is-standalone-package'], $inspection['frames'][1]['diagnostics']);
+        $t->same(false, array_key_exists('data', $inspection['frames'][1]));
+
+        $t->same(2, $inspection['frames'][2]['frameIndex']);
+        $t->same(6, $inspection['frames'][2]['id']);
+        $t->same(strlen($reviewMetadata), $inspection['frames'][2]['payloadSize']);
+        $t->same($reviewMetadata, $inspection['frames'][2]['payloadPreview']);
+        $t->same('metadata-only-no-extraction', $inspection['frames'][2]['policy']);
+
+        $t->same(3, $inspection['frames'][3]['frameIndex']);
+        $t->same(1, $inspection['frames'][3]['dataFrameIndex']);
+        $t->same(strlen($sidecarBytes), $inspection['frames'][3]['contentSize']);
+        $t->same(strlen($primaryBytes), $inspection['frames'][3]['decodedDataOffset']);
+        $t->same(strlen($primaryBytes) + strlen($sidecarBytes), $inspection['frames'][3]['decodedDataEndOffset']);
+        $t->same(strlen($sidecarBytes), $inspection['frames'][3]['decodedSize']);
+        $t->same(true, $inspection['frames'][3]['standalonePackage']);
+        $t->same('package', $inspection['frames'][3]['packageStatus']);
+        $t->same(1, $inspection['frames'][3]['entryCount']);
+        $t->same(['packet/unexpected-second.md'], $inspection['frames'][3]['entryNames']);
+        $t->same('standalone-lz4-frame-package', $inspection['frames'][3]['policy']);
+        $t->same(['lz4-frame-is-standalone-package'], $inspection['frames'][3]['diagnostics']);
+
+        $splitOffset = 700;
+        $splitStream = Lz4Frame::skippableFrame('split-lz4-source-boundary', 7)
+            . Lz4Frame::build(substr($primaryBytes, 0, $splitOffset), [
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ])
+            . Lz4Frame::build(substr($primaryBytes, $splitOffset), [
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ]);
+        $splitInspection = ArchiveCompressionStream::inspectLz4FrameSourceBoundaryPolicy(
+            $splitStream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($primaryBytes),
+            $primaryUnpackedBytes
+        );
+
+        $t->same('package', $splitInspection['combinedPackageStatus']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $splitInspection['combinedEntryNames']);
+        $t->same(0, $splitInspection['standalonePackageFrameCount']);
+        $t->same('single-decoded-package-stream', $splitInspection['policy']);
+        $t->same('metadata-only-no-extraction', $splitInspection['extractionPolicy']);
+        $t->same([], $splitInspection['diagnostics']);
+        $t->same(false, $splitInspection['frames'][1]['standalonePackage']);
+        $t->same('invalid', $splitInspection['frames'][1]['packageStatus']);
+        $t->same('package-segment', $splitInspection['frames'][1]['policy']);
+        $t->same(false, $splitInspection['frames'][2]['standalonePackage']);
+        $t->same('invalid', $splitInspection['frames'][2]['packageStatus']);
+        $t->same('package-segment', $splitInspection['frames'][2]['policy']);
+        $t->same($primaryBytes, Lz4Frame::decode($splitStream, strlen($primaryBytes)));
+        $t->same($primaryBytes . $sidecarBytes, Lz4Frame::decode($concatenated));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar(
+            $concatenated,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4FrameSourceBoundaryPolicy(
+            $concatenated,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4FrameSourceBoundaryPolicy(
+            $splitStream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($primaryBytes) - 1
+        ));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

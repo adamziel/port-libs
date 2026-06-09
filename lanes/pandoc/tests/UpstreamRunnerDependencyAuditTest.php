@@ -589,7 +589,11 @@ $cliSourceArtifacts = static function (): array {
         if ($kind === 'directory') {
             $files[$relativePath . '/.audit-keep'] = 'cli executable source fixture present';
         } else {
-            $files[$relativePath] = 'cli executable source fixture present for ' . $relativePath;
+            $semantics = UpstreamRunnerDependencyAudit::expectedCliExecutableSourceSemantics()[$relativePath] ?? [];
+            $files[$relativePath] = implode("\n", array_merge(
+                ['cli executable source fixture present for ' . $relativePath],
+                array_values($semantics)
+            ));
         }
     }
 
@@ -2872,8 +2876,17 @@ return [
         $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/no-server/PandocCLI/Server.hs']['bytes'] > 0);
         $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/lua/PandocCLI/Lua.hs']['bytes'] > 0);
         $t->same(true, $closure['sourceArtifactProvenance']['pandoc-cli/no-lua/PandocCLI/Lua.hs']['bytes'] > 0);
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedCliExecutableSourceSemantics()),
+            array_keys($closure['expectedSourceSemantics'])
+        );
+        $t->same([], $closure['missingSourceSemantics']);
+        $t->contains('routes server executable name', implode(',', $closure['presentSourceSemantics']['pandoc-cli/src/pandoc.hs']));
+        $t->contains('runs warp on configured port', implode(',', $closure['presentSourceSemantics']['pandoc-cli/server/PandocCLI/Server.hs']));
+        $t->contains('returns no engine placeholder', implode(',', $closure['presentSourceSemantics']['pandoc-cli/no-lua/PandocCLI/Lua.hs']));
         $t->contains('non-empty pandoc-cli conditional source artifacts with hashes', $audit['activationGate']);
         $t->contains('conditional source artifact hashes', $audit['nonMutatingPlan'][2]);
+        $t->contains('conditional source semantics', $audit['nonMutatingPlan'][2]);
     },
     'blocks pandoc cli conditional source artifact drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
@@ -2907,6 +2920,52 @@ return [
         $t->contains('mismatched pandoc-cli executable source artifact types: pandoc-cli/server/PandocCLI/Server.hs expected file, found directory', $blocked);
         $t->contains('empty pandoc-cli executable source artifacts: pandoc-cli/no-lua/PandocCLI/Lua.hs', $blocked);
         $t->contains('non-empty pandoc-cli conditional source artifacts with hashes', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks pandoc cli conditional source semantic drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc-cli/src/pandoc.hs'] = implode("\n", [
+            'module Main where',
+            'import PandocCLI.Lua',
+            'main = pure ()',
+        ]);
+        $files['pandoc-cli/server/PandocCLI/Server.hs'] = implode("\n", [
+            'module PandocCLI.Server ( runCGI , runServer ) where',
+            'runCGI = pure ()',
+            'runServer _ = pure ()',
+        ]);
+        $files['pandoc-cli/no-server/PandocCLI/Server.hs'] = implode("\n", [
+            'module PandocCLI.Server ( runCGI , runServer ) where',
+            'runCGI = pure ()',
+            'runServer _args = pure ()',
+        ]);
+        $files['pandoc-cli/lua/PandocCLI/Lua.hs'] = implode("\n", [
+            'module PandocCLI.Lua (runLuaInterpreter, getEngine) where',
+            'runLuaInterpreter _ _ = pure ()',
+        ]);
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $missing = $audit['cliExecutableClosure']['missingSourceSemantics'];
+        $t->contains('imports server shim module', implode(',', $missing['pandoc-cli/src/pandoc.hs']));
+        $t->contains('routes server executable name', implode(',', $missing['pandoc-cli/src/pandoc.hs']));
+        $t->contains('runs cgi with timeout middleware', implode(',', $missing['pandoc-cli/server/PandocCLI/Server.hs']));
+        $t->contains('exits with unsupported status', implode(',', $missing['pandoc-cli/no-server/PandocCLI/Server.hs']));
+        $t->contains('guards repl-specific code', implode(',', $missing['pandoc-cli/lua/PandocCLI/Lua.hs']));
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-cli executable source semantics', $blocked);
+        $t->contains('pandoc-cli/src/pandoc.hs (imports server shim module, routes server executable name', $blocked);
+        $t->contains('pandoc-cli/no-server/PandocCLI/Server.hs (routes cgi placeholder to unsupported handler, routes server placeholder to unsupported handler, exits with unsupported status)', $blocked);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks pandoc cli conditional branch field drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $cliCabal): void {
