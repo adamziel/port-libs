@@ -1572,6 +1572,55 @@ $tablePropertyLayoutDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableStyleInheritanceStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="table" w:styleId="BaseReviewTable">
+    <w:name w:val="Base Review Table"/>
+    <w:tblPr>
+      <w:tblW w:type="pct" w:w="5000"/>
+      <w:jc w:val="center"/>
+      <w:tblInd w:type="dxa" w:w="240"/>
+      <w:tblLayout w:type="fixed"/>
+    </w:tblPr>
+  </w:style>
+  <w:style w:type="table" w:styleId="DerivedReviewTable">
+    <w:name w:val="Derived Review Table"/>
+    <w:basedOn w:val="BaseReviewTable"/>
+    <w:tblPr>
+      <w:tblW w:type="pct" w:w="4200"/>
+      <w:jc w:val="end"/>
+    </w:tblPr>
+  </w:style>
+</w:styles>
+XML;
+
+$tableStyleInheritanceDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="DerivedReviewTable"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Inherited source field</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Inherited review value</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="DerivedReviewTable"/>
+        <w:tblW w:type="dxa" w:w="3600"/>
+        <w:jc w:val="start"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Direct override field</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Direct override value</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4403,6 +4452,22 @@ $buildTablePropertyLayoutPackage = static function () use ($contentTypesXml, $pa
     ]);
 };
 
+$buildTableStyleInheritancePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $tableStyleInheritanceDocumentXml,
+    $tableStyleInheritanceStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableStyleInheritanceDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $tableStyleInheritanceStylesXml],
+    ]);
+};
+
 $buildTableCellVerticalAlignmentPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellVerticalAlignmentDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -6957,6 +7022,98 @@ return [
         $t->true(!str_contains($markdown, 'data-docx-table-width'), 'Pipe-table Markdown handoff should not leak DOCX table layout metadata');
 
         $t->contains('<table class="docx-table-style docx-table-style-sourcereviewtable docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-indent docx-table-indent-dxa docx-table-layout docx-table-layout-fixed" style="width:90%; margin-left:18pt" data-docx-table-style="SourceReviewTable" data-docx-table-width-type="pct" data-docx-table-width-value="4500" data-docx-table-width-percent="90" data-docx-table-align="center" data-docx-table-indent-type="dxa" data-docx-table-indent-value="360" data-docx-table-indent-left-points="18" data-docx-table-layout="fixed">', $blocks);
+    },
+    'applies DOCX table style inheritance before direct table property overrides' => static function (TestRunner $t) use ($buildTableStyleInheritancePackage): void {
+        $document = (new DocxReader())->readDocument($buildTableStyleInheritancePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $inheritedTable = $document->children[0];
+        $t->same('table', $inheritedTable->type);
+        $t->same([
+            'docx-table-indent',
+            'docx-table-indent-dxa',
+            'docx-table-layout',
+            'docx-table-layout-fixed',
+            'docx-table-style-definition',
+            'docx-table-width',
+            'docx-table-width-pct',
+            'docx-table-align',
+            'docx-table-align-end',
+            'docx-table-style',
+            'docx-table-style-derivedreviewtable',
+        ], $inheritedTable->attr('classes'));
+
+        $inheritedAttrs = $inheritedTable->attr('attributes');
+        $t->same('DerivedReviewTable', $inheritedAttrs['data-docx-table-style']);
+        $t->same('Derived Review Table', $inheritedAttrs['data-docx-table-style-name']);
+        $t->same('BaseReviewTable', $inheritedAttrs['data-docx-table-style-based-on']);
+        $t->same('pct', $inheritedAttrs['data-docx-table-width-type']);
+        $t->same('4200', $inheritedAttrs['data-docx-table-width-value']);
+        $t->same('84', $inheritedAttrs['data-docx-table-width-percent']);
+        $t->same('end', $inheritedAttrs['data-docx-table-align']);
+        $t->same('dxa', $inheritedAttrs['data-docx-table-indent-type']);
+        $t->same('240', $inheritedAttrs['data-docx-table-indent-value']);
+        $t->same('12', $inheritedAttrs['data-docx-table-indent-left-points']);
+        $t->same('fixed', $inheritedAttrs['data-docx-table-layout']);
+        $t->same('margin-left:12pt; width:84%', $inheritedTable->attr('htmlAttributes')['style']);
+
+        $inheritedGeometry = $inheritedTable->attr('tableGeometry');
+        $t->same(true, is_array($inheritedGeometry));
+        $inheritedGeometry = is_array($inheritedGeometry) ? $inheritedGeometry : [];
+        $t->same('Derived Review Table', $inheritedGeometry['sourceAttributes']['attributes']['data-docx-table-style-name'] ?? null);
+        $t->same('84', $inheritedGeometry['sourceAttributes']['attributes']['data-docx-table-width-percent'] ?? null);
+        $t->same('end', $inheritedGeometry['sourceAttributes']['attributes']['data-docx-table-align'] ?? null);
+        $t->same('12', $inheritedGeometry['sourceAttributes']['attributes']['data-docx-table-indent-left-points'] ?? null);
+        $t->same('fixed', $inheritedGeometry['sourceAttributes']['attributes']['data-docx-table-layout'] ?? null);
+
+        $overrideTable = $document->children[1];
+        $t->same('table', $overrideTable->type);
+        $overrideClasses = $overrideTable->attr('classes');
+        $t->true(in_array('docx-table-style-definition', $overrideClasses, true), 'Direct table should retain style-definition provenance');
+        $t->true(in_array('docx-table-width-dxa', $overrideClasses, true), 'Direct table width should override inherited pct width');
+        $t->true(!in_array('docx-table-width-pct', $overrideClasses, true), 'Direct table width should remove inherited pct width class');
+        $t->true(in_array('docx-table-align-start', $overrideClasses, true), 'Direct alignment should override inherited style alignment');
+        $t->true(!in_array('docx-table-align-end', $overrideClasses, true), 'Direct alignment should remove inherited style alignment class');
+        $t->true(in_array('docx-table-indent-dxa', $overrideClasses, true), 'Direct table should inherit base style indent');
+        $t->true(in_array('docx-table-layout-fixed', $overrideClasses, true), 'Direct table should inherit base style layout');
+
+        $overrideAttrs = $overrideTable->attr('attributes');
+        $t->same('DerivedReviewTable', $overrideAttrs['data-docx-table-style']);
+        $t->same('Derived Review Table', $overrideAttrs['data-docx-table-style-name']);
+        $t->same('BaseReviewTable', $overrideAttrs['data-docx-table-style-based-on']);
+        $t->same('dxa', $overrideAttrs['data-docx-table-width-type']);
+        $t->same('3600', $overrideAttrs['data-docx-table-width-value']);
+        $t->same('180', $overrideAttrs['data-docx-table-width-points']);
+        $t->same('start', $overrideAttrs['data-docx-table-align']);
+        $t->same('12', $overrideAttrs['data-docx-table-indent-left-points']);
+        $t->same('fixed', $overrideAttrs['data-docx-table-layout']);
+        $t->same('margin-left:12pt; width:180pt', $overrideTable->attr('htmlAttributes')['style']);
+
+        $overrideGeometry = $overrideTable->attr('tableGeometry');
+        $t->same(true, is_array($overrideGeometry));
+        $overrideGeometry = is_array($overrideGeometry) ? $overrideGeometry : [];
+        $t->same('dxa', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-width-type'] ?? null);
+        $t->same('180', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-width-points'] ?? null);
+        $t->same('start', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-align'] ?? null);
+        $t->same('12', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-indent-left-points'] ?? null);
+        $t->same('fixed', $overrideGeometry['sourceAttributes']['attributes']['data-docx-table-layout'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Inherited source field | Inherited review value |', $normalizedMarkdown);
+        $t->contains('| Direct override field | Direct override value |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-name'), 'Pipe-table Markdown handoff should not leak inherited DOCX table style metadata');
+
+        $t->contains('class="docx-table-indent docx-table-indent-dxa docx-table-layout docx-table-layout-fixed docx-table-style-definition docx-table-width docx-table-width-pct docx-table-align docx-table-align-end docx-table-style docx-table-style-derivedreviewtable"', $blocks);
+        $t->contains('style="margin-left:12pt; width:84%"', $blocks);
+        $t->contains('data-docx-table-style-name="Derived Review Table"', $blocks);
+        $t->contains('data-docx-table-style-based-on="BaseReviewTable"', $blocks);
+        $t->contains('data-docx-table-width-percent="84"', $blocks);
+        $t->contains('data-docx-table-align="end"', $blocks);
+        $t->contains('style="margin-left:12pt; width:180pt"', $blocks);
+        $t->contains('data-docx-table-width-type="dxa"', $blocks);
+        $t->contains('data-docx-table-width-points="180"', $blocks);
+        $t->contains('data-docx-table-align="start"', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());

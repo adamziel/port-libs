@@ -10718,7 +10718,7 @@ final class DocxReader
             $rows[] = new AstNode('table_row', $this->tableRowAttrs($rowElement), $cells);
         }
 
-        $tableAttrs = array_replace($this->tableAttrs($table), $this->tableGridAttrs($table));
+        $tableAttrs = array_replace($this->tableAttrs($table, $styles), $this->tableGridAttrs($table));
 
         return TableGeometry::withReviewPacket(new AstNode('table', $tableAttrs, [
             new AstNode('table_body', [], $rows),
@@ -10728,7 +10728,7 @@ final class DocxReader
     /**
      * @return array<string, mixed>
      */
-    private function tableAttrs(\DOMElement $table): array
+    private function tableAttrs(\DOMElement $table, array $styles = []): array
     {
         $attrs = ['caption' => ''];
         $properties = $this->firstChildElement($table, self::WORDPROCESSINGML_NS, 'tblPr');
@@ -10741,19 +10741,57 @@ final class DocxReader
             $attrs['caption'] = $caption;
         }
 
+        $styleId = $this->tableStyleId($properties);
+        $metadataAttrs = null;
+        if ($styleId !== null) {
+            $seen = [];
+            $metadataAttrs = $this->resolveStyleTableMetadataAttrs($styleId, $styles, $seen);
+        }
+
+        $description = $this->tablePropertyValue($properties, 'tblDescription');
+        $directAttrs = $this->tablePropertiesMetadataAttrs($properties);
+        if ($description !== null) {
+            $directAttrs = $this->mergeTableAttrs($directAttrs, [
+                'classes' => ['docx-table-metadata'],
+                'attributes' => ['data-docx-table-description' => $description],
+                'htmlAttributes' => ['aria-description' => $description],
+            ]);
+        } elseif ($caption !== null) {
+            $directAttrs = $this->mergeTableAttrs($directAttrs, [
+                'classes' => ['docx-table-metadata'],
+            ]);
+        }
+
+        $metadataAttrs = $this->mergeTableAttrs($metadataAttrs, $directAttrs);
+        if ($metadataAttrs === null) {
+            return $attrs;
+        }
+
+        $classes = $metadataAttrs['classes'] ?? [];
+        $attributes = $metadataAttrs['attributes'] ?? [];
+        $htmlAttributes = $metadataAttrs['htmlAttributes'] ?? [];
+        if ($classes !== []) {
+            $attrs['classes'] = $classes;
+        }
+        if ($attributes !== []) {
+            $attrs['attributes'] = $attributes;
+        }
+        if ($htmlAttributes !== []) {
+            $attrs['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function tablePropertiesMetadataAttrs(\DOMElement $properties): ?array
+    {
         $classes = [];
         $attributes = [];
         $htmlAttributes = [];
         $styles = [];
-
-        $description = $this->tablePropertyValue($properties, 'tblDescription');
-        if ($description !== null) {
-            $classes[] = 'docx-table-metadata';
-            $attributes['data-docx-table-description'] = $description;
-            $htmlAttributes['aria-description'] = $description;
-        } elseif ($caption !== null) {
-            $classes[] = 'docx-table-metadata';
-        }
 
         $this->appendTableStyleAttrs($properties, $classes, $attributes);
         $this->appendTableWidthAttrs($properties, $classes, $attributes, $styles);
@@ -10761,6 +10799,11 @@ final class DocxReader
         $this->appendTableIndentAttrs($properties, $classes, $attributes, $styles);
         $this->appendTableLayoutAttrs($properties, $classes, $attributes);
 
+        if ($classes === [] && $attributes === [] && $styles === []) {
+            return null;
+        }
+
+        $attrs = [];
         if ($classes !== []) {
             $attrs['classes'] = array_values(array_unique($classes));
         }
@@ -10775,6 +10818,191 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    private function tableStyleId(\DOMElement $properties): ?string
+    {
+        $style = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblStyle');
+        if (!$style instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim((string) ($this->wordAttr($style, 'val') ?? ''));
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param array<string, array{type?:string, name:?string, basedOn:?string, tableMetadata?:array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null}> $styles
+     * @param array<string, bool> $seen
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function resolveStyleTableMetadataAttrs(?string $styleId, array $styles, array &$seen): ?array
+    {
+        if ($styleId === null || isset($seen[$styleId]) || !isset($styles[$styleId])) {
+            return null;
+        }
+
+        $style = $styles[$styleId];
+        if (($style['type'] ?? null) !== 'table') {
+            return null;
+        }
+
+        $seen[$styleId] = true;
+        $attrs = $this->resolveStyleTableMetadataAttrs($style['basedOn'], $styles, $seen);
+        $styleAttrs = $style['tableMetadata'] ?? null;
+
+        return $this->mergeTableAttrs($attrs, is_array($styleAttrs) ? $styleAttrs : null);
+    }
+
+    /**
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null $base
+     * @param array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null $override
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function mergeTableAttrs(?array $base, ?array $override): ?array
+    {
+        if ($base === null) {
+            return $override;
+        }
+        if ($override === null) {
+            return $base;
+        }
+
+        $baseClasses = is_array($base['classes'] ?? null) ? $base['classes'] : [];
+        $overrideClasses = is_array($override['classes'] ?? null) ? $override['classes'] : [];
+        $overrideAttributes = is_array($override['attributes'] ?? null) ? $override['attributes'] : [];
+        $baseClasses = $this->removeOverriddenTableMetadataClasses($baseClasses, $overrideAttributes);
+
+        $merged = [];
+        $classes = array_values(array_unique([...$baseClasses, ...$overrideClasses]));
+        if ($classes !== []) {
+            $merged['classes'] = $classes;
+        }
+
+        $attributes = array_replace(
+            is_array($base['attributes'] ?? null) ? $base['attributes'] : [],
+            $overrideAttributes,
+        );
+        if ($attributes !== []) {
+            $merged['attributes'] = $attributes;
+        }
+
+        $htmlAttributes = array_replace(
+            is_array($base['htmlAttributes'] ?? null) ? $base['htmlAttributes'] : [],
+            is_array($override['htmlAttributes'] ?? null) ? $override['htmlAttributes'] : [],
+        );
+        $baseStyle = trim((string) (($base['htmlAttributes'] ?? [])['style'] ?? ''));
+        $overrideStyle = trim((string) (($override['htmlAttributes'] ?? [])['style'] ?? ''));
+        if ($baseStyle !== '' || $overrideStyle !== '') {
+            $htmlAttributes['style'] = $this->mergeTableCssStyle($baseStyle, $overrideStyle, $overrideAttributes);
+        }
+        if ($htmlAttributes !== []) {
+            $merged['htmlAttributes'] = $htmlAttributes;
+        }
+
+        return $merged === [] ? null : $merged;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $overrideAttributes
+     * @return list<string>
+     */
+    private function removeOverriddenTableMetadataClasses(array $classes, array $overrideAttributes): array
+    {
+        $removeExact = [];
+        $removePrefixes = [];
+
+        if (isset($overrideAttributes['data-docx-table-width-type'])) {
+            $removeExact[] = 'docx-table-width';
+            $removePrefixes[] = 'docx-table-width-';
+        }
+        if (isset($overrideAttributes['data-docx-table-align'])) {
+            $removeExact[] = 'docx-table-align';
+            $removePrefixes[] = 'docx-table-align-';
+        }
+        if (isset($overrideAttributes['data-docx-table-indent-type'])) {
+            $removeExact[] = 'docx-table-indent';
+            $removePrefixes[] = 'docx-table-indent-';
+        }
+        if (isset($overrideAttributes['data-docx-table-layout'])) {
+            $removeExact[] = 'docx-table-layout';
+            $removePrefixes[] = 'docx-table-layout-';
+        }
+
+        if ($removeExact === [] && $removePrefixes === []) {
+            return $classes;
+        }
+
+        return array_values(array_filter(
+            $classes,
+            static function (string $class) use ($removeExact, $removePrefixes): bool {
+                if (in_array($class, $removeExact, true)) {
+                    return false;
+                }
+
+                foreach ($removePrefixes as $prefix) {
+                    if (str_starts_with($class, $prefix)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            },
+        ));
+    }
+
+    /**
+     * @param array<string, string> $overrideAttributes
+     */
+    private function mergeTableCssStyle(string $baseStyle, string $overrideStyle, array $overrideAttributes): string
+    {
+        $removeProperties = [];
+        if (isset($overrideAttributes['data-docx-table-width-type'])) {
+            $removeProperties[] = 'width';
+        }
+        if (isset($overrideAttributes['data-docx-table-indent-type'])) {
+            $removeProperties[] = 'margin-left';
+        }
+
+        $baseStyle = $this->removeCssStyleProperties($baseStyle, $removeProperties);
+        if ($baseStyle === '') {
+            return $overrideStyle;
+        }
+        if ($overrideStyle === '') {
+            return $baseStyle;
+        }
+
+        return rtrim($baseStyle, ';') . '; ' . ltrim($overrideStyle);
+    }
+
+    /**
+     * @param list<string> $properties
+     */
+    private function removeCssStyleProperties(string $style, array $properties): string
+    {
+        if ($style === '' || $properties === []) {
+            return $style;
+        }
+
+        $remove = array_fill_keys(array_map('strtolower', $properties), true);
+        $declarations = [];
+        foreach (explode(';', $style) as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '') {
+                continue;
+            }
+
+            [$property] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (isset($remove[strtolower(trim($property))])) {
+                continue;
+            }
+
+            $declarations[] = $declaration;
+        }
+
+        return implode('; ', $declarations);
     }
 
     /**
@@ -12430,7 +12658,7 @@ final class DocxReader
             }
 
             $type = strtolower((string) ($this->wordAttr($styleElement, 'type') ?? 'paragraph'));
-            if (!in_array($type, ['paragraph', 'character'], true)) {
+            if (!in_array($type, ['paragraph', 'character', 'table'], true)) {
                 continue;
             }
 
@@ -12443,6 +12671,7 @@ final class DocxReader
             $basedOn = $this->styleChildValue($styleElement, 'basedOn');
             $properties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'pPr');
             $runProperties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'rPr');
+            $tableProperties = $this->firstChildElement($styleElement, self::WORDPROCESSINGML_NS, 'tblPr');
 
             $styles[$styleId] = [
                 'type' => $type,
@@ -12452,10 +12681,36 @@ final class DocxReader
                 'numPr' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
                 'paragraphMetadata' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
                 'runProperties' => $runProperties instanceof \DOMElement ? $this->runPropertiesFromElement($runProperties) : null,
+                'tableMetadata' => $type === 'table' ? $this->styleTableMetadataAttrs($tableProperties, $name, $basedOn) : null,
             ];
         }
 
         return $styles;
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
+     */
+    private function styleTableMetadataAttrs(?\DOMElement $properties, ?string $name, ?string $basedOn): ?array
+    {
+        $attrs = $properties instanceof \DOMElement ? $this->tablePropertiesMetadataAttrs($properties) : null;
+
+        $styleAttrs = null;
+        $attributes = [];
+        if ($name !== null && $name !== '') {
+            $attributes['data-docx-table-style-name'] = $name;
+        }
+        if ($basedOn !== null && $basedOn !== '') {
+            $attributes['data-docx-table-style-based-on'] = $basedOn;
+        }
+        if ($attributes !== []) {
+            $styleAttrs = [
+                'classes' => ['docx-table-style-definition'],
+                'attributes' => $attributes,
+            ];
+        }
+
+        return $this->mergeTableAttrs($attrs, $styleAttrs);
     }
 
     /**
