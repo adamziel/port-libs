@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:16:26 UTC",
-    "sourceCommit": "287890bd8d432e745d63574bc6c9298d71a3f52e",
-    "sourceCommitShort": "287890bd8d43",
+    "generated": "2026-06-09 06:17:31 UTC",
+    "sourceCommit": "54e4f08a09f2e83c9a94575366cb4582953b41b9",
+    "sourceCommitShort": "54e4f08a09f2",
     "sourceBranch": "unknown",
-    "dashboardCommit": "287890bd8d432e745d63574bc6c9298d71a3f52e",
-    "dashboardCommitShort": "287890bd8d43",
+    "dashboardCommit": "54e4f08a09f2e83c9a94575366cb4582953b41b9",
+    "dashboardCommitShort": "54e4f08a09f2",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2824",
-            "coverage": "2,824 / 2,276 (124.1%)",
+            "mapped": "2825",
+            "coverage": "2,825 / 2,276 (124.1%)",
             "mapPercent": "124.1%",
             "unmapped": "0",
-            "php": "2,435 pass / 0 fail",
+            "php": "2,437 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC Citation/CSL current-base page-locator range slice on...",
+            "audit": "2026-06-09 UTC Math/TeX current-base slice on base aea0bbc5620fdf1b62...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For Citation/CSL follow-up, choose a non-overlapping CSL beha...",
-            "remainingGate": "No new native support component is needed for this Citation/CSL slice.",
+            "nextTarget": "For Math/TeX follow-up, target a non-overlapping texmath conv...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },
         {

@@ -3098,6 +3098,22 @@ final class MathTexConverter
             return '<munder>' . $base . $below . '</munder>';
         }
 
+        if ($command === 'overunderset') {
+            $above = $this->parseRequiredTexToken($source, $offset, 'overunderset above');
+            $below = $this->parseRequiredTexToken($source, $offset, 'overunderset below');
+            $base = $this->parseRequiredTexToken($source, $offset, 'overunderset base');
+
+            return '<munderover>' . $base . $below . $above . '</munderover>';
+        }
+
+        if ($command === 'underoverset') {
+            $below = $this->parseRequiredTexToken($source, $offset, 'underoverset below');
+            $above = $this->parseRequiredTexToken($source, $offset, 'underoverset above');
+            $base = $this->parseRequiredTexToken($source, $offset, 'underoverset base');
+
+            return '<munderover>' . $base . $below . $above . '</munderover>';
+        }
+
         if ($command === 'overbrace') {
             return '<mover>'
                 . $this->parseRequiredTexToken($source, $offset, 'overbrace base')

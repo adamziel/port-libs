@@ -2104,6 +2104,29 @@ return [
         $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle><mo>+</mo><mstyle displaystyle="false"><mi>c</mi></mstyle>', $styleMathml);
         $t->contains('<mstyle scriptlevel="1"><msub><mi>d</mi><mi>i</mi></msub></mstyle><mo>+</mo><mstyle scriptlevel="2"><mi>e</mi></mstyle>', $styleMathml);
     },
+    'converts bounded tex combined over under wrappers to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $stackMathml = $converter->texToMathMl('\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n', true);
+        $tokenMathml = $converter->texToMathMl('\\overunderset\\alpha0x_i + \\underoverset\\beta\\gamma y^2', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\overunderset{\\text{publish}}{\\text{draft}}{x}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $stackMathml);
+        $t->contains('<munderover><msub><mi>p</mi><mi>i</mi></msub><mi>draft</mi><mtext>publish</mtext></munderover>', $stackMathml);
+        $t->contains('<msub><munderover><mo>lim</mo><mn>0</mn><mi>∞</mi></munderover><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></msub><msub><mi>a</mi><mi>n</mi></msub>', $stackMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n</annotation>', $stackMathml);
+        $t->contains('<msub><munderover><mi>x</mi><mn>0</mn><mi>α</mi></munderover><mi>i</mi></msub>', $tokenMathml);
+        $t->contains('<msup><munderover><mi>y</mi><mi>β</mi><mi>γ</mi></munderover><mn>2</mn></msup>', $tokenMathml);
+        $t->contains('alttext="x under draft over publish"', $accessibleMathml);
+        $t->contains('intent="underover(x,draft,publish)"', $accessibleMathml);
+        $t->true(!str_contains($stackMathml . $tokenMathml, '<mi>\\overunderset</mi>'), 'Expected TeX \\overunderset to become munderover, not a literal identifier');
+        $t->true(!str_contains($stackMathml . $tokenMathml, '<mi>\\underoverset</mi>'), 'Expected TeX \\underoverset to become munderover, not a literal identifier');
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset{a}{b}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset{}{b}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{b}_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset_1 x'));
+    },
     'converts bounded plain tex buildrel relations to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $buildrelMathml = $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B + x \\buildrel\\star\\over\\Rightarrow y', true);
@@ -2401,6 +2424,8 @@ return [
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overset{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underset{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset{a}{b}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbrace'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underbrace_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overbracket'));
@@ -2518,6 +2543,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{x}_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overset_1 x'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underset 0 _1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underoverset{a}{b}_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overunderset_1 x'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));

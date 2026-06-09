@@ -1488,6 +1488,29 @@ return [
         $t->contains('<span class="ot">enabled</span> <span class="op">=</span> <span class="cn">true</span>', $directTfvars['html']);
         $t->contains('<span class="ot">sites</span> <span class="op">=</span> <span class="fu">toset</span><span class="op">(</span><span class="va">var.sites</span><span class="op">)</span>', $directTfvars['html']);
     },
+    'highlights terraform ephemeral values and sensitivity helpers' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            'ephemeral "aws_secretsmanager_secret_version" "review" {',
+            '  secret_id = var.secret_id',
+            '}',
+            '',
+            'locals {',
+            '  safe_title = nonsensitive(ephemeralasnull(var.title))',
+            '  network = cidrsubnet(var.vpc_cidr, 8, 3)',
+            '  ready = alltrue([var.enabled, !issensitive(local.safe_title)])',
+            '}',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'terraform');
+
+        $t->same('hcl', $highlighted['language']);
+        $t->same('terraform', $highlighted['requestedLanguage']);
+        $t->contains('<span class="kw">ephemeral</span> <span class="st">&quot;aws_secretsmanager_secret_version&quot;</span> <span class="st">&quot;review&quot;</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">secret_id</span> <span class="op">=</span> <span class="va">var.secret_id</span>', $highlighted['html']);
+        $t->contains('<span class="kw">locals</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">safe_title</span> <span class="op">=</span> <span class="fu">nonsensitive</span><span class="op">(</span><span class="fu">ephemeralasnull</span><span class="op">(</span><span class="va">var.title</span><span class="op">))</span>', $highlighted['html']);
+        $t->contains('<span class="ot">network</span> <span class="op">=</span> <span class="fu">cidrsubnet</span><span class="op">(</span><span class="va">var.vpc_cidr</span><span class="op">,</span> <span class="dv">8</span><span class="op">,</span> <span class="dv">3</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">ready</span> <span class="op">=</span> <span class="fu">alltrue</span><span class="op">([</span><span class="va">var.enabled</span><span class="op">,</span> <span class="op">!</span><span class="fu">issensitive</span><span class="op">(</span><span class="va">local.safe_title</span><span class="op">)])</span>', $highlighted['html']);
+    },
     'highlights liquid shopify template snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {

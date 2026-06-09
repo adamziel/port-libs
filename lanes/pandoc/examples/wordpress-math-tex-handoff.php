@@ -98,6 +98,8 @@ Extended accent alias audit $\dddot{x_i} + \ddddot{y} + \DDDot z + \utilde{x_i} 
 
 Above and below audit $\overset{\text{new}}{p_i} + \underset{0}{\lim}_{n \to \infty} a_n + \overbrace{x + y}^{\text{sum}} + \underbrace{m_i}_{\text{media}} + \displaystyle \frac{q}{r}$ stays semantic.
 
+Combined over-under audit $\overunderset{\text{publish}}{\operatorname{draft}}{p_i} + \underoverset{0}{\infty}{\lim}_{n \to \infty} a_n$ keeps review labels semantic.
+
 Unbraced brace audit $\overbrace x_i^n + \underbrace y_j + \overbracket x^2 + \underbracket y_0$ keeps texToken bases semantic.
 
 Buildrel relation audit $\buildrel{\text{def}}\over= + A \buildrel{\operatorname{iso}}\over\longrightarrow B$ stays semantic.
@@ -301,6 +303,7 @@ $summary = [
     'accentAliasMathml' => $converter->texToMathMl('\\acute{x} + \\grave{y} + \\breve{z} + \\check{a} + \\mathring{A}_0 + \\widetilde{mn}'),
     'extendedAccentAliasMathml' => $converter->texToMathMl('\\dddot{x_i} + \\ddddot{y} + \\DDDot z + \\utilde{x_i} + \\wideutilde{mn}'),
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
+    'combinedOverUnderMathml' => $converter->texToMathMl('\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n'),
     'tokenBraceWrapperMathml' => $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0'),
     'buildrelMathml' => $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B'),
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}'),
@@ -543,6 +546,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['buildrelMathml'], '<mover><mo>=</mo><mtext>def</mtext></mover><mo>+</mo><mi>A</mi><mover><mo>→</mo><mi>iso</mi></mover><mi>B</mi>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map plain TeX buildrel relations');
+    }
+
+    if (
+        str_contains($summary['combinedOverUnderMathml'], '<mi>\\overunderset</mi>')
+        || str_contains($summary['combinedOverUnderMathml'], '<mi>\\underoverset</mi>')
+        || !str_contains($summary['combinedOverUnderMathml'], '<munderover><msub><mi>p</mi><mi>i</mi></msub><mi>draft</mi><mtext>publish</mtext></munderover>')
+        || !str_contains($summary['combinedOverUnderMathml'], '<msub><munderover><mo>lim</mo><mn>0</mn><mi>∞</mi></munderover><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></msub>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map combined over-under wrappers');
     }
 
     if (
@@ -997,6 +1009,9 @@ if (($argv[1] ?? '') === '--self-test') {
         '<msup><mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo>⏞</mo></mover><mtext>sum</mtext></msup>',
         '<msub><munder><msub><mi>m</mi><mi>i</mi></msub><mo>⏟</mo></munder><mtext>media</mtext></msub>',
         '<mstyle displaystyle="true"><mfrac><mi>q</mi><mi>r</mi></mfrac></mstyle>',
+        '<span class="math inline">\\(\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n\\)</span>',
+        '<munderover><msub><mi>p</mi><mi>i</mi></msub><mi>draft</mi><mtext>publish</mtext></munderover>',
+        '<msub><munderover><mo>lim</mo><mn>0</mn><mi>∞</mi></munderover><mrow><mi>n</mi><mo>→</mo><mi>∞</mi></mrow></msub>',
         '<mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mrow><mi>c</mi><mo>+</mo><mi>d</mi></mrow></mfrac>',
         '<mo fence="true" stretchy="true">(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">)</mo>',
         '<mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac>',
@@ -1101,6 +1116,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<msub><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo stretchy="true">→</mo></mover><mi>i</mi></msub>',
         '<mtable><mlabeledtr><mtd><mtext>(WP-2)</mtext></mtd><mtd id="eq:review-flow"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mtd></mlabeledtr></mtable>',
         '<annotation encoding="application/x-tex">\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}</annotation>',
+        '<annotation encoding="application/x-tex">\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n</annotation>',
         '<annotation encoding="application/x-tex">{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}</annotation>',
         '<annotation encoding="application/x-tex">{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}</annotation>',
         '<mi>a</mi><mo>∔</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⊞</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⊟</mo><mi>f</mi>',
