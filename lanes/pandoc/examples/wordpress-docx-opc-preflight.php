@@ -1560,6 +1560,7 @@ foreach ($graph->preflightPackageParts() as $part) {
 }
 
 $packageConsistency = $graph->preflightPackageConsistency();
+$packageConsistencySummary = $graph->packageConsistencySummary();
 $packageConsistencyOverrides = [];
 foreach ($packageConsistency['contentTypeOverrides'] as $override) {
     $packageConsistencyOverrides[$override['partName']] = $override;
@@ -2421,6 +2422,7 @@ $summary = [
         'contentTypeOverridesValid' => $packageConsistency['contentTypeOverridesValid'],
         'relationshipTargetsValid' => $packageConsistency['relationshipTargetsValid'],
         'relationshipTypePoliciesValid' => $packageConsistency['relationshipTypePoliciesValid'],
+        'summary' => $packageConsistencySummary,
         'contentTypeOverrides' => $packageConsistencyOverrides,
         'relationshipTargets' => $packageConsistencyTargets,
         'relationshipTypePolicies' => $packageConsistencyRelationshipTypePolicies,
@@ -2554,6 +2556,7 @@ $summary = [
             'issueCounts' => $relationshipPartLoadSummary['issueCounts'],
             'issues' => $relationshipPartLoadSummary['issues'],
         ],
+        'packageConsistencySummary' => $packageConsistencySummary,
         'relationshipClosureReview' => [
             'source' => $relationshipSourceClosureSummary['source'],
             'expandedSourceCount' => $relationshipSourceClosureSummary['expandedSourceCount'],
@@ -3172,6 +3175,34 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['contentTypeOverridesValid'] ?? null) !== false
         || ($summary['packageConsistency']['relationshipTargetsValid'] ?? null) !== false
         || ($summary['packageConsistency']['relationshipTypePoliciesValid'] ?? null) !== true
+        || ($summary['packageConsistency']['summary'] ?? null) !== ($summary['wordpressImport']['packageConsistencySummary'] ?? null)
+        || ($summary['packageConsistency']['summary']['packagePartCount'] ?? null) !== 33
+        || ($summary['packageConsistency']['summary']['invalidPackagePartCount'] ?? null) !== 1
+        || ($summary['packageConsistency']['summary']['contentTypeOverrideCount'] ?? null) !== 24
+        || ($summary['packageConsistency']['summary']['invalidContentTypeOverrideCount'] ?? null) !== 2
+        || ($summary['packageConsistency']['summary']['relationshipTargetCount'] ?? null) !== 26
+        || ($summary['packageConsistency']['summary']['invalidRelationshipTargetCount'] ?? null) !== 3
+        || ($summary['packageConsistency']['summary']['relationshipTypePolicyCount'] ?? null) !== 10
+        || ($summary['packageConsistency']['summary']['invalidRelationshipTypePolicyCount'] ?? null) !== 0
+        || ($summary['packageConsistency']['summary']['invalidPackagePartNames'] ?? null) !== ['/word/_rels/draft.xml.rels']
+        || ($summary['packageConsistency']['summary']['invalidContentTypeOverrideParts'] ?? null) !== ['/word/_rels/draft.xml.rels', '/word/media/stale source.png']
+        || ($summary['packageConsistency']['summary']['invalidRelationshipTargetKeys'] ?? null) !== [
+            '/word/document.xml:rIdMalformedType',
+            '/word/document.xml:rIdSchemeRelativeReviewer',
+            '/word/document.xml:rIdUnsafeReviewer',
+        ]
+        || ($summary['packageConsistency']['summary']['issueCounts'] ?? null) !== [
+            'external-target-network-path-base-uri' => 1,
+            'external-target-unsafe-scheme' => 1,
+            'invalid-relationship-content-type' => 2,
+            'override-target-missing-part' => 1,
+            'relationship-type-not-absolute-uri' => 1,
+        ]
+        || ($summary['packageConsistency']['summary']['sectionIssueCounts']['relationshipTargets'] ?? null) !== [
+            'external-target-network-path-base-uri' => 1,
+            'external-target-unsafe-scheme' => 1,
+            'relationship-type-not-absolute-uri' => 1,
+        ]
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['knownRole'] ?? null) !== 'office-document'
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyValid'] ?? null) !== true
         || ($summary['packageConsistency']['relationshipTypePolicies'][OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE]['policyIssues'] ?? null) !== []

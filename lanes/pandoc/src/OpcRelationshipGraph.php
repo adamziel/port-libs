@@ -1951,6 +1951,107 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, packagePartCount:int, invalidPackagePartCount:int, contentTypeOverrideCount:int, invalidContentTypeOverrideCount:int, relationshipTargetCount:int, invalidRelationshipTargetCount:int, relationshipTypePolicyCount:int, invalidRelationshipTypePolicyCount:int, invalidPackagePartNames:list<string>, invalidContentTypeOverrideParts:list<string>, invalidRelationshipTargetKeys:list<string>, invalidRelationshipTypePolicyTypes:list<string>, issueCounts:array<string,int>, sectionIssueCounts:array<string,array<string,int>>, issues:list<string>}
+     */
+    public function packageConsistencySummary(): array
+    {
+        $consistency = $this->preflightPackageConsistency();
+        $sectionIssueCounts = [
+            'packageParts' => [],
+            'contentTypeOverrides' => [],
+            'relationshipTargets' => [],
+            'relationshipTypePolicies' => [],
+        ];
+        $issueCounts = [];
+        $issues = [];
+        $invalidPackagePartNames = [];
+        $invalidContentTypeOverrideParts = [];
+        $invalidRelationshipTargetKeys = [];
+        $invalidRelationshipTypePolicyTypes = [];
+
+        $recordIssue = static function (string $section, string $issue) use (&$sectionIssueCounts, &$issueCounts, &$issues): void {
+            $sectionIssueCounts[$section][$issue] = ($sectionIssueCounts[$section][$issue] ?? 0) + 1;
+            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            self::appendUniqueString($issues, $issue);
+        };
+
+        foreach ($consistency['packageParts'] as $part) {
+            if (!$part['valid']) {
+                self::appendUniqueString($invalidPackagePartNames, $part['partName']);
+            }
+
+            foreach ($part['issues'] as $issue) {
+                $recordIssue('packageParts', $issue);
+            }
+        }
+
+        foreach ($consistency['contentTypeOverrides'] as $override) {
+            if (!$override['valid']) {
+                self::appendUniqueString($invalidContentTypeOverrideParts, $override['partName']);
+            }
+
+            foreach ($override['issues'] as $issue) {
+                $recordIssue('contentTypeOverrides', $issue);
+            }
+        }
+
+        foreach ($consistency['relationshipTargets'] as $target) {
+            if (!$target['valid']) {
+                self::appendUniqueString($invalidRelationshipTargetKeys, $target['source'] . ':' . $target['id']);
+            }
+
+            foreach ($target['issues'] as $issue) {
+                $recordIssue('relationshipTargets', $issue);
+            }
+        }
+
+        foreach ($consistency['relationshipTypePolicies'] as $policy) {
+            if (!$policy['policyValid']) {
+                self::appendUniqueString($invalidRelationshipTypePolicyTypes, $policy['type']);
+            }
+
+            foreach ($policy['policyIssues'] as $issue) {
+                $recordIssue('relationshipTypePolicies', $issue);
+            }
+        }
+
+        foreach ($sectionIssueCounts as &$counts) {
+            ksort($counts, SORT_STRING);
+        }
+        unset($counts);
+
+        sort($invalidPackagePartNames, SORT_STRING);
+        sort($invalidContentTypeOverrideParts, SORT_STRING);
+        sort($invalidRelationshipTargetKeys, SORT_STRING);
+        sort($invalidRelationshipTypePolicyTypes, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        sort($issues, SORT_STRING);
+
+        return [
+            'valid' => $consistency['valid'],
+            'packagePartsValid' => $consistency['packagePartsValid'],
+            'contentTypeOverridesValid' => $consistency['contentTypeOverridesValid'],
+            'relationshipTargetsValid' => $consistency['relationshipTargetsValid'],
+            'relationshipTypePoliciesValid' => $consistency['relationshipTypePoliciesValid'],
+            'packagePartCount' => count($consistency['packageParts']),
+            'invalidPackagePartCount' => count($invalidPackagePartNames),
+            'contentTypeOverrideCount' => count($consistency['contentTypeOverrides']),
+            'invalidContentTypeOverrideCount' => count($invalidContentTypeOverrideParts),
+            'relationshipTargetCount' => count($consistency['relationshipTargets']),
+            'invalidRelationshipTargetCount' => count($invalidRelationshipTargetKeys),
+            'relationshipTypePolicyCount' => count($consistency['relationshipTypePolicies']),
+            'invalidRelationshipTypePolicyCount' => count($invalidRelationshipTypePolicyTypes),
+            'invalidPackagePartNames' => $invalidPackagePartNames,
+            'invalidContentTypeOverrideParts' => $invalidContentTypeOverrideParts,
+            'invalidRelationshipTargetKeys' => $invalidRelationshipTargetKeys,
+            'invalidRelationshipTypePolicyTypes' => $invalidRelationshipTypePolicyTypes,
+            'issueCounts' => $issueCounts,
+            'sectionIssueCounts' => $sectionIssueCounts,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @param list<string> $expectedContentTypes
      * @return array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */

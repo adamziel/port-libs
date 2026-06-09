@@ -6314,6 +6314,100 @@ XML;
         $t->same(5, count($consistency['contentTypeOverrides']));
         $t->same(5, count($consistency['relationshipTargets']));
     },
+    'summarizes package-wide OPC consistency issue buckets for importer gates' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/docProps/core-copy.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/word/_rels/draft.xml.rels" ContentType="application/xml"/>
+  <Override PartName="/word/media/stale.png" ContentType="image/png"/>
+  <Override PartName="/word/media/not-image.xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdCoreCopy" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core-copy.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdNotImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/not-image.xml"/>
+</Relationships>
+XML;
+
+        $draftRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDraftImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/draft.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/_rels/draft.xml.rels', 'data' => $draftRelationshipsXml],
+            ['name' => 'word/media/not-image.xml', 'data' => '<not-image/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/core-copy.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $summary = $graph->packageConsistencySummary();
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['packagePartsValid']);
+        $t->same(false, $summary['contentTypeOverridesValid']);
+        $t->same(false, $summary['relationshipTargetsValid']);
+        $t->same(false, $summary['relationshipTypePoliciesValid']);
+        $t->same(7, $summary['packagePartCount']);
+        $t->same(1, $summary['invalidPackagePartCount']);
+        $t->same(6, $summary['contentTypeOverrideCount']);
+        $t->same(2, $summary['invalidContentTypeOverrideCount']);
+        $t->same(5, $summary['relationshipTargetCount']);
+        $t->same(1, $summary['invalidRelationshipTargetCount']);
+        $t->same(2, $summary['relationshipTypePolicyCount']);
+        $t->same(1, $summary['invalidRelationshipTypePolicyCount']);
+        $t->same(['/word/_rels/draft.xml.rels'], $summary['invalidPackagePartNames']);
+        $t->same(['/word/_rels/draft.xml.rels', '/word/media/stale.png'], $summary['invalidContentTypeOverrideParts']);
+        $t->same(['/word/document.xml:rIdMissingImage'], $summary['invalidRelationshipTargetKeys']);
+        $t->same([OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE], $summary['invalidRelationshipTypePolicyTypes']);
+        $t->same([
+            'invalid-relationship-content-type' => 2,
+            'missing-in-package' => 1,
+            'multiple-core-properties-relationships' => 1,
+            'orphan-relationship-part' => 1,
+            'override-target-missing-part' => 1,
+            'relationship-override-source-missing' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'invalid-relationship-content-type',
+            'missing-in-package',
+            'multiple-core-properties-relationships',
+            'orphan-relationship-part',
+            'override-target-missing-part',
+            'relationship-override-source-missing',
+        ], $summary['issues']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'orphan-relationship-part' => 1,
+        ], $summary['sectionIssueCounts']['packageParts']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'override-target-missing-part' => 1,
+            'relationship-override-source-missing' => 1,
+        ], $summary['sectionIssueCounts']['contentTypeOverrides']);
+        $t->same(['missing-in-package' => 1], $summary['sectionIssueCounts']['relationshipTargets']);
+        $t->same(['multiple-core-properties-relationships' => 1], $summary['sectionIssueCounts']['relationshipTypePolicies']);
+    },
     'summarizes package-wide OPC relationship type inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
