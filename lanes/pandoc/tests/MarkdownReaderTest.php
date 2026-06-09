@@ -3376,6 +3376,50 @@ return [
         $t->same('tag-directive-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="tag-directive-yaml-body">Tag directive YAML body</h1>', $blocks);
     },
+    'maps pandoc yaml implicit tagged keys inside flow metadata maps' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%TAG ! tag:primary.example,2026:',
+            '---',
+            'title: Flow implicit tagged key **Packet**',
+            'flow-review: {!reviewer owner: Import Desk, !source%2Fkey "source:key": metadata value, !source label: migration, status: approved}',
+            'references:',
+            '  - id: flow-implicit-tagged-key-ref',
+            '    metadata: {!source key: metadata value}',
+            '...',
+            '',
+            '# Flow implicit tagged key body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataTagProvenance', []);
+        $tagPairs = array_map(
+            static fn (array $entry): string => ($entry['tag'] ?? '') . "\0" . ($entry['path'] ?? ''),
+            $provenance
+        );
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Flow implicit tagged key **Packet**', $meta['title']);
+        $t->same('Import Desk', $meta['flow-review']['owner']);
+        $t->same('metadata value', $meta['flow-review']['source:key']);
+        $t->same('migration', $meta['flow-review']['label']);
+        $t->same('approved', $meta['flow-review']['status']);
+        $t->same('flow-implicit-tagged-key-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['metadata']['key']);
+        $t->same(false, array_key_exists('!reviewer owner', $meta['flow-review']));
+        $t->same(false, array_key_exists('!source%2Fkey "source:key"', $meta['flow-review']));
+        $t->same(false, str_contains(json_encode($meta, JSON_THROW_ON_ERROR), '!reviewer'));
+        foreach ([
+            '!<tag:primary.example,2026:reviewer>' . "\0" . '/flow-review/owner',
+            '!<tag:primary.example,2026:source%2Fkey>' . "\0" . '/flow-review/source:key',
+            '!<tag:primary.example,2026:source>' . "\0" . '/flow-review/label',
+            '!<tag:primary.example,2026:source>' . "\0" . '/references/0/metadata/key',
+        ] as $expectedTagPair) {
+            $t->true(in_array($expectedTagPair, $tagPairs, true), 'missing implicit flow key tag provenance ' . $expectedTagPair);
+        }
+        $t->same('heading', $document->children[0]->type);
+        $t->same('flow-implicit-tagged-key-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="flow-implicit-tagged-key-body">Flow implicit tagged key body</h1>', $blocks);
+    },
     'maps pandoc yaml tag directive URI suffixes in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

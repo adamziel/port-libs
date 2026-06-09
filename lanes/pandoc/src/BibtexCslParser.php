@@ -685,6 +685,7 @@ final class BibtexCslParser
             'jurisdiction' => self::firstField($fields, ['jurisdiction', 'location', 'address']),
             'status' => self::firstField($fields, ['status', 'pubstate']),
             'version' => self::firstField($fields, ['version']),
+            'rights' => self::firstField($fields, ['rights', 'copyright', 'license', 'licence']),
             'DOI' => self::firstField($fields, ['doi']),
             'URL' => self::firstField($fields, ['url']),
             'URL-label' => self::firstField($fields, ['urldescription', 'urltitle', 'urllabel', 'url-label', 'url-description']),

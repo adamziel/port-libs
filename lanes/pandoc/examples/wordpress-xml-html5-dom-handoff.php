@@ -15,6 +15,7 @@ $fragment = <<<'HTML'
   <p>Imported<br>line with &amp; entity</p>
   <p data-review="character-references">References: A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>
   <p data-review="math-spacing">Math refs: f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>
+  <p data-review="spacing-references">Spacing refs: non&NonBreakingSpace;thin&ThinSpace;alias&thinsp;thick&ThickSpace;very&VeryThinSpace;hair&hairsp;neg&NegativeVeryThinSpace;&NegativeMediumSpace;&NegativeThickSpace;</p>
   <svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>
   <math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
@@ -72,6 +73,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($html, '&amp;ApplyFunction;') || str_contains($html, '&amp;ZeroWidthSpace;')) {
         throw new RuntimeException('Expected math and spacing HTML5 named character references to avoid literal ampersand fallback');
+    }
+    if (!str_contains($html, '<p data-review="spacing-references">Spacing refs: non' . "\u{00A0}" . 'thin' . "\u{2009}" . 'alias' . "\u{2009}" . 'thick' . "\u{205F}\u{200A}" . 'very' . "\u{200A}" . 'hair' . "\u{200A}" . 'neg' . "\u{200B}\u{200B}\u{200B}" . '</p>')) {
+        throw new RuntimeException('Expected extended HTML5 spacing character references to decode before review serialization');
+    }
+    if (str_contains($html, '&amp;NonBreakingSpace;') || str_contains($html, '&amp;ThickSpace;') || str_contains($html, '&amp;NegativeMediumSpace;')) {
+        throw new RuntimeException('Expected extended HTML5 spacing references to avoid literal ampersand fallback');
     }
     if (!str_contains($html, '<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>')) {
         throw new RuntimeException('Expected SVG foreign-content casing to survive review handoff');

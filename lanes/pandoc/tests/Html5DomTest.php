@@ -38,6 +38,7 @@ return [
             '<p title="A&NoBreak;B" data-legacy="&nbsp &copy">A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>'
             . '<p data-literal="&NoBreak test">Literal &NoBreak test</p>'
             . '<p data-math="&af;&it;&ic;">f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>'
+            . '<p data-spacing="&NonBreakingSpace;&ThinSpace;&ThickSpace;&VeryThinSpace;&hairsp;">Spaces: non&NonBreakingSpace;thin&ThinSpace;alias&thinsp;thick&ThickSpace;very&VeryThinSpace;hair&hairsp;neg&NegativeVeryThinSpace;&NegativeMediumSpace;&NegativeThickSpace;</p>'
             . '<textarea>&NoBreak;&Tab;</textarea>'
             . '<script type="application/json">{"ref":"&NoBreak;"}</script>'
         );
@@ -45,6 +46,7 @@ return [
         $paragraph = $paragraphs[0] ?? null;
         $literalParagraph = $paragraphs[1] ?? null;
         $mathParagraph = $paragraphs[2] ?? null;
+        $spacingParagraph = $paragraphs[3] ?? null;
         $textarea = Html5Dom::firstChildElement($body, 'textarea');
         $script = Html5Dom::firstChildElement($body, 'script');
         $serialized = Html5Dom::serializeHtmlChildren($body);
@@ -59,17 +61,23 @@ return [
         $t->same(['data-literal' => '&NoBreak test'], $literalParagraph instanceof DOMElement ? Html5Dom::attributes($literalParagraph) : []);
         $t->same("f\u{2061}g\u{2062}h\u{205F}comma\u{2063}zero\u{200B}neg\u{200B}", $mathParagraph instanceof DOMElement ? $mathParagraph->textContent : null);
         $t->same(['data-math' => "\u{2061}\u{2062}\u{2063}"], $mathParagraph instanceof DOMElement ? Html5Dom::attributes($mathParagraph) : []);
+        $t->same("Spaces: non\u{00A0}thin\u{2009}alias\u{2009}thick\u{205F}\u{200A}very\u{200A}hair\u{200A}neg\u{200B}\u{200B}\u{200B}", $spacingParagraph instanceof DOMElement ? $spacingParagraph->textContent : null);
+        $t->same(['data-spacing' => "\u{00A0}\u{2009}\u{205F}\u{200A}\u{200A}\u{200A}"], $spacingParagraph instanceof DOMElement ? Html5Dom::attributes($spacingParagraph) : []);
         $t->same("\u{2060}\t", $textarea instanceof DOMElement ? $textarea->textContent : null);
         $t->same('{"ref":"&NoBreak;"}', $script instanceof DOMElement ? $script->textContent : null);
         $t->contains("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©", $serialized);
         $t->contains('<p data-literal="&amp;NoBreak test">Literal &amp;NoBreak test</p>', $serialized);
         $t->contains('<p data-math="' . "\u{2061}\u{2062}\u{2063}" . '">f' . "\u{2061}" . 'g' . "\u{2062}" . 'h' . "\u{205F}" . 'comma' . "\u{2063}" . 'zero' . "\u{200B}" . 'neg' . "\u{200B}" . '</p>', $serialized);
+        $t->contains('<p data-spacing="' . "\u{00A0}\u{2009}\u{205F}\u{200A}\u{200A}\u{200A}" . '">Spaces: non' . "\u{00A0}" . 'thin' . "\u{2009}" . 'alias' . "\u{2009}" . 'thick' . "\u{205F}\u{200A}" . 'very' . "\u{200A}" . 'hair' . "\u{200A}" . 'neg' . "\u{200B}\u{200B}\u{200B}" . '</p>', $serialized);
         $t->contains('<textarea>' . "\u{2060}\t" . '</textarea>', $serialized);
         $t->contains('<script type="application/json">{"ref":"&NoBreak;"}</script>', $serialized);
         $t->true(!str_contains($serialized, '&amp;NoBreak;</p>'), 'Expected NoBreak to decode in ordinary text');
         $t->true(!str_contains($serialized, '&amp;hopf;'), 'Expected astral HTML5 named reference to decode before handoff');
         $t->true(!str_contains($serialized, '&amp;InvisibleTimes;'), 'Expected math spacing reference to decode before handoff');
         $t->true(!str_contains($serialized, '&amp;NegativeThinSpace;'), 'Expected zero-width spacing reference to decode before handoff');
+        $t->true(!str_contains($serialized, '&amp;NonBreakingSpace;'), 'Expected named non-breaking space reference to decode before handoff');
+        $t->true(!str_contains($serialized, '&amp;ThickSpace;'), 'Expected multi-codepoint spacing reference to decode before handoff');
+        $t->true(!str_contains($serialized, '&amp;NegativeMediumSpace;'), 'Expected negative spacing aliases to decode before handoff');
     },
     'maps HTML fragment attributes and descendant elements for reviewer links' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(

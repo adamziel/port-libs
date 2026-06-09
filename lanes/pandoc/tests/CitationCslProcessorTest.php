@@ -1144,6 +1144,100 @@ XML);
         $t->contains('<p>Licensed source Ng (2026) keeps related license metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Licensed Source Dataset. 2026. License: Creative Commons Attribution 4.0 International (2013); missing: missing-license. DOI 10.5555/license-data.</dd>', $blocks);
     },
+    'maps bounded biblatex item rights metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@dataset{rights-dataset,
+  author = {Ng, Nia},
+  title  = {Rights Review Dataset},
+  date   = {2026},
+  rights = {CC BY-SA 4.0 review required},
+  doi    = {10.5555/rights-data}
+}
+
+@online{copyright-snapshot,
+  author    = {{Archive Desk}},
+  title     = {Copyright Snapshot},
+  date      = {2025},
+  copyright = {Copyright 2025 Source Archive},
+  url       = {https://example.test/copyright-snapshot}
+}
+
+@misc{license-note,
+  author  = {Roe, Pat},
+  title   = {License Note Packet},
+  date    = {2024},
+  license = {Internal migration review only}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('CC BY-SA 4.0 review required', $items[0]['rights'] ?? null);
+        $t->same('Copyright 2025 Source Archive', $items[1]['rights'] ?? null);
+        $t->same('Internal migration review only', $items[2]['rights'] ?? null);
+        $t->same('Copyright 2025 Source Archive', $items[1]['rawBibtex']['fields']['copyright'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $dataset = $processor->item('rights-dataset');
+        $snapshot = $processor->item('copyright-snapshot');
+        $license = $processor->item('license-note');
+        $t->same('CC BY-SA 4.0 review required', $dataset['rights'] ?? null);
+        $t->same('Copyright 2025 Source Archive', $snapshot['rights'] ?? null);
+        $t->same('Internal migration review only', $license['rights'] ?? null);
+        $t->same(
+            'Ng, Nia. Rights Review Dataset. 2026. Rights: CC BY-SA 4.0 review required. DOI 10.5555/rights-data.',
+            $processor->renderBibliographyEntry('rights-dataset')
+        );
+        $t->same(
+            'Archive Desk. Copyright Snapshot. 2025. Rights: Copyright 2025 Source Archive. https://example.test/copyright-snapshot.',
+            $processor->renderBibliographyEntry('copyright-snapshot')
+        );
+        $t->same(
+            'Roe, Pat. License Note Packet. 2024. Rights: Internal migration review only.',
+            $processor->renderBibliographyEntry('license-note')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="rights"/>
+        <text variable="copyright"/>
+        <text variable="license"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="rights"/>
+      <text variable="license"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Rights Review Dataset | CC BY-SA 4.0 review required | CC BY-SA 4.0 review required | CC BY-SA 4.0 review required; Copyright Snapshot | Copyright 2025 Source Archive | Copyright 2025 Source Archive | Copyright 2025 Source Archive]', $styled->renderCitationCluster([
+            $citation('rights-dataset', '[@rights-dataset]'),
+            $citation('copyright-snapshot', '[@copyright-snapshot]'),
+        ]));
+        $t->same('Rights Review Dataset :: CC BY-SA 4.0 review required :: CC BY-SA 4.0 review required', $styled->renderBibliographyEntry('rights-dataset'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-rights',
+            'title' => 'Direct Rights Packet',
+            'copyright' => 'Direct copyright notice',
+        ]])->item('direct-rights');
+        $t->same('Direct copyright notice', $direct['rights'] ?? null);
+
+        $document = (new MarkdownReader())->read('Rights source @rights-dataset and copyright snapshot [@copyright-snapshot] keep item-level rights visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Rights source Ng (2026) and copyright snapshot (Archive Desk 2025) keep item-level rights visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Rights Review Dataset. 2026. Rights: CC BY-SA 4.0 review required. DOI 10.5555/rights-data.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Copyright Snapshot. 2025. Rights: Copyright 2025 Source Archive. https://example.test/copyright-snapshot.</dd>', $blocks);
+    },
     'maps bounded biblatex translation and original publication metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-manual,

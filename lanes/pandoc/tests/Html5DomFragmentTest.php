@@ -32,6 +32,7 @@ return [
             . '<p title="A&NoBreak;B" data-legacy="&nbsp &copy">A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>'
             . '<p data-literal="&NoBreak test">Literal &NoBreak test</p>'
             . '<p data-math="&af;&it;&ic;">f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>'
+            . '<p data-spacing="&NonBreakingSpace;&ThinSpace;&ThickSpace;&VeryThinSpace;&hairsp;">Spaces: non&NonBreakingSpace;thin&ThinSpace;alias&thinsp;thick&ThickSpace;very&VeryThinSpace;hair&hairsp;neg&NegativeVeryThinSpace;&NegativeMediumSpace;&NegativeThickSpace;</p>'
             . '<textarea>&NoBreak;&Tab;</textarea>'
             . '<script type="application/json">{"ref":"&NoBreak;"}</script>'
             . '</article>'
@@ -52,6 +53,7 @@ return [
             . '<p title="A' . "\u{2060}" . 'B" data-legacy="' . "\u{00A0}" . ' ©">A' . "\u{2060}" . "B\nC\tD " . "\u{1D559}" . ' ' . "\u{00A0}" . ' ©</p>'
             . '<p data-literal="&amp;NoBreak test">Literal &amp;NoBreak test</p>'
             . '<p data-math="' . "\u{2061}\u{2062}\u{2063}" . '">f' . "\u{2061}" . 'g' . "\u{2062}" . 'h' . "\u{205F}" . 'comma' . "\u{2063}" . 'zero' . "\u{200B}" . 'neg' . "\u{200B}" . '</p>'
+            . '<p data-spacing="' . "\u{00A0}\u{2009}\u{205F}\u{200A}\u{200A}\u{200A}" . '">Spaces: non' . "\u{00A0}" . 'thin' . "\u{2009}" . 'alias' . "\u{2009}" . 'thick' . "\u{205F}\u{200A}" . 'very' . "\u{200A}" . 'hair' . "\u{200A}" . 'neg' . "\u{200B}\u{200B}\u{200B}" . '</p>'
             . "\u{2060}\t"
             . '</article>';
 
@@ -63,19 +65,24 @@ return [
         $t->same([], $summary['filteredAttributes']);
         $t->same(['blocked-tag', 'blocked-tag'], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
-        $t->same("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©Literal &NoBreak testf\u{2061}g\u{2062}h\u{205F}comma\u{2063}zero\u{200B}neg\u{200B}\u{2060}\t", $fragment->textContent());
+        $t->same("A\u{2060}B\nC\tD \u{1D559} \u{00A0} ©Literal &NoBreak testf\u{2061}g\u{2062}h\u{205F}comma\u{2063}zero\u{200B}neg\u{200B}Spaces: non\u{00A0}thin\u{2009}alias\u{2009}thick\u{205F}\u{200A}very\u{200A}hair\u{200A}neg\u{200B}\u{200B}\u{200B}\u{2060}\t", $fragment->textContent());
         $t->same("A\u{2060}B", $nodes[0]['children'][0]['attrs']['title']);
         $t->same("\u{00A0} ©", $nodes[0]['children'][0]['attrs']['data-legacy']);
         $t->same(['data-literal' => '&NoBreak test'], $nodes[0]['children'][1]['attrs']);
         $t->same('Literal &NoBreak test', $nodes[0]['children'][1]['children'][0]['text']);
         $t->same(['data-math' => "\u{2061}\u{2062}\u{2063}"], $nodes[0]['children'][2]['attrs']);
         $t->same("f\u{2061}g\u{2062}h\u{205F}comma\u{2063}zero\u{200B}neg\u{200B}", $nodes[0]['children'][2]['children'][0]['text']);
-        $t->same("\u{2060}\t", $nodes[0]['children'][3]['text']);
+        $t->same(['data-spacing' => "\u{00A0}\u{2009}\u{205F}\u{200A}\u{200A}\u{200A}"], $nodes[0]['children'][3]['attrs']);
+        $t->same("Spaces: non\u{00A0}thin\u{2009}alias\u{2009}thick\u{205F}\u{200A}very\u{200A}hair\u{200A}neg\u{200B}\u{200B}\u{200B}", $nodes[0]['children'][3]['children'][0]['text']);
+        $t->same("\u{2060}\t", $nodes[0]['children'][4]['text']);
         $t->same('/migration/html5-character-references.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($html, '&amp;NoBreak;'), 'Expected NoBreak to decode before sanitizer serialization');
         $t->true(!str_contains($html, '&amp;hopf;'), 'Expected astral named reference to decode before sanitizer serialization');
         $t->true(!str_contains($html, '&amp;ApplyFunction;'), 'Expected math function reference to decode before sanitizer serialization');
         $t->true(!str_contains($html, '&amp;ZeroWidthSpace;'), 'Expected zero-width reference to decode before sanitizer serialization');
+        $t->true(!str_contains($html, '&amp;NonBreakingSpace;'), 'Expected named non-breaking space reference to decode before sanitizer serialization');
+        $t->true(!str_contains($html, '&amp;ThickSpace;'), 'Expected multi-codepoint spacing reference to decode before sanitizer serialization');
+        $t->true(!str_contains($html, '&amp;NegativeMediumSpace;'), 'Expected negative spacing aliases to decode before sanitizer serialization');
         $t->true(!str_contains($html, '<script'), 'Expected active script wrapper to be dropped before WordPress handoff');
     },
     'normalizes unsafe comment boundaries before sanitized raw html handoff' => static function (TestRunner $t): void {

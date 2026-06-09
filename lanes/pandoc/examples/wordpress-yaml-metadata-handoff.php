@@ -117,6 +117,7 @@ tag-directive-review:
   priority: !yaml!int "10"
   labels: [!wpd!label directive, !wpd!label metadata]
 flow-tag-directive-review: {? !wpd!key "source:key": !wpd!value directive metadata, owner: !wpd!reviewer Flow Directive Desk}
+flow-implicit-tag-key-review: {!wpd!reviewer owner: Flow Implicit Desk, !wpd!key "source:key": implicit directive metadata}
 flow-key-tag-review: {? !wpd!key "source:key": directive key metadata}
 plain-tag-key-review:
   !wpd!key source:key: plain key metadata
@@ -990,6 +991,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-tag-directive-review']['owner'] ?? '') !== 'Flow Directive Desk') {
         throw new RuntimeException('YAML metadata self-test missing flow tag directive owner metadata');
     }
+    if (
+        ($meta['flow-implicit-tag-key-review']['owner'] ?? '') !== 'Flow Implicit Desk'
+        || ($meta['flow-implicit-tag-key-review']['source:key'] ?? '') !== 'implicit directive metadata'
+        || array_key_exists('!wpd!reviewer owner', $meta['flow-implicit-tag-key-review'] ?? [])
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing flow implicit tagged key metadata');
+    }
     if (($meta['flow-key-tag-review']['source:key'] ?? '') !== 'directive key metadata') {
         throw new RuntimeException('YAML metadata self-test missing flow custom-tagged explicit key metadata');
     }
@@ -1050,7 +1058,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
     $yamlTagPaths = array_column($yamlTagProvenance, 'path');
-    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/tag-uri-suffix-review/owner', '/tag-uri-suffix-review/source-uri', '/tag-uri-suffix-review/fragment-owner', '/tag-uri-suffix-review/scoped-owner', '/flow-tag-uri-suffix-review/owner', '/flow-tag-uri-suffix-review/source:key', '/block-explicit-null-review/tagged-source', '/verbatim-tag-review/source-uri'] as $expectedPath) {
+    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/flow-implicit-tag-key-review/owner', '/flow-implicit-tag-key-review/source:key', '/tag-uri-suffix-review/owner', '/tag-uri-suffix-review/source-uri', '/tag-uri-suffix-review/fragment-owner', '/tag-uri-suffix-review/scoped-owner', '/flow-tag-uri-suffix-review/owner', '/flow-tag-uri-suffix-review/source:key', '/block-explicit-null-review/tagged-source', '/verbatim-tag-review/source-uri'] as $expectedPath) {
         if (!in_array($expectedPath, $yamlTagPaths, true)) {
             throw new RuntimeException('YAML metadata self-test missing custom tag provenance path ' . $expectedPath);
         }

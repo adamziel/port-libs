@@ -3700,7 +3700,7 @@ final class MarkdownReader
                     [$sourceKey, $value] = $mapping;
                     $keyTagStart = count($this->yamlMetadataTagProvenance);
                     $keyAnchorStart = count($this->yamlMetadataAnchorProvenance);
-                    $key = $this->normalizeYamlFlowKey($sourceKey);
+                    [$key, $quotedKey] = $this->normalizeYamlFlowKeyWithQuote($sourceKey);
                     if ($key === '') {
                         return;
                     }
@@ -3719,7 +3719,7 @@ final class MarkdownReader
                         }
                         $seenKeys[$key] = true;
                         $map[$key] = $value;
-                        if ($this->isYamlQuotedFlowKey($sourceKey)) {
+                        if ($quotedKey) {
                             $fieldQuoteMap[(string) $key] = true;
                         }
                     }
@@ -4288,22 +4288,34 @@ final class MarkdownReader
 
     private function normalizeYamlFlowKey(string $key): string
     {
+        return $this->normalizeYamlFlowKeyWithQuote($key)[0];
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function normalizeYamlFlowKeyWithQuote(string $key): array
+    {
         $key = trim($key);
         if ($key === '') {
-            return '';
+            return ['', false];
         }
 
         if (preg_match('/^\?[ \t]+(.+)$/s', $key, $m) === 1) {
             $normalized = $this->normalizeYamlExplicitMappingKey($this->parseYamlScalarKeyValue(trim($m[1])));
 
-            return $normalized ?? '';
+            return [$normalized ?? '', $this->isYamlQuotedFlowKey($key)];
         }
 
         if (($key[0] === '"' && str_ends_with($key, '"')) || ($key[0] === "'" && str_ends_with($key, "'"))) {
-            return $this->unquoteYamlScalar($key);
+            return [$this->unquoteYamlScalar($key), true];
         }
 
-        return $key;
+        if ($this->yamlPlainMappingKeyMayStartWithDirective($key)) {
+            return $this->normalizeYamlPlainMappingKeyDirectives($key, false);
+        }
+
+        return [$key, false];
     }
 
     /**
