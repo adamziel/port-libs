@@ -649,6 +649,15 @@ final class ZipPackageEntry
             throw new \RuntimeException("ZIP NTFS extra field for {$label} is truncated");
         }
 
+        $reserved = unpack('Vvalue', substr($data, 0, 4));
+        if (!is_array($reserved)) {
+            throw new \RuntimeException("Unable to read ZIP NTFS extra field for {$label}");
+        }
+
+        if ((int) $reserved['value'] !== 0) {
+            throw new \RuntimeException("ZIP NTFS extra field for {$label} contains nonzero reserved bytes");
+        }
+
         $cursor = 4;
         while ($cursor < $length) {
             if ($cursor + 4 > $length) {

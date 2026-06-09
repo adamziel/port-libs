@@ -1972,6 +1972,75 @@ HTML;
         json_encode($invalidPacket, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table border presentation metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="border-presentation-grid" data-source="html-reader" style="border-color: #336699; border-style: dashed; border-width: 2px; border-image:url(javascript:alert(1))">
+<caption>Border presentation review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $diagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-border-presentation'
+            ));
+            $diagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same('html-table-border-presentation', $packet['tableBorderPresentation']['source'] ?? null);
+        $t->same([
+            'border-color' => '#336699',
+            'border-style' => 'dashed',
+            'border-width' => '2px',
+        ], $packet['tableBorderPresentation']['attributes'] ?? null);
+        $t->same('#336699', $packet['tableBorderPresentation']['borderColor'] ?? null);
+        $t->same('dashed', $packet['tableBorderPresentation']['borderStyle'] ?? null);
+        $t->same('2px', $packet['tableBorderPresentation']['borderWidth'] ?? null);
+        $t->same(true, $packet['summary']['hasTableBorderPresentation'] ?? null);
+        $t->same('#336699', $packet['summary']['tableBorderColor'] ?? null);
+        $t->same('dashed', $packet['summary']['tableBorderStyle'] ?? null);
+        $t->same('2px', $packet['summary']['tableBorderWidth'] ?? null);
+        $t->same(3, $packet['summary']['tableBorderPresentationAttributeCount'] ?? null);
+
+        $t->same([
+            'markdown-table-border-presentation-requires-raw-html',
+            'asciidoc-table-border-presentation-review-required',
+            'latex-table-border-presentation-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $diagnostics['markdown'],
+            $diagnostics['asciidoc'],
+            $diagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-border-presentation', $diagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-border-presentation', $diagnostics['markdown']['source'] ?? null);
+        $t->same([
+            'border-color' => '#336699',
+            'border-style' => 'dashed',
+            'border-width' => '2px',
+        ], $diagnostics['markdown']['attributes'] ?? null);
+        $t->contains('<table id="border-presentation-grid" data-source="html-reader" style="border-color:#336699; border-style:dashed; border-width:2px">', $blocks);
+        $t->true(!str_contains($blocks, 'border-image'), 'Unsafe border image style declarations must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">

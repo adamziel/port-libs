@@ -6097,7 +6097,7 @@ final class OdfReader
             $attrs['id'] = $id;
         }
         if ($citation instanceof \DOMElement) {
-            $attrs['citation'] = self::normalizedText($citation);
+            $attrs['citation'] = $this->noteCitationText($citation, $catalog, $package);
         }
         $configuration = $this->noteConfigurationForClass($noteClass);
         if ($configuration !== []) {
@@ -6105,6 +6105,19 @@ final class OdfReader
         }
 
         return new AstNode('note', $attrs, $blocks);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     */
+    private function noteCitationText(\DOMElement $citation, array $catalog, ?ZipPackage $package): string
+    {
+        $text = trim($this->plainInlineText($this->coalesceTextNodes($this->inlineNodes($citation, $catalog, $package))));
+        if ($text !== '') {
+            return $text;
+        }
+
+        return self::normalizedText($citation);
     }
 
     /**

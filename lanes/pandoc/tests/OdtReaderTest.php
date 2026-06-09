@@ -251,6 +251,36 @@ return [
         $t->same(1, $report['textBoxes']['count']);
         $t->same(1, $report['styles']['listCount']);
     },
+    'normalizes ODT tab stops to Pandoc spaces in package reader output' => static function (TestRunner $t) use ($buildPackage): void {
+        $tabbedContentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  office:version="1.3">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="2">Tabbed<text:tab/>heading</text:h>
+      <text:p>Before<text:tab/>after<text:s text:c="2"/>spaces.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $document = (new OdtReader())->readDocument($buildPackage(['content.xml' => $tabbedContentXml]));
+        $heading = $document->children[0];
+        $paragraph = $document->children[1];
+
+        $t->same('Tabbed heading', $heading->attr('text'));
+        $t->same('tabbed-heading', $heading->attr('id'));
+        $t->same('Tabbed heading', $heading->children[0]->attr('text'));
+        $t->same('Before after  spaces.', $paragraph->children[0]->attr('text'));
+        $t->true(!str_contains($paragraph->children[0]->attr('text'), "\t"), 'ODT text:tab should not leak literal tab characters');
+
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $t->contains('<h2 id="tabbed-heading">Tabbed heading</h2>', $blocks);
+        $t->contains('<p>Before after  spaces.</p>', $blocks);
+        $t->true(!str_contains($blocks, "\t"), 'WordPress ODT handoff should serialize tab stops as spaces');
+    },
     'rejects malformed or non ODT package inputs' => static function (TestRunner $t) use ($buildPackage): void {
         $reader = new OdtReader();
 

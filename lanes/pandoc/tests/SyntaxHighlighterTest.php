@@ -1268,14 +1268,31 @@ return [
         $t->contains('<span class="fu">link:</span><span class="ot">https://example.test/wp-admin/edit.php</span><span class="op">[</span>Reviewer queue<span class="op">]</span>', $highlighted['html']);
         $t->contains('<span class="ot">[source,php]</span>', $highlighted['html']);
         $t->contains('<span class="re">----</span>', $highlighted['html']);
-        $t->contains('<span class="dt">echo esc_html($title); // reviewed output &lt;1&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">);</span> <span class="co">// reviewed output &lt;1&gt;</span>', $highlighted['html']);
+        $t->same(false, str_contains($highlighted['html'], '<span class="dt">echo esc_html($title); // reviewed output'));
         $t->contains('<span class="cn">&lt;1&gt;</span> Escaped WordPress block title<span class="op">.</span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
         $t->contains('<span class="fu">image::</span>uploads', $wordpressBlock);
+        $t->contains('<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span>', $wordpressBlock);
         $t->same('asciidoc', $directAdoc['language']);
         $t->same('asciidoctor', $directAdoc['requestedLanguage']);
         $t->contains('<span class="fu">link:</span><span class="ot">https://example.test/import</span><span class="op">[</span>review<span class="op">]</span>', $directAdoc['html']);
         $t->contains('<span class="va">{source-id}</span>', $directAdoc['html']);
+    },
+    'delegates asciidoc source listings to declared syntax highlighters' => static function (TestRunner $t): void {
+        $highlighter = new SyntaxHighlighter();
+        $phpSource = $highlighter->highlight("[source,php]\n----\necho esc_html(\$title); // reviewed output <1>\n----", 'asciidoctor');
+        $javascriptSource = $highlighter->highlight("[source,js,linenums]\n----\nconst block = wp.element.createElement(\"p\", null, \"ok\");\n----", 'adoc');
+        $unsupportedSource = $highlighter->highlight("[source,legacy-runbook]\n----\nraw << token\n----", 'adoc');
+
+        $t->same('asciidoc', $phpSource['language']);
+        $t->contains('<span class="ot">[source,php]</span>', $phpSource['html']);
+        $t->contains('<span class="re">----</span>', $phpSource['html']);
+        $t->contains('<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">);</span> <span class="co">// reviewed output &lt;1&gt;</span>', $phpSource['html']);
+        $t->same(false, str_contains($phpSource['html'], '<span class="dt">echo esc_html($title); // reviewed output'));
+        $t->contains('<span class="ot">[source,js,linenums]</span>', $javascriptSource['html']);
+        $t->contains('<span class="kw">const</span> <span class="va">block</span> <span class="op">=</span> <span class="va">wp</span><span class="op">.</span><span class="va">element</span><span class="op">.</span><span class="fu">createElement</span>', $javascriptSource['html']);
+        $t->contains('<span class="dt">raw &lt;&lt; token</span>', $unsupportedSource['html']);
     },
     'highlights phpdoc annotations and typed metadata in php review snippets' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');

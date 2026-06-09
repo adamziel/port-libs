@@ -795,6 +795,19 @@ return [
         $t->same([], $audit['luaEngineLibraryClosure']['unexpectedModuleInterfaceFields']);
         $t->same(true, in_array('hslua-module-zip', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
         $t->same(true, in_array('pandoc-lua-marshal', $audit['luaEngineLibraryClosure']['presentDependencies'], true));
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDependencies(), $audit['serverLibraryClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDependencies(), $audit['serverLibraryClosure']['presentDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDependencyConstraints(), $audit['serverLibraryClosure']['dependencyConstraints']);
+        $t->same([], $audit['serverLibraryClosure']['missingDependencies']);
+        $t->same([], $audit['serverLibraryClosure']['unexpectedDependencies']);
+        $t->same([], $audit['serverLibraryClosure']['mismatchedDependencyConstraints']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryExposedModules(), $audit['serverLibraryClosure']['expectedExposedModules']);
+        $t->same(['Text.Pandoc.Server'], $audit['serverLibraryClosure']['presentExposedModules']);
+        $t->same([], $audit['serverLibraryClosure']['missingExposedModules']);
+        $t->same([], $audit['serverLibraryClosure']['unexpectedExposedModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibrarySourceDirectories(), $audit['serverLibraryClosure']['presentSourceDirectories']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDefaultLanguage(), $audit['serverLibraryClosure']['presentDefaultLanguage']);
+        $t->same(null, $audit['serverLibraryClosure']['mismatchedDefaultLanguage']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
         $t->same(['test'], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['sourceDirectories']);
@@ -876,6 +889,7 @@ return [
         $t->contains('exact library source directory and other-modules closure', $audit['nonMutatingPlan'][2]);
         $t->contains('library source artifact hashes', $audit['nonMutatingPlan'][2]);
         $t->contains('Haskell2010 library default-language', $audit['nonMutatingPlan'][2]);
+        $t->contains('pandoc-server library direct dependency', $audit['nonMutatingPlan'][2]);
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
@@ -2504,6 +2518,81 @@ return [
         $blocked = implode("\n", $audit['blockedReasons']);
         $t->contains('unexpected pandoc-lua-engine library Lua support build-depends: hslua-module-runner-audit >= 0.1 && < 0.2, pandoc-lua-generated', $blocked);
         $t->contains('no unexpected pandoc-lua-engine library Lua support build-depends', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks pandoc server library dependency drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $serverCabal): void {
+        $serverPackage = str_replace(
+            [
+                '  default-language: Haskell2010',
+                '    pandoc >= 3.9 && < 3.10,',
+                '    pandoc-types >= 1.22 && < 1.24,',
+                '  hs-source-dirs: src',
+                '  exposed-modules: Text.Pandoc.Server',
+            ],
+            [
+                '  default-language: Haskell98',
+                '    pandoc >= 3.8 && < 3.9,',
+                '    pandoc-server-audit >= 0.1 && < 0.2,',
+                '  hs-source-dirs: server-src generated-src',
+                '  exposed-modules: Text.Pandoc.Server.Generated',
+            ],
+            $serverCabal()
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            null,
+            true,
+            $serverPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDependencies(), $audit['serverLibraryClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDependencyConstraints(), $audit['serverLibraryClosure']['expectedDependencyConstraints']);
+        $t->same([
+            'pandoc-types',
+        ], $audit['serverLibraryClosure']['missingDependencies']);
+        $t->same([
+            'pandoc-server-audit >= 0.1 && < 0.2',
+        ], $audit['serverLibraryClosure']['unexpectedDependencies']);
+        $t->same([
+            'pandoc' => [
+                'expected' => '>= 3.9 && < 3.10',
+                'actual' => '>= 3.8 && < 3.9',
+            ],
+        ], $audit['serverLibraryClosure']['mismatchedDependencyConstraints']);
+        $t->same([
+            'Text.Pandoc.Server',
+        ], $audit['serverLibraryClosure']['missingExposedModules']);
+        $t->same([
+            'Text.Pandoc.Server.Generated',
+        ], $audit['serverLibraryClosure']['unexpectedExposedModules']);
+        $t->same(['src'], $audit['serverLibraryClosure']['missingSourceDirectories']);
+        $t->same(['server-src', 'generated-src'], $audit['serverLibraryClosure']['unexpectedSourceDirectories']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => 'Haskell98',
+        ], $audit['serverLibraryClosure']['mismatchedDefaultLanguage']);
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-server library build-depends: pandoc-types', $blocked);
+        $t->contains('unexpected pandoc-server library build-depends: pandoc-server-audit >= 0.1 && < 0.2', $blocked);
+        $t->contains('mismatched pandoc-server library build-depends constraints: pandoc expected >= 3.9 && < 3.10, found >= 3.8 && < 3.9', $blocked);
+        $t->contains('missing pandoc-server library exposed-modules: Text.Pandoc.Server', $blocked);
+        $t->contains('unexpected pandoc-server library exposed-modules: Text.Pandoc.Server.Generated', $blocked);
+        $t->contains('missing pandoc-server library hs-source-dirs: src', $blocked);
+        $t->contains('unexpected pandoc-server library hs-source-dirs: server-src, generated-src', $blocked);
+        $t->contains('mismatched pandoc-server library default-language: expected Haskell2010, found Haskell98', $blocked);
+        $t->contains('exact pandoc-server library dependency/exposed-module/source-directory/default-language closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks lua engine library exposed-module drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

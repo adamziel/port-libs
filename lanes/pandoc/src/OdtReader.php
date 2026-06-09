@@ -413,7 +413,7 @@ final class OdtReader
             }
 
             if ($this->isElement($child, self::TEXT_NS, 'tab')) {
-                $nodes[] = new AstNode('text', ['text' => "\t"]);
+                $nodes[] = new AstNode('text', ['text' => ' ']);
                 continue;
             }
 

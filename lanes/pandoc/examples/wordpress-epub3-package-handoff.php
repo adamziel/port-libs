@@ -284,7 +284,7 @@ $ncxXml = <<<'XML'
       <content src="https://cdn.example.test/epub/source-note.html"/>
     </navPoint>
   </navMap>
-  <navList id="review-references" class="review-links">
+  <navList id="review-references" class="loi list-of-illustrations review-links">
     <navLabel id="review-references-label" class="review-list-label"><text id="review-references-title" class="review-list-title">Reviewer reference list</text></navLabel>
     <navTarget id="review-glossary" class="glossary" playOrder="10">
       <navLabel id="review-glossary-label" class="glossary-label"><text id="review-glossary-title" class="glossary-title">Source glossary entry</text></navLabel>
@@ -683,8 +683,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['ncx']['navLists'][0]['labelAttributes']['id'] ?? null) !== 'review-references-label' || ($result['ncx']['navLists'][0]['labelTextAttributes']['id'] ?? null) !== 'review-references-title') {
         throw new RuntimeException('Expected NCX navList label source attributes to stay visible for review');
     }
+    if (($result['ncx']['navLists'][0]['type'] ?? null) !== 'list-of-illustrations' || ($result['ncx']['navLists'][0]['roleAliases'] ?? []) !== ['loi', 'list-of-illustrations']) {
+        throw new RuntimeException('Expected NCX navList role metadata to identify list-of-illustrations reviewer references');
+    }
+    if (($result['ncx']['navListRoleReport']['roles'] ?? []) !== ['list-of-illustrations'] || ($result['ncx']['navListRoleReport']['diagnosticCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected NCX navList role report to summarize typed supplemental lists without diagnostics');
+    }
     if (($result['ncx']['navLists'][0]['items'][0]['target'] ?? null) !== '/EPUB/text/chapter.xhtml#source') {
         throw new RuntimeException('Expected local NCX navTarget to resolve to the source chapter fragment');
+    }
+    if (($result['ncx']['navLists'][0]['items'][0]['manifestId'] ?? null) !== 'chapter' || ($result['ncx']['navLists'][0]['items'][0]['mediaType'] ?? null) !== 'application/xhtml+xml') {
+        throw new RuntimeException('Expected NCX navTarget review metadata to preserve manifest id and media type');
     }
     if (($result['ncx']['navLists'][0]['items'][0]['labelAttributes']['id'] ?? null) !== 'review-glossary-label' || ($result['ncx']['navLists'][0]['items'][0]['labelTextAttributes']['id'] ?? null) !== 'review-glossary-title') {
         throw new RuntimeException('Expected NCX navTarget label source attributes to stay visible for review');
@@ -703,6 +712,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->attr('navigation')['supplementalItems'][0]['listId'] ?? null) !== 'review-references') {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX navList provenance');
+    }
+    if (($result['document']->attr('navigation')['supplementalItems'][0]['listType'] ?? null) !== 'list-of-illustrations' || ($result['document']->attr('navigation')['supplementalItems'][0]['manifestId'] ?? null) !== 'chapter') {
+        throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX navList role and manifest provenance');
     }
     if (($result['document']->attr('navigation')['supplementalItems'][0]['labelTextAttributes']['id'] ?? null) !== 'review-glossary-title') {
         throw new RuntimeException('Expected WordPress EPUB document handoff to expose supplemental NCX label text provenance');
@@ -1632,6 +1644,8 @@ echo 'ncxDepth=' . ($result['ncx']['head']['depth'] ?? '') . "\n";
 echo 'ncxHeadMeta=' . ($result['ncx']['head']['metaCount'] ?? 0) . "\n";
 echo 'ncxNavLists=' . ($result['ncx']['navListCount'] ?? 0) . "\n";
 echo 'ncxNavListFirstTarget=' . ($result['ncx']['navLists'][0]['items'][0]['target'] ?? '') . "\n";
+echo 'ncxNavListRoles=' . implode(',', $result['ncx']['navListRoleReport']['roles'] ?? []) . "\n";
+echo 'ncxNavListRoleDiagnostics=' . ($result['ncx']['navListRoleReport']['diagnosticCount'] ?? 0) . "\n";
 echo 'ncxNavListDiagnostics=' . count($result['ncx']['navListDiagnostics'] ?? []) . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
 echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";

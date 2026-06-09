@@ -20,7 +20,7 @@ $contentXml = <<<'XML'
   <office:body>
     <office:text>
       <text:h text:outline-level="1">ODT import packet</text:h>
-      <text:p>Reviewer<text:s/><text:span text:style-name="StrongText">summary</text:span><text:s/>keeps <text:a xlink:href="https://example.test/source-odt">source link</text:a>.</text:p>
+      <text:p>Reviewer<text:s/><text:span text:style-name="StrongText">summary</text:span><text:tab/>keeps <text:a xlink:href="https://example.test/source-odt">source link</text:a>.</text:p>
       <text:list text:style-name="ReviewSteps" text:start-value="2">
         <text:list-item><text:p>Confirm media mapping</text:p></text:list-item>
         <text:list-item><text:p>Publish WordPress blocks</text:p></text:list-item>
@@ -117,10 +117,16 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<h1 id="odt-import-packet">ODT import packet</h1>')) {
         throw new RuntimeException('ODT handoff self-test missing heading block');
     }
+    if (!str_contains($blocks, 'summary</strong> keeps <a href="https://example.test/source-odt">source link</a>')) {
+        throw new RuntimeException('ODT handoff self-test did not normalize text:tab to a WordPress-safe space');
+    }
+    if (str_contains($blocks, "\t")) {
+        throw new RuntimeException('ODT handoff self-test leaked a literal tab character');
+    }
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">ODT review matrix</figcaption>')) {
         throw new RuntimeException('ODT handoff self-test missing table caption');
     }
-    if (!str_contains($blocks, '<img src="Pictures/review.png" alt="Review hero" title="Review hero"/>')) {
+    if (!str_contains($blocks, '<img src="Pictures/review.png" alt="Review hero" title="Review hero" data-odt-width="5cm" data-odt-height="3cm"/>')) {
         throw new RuntimeException('ODT handoff self-test missing image block');
     }
 

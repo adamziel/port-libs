@@ -8471,6 +8471,84 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner extracts bounded pdf javascript name tree kids from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/javascript-name-tree.pdf']);
+        $catalogScript = 'app.alert("Review name tree action")';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names << /JavaScript 8 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Kids [9 0 R 10 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Limits [(ReviewOpen) (ReviewOpen)] /Names [(ReviewOpen) 11 0 R] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Kids [12 0 R] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /S /JavaScript /JS (' . str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $catalogScript) . ') >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Limits [(ReviewSubmit) (ReviewSubmit)] /Names [(ReviewSubmit) << /S /SubmitForm /F (https://example.test/review/submit) >>] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/javascript-name-tree.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/javascript-name-tree.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'source' => 'catalog.Names.JavaScript.Kids.10 0 R.Kids.12 0 R.ReviewSubmit',
+                'type' => 'SubmitForm',
+                'target' => 'https://example.test/review/submit',
+                'scriptBytes' => null,
+                'scriptSha256' => null,
+            ],
+            [
+                'source' => 'catalog.Names.JavaScript.Kids.9 0 R.ReviewOpen',
+                'type' => 'JavaScript',
+                'target' => 'ReviewOpen',
+                'scriptBytes' => strlen($catalogScript),
+                'scriptSha256' => hash('sha256', $catalogScript),
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfActiveActions']);
+        $t->same([
+            'JavaScript' => 1,
+            'SubmitForm' => 1,
+        ], $result['pdfActiveActionTypes']);
+        $t->contains('pdf-byte-active-actions:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-types:2', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalPdfActiveActions']);
+        $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
+    },
+
     'fake runner extracts bounded pdf optional content layer metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layers.pdf']);

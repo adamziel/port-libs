@@ -531,6 +531,55 @@ $buildNtfsBackedPackage = static function () use ($crc32, $buildNtfsExtra, $medi
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
 
+$buildNtfsReservedBackedPackage = static function () use ($crc32): string {
+    $name = 'word/media/nonzero-ntfs-reserved.bin';
+    $data = "NTFS reserved bytes must stay zero before media import\n";
+    $centralExtra = pack('vvV', 0x000a, 4, 1);
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        strlen($centralExtra),
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $name . $centralExtra;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
+
 $buildExtendedTimestampBackedPackage = static function () use ($crc32, $mediaModifiedAt, $mediaAccessedAt, $mediaCreatedAt): string {
     $name = 'word/media/reviewer-note.txt';
     $data = "Reviewer media provenance\n";
@@ -3315,6 +3364,12 @@ try {
     $zip64DataDescriptorRejected = str_contains($exception->getMessage(), 'ZIP64-sized fields');
 }
 $ntfsPackage = ZipPackage::fromString($buildNtfsBackedPackage());
+$ntfsReservedRejected = false;
+try {
+    ZipPackage::fromString($buildNtfsReservedBackedPackage());
+} catch (RuntimeException $exception) {
+    $ntfsReservedRejected = str_contains($exception->getMessage(), 'nonzero reserved bytes');
+}
 $extendedTimestampPackage = ZipPackage::fromString($buildExtendedTimestampBackedPackage());
 $invalidDosTimestampPackage = ZipPackage::fromString($buildInvalidDosTimestampBackedPackage());
 $invalidDosTimestampPreflight = $invalidDosTimestampPackage->modificationTimePreflight();
@@ -5213,6 +5268,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected local NTFS modified timestamp metadata to round-trip');
     }
 
+    if (!$ntfsReservedRejected) {
+        throw new RuntimeException('Expected nonzero ZIP NTFS reserved bytes to be rejected before media import');
+    }
+
     if (GzipStream::decode($compressedPackage) !== $package->bytes()) {
         throw new RuntimeException('Expected gzip-wrapped ZIP package bytes to round-trip');
     }
@@ -6067,6 +6126,7 @@ echo 'zip64DescriptorPolicy=' . ($zip64DataDescriptorRejected ? 'rejected' : 'no
 $ntfsTimestamps = $ntfsPackage->entry('/word/media/review.png')->ntfsTimestamps();
 echo 'ntfs.review.png.modifiedAt=' . ($ntfsTimestamps['modifiedAt'] ?? 'none') . "\n";
 echo 'ntfs.review.png.localModifiedAt=' . ($ntfsPackage->localNtfsLastModifiedTimestamp('/word/media/review.png') ?? 'none') . "\n";
+echo 'zipNtfsReservedPolicy=' . ($ntfsReservedRejected ? 'rejected' : 'not-rejected') . "\n";
 $extendedTimestamps = $extendedTimestampPackage->localExtendedTimestamps('/word/media/reviewer-note.txt') ?? [];
 echo 'extended.reviewer-note.modifiedAt=' . ($extendedTimestamps['modifiedAt'] ?? 'none') . "\n";
 echo 'extended.reviewer-note.accessedAt=' . ($extendedTimestamps['accessedAt'] ?? 'none') . "\n";

@@ -9097,36 +9097,72 @@ final class PdfEngineHandoff
             return;
         }
 
-        $array = $this->extractPdfArrayValue($javaScript, 'Names');
-        if ($array === null) {
+        $visited = [];
+        $this->collectPdfJavaScriptNameTreeActions(
+            $actions,
+            'catalog.Names.JavaScript',
+            $javaScript,
+            $objects,
+            $visited,
+            0
+        );
+    }
+
+    /**
+     * @param array<string, array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfJavaScriptNameTreeActions(
+        array &$actions,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
             return;
         }
 
-        $cursor = str_starts_with($array, '[') ? 1 : 0;
-        $length = strlen($array);
-        if (str_ends_with($array, ']')) {
-            $length--;
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            $count = count($values);
+            for ($index = 0; $index + 1 < $count; $index += 2) {
+                $name = $values[$index];
+                $action = $values[$index + 1];
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameValue = trim($name['value']);
+                $actionSource = $source . ($nameValue === '' ? '' : '.' . $this->pdfActionSourceToken($nameValue));
+                $this->addPdfActiveActionFromValue(
+                    $actions,
+                    $actionSource,
+                    $action,
+                    $objects,
+                    $nameValue === '' ? null : $nameValue
+                );
+            }
         }
-        while ($cursor < $length) {
-            $name = $this->parsePdfValueAt($array, $cursor);
-            if ($name === null) {
-                $cursor++;
-                continue;
-            }
-            $cursor = $name['next'];
-            if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            $kidKey = $this->pdfReferenceKey($kidReference);
+            if (isset($visited[$kidKey]) || !isset($objects[$kidKey])) {
                 continue;
             }
 
-            $action = $this->parsePdfValueAt($array, $cursor);
-            if ($action === null) {
-                break;
-            }
-
-            $nameValue = trim($name['value']);
-            $source = 'catalog.Names.JavaScript' . ($nameValue === '' ? '' : '.' . $this->pdfActionSourceToken($nameValue));
-            $this->addPdfActiveActionFromValue($actions, $source, $action, $objects, $nameValue === '' ? null : $nameValue);
-            $cursor = $action['next'];
+            $visited[$kidKey] = true;
+            $this->collectPdfJavaScriptNameTreeActions(
+                $actions,
+                $source . '.Kids.' . $kidKey . ' R',
+                $objects[$kidKey],
+                $objects,
+                $visited,
+                $depth + 1
+            );
         }
     }
 

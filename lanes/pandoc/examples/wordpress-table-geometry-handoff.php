@@ -265,6 +265,21 @@ $borderCollapseTables = array_values(array_filter(
     $borderCollapseDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$borderPresentationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="border-presentation-grid" data-source="html-reader" style="border-color: #336699; border-style: dashed; border-width: 2px; border-image:url(javascript:alert(1))">
+<caption>Border presentation review</caption>
+<thead>
+<tr><th>Scope</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$borderPresentationTables = array_values(array_filter(
+    $borderPresentationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $placementAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">
 <caption>Placement alignment review</caption>
@@ -1269,6 +1284,7 @@ $document = new AstNode('document', [], [
     ...$layoutHeightTables,
     ...$layoutModeTables,
     ...$borderCollapseTables,
+    ...$borderPresentationTables,
     ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
@@ -2785,6 +2801,57 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($borderCollapsePacket, JSON_THROW_ON_ERROR);
     json_encode($borderCollapseDowngrades, JSON_THROW_ON_ERROR);
+
+    $borderPresentationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'border-presentation-grid') {
+            $borderPresentationTable = $node;
+            break;
+        }
+    }
+    $borderPresentationPacket = $borderPresentationTable instanceof AstNode ? $borderPresentationTable->attr('tableGeometry') : null;
+    $borderPresentationDowngrades = $borderPresentationTable instanceof AstNode ? TableGeometry::reviewPacket($borderPresentationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $borderPresentationDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $borderPresentationDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-border-presentation'
+        ));
+        $borderPresentationDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$borderPresentationTable instanceof AstNode
+        || !is_array($borderPresentationPacket)
+        || ($borderPresentationPacket['tableBorderPresentation']['attributes'] ?? null) !== [
+            'border-color' => '#336699',
+            'border-style' => 'dashed',
+            'border-width' => '2px',
+        ]
+        || ($borderPresentationPacket['tableBorderPresentation']['borderColor'] ?? null) !== '#336699'
+        || ($borderPresentationPacket['tableBorderPresentation']['borderStyle'] ?? null) !== 'dashed'
+        || ($borderPresentationPacket['tableBorderPresentation']['borderWidth'] ?? null) !== '2px'
+        || ($borderPresentationPacket['summary']['hasTableBorderPresentation'] ?? null) !== true
+        || ($borderPresentationPacket['summary']['tableBorderColor'] ?? null) !== '#336699'
+        || ($borderPresentationPacket['summary']['tableBorderStyle'] ?? null) !== 'dashed'
+        || ($borderPresentationPacket['summary']['tableBorderWidth'] ?? null) !== '2px'
+        || ($borderPresentationPacket['summary']['tableBorderPresentationAttributeCount'] ?? null) !== 3
+        || ($borderPresentationDiagnostics['markdown']['code'] ?? null) !== 'markdown-table-border-presentation-requires-raw-html'
+        || ($borderPresentationDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-table-border-presentation-review-required'
+        || ($borderPresentationDiagnostics['latex']['code'] ?? null) !== 'latex-table-border-presentation-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML table border presentation metadata');
+    }
+    if (
+        !str_contains($blocks, '<table id="border-presentation-grid" data-source="html-reader" style="border-color:#336699; border-style:dashed; border-width:2px">')
+        || str_contains($blocks, 'border-image')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized WordPress table border presentation output');
+    }
+    json_encode($borderPresentationPacket, JSON_THROW_ON_ERROR);
+    json_encode($borderPresentationDowngrades, JSON_THROW_ON_ERROR);
 
     $placementAlignmentTable = null;
     $invalidPlacementAlignmentTable = null;

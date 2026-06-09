@@ -2315,6 +2315,21 @@ final class SyntaxHighlighter
     /**
      * @param list<array{type:string, text:string, class:string}> $tokens
      */
+    private function appendAsciiDocListingLine(string $line, ?string $language, array &$tokens): void
+    {
+        if ($language === null) {
+            $this->appendToken($tokens, 'datatype', $line);
+            return;
+        }
+
+        foreach ($this->tokenize($line, $language) as $token) {
+            $this->appendToken($tokens, $token['type'], $token['text']);
+        }
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
     private function scanVueFragment(string $code, array &$tokens): void
     {
         $offset = 0;
@@ -3970,6 +3985,8 @@ final class SyntaxHighlighter
         $offset = 0;
         $length = strlen($code);
         $listingDelimiter = null;
+        $listingLanguage = null;
+        $pendingListingLanguage = null;
 
         while ($offset < $length) {
             $nextNewline = strpos($code, "\n", $offset);
@@ -3986,16 +4003,21 @@ final class SyntaxHighlighter
                 if ($trimmed === $listingDelimiter) {
                     $this->appendToken($tokens, 'region', $line);
                     $listingDelimiter = null;
+                    $listingLanguage = null;
                 } else {
-                    $this->appendToken($tokens, 'datatype', $line);
+                    $this->appendAsciiDocListingLine($line, $listingLanguage, $tokens);
                 }
             } else {
                 $delimiter = self::asciidocBlockDelimiter($trimmed);
                 if ($delimiter !== null) {
                     $this->appendToken($tokens, 'region', $line);
                     $listingDelimiter = $delimiter;
+                    $listingLanguage = $pendingListingLanguage;
+                    $pendingListingLanguage = null;
                 } else {
                     $this->tokenizeAsciiDocLine($line, $tokens);
+                    $sourceLanguage = self::asciidocSourceLanguage($trimmed);
+                    $pendingListingLanguage = $sourceLanguage ?? (trim($line) === '' ? $pendingListingLanguage : null);
                 }
             }
 
@@ -4082,6 +4104,36 @@ final class SyntaxHighlighter
     private static function asciidocBlockDelimiter(string $line): ?string
     {
         return in_array($line, ['----', '....'], true) ? $line : null;
+    }
+
+    private static function asciidocSourceLanguage(string $line): ?string
+    {
+        if (!str_starts_with($line, '[') || !str_ends_with($line, ']')) {
+            return null;
+        }
+
+        $parts = array_map('trim', explode(',', substr($line, 1, -1)));
+        if ($parts === []) {
+            return null;
+        }
+
+        $kind = strtolower((string) $parts[0]);
+        if ($kind !== 'source' && !str_starts_with($kind, 'source%')) {
+            return null;
+        }
+
+        foreach (array_slice($parts, 1) as $part) {
+            if ($part === '' || str_contains($part, '=') || str_starts_with($part, '.') || str_starts_with($part, '#')) {
+                continue;
+            }
+
+            $language = self::normalizeLanguage($part);
+            if ($language !== null) {
+                return $language;
+            }
+        }
+
+        return null;
     }
 
     /**

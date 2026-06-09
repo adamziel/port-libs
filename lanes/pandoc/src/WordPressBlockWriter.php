@@ -1743,10 +1743,68 @@ final class WordPressBlockWriter
                 if (in_array($collapse, ['collapse', 'separate'], true)) {
                     $declarations[] = 'border-collapse:' . $collapse;
                 }
+                continue;
+            }
+
+            if ($name === 'border-color') {
+                $color = $this->legacyTableBackgroundColorValue($value);
+                if ($color !== '') {
+                    $declarations[] = 'border-color:' . $color;
+                }
+                continue;
+            }
+
+            if ($name === 'border-style') {
+                $style = $this->legacyTableBorderStyleValue($value);
+                if ($style !== '') {
+                    $declarations[] = 'border-style:' . $style;
+                }
+                continue;
+            }
+
+            if ($name === 'border-width') {
+                $width = $this->legacyTableBorderWidthValue($value);
+                if ($width !== '') {
+                    $declarations[] = 'border-width:' . $width;
+                }
             }
         }
 
         return implode('; ', $declarations);
+    }
+
+    private function legacyTableBorderStyleValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'], true)
+            ? $value
+            : '';
+    }
+
+    private function legacyTableBorderWidthValue(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === [] || count($tokens) > 4) {
+            return '';
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if (in_array($token, ['thin', 'medium', 'thick'], true)) {
+                $normalized[] = $token;
+                continue;
+            }
+
+            $length = $this->legacyTableCssLengthValue($token, false, false);
+            if ($length === '' || str_ends_with($length, '%')) {
+                return '';
+            }
+
+            $normalized[] = $length;
+        }
+
+        return implode(' ', $normalized);
     }
 
     private function legacyTableBackgroundColorValue(string $value): string

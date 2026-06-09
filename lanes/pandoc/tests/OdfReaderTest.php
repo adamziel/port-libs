@@ -2698,6 +2698,35 @@ XML;
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
     },
+    'normalizes ODT note citations through inline text markers' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithInlineCitationMarkers = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Reviewer note<text:note text:id="fn-source" text:note-class="footnote"><text:note-citation>F<text:s text:c="2"/>7<text:tab/>b<text:line-break/>continued</text:note-citation><text:note-body><text:p>ODF source citation marker body.</text:p></text:note-body></text:note> keeps source numbering metadata.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithInlineCitationMarkers));
+        $paragraph = $result['document']->children[0];
+        $note = $paragraph->children[1];
+
+        $t->same('note', $note->type);
+        $t->same('fn-source', $note->attr('id'));
+        $t->same("F  7 b\ncontinued", $note->attr('citation'));
+        $t->same('ODF source citation marker body.', $note->children[0]->attr('text'));
+        $t->same('Reviewer note keeps source numbering metadata.', $paragraph->attr('text'));
+        $t->same(1, $result['importReport']['content']['noteCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[^1]: ODF source citation marker body.', $markdown);
+        $t->contains('<li id="fn-1"><p>ODF source citation marker body.</p>', $blocksHtml);
+    },
     'preserves ODT notes configuration metadata for footnote and endnote review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNoteConfigurations = <<<'XML'
 <office:document-content

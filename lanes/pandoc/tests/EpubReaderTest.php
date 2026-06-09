@@ -1728,6 +1728,96 @@ XML;
         $t->same($navigation, $result['importReport']['navigation']);
         $t->same($navigation, $result['document']->attr('navigation'));
     },
+    'reports NCX navList role metadata for supplemental navigation review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $ncxWithTypedNavLists = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+  <navMap>
+    <navPoint id="navpoint-1" playOrder="1">
+      <navLabel><text>Imported packet</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+  <navList id="figure-list" class="loi list-of-illustrations reviewer-list" xml:lang="en" dir="ltr">
+    <navLabel><text>List of figures</text></navLabel>
+    <navTarget id="figure-cover" class="figure-entry" playOrder="10">
+      <navLabel><text>Cover figure</text></navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navTarget>
+  </navList>
+  <navList id="ambiguous-list" class="lot bibliography">
+    <navLabel><text>Tables and bibliography</text></navLabel>
+    <navTarget id="table-one" playOrder="11">
+      <navLabel><text>Table one</text></navLabel>
+      <content src="text/chapter2.xhtml#media"/>
+    </navTarget>
+  </navList>
+  <navList id="custom-review-list" class="review-links">
+    <navLabel><text>Custom reviewer links</text></navLabel>
+    <navTarget id="custom-link" playOrder="12">
+      <navLabel><text>Reviewer link</text></navLabel>
+      <content src="text/chapter2.xhtml#media"/>
+    </navTarget>
+  </navList>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNcxXml: $ncxWithTypedNavLists,
+        ));
+
+        $ncx = $result['ncx'];
+        $t->same(3, $ncx['navListCount']);
+        $t->same('list-of-illustrations', $ncx['navLists'][0]['type'] ?? null);
+        $t->same('list-of-illustrations', $ncx['navLists'][0]['role'] ?? null);
+        $t->same(['list-of-illustrations'], $ncx['navLists'][0]['types'] ?? null);
+        $t->same(['list-of-illustrations'], $ncx['navLists'][0]['roles'] ?? null);
+        $t->same(['loi', 'list-of-illustrations'], $ncx['navLists'][0]['roleAliases'] ?? null);
+        $t->same([], $ncx['navLists'][0]['roleDiagnostics'] ?? null);
+        $t->same('application/xhtml+xml', $ncx['navLists'][0]['items'][0]['mediaType'] ?? null);
+        $t->same('chapter-1', $ncx['navLists'][0]['items'][0]['manifestId'] ?? null);
+        $t->same(false, $ncx['navLists'][0]['items'][0]['encrypted'] ?? null);
+        $t->same(true, $ncx['navLists'][0]['items'][0]['canExposeBytes'] ?? null);
+
+        $ambiguous = $ncx['navLists'][1];
+        $t->same('list-of-tables', $ambiguous['type'] ?? null);
+        $t->same(['list-of-tables', 'bibliography'], $ambiguous['types'] ?? null);
+        $t->same(['lot', 'bibliography'], $ambiguous['roleAliases'] ?? null);
+        $t->same('conflicting-ncx-nav-list-roles', $ambiguous['roleDiagnostics'][0]['type'] ?? null);
+        $t->same(['list-of-tables', 'bibliography'], $ambiguous['roleDiagnostics'][0]['roles'] ?? null);
+
+        $custom = $ncx['navLists'][2];
+        $t->same(null, $custom['type'] ?? null);
+        $t->same([], $custom['types'] ?? null);
+        $t->same(['review-links'], $custom['unmappedRoleClasses'] ?? null);
+        $t->same('missing-ncx-nav-list-role', $custom['roleDiagnostics'][0]['type'] ?? null);
+
+        $roleReport = $ncx['navListRoleReport'];
+        $t->same(true, $roleReport['present']);
+        $t->same(3, $roleReport['listCount']);
+        $t->same(2, $roleReport['typedListCount']);
+        $t->same(1, $roleReport['untypedListCount']);
+        $t->same(1, $roleReport['conflictingListCount']);
+        $t->same(['list-of-illustrations', 'list-of-tables', 'bibliography'], $roleReport['roles']);
+        $t->same('figure-list', $roleReport['byRole']['list-of-illustrations'][0]['id']);
+        $t->same('ambiguous-list', $roleReport['byRole']['list-of-tables'][0]['id']);
+        $t->same('ambiguous-list', $roleReport['byRole']['bibliography'][0]['id']);
+        $t->same(2, $roleReport['diagnosticCount']);
+        $t->same('conflicting-ncx-nav-list-roles', $roleReport['diagnostics'][0]['type']);
+        $t->same('missing-ncx-nav-list-role', $roleReport['diagnostics'][1]['type']);
+
+        $navigation = $result['navigation'];
+        $t->same($roleReport, $navigation['ncxNavListRoleReport']);
+        $t->same('list-of-illustrations', $navigation['supplementalItems'][0]['listType'] ?? null);
+        $t->same(['list-of-illustrations'], $navigation['supplementalItems'][0]['listTypes'] ?? null);
+        $t->same(['loi', 'list-of-illustrations'], $navigation['supplementalItems'][0]['listRoleAliases'] ?? null);
+        $t->same('chapter-1', $navigation['supplementalItems'][0]['manifestId'] ?? null);
+        $t->same('application/xhtml+xml', $navigation['supplementalItems'][0]['mediaType'] ?? null);
+        $t->same('list-of-tables', $navigation['supplementalItems'][1]['listType'] ?? null);
+        $t->same(['list-of-tables', 'bibliography'], $navigation['supplementalItems'][1]['listTypes'] ?? null);
+        $t->same('missing-ncx-nav-list-role', $navigation['supplementalItems'][2]['listRoleDiagnostics'][0]['type'] ?? null);
+        $t->same($roleReport, $result['importReport']['ncx']['navListRoleReport']);
+        $t->same($navigation, $result['document']->attr('navigation'));
+    },
     'preserves EPUB3 nav section and item provenance for review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $navWithProvenance = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

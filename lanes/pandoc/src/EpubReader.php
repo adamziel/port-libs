@@ -55,6 +55,25 @@ final class EpubReader
         'text/css' => 'style',
         'text/javascript' => 'script',
     ];
+    private const NCX_NAV_LIST_CLASS_ROLES = [
+        'bibliography' => 'bibliography',
+        'endnotes' => 'endnotes',
+        'footnotes' => 'footnotes',
+        'glossary' => 'glossary',
+        'index' => 'index',
+        'loa' => 'list-of-audio',
+        'loi' => 'list-of-illustrations',
+        'lot' => 'list-of-tables',
+        'lov' => 'list-of-video',
+        'notes' => 'notes',
+        'page-list' => 'page-list',
+        'pages' => 'page-list',
+        'list-of-audio' => 'list-of-audio',
+        'list-of-figures' => 'list-of-illustrations',
+        'list-of-illustrations' => 'list-of-illustrations',
+        'list-of-tables' => 'list-of-tables',
+        'list-of-video' => 'list-of-video',
+    ];
 
     /**
      * @return array{
@@ -560,12 +579,12 @@ final class EpubReader
         $navItem = $this->firstManifestItemWithProperty($manifest, 'nav');
         $ncxItem = $this->ncxManifestItem($spineElement, $manifestById, $manifest);
         $assetReport = $this->assetReport($package, $opfPart, $manifest, $manifestById, $metadata);
-        $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem);
+        $manifestByPart = self::manifestByPart($manifestById);
+        $nav = $navItem === null ? null : $this->readNavDocument($package, $navItem, $manifestByPart);
         $nav = $nav === null ? null : self::navWithPrimaryNavigationTargetPolicy($nav, $spine);
-        $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem);
+        $ncx = $ncxItem === null ? null : $this->readNcxDocument($package, $ncxItem, $manifestByPart);
         $navigation = self::navigationReport($nav, $ncx, $spine);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine);
-        $manifestByPart = self::manifestByPart($manifestById);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
@@ -8215,7 +8234,7 @@ final class EpubReader
      *     auxiliaryItems:list<array<string, mixed>>
      * }
      */
-    private function readNavDocument(ZipPackage $package, array $item): array
+    private function readNavDocument(ZipPackage $package, array $item, array $manifestByPart): array
     {
         if (self::isEncryptedManifestItem($item)) {
             return [
@@ -8246,7 +8265,7 @@ final class EpubReader
         foreach (self::navigationElements($dom) as $nav) {
             $types = self::epubTypes($nav);
             $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
-            $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, (string) $item['part']) : [];
+            $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, (string) $item['part'], $manifestByPart) : [];
             $section = [
                 'id' => self::nullableAttribute($nav, 'id'),
                 'class' => self::nullableAttribute($nav, 'class'),
@@ -9358,7 +9377,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart): array
+    private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart, array $manifestByPart): array
     {
         $items = [];
         foreach (self::childElements($list, 'li', self::XHTML_NS) as $li) {
@@ -9369,7 +9388,7 @@ final class EpubReader
             $typeReport = self::navItemTypeReport($li, $label);
             $reference = $href === ''
                 ? self::emptyPackageReference()
-                : $this->packageReference($package, $navPart, $href, [], 'nav');
+                : $this->packageReference($package, $navPart, $href, $manifestByPart, 'nav');
             $itemClasses = self::spaceDelimited($li->getAttribute('class'));
             $labelClasses = $label instanceof \DOMElement ? self::spaceDelimited($label->getAttribute('class')) : [];
             $classes = array_values(array_unique(array_merge($itemClasses, $labelClasses)));
@@ -9402,6 +9421,10 @@ final class EpubReader
                 'mediaFragment' => $reference['mediaFragment'],
                 'external' => $reference['external'],
                 'exists' => $reference['exists'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
                 'diagnostics' => $reference['diagnostics'],
                 'type' => $typeReport['type'],
                 'types' => $typeReport['types'],
@@ -9409,7 +9432,7 @@ final class EpubReader
                 'labelTypes' => $typeReport['labelTypes'],
                 'typeSource' => $typeReport['typeSource'],
                 'typeSources' => $typeReport['typeSources'],
-                'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart) : [],
+                'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart, $manifestByPart) : [],
             ];
         }
 
@@ -9473,7 +9496,7 @@ final class EpubReader
      *
      * @return array{part:string, items:list<array<string, mixed>>, pageList:list<array<string, mixed>>}
      */
-    private function readNcxDocument(ZipPackage $package, array $item): array
+    private function readNcxDocument(ZipPackage $package, array $item, array $manifestByPart): array
     {
         if (self::isEncryptedManifestItem($item)) {
             return [
@@ -9492,6 +9515,7 @@ final class EpubReader
                 'pageListDiagnostics' => [],
                 'navListCount' => 0,
                 'navLists' => [],
+                'navListRoleReport' => self::ncxNavListRoleSummary([]),
                 'navListDiagnostics' => [],
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
@@ -9507,9 +9531,9 @@ final class EpubReader
         $navMap = self::firstChildElement($root, 'navMap', self::NCX_NS);
         $pageList = self::firstChildElement($root, 'pageList', self::NCX_NS);
         $pageListReport = $pageList instanceof \DOMElement
-            ? $this->readNcxPageList($package, $pageList, (string) $item['part'])
+            ? $this->readNcxPageList($package, $pageList, (string) $item['part'], $manifestByPart)
             : self::emptyNcxPageListReport();
-        $navLists = $this->readNcxNavLists($package, $root, (string) $item['part']);
+        $navLists = $this->readNcxNavLists($package, $root, (string) $item['part'], $manifestByPart);
         $docTitleEntries = self::readNcxTextElementEntries($root, 'docTitle');
         $docAuthorDetails = self::readNcxTextElementEntries($root, 'docAuthor');
 
@@ -9525,13 +9549,14 @@ final class EpubReader
                 $docAuthorDetails
             ),
             'docAuthorDetails' => $docAuthorDetails,
-            'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part']) : [],
+            'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part'], $manifestByPart) : [],
             'pageList' => $pageListReport['items'],
             'pageListCount' => $pageListReport['itemCount'],
             'pageListReport' => $pageListReport,
             'pageListDiagnostics' => $pageListReport['diagnostics'],
             'navListCount' => count($navLists['items']),
             'navLists' => $navLists['items'],
+            'navListRoleReport' => self::ncxNavListRoleSummary($navLists['items']),
             'navListDiagnostics' => $navLists['diagnostics'],
         ];
     }
@@ -9704,13 +9729,13 @@ final class EpubReader
      *     diagnostics:list<array<string, mixed>>
      * }
      */
-    private function readNcxPageList(ZipPackage $package, \DOMElement $pageList, string $ncxPart): array
+    private function readNcxPageList(ZipPackage $package, \DOMElement $pageList, string $ncxPart, array $manifestByPart): array
     {
         $navLabel = self::firstChildElement($pageList, 'navLabel', self::NCX_NS);
         $label = $navLabel instanceof \DOMElement
             ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
             : null;
-        $targets = $this->readNcxPageTargets($package, $pageList, $ncxPart);
+        $targets = $this->readNcxPageTargets($package, $pageList, $ncxPart, $manifestByPart);
         $diagnostics = [];
 
         foreach ($targets as $targetIndex => $target) {
@@ -9772,7 +9797,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNcxPageTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
+    private function readNcxPageTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart, array $manifestByPart): array
     {
         $items = [];
         foreach (self::childElements($parent, 'pageTarget', self::NCX_NS) as $target) {
@@ -9784,7 +9809,7 @@ final class EpubReader
             $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
             $reference = $src === ''
                 ? self::emptyPackageReference()
-                : $this->packageReference($package, $ncxPart, $src, [], 'ncx-page-list');
+                : $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx-page-list');
             $type = self::nullableAttribute($target, 'type');
 
             $items[] = [
@@ -9827,9 +9852,160 @@ final class EpubReader
     }
 
     /**
+     * @param list<string> $classes
+     *
+     * @return array{
+     *     type:?string,
+     *     types:list<string>,
+     *     role:?string,
+     *     roles:list<string>,
+     *     roleAliases:list<string>,
+     *     roleSources:list<array{class:string, role:string}>,
+     *     unmappedRoleClasses:list<string>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function ncxNavListRoleReport(array $classes): array
+    {
+        $roles = [];
+        $aliases = [];
+        $sources = [];
+        $unmapped = [];
+
+        foreach ($classes as $class) {
+            if (!is_string($class) || $class === '') {
+                continue;
+            }
+
+            $lower = strtolower($class);
+            $role = self::NCX_NAV_LIST_CLASS_ROLES[$lower] ?? null;
+            if ($role === null) {
+                $unmapped[] = $class;
+                continue;
+            }
+
+            $aliases[] = $class;
+            if (!in_array($role, $roles, true)) {
+                $roles[] = $role;
+            }
+            $sources[] = [
+                'class' => $class,
+                'role' => $role,
+            ];
+        }
+
+        $diagnostics = [];
+        if ($roles === []) {
+            $diagnostics[] = [
+                'type' => 'missing-ncx-nav-list-role',
+                'classes' => $classes,
+                'message' => 'EPUB NCX navList class tokens do not identify a known supplemental navigation role for review handoff',
+            ];
+        } elseif (count($roles) > 1) {
+            $diagnostics[] = [
+                'type' => 'conflicting-ncx-nav-list-roles',
+                'roles' => $roles,
+                'aliases' => $aliases,
+                'message' => 'EPUB NCX navList class tokens identify more than one supplemental navigation role',
+            ];
+        }
+
+        $role = $roles[0] ?? null;
+
+        return [
+            'type' => $role,
+            'types' => $roles,
+            'role' => $role,
+            'roles' => $roles,
+            'roleAliases' => $aliases,
+            'roleSources' => $sources,
+            'unmappedRoleClasses' => $unmapped,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lists
+     *
+     * @return array<string, mixed>
+     */
+    private static function ncxNavListRoleSummary(array $lists): array
+    {
+        $roles = [];
+        $byRole = [];
+        $items = [];
+        $diagnostics = [];
+        $typedListCount = 0;
+        $untypedListCount = 0;
+        $conflictingListCount = 0;
+
+        foreach ($lists as $list) {
+            $listRoles = array_values(array_filter(
+                is_array($list['roles'] ?? null) ? $list['roles'] : [],
+                static fn (mixed $role): bool => is_string($role) && $role !== '',
+            ));
+            if ($listRoles === []) {
+                ++$untypedListCount;
+            } else {
+                ++$typedListCount;
+            }
+            if (count($listRoles) > 1) {
+                ++$conflictingListCount;
+            }
+
+            $item = [
+                'index' => is_int($list['index'] ?? null) ? $list['index'] : count($items),
+                'id' => is_string($list['id'] ?? null) ? $list['id'] : null,
+                'title' => is_string($list['title'] ?? null) ? $list['title'] : '',
+                'class' => is_string($list['class'] ?? null) ? $list['class'] : null,
+                'classes' => is_array($list['classes'] ?? null) ? array_values($list['classes']) : [],
+                'type' => is_string($list['type'] ?? null) ? $list['type'] : null,
+                'types' => $listRoles,
+                'role' => is_string($list['role'] ?? null) ? $list['role'] : null,
+                'roles' => $listRoles,
+                'roleAliases' => is_array($list['roleAliases'] ?? null) ? array_values($list['roleAliases']) : [],
+                'unmappedRoleClasses' => is_array($list['unmappedRoleClasses'] ?? null) ? array_values($list['unmappedRoleClasses']) : [],
+                'itemCount' => is_int($list['itemCount'] ?? null) ? $list['itemCount'] : 0,
+                'diagnostics' => is_array($list['roleDiagnostics'] ?? null) ? array_values($list['roleDiagnostics']) : [],
+            ];
+
+            foreach ($listRoles as $role) {
+                $roles[$role] = true;
+                $byRole[$role][] = $item;
+            }
+            foreach ($item['diagnostics'] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'listIndex' => $item['index'],
+                    'listId' => $item['id'],
+                ] + $diagnostic;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'present' => $lists !== [],
+            'listCount' => count($lists),
+            'typedListCount' => $typedListCount,
+            'untypedListCount' => $untypedListCount,
+            'conflictingListCount' => $conflictingListCount,
+            'roleCount' => count($roles),
+            'roles' => array_keys($roles),
+            'items' => $items,
+            'byRole' => $byRole,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @return array{items:list<array<string, mixed>>, diagnostics:list<array<string, mixed>>}
      */
-    private function readNcxNavLists(ZipPackage $package, \DOMElement $root, string $ncxPart): array
+    private function readNcxNavLists(ZipPackage $package, \DOMElement $root, string $ncxPart, array $manifestByPart): array
     {
         $lists = [];
         $diagnostics = [];
@@ -9839,9 +10015,11 @@ final class EpubReader
             $label = $navLabel instanceof \DOMElement
                 ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
                 : null;
-            $targets = $this->readNcxNavTargets($package, $navList, $ncxPart);
+            $targets = $this->readNcxNavTargets($package, $navList, $ncxPart, $manifestByPart);
             $listDiagnostics = [];
             $listId = self::nullableAttribute($navList, 'id');
+            $classes = self::spaceDelimited($navList->getAttribute('class'));
+            $roleReport = self::ncxNavListRoleReport($classes);
 
             foreach ($targets as $targetIndex => $target) {
                 foreach (($target['diagnostics'] ?? []) as $diagnostic) {
@@ -9864,9 +10042,17 @@ final class EpubReader
                 'index' => $listIndex,
                 'id' => $listId,
                 'class' => self::nullableAttribute($navList, 'class'),
-                'classes' => self::spaceDelimited($navList->getAttribute('class')),
+                'classes' => $classes,
                 'language' => self::xmlLang($navList),
                 'direction' => self::direction($navList),
+                'type' => $roleReport['type'],
+                'types' => $roleReport['types'],
+                'role' => $roleReport['role'],
+                'roles' => $roleReport['roles'],
+                'roleAliases' => $roleReport['roleAliases'],
+                'roleSources' => $roleReport['roleSources'],
+                'unmappedRoleClasses' => $roleReport['unmappedRoleClasses'],
+                'roleDiagnostics' => $roleReport['diagnostics'],
                 'title' => $label instanceof \DOMElement ? self::normalizedText($label) : '',
                 'attributes' => self::elementAttributes($navList),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
@@ -9886,7 +10072,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNcxNavTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
+    private function readNcxNavTargets(ZipPackage $package, \DOMElement $parent, string $ncxPart, array $manifestByPart): array
     {
         $items = [];
 
@@ -9897,7 +10083,7 @@ final class EpubReader
                 : null;
             $content = self::firstChildElement($target, 'content', self::NCX_NS);
             $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
-            $reference = $this->packageReference($package, $ncxPart, $src, [], 'ncx-nav-list');
+            $reference = $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx-nav-list');
 
             $items[] = [
                 'id' => self::nullableAttribute($target, 'id'),
@@ -9918,6 +10104,10 @@ final class EpubReader
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
                 'crc32' => $reference['crc32'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
                 'attributes' => self::elementAttributes($target),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
@@ -9933,7 +10123,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNcxPoints(ZipPackage $package, \DOMElement $parent, string $ncxPart): array
+    private function readNcxPoints(ZipPackage $package, \DOMElement $parent, string $ncxPart, array $manifestByPart): array
     {
         $items = [];
         foreach (self::childElements($parent, 'navPoint', self::NCX_NS) as $point) {
@@ -9945,7 +10135,7 @@ final class EpubReader
             $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
             $reference = $src === ''
                 ? self::emptyPackageReference()
-                : $this->packageReference($package, $ncxPart, $src, [], 'ncx');
+                : $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx');
             $classes = self::spaceDelimited($point->getAttribute('class'));
 
             $items[] = [
@@ -9967,12 +10157,16 @@ final class EpubReader
                 'exists' => $reference['exists'],
                 'byteLength' => $reference['byteLength'],
                 'crc32' => $reference['crc32'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
                 'attributes' => self::elementAttributes($point),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
                 'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
-                'children' => $this->readNcxPoints($package, $point, $ncxPart),
+                'children' => $this->readNcxPoints($package, $point, $ncxPart, $manifestByPart),
             ];
         }
 
@@ -10088,6 +10282,9 @@ final class EpubReader
         }
 
         $ncxNavLists = is_array($ncx) && is_array($ncx['navLists'] ?? null) ? $ncx['navLists'] : [];
+        $ncxNavListRoleReport = is_array($ncx) && is_array($ncx['navListRoleReport'] ?? null)
+            ? $ncx['navListRoleReport']
+            : self::ncxNavListRoleSummary($ncxNavLists);
         foreach ($ncxNavLists as $listOffset => $list) {
             if (!is_array($list)) {
                 continue;
@@ -10107,6 +10304,15 @@ final class EpubReader
                 $item['listIndex'] = is_int($list['index'] ?? null) ? $list['index'] : $listOffset;
                 $item['listId'] = is_string($list['id'] ?? null) ? $list['id'] : null;
                 $item['listTitle'] = is_string($list['title'] ?? null) ? $list['title'] : '';
+                $item['listClass'] = is_string($list['class'] ?? null) ? $list['class'] : null;
+                $item['listClasses'] = is_array($list['classes'] ?? null) ? array_values($list['classes']) : [];
+                $item['listType'] = is_string($list['type'] ?? null) ? $list['type'] : null;
+                $item['listTypes'] = is_array($list['types'] ?? null) ? array_values($list['types']) : [];
+                $item['listRole'] = is_string($list['role'] ?? null) ? $list['role'] : null;
+                $item['listRoles'] = is_array($list['roles'] ?? null) ? array_values($list['roles']) : [];
+                $item['listRoleAliases'] = is_array($list['roleAliases'] ?? null) ? array_values($list['roleAliases']) : [];
+                $item['listRoleSources'] = is_array($list['roleSources'] ?? null) ? array_values($list['roleSources']) : [];
+                $item['listRoleDiagnostics'] = is_array($list['roleDiagnostics'] ?? null) ? array_values($list['roleDiagnostics']) : [];
                 $supplementalItems[] = $item;
                 ++$ncxNavListTargetCount;
 
@@ -10179,6 +10385,7 @@ final class EpubReader
             'navTocCount' => $navTocCount,
             'ncxCount' => $ncxCount,
             'ncxNavListCount' => count($ncxNavLists),
+            'ncxNavListRoleReport' => $ncxNavListRoleReport,
             'ncxNavListTargetCount' => $ncxNavListTargetCount,
             'targetCount' => count($items),
             'supplementalTargetCount' => count($supplementalItems),
@@ -10282,6 +10489,10 @@ final class EpubReader
             'mediaFragment' => $mediaFragment,
             'external' => (bool) ($item['external'] ?? false),
             'exists' => (bool) ($item['exists'] ?? false),
+            'manifestId' => is_string($item['manifestId'] ?? null) ? $item['manifestId'] : null,
+            'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+            'encrypted' => (bool) ($item['encrypted'] ?? false),
+            'canExposeBytes' => (bool) ($item['canExposeBytes'] ?? false),
             'type' => is_string($item['type'] ?? null) ? $item['type'] : null,
             'types' => is_array($item['types'] ?? null) ? array_values($item['types']) : [],
             'itemTypes' => is_array($item['itemTypes'] ?? null) ? array_values($item['itemTypes']) : [],

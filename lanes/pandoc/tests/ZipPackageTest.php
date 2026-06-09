@@ -4994,6 +4994,14 @@ return [
         ])));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
+                'name' => 'word/media/nonzero-ntfs-reserved.bin',
+                'data' => 'NTFS reserved bytes must stay zero',
+                'method' => 0,
+                'centralExtra' => pack('vvV', 0x000a, 4, 1),
+            ],
+        ])));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+            [
                 'name' => 'word/footnotes.xml',
                 'data' => '<w:footnotes/>',
                 'method' => 0,

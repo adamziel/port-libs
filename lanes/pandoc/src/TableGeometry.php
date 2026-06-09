@@ -1711,6 +1711,7 @@ final class TableGeometry
         $tableSpacing = self::tableSpacingMetadata($table);
         $tableBackground = self::tableBackgroundMetadata($table);
         $tableBorderCollapse = self::tableBorderCollapseMetadata($table);
+        $tableBorderPresentation = self::tableBorderPresentationMetadata($table);
         $directionality = self::directionalityMetadata($table, $sections, $coverageRecords);
         $includeAccessibility = ($options['accessibility'] ?? true) !== false;
         $idPrefix = self::reviewPacketIdPrefix($table, $options);
@@ -1776,6 +1777,7 @@ final class TableGeometry
                 $tableSpacing,
                 $tableBackground,
                 $tableBorderCollapse,
+                $tableBorderPresentation,
                 $directionality,
                 (string) ($sourceSummary['text'] ?? '')
             ),
@@ -1803,6 +1805,10 @@ final class TableGeometry
 
         if ($tableBorderCollapse !== []) {
             $packet['tableBorderCollapse'] = $tableBorderCollapse;
+        }
+
+        if ($tableBorderPresentation !== []) {
+            $packet['tableBorderPresentation'] = $tableBorderPresentation;
         }
 
         if ($sourceSummary !== []) {
@@ -4735,6 +4741,7 @@ final class TableGeometry
         array $tableSpacing,
         array $tableBackground,
         array $tableBorderCollapse,
+        array $tableBorderPresentation,
         array $directionality,
         string $sourceSummary
     ): array
@@ -5005,6 +5012,11 @@ final class TableGeometry
             'tableBorderCollapse' => (string) ($tableBorderCollapse['borderCollapse'] ?? ''),
             'tableBorderCollapseSource' => (string) ($tableBorderCollapse['borderCollapseSource'] ?? ''),
             'tableBorderCollapseAttributeCount' => count(is_array($tableBorderCollapse['attributes'] ?? null) ? $tableBorderCollapse['attributes'] : []),
+            'hasTableBorderPresentation' => $tableBorderPresentation !== [],
+            'tableBorderColor' => (string) ($tableBorderPresentation['borderColor'] ?? ''),
+            'tableBorderStyle' => (string) ($tableBorderPresentation['borderStyle'] ?? ''),
+            'tableBorderWidth' => (string) ($tableBorderPresentation['borderWidth'] ?? ''),
+            'tableBorderPresentationAttributeCount' => count(is_array($tableBorderPresentation['attributes'] ?? null) ? $tableBorderPresentation['attributes'] : []),
             'hasTableDirectionality' => (bool) ($directionalitySummary['hasDirectionality'] ?? false),
             'directionRecordCount' => (int) ($directionalitySummary['directionRecordCount'] ?? 0),
             'directionalCellCount' => (int) ($directionalitySummary['directionalCellCount'] ?? 0),
@@ -5428,6 +5440,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5509,6 +5522,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -5602,6 +5616,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableSpacingWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableBorderCollapseWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::tableBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
@@ -6725,6 +6740,47 @@ final class TableGeometry
             'attributes' => $tableBorderCollapse['attributes'] ?? [],
             'sourceAttributes' => $tableBorderCollapse['sourceAttributes'] ?? [],
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tableBorderPresentationWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $tableBorderPresentation = self::tableBorderPresentationMetadata($table);
+        if ($tableBorderPresentation === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-table-border-presentation-requires-raw-html', 'raw-html-table-border-presentation'],
+            'asciidoc' => ['asciidoc-table-border-presentation-review-required', 'table-border-presentation-review'],
+            'latex' => ['latex-table-border-presentation-review-required', 'table-border-presentation-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+        $diagnostic = [
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'table-border-presentation',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-border-presentation',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'attributeCount' => count(is_array($tableBorderPresentation['attributes'] ?? null) ? $tableBorderPresentation['attributes'] : []),
+            'attributes' => $tableBorderPresentation['attributes'] ?? [],
+            'sourceAttributes' => $tableBorderPresentation['sourceAttributes'] ?? [],
+        ];
+        foreach (['borderColor', 'borderStyle', 'borderWidth'] as $key) {
+            if (isset($tableBorderPresentation[$key]) && trim((string) $tableBorderPresentation[$key]) !== '') {
+                $diagnostic[$key] = (string) $tableBorderPresentation[$key];
+            }
+        }
+
+        return [$diagnostic];
     }
 
     /**
@@ -8455,6 +8511,67 @@ final class TableGeometry
         return $record;
     }
 
+    /**
+     * @return array{source:string,attributes:array<string, string>,borderColor?:string,borderStyle?:string,borderWidth?:string,sourceAttributes?:array<string, mixed>}
+     */
+    private static function tableBorderPresentationMetadata(AstNode $table): array
+    {
+        $attributes = self::stringAttributeMap($table->attr('htmlAttributes', []), true);
+        foreach (self::stringAttributeMap($table->attr('attributes', []), false) as $name => $value) {
+            $key = strtolower(trim($name));
+            if ($key !== '' && !array_key_exists($key, $attributes)) {
+                $attributes[$key] = $value;
+            }
+        }
+
+        if (!array_key_exists('style', $attributes)) {
+            return [];
+        }
+
+        $style = (string) $attributes['style'];
+        $recordAttributes = [];
+        $borderColor = self::normalizeTableBorderColorStyleAttribute($style);
+        if ($borderColor !== '') {
+            $recordAttributes['border-color'] = $borderColor;
+        }
+
+        $borderStyle = self::normalizeTableBorderStyleStyleAttribute($style);
+        if ($borderStyle !== '') {
+            $recordAttributes['border-style'] = $borderStyle;
+        }
+
+        $borderWidth = self::normalizeTableBorderWidthStyleAttribute($style);
+        if ($borderWidth !== '') {
+            $recordAttributes['border-width'] = $borderWidth;
+        }
+
+        if ($recordAttributes === []) {
+            return [];
+        }
+
+        ksort($recordAttributes);
+        $record = [
+            'source' => 'html-table-border-presentation',
+            'attributes' => $recordAttributes,
+        ];
+        if ($borderColor !== '') {
+            $record['borderColor'] = $borderColor;
+        }
+        if ($borderStyle !== '') {
+            $record['borderStyle'] = $borderStyle;
+        }
+        if ($borderWidth !== '') {
+            $record['borderWidth'] = $borderWidth;
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($table);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
     private static function normalizeTableFrameAttribute(string $value): string
     {
         $value = strtolower(trim($value));
@@ -8525,6 +8642,100 @@ final class TableGeometry
         }
 
         return '';
+    }
+
+    private static function normalizeTableBorderColorStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'border-color') {
+                continue;
+            }
+
+            $color = self::normalizeTableBackgroundColorAttribute($value);
+            if ($color !== '') {
+                return $color;
+            }
+        }
+
+        return '';
+    }
+
+    private static function normalizeTableBorderStyleStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'border-style') {
+                continue;
+            }
+
+            return self::normalizeTableBorderLineStyleAttribute($value);
+        }
+
+        return '';
+    }
+
+    private static function normalizeTableBorderLineStyleAttribute(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'], true)
+            ? $value
+            : '';
+    }
+
+    private static function normalizeTableBorderWidthStyleAttribute(string $style): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) !== 'border-width') {
+                continue;
+            }
+
+            return self::normalizeTableBorderWidthAttribute($value);
+        }
+
+        return '';
+    }
+
+    private static function normalizeTableBorderWidthAttribute(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === [] || count($tokens) > 4) {
+            return '';
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $width = self::normalizeTableBorderWidthToken($token);
+            if ($width === '') {
+                return '';
+            }
+
+            $normalized[] = $width;
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    private static function normalizeTableBorderWidthToken(string $value): string
+    {
+        if (in_array($value, ['thin', 'medium', 'thick'], true)) {
+            return $value;
+        }
+
+        if (preg_match('/^(\d+(?:\.\d+)?)(px|pt|pc|in|cm|mm|em|rem)$/i', $value, $match) !== 1) {
+            return '';
+        }
+
+        $number = (float) $match[1];
+        if ($number < 0.0 || $number > 10000.0) {
+            return '';
+        }
+
+        $formatted = rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . strtolower($match[2]);
     }
 
     private static function normalizeTableBackgroundColorAttribute(string $value): string

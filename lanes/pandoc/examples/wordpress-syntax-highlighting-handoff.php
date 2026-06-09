@@ -1556,8 +1556,8 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($asciidoc['html'], '<span class="fu">image::</span>uploads')) {
         throw new RuntimeException('Expected AsciiDoc block macro token handoff');
     }
-    if (!str_contains($asciidoc['html'], '<span class="dt">echo esc_html($title); // reviewed output &lt;1&gt;</span>')) {
-        throw new RuntimeException('Expected AsciiDoc listing body handoff');
+    if (!str_contains($asciidoc['html'], '<span class="kw">echo</span> <span class="fu">esc_html</span><span class="op">(</span><span class="va">$title</span><span class="op">);</span> <span class="co">// reviewed output &lt;1&gt;</span>')) {
+        throw new RuntimeException('Expected AsciiDoc source listing PHP token handoff');
     }
     if (!str_contains($asciidocWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected AsciiDoc WordPress style metadata');
