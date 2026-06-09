@@ -379,6 +379,7 @@ final class PdfEngineHandoff
      *     pdfDocumentSecurityStorePolicy: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
+     *     pdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{},
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     pdfRichMediaActivationModes: array<string, int>,
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -869,6 +870,7 @@ final class PdfEngineHandoff
         $pdfDocumentSecurityStorePolicy = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
+        $pdfActiveActionPolicy = [];
         $pdfRichMediaAnnotations = [];
         $pdfRichMediaActivationModes = [];
         $pdfAnnotations = [];
@@ -1003,6 +1005,7 @@ final class PdfEngineHandoff
                 $pdfDocumentSecurityStorePolicy = $pdfInspection['documentSecurityStorePolicy'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
+                $pdfActiveActionPolicy = $pdfInspection['activeActionPolicy'];
                 $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
                 $pdfRichMediaActivationModes = $pdfInspection['richMediaActivationModes'];
                 $pdfAnnotations = $pdfInspection['annotations'];
@@ -3237,6 +3240,47 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-active-action-type:' . $actionType . ':' . $actionCount;
                     }
                 }
+                if ($pdfActiveActionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-active-action-policy:' . $pdfActiveActionPolicy['reviewStatus'];
+                    if (isset($pdfActiveActionPolicy['actionCount']) && is_int($pdfActiveActionPolicy['actionCount']) && $pdfActiveActionPolicy['actionCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-active-action-policy-actions:' . $pdfActiveActionPolicy['actionCount'];
+                    }
+                    foreach ([
+                        'chainedActionCount' => 'chained-actions',
+                        'maxNextDepth' => 'chain-depth',
+                        'scriptActionCount' => 'scripts',
+                        'remoteTargetCount' => 'remote-targets',
+                        'launchActionCount' => 'launch-actions',
+                        'formActionCount' => 'form-actions',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfActiveActionPolicy[$policyKey]) && is_int($pdfActiveActionPolicy[$policyKey]) && $pdfActiveActionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-active-action-policy-' . $diagnosticName . ':' . $pdfActiveActionPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfActiveActionPolicy['sourceCategories']) && is_array($pdfActiveActionPolicy['sourceCategories'])) {
+                        foreach ($pdfActiveActionPolicy['sourceCategories'] as $sourceCategory => $sourceCount) {
+                            $diagnostics[] = 'pdf-byte-active-action-policy-source:' . $sourceCategory . ':' . $sourceCount;
+                        }
+                    }
+                    if (isset($pdfActiveActionPolicy['actionTypes']) && is_array($pdfActiveActionPolicy['actionTypes'])) {
+                        foreach ($pdfActiveActionPolicy['actionTypes'] as $type => $typeCount) {
+                            $diagnostics[] = 'pdf-byte-active-action-policy-type:' . $type . ':' . $typeCount;
+                        }
+                    }
+                    if (isset($pdfActiveActionPolicy['issues']) && is_array($pdfActiveActionPolicy['issues']) && $pdfActiveActionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-active-action-policy-issues:' . count($pdfActiveActionPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfActiveActionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-active-action-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfRichMediaAnnotations !== []) {
                     $diagnostics[] = 'pdf-byte-rich-media-annotations:' . count($pdfRichMediaAnnotations);
                     $richMediaAssetCount = 0;
@@ -3836,6 +3880,7 @@ final class PdfEngineHandoff
             'pdfDocumentSecurityStorePolicy' => $pdfDocumentSecurityStorePolicy,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
+            'pdfActiveActionPolicy' => $pdfActiveActionPolicy,
             'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
             'pdfRichMediaActivationModes' => $pdfRichMediaActivationModes,
             'pdfAnnotations' => $pdfAnnotations,
@@ -3991,6 +4036,7 @@ final class PdfEngineHandoff
      *     finalPdfDocumentSecurityStorePolicy: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
+     *     finalPdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{},
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     finalPdfRichMediaActivationModes: array<string, int>,
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -4291,6 +4337,7 @@ final class PdfEngineHandoff
             'finalPdfDocumentSecurityStorePolicy' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStorePolicy'] ?? null) ? $finalRun['pdfDocumentSecurityStorePolicy'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
+            'finalPdfActiveActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfActiveActionPolicy'] ?? null) ? $finalRun['pdfActiveActionPolicy'] : [],
             'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
             'finalPdfRichMediaActivationModes' => is_array($finalRun) && is_array($finalRun['pdfRichMediaActivationModes'] ?? null) ? $finalRun['pdfRichMediaActivationModes'] : [],
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
@@ -5891,6 +5938,7 @@ final class PdfEngineHandoff
             'documentSecurityStorePolicy' => $this->summarizePdfDocumentSecurityStorePolicy($documentSecurityStore, $signatures),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
+            'activeActionPolicy' => $this->summarizePdfActiveActionPolicy($activeActions),
             'richMediaAnnotations' => $richMediaAnnotations,
             'richMediaActivationModes' => $this->summarizePdfRichMediaActivationModes($richMediaAnnotations),
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
@@ -10929,6 +10977,108 @@ final class PdfEngineHandoff
         ksort($types);
 
         return $types;
+    }
+
+    /**
+     * @param list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @return array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{}
+     */
+    private function summarizePdfActiveActionPolicy(array $actions): array
+    {
+        if ($actions === []) {
+            return [];
+        }
+
+        $sources = [];
+        $sourceCategories = [];
+        $actionTypes = [];
+        $chainedActionCount = 0;
+        $maxNextDepth = 0;
+        $scriptActionCount = 0;
+        $remoteTargetCount = 0;
+        $launchActionCount = 0;
+        $formActionCount = 0;
+        $issues = [];
+
+        foreach ($actions as $action) {
+            $source = is_string($action['source'] ?? null) ? $action['source'] : '';
+            if ($source !== '') {
+                $sources[$source] = true;
+                $category = str_contains($source, ':')
+                    ? substr($source, 0, (int) strpos($source, ':'))
+                    : (str_contains($source, '.') ? substr($source, 0, (int) strpos($source, '.')) : $source);
+                if ($category === '') {
+                    $category = 'unknown';
+                }
+                $sourceCategories[$category] = ($sourceCategories[$category] ?? 0) + 1;
+
+                $nextDepth = substr_count($source, '.Next');
+                if ($nextDepth > 0) {
+                    $chainedActionCount++;
+                    $maxNextDepth = max($maxNextDepth, $nextDepth);
+                    $issues[] = 'next-action-chain';
+                    if ($nextDepth > 2) {
+                        $issues[] = 'deep-next-action-chain';
+                    }
+                }
+            }
+
+            $type = is_string($action['type'] ?? null) ? $action['type'] : '';
+            if ($type !== '') {
+                $actionTypes[$type] = ($actionTypes[$type] ?? 0) + 1;
+                if ($type === 'JavaScript') {
+                    $issues[] = 'script-action';
+                } elseif ($type === 'Launch') {
+                    $launchActionCount++;
+                    $issues[] = 'launch-action';
+                } elseif ($type === 'SubmitForm') {
+                    $formActionCount++;
+                    $issues[] = 'submit-form-action';
+                } elseif ($type === 'ResetForm') {
+                    $formActionCount++;
+                    $issues[] = 'reset-form-action';
+                } elseif ($type === 'ImportData') {
+                    $formActionCount++;
+                    $issues[] = 'import-data-action';
+                }
+            }
+
+            if (($action['scriptBytes'] ?? null) !== null) {
+                $scriptActionCount++;
+                $issues[] = 'script-action';
+            }
+
+            $target = is_string($action['target'] ?? null) ? $action['target'] : null;
+            $scheme = $this->pdfActionTargetScheme($target);
+            if ($scheme !== null && in_array($scheme, ['ftp', 'ftps', 'http', 'https', 'mailto'], true)) {
+                $remoteTargetCount++;
+                $issues[] = 'remote-action-target';
+            }
+        }
+
+        if ($issues === []) {
+            $issues[] = 'active-action';
+        }
+
+        ksort($sourceCategories);
+        ksort($actionTypes);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => 'review',
+            'actionCount' => count($actions),
+            'sourceCount' => count($sources),
+            'sourceCategories' => $sourceCategories,
+            'actionTypes' => $actionTypes,
+            'chainedActionCount' => $chainedActionCount,
+            'maxNextDepth' => $maxNextDepth,
+            'scriptActionCount' => $scriptActionCount,
+            'remoteTargetCount' => $remoteTargetCount,
+            'launchActionCount' => $launchActionCount,
+            'formActionCount' => $formActionCount,
+            'issues' => $issues,
+        ];
     }
 
     /**

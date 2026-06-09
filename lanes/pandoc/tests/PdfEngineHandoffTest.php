@@ -10629,12 +10629,52 @@ MARKDOWN);
             'ResetForm' => 1,
             'SubmitForm' => 1,
         ], $result['pdfActiveActionTypes']);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'actionCount' => 9,
+            'sourceCount' => 9,
+            'sourceCategories' => [
+                'annotation' => 2,
+                'catalog' => 5,
+                'page' => 2,
+            ],
+            'actionTypes' => [
+                'Hide' => 1,
+                'JavaScript' => 2,
+                'Launch' => 1,
+                'Named' => 2,
+                'Rendition' => 1,
+                'ResetForm' => 1,
+                'SubmitForm' => 1,
+            ],
+            'chainedActionCount' => 6,
+            'maxNextDepth' => 3,
+            'scriptActionCount' => 2,
+            'remoteTargetCount' => 1,
+            'launchActionCount' => 1,
+            'formActionCount' => 2,
+            'issues' => [
+                'deep-next-action-chain',
+                'launch-action',
+                'next-action-chain',
+                'remote-action-target',
+                'reset-form-action',
+                'script-action',
+                'submit-form-action',
+            ],
+        ];
         $t->contains('pdf-byte-active-actions:9', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-type:Hide:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-type:ResetForm:1', implode(',', $result['diagnostics']));
+        $t->same($expectedPolicy, $result['pdfActiveActionPolicy'] ?? null);
+        $t->contains('pdf-byte-active-action-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-policy-chained-actions:6', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-policy-chain-depth:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-policy-issue:deep-next-action-chain:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfActiveActions']);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
+        $t->same($expectedPolicy, $sequence['finalPdfActiveActionPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf javascript name tree kids from produced bytes' => static function (TestRunner $t) use ($document): void {

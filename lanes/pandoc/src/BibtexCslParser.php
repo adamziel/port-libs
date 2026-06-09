@@ -1129,7 +1129,7 @@ final class BibtexCslParser
             $item['submitted'] = $submittedDate;
         }
 
-        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
+        $accessed = self::dateFromFields($fields, ['urldate', 'accessed', 'accessdate', 'lastchecked', 'lastaccessed', 'visited'], ['urlyear', 'urlmonth', 'urlday'], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',
             'second' => 'urlsecond',

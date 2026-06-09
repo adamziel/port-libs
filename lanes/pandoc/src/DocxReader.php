@@ -4328,21 +4328,21 @@ final class DocxReader
     private function fieldResultNodes(array $field): array
     {
         $resultNodes = $this->coalesceTextNodes($field['resultNodes']);
-        if ($resultNodes === []) {
+        $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
+        if ($attrs !== null) {
+            return $resultNodes === [] ? [] : [new AstNode('link', $attrs, $resultNodes)];
+        }
+
+        $attrs = $this->fieldSpanAttrs($field['instruction'], $field['formField']);
+        if ($attrs === null) {
+            return $resultNodes;
+        }
+
+        if ($resultNodes === [] && !$this->isIndexReferenceFieldAttrs($attrs)) {
             return [];
         }
 
-        $attrs = $this->hyperlinkFieldAttrs($field['instruction']);
-        if ($attrs === null) {
-            $attrs = $this->fieldSpanAttrs($field['instruction'], $field['formField']);
-            if ($attrs === null) {
-                return $resultNodes;
-            }
-
-            return [new AstNode('span', $attrs, $resultNodes)];
-        }
-
-        return [new AstNode('link', $attrs, $resultNodes)];
+        return [new AstNode('span', $attrs, $this->isIndexReferenceFieldAttrs($attrs) ? [] : $resultNodes)];
     }
 
     /**
@@ -7306,21 +7306,22 @@ final class DocxReader
     private function simpleFieldNodes(\DOMElement $field, ZipPackage $package, ?OpcRelationships $relationships, array $referencedNotes): array
     {
         $children = $this->coalesceTextNodes($this->inlineContainerNodes($field, $package, $relationships, $referencedNotes));
-        if ($children === []) {
+
+        $attrs = $this->hyperlinkFieldAttrs((string) $this->wordAttr($field, 'instr'));
+        if ($attrs !== null) {
+            return $children === [] ? [] : [new AstNode('link', $attrs, $children)];
+        }
+
+        $attrs = $this->fieldSpanAttrs((string) $this->wordAttr($field, 'instr'), null);
+        if ($attrs === null) {
+            return $children;
+        }
+
+        if ($children === [] && !$this->isIndexReferenceFieldAttrs($attrs)) {
             return [];
         }
 
-        $attrs = $this->hyperlinkFieldAttrs((string) $this->wordAttr($field, 'instr'));
-        if ($attrs === null) {
-            $attrs = $this->fieldSpanAttrs((string) $this->wordAttr($field, 'instr'), null);
-            if ($attrs === null) {
-                return $children;
-            }
-
-            return [new AstNode('span', $attrs, $children)];
-        }
-
-        return [new AstNode('link', $attrs, $children)];
+        return [new AstNode('span', $attrs, $this->isIndexReferenceFieldAttrs($attrs) ? [] : $children)];
     }
 
     /**
@@ -7428,6 +7429,10 @@ final class DocxReader
         ];
 
         $fieldName = strtoupper(array_shift($tokens));
+        if ($fieldName === 'XE') {
+            return $this->indexReferenceFieldSpanAttrs($tokens, $instruction);
+        }
+
         if ($fieldName === 'SEQ') {
             return $this->sequenceFieldSpanAttrs($tokens, $instruction);
         }
@@ -7673,6 +7678,83 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * Pandoc's DOCX reader maps XE fields to empty Span nodes with class
+     * `indexref`; keep that AST signal and add DOCX-specific review attrs.
+     *
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function indexReferenceFieldSpanAttrs(array $tokens, string $instruction): array
+    {
+        $classes = [
+            'indexref',
+            'docx-field',
+            'docx-field-xe',
+            'docx-index-entry',
+        ];
+        $attributes = [
+            'data-docx-field' => 'xe',
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+        ];
+
+        $entry = $this->fieldTargetTokenSkippingSwitchValues($tokens, ['*', '@', 'b', 'f', 'i', 'r', 't', 'y']);
+        if ($entry !== null && $entry !== '') {
+            $attributes['entry'] = $entry;
+            $attributes['data-docx-index-entry'] = $entry;
+            $attributes['data-docx-field-entry'] = $entry;
+        }
+
+        $crossReference = $this->fieldSwitchValue($tokens, 't');
+        if ($crossReference !== null && $crossReference !== '') {
+            $classes[] = 'docx-index-entry-cross-reference';
+            $attributes['crossref'] = $crossReference;
+            $attributes['data-docx-field-cross-reference'] = $crossReference;
+        }
+
+        $yomi = $this->fieldSwitchValue($tokens, 'y');
+        if ($yomi !== null && $yomi !== '') {
+            $classes[] = 'docx-index-entry-yomi';
+            $attributes['yomi'] = $yomi;
+            $attributes['data-docx-field-yomi'] = $yomi;
+        }
+
+        if ($this->fieldHasSwitch($tokens, 'b')) {
+            $classes[] = 'docx-index-entry-bold';
+            $attributes['bold'] = 'true';
+            $attributes['data-docx-field-bold'] = 'true';
+        }
+
+        if ($this->fieldHasSwitch($tokens, 'i')) {
+            $classes[] = 'docx-index-entry-italic';
+            $attributes['italic'] = 'true';
+            $attributes['data-docx-field-italic'] = 'true';
+        }
+
+        foreach ([
+            'f' => 'entry-type',
+            'r' => 'bookmark',
+        ] as $switch => $attributeSuffix) {
+            $value = $this->fieldSwitchValue($tokens, $switch);
+            if ($value !== null && $value !== '') {
+                $attributes['data-docx-field-' . $attributeSuffix] = $value;
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array{classes:list<string>, attributes:array<string, string>} $attrs
+     */
+    private function isIndexReferenceFieldAttrs(array $attrs): bool
+    {
+        return in_array('indexref', $attrs['classes'], true);
     }
 
     /**

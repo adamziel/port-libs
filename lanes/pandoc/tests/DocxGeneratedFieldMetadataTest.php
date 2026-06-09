@@ -51,6 +51,15 @@ $generatedFieldDocumentXml = <<<'XML'
       </w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Index markers </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> XE "Source Packet" \t "See source dossier" \b \i \y "sosupaketto" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:fldSimple w:instr=' XE "Media Audit" \f "A" \r "media_bookmark" '/>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -175,5 +184,64 @@ return [
         $t->contains('data-docx-field-target="Smith2024"', $blocks);
         $t->contains('<span class="docx-field docx-field-bibliography docx-generated-field docx-generated-field-bibliography"', $blocks);
         $t->contains('Smith, Source Packet.</span>.', $blocks);
+    },
+    'preserves hidden DOCX index entry fields as Pandoc indexref spans' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[3];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Index markers ', $paragraph->children[0]->attr('text'));
+
+        $sourceEntry = $paragraph->children[1];
+        $t->same('span', $sourceEntry->type);
+        $t->same([], $sourceEntry->children);
+        $t->same([
+            'indexref',
+            'docx-field',
+            'docx-field-xe',
+            'docx-index-entry',
+            'docx-index-entry-cross-reference',
+            'docx-index-entry-yomi',
+            'docx-index-entry-bold',
+            'docx-index-entry-italic',
+        ], $sourceEntry->attr('classes'));
+        $sourceAttrs = $sourceEntry->attr('attributes');
+        $t->same('xe', $sourceAttrs['data-docx-field']);
+        $t->same('XE "Source Packet" \t "See source dossier" \b \i \y "sosupaketto"', $sourceAttrs['data-docx-field-instruction']);
+        $t->same('Source Packet', $sourceAttrs['entry']);
+        $t->same('Source Packet', $sourceAttrs['data-docx-index-entry']);
+        $t->same('Source Packet', $sourceAttrs['data-docx-field-entry']);
+        $t->same('See source dossier', $sourceAttrs['crossref']);
+        $t->same('See source dossier', $sourceAttrs['data-docx-field-cross-reference']);
+        $t->same('sosupaketto', $sourceAttrs['yomi']);
+        $t->same('sosupaketto', $sourceAttrs['data-docx-field-yomi']);
+        $t->same('true', $sourceAttrs['bold']);
+        $t->same('true', $sourceAttrs['italic']);
+        $t->same('true', $sourceAttrs['data-docx-field-bold']);
+        $t->same('true', $sourceAttrs['data-docx-field-italic']);
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $mediaEntry = $paragraph->children[3];
+        $t->same('span', $mediaEntry->type);
+        $t->same([], $mediaEntry->children);
+        $mediaAttrs = $mediaEntry->attr('attributes');
+        $t->same('Media Audit', $mediaAttrs['entry']);
+        $t->same('A', $mediaAttrs['data-docx-field-entry-type']);
+        $t->same('media_bookmark', $mediaAttrs['data-docx-field-bookmark']);
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $t->contains('Index markers []{.indexref .docx-field .docx-field-xe .docx-index-entry .docx-index-entry-cross-reference .docx-index-entry-yomi .docx-index-entry-bold .docx-index-entry-italic data-docx-field="xe"', $markdown);
+        $t->contains('entry="Source Packet"', $markdown);
+        $t->contains('crossref="See source dossier"', $markdown);
+        $t->contains('yomi="sosupaketto"', $markdown);
+        $t->contains('[]{.indexref .docx-field .docx-field-xe .docx-index-entry data-docx-field="xe" data-docx-field-instruction="XE \\"Media Audit\\" \\\\f \\"A\\" \\\\r \\"media_bookmark\\"" entry="Media Audit"', $markdown);
+
+        $t->contains('<span class="indexref docx-field docx-field-xe docx-index-entry docx-index-entry-cross-reference docx-index-entry-yomi docx-index-entry-bold docx-index-entry-italic"', $blocks);
+        $t->contains('data-docx-index-entry="Source Packet"', $blocks);
+        $t->contains('data-docx-field-cross-reference="See source dossier"', $blocks);
+        $t->contains('data-docx-field-yomi="sosupaketto"', $blocks);
+        $t->contains('<span class="indexref docx-field docx-field-xe docx-index-entry" data-docx-field="xe" data-docx-field-instruction="XE &quot;Media Audit&quot; \f &quot;A&quot; \r &quot;media_bookmark&quot;" data-docx-index-entry="Media Audit"', $blocks);
     },
 ];

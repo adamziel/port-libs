@@ -3490,6 +3490,68 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Split URL Date Source. 2026. https://example.test/split-url-date. Accessed 2026-06-05.</dd>', $blocks);
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Numeric URL Date Source. 2025. https://example.test/numeric-url-date. Accessed 2026-07-09.</dd>', $blocks);
     },
+    'maps legacy bibtex access date aliases into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{lastchecked-source,
+  author      = {Ng, Nia},
+  title       = {Last Checked Source},
+  date        = {2026},
+  url         = {https://example.test/lastchecked-source},
+  lastchecked = {2026-06-07}
+}
+
+@online{lastaccessed-source,
+  author       = {{Review Desk}},
+  title        = {Last Accessed Source},
+  date         = {2025},
+  url          = {https://example.test/lastaccessed-source},
+  lastaccessed = {2026-06?}
+}
+
+@misc{visited-source,
+  author  = {Curator, Eli},
+  title   = {Visited Source},
+  date    = {2024},
+  url     = {https://example.test/visited-source},
+  visited = {review queue}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same(['date-parts' => [[2026, 6, 7]]], $items[0]['accessed'] ?? null);
+        $t->same(['date-parts' => [[2026, 6]], 'uncertain' => true, 'raw' => '2026-06?'], $items[1]['accessed'] ?? null);
+        $t->same(['literal' => 'review queue'], $items[2]['accessed'] ?? null);
+        $t->same('2026-06-07', $items[0]['rawBibtex']['fields']['lastchecked'] ?? null);
+        $t->same('2026-06?', $items[1]['rawBibtex']['fields']['lastaccessed'] ?? null);
+        $t->same('review queue', $items[2]['rawBibtex']['fields']['visited'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $lastChecked = $processor->item('lastchecked-source');
+        $lastAccessed = $processor->item('lastaccessed-source');
+        $visited = $processor->item('visited-source');
+        $t->same([2026, 6, 7], $lastChecked['accessedDate']['parts'] ?? null);
+        $t->same('2026-06-07', $lastChecked['accessedDate']['display'] ?? null);
+        $t->same(true, $lastAccessed['accessedDate']['uncertain'] ?? null);
+        $t->same('2026-06', $lastAccessed['accessedDate']['display'] ?? null);
+        $t->same('review queue', $visited['accessedDate']['literal'] ?? null);
+        $t->same('review queue', $visited['accessedDate']['display'] ?? null);
+        $t->same('(Ng 2026; Review Desk 2025; Curator 2024)', $processor->renderCitationCluster([
+            $citation('lastchecked-source', '[@lastchecked-source]'),
+            $citation('lastaccessed-source', '[@lastaccessed-source]'),
+            $citation('visited-source', '[@visited-source]'),
+        ]));
+        $t->same('Ng, Nia. Last Checked Source. 2026. https://example.test/lastchecked-source. Accessed 2026-06-07.', $processor->renderBibliographyEntry('lastchecked-source'));
+        $t->same('Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.', $processor->renderBibliographyEntry('lastaccessed-source'));
+        $t->same('Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.', $processor->renderBibliographyEntry('visited-source'));
+
+        $document = (new MarkdownReader())->read('Legacy access dates [@lastchecked-source; @lastaccessed-source; @visited-source] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy access dates (Ng 2026; Review Desk 2025; Curator 2024) stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Last Checked Source. 2026. https://example.test/lastchecked-source. Accessed 2026-06-07.</dd>', $blocks);
+        $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Last Accessed Source. 2025. Date markers: accessed uncertain (2026-06?). https://example.test/lastaccessed-source. Accessed 2026-06.</dd>', $blocks);
+        $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. Visited Source. 2024. https://example.test/visited-source. Accessed review queue.</dd>', $blocks);
+    },
     'maps bounded biblatex url description labels into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{url-description-source,

@@ -42,6 +42,13 @@ XML],
       <w:fldSimple w:instr=' BIBLIOGRAPHY \l 1033 '><w:r><w:t>Smith, Source Packet.</w:t></w:r></w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Index marker </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> XE "Source Packet" \t "See source dossier" \b \i \y "sosupaketto" </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t> preserved.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML],
@@ -61,6 +68,10 @@ if (in_array('--self-test', $argv, true)) {
         'data-docx-field-citation-volume="42"',
         'class="docx-field docx-field-bibliography docx-generated-field docx-generated-field-bibliography"',
         'Smith, Source Packet.</span>.',
+        'class="indexref docx-field docx-field-xe docx-index-entry docx-index-entry-cross-reference docx-index-entry-yomi docx-index-entry-bold docx-index-entry-italic"',
+        'data-docx-index-entry="Source Packet"',
+        'data-docx-field-cross-reference="See source dossier"',
+        'data-docx-field-yomi="sosupaketto"',
     ] as $expected) {
         if (!str_contains($blocks, $expected)) {
             throw new RuntimeException('DOCX generated-field handoff did not preserve expected WordPress block metadata: ' . $expected);
