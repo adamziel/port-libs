@@ -19416,6 +19416,107 @@ XML);
         $t->contains('<dt>Editorial Credit Packet 2026</dt><dd>Editorial Credit Packet :: Roe, P.; Migration Desk, comps. :: curator: Curator, E. :: directed by Director, D. :: ill. by Illustrator, I.</dd>', $blocks);
         $t->contains('<dt>Review Credit Packet 2025</dt><dd>Review Credit Packet :: chaired by Review Chair :: Collection, C., ed. :: Editorial, E., ed. :: with Open Review Desk :: interview by Interviewer, I. :: by Reviewed, R. :: to Reader, R.</dd>', $blocks);
     },
+    'applies bounded csl secondary creator role plural labels' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'secondary-credit-packet',
+                'type' => 'book',
+                'title' => 'Secondary Credit Packet',
+                'issued' => ['date-parts' => [[2026]]],
+                'commentator' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'annotator' => [
+                    ['family' => 'Lee', 'given' => 'Ira'],
+                    ['family' => 'Kim', 'given' => 'Mina'],
+                ],
+                'redactor' => [
+                    ['family' => 'Diaz', 'given' => 'Ana'],
+                ],
+                'collaborator' => [
+                    ['literal' => 'Review Desk'],
+                    ['family' => 'Iqbal', 'given' => 'Iman'],
+                ],
+                'founder' => [
+                    ['literal' => 'Archive Founders Guild'],
+                ],
+                'continuator' => [
+                    ['family' => 'Singh', 'given' => 'Tara'],
+                    ['family' => 'Park', 'given' => 'Eva'],
+                ],
+                'reviser' => [
+                    ['family' => 'Cruz', 'given' => 'Cam'],
+                    ['family' => 'Lopez', 'given' => 'Luz'],
+                ],
+                'introduction' => [
+                    ['family' => 'Khan', 'given' => 'Noor'],
+                    ['family' => 'Stone', 'given' => 'Sam'],
+                ],
+                'foreword' => [
+                    ['family' => 'Mills', 'given' => 'Mo'],
+                    ['family' => 'Nash', 'given' => 'Nia'],
+                ],
+                'afterword' => [
+                    ['family' => 'Young', 'given' => 'Yara'],
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Secondary Creator Label Review</title>
+    <id>https://example.test/styles/bounded-secondary-creator-label-review</id>
+    <updated>2026-06-09T05:10:12+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" | ">
+        <names variable="commentator"><name/><label form="long" prefix=", "/></names>
+        <names variable="annotator"><name/><label form="long" prefix=", "/></names>
+        <names variable="redactor"><name/><label form="long" plural="always" prefix=", "/></names>
+        <names variable="collaborator"><name/><label form="long" prefix=", "/></names>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="founder"><name initialize-with=". " name-as-sort-order="all"/><label form="long" plural="always" prefix=", "/></names>
+      <names variable="continuator"><name initialize-with=". " name-as-sort-order="all"/><label form="long" prefix=", "/></names>
+      <names variable="reviser"><name initialize-with=". " name-as-sort-order="all"/><label form="long" prefix=", "/></names>
+      <names variable="introduction"><name initialize-with=". " name-as-sort-order="all"/><label form="long" prefix=", "/></names>
+      <names variable="foreword"><name initialize-with=". " name-as-sort-order="all"/><label form="long" prefix=", "/></names>
+      <names variable="afterword"><name initialize-with=". " name-as-sort-order="all"/><label form="long" prefix=", "/></names>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Secondary Creator Label Review', $summary['title'] ?? null);
+        $t->same('commentator', $citationChildren[0]['variable'] ?? null);
+        $t->same('long', $citationChildren[0]['nameRendering']['label']['form'] ?? null);
+        $t->same('redactor', $citationChildren[2]['variable'] ?? null);
+        $t->same('always', $citationChildren[2]['nameRendering']['label']['plural'] ?? null);
+        $t->same('founder', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('always', $bibliographyChildren[1]['nameRendering']['label']['plural'] ?? null);
+        $t->same('afterword', $bibliographyChildren[6]['variable'] ?? null);
+
+        $t->same('(Roe and Ng, commentators | Lee and Kim, annotators | Diaz, redactors | Review Desk and Iqbal, collaborators | 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'secondary-credit-packet', 'text' => '[@secondary-credit-packet]']),
+        ]));
+        $t->same('Secondary Credit Packet :: Archive Founders Guild, founders :: Singh, T.; Park, E., continuators :: Cruz, C.; Lopez, L., revisers :: Khan, N.; Stone, S., introductions :: Mills, M.; Nash, N., forewords :: Young, Y.; Zed, Z., afterwords', $processor->renderBibliographyEntry('secondary-credit-packet'));
+
+        $document = (new MarkdownReader())->read('Secondary credits [@secondary-credit-packet] keep plural CSL role labels visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Secondary credits (Roe and Ng, commentators | Lee and Kim, annotators | Diaz, redactors | Review Desk and Iqbal, collaborators | 2026) keep plural CSL role labels visible.</p>', $blocks);
+        $t->contains('<dt>Secondary Credit Packet 2026</dt><dd>Secondary Credit Packet :: Archive Founders Guild, founders :: Singh, T.; Park, E., continuators :: Cruz, C.; Lopez, L., revisers :: Khan, N.; Stone, S., introductions :: Mills, M.; Nash, N., forewords :: Young, Y.; Zed, Z., afterwords</dd>', $blocks);
+    },
     'applies bounded csl version number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
