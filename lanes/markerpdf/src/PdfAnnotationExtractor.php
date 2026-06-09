@@ -2581,14 +2581,17 @@ final class PdfAnnotationExtractor
     private function rectFromAnnotation(string $annotationBody, array $objects = []): ?array
     {
         $value = $this->valueAfterName($annotationBody, 'Rect');
-        if ($value === null || !str_starts_with(trim($value), '[')) {
+        if ($value === null) {
             return null;
         }
-        if ($this->dictionaryValueHasTrailingOperand($annotationBody, 'Rect')) {
+        if (
+            $this->dictionaryValueHasTrailingOperand($annotationBody, 'Rect')
+            || $this->resolvedValueHasTrailingOperand($value, $objects)
+        ) {
             return null;
         }
 
-        $arrayBody = $this->arrayBodyFromValue($value);
+        $arrayBody = $this->arrayBodyFromPdfValue($value, $objects);
         if ($arrayBody === null) {
             return null;
         }

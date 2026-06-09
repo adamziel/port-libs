@@ -25857,12 +25857,12 @@ final class PdfTextExtractor
                 continue;
             }
 
-            if ($compatibilityDepth > 0) {
-                continue;
-            }
-
             if ($token === 'd0' || $token === 'd1') {
                 return true;
+            }
+
+            if ($compatibilityDepth > 0) {
+                continue;
             }
         }
 
