@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-use PortLibs\Pandoc\NativeReader;
-use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -247,5 +248,72 @@ return [
         $t->contains('<figcaption class="wp-element-caption"><p>Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></p></figcaption>', $blocks);
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+    },
+    'writes shared table captions as pandoc native ast json' => static function (TestRunner $t): void {
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('table', [
+                'id' => 'writer-table',
+                'classes' => ['native-generated'],
+                'attributes' => ['data-source' => 'writer'],
+                'captionInlines' => [
+                    new AstNode('text', ['text' => 'Generated']),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [
+                        new AstNode('text', ['text' => 'caption']),
+                    ]),
+                ],
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Short']),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [
+                        new AstNode('text', ['text' => 'view']),
+                    ]),
+                ],
+                'alignments' => ['left', 'right'],
+                'widths' => [0.3, null],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'Metric']),
+                        ]),
+                        new AstNode('table_cell', ['align' => 'right'], [
+                            new AstNode('text', ['text' => 'Value']),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('table_body', ['rowHeadColumns' => 1], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [
+                            new AstNode('strong', [], [
+                                new AstNode('text', ['text' => 'Posts']),
+                            ]),
+                        ]),
+                        new AstNode('table_cell', ['align' => 'center'], [
+                            new AstNode('text', ['text' => 'Ready']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $table = $roundTrip->children[0];
+
+        $t->same('Table', $native['blocks'][0]['t']);
+        $t->same(['writer-table', ['native-generated'], [['data-source', 'writer']]], $native['blocks'][0]['c'][0]);
+        $t->same('Short', $native['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Generated', $native['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('AlignLeft', $native['blocks'][0]['c'][2][0][0]['t']);
+        $t->same('ColWidth', $native['blocks'][0]['c'][2][0][1]['t']);
+        $t->same(0.3, $native['blocks'][0]['c'][2][0][1]['c']);
+        $t->same(1, $native['blocks'][0]['c'][4][0][1]);
+        $t->same('table', $table->type);
+        $t->same('Generated caption', $table->attr('caption'));
+        $t->same('Short view', $table->attr('shortCaption'));
+        $t->same(['left', 'right'], $table->attr('alignments'));
+        $t->same([0.3, null], $table->attr('widths'));
+        $t->same('center', $table->children[1]->children[0]->children[1]->attr('align'));
     },
 ];
