@@ -5080,7 +5080,7 @@ final class PdfAttachmentExtractor
     private function withCompressedObjectStreamObjects(array $objects, array $xrefEntries): array
     {
         $expanded = $objects;
-        for ($pass = 0; $pass < 4; $pass++) {
+        for ($pass = 0; $pass < 8; $pass++) {
             $added = false;
             foreach ($xrefEntries as $objectNumber => $entry) {
                 if (($entry['type'] ?? null) !== 2 || isset($expanded[$objectNumber])) {

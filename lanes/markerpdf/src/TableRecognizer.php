@@ -1532,6 +1532,7 @@ final class TableRecognizer
                 continue;
             }
 
+            $cell = $this->unwrappedTableGeometryRecord($cell, 'cell');
             if ($this->hasAssignedGridAnchor($cell)) {
                 $assignedIndexes[] = $cellIndex;
                 $assignedCells[] = $cell;
@@ -1571,6 +1572,126 @@ final class TableRecognizer
             'cells' => $this->normalizeAssignedCells($assignedCells, $rows, $cols),
             'review' => $review,
         ];
+    }
+
+    /**
+     * Saved tabled/Pydantic exports sometimes wrap individual rows, columns,
+     * or SpanTableCell records under model names while keeping table-level
+     * metadata outside the model payload. Unwrap only geometry-bearing model
+     * records so generic metadata containers stay untouched.
+     *
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private function unwrappedTableGeometryRecord(array $record, string $kind): array
+    {
+        for ($depth = 0; $depth < 3; $depth++) {
+            $key = $this->tableGeometryRecordEnvelopeKey($record, $kind);
+            if ($key === null) {
+                break;
+            }
+
+            $payload = $record[$key];
+            if (!is_array($payload)) {
+                break;
+            }
+
+            unset($record[$key]);
+            $record = $payload + $record;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function tableGeometryRecordEnvelopeKey(array $record, string $kind): ?string
+    {
+        foreach ($this->tableGeometryRecordEnvelopeKeys($kind) as $key) {
+            $payload = $record[$key] ?? null;
+            if (!is_array($payload)) {
+                continue;
+            }
+            if ($this->tableGeometryRecordEnvelopePayloadHasGeometry($payload, $kind)) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function tableGeometryRecordEnvelopePayloadHasGeometry(array $payload, string $kind): bool
+    {
+        if ($this->nullableBboxFromRecord($payload) !== null) {
+            return true;
+        }
+
+        foreach ($this->tableGeometryRecordEnvelopeKeys($kind) as $key) {
+            $nested = $payload[$key] ?? null;
+            if (is_array($nested) && $this->nullableBboxFromRecord($nested) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableGeometryRecordEnvelopeKeys(string $kind): array
+    {
+        return match ($kind) {
+            'row' => [
+                'row',
+                'row_record',
+                'row_model',
+                'record',
+                'model',
+                'data',
+                'item',
+            ],
+            'col' => [
+                'column',
+                'col',
+                'column_record',
+                'col_record',
+                'column_model',
+                'col_model',
+                'record',
+                'model',
+                'data',
+                'item',
+            ],
+            default => [
+                'cell',
+                'table_cell',
+                'span_cell',
+                'span_table_cell',
+                'cell_record',
+                'table_cell_record',
+                'span_cell_record',
+                'cell_model',
+                'table_cell_model',
+                'record',
+                'model',
+                'data',
+                'item',
+            ],
+        };
+    }
+
+    private function tableGeometryRecordEnvelopeKind(string $field): string
+    {
+        return match ($field) {
+            'rows' => 'row',
+            'cols' => 'col',
+            default => 'cell',
+        };
     }
 
     /**
@@ -1837,6 +1958,10 @@ final class TableRecognizer
                     continue;
                 }
 
+                $record = $this->unwrappedTableGeometryRecord(
+                    $record,
+                    $this->tableGeometryRecordEnvelopeKind($field)
+                );
                 if ($fieldCoordinateOrder !== null && $this->bboxCoordinateOrder($record) === null) {
                     $record['bbox_order'] = $fieldCoordinateOrder;
                 }
@@ -2033,6 +2158,12 @@ final class TableRecognizer
             if (!is_array($record)) {
                 continue;
             }
+            if ($field !== 'conflicts') {
+                $record = $this->unwrappedTableGeometryRecord(
+                    $record,
+                    $this->tableGeometryRecordEnvelopeKind($field)
+                );
+            }
             $space = $this->explicitGeometryRecordCoordinateSpace($record)
                 ?? $this->sourceFallbackCoordinateSpaceFromRecord($record);
             if ($space !== null) {
@@ -2051,6 +2182,7 @@ final class TableRecognizer
                 if (!is_array($candidate)) {
                     continue;
                 }
+                $candidate = $this->unwrappedTableGeometryRecord($candidate, 'cell');
                 $space = $this->explicitGeometryRecordCoordinateSpace($candidate)
                     ?? $this->sourceFallbackCoordinateSpaceFromRecord($candidate)
                     ?? $candidateSpace;
@@ -3644,6 +3776,9 @@ final class TableRecognizer
         $normalized = false;
 
         foreach ($candidates as $candidate) {
+            if (is_array($candidate)) {
+                $candidate = $this->unwrappedTableGeometryRecord($candidate, 'cell');
+            }
             $sourceBbox = $this->bboxFromGeometryValue($candidate);
             if ($sourceBbox === null) {
                 continue;
@@ -4863,6 +4998,7 @@ final class TableRecognizer
             if (!is_array($cell)) {
                 throw new InvalidArgumentException('Table cells must be arrays.');
             }
+            $cell = $this->unwrappedTableGeometryRecord($cell, 'cell');
             $entry = [
                 'bbox' => $this->bboxFromRecord($cell),
                 'text' => array_key_exists('text', $cell) && $cell['text'] !== null ? (string) $cell['text'] : '',
@@ -5045,6 +5181,7 @@ final class TableRecognizer
             if (!is_array($cell)) {
                 throw new InvalidArgumentException('Assigned table cells must be arrays.');
             }
+            $cell = $this->unwrappedTableGeometryRecord($cell, 'cell');
             $rowIds = $this->assignedRowIds($cell, $rowOrder);
             $colIds = $this->assignedColIds($cell, $colOrder);
             if (($rowIds[0] ?? null) === null || ($colIds[0] ?? null) === null) {
@@ -5208,6 +5345,7 @@ final class TableRecognizer
                 throw new InvalidArgumentException('Table row/column entries must be arrays.');
             }
 
+            $item = $this->unwrappedTableGeometryRecord($item, $idField === 'row_id' ? 'row' : 'col');
             $rawId = $item[$idField] ?? $item['id'] ?? $index;
             $parsedId = $this->nullableInteger($rawId);
             $bbox = $this->bboxFromRecord($item);

@@ -2828,7 +2828,7 @@ final class BatchConverter
      * saving Markdown. This records the same decision without invoking the
      * supplied converter, Python workers, pdftext, pypdfium, or external tools.
      *
-     * @param array{filepath: string, out_folder: string, metadata?: array<string, mixed>|null, min_length?: int|null} $task
+     * @param array{filepath: string, out_folder: string, metadata?: mixed, min_length?: int|null} $task
      * @return array<string, mixed>
      */
     public function processTaskPreflightPlan(array $task, ?callable $textLength = null): array
@@ -3142,13 +3142,12 @@ final class BatchConverter
     }
 
     /**
-     * @param array<string, mixed>|null $metadata
      * @return array<string, mixed>
      */
     public function processFile(
         string $filepath,
         string $outputFolder,
-        ?array $metadata,
+        mixed $metadata,
         ?int $minLength,
         callable $converter,
         ?callable $textLength = null

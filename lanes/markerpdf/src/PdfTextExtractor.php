@@ -2793,7 +2793,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>, inlineImageColorSpaceResources: array<string, string>}>
      */
     private function contentStreamsWithFontMaps(string $pdfBytes): array
     {
@@ -2831,7 +2831,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>, inlineImageColorSpaceResources: array<string, string>}>
      * @param array<int, string> $objects
      * @param list<int> $pageObjectNumbers
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
@@ -2896,6 +2896,14 @@ final class PdfTextExtractor
                 $expanded['markedContentProperties'] = array_replace(
                     $expanded['markedContentProperties'],
                     $appearance['markedContentProperties'] ?? []
+                );
+                $expanded['imageXObjectResourceNames'] = $this->mergedUniqueStrings(
+                    $expanded['imageXObjectResourceNames'],
+                    $appearance['imageXObjectResourceNames'] ?? []
+                );
+                $expanded['inlineImageColorSpaceResources'] = array_replace(
+                    $expanded['inlineImageColorSpaceResources'],
+                    $appearance['inlineImageColorSpaceResources'] ?? []
                 );
             }
 
@@ -2985,12 +2993,14 @@ final class PdfTextExtractor
                     $expanded['fontToUnicodeMaps'],
                     $expanded['markedContentProperties'],
                     $expanded['imageXObjectResourceNames'],
+                    $expanded['inlineImageColorSpaceResources'],
                     $optionalContentStates
                 );
                 $expanded['stream'] = $expandedForms['stream'];
                 $expanded['fontToUnicodeMaps'] = $expandedForms['fontToUnicodeMaps'];
                 $expanded['markedContentProperties'] = $expandedForms['markedContentProperties'];
                 $expanded['imageXObjectResourceNames'] = $expandedForms['imageXObjectResourceNames'];
+                $expanded['inlineImageColorSpaceResources'] = $expandedForms['inlineImageColorSpaceResources'];
             }
         }
 
@@ -4287,12 +4297,13 @@ final class PdfTextExtractor
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      * @param array<string, array{actualText: string|null, altText: string|null}> $markedContentProperties
      * @param list<string> $imageXObjectResourceNames
+     * @param array<string, string> $inlineImageColorSpaceResources
      * @param array<int|string, bool> $optionalContentStates
      * @param array<int, true> $activeFormObjectNumbers
      * @param list<float>|null $initialTransformationMatrix
      * @param list<float>|null $formBoundingBox
      * @param array<string, string> $fontAliasesForExtGState
-     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}
+     * @return array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>, inlineImageColorSpaceResources: array<string, string>}
      */
     private function expandFormXObjectInvocations(
         string $content,
@@ -4302,17 +4313,27 @@ final class PdfTextExtractor
         array $fontToUnicodeMaps,
         array $markedContentProperties = [],
         array $imageXObjectResourceNames = [],
+        array $inlineImageColorSpaceResources = [],
         array $optionalContentStates = [],
         array $activeFormObjectNumbers = [],
         ?array $initialTransformationMatrix = null,
         ?array $formBoundingBox = null,
         array $fontAliasesForExtGState = []
     ): array {
+        $resourceOwnerInlineImageColorSpaceResources = $this->inlineImageColorSpaceResourcesForResourceOwnerBody(
+            $resourceOwnerBody,
+            $objects
+        );
+        $mergedInlineImageColorSpaceResources = array_replace(
+            $inlineImageColorSpaceResources,
+            $resourceOwnerInlineImageColorSpaceResources
+        );
         $content = $this->rewriteExtGStateFontOperands(
             $content,
             $resourceOwnerBody,
             $objects,
-            $fontAliasesForExtGState
+            $fontAliasesForExtGState,
+            $mergedInlineImageColorSpaceResources
         );
         $contentMayTransformTextPositions = $this->contentMayTransformTextPositions($content);
         $shouldTransformTextPositions = $contentMayTransformTextPositions
@@ -4327,6 +4348,7 @@ final class PdfTextExtractor
                 'fontToUnicodeMaps' => $fontToUnicodeMaps,
                 'markedContentProperties' => $markedContentProperties,
                 'imageXObjectResourceNames' => $imageXObjectResourceNames,
+                'inlineImageColorSpaceResources' => $mergedInlineImageColorSpaceResources,
             ];
         }
 
@@ -4352,6 +4374,7 @@ final class PdfTextExtractor
                     $imageXObjectResourceNames,
                     $resourceOwnerImageXObjectResourceNames
                 ),
+                'inlineImageColorSpaceResources' => $mergedInlineImageColorSpaceResources,
             ];
         }
 
@@ -4362,6 +4385,7 @@ final class PdfTextExtractor
             $imageXObjectResourceNames,
             $resourceOwnerImageXObjectResourceNames
         );
+        $expandedInlineImageColorSpaceResources = $mergedInlineImageColorSpaceResources;
         $operands = [];
         $currentTransformationMatrix = $initialTransformationMatrix ?? [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $graphicsStateStack = [];
@@ -4371,7 +4395,12 @@ final class PdfTextExtractor
             'leading' => null,
             'insideBBox' => true,
         ];
-        foreach ($this->contentTokens($content, false, [], $resourceOwnerFormXObjectResourceNames) as $token) {
+        foreach ($this->contentTokens(
+            $content,
+            false,
+            $expandedInlineImageColorSpaceResources,
+            $resourceOwnerFormXObjectResourceNames
+        ) as $token) {
             if (!$this->isOperator($token)) {
                 $operands[] = $token;
                 continue;
@@ -4416,6 +4445,10 @@ final class PdfTextExtractor
                             $markedContentPropertyAliases[$name] = $alias;
                             $expandedMarkedContentProperties[$alias] = $property;
                         }
+                        $formInlineImageColorSpaceResources = array_replace(
+                            $expandedInlineImageColorSpaceResources,
+                            $this->inlineImageColorSpaceResourcesForResourceOwnerBody($formResourceOwnerBody, $objects)
+                        );
 
                         $formStream = $this->filterOptionalContentMarkedBlocks(
                             $form['stream'],
@@ -4428,8 +4461,13 @@ final class PdfTextExtractor
                             $optionalContentStates
                         );
                         $formStream = $this->rewriteMarkedContentPropertyOperands(
-                            $this->rewriteFontResourceOperands($formStream, $fontAliases),
-                            $markedContentPropertyAliases
+                            $this->rewriteFontResourceOperands(
+                                $formStream,
+                                $fontAliases,
+                                $formInlineImageColorSpaceResources
+                            ),
+                            $markedContentPropertyAliases,
+                            $formInlineImageColorSpaceResources
                         );
                         $expandedForm = $this->expandFormXObjectInvocations(
                             $formStream,
@@ -4439,6 +4477,7 @@ final class PdfTextExtractor
                             $expandedFontToUnicodeMaps,
                             $expandedMarkedContentProperties,
                             $expandedImageXObjectResourceNames,
+                            $expandedInlineImageColorSpaceResources,
                             $optionalContentStates,
                             $nextActiveForms,
                             $this->pdfMatrixMultiply(
@@ -4452,6 +4491,7 @@ final class PdfTextExtractor
                         $expandedFontToUnicodeMaps = $expandedForm['fontToUnicodeMaps'];
                         $expandedMarkedContentProperties = $expandedForm['markedContentProperties'];
                         $expandedImageXObjectResourceNames = $expandedForm['imageXObjectResourceNames'];
+                        $expandedInlineImageColorSpaceResources = $expandedForm['inlineImageColorSpaceResources'];
                     } else {
                         $this->appendContentOperator($expanded, $operands, $token);
                     }
@@ -4528,6 +4568,7 @@ final class PdfTextExtractor
             'fontToUnicodeMaps' => $expandedFontToUnicodeMaps,
             'markedContentProperties' => $expandedMarkedContentProperties,
             'imageXObjectResourceNames' => $expandedImageXObjectResourceNames,
+            'inlineImageColorSpaceResources' => $expandedInlineImageColorSpaceResources,
         ];
     }
 
@@ -13128,16 +13169,20 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $fontAliases
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
-    private function rewriteFontResourceOperands(string $content, array $fontAliases): string
-    {
+    private function rewriteFontResourceOperands(
+        string $content,
+        array $fontAliases,
+        array $inlineImageColorSpaceResources = []
+    ): string {
         if ($fontAliases === []) {
             return $content;
         }
 
         $rewritten = [];
         $operands = [];
-        foreach ($this->contentTokens($content) as $token) {
+        foreach ($this->contentTokens($content, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isOperator($token)) {
                 if ($token === 'Tf' && count($operands) >= 2) {
                     $fontOperandIndex = count($operands) - 2;
@@ -13171,12 +13216,14 @@ final class PdfTextExtractor
     /**
      * @param array<int, string> $objects
      * @param array<string, string> $fontAliases
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
     private function rewriteExtGStateFontOperands(
         string $content,
         string $resourceOwnerBody,
         array $objects,
-        array $fontAliases = []
+        array $fontAliases = [],
+        array $inlineImageColorSpaceResources = []
     ): string {
         if (!str_contains($content, 'gs')) {
             return $content;
@@ -13189,7 +13236,7 @@ final class PdfTextExtractor
 
         $rewritten = [];
         $operands = [];
-        foreach ($this->contentTokens($content) as $token) {
+        foreach ($this->contentTokens($content, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isOperator($token)) {
                 $state = $token === 'gs' ? $this->extGStateFontTextStateForOperands($operands, $textStates) : null;
                 if ($state !== null) {
@@ -13404,16 +13451,20 @@ final class PdfTextExtractor
 
     /**
      * @param array<string, string> $propertyAliases
+     * @param array<string, string> $inlineImageColorSpaceResources
      */
-    private function rewriteMarkedContentPropertyOperands(string $content, array $propertyAliases): string
-    {
+    private function rewriteMarkedContentPropertyOperands(
+        string $content,
+        array $propertyAliases,
+        array $inlineImageColorSpaceResources = []
+    ): string {
         if ($propertyAliases === []) {
             return $content;
         }
 
         $rewritten = [];
         $operands = [];
-        foreach ($this->contentTokens($content) as $token) {
+        foreach ($this->contentTokens($content, false, $inlineImageColorSpaceResources) as $token) {
             if ($this->isOperator($token)) {
                 if ($token === 'BDC' && count($operands) >= 2) {
                     $propertyOperandIndex = count($operands) - 1;
@@ -13465,7 +13516,7 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>}>
+     * @return list<array{stream: string, fontToUnicodeMaps: array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>, markedContentProperties: array<string, array{actualText: string|null, altText: string|null}>, imageXObjectResourceNames: list<string>, inlineImageColorSpaceResources: array<string, string>}>
      * @param array<int, string> $objects
      * @param array<int, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontObjectMaps
      * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
@@ -13813,6 +13864,10 @@ final class PdfTextExtractor
             $markedContentPropertyAliases[$name] = $alias;
             $appearanceMarkedContentProperties[$alias] = $property;
         }
+        $appearanceInlineImageColorSpaceResources = $this->inlineImageColorSpaceResourcesForResourceOwnerBody(
+            $resourceOwnerBody,
+            $objects
+        );
 
         $decoded = $this->filterOptionalContentMarkedBlocks(
             $decoded,
@@ -13827,8 +13882,13 @@ final class PdfTextExtractor
 
         return $this->expandFormXObjectInvocations(
             $this->rewriteMarkedContentPropertyOperands(
-                $this->rewriteFontResourceOperands($decoded, $fontAliases),
-                $markedContentPropertyAliases
+                $this->rewriteFontResourceOperands(
+                    $decoded,
+                    $fontAliases,
+                    $appearanceInlineImageColorSpaceResources
+                ),
+                $markedContentPropertyAliases,
+                $appearanceInlineImageColorSpaceResources
             ),
             $resourceOwnerBody,
             $objects,
@@ -13836,6 +13896,7 @@ final class PdfTextExtractor
             $expandedFontToUnicodeMaps,
             $appearanceMarkedContentProperties,
             [],
+            $appearanceInlineImageColorSpaceResources,
             $optionalContentStates,
             [],
             $this->pdfMatrixValueAfterName($appearanceBody, 'Matrix', $objects),
