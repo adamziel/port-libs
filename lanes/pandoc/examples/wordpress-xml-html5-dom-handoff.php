@@ -17,6 +17,7 @@ $fragment = <<<'HTML'
   <p data-review="character-references">References: A&NoBreak;B&NewLine;C&Tab;D &hopf; &nbsp &copy</p>
   <p data-review="math-spacing">Math refs: f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>
   <p data-review="spacing-references">Spacing refs: non&NonBreakingSpace;thin&ThinSpace;alias&thinsp;thick&ThickSpace;very&VeryThinSpace;hair&hairsp;neg&NegativeVeryThinSpace;&NegativeMediumSpace;&NegativeThickSpace;</p>
+  <p data-review="punctuation-references" title="Issue&num;42">Punctuation refs&colon; &lpar;draft&rpar; &lsqb;A&rsqb; &dollar;5&percnt; &commat;review path&sol;to&bsol;asset</p>
   <svg viewBox="0 0 10 10" preserveAspectRatio="xMidYMid meet"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>
   <math><mi definitionURL="#review-x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>
   <figure><img src="media/review.png?rev=1&amp;post=42" alt="Review image"><figcaption>Review image</figcaption></figure>
@@ -31,6 +32,7 @@ $dom = XmlHtmlDom::loadHtmlFragment($fragment, 'WordPress source HTML fragment')
 $html = XmlHtmlDom::serializeHtmlFragment($dom);
 $facadeBody = XmlHtml5Dom::parseHtmlFragmentBody(
     '<section data-source="legacy-facade"><p>A&NoBreak;B &hopf; &copy</p>'
+    . '<p data-review="punctuation">Issue&num;42&colon; &lpar;ready&rpar;</p>'
     . '<textarea>Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea></section>'
 );
 if (!$facadeBody instanceof DOMElement) {
@@ -91,6 +93,14 @@ if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($html, '&amp;NonBreakingSpace;') || str_contains($html, '&amp;ThickSpace;') || str_contains($html, '&amp;NegativeMediumSpace;')) {
         throw new RuntimeException('Expected extended HTML5 spacing references to avoid literal ampersand fallback');
     }
+    if (!str_contains($html, '<p data-review="punctuation-references" title="Issue#42">Punctuation refs: (draft) [A] $5% @review path/to\\asset</p>')) {
+        throw new RuntimeException('Expected bounded HTML5 punctuation character references to decode before review serialization');
+    }
+    foreach (['&amp;colon;', '&amp;lpar;', '&amp;lsqb;', '&amp;dollar;', '&amp;commat;', '&amp;bsol;'] as $blockedPunctuationReference) {
+        if (str_contains($html, $blockedPunctuationReference)) {
+            throw new RuntimeException('Expected HTML5 punctuation references to avoid literal ampersand fallback: ' . $blockedPunctuationReference);
+        }
+    }
     if (!str_contains($html, '<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="review-gradient"><stop offset="0"></stop></linearGradient><textPath href="#review-label">Logo</textPath></svg>')) {
         throw new RuntimeException('Expected SVG foreign-content casing to survive review handoff');
     }
@@ -112,10 +122,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($html, '<script data-review="metadata" type="application/json">{"source":"legacy <html> & notes"}</script>')) {
         throw new RuntimeException('Expected raw text JSON script serialization for review metadata');
     }
-    if (!str_contains($facadeHtml, '<section data-source="legacy-facade"><p>A' . "\u{2060}" . 'B ' . "\u{1D559}" . ' ©</p><textarea>Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea></section>')) {
+    if (!str_contains($facadeHtml, '<section data-source="legacy-facade"><p>A' . "\u{2060}" . 'B ' . "\u{1D559}" . ' ©</p><p data-review="punctuation">Issue#42: (ready)</p><textarea>Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea></section>')) {
         throw new RuntimeException('Expected XmlHtml5Dom facade to reuse hardened HTML5 parsing and serialization');
     }
-    if (str_contains($facadeHtml, '&amp;NoBreak;') || str_contains($facadeHtml, '<script>alert(1)</script>')) {
+    if (str_contains($facadeHtml, '&amp;NoBreak;') || str_contains($facadeHtml, '&amp;colon;') || str_contains($facadeHtml, '<script>alert(1)</script>')) {
         throw new RuntimeException('Expected XmlHtml5Dom facade handoff to decode extra references and escape RCDATA source markup');
     }
     try {

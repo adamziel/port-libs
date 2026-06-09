@@ -1481,6 +1481,27 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('YAML metadata self-test has wrong quoted scalar provenance ' . $expectedQuotedPath);
         }
     }
+    $yamlExplicitKeyScalarProvenance = [];
+    foreach ($yamlScalarProvenance as $entry) {
+        if (($entry['type'] ?? '') === 'yaml-explicit-key-scalar') {
+            $yamlExplicitKeyScalarProvenance[$entry['path'] ?? ''] = $entry;
+        }
+    }
+    foreach ([
+        '/explicit-review/source:key' => ['double-quoted', '"source:key"', 'block'],
+        '/explicit:source-uri' => ['double-quoted', '"explicit:source-uri"', 'block'],
+        '/flow-explicit-review/source:key' => ['double-quoted', '"source:key"', 'flow'],
+        '/flow-explicit-null-review/source' => ['plain', 'source', 'flow-null'],
+        '/flow-explicit-null-review/source:key' => ['double-quoted', '"source:key"', 'flow-null'],
+    ] as $expectedExplicitKeyPath => [$expectedStyle, $expectedSource, $expectedSyntax]) {
+        $entry = $yamlExplicitKeyScalarProvenance[$expectedExplicitKeyPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing explicit key scalar provenance ' . $expectedExplicitKeyPath);
+        }
+        if (($entry['style'] ?? '') !== $expectedStyle || ($entry['source'] ?? '') !== $expectedSource || ($entry['syntax'] ?? '') !== $expectedSyntax) {
+            throw new RuntimeException('YAML metadata self-test has wrong explicit key scalar provenance ' . $expectedExplicitKeyPath);
+        }
+    }
     $yamlCollectionPairs = [];
     $yamlCollectionByPath = [];
     foreach ($yamlCollectionProvenance as $entry) {

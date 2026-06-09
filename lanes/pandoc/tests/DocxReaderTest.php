@@ -592,15 +592,45 @@ $drawingTextDocumentXml = <<<'XML'
             <a:graphic>
               <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
                 <wps:wsp>
-                  <a:txBody>
+                    <a:txBody>
                     <a:bodyPr/>
                     <a:lstStyle/>
                     <a:p>
-                      <a:r><a:t>Check source summary</a:t></a:r>
+                      <a:pPr algn="ctr" lvl="1" marL="228600" indent="-91440" rtl="0">
+                        <a:lnSpc><a:spcPct val="110000"/></a:lnSpc>
+                        <a:spcBef><a:spcPts val="600"/></a:spcBef>
+                        <a:buFont typeface="Aptos"/>
+                        <a:buChar char="•"/>
+                      </a:pPr>
+                      <a:r>
+                        <a:rPr b="1" i="1" u="sng" strike="noStrike" sz="1200" lang="en-US" dirty="0">
+                          <a:solidFill><a:srgbClr val="C00000"/></a:solidFill>
+                          <a:highlight><a:schemeClr val="accent2"/></a:highlight>
+                          <a:latin typeface="Aptos"/>
+                          <a:cs typeface="Arial"/>
+                        </a:rPr>
+                        <a:t>Check source summary</a:t>
+                      </a:r>
                       <a:br/>
-                      <a:r><a:t>Second line</a:t></a:r>
+                      <a:r>
+                        <a:rPr noProof="1" baseline="30000" spc="1200">
+                          <a:solidFill><a:schemeClr val="tx1"/></a:solidFill>
+                        </a:rPr>
+                        <a:t>Second line</a:t>
+                      </a:r>
                     </a:p>
-                    <a:p><a:r><a:t>Final callout</a:t></a:r></a:p>
+                    <a:p>
+                      <a:pPr algn="r">
+                        <a:spcAft><a:spcPts val="800"/></a:spcAft>
+                        <a:buAutoNum type="arabicPeriod" startAt="3"/>
+                      </a:pPr>
+                      <a:r>
+                        <a:rPr cap="small" altLang="fr-FR">
+                          <a:ea typeface="Yu Gothic"/>
+                        </a:rPr>
+                        <a:t>Final callout</a:t>
+                      </a:r>
+                    </a:p>
                   </a:txBody>
                 </wps:wsp>
               </a:graphicData>
@@ -6124,19 +6154,108 @@ return [
         $t->same('Reviewer callout', $attrs['data-docx-docpr-name']);
         $t->same('Visible review note', $attrs['data-docx-docpr-descr']);
         $t->same('Shape text title', $attrs['data-docx-docpr-title']);
-        $t->same(5, count($shapeText->children));
-        $t->same('Check source summary', $shapeText->children[0]->attr('text'));
+        $t->same(3, count($shapeText->children));
+
+        $firstTextParagraph = $shapeText->children[0];
+        $t->same('span', $firstTextParagraph->type);
+        $t->same([
+            'docx-drawing-text-paragraph-properties',
+            'docx-drawing-text-align-ctr',
+            'docx-drawing-text-level',
+            'docx-drawing-text-line-spacing',
+            'docx-drawing-text-space-before',
+            'docx-drawing-text-bullet-char',
+            'docx-drawing-text-bullet-font',
+        ], $firstTextParagraph->attr('classes'));
+        $firstParagraphAttrs = $firstTextParagraph->attr('attributes');
+        $t->same('ctr', $firstParagraphAttrs['data-docx-drawing-text-paragraph-align']);
+        $t->same('1', $firstParagraphAttrs['data-docx-drawing-text-paragraph-level']);
+        $t->same('228600', $firstParagraphAttrs['data-docx-drawing-text-paragraph-margin-left-emu']);
+        $t->same('-91440', $firstParagraphAttrs['data-docx-drawing-text-paragraph-indent-emu']);
+        $t->same('false', $firstParagraphAttrs['data-docx-drawing-text-paragraph-right-to-left']);
+        $t->same('percent', $firstParagraphAttrs['data-docx-drawing-text-paragraph-line-spacing-kind']);
+        $t->same('110000', $firstParagraphAttrs['data-docx-drawing-text-paragraph-line-spacing-value']);
+        $t->same('points', $firstParagraphAttrs['data-docx-drawing-text-paragraph-space-before-kind']);
+        $t->same('600', $firstParagraphAttrs['data-docx-drawing-text-paragraph-space-before-value']);
+        $t->same('char', $firstParagraphAttrs['data-docx-drawing-text-bullet']);
+        $t->same('•', $firstParagraphAttrs['data-docx-drawing-text-bullet-char']);
+        $t->same('Aptos', $firstParagraphAttrs['data-docx-drawing-text-bullet-font']);
+
+        $firstRun = $firstTextParagraph->children[0];
+        $t->same('span', $firstRun->type);
+        $t->same([
+            'docx-drawing-text-run-properties',
+            'docx-drawing-text-bold',
+            'docx-drawing-text-italic',
+            'docx-drawing-text-underline',
+            'docx-drawing-text-underline-sng',
+            'docx-drawing-text-fill',
+            'docx-drawing-text-highlight',
+            'docx-drawing-text-font',
+        ], $firstRun->attr('classes'));
+        $firstRunAttrs = $firstRun->attr('attributes');
+        $t->same('true', $firstRunAttrs['data-docx-drawing-text-bold']);
+        $t->same('true', $firstRunAttrs['data-docx-drawing-text-italic']);
+        $t->same('false', $firstRunAttrs['data-docx-drawing-text-dirty']);
+        $t->same('sng', $firstRunAttrs['data-docx-drawing-text-underline']);
+        $t->same('noStrike', $firstRunAttrs['data-docx-drawing-text-strike']);
+        $t->same('1200', $firstRunAttrs['data-docx-drawing-text-font-size-hundredths-points']);
+        $t->same('en-US', $firstRunAttrs['data-docx-drawing-text-language']);
+        $t->same('srgb:C00000', $firstRunAttrs['data-docx-drawing-text-fill-color']);
+        $t->same('scheme:accent2', $firstRunAttrs['data-docx-drawing-text-highlight-color']);
+        $t->same('Aptos', $firstRunAttrs['data-docx-drawing-text-font-latin']);
+        $t->same('Arial', $firstRunAttrs['data-docx-drawing-text-font-complex-script']);
+        $t->same('Check source summary', $firstRun->children[0]->attr('text'));
+        $t->same('linebreak', $firstTextParagraph->children[1]->type);
+
+        $secondRun = $firstTextParagraph->children[2];
+        $t->same('span', $secondRun->type);
+        $t->same('true', $secondRun->attr('attributes')['data-docx-drawing-text-no-proof']);
+        $t->same('30000', $secondRun->attr('attributes')['data-docx-drawing-text-baseline']);
+        $t->same('1200', $secondRun->attr('attributes')['data-docx-drawing-text-character-spacing']);
+        $t->same('scheme:tx1', $secondRun->attr('attributes')['data-docx-drawing-text-fill-color']);
+        $t->same('Second line', $secondRun->children[0]->attr('text'));
         $t->same('linebreak', $shapeText->children[1]->type);
-        $t->same('Second line', $shapeText->children[2]->attr('text'));
-        $t->same('linebreak', $shapeText->children[3]->type);
-        $t->same('Final callout', $shapeText->children[4]->attr('text'));
+
+        $secondTextParagraph = $shapeText->children[2];
+        $t->same('span', $secondTextParagraph->type);
+        $t->same([
+            'docx-drawing-text-paragraph-properties',
+            'docx-drawing-text-align-r',
+            'docx-drawing-text-space-after',
+            'docx-drawing-text-auto-number',
+        ], $secondTextParagraph->attr('classes'));
+        $secondParagraphAttrs = $secondTextParagraph->attr('attributes');
+        $t->same('r', $secondParagraphAttrs['data-docx-drawing-text-paragraph-align']);
+        $t->same('points', $secondParagraphAttrs['data-docx-drawing-text-paragraph-space-after-kind']);
+        $t->same('800', $secondParagraphAttrs['data-docx-drawing-text-paragraph-space-after-value']);
+        $t->same('auto-number', $secondParagraphAttrs['data-docx-drawing-text-bullet']);
+        $t->same('arabicPeriod', $secondParagraphAttrs['data-docx-drawing-text-auto-number-type']);
+        $t->same('3', $secondParagraphAttrs['data-docx-drawing-text-auto-number-start-at']);
+
+        $finalRun = $secondTextParagraph->children[0];
+        $t->same('span', $finalRun->type);
+        $t->same('small', $finalRun->attr('attributes')['data-docx-drawing-text-capitalization']);
+        $t->same('fr-FR', $finalRun->attr('attributes')['data-docx-drawing-text-alternate-language']);
+        $t->same('Yu Gothic', $finalRun->attr('attributes')['data-docx-drawing-text-font-east-asian']);
+        $t->same('Final callout', $finalRun->children[0]->attr('text'));
         $t->same(' stays visible.', $paragraph->children[2]->attr('text'));
 
-        $t->contains('[Check source summary', $markdown);
+        $t->contains('.docx-drawing-text-paragraph-properties .docx-drawing-text-align-ctr', $markdown);
+        $t->contains('data-docx-drawing-text-bullet-char="•"', $markdown);
+        $t->contains('.docx-drawing-text-run-properties .docx-drawing-text-bold .docx-drawing-text-italic', $markdown);
+        $t->contains('data-docx-drawing-text-fill-color="srgb:C00000"', $markdown);
         $t->contains('Second line', $markdown);
-        $t->contains('Final callout]{.docx-drawing-text data-docx-drawing-kind="text"', $markdown);
+        $t->contains('data-docx-drawing-text-auto-number-type="arabicPeriod"', $markdown);
+        $t->contains('Final callout', $markdown);
         $t->contains('data-docx-docpr-descr="Visible review note"', $markdown);
-        $t->contains('<p>Drawing text <span class="docx-drawing-text" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="2" data-docx-docpr-id="61" data-docx-docpr-name="Reviewer callout" data-docx-docpr-descr="Visible review note" data-docx-docpr-title="Shape text title">Check source summary<br/>Second line<br/>Final callout</span> stays visible.</p>', $blocks);
+        $t->contains('<span class="docx-drawing-text-paragraph-properties docx-drawing-text-align-ctr docx-drawing-text-level docx-drawing-text-line-spacing docx-drawing-text-space-before docx-drawing-text-bullet-char docx-drawing-text-bullet-font"', $blocks);
+        $t->contains('data-docx-drawing-text-bullet-font="Aptos"', $blocks);
+        $t->contains('<span class="docx-drawing-text-run-properties docx-drawing-text-bold docx-drawing-text-italic docx-drawing-text-underline docx-drawing-text-underline-sng docx-drawing-text-fill docx-drawing-text-highlight docx-drawing-text-font"', $blocks);
+        $t->contains('data-docx-drawing-text-highlight-color="scheme:accent2"', $blocks);
+        $t->contains('<span class="docx-drawing-text-paragraph-properties docx-drawing-text-align-r docx-drawing-text-space-after docx-drawing-text-auto-number"', $blocks);
+        $t->contains('data-docx-drawing-text-auto-number-start-at="3"', $blocks);
+        $t->contains('data-docx-drawing-text-font-east-asian="Yu Gothic"', $blocks);
     },
     'preserves DOCX connector and group-shape metadata as review placeholders' => static function (TestRunner $t) use ($buildDrawingConnectorGroupPackage): void {
         $result = (new DocxReader())->readPackage($buildDrawingConnectorGroupPackage());

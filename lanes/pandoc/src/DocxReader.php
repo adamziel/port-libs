@@ -8124,7 +8124,18 @@ final class DocxReader
             }
         }
 
-        return $this->coalesceTextNodes($nodes);
+        $nodes = $this->coalesceTextNodes($nodes);
+        if ($nodes === []) {
+            return [];
+        }
+
+        $properties = $this->firstChildElement($paragraph, self::DRAWINGML_MAIN_NS, 'pPr');
+        $attrs = $properties instanceof \DOMElement ? $this->drawingTextParagraphMetadataAttrs($properties) : null;
+        if ($attrs === null) {
+            return $nodes;
+        }
+
+        return [new AstNode('span', $attrs, $nodes)];
     }
 
     /**
@@ -8153,7 +8164,258 @@ final class DocxReader
             }
         }
 
-        return $this->coalesceTextNodes($nodes);
+        $nodes = $this->coalesceTextNodes($nodes);
+        if ($nodes === []) {
+            return [];
+        }
+
+        $properties = $this->firstChildElement($run, self::DRAWINGML_MAIN_NS, 'rPr');
+        $attrs = $properties instanceof \DOMElement ? $this->drawingTextRunMetadataAttrs($properties) : null;
+        if ($attrs === null) {
+            return $nodes;
+        }
+
+        return [new AstNode('span', $attrs, $nodes)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function drawingTextParagraphMetadataAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        foreach ([
+            'algn' => 'align',
+            'lvl' => 'level',
+            'marL' => 'margin-left-emu',
+            'marR' => 'margin-right-emu',
+            'indent' => 'indent-emu',
+            'defTabSz' => 'default-tab-size-emu',
+        ] as $source => $target) {
+            $value = trim($properties->getAttribute($source));
+            if ($value === '') {
+                continue;
+            }
+
+            $attributes['data-docx-drawing-text-paragraph-' . $target] = $value;
+            if ($source === 'algn') {
+                $suffix = $this->metadataClassSuffix($value);
+                if ($suffix !== null) {
+                    $classes[] = 'docx-drawing-text-align-' . $suffix;
+                }
+            }
+            if ($source === 'lvl') {
+                $classes[] = 'docx-drawing-text-level';
+            }
+        }
+
+        foreach ([
+            'rtl' => 'right-to-left',
+            'eaLnBrk' => 'east-asian-line-break',
+            'latinLnBrk' => 'latin-line-break',
+            'hangingPunct' => 'hanging-punctuation',
+        ] as $source => $target) {
+            $value = $this->normalizedOnOffAttribute($properties, (string) $source);
+            if ($value === null) {
+                continue;
+            }
+
+            $attributes['data-docx-drawing-text-paragraph-' . $target] = $value;
+            if ($value === 'true') {
+                $classes[] = 'docx-drawing-text-' . $target;
+            }
+        }
+
+        foreach ([
+            'lnSpc' => 'line-spacing',
+            'spcBef' => 'space-before',
+            'spcAft' => 'space-after',
+        ] as $localName => $target) {
+            $spacing = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, (string) $localName);
+            if (!$spacing instanceof \DOMElement) {
+                continue;
+            }
+
+            foreach ($spacing->childNodes as $child) {
+                if (!$child instanceof \DOMElement || $child->namespaceURI !== self::DRAWINGML_MAIN_NS) {
+                    continue;
+                }
+                if (!in_array($child->localName, ['spcPts', 'spcPct'], true)) {
+                    continue;
+                }
+
+                $value = trim($child->getAttribute('val'));
+                if ($value === '') {
+                    continue;
+                }
+
+                $classes[] = 'docx-drawing-text-' . $target;
+                $attributes['data-docx-drawing-text-paragraph-' . $target . '-kind'] = $child->localName === 'spcPts' ? 'points' : 'percent';
+                $attributes['data-docx-drawing-text-paragraph-' . $target . '-value'] = $value;
+                break;
+            }
+        }
+
+        $bulletNone = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'buNone');
+        if ($bulletNone instanceof \DOMElement) {
+            $classes[] = 'docx-drawing-text-bullet-none';
+            $attributes['data-docx-drawing-text-bullet'] = 'none';
+        }
+
+        $bulletChar = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'buChar');
+        if ($bulletChar instanceof \DOMElement) {
+            $char = trim($bulletChar->getAttribute('char'));
+            if ($char !== '') {
+                $classes[] = 'docx-drawing-text-bullet-char';
+                $attributes['data-docx-drawing-text-bullet'] = 'char';
+                $attributes['data-docx-drawing-text-bullet-char'] = $char;
+            }
+        }
+
+        $autoNumber = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'buAutoNum');
+        if ($autoNumber instanceof \DOMElement) {
+            $classes[] = 'docx-drawing-text-auto-number';
+            $attributes['data-docx-drawing-text-bullet'] = 'auto-number';
+            foreach ([
+                'type' => 'type',
+                'startAt' => 'start-at',
+            ] as $source => $target) {
+                $value = trim($autoNumber->getAttribute($source));
+                if ($value !== '') {
+                    $attributes['data-docx-drawing-text-auto-number-' . $target] = $value;
+                }
+            }
+        }
+
+        $bulletFont = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'buFont');
+        if ($bulletFont instanceof \DOMElement) {
+            $typeface = trim($bulletFont->getAttribute('typeface'));
+            if ($typeface !== '') {
+                $classes[] = 'docx-drawing-text-bullet-font';
+                $attributes['data-docx-drawing-text-bullet-font'] = $typeface;
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        array_unshift($classes, 'docx-drawing-text-paragraph-properties');
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function drawingTextRunMetadataAttrs(\DOMElement $properties): ?array
+    {
+        $classes = [];
+        $attributes = [];
+
+        foreach ([
+            'b' => ['bold', 'docx-drawing-text-bold'],
+            'i' => ['italic', 'docx-drawing-text-italic'],
+            'kumimoji' => ['kumimoji', 'docx-drawing-text-kumimoji'],
+            'dirty' => ['dirty', 'docx-drawing-text-dirty'],
+            'smtClean' => ['smart-tag-clean', 'docx-drawing-text-smart-tag-clean'],
+            'noProof' => ['no-proof', 'docx-drawing-text-no-proof'],
+        ] as $source => [$target, $className]) {
+            $value = $this->normalizedOnOffAttribute($properties, (string) $source);
+            if ($value === null) {
+                continue;
+            }
+
+            $attributes['data-docx-drawing-text-' . $target] = $value;
+            if ($value === 'true') {
+                $classes[] = $className;
+            }
+        }
+
+        foreach ([
+            'u' => ['underline', 'docx-drawing-text-underline'],
+            'strike' => ['strike', 'docx-drawing-text-strike'],
+            'cap' => ['capitalization', 'docx-drawing-text-capitalization'],
+        ] as $source => [$target, $className]) {
+            $value = trim($properties->getAttribute($source));
+            if ($value === '') {
+                continue;
+            }
+
+            $attributes['data-docx-drawing-text-' . $target] = $value;
+            if (!in_array(strtolower($value), ['none', 'nostrike'], true)) {
+                $classes[] = $className;
+                $suffix = $this->metadataClassSuffix($value);
+                if ($suffix !== null) {
+                    $classes[] = $className . '-' . $suffix;
+                }
+            }
+        }
+
+        foreach ([
+            'sz' => 'font-size-hundredths-points',
+            'baseline' => 'baseline',
+            'spc' => 'character-spacing',
+            'lang' => 'language',
+            'altLang' => 'alternate-language',
+        ] as $source => $target) {
+            $value = trim($properties->getAttribute($source));
+            if ($value !== '') {
+                $attributes['data-docx-drawing-text-' . $target] = $value;
+            }
+        }
+
+        $solidFill = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'solidFill');
+        if ($solidFill instanceof \DOMElement) {
+            $color = $this->drawingFirstColorValue($solidFill);
+            if ($color !== null) {
+                $classes[] = 'docx-drawing-text-fill';
+                $attributes['data-docx-drawing-text-fill-color'] = $color;
+            }
+        }
+
+        $highlight = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, 'highlight');
+        if ($highlight instanceof \DOMElement) {
+            $color = $this->drawingFirstColorValue($highlight);
+            if ($color !== null) {
+                $classes[] = 'docx-drawing-text-highlight';
+                $attributes['data-docx-drawing-text-highlight-color'] = $color;
+            }
+        }
+
+        foreach ([
+            'latin' => 'latin',
+            'ea' => 'east-asian',
+            'cs' => 'complex-script',
+            'sym' => 'symbol',
+        ] as $localName => $target) {
+            $font = $this->firstChildElement($properties, self::DRAWINGML_MAIN_NS, (string) $localName);
+            if (!$font instanceof \DOMElement) {
+                continue;
+            }
+
+            $typeface = trim($font->getAttribute('typeface'));
+            if ($typeface !== '') {
+                $classes[] = 'docx-drawing-text-font';
+                $attributes['data-docx-drawing-text-font-' . $target] = $typeface;
+            }
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return null;
+        }
+
+        array_unshift($classes, 'docx-drawing-text-run-properties');
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
     }
 
     /**

@@ -61,6 +61,32 @@ return [
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected RCDATA source-looking script to stay escaped');
         $t->true(!str_contains($serialized, '<b>note</b>'), 'Expected template source-looking inline markup to stay escaped');
     },
+    'routes facade punctuation references through bounded html5 decoding' => static function (TestRunner $t): void {
+        $body = XmlHtml5Dom::parseHtmlFragmentBody(
+            '<section data-source="legacy-facade">'
+            . '<p data-review="Issue&num;42">Review&colon; packet&semi; status&equals;ok &lpar;ready&rpar; &lsqb;A&rsqb;</p>'
+            . '<textarea>Field&colon; &lpar;text&rpar;</textarea>'
+            . '<script type="application/json">{"literal":"&colon;&semi;"}</script>'
+            . '</section>'
+        );
+        $section = $body instanceof DOMElement ? $body->getElementsByTagName('section')->item(0) : null;
+        $paragraph = $section instanceof DOMElement ? $section->getElementsByTagName('p')->item(0) : null;
+        $textarea = $section instanceof DOMElement ? $section->getElementsByTagName('textarea')->item(0) : null;
+        $script = $section instanceof DOMElement ? $section->getElementsByTagName('script')->item(0) : null;
+        $serialized = $body instanceof DOMElement ? XmlHtml5Dom::serializeHtmlFragment($body) : '';
+
+        $t->true($section instanceof DOMElement, 'Expected facade section to parse');
+        $t->same('Issue#42', $paragraph instanceof DOMElement ? $paragraph->getAttribute('data-review') : null);
+        $t->same('Review: packet; status=ok (ready) [A]', $paragraph instanceof DOMElement ? $paragraph->textContent : null);
+        $t->same('Field: (text)', $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->same('{"literal":"&colon;&semi;"}', $script instanceof DOMElement ? $script->textContent : null);
+        $t->same(
+            '<section data-source="legacy-facade"><p data-review="Issue#42">Review: packet; status=ok (ready) [A]</p><textarea>Field: (text)</textarea><script type="application/json">{"literal":"&colon;&semi;"}</script></section>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, '&amp;colon;'), 'Expected facade text punctuation references to decode');
+        $t->contains('{"literal":"&colon;&semi;"}', $serialized);
+    },
     'parses full html documents and exposes body plus metadata nodes' => static function (TestRunner $t): void {
         $document = XmlHtml5Dom::parseHtmlDocument(<<<'HTML'
 <!doctype html>

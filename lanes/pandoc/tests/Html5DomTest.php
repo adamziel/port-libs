@@ -79,6 +79,39 @@ return [
         $t->true(!str_contains($serialized, '&amp;ThickSpace;'), 'Expected multi-codepoint spacing reference to decode before handoff');
         $t->true(!str_contains($serialized, '&amp;NegativeMediumSpace;'), 'Expected negative spacing aliases to decode before handoff');
     },
+    'decodes bounded html5 punctuation named character references before reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<p title="Issue&num;42&colon; &lpar;draft&rpar;" data-symbols="&dollar;&percnt;&commat;&lsqb;&rsqb;&lcub;&rcub;&vert;">'
+            . 'Review&colon; packet&semi; status&equals;ok &lpar;ready&rpar; &lsqb;A&rsqb; &lcub;B&rcub; path&sol;to&bsol;asset &plus; &ast; &excl;&quest;'
+            . '</p><textarea>Field&colon; &lpar;text&rpar; &semi;</textarea>'
+            . '<script type="application/json">{"literal":"&colon;&semi;"}</script>'
+        );
+        $paragraph = Html5Dom::firstChildElement($body, 'p');
+        $textarea = Html5Dom::firstChildElement($body, 'textarea');
+        $script = Html5Dom::firstChildElement($body, 'script');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($paragraph instanceof DOMElement, 'Expected punctuation-reference paragraph to parse');
+        $t->same([
+            'title' => 'Issue#42: (draft)',
+            'data-symbols' => '$%@[]{}|',
+        ], $paragraph instanceof DOMElement ? Html5Dom::attributes($paragraph) : []);
+        $t->same('Review: packet; status=ok (ready) [A] {B} path/to\\asset + * !?', $paragraph instanceof DOMElement ? $paragraph->textContent : null);
+        $t->true($textarea instanceof DOMElement, 'Expected punctuation-reference textarea to parse');
+        $t->same('Field: (text) ;', $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->true($script instanceof DOMElement, 'Expected punctuation-reference script to parse');
+        $t->same('{"literal":"&colon;&semi;"}', $script instanceof DOMElement ? $script->textContent : null);
+        $t->same(
+            '<p data-symbols="$%@[]{}|" title="Issue#42: (draft)">Review: packet; status=ok (ready) [A] {B} path/to\\asset + * !?</p>'
+                . '<textarea>Field: (text) ;</textarea>'
+                . '<script type="application/json">{"literal":"&colon;&semi;"}</script>',
+            $serialized
+        );
+        foreach (['colon', 'semi', 'lpar', 'rsqb', 'dollar', 'commat', 'bsol', 'vert'] as $entityName) {
+            $t->true(!str_contains($serialized, '&amp;' . $entityName . ';'), 'Expected punctuation reference ' . $entityName . ' to decode before handoff');
+        }
+        $t->contains('{"literal":"&colon;&semi;"}', $serialized);
+    },
     'maps HTML fragment attributes and descendant elements for reviewer links' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<article id="post-42" class="legacy source" data-source="html" aria-label="Packet"><h1>Packet</h1><p><a href="/edit" title="Edit &amp; verify">edit</a></p></article>'

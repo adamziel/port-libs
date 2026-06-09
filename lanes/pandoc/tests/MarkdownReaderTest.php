@@ -4783,6 +4783,76 @@ return [
         $t->same('nested-explicit-key-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="nested-explicit-key-yaml-body">Nested explicit key YAML body</h1>', $blocks);
     },
+    'records pandoc yaml explicit key scalar style provenance in nested metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Explicit key scalar provenance **Packet**',
+            '? "source:key"',
+            ': root metadata value',
+            'review:',
+            '  ? \'owner:desk\'',
+            '  : Import Desk',
+            '  ? source ticket',
+            '  : queued',
+            '  labels: !!set',
+            '    ? "qa:review"',
+            'references:',
+            '  - id: explicit-key-scalar-ref',
+            '    metadata:',
+            '      ? "source:key"',
+            '      : metadata value',
+            'flow-review: {? "source:key": flow metadata, ? \'owner:desk\': Flow Desk}',
+            '...',
+            '',
+            '# Explicit key scalar provenance body',
+        ]));
+        $meta = $document->attr('meta');
+        $provenance = $document->attr('yamlMetadataScalarProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Explicit key scalar provenance **Packet**', $meta['title']);
+        $t->same('root metadata value', $meta['source:key']);
+        $t->same('Import Desk', $meta['review']['owner:desk']);
+        $t->same('queued', $meta['review']['source ticket']);
+        $t->true(array_key_exists('qa:review', $meta['review']['labels']) && $meta['review']['labels']['qa:review'] === null);
+        $t->same('metadata value', $meta['references'][0]['metadata']['source:key']);
+        $t->same('flow metadata', $meta['flow-review']['source:key']);
+        $t->same('Flow Desk', $meta['flow-review']['owner:desk']);
+        $t->same(false, array_key_exists('__yamlMetadataScalarProvenance', $meta));
+
+        $keyScalars = [];
+        foreach ($provenance as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-explicit-key-scalar') {
+                $keyScalars[$entry['path'] ?? ''] = $entry;
+            }
+        }
+
+        $t->same(7, count($keyScalars));
+        $t->same('double-quoted', $keyScalars['/source:key']['style'] ?? null);
+        $t->same('"source:key"', $keyScalars['/source:key']['source'] ?? null);
+        $t->same('3', $keyScalars['/source:key']['sourceLine'] ?? null);
+        $t->same('block', $keyScalars['/source:key']['syntax'] ?? null);
+        $t->same('single-quoted', $keyScalars['/review/owner:desk']['style'] ?? null);
+        $t->same("'owner:desk'", $keyScalars['/review/owner:desk']['source'] ?? null);
+        $t->same('6', $keyScalars['/review/owner:desk']['sourceLine'] ?? null);
+        $t->same('plain', $keyScalars['/review/source ticket']['style'] ?? null);
+        $t->same('source ticket', $keyScalars['/review/source ticket']['source'] ?? null);
+        $t->same('8', $keyScalars['/review/source ticket']['sourceLine'] ?? null);
+        $t->same('double-quoted', $keyScalars['/review/labels/qa:review']['style'] ?? null);
+        $t->same('set', $keyScalars['/review/labels/qa:review']['syntax'] ?? null);
+        $t->same('11', $keyScalars['/review/labels/qa:review']['sourceLine'] ?? null);
+        $t->same('double-quoted', $keyScalars['/references/0/metadata/source:key']['style'] ?? null);
+        $t->same('15', $keyScalars['/references/0/metadata/source:key']['sourceLine'] ?? null);
+        $t->same('double-quoted', $keyScalars['/flow-review/source:key']['style'] ?? null);
+        $t->same('flow', $keyScalars['/flow-review/source:key']['syntax'] ?? null);
+        $t->same('17', $keyScalars['/flow-review/source:key']['sourceLine'] ?? null);
+        $t->same('single-quoted', $keyScalars['/flow-review/owner:desk']['style'] ?? null);
+        $t->same('flow', $keyScalars['/flow-review/owner:desk']['syntax'] ?? null);
+        $t->same('17', $keyScalars['/flow-review/owner:desk']['sourceLine'] ?? null);
+        $t->same('heading', $document->children[0]->type);
+        $t->same('explicit-key-scalar-provenance-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="explicit-key-scalar-provenance-body">Explicit key scalar provenance body</h1>', $blocks);
+    },
     'maps pandoc yaml explicit keys inside flow metadata maps' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
