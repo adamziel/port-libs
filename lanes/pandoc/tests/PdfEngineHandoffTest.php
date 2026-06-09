@@ -5002,6 +5002,7 @@ MARKDOWN);
                 'type' => 'Figure',
                 'parent' => '9 0 R',
                 'pageObject' => '3 0 R',
+                'id' => null,
                 'alt' => 'Migration chart thumbnail',
                 'actualText' => 'Chart summary',
                 'language' => 'en-US',
@@ -5013,6 +5014,7 @@ MARKDOWN);
                 'type' => 'P',
                 'parent' => '9 0 R',
                 'pageObject' => '3 0 R',
+                'id' => null,
                 'alt' => null,
                 'actualText' => 'Reviewer note paragraph',
                 'language' => 'en-GB',
@@ -5508,10 +5510,10 @@ MARKDOWN);
             '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /ID <FEFF006600690067007500720065002D0031> /Alt (Figure one) /K 1 >>',
             'endobj',
             '12 0 obj',
-            '<< /Kids [13 0 R] /Limits [(packet-title) (missing)] >>',
+            '<< /Kids [13 0 R] /Limits [(figure-1) (packet-title)] >>',
             'endobj',
             '13 0 obj',
-            '<< /Names [(packet-title) 10 0 R <FEFF006600690067007500720065002D0031> 11 0 R (missing) 99 0 R] /Limits [(packet-title) (missing)] >>',
+            '<< /Names [(packet-title) 10 0 R <FEFF006600690067007500720065002D0031> 11 0 R (missing) 99 0 R] /Limits [(figure-1) (packet-title)] >>',
             'endobj',
             'trailer',
             '<< /Root 1 0 R >>',
@@ -5541,7 +5543,7 @@ MARKDOWN);
                 'valueObject' => '11 0 R',
                 'structureReferences' => ['11 0 R'],
                 'missingReferences' => [],
-                'limits' => ['packet-title', 'missing'],
+                'limits' => ['figure-1', 'packet-title'],
             ],
             [
                 'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
@@ -5551,7 +5553,7 @@ MARKDOWN);
                 'valueObject' => '99 0 R',
                 'structureReferences' => ['99 0 R'],
                 'missingReferences' => ['99 0 R'],
-                'limits' => ['packet-title', 'missing'],
+                'limits' => ['figure-1', 'packet-title'],
             ],
             [
                 'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
@@ -5561,20 +5563,208 @@ MARKDOWN);
                 'valueObject' => '10 0 R',
                 'structureReferences' => ['10 0 R'],
                 'missingReferences' => [],
-                'limits' => ['packet-title', 'missing'],
+                'limits' => ['figure-1', 'packet-title'],
+            ],
+        ];
+        $expectedPolicy = [
+            'source' => 'structure-id-tree',
+            'reviewStatus' => 'review',
+            'idTreeEntryCount' => 3,
+            'structureElementCount' => 2,
+            'structureElementIdCount' => 2,
+            'referencedStructureObjects' => ['10 0 R', '11 0 R', '99 0 R'],
+            'missingStructureReferences' => ['99 0 R'],
+            'nonStructureReferences' => [],
+            'duplicateIds' => [],
+            'outOfLimitIds' => [],
+            'structureElementIds' => ['figure-1', 'packet-title'],
+            'missingStructureElementIds' => [],
+            'issues' => ['missing-structure-reference'],
+            'entries' => [
+                [
+                    'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                    'nodeObject' => '13 0 R',
+                    'id' => 'figure-1',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['11 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                    'nodeObject' => '13 0 R',
+                    'id' => 'missing',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['99 0 R'],
+                    'missingReferences' => ['99 0 R'],
+                    'reviewStatus' => 'review',
+                    'issues' => ['missing-structure-reference'],
+                ],
+                [
+                    'source' => 'structTreeRoot.IDTree.Kids.13 0 R',
+                    'nodeObject' => '13 0 R',
+                    'id' => 'packet-title',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['10 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
             ],
         ];
 
         $diagnostics = implode(',', $result['diagnostics']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfStructureIdTree']);
+        $t->same($expectedPolicy, $result['pdfStructureIdTreePolicy']);
         $t->contains('pdf-byte-structure-id-tree:3', $diagnostics);
         $t->contains('pdf-byte-structure-id-tree-ids:3', $diagnostics);
         $t->contains('pdf-byte-structure-id-tree-kids:1', $diagnostics);
         $t->contains('pdf-byte-structure-id-tree-references:3', $diagnostics);
         $t->contains('pdf-byte-structure-id-tree-missing:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy:review', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-entries:3', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-structure-ids:2', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-missing-references:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issues:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:missing-structure-reference:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfStructureIdTree']);
+        $t->same($expectedPolicy, $sequence['finalPdfStructureIdTreePolicy']);
+    },
+
+    'fake runner reviews bounded pdf structure id tree policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/struct-id-tree-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /MarkInfo << /Marked true >> /StructTreeRoot 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /StructTreeRoot /K [10 0 R 11 0 R] /IDTree 12 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /StructElem /S /H1 /P 9 0 R /Pg 3 0 R /ID (intro) /K 0 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /StructElem /S /Figure /P 9 0 R /Pg 3 0 R /ID (figure) /Alt (Figure one) /K 1 >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Names [(intro) 10 0 R (intro) 11 0 R (missing) 99 0 R (z-out) 14 0 R] /Limits [(figure) (missing)] >>',
+            'endobj',
+            '14 0 obj',
+            '<< /Type /Annot /Subtype /Link >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/struct-id-tree-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/struct-id-tree-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'source' => 'structure-id-tree',
+            'reviewStatus' => 'review',
+            'idTreeEntryCount' => 4,
+            'structureElementCount' => 2,
+            'structureElementIdCount' => 2,
+            'referencedStructureObjects' => ['10 0 R', '11 0 R', '14 0 R', '99 0 R'],
+            'missingStructureReferences' => ['99 0 R'],
+            'nonStructureReferences' => ['14 0 R'],
+            'duplicateIds' => ['intro'],
+            'outOfLimitIds' => ['z-out'],
+            'structureElementIds' => ['figure', 'intro'],
+            'missingStructureElementIds' => ['figure'],
+            'issues' => [
+                'duplicate-id',
+                'id-outside-limits',
+                'missing-structure-reference',
+                'non-structure-reference',
+                'structure-element-id-missing-id-tree',
+            ],
+            'entries' => [
+                [
+                    'source' => 'structTreeRoot.IDTree',
+                    'nodeObject' => '12 0 R',
+                    'id' => 'intro',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['10 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['duplicate-id'],
+                ],
+                [
+                    'source' => 'structTreeRoot.IDTree',
+                    'nodeObject' => '12 0 R',
+                    'id' => 'intro',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['11 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['duplicate-id'],
+                ],
+                [
+                    'source' => 'structTreeRoot.IDTree',
+                    'nodeObject' => '12 0 R',
+                    'id' => 'missing',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['99 0 R'],
+                    'missingReferences' => ['99 0 R'],
+                    'reviewStatus' => 'review',
+                    'issues' => ['missing-structure-reference'],
+                ],
+                [
+                    'source' => 'structTreeRoot.IDTree',
+                    'nodeObject' => '12 0 R',
+                    'id' => 'z-out',
+                    'valueKind' => 'reference',
+                    'structureReferences' => ['14 0 R'],
+                    'missingReferences' => [],
+                    'reviewStatus' => 'review',
+                    'issues' => ['id-outside-limits', 'non-structure-reference'],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfStructureIdTreePolicy']);
+        $t->contains('pdf-byte-structure-id-tree-policy:review', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-entries:4', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-structure-ids:2', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-missing-references:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-non-structure-references:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-duplicate-ids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-out-of-limit-ids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-missing-structure-element-ids:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issues:5', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:duplicate-id:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:id-outside-limits:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:missing-structure-reference:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:non-structure-reference:1', $diagnostics);
+        $t->contains('pdf-byte-structure-id-tree-policy-issue:structure-element-id-missing-id-tree:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfStructureIdTreePolicy']);
     },
 
     'fake runner extracts bounded pdf annotation links and embedded file names from produced bytes' => static function (TestRunner $t) use ($document): void {
