@@ -118,4 +118,49 @@ return [
         $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
+    'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
+        $directions = PandocFormatRegistry::wikiFormatDirections();
+        $inputFormats = PandocFormatRegistry::wikiInputFormats();
+        $outputFormats = PandocFormatRegistry::wikiOutputFormats();
+
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($directions));
+        $t->same([
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+        ], PandocFormatRegistry::wikiBidirectionalFormats());
+        $t->same([
+            'creole',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+        ], PandocFormatRegistry::wikiInputOnlyFormats());
+        $t->same([
+            'xwiki',
+            'zimwiki',
+        ], PandocFormatRegistry::wikiOutputOnlyFormats());
+        $t->same(9, count($directions));
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = in_array($format, $inputFormats, true);
+            $hasOutput = in_array($format, $outputFormats, true);
+            $expectedDirection = $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only');
+
+            $t->same($hasInput, $direction['input'], "Wiki format {$format} input direction mismatch");
+            $t->same($hasOutput, $direction['output'], "Wiki format {$format} output direction mismatch");
+            $t->same($expectedDirection, $direction['direction'], "Wiki format {$format} direction bucket mismatch");
+            $t->same($hasInput ? 'unsupported' : 'not-applicable', $direction['inputStatus'], "Wiki format {$format} input status mismatch");
+            $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Wiki format {$format} output status mismatch");
+        }
+    },
 ];

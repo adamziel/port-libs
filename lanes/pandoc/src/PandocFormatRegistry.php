@@ -419,6 +419,55 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function wikiFormatDirections(): array
+    {
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $formats = array_values(array_unique(array_merge(self::WIKI_INPUT_FORMATS, self::WIKI_OUTPUT_FORMATS)));
+        $directions = [];
+
+        foreach ($formats as $format) {
+            $hasInput = array_key_exists($format, $inputSupport);
+            $hasOutput = array_key_exists($format, $outputSupport);
+            $directions[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only'),
+                'inputStatus' => $hasInput ? $inputSupport[$format]['status'] : 'not-applicable',
+                'outputStatus' => $hasOutput ? $outputSupport[$format]['status'] : 'not-applicable',
+            ];
+        }
+
+        return $directions;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiBidirectionalFormats(): array
+    {
+        return self::wikiFormatsWithDirection('input-output');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiInputOnlyFormats(): array
+    {
+        return self::wikiFormatsWithDirection('input-only');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiOutputOnlyFormats(): array
+    {
+        return self::wikiFormatsWithDirection('output-only');
+    }
+
+    /**
      * @return list<string>
      */
     public static function roffManualInputFormats(): array
@@ -565,6 +614,21 @@ final class PandocFormatRegistry
         $formats = [];
         foreach ($support as $format => $entry) {
             if ($entry['status'] === $status) {
+                $formats[] = $format;
+            }
+        }
+
+        return $formats;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function wikiFormatsWithDirection(string $direction): array
+    {
+        $formats = [];
+        foreach (self::wikiFormatDirections() as $format => $entry) {
+            if ($entry['direction'] === $direction) {
                 $formats[] = $format;
             }
         }
