@@ -4736,7 +4736,10 @@ final class MarkdownReader
             return null;
         }
 
-        return $this->decodeYamlDoubleQuotedScalar($this->foldYamlDoubleQuotedContinuationLines($inner));
+        return $this->decodeYamlDoubleQuotedScalar(
+            $this->foldYamlDoubleQuotedContinuationLines($inner),
+            $raw
+        );
     }
 
     /**
@@ -4884,10 +4887,13 @@ final class MarkdownReader
             return str_replace("''", "'", $this->foldYamlSingleQuotedContinuationLines($inner));
         }
 
-        return $this->decodeYamlDoubleQuotedScalar($this->foldYamlDoubleQuotedContinuationLines($inner));
+        return $this->decodeYamlDoubleQuotedScalar(
+            $this->foldYamlDoubleQuotedContinuationLines($inner),
+            $value
+        );
     }
 
-    private function decodeYamlDoubleQuotedScalar(string $inner): string
+    private function decodeYamlDoubleQuotedScalar(string $inner, ?string $source = null): string
     {
         $decoded = '';
         $length = strlen($inner);
@@ -4931,12 +4937,52 @@ final class MarkdownReader
                     $decoded .= $unicode;
                     continue;
                 }
+
+                $this->recordYamlInvalidDoubleQuotedEscapeDiagnostic(
+                    $this->yamlDoubleQuotedHexEscapeSequence($inner, $offset, $length, $escape),
+                    $source
+                );
+            } else {
+                $this->recordYamlInvalidDoubleQuotedEscapeDiagnostic('\\' . $escape, $source);
             }
 
             $decoded .= '\\' . $escape;
         }
 
         return $decoded;
+    }
+
+    private function yamlDoubleQuotedHexEscapeSequence(string $inner, int $escapeOffset, int $length, string $escape): string
+    {
+        $digits = match ($escape) {
+            'x' => 2,
+            'u' => 4,
+            'U' => 8,
+            default => 0,
+        };
+        $start = max(0, $escapeOffset - 1);
+        $sequenceLength = min($digits + 2, $length - $start);
+
+        return substr($inner, $start, $sequenceLength);
+    }
+
+    private function recordYamlInvalidDoubleQuotedEscapeDiagnostic(string $escapeSequence, ?string $source): void
+    {
+        $diagnostic = [
+            'type' => 'yaml-scalar',
+            'reason' => 'invalid-double-quoted-escape',
+            'escape' => $escapeSequence,
+            'expected' => 'valid YAML double-quoted escape',
+        ];
+        $path = $this->currentYamlMetadataDiagnosticPath();
+        if ($path !== null) {
+            $diagnostic['path'] = $path;
+        }
+        if ($source !== null) {
+            $diagnostic['source'] = $source;
+        }
+
+        $this->yamlMetadataDiagnostics[] = $diagnostic + $this->yamlMetadataSourceLineAttrs();
     }
 
     private function decodeYamlHexEscape(string $inner, int &$offset, int $length, string $escape): ?string

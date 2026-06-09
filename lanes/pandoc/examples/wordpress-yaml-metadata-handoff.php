@@ -468,6 +468,7 @@ ambiguous-field-review:
 source-uri: /exports/packet#front-matter
 escaped-source-title: "Escaped \u201cmetadata\u201d \U0001F4DD"
 escaped-source-uri: "https:\/\/example.test\/exports\/packet\x23front-matter"
+invalid-escaped-source-uri: "https://example.test/\zexports"
 multiline-source-title: "Imported
   **Metadata** packet"
 source-continuation-uri: "https://example.test/\
@@ -622,6 +623,10 @@ $undefinedTagHandleDiagnostics = array_values(array_filter(
 $undefinedTagHandleReviewDiagnostics = array_values(array_filter(
     $undefinedTagHandleDiagnostics,
     static fn (array $diagnostic): bool => str_starts_with($diagnostic['path'] ?? '', '/undefined-tag-handle-review')
+));
+$invalidDoubleQuotedEscapeDiagnostics = array_values(array_filter(
+    $yamlDiagnostics,
+    static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-double-quoted-escape'
 ));
 $duplicateSetDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
@@ -862,7 +867,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_column($documentMarkerComments, 'marker') !== ['---', '---', '---']) {
         throw new RuntimeException('YAML metadata self-test missing document marker names');
     }
-    if (array_column($documentMarkerComments, 'sourceLine') !== ['3', '8', '539']) {
+    if (array_column($documentMarkerComments, 'sourceLine') !== ['3', '8', '540']) {
         throw new RuntimeException('YAML metadata self-test missing document marker source lines');
     }
     if (($lateDirectiveMeta['review']['owner'] ?? '') !== 'Import Desk' || ($lateDirectiveMeta['late-review']['owner'] ?? '') !== 'Late Desk') {
@@ -1457,6 +1462,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '/typed-review/quoted-legacy-approved' => ['double-quoted', '1'],
         '/escaped-source-title' => ['double-quoted', '1'],
         '/escaped-source-uri' => ['double-quoted', '1'],
+        '/invalid-escaped-source-uri' => ['double-quoted', '1'],
         '/multiline-source-title' => ['double-quoted', '2'],
         '/source-continuation-uri' => ['double-quoted', '2'],
         '/single-quoted-source-note' => ['single-quoted', '2'],
@@ -2229,6 +2235,17 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['escaped-source-uri'] ?? '') !== 'https://example.test/exports/packet#front-matter') {
         throw new RuntimeException('YAML metadata self-test missing escaped source URI');
     }
+    if (($meta['invalid-escaped-source-uri'] ?? '') !== 'https://example.test/\zexports') {
+        throw new RuntimeException('YAML metadata self-test hid invalid escaped source URI');
+    }
+    if (
+        count($invalidDoubleQuotedEscapeDiagnostics) !== 1
+        || ($invalidDoubleQuotedEscapeDiagnostics[0]['path'] ?? '') !== '/invalid-escaped-source-uri'
+        || ($invalidDoubleQuotedEscapeDiagnostics[0]['escape'] ?? '') !== '\z'
+        || ($invalidDoubleQuotedEscapeDiagnostics[0]['type'] ?? '') !== 'yaml-scalar'
+    ) {
+        throw new RuntimeException('YAML metadata self-test missing invalid double-quoted escape diagnostics');
+    }
     if (($meta['multiline-source-title'] ?? '') !== 'Imported **Metadata** packet') {
         throw new RuntimeException('YAML metadata self-test missing folded multiline source title');
     }
@@ -2644,6 +2661,7 @@ echo 'Review binary bytes: ' . ($meta['review-binary']['note-bytes'] ?? '') . ' 
 echo 'Multiline flow labels: ' . implode(', ', $meta['multiline-flow-labels'] ?? []) . "\n";
 echo 'Flow comment labels: ' . implode(', ', $meta['flow-comment-labels'] ?? []) . "\n";
 echo 'Escaped source title: ' . ($meta['escaped-source-title'] ?? '') . "\n";
+echo 'Invalid escaped source URI diagnostics: ' . implode(', ', array_column($invalidDoubleQuotedEscapeDiagnostics, 'path')) . "\n";
 echo 'Multiline source title: ' . ($meta['multiline-source-title'] ?? '') . "\n";
 echo 'Single quoted source note: ' . ($meta['single-quoted-source-note'] ?? '') . "\n";
 echo 'Plain continuation note: ' . ($meta['plain-continuation-review']['note'] ?? '') . "\n";

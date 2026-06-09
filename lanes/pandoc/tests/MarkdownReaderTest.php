@@ -3148,6 +3148,49 @@ return [
         $t->same('heading', $document->children[0]->type);
         $t->same('escaped-yaml-body', $document->children[0]->attr('id'));
     },
+    'records pandoc yaml invalid double quoted escape diagnostics without hiding metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: "Invalid \q Packet"',
+            'review:',
+            '  path: "https://example.test/\zpacket"',
+            '  hex: "\x4G"',
+            '  unicode: "\uD800"',
+            'authors: ["Reviewer\q One", "Editor\u00ZZ Two"]',
+            'references:',
+            '  - id: invalid-escape-ref',
+            '    title: "Source \U00110000 title"',
+            '...',
+            '',
+            '# Invalid escape YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $diagnostics = array_values(array_filter(
+            $document->attr('yamlMetadataDiagnostics', []),
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-double-quoted-escape'
+        ));
+
+        $t->same('Invalid \q Packet', $meta['title']);
+        $t->same('https://example.test/\zpacket', $meta['review']['path']);
+        $t->same('\x4G', $meta['review']['hex']);
+        $t->same('\uD800', $meta['review']['unicode']);
+        $t->same('Reviewer\q One', $meta['authors'][0]);
+        $t->same('Editor\u00ZZ Two', $meta['authors'][1]);
+        $t->same('Source \U00110000 title', $meta['references'][0]['title']);
+        $t->same(array_fill(0, 7, 'yaml-scalar'), array_column($diagnostics, 'type'));
+        $t->same(
+            ['\q', '\z', '\x4G', '\uD800', '\q', '\u00ZZ', '\U00110000'],
+            array_column($diagnostics, 'escape')
+        );
+        $t->same(
+            ['/title', '/review/path', '/review/hex', '/review/unicode', '/authors/0', '/authors/1', '/references/0/title'],
+            array_column($diagnostics, 'path')
+        );
+        $t->same(['2', '4', '5', '6', '7', '7', '10'], array_column($diagnostics, 'sourceLine'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('invalid-escape-yaml-body', $document->children[0]->attr('id'));
+        $t->same(false, array_key_exists('__yamlMetadataDiagnostics', $meta));
+    },
     'maps pandoc yaml explicit core scalar tags in metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
