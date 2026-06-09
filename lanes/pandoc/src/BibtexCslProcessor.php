@@ -436,9 +436,24 @@ final class BibtexCslProcessor
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
         }
 
-        foreach (['author', 'editor'] as $creator) {
-            if (($fields[$creator] ?? '') !== '') {
-                $item[$creator] = $this->parseNames($fields[$creator]);
+        $nameFields = [
+            'author' => ['author'],
+            'editor' => ['editor'],
+            'translator' => ['translator'],
+            'container-author' => ['bookauthor', 'container-author'],
+            'original-author' => ['origauthor', 'originalauthor', 'original-author'],
+            'recipient' => ['recipient'],
+            'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
+            'interviewer' => ['interviewer'],
+            'director' => ['director'],
+            'illustrator' => ['illustrator'],
+            'collection-editor' => ['serieseditor', 'series-editor', 'collectioneditor', 'collection-editor'],
+        ];
+
+        foreach ($nameFields as $target => $names) {
+            $value = $this->firstField($fields, $names);
+            if ($value !== null && $value !== '') {
+                $item[$target] = $this->parseNames($value);
             }
         }
 

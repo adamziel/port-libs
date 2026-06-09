@@ -142,6 +142,43 @@ BIB;
         $t->same('Mailbox import', $items['mail']['note']);
         $t->same('Nia Ng. Converter Tool. 2026. https://example.test/tool.', $bibliography);
     },
+    'carries extended biblatex creator roles in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{roles,
+  author         = {Writer, Will},
+  editor         = {Editor, Erin},
+  translator     = {Curator, Eli and de la Cruz, Ana Maria},
+  bookauthor     = {Source, Sam},
+  origauthor     = {Garcia, Gia},
+  recipient      = {Desk, Archive},
+  reviewedauthor = {Reviewer, Robin},
+  director       = {Director, Drew},
+  illustrator    = {Ink, Inez},
+  serieseditor   = {Series, Selma},
+  title          = {Role Handoff Chapter},
+  booktitle      = {Role Review Sourcebook},
+  year           = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['roles'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('chapter', $item['type']);
+        $t->same('Writer', $item['author'][0]['family']);
+        $t->same('Editor', $item['editor'][0]['family']);
+        $t->same('Curator', $item['translator'][0]['family']);
+        $t->same('de la Cruz', $item['translator'][1]['family']);
+        $t->same('Ana Maria', $item['translator'][1]['given']);
+        $t->same('Source', $item['container-author'][0]['family']);
+        $t->same('Garcia', $item['original-author'][0]['family']);
+        $t->same('Desk', $item['recipient'][0]['family']);
+        $t->same('Reviewer', $item['reviewed-author'][0]['family']);
+        $t->same('Director', $item['director'][0]['family']);
+        $t->same('Ink', $item['illustrator'][0]['family']);
+        $t->same('Series', $item['collection-editor'][0]['family']);
+        $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
