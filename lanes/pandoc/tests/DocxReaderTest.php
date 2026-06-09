@@ -542,6 +542,82 @@ $drawingTextDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$drawingConnectorGroupDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+  xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Review shapes </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:anchor distT="120" distB="240" simplePos="0" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">
+            <wp:extent cx="914400" cy="457200"/>
+            <wp:wrapNone/>
+            <wp:docPr id="81" name="Connector audit canvas" descr="Review connector route" title="Connector title"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+                <wps:cxnSp>
+                  <wps:cNvPr id="901" name="Connector 901" descr="Approver path" title="Connector nonvisual title"/>
+                  <wps:cNvCnPr>
+                    <a:cxnSpLocks noChangeShapeType="1" noMove="1" noResize="0"/>
+                    <a:stCxn id="301" idx="2"/>
+                    <a:endCxn id="302" idx="4"/>
+                  </wps:cNvCnPr>
+                  <wps:spPr>
+                    <a:xfrm rot="2700000" flipH="1">
+                      <a:off x="1000" y="2000"/>
+                      <a:ext cx="3000" cy="4000"/>
+                    </a:xfrm>
+                    <a:prstGeom prst="bentConnector3"><a:avLst/></a:prstGeom>
+                    <a:ln w="12700" cap="rnd" cmpd="sng" algn="ctr">
+                      <a:solidFill><a:srgbClr val="4472C4"/></a:solidFill>
+                    </a:ln>
+                  </wps:spPr>
+                </wps:cxnSp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:anchor>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:extent cx="1828800" cy="914400"/>
+            <wp:docPr id="82" name="Grouped review shapes" descr="Review annotation group" title="Group title"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup">
+                <wpg:wgp>
+                  <wpg:cNvGrpSpPr>
+                    <a:grpSpLocks noUngrp="1" noSelect="1" noRot="0"/>
+                  </wpg:cNvGrpSpPr>
+                  <wpg:grpSpPr>
+                    <a:xfrm rot="5400000" flipV="1">
+                      <a:off x="10000" y="20000"/>
+                      <a:ext cx="900000" cy="450000"/>
+                      <a:chOff x="500" y="600"/>
+                      <a:chExt cx="800000" cy="400000"/>
+                    </a:xfrm>
+                  </wpg:grpSpPr>
+                  <wps:wsp>
+                    <wps:cNvPr id="301" name="Grouped callout" descr="Grouped callout note"/>
+                    <wps:spPr/>
+                  </wps:wsp>
+                </wpg:wgp>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $drawingGeometryContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3841,6 +3917,14 @@ $buildDrawingTextPackage = static function () use ($contentTypesXml, $packageRel
     ]);
 };
 
+$buildDrawingConnectorGroupPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $drawingConnectorGroupDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $drawingConnectorGroupDocumentXml],
+    ]);
+};
+
 $buildDrawingGeometryPackage = static function () use (
     $drawingGeometryContentTypesXml,
     $packageRelationshipsXml,
@@ -5399,6 +5483,120 @@ return [
         $t->contains('Final callout]{.docx-drawing-text data-docx-drawing-kind="text"', $markdown);
         $t->contains('data-docx-docpr-descr="Visible review note"', $markdown);
         $t->contains('<p>Drawing text <span class="docx-drawing-text" data-docx-drawing-kind="text" data-docx-drawing-text-paragraphs="2" data-docx-docpr-id="61" data-docx-docpr-name="Reviewer callout" data-docx-docpr-descr="Visible review note" data-docx-docpr-title="Shape text title">Check source summary<br/>Second line<br/>Final callout</span> stays visible.</p>', $blocks);
+    },
+    'preserves DOCX connector and group-shape metadata as review placeholders' => static function (TestRunner $t) use ($buildDrawingConnectorGroupPackage): void {
+        $result = (new DocxReader())->readPackage($buildDrawingConnectorGroupPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(5, count($paragraph->children));
+        $t->same('Review shapes ', $paragraph->children[0]->attr('text'));
+
+        $connector = $paragraph->children[1];
+        $t->same('span', $connector->type);
+        $t->same([
+            'docx-drawing-placeholder',
+            'docx-drawing-connector',
+            'docx-drawing-geometry',
+            'docx-drawing-anchor',
+            'docx-wrap-none',
+            'docx-drawing-connector-metadata',
+            'docx-connector-nonvisual',
+            'docx-connector-locks',
+            'docx-connector-start-connection',
+            'docx-connector-end-connection',
+            'docx-connector-transform',
+            'docx-connector-preset-geometry',
+            'docx-connector-line',
+        ], $connector->attr('classes'));
+        $t->same('DOCX connector: Review connector route', $connector->children[0]->attr('text'));
+        $connectorAttrs = $connector->attr('attributes');
+        $t->same('connector', $connectorAttrs['data-docx-drawing-kind']);
+        $t->same('81', $connectorAttrs['data-docx-docpr-id']);
+        $t->same('Connector audit canvas', $connectorAttrs['data-docx-docpr-name']);
+        $t->same('Review connector route', $connectorAttrs['data-docx-docpr-descr']);
+        $t->same('Connector title', $connectorAttrs['data-docx-docpr-title']);
+        $t->same('anchor', $connectorAttrs['data-docx-drawing-placement']);
+        $t->same('914400', $connectorAttrs['data-docx-width-emu']);
+        $t->same('457200', $connectorAttrs['data-docx-height-emu']);
+        $t->same('none', $connectorAttrs['data-docx-wrap']);
+        $t->same('901', $connectorAttrs['data-docx-connector-nv-id']);
+        $t->same('Connector 901', $connectorAttrs['data-docx-connector-nv-name']);
+        $t->same('Approver path', $connectorAttrs['data-docx-connector-nv-description']);
+        $t->same('Connector nonvisual title', $connectorAttrs['data-docx-connector-nv-title']);
+        $t->same('true', $connectorAttrs['data-docx-connector-lock-no-change-shape-type']);
+        $t->same('true', $connectorAttrs['data-docx-connector-lock-no-move']);
+        $t->same('false', $connectorAttrs['data-docx-connector-lock-no-resize']);
+        $t->same('301', $connectorAttrs['data-docx-connector-start-id']);
+        $t->same('2', $connectorAttrs['data-docx-connector-start-index']);
+        $t->same('302', $connectorAttrs['data-docx-connector-end-id']);
+        $t->same('4', $connectorAttrs['data-docx-connector-end-index']);
+        $t->same('2700000', $connectorAttrs['data-docx-connector-rotation']);
+        $t->same('1', $connectorAttrs['data-docx-connector-flip-horizontal']);
+        $t->same('1000', $connectorAttrs['data-docx-connector-offset-x-emu']);
+        $t->same('2000', $connectorAttrs['data-docx-connector-offset-y-emu']);
+        $t->same('3000', $connectorAttrs['data-docx-connector-width-emu']);
+        $t->same('4000', $connectorAttrs['data-docx-connector-height-emu']);
+        $t->same('bentConnector3', $connectorAttrs['data-docx-connector-preset-geometry']);
+        $t->same('12700', $connectorAttrs['data-docx-connector-line-width-emu']);
+        $t->same('rnd', $connectorAttrs['data-docx-connector-line-cap']);
+        $t->same('sng', $connectorAttrs['data-docx-connector-line-compound']);
+        $t->same('ctr', $connectorAttrs['data-docx-connector-line-align']);
+        $t->same('srgb:4472C4', $connectorAttrs['data-docx-connector-line-color']);
+
+        $t->same(' and ', $paragraph->children[2]->attr('text'));
+        $group = $paragraph->children[3];
+        $t->same('span', $group->type);
+        $t->same([
+            'docx-drawing-placeholder',
+            'docx-drawing-group-shape',
+            'docx-drawing-geometry',
+            'docx-drawing-inline',
+            'docx-drawing-group-shape-metadata',
+            'docx-group-shape-locks',
+            'docx-group-shape-transform',
+        ], $group->attr('classes'));
+        $t->same('DOCX group shape: Review annotation group', $group->children[0]->attr('text'));
+        $groupAttrs = $group->attr('attributes');
+        $t->same('group-shape', $groupAttrs['data-docx-drawing-kind']);
+        $t->same('82', $groupAttrs['data-docx-docpr-id']);
+        $t->same('Grouped review shapes', $groupAttrs['data-docx-docpr-name']);
+        $t->same('Review annotation group', $groupAttrs['data-docx-docpr-descr']);
+        $t->same('Group title', $groupAttrs['data-docx-docpr-title']);
+        $t->same('inline', $groupAttrs['data-docx-drawing-placement']);
+        $t->same('1828800', $groupAttrs['data-docx-width-emu']);
+        $t->same('914400', $groupAttrs['data-docx-height-emu']);
+        $t->same('1', $groupAttrs['data-docx-group-shape-child-count']);
+        $t->same('true', $groupAttrs['data-docx-group-shape-lock-no-ungroup']);
+        $t->same('true', $groupAttrs['data-docx-group-shape-lock-no-select']);
+        $t->same('false', $groupAttrs['data-docx-group-shape-lock-no-rotate']);
+        $t->same('5400000', $groupAttrs['data-docx-group-shape-rotation']);
+        $t->same('1', $groupAttrs['data-docx-group-shape-flip-vertical']);
+        $t->same('10000', $groupAttrs['data-docx-group-shape-offset-x-emu']);
+        $t->same('20000', $groupAttrs['data-docx-group-shape-offset-y-emu']);
+        $t->same('900000', $groupAttrs['data-docx-group-shape-width-emu']);
+        $t->same('450000', $groupAttrs['data-docx-group-shape-height-emu']);
+        $t->same('500', $groupAttrs['data-docx-group-shape-child-offset-x-emu']);
+        $t->same('600', $groupAttrs['data-docx-group-shape-child-offset-y-emu']);
+        $t->same('800000', $groupAttrs['data-docx-group-shape-child-width-emu']);
+        $t->same('400000', $groupAttrs['data-docx-group-shape-child-height-emu']);
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $t->contains('[DOCX connector: Review connector route]{.docx-drawing-placeholder .docx-drawing-connector .docx-drawing-geometry .docx-drawing-anchor .docx-wrap-none .docx-drawing-connector-metadata', $markdown);
+        $t->contains('data-docx-connector-start-id="301"', $markdown);
+        $t->contains('data-docx-connector-line-color="srgb:4472C4"', $markdown);
+        $t->contains('[DOCX group shape: Review annotation group]{.docx-drawing-placeholder .docx-drawing-group-shape .docx-drawing-geometry .docx-drawing-inline .docx-drawing-group-shape-metadata', $markdown);
+        $t->contains('data-docx-group-shape-child-width-emu="800000"', $markdown);
+
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-connector docx-drawing-geometry docx-drawing-anchor docx-wrap-none docx-drawing-connector-metadata', $blocks);
+        $t->contains('data-docx-connector-start-id="301"', $blocks);
+        $t->contains('data-docx-connector-line-color="srgb:4472C4"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-group-shape docx-drawing-geometry docx-drawing-inline docx-drawing-group-shape-metadata', $blocks);
+        $t->contains('data-docx-group-shape-child-width-emu="800000"', $blocks);
+        $t->same(0, $result['importReport']['media']['count']);
     },
     'preserves DOCX DrawingML inline and anchor geometry metadata for review' => static function (TestRunner $t) use ($buildDrawingGeometryPackage): void {
         $document = (new DocxReader())->readDocument($buildDrawingGeometryPackage());

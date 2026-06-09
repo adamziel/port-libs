@@ -15,6 +15,7 @@ final class DocxReader
     public const DRAWINGML_DIAGRAM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     public const WORDPROCESSING_DRAWING_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     public const WORDPROCESSING_SHAPE_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
+    public const WORDPROCESSING_GROUP_NS = 'http://schemas.microsoft.com/office/word/2010/wordprocessingGroup';
     public const OFFICE_RELATIONSHIPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     public const OFFICE_MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     public const MARKUP_COMPATIBILITY_NS = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
@@ -7908,6 +7909,8 @@ final class DocxReader
             array_push($nodes, ...$this->diagramDrawingNodes($drawing, $package, $relationships));
         }
 
+        array_push($nodes, ...$this->drawingConnectorNodes($drawing));
+        array_push($nodes, ...$this->drawingGroupShapeNodes($drawing));
         array_push($nodes, ...$this->drawingTextNodes($drawing));
 
         return $nodes;
@@ -8275,6 +8278,351 @@ final class DocxReader
         }
 
         return $matched;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingConnectorNodes(\DOMElement $drawing): array
+    {
+        $nodes = [];
+        foreach ($this->drawingDescendantElementsByLocalNames($drawing, ['cxnSp']) as $connector) {
+            if (!$this->isDrawingConnectorElement($connector)) {
+                continue;
+            }
+
+            $docPr = $this->drawingPropertiesForElement($connector, $drawing);
+            $attrs = $this->drawingPlaceholderBaseAttrs(
+                'connector',
+                $docPr,
+                $this->mergeNodeMetadataAttrs(
+                    $this->drawingGeometryAttrs($this->drawingContainerForElement($connector, $drawing)),
+                    $this->drawingConnectorMetadataAttrs($connector)
+                )
+            );
+
+            $nodes[] = new AstNode('span', $attrs, [
+                new AstNode('text', ['text' => $this->drawingPlaceholderText('connector', $docPr)]),
+            ]);
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingGroupShapeNodes(\DOMElement $drawing): array
+    {
+        $nodes = [];
+        foreach ($this->drawingDescendantElementsByLocalNames($drawing, ['grpSp', 'wgp']) as $group) {
+            if (!$this->isDrawingGroupShapeElement($group)) {
+                continue;
+            }
+
+            $docPr = $this->drawingPropertiesForElement($group, $drawing);
+            $attrs = $this->drawingPlaceholderBaseAttrs(
+                'group-shape',
+                $docPr,
+                $this->mergeNodeMetadataAttrs(
+                    $this->drawingGeometryAttrs($this->drawingContainerForElement($group, $drawing)),
+                    $this->drawingGroupShapeMetadataAttrs($group)
+                )
+            );
+
+            $nodes[] = new AstNode('span', $attrs, [
+                new AstNode('text', ['text' => $this->drawingPlaceholderText('group-shape', $docPr)]),
+            ]);
+        }
+
+        return $nodes;
+    }
+
+    private function isDrawingConnectorElement(\DOMElement $element): bool
+    {
+        return $element->localName === 'cxnSp'
+            && in_array($element->namespaceURI, [self::DRAWINGML_MAIN_NS, self::WORDPROCESSING_SHAPE_NS], true);
+    }
+
+    private function isDrawingGroupShapeElement(\DOMElement $element): bool
+    {
+        return in_array($element->localName, ['grpSp', 'wgp'], true)
+            && in_array($element->namespaceURI, [self::DRAWINGML_MAIN_NS, self::WORDPROCESSING_GROUP_NS], true);
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingConnectorMetadataAttrs(\DOMElement $connector): array
+    {
+        $classes = ['docx-drawing-connector-metadata'];
+        $attributes = [];
+
+        $nonVisualDrawing = $this->firstDescendantElementByLocalName($connector, ['cNvPr']);
+        if ($nonVisualDrawing instanceof \DOMElement) {
+            $classes[] = 'docx-connector-nonvisual';
+            foreach ([
+                'id' => 'data-docx-connector-nv-id',
+                'name' => 'data-docx-connector-nv-name',
+                'descr' => 'data-docx-connector-nv-description',
+                'title' => 'data-docx-connector-nv-title',
+            ] as $source => $target) {
+                $this->appendDrawingAttribute($nonVisualDrawing, $source, $attributes, $target);
+            }
+        }
+
+        $nonVisualConnector = $this->firstDescendantElementByLocalName($connector, ['cNvCxnSpPr', 'cNvCnPr']);
+        if ($nonVisualConnector instanceof \DOMElement) {
+            $lockAttrs = $this->drawingLockAttrs(
+                $nonVisualConnector,
+                'cxnSpLocks',
+                'data-docx-connector-lock-',
+                [
+                    'noGrp' => 'no-group',
+                    'noSelect' => 'no-select',
+                    'noChangeShapeType' => 'no-change-shape-type',
+                    'noMove' => 'no-move',
+                    'noResize' => 'no-resize',
+                ],
+                $classes,
+                'docx-connector-locks'
+            );
+            $attributes += $lockAttrs;
+
+            foreach ([
+                'stCxn' => 'start',
+                'endCxn' => 'end',
+            ] as $localName => $position) {
+                $connection = $this->firstDescendantElementByLocalName($nonVisualConnector, [$localName]);
+                if (!$connection instanceof \DOMElement) {
+                    continue;
+                }
+
+                $classes[] = 'docx-connector-' . $position . '-connection';
+                $this->appendDrawingAttribute($connection, 'id', $attributes, 'data-docx-connector-' . $position . '-id');
+                $this->appendDrawingAttribute($connection, 'idx', $attributes, 'data-docx-connector-' . $position . '-index');
+            }
+        }
+
+        $shapeProperties = $this->firstChildElementByLocalName($connector, ['spPr']);
+        if ($shapeProperties instanceof \DOMElement) {
+            $this->appendDrawingShapeTransformAttrs($shapeProperties, 'data-docx-connector-', $classes, 'docx-connector-transform', $attributes);
+
+            $presetGeometry = $this->firstChildElementByLocalName($shapeProperties, ['prstGeom']);
+            if ($presetGeometry instanceof \DOMElement) {
+                $classes[] = 'docx-connector-preset-geometry';
+                $this->appendDrawingAttribute($presetGeometry, 'prst', $attributes, 'data-docx-connector-preset-geometry');
+            }
+
+            $line = $this->firstChildElementByLocalName($shapeProperties, ['ln']);
+            if ($line instanceof \DOMElement) {
+                $classes[] = 'docx-connector-line';
+                foreach ([
+                    'w' => 'data-docx-connector-line-width-emu',
+                    'cap' => 'data-docx-connector-line-cap',
+                    'cmpd' => 'data-docx-connector-line-compound',
+                    'algn' => 'data-docx-connector-line-align',
+                ] as $source => $target) {
+                    $this->appendDrawingAttribute($line, $source, $attributes, $target);
+                }
+                $lineColor = $this->drawingFirstColorValue($line);
+                if ($lineColor === null) {
+                    $solidFill = $this->firstChildElementByLocalName($line, ['solidFill']);
+                    $lineColor = $solidFill instanceof \DOMElement ? $this->drawingFirstColorValue($solidFill) : null;
+                }
+                if ($lineColor !== null) {
+                    $attributes['data-docx-connector-line-color'] = $lineColor;
+                }
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingGroupShapeMetadataAttrs(\DOMElement $group): array
+    {
+        $classes = ['docx-drawing-group-shape-metadata'];
+        $attributes = [
+            'data-docx-group-shape-child-count' => (string) $this->drawingGroupShapeChildCount($group),
+        ];
+
+        $nonVisualGroupProperties = $this->firstChildElementByLocalName($group, ['nvGrpSpPr']);
+        $nonVisualDrawing = $nonVisualGroupProperties instanceof \DOMElement
+            ? $this->firstChildElementByLocalName($nonVisualGroupProperties, ['cNvPr'])
+            : $this->firstChildElementByLocalName($group, ['cNvPr']);
+        if ($nonVisualDrawing instanceof \DOMElement) {
+            $classes[] = 'docx-group-shape-nonvisual';
+            foreach ([
+                'id' => 'data-docx-group-shape-nv-id',
+                'name' => 'data-docx-group-shape-nv-name',
+                'descr' => 'data-docx-group-shape-nv-description',
+                'title' => 'data-docx-group-shape-nv-title',
+            ] as $source => $target) {
+                $this->appendDrawingAttribute($nonVisualDrawing, $source, $attributes, $target);
+            }
+        }
+
+        $nonVisualGroup = $this->firstDescendantElementByLocalName($group, ['cNvGrpSpPr']);
+        if ($nonVisualGroup instanceof \DOMElement) {
+            $attributes += $this->drawingLockAttrs(
+                $nonVisualGroup,
+                'grpSpLocks',
+                'data-docx-group-shape-lock-',
+                [
+                    'noGrp' => 'no-group',
+                    'noUngrp' => 'no-ungroup',
+                    'noSelect' => 'no-select',
+                    'noRot' => 'no-rotate',
+                    'noChangeAspect' => 'no-change-aspect',
+                    'noMove' => 'no-move',
+                    'noResize' => 'no-resize',
+                ],
+                $classes,
+                'docx-group-shape-locks'
+            );
+        }
+
+        $groupProperties = $this->firstChildElementByLocalName($group, ['grpSpPr']);
+        if ($groupProperties instanceof \DOMElement) {
+            $this->appendDrawingShapeTransformAttrs($groupProperties, 'data-docx-group-shape-', $classes, 'docx-group-shape-transform', $attributes);
+            $transform = $this->firstChildElementByLocalName($groupProperties, ['xfrm']);
+            if ($transform instanceof \DOMElement) {
+                $childOffset = $this->firstChildElementByLocalName($transform, ['chOff']);
+                if ($childOffset instanceof \DOMElement) {
+                    $this->appendDrawingAttribute($childOffset, 'x', $attributes, 'data-docx-group-shape-child-offset-x-emu');
+                    $this->appendDrawingAttribute($childOffset, 'y', $attributes, 'data-docx-group-shape-child-offset-y-emu');
+                }
+
+                $childExtent = $this->firstChildElementByLocalName($transform, ['chExt']);
+                if ($childExtent instanceof \DOMElement) {
+                    $this->appendDrawingAttribute($childExtent, 'cx', $attributes, 'data-docx-group-shape-child-width-emu');
+                    $this->appendDrawingAttribute($childExtent, 'cy', $attributes, 'data-docx-group-shape-child-height-emu');
+                }
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param list<string> $classes
+     */
+    private function appendDrawingShapeTransformAttrs(
+        \DOMElement $shapeProperties,
+        string $prefix,
+        array &$classes,
+        string $transformClass,
+        array &$attributes
+    ): void {
+        $transform = $this->firstChildElementByLocalName($shapeProperties, ['xfrm']);
+        if (!$transform instanceof \DOMElement) {
+            return;
+        }
+
+        $hasTransform = false;
+        foreach ([
+            'rot' => $prefix . 'rotation',
+            'flipH' => $prefix . 'flip-horizontal',
+            'flipV' => $prefix . 'flip-vertical',
+        ] as $source => $target) {
+            $value = trim($transform->getAttribute($source));
+            if ($value === '') {
+                continue;
+            }
+
+            $attributes[$target] = $value;
+            $hasTransform = true;
+        }
+
+        $offset = $this->firstChildElementByLocalName($transform, ['off']);
+        if ($offset instanceof \DOMElement) {
+            foreach ([
+                'x' => $prefix . 'offset-x-emu',
+                'y' => $prefix . 'offset-y-emu',
+            ] as $source => $target) {
+                $value = trim($offset->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasTransform = true;
+                }
+            }
+        }
+
+        $extent = $this->firstChildElementByLocalName($transform, ['ext']);
+        if ($extent instanceof \DOMElement) {
+            foreach ([
+                'cx' => $prefix . 'width-emu',
+                'cy' => $prefix . 'height-emu',
+            ] as $source => $target) {
+                $value = trim($extent->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                    $hasTransform = true;
+                }
+            }
+        }
+
+        if ($hasTransform) {
+            $classes[] = $transformClass;
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param list<string> $classes
+     * @return array<string, string>
+     */
+    private function drawingLockAttrs(
+        \DOMElement $container,
+        string $localName,
+        string $prefix,
+        array $lockNames,
+        array &$classes,
+        string $lockClass
+    ): array {
+        $locks = $this->firstDescendantElementByLocalName($container, [$localName]);
+        if (!$locks instanceof \DOMElement) {
+            return [];
+        }
+
+        $classes[] = $lockClass;
+        $attributes = [];
+        foreach ($lockNames as $source => $suffix) {
+            $value = $this->normalizedOnOffAttribute($locks, (string) $source);
+            if ($value === null) {
+                continue;
+            }
+
+            $attributes[$prefix . $suffix] = $value;
+        }
+
+        return $attributes;
+    }
+
+    private function drawingGroupShapeChildCount(\DOMElement $group): int
+    {
+        $count = 0;
+        foreach ($group->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array($child->localName, ['sp', 'pic', 'graphicFrame', 'cxnSp', 'grpSp', 'wsp'], true)) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     private function drawingRelationshipPlaceholderNode(
@@ -13604,6 +13952,54 @@ final class DocxReader
             if ($child instanceof \DOMElement) {
                 return $child;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     * @return list<\DOMElement>
+     */
+    private function drawingDescendantElementsByLocalNames(\DOMElement $element, array $localNames): array
+    {
+        $matched = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array($child->localName, $localNames, true)) {
+                $matched[] = $child;
+            }
+
+            array_push($matched, ...$this->drawingDescendantElementsByLocalNames($child, $localNames));
+        }
+
+        return $matched;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private function firstChildElementByLocalName(\DOMElement $element, array $localNames): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && in_array($child->localName, $localNames, true)) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $localNames
+     */
+    private function firstDescendantElementByLocalName(\DOMElement $element, array $localNames): ?\DOMElement
+    {
+        foreach ($this->drawingDescendantElementsByLocalNames($element, $localNames) as $child) {
+            return $child;
         }
 
         return null;
