@@ -6790,6 +6790,161 @@ XML;
         $t->same(3, $thumbnail['relationshipCount']);
         $t->same(2, $thumbnail['sourceCount']);
     },
+    'summarizes OPC known relationship role policy buckets for importer reports' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="html" ContentType="text/html"/>
+  <Default Extension="txt" ContentType="text/plain"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/second.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/rogue.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/styles-copy.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/charts/chart2.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocumentA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdDocumentB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/second.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMisplacedDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="rogue.xml"/>
+  <Relationship Id="rIdStylesA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdStylesB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles-copy.xml"/>
+  <Relationship Id="rIdAltChunkHtml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review.html"/>
+  <Relationship Id="rIdAltChunkText" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/plain.txt"/>
+  <Relationship Id="rIdChartA" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart1.xml"/>
+  <Relationship Id="rIdChartB" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart2.xml"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/second.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/rogue.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/styles-copy.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/chunks/review.html', 'data' => '<html><body>Review</body></html>'],
+            ['name' => 'word/chunks/plain.txt', 'data' => 'Review text'],
+            ['name' => 'word/charts/chart1.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+            ['name' => 'word/charts/chart2.xml', 'data' => '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $summary = $graph->relationshipRolePolicySummary();
+        $roles = [];
+        foreach ($summary['roles'] as $role) {
+            $roles[$role['role']] = $role;
+        }
+
+        $t->same(null, $summary['source']);
+        $t->same(false, $summary['valid']);
+        $t->same(5, $summary['knownRoleCount']);
+        $t->same(10, $summary['relationshipCount']);
+        $t->same(3, $summary['validPolicyCount']);
+        $t->same(2, $summary['invalidPolicyCount']);
+        $t->same(2, $summary['packageScopedCount']);
+        $t->same(1, $summary['sourceScopedCount']);
+        $t->same(2, $summary['unscopedCount']);
+        $t->same(2, $summary['packageSingletonCount']);
+        $t->same(1, $summary['sourceSingletonCount']);
+        $t->same([
+            'multiple-office-document-relationships' => 1,
+            'multiple-styles-relationships-for-source' => 1,
+            'office-document-relationship-source-not-package-root' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'multiple-office-document-relationships',
+            'multiple-styles-relationships-for-source',
+            'office-document-relationship-source-not-package-root',
+        ], $summary['issues']);
+        $t->same([
+            'alternative-format-import',
+            'chart',
+            'core-properties',
+            'office-document',
+            'styles',
+        ], array_keys($roles));
+
+        $t->same(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE, $roles['office-document']['type']);
+        $t->same(3, $roles['office-document']['relationshipCount']);
+        $t->same(2, $roles['office-document']['sourceCount']);
+        $t->same(['/', '/word/document.xml'], $roles['office-document']['sources']);
+        $t->same('package-root', $roles['office-document']['sourceScope']);
+        $t->same('package', $roles['office-document']['singletonScope']);
+        $t->same(false, $roles['office-document']['policyValid']);
+        $t->same(['multiple-office-document-relationships', 'office-document-relationship-source-not-package-root'], $roles['office-document']['policyIssues']);
+        $t->same(['/word/document.xml', '/word/rogue.xml', '/word/second.xml'], $roles['office-document']['targetParts']);
+
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_STYLES_RELATIONSHIP_TYPE, $roles['styles']['type']);
+        $t->same(2, $roles['styles']['relationshipCount']);
+        $t->same(1, $roles['styles']['sourceCount']);
+        $t->same('any-source', $roles['styles']['sourceScope']);
+        $t->same('source', $roles['styles']['singletonScope']);
+        $t->same(false, $roles['styles']['policyValid']);
+        $t->same(['multiple-styles-relationships-for-source'], $roles['styles']['policyIssues']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml',
+        ], $roles['styles']['contentTypes']);
+
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_ALTERNATIVE_FORMAT_IMPORT_RELATIONSHIP_TYPE, $roles['alternative-format-import']['type']);
+        $t->same(2, $roles['alternative-format-import']['relationshipCount']);
+        $t->same(null, $roles['alternative-format-import']['singletonScope']);
+        $t->same(true, $roles['alternative-format-import']['policyValid']);
+        $t->same(['text/html', 'text/plain'], $roles['alternative-format-import']['contentTypes']);
+
+        $t->same(OpcRelationshipGraph::DRAWINGML_CHART_RELATIONSHIP_TYPE, $roles['chart']['type']);
+        $t->same(2, $roles['chart']['relationshipCount']);
+        $t->same(null, $roles['chart']['singletonScope']);
+        $t->same(true, $roles['chart']['policyValid']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
+        ], $roles['chart']['contentTypes']);
+
+        $documentSummary = $graph->relationshipRolePolicySummary('/word/document.xml');
+        $documentRoles = [];
+        foreach ($documentSummary['roles'] as $role) {
+            $documentRoles[$role['role']] = $role;
+        }
+
+        $t->same('/word/document.xml', $documentSummary['source']);
+        $t->same(false, $documentSummary['valid']);
+        $t->same(4, $documentSummary['knownRoleCount']);
+        $t->same(7, $documentSummary['relationshipCount']);
+        $t->same(2, $documentSummary['validPolicyCount']);
+        $t->same(2, $documentSummary['invalidPolicyCount']);
+        $t->same(1, $documentSummary['packageScopedCount']);
+        $t->same(1, $documentSummary['sourceScopedCount']);
+        $t->same(2, $documentSummary['unscopedCount']);
+        $t->same(1, $documentSummary['packageSingletonCount']);
+        $t->same(1, $documentSummary['sourceSingletonCount']);
+        $t->same([
+            'multiple-styles-relationships-for-source' => 1,
+            'office-document-relationship-source-not-package-root' => 1,
+        ], $documentSummary['issueCounts']);
+        $t->same([
+            'alternative-format-import',
+            'chart',
+            'office-document',
+            'styles',
+        ], array_keys($documentRoles));
+        $t->same(1, $documentRoles['office-document']['relationshipCount']);
+        $t->same(['office-document-relationship-source-not-package-root'], $documentRoles['office-document']['policyIssues']);
+        $t->same(2, $documentRoles['styles']['relationshipCount']);
+    },
     'summarizes package-wide OPC relationship source inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

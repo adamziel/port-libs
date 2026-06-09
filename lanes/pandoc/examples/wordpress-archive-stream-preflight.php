@@ -1403,6 +1403,44 @@ $generalPurposeZipInspection = ArchiveCompressionStream::inspectZipGeneralPurpos
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($generalPurposeZipBytes)
 );
+$zipCommentZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'flags' => 0x0800,
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => '<w:document><w:body><w:p>Commented ZIP source</w:p></w:body></w:document>',
+        'flags' => 0x0800,
+        'compressionMethod' => 8,
+        'comment' => "entry\u{200d}comment",
+    ],
+    [
+        'name' => 'word/media/review-note.txt',
+        'data' => "comment control byte metadata remains review-only\n",
+        'flags' => 0x0800,
+        'compressionMethod' => 0,
+        'comment' => "entry\x7freview",
+    ],
+    [
+        'name' => 'word/styles.xml',
+        'data' => '<w:styles/>',
+        'flags' => 0x0800,
+        'compressionMethod' => 8,
+    ],
+], "source\u{202e}package");
+$zipCommentZipGzip = GzipStream::build($zipCommentZipBytes, [
+    'filename' => 'wordpress-zip-comments.zip',
+    'comment' => 'ZIP package comment preflight fixture',
+    'headerCrc' => true,
+]);
+$zipCommentInspection = ArchiveCompressionStream::inspectZipCommentPolicy(
+    $zipCommentZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zipCommentZipBytes)
+);
 $creatorExternalZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => 'word/unknown-host.xml',
@@ -2304,6 +2342,31 @@ if (in_array('--self-test', $argv, true)) {
         'zipGeneralPurposeStrictFlagNames' => ['deflate-super-fast', 'data-descriptor', 'utf-8-names'],
         'zipGeneralPurposeStrictIssues' => ['data-descriptor-entry', 'deflate-option-flags'],
         'zipGeneralPurposeGzipFilename' => 'wordpress-general-purpose-flags.zip',
+        'zipCommentFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipCommentType' => 'zip-comment-policy',
+        'zipCommentPolicy' => 'review-before-conversion',
+        'zipCommentExtractionPolicy' => 'zip-comment-review',
+        'zipCommentDiagnostics' => [
+            'package-or-entry-comments',
+            'comment-control-bytes',
+            'comment-unicode-format-controls',
+            'comment-bidi-format-controls',
+        ],
+        'zipCommentPackageComment' => "source\u{202e}package",
+        'zipCommentPackageIssues' => [
+            'package-comment-unicode-format-control',
+            'package-comment-bidi-format-control',
+        ],
+        'zipCommentEntryCount' => 2,
+        'zipCommentControlEntryCount' => 1,
+        'zipCommentUnicodeEntryCount' => 1,
+        'zipCommentBidiEntryCount' => 0,
+        'zipCommentEntryNames' => ['word/document.xml', 'word/media/review-note.txt'],
+        'zipCommentUnicodeEntry' => 'word/document.xml',
+        'zipCommentUnicodeControls' => ['zero-width-joiner'],
+        'zipCommentControlEntry' => 'word/media/review-note.txt',
+        'zipCommentControlOffsets' => [5],
+        'zipCommentGzipFilename' => 'wordpress-zip-comments.zip',
         'zipCreatorHostFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipCreatorHostEntryCount' => 3,
         'zipCreatorHostKnownCount' => 2,
@@ -3083,6 +3146,31 @@ if (in_array('--self-test', $argv, true)) {
         || ($generalPurposeZipInspection['entries'][2]['usesUtf8Names'] ?? null) !== false
         || ($generalPurposeZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipGeneralPurposeGzipFilename']
         || isset($generalPurposeZipInspection['package'])
+        || $zipCommentInspection['format'] !== $expected['zipCommentFormat']
+        || $zipCommentInspection['zipBytes'] !== $zipCommentZipBytes
+        || $zipCommentInspection['packageByteSize'] !== strlen($zipCommentZipBytes)
+        || $zipCommentInspection['type'] !== $expected['zipCommentType']
+        || $zipCommentInspection['handoffPolicy'] !== $expected['zipCommentPolicy']
+        || $zipCommentInspection['extractionPolicy'] !== $expected['zipCommentExtractionPolicy']
+        || $zipCommentInspection['diagnostics'] !== $expected['zipCommentDiagnostics']
+        || $zipCommentInspection['packageComment'] !== $expected['zipCommentPackageComment']
+        || $zipCommentInspection['rawPackageComment'] !== $expected['zipCommentPackageComment']
+        || $zipCommentInspection['packageCommentEncoding'] !== 'utf-8'
+        || $zipCommentInspection['packageCommentIssues'] !== $expected['zipCommentPackageIssues']
+        || $zipCommentInspection['packageCommentUnicodeFormatControlNames'] !== ['right-to-left-override']
+        || $zipCommentInspection['packageCommentBidiControlNames'] !== ['right-to-left-override']
+        || $zipCommentInspection['entryCommentCount'] !== $expected['zipCommentEntryCount']
+        || $zipCommentInspection['commentControlByteEntryCount'] !== $expected['zipCommentControlEntryCount']
+        || $zipCommentInspection['commentUnicodeFormatControlEntryCount'] !== $expected['zipCommentUnicodeEntryCount']
+        || $zipCommentInspection['commentBidiControlEntryCount'] !== $expected['zipCommentBidiEntryCount']
+        || $zipCommentInspection['commentedEntryNames'] !== $expected['zipCommentEntryNames']
+        || ($zipCommentInspection['commentUnicodeFormatControlEntries'][0]['name'] ?? null) !== $expected['zipCommentUnicodeEntry']
+        || ($zipCommentInspection['commentUnicodeFormatControlEntries'][0]['unicodeFormatControlNames'] ?? []) !== $expected['zipCommentUnicodeControls']
+        || ($zipCommentInspection['commentControlByteEntries'][0]['name'] ?? null) !== $expected['zipCommentControlEntry']
+        || ($zipCommentInspection['commentControlByteEntries'][0]['commentControlByteOffsets'] ?? []) !== $expected['zipCommentControlOffsets']
+        || ($zipCommentInspection['entries'][3]['issues'] ?? []) !== []
+        || ($zipCommentInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipCommentGzipFilename']
+        || isset($zipCommentInspection['package'])
         || $creatorHostZipInspection['format'] !== $expected['zipCreatorHostFormat']
         || $creatorHostZipInspection['zipBytes'] !== $creatorExternalZipBytes
         || $creatorHostZipInspection['packageByteSize'] !== strlen($creatorExternalZipBytes)
@@ -3607,6 +3695,14 @@ echo 'zipGeneralPurpose.strictNames=' . implode(',', array_column($generalPurpos
 echo 'zipGeneralPurpose.strictFlags=' . $generalPurposeZipInspection['strictReviewEntries'][0]['generalPurposeFlags'] . "\n";
 echo 'zipGeneralPurpose.strictIssues=' . implode(',', $generalPurposeZipInspection['strictReviewEntries'][0]['issues']) . "\n";
 echo 'zipGeneralPurpose.gzipFilename=' . $generalPurposeZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipComment.format=' . $zipCommentInspection['format'] . "\n";
+echo 'zipComment.handoffPolicy=' . $zipCommentInspection['handoffPolicy'] . "\n";
+echo 'zipComment.diagnostics=' . implode(',', $zipCommentInspection['diagnostics']) . "\n";
+echo 'zipComment.packageIssues=' . implode(',', $zipCommentInspection['packageCommentIssues']) . "\n";
+echo 'zipComment.entryCount=' . $zipCommentInspection['entryCommentCount'] . "\n";
+echo 'zipComment.controlEntry=' . $zipCommentInspection['commentControlByteEntries'][0]['name'] . "\n";
+echo 'zipComment.unicodeEntry=' . $zipCommentInspection['commentUnicodeFormatControlEntries'][0]['name'] . "\n";
+echo 'zipComment.gzipFilename=' . $zipCommentInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipCreatorHost.format=' . $creatorHostZipInspection['format'] . "\n";
 echo 'zipCreatorHost.unknownCount=' . $creatorHostZipInspection['unknownHostSystemEntryCount'] . "\n";
 echo 'zipCreatorHost.unknownEntry=' . $creatorHostZipInspection['unknownEntries'][0]['name'] . "\n";

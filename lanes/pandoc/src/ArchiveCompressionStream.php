@@ -3649,6 +3649,46 @@ final class ArchiveCompressionStream
     /**
      * @return array<string, mixed>
      */
+    public static function inspectZipCommentPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $package = ZipPackage::fromString($zipBytes);
+        $policy = $package->commentPreflight();
+        $diagnostics = [];
+        if (($policy['hasComments'] ?? false) === true) {
+            $diagnostics[] = 'package-or-entry-comments';
+        }
+        if (($policy['hasCommentControlBytes'] ?? false) === true) {
+            $diagnostics[] = 'comment-control-bytes';
+        }
+        if (($policy['hasCommentUnicodeFormatControls'] ?? false) === true) {
+            $diagnostics[] = 'comment-unicode-format-controls';
+        }
+        if (($policy['hasCommentBidiControls'] ?? false) === true) {
+            $diagnostics[] = 'comment-bidi-format-controls';
+        }
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+            'type' => 'zip-comment-policy',
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'zip-comment-review',
+            'diagnostics' => $diagnostics,
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function inspectZipCreatorHostSystemPolicy(
         string $bytes,
         string $format,

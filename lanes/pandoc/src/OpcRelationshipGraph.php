@@ -1146,6 +1146,95 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{source:?string, valid:bool, knownRoleCount:int, relationshipCount:int, validPolicyCount:int, invalidPolicyCount:int, packageScopedCount:int, sourceScopedCount:int, unscopedCount:int, packageSingletonCount:int, sourceSingletonCount:int, issueCounts:array<string, int>, issues:list<string>, roles:list<array{role:string, type:string, relationshipCount:int, sourceCount:int, sources:list<string>, sourceScope:string, singletonScope:?string, policyValid:bool, policyIssues:list<string>, targetParts:list<string>, contentTypes:list<string>}>}
+     */
+    public function relationshipRolePolicySummary(?string $sourcePartName = null): array
+    {
+        $sourceFilter = $sourcePartName === null
+            ? null
+            : $this->relationshipSourceNameForEquivalent($sourcePartName);
+        $summary = [
+            'source' => $sourceFilter,
+            'valid' => true,
+            'knownRoleCount' => 0,
+            'relationshipCount' => 0,
+            'validPolicyCount' => 0,
+            'invalidPolicyCount' => 0,
+            'packageScopedCount' => 0,
+            'sourceScopedCount' => 0,
+            'unscopedCount' => 0,
+            'packageSingletonCount' => 0,
+            'sourceSingletonCount' => 0,
+            'issueCounts' => [],
+            'issues' => [],
+            'roles' => [],
+        ];
+
+        foreach ($this->relationshipTypeInventory($sourceFilter) as $entry) {
+            if ($entry['knownRole'] === null) {
+                continue;
+            }
+
+            $role = [
+                'role' => $entry['knownRole'],
+                'type' => $entry['type'],
+                'relationshipCount' => $entry['relationshipCount'],
+                'sourceCount' => $entry['sourceCount'],
+                'sources' => $entry['sources'],
+                'sourceScope' => $entry['sourceScope'],
+                'singletonScope' => $entry['singletonScope'],
+                'policyValid' => $entry['policyValid'],
+                'policyIssues' => $entry['policyIssues'],
+                'targetParts' => $entry['targetParts'],
+                'contentTypes' => $entry['contentTypes'],
+            ];
+
+            $summary['roles'][] = $role;
+            $summary['knownRoleCount']++;
+            $summary['relationshipCount'] += $entry['relationshipCount'];
+
+            if ($entry['policyValid']) {
+                $summary['validPolicyCount']++;
+            } else {
+                $summary['invalidPolicyCount']++;
+                $summary['valid'] = false;
+            }
+
+            if ($entry['sourceScope'] === 'package-root') {
+                $summary['packageScopedCount']++;
+            } elseif ($entry['singletonScope'] === 'source') {
+                $summary['sourceScopedCount']++;
+            } elseif ($entry['singletonScope'] === null) {
+                $summary['unscopedCount']++;
+            }
+
+            if ($entry['singletonScope'] === 'package') {
+                $summary['packageSingletonCount']++;
+            } elseif ($entry['singletonScope'] === 'source') {
+                $summary['sourceSingletonCount']++;
+            }
+
+            foreach ($entry['policyIssues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+        }
+
+        usort(
+            $summary['roles'],
+            static function (array $left, array $right): int {
+                $roleComparison = $left['role'] <=> $right['role'];
+
+                return $roleComparison !== 0 ? $roleComparison : $left['type'] <=> $right['type'];
+            },
+        );
+        ksort($summary['issueCounts'], SORT_STRING);
+        sort($summary['issues'], SORT_STRING);
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{contentType:string, packagePartCount:int, overrideCount:int, defaultPartCount:int, relationshipPartCount:int, relationshipSourceCount:int, relationshipTargetReferenceCount:int, relationshipTargetPartCount:int, reachableTargetCount:int, missingOverrideCount:int, invalidPackagePartCount:int, parts:list<string>, overrideParts:list<string>, defaultParts:list<string>, relationshipParts:list<string>, relationshipSources:list<string>, relationshipTargetParts:list<string>, reachableTargetParts:list<string>, missingOverrideParts:list<string>, relationshipTargetReferences:list<array{source:string, id:string, targetPart:string, valid:bool, issues:list<string>}>, issues:list<string>}>
      */
     public function contentTypeInventory(): array

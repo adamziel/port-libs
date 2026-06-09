@@ -6352,6 +6352,161 @@ return [
         );
     },
 
+    'preflights zip package and entry comments across archive streams before strict handoff' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $utf8 = 0x0800;
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'flags' => $utf8,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Commented review source</w:p></w:body></w:document>',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+                'comment' => "entry\u{200d}comment",
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => "entry comment control bytes stay review metadata\n",
+                'flags' => $utf8,
+                'compressionMethod' => 0,
+                'comment' => "entry\x7freview",
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+            ],
+        ], "source\u{202e}package");
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip-comments.zip',
+                'comment' => 'ZIP package comment preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip comment reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipCommentPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same($format, $inspection['format']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same('zip-comment-policy', $inspection['type']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('zip-comment-review', $inspection['extractionPolicy']);
+            $t->same([
+                'package-or-entry-comments',
+                'comment-control-bytes',
+                'comment-unicode-format-controls',
+                'comment-bidi-format-controls',
+            ], $inspection['diagnostics']);
+            $t->same("source\u{202e}package", $inspection['packageComment']);
+            $t->same("source\u{202e}package", $inspection['rawPackageComment']);
+            $t->same('utf-8', $inspection['packageCommentEncoding']);
+            $t->same(true, $inspection['hasPackageComment']);
+            $t->same(true, $inspection['hasEntryComments']);
+            $t->same(true, $inspection['hasComments']);
+            $t->same(true, $inspection['hasCommentControlBytes']);
+            $t->same(true, $inspection['hasCommentUnicodeFormatControls']);
+            $t->same(true, $inspection['hasCommentBidiControls']);
+            $t->same(true, $inspection['packageCommentHasUnicodeFormatControls']);
+            $t->same(true, $inspection['packageCommentHasBidiControls']);
+            $t->same(['right-to-left-override'], $inspection['packageCommentUnicodeFormatControlNames']);
+            $t->same(['right-to-left-override'], $inspection['packageCommentBidiControlNames']);
+            $t->same([
+                'package-comment-unicode-format-control',
+                'package-comment-bidi-format-control',
+            ], $inspection['packageCommentIssues']);
+            $t->same(2, $inspection['entryCommentCount']);
+            $t->same(1, $inspection['commentControlByteEntryCount']);
+            $t->same(1, $inspection['commentUnicodeFormatControlEntryCount']);
+            $t->same(0, $inspection['commentBidiControlEntryCount']);
+            $t->same(['word/document.xml', 'word/media/review-note.txt'], $inspection['commentedEntryNames']);
+            $t->same('word/document.xml', $inspection['commentUnicodeFormatControlEntries'][0]['name']);
+            $t->same("entry\u{200d}comment", $inspection['commentUnicodeFormatControlEntries'][0]['comment']);
+            $t->same(['zero-width-joiner'], $inspection['commentUnicodeFormatControlEntries'][0]['unicodeFormatControlNames']);
+            $t->same(['entry-comment-unicode-format-control'], $inspection['commentUnicodeFormatControlEntries'][0]['issues']);
+            $t->same('word/media/review-note.txt', $inspection['commentControlByteEntries'][0]['name']);
+            $t->same("entry\x7freview", $inspection['commentControlByteEntries'][0]['comment']);
+            $t->same([5], $inspection['commentControlByteEntries'][0]['commentControlByteOffsets']);
+            $t->same(['entry-comment-control-bytes'], $inspection['commentControlByteEntries'][0]['issues']);
+            $t->same([], $inspection['entries'][3]['issues']);
+            $t->same(false, array_key_exists('package', $inspection));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipCommentPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipCommentPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+        $safeZipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>comment-free package</w:p></w:document>',
+                'flags' => $utf8,
+                'compressionMethod' => 8,
+            ],
+        ]);
+        $safeInspection = ArchiveCompressionStream::inspectZipCommentPolicy(
+            $safeZipBytes,
+            ArchiveCompressionStream::FORMAT_ZIP,
+            strlen($safeZipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-zip-comments.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP package comment preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip comment reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same('within-thresholds', $safeInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $safeInspection['extractionPolicy']);
+        $t->same([], $safeInspection['diagnostics']);
+        $t->same(false, $safeInspection['hasComments']);
+        $t->same(false, array_key_exists('package', $safeInspection));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipCommentPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipCommentPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+                strlen($zipBytes) - 1
+            )
+        );
+    },
+
     'preflights zip creator host and external attributes across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $zipBytes = $zipFixtureBytes([
             [
