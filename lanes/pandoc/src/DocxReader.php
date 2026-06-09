@@ -7395,6 +7395,15 @@ final class DocxReader
             'CREATEDATE' => 'createdate',
             'SAVEDATE' => 'savedate',
             'PRINTDATE' => 'printdate',
+            'AUTHOR' => 'author',
+            'COMMENTS' => 'comments',
+            'FILENAME' => 'filename',
+            'FILESIZE' => 'filesize',
+            'KEYWORDS' => 'keywords',
+            'LASTSAVEDBY' => 'lastsavedby',
+            'SUBJECT' => 'subject',
+            'TEMPLATE' => 'template',
+            'TITLE' => 'title',
         ];
         $crossReferenceFieldNames = [
             'REF' => 'ref',
@@ -7468,6 +7477,14 @@ final class DocxReader
         $format = $this->fieldFormatSwitchValue($tokens);
         if ($format !== null && $format !== '') {
             $attributes['data-docx-field-format'] = $format;
+        }
+
+        if ($fieldKey === 'filename' && $this->fieldHasSwitch($tokens, 'p')) {
+            $attributes['data-docx-field-path'] = 'true';
+            return [
+                'classes' => ['docx-field', 'docx-field-' . $fieldKey, 'docx-field-path'],
+                'attributes' => $attributes,
+            ];
         }
 
         return [

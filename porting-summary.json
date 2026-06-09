@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:11:25 UTC",
-    "sourceCommit": "030e94cf137586963da96dca64555cebe2ff01ee",
-    "sourceCommitShort": "030e94cf1375",
+    "generated": "2026-06-09 07:14:18 UTC",
+    "sourceCommit": "c3302ed13c64f0d76557cbbc9b5052f14d926093",
+    "sourceCommitShort": "c3302ed13c64",
     "sourceBranch": "unknown",
-    "dashboardCommit": "030e94cf137586963da96dca64555cebe2ff01ee",
-    "dashboardCommitShort": "030e94cf1375",
+    "dashboardCommit": "c3302ed13c64f0d76557cbbc9b5052f14d926093",
+    "dashboardCommitShort": "c3302ed13c64",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2851",
-            "coverage": "2,851 / 2,276 (125.3%)",
+            "mapped": "2852",
+            "coverage": "2,852 / 2,276 (125.3%)",
             "mapPercent": "125.3%",
             "unmapped": "0",
-            "php": "2,472 pass / 0 fail",
+            "php": "2,473 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC syntax highlighting current-base Terraform/AsciiDoc sl...",
+            "audit": "2026-06-09 UTC DOCX/OpenXML current-base document-information field s...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For syntax highlighting follow-up, choose a non-overlapping n...",
-            "remainingGate": "No new native support component is needed for this syntax highlightin...",
+            "nextTarget": "For DOCX/OpenXML follow-up, choose a non-overlapping native g...",
+            "remainingGate": "No new native support component is needed for this DOCX/OpenXML slice.",
             "commit": "pending fast ba..."
         },
         {

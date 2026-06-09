@@ -2694,6 +2694,19 @@ $fieldMetadataDocumentXml = <<<'XML'
       <w:fldSimple w:instr=' SEQ Table \* roman \r 3 \s 2 '><w:r><w:t>iii</w:t></w:r></w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Source file </w:t></w:r>
+      <w:fldSimple w:instr=' FILENAME \p \* MERGEFORMAT '><w:r><w:t>C:/imports/source-packet.docx</w:t></w:r></w:fldSimple>
+      <w:r><w:t xml:space="preserve"> by </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> AUTHOR \* MERGEFORMAT </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>Migration Desk</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t xml:space="preserve"> titled </w:t></w:r>
+      <w:fldSimple w:instr=' TITLE '><w:r><w:t>Migration Review Packet</w:t></w:r></w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -9178,6 +9191,54 @@ return [
         $t->contains('<span class="docx-field docx-field-page" data-docx-field="page" data-docx-field-instruction="PAGE \* Arabic" data-docx-field-format="Arabic">7</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-numpages" data-docx-field="numpages" data-docx-field-instruction="NUMPAGES \* Arabic" data-docx-field-format="Arabic">12</span>', $blocks);
         $t->contains('<span class="docx-field docx-field-date" data-docx-field="date" data-docx-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-docx-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+    },
+    'preserves DOCX document information field provenance around displayed results' => static function (TestRunner $t) use ($buildFieldMetadataPackage): void {
+        $document = (new DocxReader())->readDocument($buildFieldMetadataPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[3];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Source file ', $paragraph->children[0]->attr('text'));
+
+        $filename = $paragraph->children[1];
+        $t->same('span', $filename->type);
+        $t->same(['docx-field', 'docx-field-filename', 'docx-field-path'], $filename->attr('classes'));
+        $filenameAttrs = $filename->attr('attributes');
+        $t->same('filename', $filenameAttrs['data-docx-field']);
+        $t->same('FILENAME \p \* MERGEFORMAT', $filenameAttrs['data-docx-field-instruction']);
+        $t->same('MERGEFORMAT', $filenameAttrs['data-docx-field-format']);
+        $t->same('true', $filenameAttrs['data-docx-field-path']);
+        $t->same('C:/imports/source-packet.docx', $filename->children[0]->attr('text'));
+
+        $t->same(' by ', $paragraph->children[2]->attr('text'));
+        $author = $paragraph->children[3];
+        $t->same('span', $author->type);
+        $t->same(['docx-field', 'docx-field-author'], $author->attr('classes'));
+        $authorAttrs = $author->attr('attributes');
+        $t->same('author', $authorAttrs['data-docx-field']);
+        $t->same('AUTHOR \* MERGEFORMAT', $authorAttrs['data-docx-field-instruction']);
+        $t->same('MERGEFORMAT', $authorAttrs['data-docx-field-format']);
+        $t->same('Migration Desk', $author->children[0]->attr('text'));
+
+        $t->same(' titled ', $paragraph->children[4]->attr('text'));
+        $title = $paragraph->children[5];
+        $t->same('span', $title->type);
+        $t->same(['docx-field', 'docx-field-title'], $title->attr('classes'));
+        $titleAttrs = $title->attr('attributes');
+        $t->same('title', $titleAttrs['data-docx-field']);
+        $t->same('TITLE', $titleAttrs['data-docx-field-instruction']);
+        $t->true(!isset($titleAttrs['data-docx-field-format']), 'TITLE without a field format should not invent one');
+        $t->same('Migration Review Packet', $title->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[6]->attr('text'));
+
+        $t->contains('Source file [C:/imports/source-packet.docx]{.docx-field .docx-field-filename .docx-field-path data-docx-field="filename" data-docx-field-instruction="FILENAME \\\\p \\\\* MERGEFORMAT" data-docx-field-format="MERGEFORMAT" data-docx-field-path="true"}', $markdown);
+        $t->contains('by [Migration Desk]{.docx-field .docx-field-author data-docx-field="author" data-docx-field-instruction="AUTHOR \\\\* MERGEFORMAT" data-docx-field-format="MERGEFORMAT"}', $markdown);
+        $t->contains('titled [Migration Review Packet]{.docx-field .docx-field-title data-docx-field="title" data-docx-field-instruction="TITLE"}.', $markdown);
+
+        $t->contains('<span class="docx-field docx-field-filename docx-field-path" data-docx-field="filename" data-docx-field-instruction="FILENAME \p \* MERGEFORMAT" data-docx-field-format="MERGEFORMAT" data-docx-field-path="true">C:/imports/source-packet.docx</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-author" data-docx-field="author" data-docx-field-instruction="AUTHOR \* MERGEFORMAT" data-docx-field-format="MERGEFORMAT">Migration Desk</span>', $blocks);
+        $t->contains('<span class="docx-field docx-field-title" data-docx-field="title" data-docx-field-instruction="TITLE">Migration Review Packet</span>', $blocks);
     },
     'preserves DOCX cross-reference field provenance around displayed results' => static function (TestRunner $t) use ($buildFieldMetadataPackage): void {
         $document = (new DocxReader())->readDocument($buildFieldMetadataPackage());
