@@ -108,7 +108,8 @@ final class OpcRelationshipGraph
 
     public static function fromPackage(ZipPackage $package): self
     {
-        if (!$package->has('[Content_Types].xml')) {
+        $contentTypesItemName = self::contentTypesItemNameInPackage($package);
+        if ($contentTypesItemName === null) {
             throw new \RuntimeException('OPC package is missing [Content_Types].xml');
         }
 
@@ -123,7 +124,7 @@ final class OpcRelationshipGraph
             );
         }
 
-        $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $contentTypes = OpcContentTypes::fromXml($package->read($contentTypesItemName));
         $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
         $relationshipsBySource = [];
 
@@ -173,7 +174,8 @@ final class OpcRelationshipGraph
      */
     public static function preflightContentTypesInPackage(ZipPackage $package): array
     {
-        if (!$package->has('[Content_Types].xml')) {
+        $contentTypesItemName = self::contentTypesItemNameInPackage($package);
+        if ($contentTypesItemName === null) {
             return [
                 'partName' => '/[Content_Types].xml',
                 'present' => false,
@@ -196,9 +198,9 @@ final class OpcRelationshipGraph
         }
 
         return [
-            'partName' => '/[Content_Types].xml',
+            'partName' => OpcPackagePath::canonicalPartName($contentTypesItemName),
             'present' => true,
-            ...OpcContentTypes::preflightXml($package->read('[Content_Types].xml')),
+            ...OpcContentTypes::preflightXml($package->read($contentTypesItemName)),
         ];
     }
 
@@ -253,11 +255,12 @@ final class OpcRelationshipGraph
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
-        if (!$package->has('[Content_Types].xml')) {
+        $contentTypesItemName = self::contentTypesItemNameInPackage($package);
+        if ($contentTypesItemName === null) {
             throw new \RuntimeException('OPC package is missing [Content_Types].xml');
         }
 
-        $contentTypes = OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        $contentTypes = OpcContentTypes::fromXml($package->read($contentTypesItemName));
         $packagePartNamesByEquivalenceKey = self::packagePartNamesByEquivalenceKey($package);
         $preflight = [];
         $sourceIndexes = [];
@@ -727,7 +730,7 @@ final class OpcRelationshipGraph
     {
         $preflight = [];
         foreach ($this->package->names() as $name) {
-            if ($name === '[Content_Types].xml' || str_ends_with($name, '/')) {
+            if (str_ends_with($name, '/') || self::isContentTypesItemName($name)) {
                 continue;
             }
 
@@ -5810,6 +5813,25 @@ final class OpcRelationshipGraph
     private static function isContentTypesItemName(string $partName): bool
     {
         return self::partNameEquivalenceKey(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
+    }
+
+    private static function contentTypesItemNameInPackage(ZipPackage $package): ?string
+    {
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            try {
+                if (self::isContentTypesItemName($name)) {
+                    return $name;
+                }
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private static function partNameEquivalenceKey(string $partName): string

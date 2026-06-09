@@ -340,11 +340,12 @@ final class OpcRelationships
 
     private static function contentTypesForPackage(ZipPackage $package): ?OpcContentTypes
     {
-        if (!$package->has('[Content_Types].xml')) {
+        $contentTypesItemName = self::contentTypesItemNameInPackage($package);
+        if ($contentTypesItemName === null) {
             return null;
         }
 
-        return OpcContentTypes::fromXml($package->read('[Content_Types].xml'));
+        return OpcContentTypes::fromXml($package->read($contentTypesItemName));
     }
 
     private static function contentTypeMatches(?string $actual, string $expected): bool
@@ -380,6 +381,25 @@ final class OpcRelationships
     private static function isContentTypesItemName(string $partName): bool
     {
         return strtolower(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
+    }
+
+    private static function contentTypesItemNameInPackage(ZipPackage $package): ?string
+    {
+        foreach ($package->names() as $name) {
+            if (str_ends_with($name, '/')) {
+                continue;
+            }
+
+            try {
+                if (self::isContentTypesItemName($name)) {
+                    return $name;
+                }
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+        }
+
+        return null;
     }
 
     private static function assertRelationshipPartNameRawSegments(string $relationshipPartName): void

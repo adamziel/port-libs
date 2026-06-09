@@ -359,6 +359,23 @@ final class EpubPackage
     /**
      * @return array<string, mixed>
      */
+    public function validationReport(): array
+    {
+        return self::packageValidationReport(
+            $this->package,
+            $this->rootfiles,
+            $this->opfPartName,
+            $this->metadata,
+            $this->manifestItems,
+            $this->spine,
+            $this->navigation,
+            $this->navigationSections,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function summary(): array
     {
         $assetSummary = $this->assetSummary();
@@ -371,6 +388,7 @@ final class EpubPackage
         $mediaOverlayDiagnostics = self::mediaOverlayDiagnostics($this->mediaOverlays);
         $manifestFallbacks = $this->manifestFallbacks();
         $resourceProperties = $this->resourceProperties();
+        $validationReport = $this->validationReport();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -395,6 +413,7 @@ final class EpubPackage
             'navigationSections' => $this->navigationSections,
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
+            'validation' => $validationReport,
             'wordpressImport' => [
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
@@ -465,12 +484,349 @@ final class EpubPackage
                 'resourcePropertySummary' => $resourceProperties['summary'],
                 'resourcePropertyReviewItems' => $resourceProperties['reviewItems'],
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
+                'packageValidation' => $validationReport,
+                'packageValidationDiagnostics' => $validationReport['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
                 'stylesheetParts' => $assetSummary['stylesheetParts'],
                 'imageParts' => $assetSummary['imageParts'],
             ],
+        ];
+    }
+
+    /**
+     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $manifestItems
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed>|null $navigation
+     * @param list<array<string, mixed>> $navigationSections
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageValidationReport(
+        ZipPackage $package,
+        array $rootfiles,
+        string $opfPartName,
+        array $metadata,
+        array $manifestItems,
+        array $spine,
+        ?array $navigation,
+        array $navigationSections
+    ): array {
+        $version = (string) ($metadata['version'] ?? '');
+        $epub3 = preg_match('/^3(?:\.|$)/', trim($version)) === 1;
+        $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
+        $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
+        $spineReport = self::packageSpineValidationReport($spine);
+        $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
+        $diagnostics = array_merge(
+            $metadataReport['diagnostics'],
+            $manifestReport['diagnostics'],
+            $spineReport['diagnostics'],
+            $navigationReport['diagnostics'],
+        );
+
+        return [
+            'valid' => $diagnostics === [],
+            'packageVersion' => $version,
+            'epub3' => $epub3,
+            'opfPart' => $opfPartName,
+            'rootfileCount' => count($rootfiles),
+            'alternateRootfileCount' => max(0, count($rootfiles) - 1),
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'metadata' => $metadataReport,
+            'manifest' => $manifestReport,
+            'spine' => $spineReport,
+            'navigation' => $navigationReport,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageMetadataValidationReport(array $metadata, bool $epub3): array
+    {
+        $titlePresent = trim((string) ($metadata['title'] ?? '')) !== '';
+        $identifierPresent = trim((string) ($metadata['identifier'] ?? '')) !== ''
+            || (is_array($metadata['identifiers'] ?? null) && $metadata['identifiers'] !== []);
+        $languagePresent = trim((string) ($metadata['language'] ?? '')) !== '';
+        $modifiedPresent = trim((string) ($metadata['modified'] ?? '')) !== '';
+        $diagnostics = [];
+
+        if (!$titlePresent) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-metadata-title',
+                'message' => 'EPUB OPF metadata should include a dc:title for import review',
+            ];
+        }
+
+        if (!$identifierPresent) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-metadata-identifier',
+                'message' => 'EPUB OPF metadata should include a dc:identifier for source provenance',
+            ];
+        }
+
+        if (!$languagePresent) {
+            $diagnostics[] = [
+                'type' => 'missing-epub-metadata-language',
+                'message' => 'EPUB OPF metadata should include a dc:language for review handoff',
+            ];
+        }
+
+        if ($epub3 && !$modifiedPresent) {
+            $diagnostics[] = [
+                'type' => 'missing-epub3-modified-metadata',
+                'message' => 'EPUB 3 package metadata should include dcterms:modified',
+            ];
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'titlePresent' => $titlePresent,
+            'identifierPresent' => $identifierPresent,
+            'languagePresent' => $languagePresent,
+            'modifiedPresent' => $modifiedPresent,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageManifestValidationReport(array $manifestItems, bool $epub3): array
+    {
+        $navItems = [];
+        $usableNavItems = [];
+        $invalidNavItems = [];
+        $parts = [];
+        $diagnostics = [];
+
+        foreach ($manifestItems as $item) {
+            $id = (string) ($item['id'] ?? '');
+            $partName = (string) ($item['partName'] ?? '');
+            $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            if ($partName !== '') {
+                $parts[$partName][] = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'mediaType' => $mediaType,
+                ];
+            }
+
+            if (!in_array('nav', $properties, true)) {
+                continue;
+            }
+
+            $navItem = [
+                'id' => $id,
+                'href' => (string) ($item['href'] ?? ''),
+                'partName' => $partName,
+                'mediaType' => $mediaType,
+            ];
+            $navItems[] = $navItem;
+            if ($mediaType === self::XHTML_MEDIA_TYPE) {
+                $usableNavItems[] = $navItem;
+                continue;
+            }
+
+            $invalidNavItems[] = $navItem;
+            $diagnostics[] = [
+                'type' => 'nav-property-non-xhtml-manifest-item',
+                'id' => $id,
+                'partName' => $partName,
+                'mediaType' => $mediaType,
+                'message' => 'EPUB nav manifest property should be attached to an XHTML navigation document',
+            ];
+        }
+
+        if ($epub3 && $usableNavItems === []) {
+            $diagnostics[] = [
+                'type' => 'missing-epub3-nav-document',
+                'message' => 'EPUB 3 packages should declare an XHTML navigation document with the nav manifest property',
+            ];
+        }
+
+        if (count($usableNavItems) > 1) {
+            $diagnostics[] = [
+                'type' => 'multiple-epub3-nav-documents',
+                'ids' => array_column($usableNavItems, 'id'),
+                'message' => 'EPUB package declares multiple XHTML nav manifest items; the first one is used for compact preflight',
+            ];
+        }
+
+        $duplicatePartItems = [];
+        foreach ($parts as $partName => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'partName' => $partName,
+                'ids' => array_column($items, 'id'),
+                'hrefs' => array_column($items, 'href'),
+                'mediaTypes' => array_values(array_unique(array_column($items, 'mediaType'))),
+            ];
+            $duplicatePartItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-manifest-part-target',
+                'partName' => $partName,
+                'ids' => $duplicate['ids'],
+                'message' => 'EPUB OPF manifest maps multiple item ids to the same package part',
+            ];
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'itemCount' => count($manifestItems),
+            'navItemCount' => count($navItems),
+            'usableNavItemCount' => count($usableNavItems),
+            'invalidNavItemCount' => count($invalidNavItems),
+            'duplicatePartCount' => count($duplicatePartItems),
+            'navItems' => $navItems,
+            'usableNavItems' => $usableNavItems,
+            'invalidNavItems' => $invalidNavItems,
+            'duplicatePartItems' => $duplicatePartItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageSpineValidationReport(array $spine): array
+    {
+        $linearCount = 0;
+        $nonLinearCount = 0;
+        $nonContentDocumentItems = [];
+        $diagnostics = [];
+
+        foreach ($spine as $index => $item) {
+            if (($item['linear'] ?? true) === false) {
+                ++$nonLinearCount;
+            } else {
+                ++$linearCount;
+            }
+
+            $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            if (in_array($mediaType, [self::XHTML_MEDIA_TYPE, 'image/svg+xml'], true)) {
+                continue;
+            }
+
+            $diagnosticItem = [
+                'index' => $index,
+                'idref' => (string) ($item['idref'] ?? ''),
+                'partName' => (string) ($item['partName'] ?? ''),
+                'mediaType' => $mediaType,
+            ];
+            $nonContentDocumentItems[] = $diagnosticItem;
+            $diagnostics[] = [
+                'type' => 'non-content-document-spine-item',
+                'index' => $index,
+                'idref' => $diagnosticItem['idref'],
+                'partName' => $diagnosticItem['partName'],
+                'mediaType' => $mediaType,
+                'message' => 'EPUB spine item does not point to a compact preflight content-document media type',
+            ];
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'itemCount' => count($spine),
+            'linearCount' => $linearCount,
+            'nonLinearCount' => $nonLinearCount,
+            'nonContentDocumentCount' => count($nonContentDocumentItems),
+            'nonContentDocumentItems' => $nonContentDocumentItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $navigation
+     * @param list<array<string, mixed>> $navigationSections
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageNavigationValidationReport(ZipPackage $package, ?array $navigation, array $navigationSections): array
+    {
+        $source = is_array($navigation) && is_string($navigation['type'] ?? null) ? $navigation['type'] : null;
+        $sections = $navigationSections;
+        if ($sections === [] && is_array($navigation) && is_array($navigation['entries'] ?? null)) {
+            $sections = [[
+                'type' => $source,
+                'types' => $source === null ? [] : [$source],
+                'entries' => $navigation['entries'],
+            ]];
+        }
+
+        $entryCount = 0;
+        $localTargetCount = 0;
+        $missingTargetCount = 0;
+        $externalTargetCount = 0;
+        $diagnostics = [];
+
+        foreach ($sections as $sectionIndex => $section) {
+            $entries = is_array($section['entries'] ?? null) ? array_values($section['entries']) : [];
+            foreach ($entries as $entryIndex => $entry) {
+                ++$entryCount;
+                $target = is_string($entry['target'] ?? null) ? $entry['target'] : null;
+                if ($target === null || $target === '') {
+                    continue;
+                }
+
+                if (self::isAbsoluteUri($target)) {
+                    ++$externalTargetCount;
+                    $diagnostics[] = [
+                        'type' => 'external-navigation-target',
+                        'sectionIndex' => $sectionIndex,
+                        'entryIndex' => $entryIndex,
+                        'label' => is_string($entry['label'] ?? null) ? $entry['label'] : '',
+                        'target' => $target,
+                        'message' => 'EPUB navigation target points outside the package and was not fetched',
+                    ];
+                    continue;
+                }
+
+                ++$localTargetCount;
+                $partName = OpcPackagePath::stripQueryAndFragment($target);
+                if (!$package->has($partName)) {
+                    ++$missingTargetCount;
+                    $diagnostics[] = [
+                        'type' => 'missing-navigation-target',
+                        'sectionIndex' => $sectionIndex,
+                        'entryIndex' => $entryIndex,
+                        'label' => is_string($entry['label'] ?? null) ? $entry['label'] : '',
+                        'target' => $target,
+                        'partName' => $partName,
+                        'message' => 'EPUB navigation target is not present in the package',
+                    ];
+                }
+            }
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'source' => $source,
+            'sectionCount' => count($sections),
+            'entryCount' => $entryCount,
+            'localTargetCount' => $localTargetCount,
+            'missingTargetCount' => $missingTargetCount,
+            'externalTargetCount' => $externalTargetCount,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

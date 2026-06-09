@@ -1231,6 +1231,78 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'loads case-equivalent OPC content types item for relationship filtering' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].XML', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+        ]);
+
+        $contentTypes = OpcRelationshipGraph::preflightContentTypesInPackage($package);
+        $t->same('/[Content_Types].XML', $contentTypes['partName']);
+        $t->same(true, $contentTypes['present']);
+        $t->same(true, $contentTypes['valid']);
+
+        $loads = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $loads[$part['partName']] = $part;
+        }
+
+        $t->same(true, $loads['/_rels/.rels']['loaded']);
+        $t->same(true, $loads['/word/_rels/document.xml.rels']['loaded']);
+        $t->same(false, $loads['/word/_rels/comments.xml.rels']['loaded']);
+        $t->same('application/xml', $loads['/word/_rels/comments.xml.rels']['contentType']);
+        $t->same(['invalid-relationship-content-type'], $loads['/word/_rels/comments.xml.rels']['issues']);
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+        $t->same(['/', '/word/document.xml'], $graph->sourcePartNames());
+
+        $packageParts = [];
+        foreach ($graph->preflightPackageParts() as $part) {
+            $packageParts[$part['partName']] = $part;
+        }
+
+        $t->true(!isset($packageParts['/[Content_Types].XML']), 'Case-equivalent content types item should not be treated as a package part');
+        $t->same(false, $packageParts['/word/_rels/comments.xml.rels']['relationshipSourceLoaded']);
+        $t->same('skipped', $packageParts['/word/_rels/comments.xml.rels']['relationshipPartLoadAction']);
+        $t->same('invalid-relationship-content-type', $packageParts['/word/_rels/comments.xml.rels']['relationshipPartLoadReason']);
+
+        $t->true(OpcRelationships::packageHasRelationshipsForSource($package, '/word/document.xml'));
+        $t->same(false, OpcRelationships::packageHasRelationshipsForSource($package, '/word/comments.xml'));
+        $t->throws(\RuntimeException::class, static fn (): OpcRelationships => OpcRelationships::fromPackage($package, '/word/comments.xml'));
+    },
     'resolves case-equivalent OPC relationship targets to stored package parts' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

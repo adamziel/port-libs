@@ -165,6 +165,7 @@ if (($argv[1] ?? '') === '--self-test') {
         ['mathml', 'svg', 'remote-resources'],
         ['scripted', 'switch'],
         [true, 5, 8, 0, 0],
+        [true, '3.0', 0, 1, 1, 10, 2, 4, 0],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
@@ -258,6 +259,17 @@ if (($argv[1] ?? '') === '--self-test') {
             $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['propertyTokenCount'] ?? null,
             $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['prefixedPropertyCount'] ?? null,
             $summary['wordpressImport']['resourceProperties']['propertyVocabulary']['diagnosticCount'] ?? null,
+        ],
+        [
+            $summary['wordpressImport']['packageValidation']['valid'] ?? null,
+            $summary['wordpressImport']['packageValidation']['packageVersion'] ?? null,
+            $summary['wordpressImport']['packageValidation']['diagnosticCount'] ?? null,
+            $summary['wordpressImport']['packageValidation']['manifest']['usableNavItemCount'] ?? null,
+            $summary['wordpressImport']['packageValidation']['manifest']['navItemCount'] ?? null,
+            $summary['wordpressImport']['packageValidation']['manifest']['itemCount'] ?? null,
+            $summary['wordpressImport']['packageValidation']['spine']['itemCount'] ?? null,
+            $summary['wordpressImport']['packageValidation']['navigation']['entryCount'] ?? null,
+            count($summary['wordpressImport']['packageValidationDiagnostics'] ?? []),
         ],
     ];
 

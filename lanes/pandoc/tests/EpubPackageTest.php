@@ -1419,6 +1419,139 @@ XML;
         $t->same([], $summary['wordpressImport']['encryptedResourceDiagnostics']);
     },
 
+    'summarizes compact EPUB package validation diagnostics for review handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithReviewDiagnostics = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:diagnostic-review</dc:identifier>
+    <dc:title>Diagnostic EPUB</dc:title>
+  </metadata>
+  <manifest>
+    <item id="nav-css" href="styles/nav.css" media-type="text/css" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter-alias" href="chapter.xhtml#duplicate" media-type="application/xhtml+xml"/>
+    <item id="audio" href="audio/chapter.mp3" media-type="audio/mpeg"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+    <itemref idref="audio" linear="no"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithReviewDiagnostics],
+            ['name' => 'EPUB/styles/nav.css', 'data' => 'nav { display: block; }'],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Diagnostic</body></html>'],
+            ['name' => 'EPUB/audio/chapter.mp3', 'data' => 'MP3'],
+        ]));
+
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same('3.0', $validation['packageVersion']);
+        $t->same(true, $validation['epub3']);
+        $t->same(6, $validation['diagnosticCount']);
+        $t->same([
+            'missing-epub-metadata-language',
+            'missing-epub3-modified-metadata',
+            'nav-property-non-xhtml-manifest-item',
+            'missing-epub3-nav-document',
+            'duplicate-manifest-part-target',
+            'non-content-document-spine-item',
+        ], array_column($validation['diagnostics'], 'type'));
+
+        $t->same(false, $validation['metadata']['valid']);
+        $t->same(true, $validation['metadata']['titlePresent']);
+        $t->same(true, $validation['metadata']['identifierPresent']);
+        $t->same(false, $validation['metadata']['languagePresent']);
+        $t->same(false, $validation['metadata']['modifiedPresent']);
+        $t->same(['missing-epub-metadata-language', 'missing-epub3-modified-metadata'], array_column($validation['metadata']['diagnostics'], 'type'));
+
+        $t->same(false, $validation['manifest']['valid']);
+        $t->same(4, $validation['manifest']['itemCount']);
+        $t->same(1, $validation['manifest']['navItemCount']);
+        $t->same(0, $validation['manifest']['usableNavItemCount']);
+        $t->same(['nav-css'], array_column($validation['manifest']['navItems'], 'id'));
+        $t->same(['nav-css'], array_column($validation['manifest']['invalidNavItems'], 'id'));
+        $t->same(1, $validation['manifest']['duplicatePartCount']);
+        $t->same('/EPUB/chapter.xhtml', $validation['manifest']['duplicatePartItems'][0]['partName']);
+        $t->same(['chapter', 'chapter-alias'], $validation['manifest']['duplicatePartItems'][0]['ids']);
+
+        $t->same(false, $validation['spine']['valid']);
+        $t->same(2, $validation['spine']['itemCount']);
+        $t->same(1, $validation['spine']['linearCount']);
+        $t->same(1, $validation['spine']['nonLinearCount']);
+        $t->same(1, $validation['spine']['nonContentDocumentCount']);
+        $t->same('audio', $validation['spine']['nonContentDocumentItems'][0]['idref']);
+
+        $t->same(true, $validation['navigation']['valid']);
+        $t->same(null, $validation['navigation']['source']);
+        $t->same(0, $validation['navigation']['entryCount']);
+        $t->same([], $validation['navigation']['diagnostics']);
+
+        $opfWithNavTargetDiagnostics = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:nav-diagnostic-review</dc:identifier>
+    <dc:title>Navigation diagnostics</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-09T12:04:26Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="nav-alt" href="nav-alt.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+        $navWithMissingAndRemoteTargets = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="chapter.xhtml">Start</a></li>
+        <li><a href="missing.xhtml">Missing appendix</a></li>
+        <li><a href="https://example.invalid/remote.xhtml">Remote appendix</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epubWithNavDiagnostics = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNavTargetDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithMissingAndRemoteTargets],
+            ['name' => 'EPUB/nav-alt.xhtml', 'data' => $navWithMissingAndRemoteTargets],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Start</body></html>'],
+        ]));
+        $navValidation = $epubWithNavDiagnostics->validationReport();
+
+        $t->same(false, $navValidation['valid']);
+        $t->same(3, $navValidation['diagnosticCount']);
+        $t->same(['multiple-epub3-nav-documents', 'missing-navigation-target', 'external-navigation-target'], array_column($navValidation['diagnostics'], 'type'));
+        $t->same(2, $navValidation['manifest']['usableNavItemCount']);
+        $t->same(['nav', 'nav-alt'], array_column($navValidation['manifest']['usableNavItems'], 'id'));
+        $t->same('nav', $navValidation['navigation']['source']);
+        $t->same(3, $navValidation['navigation']['entryCount']);
+        $t->same(1, $navValidation['navigation']['missingTargetCount']);
+        $t->same(1, $navValidation['navigation']['externalTargetCount']);
+        $t->same('/EPUB/missing.xhtml', $navValidation['navigation']['diagnostics'][0]['partName']);
+        $t->same('https://example.invalid/remote.xhtml', $navValidation['navigation']['diagnostics'][1]['target']);
+
+        $t->same($validation, $summary['validation']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
