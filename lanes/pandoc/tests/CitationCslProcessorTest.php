@@ -2375,6 +2375,123 @@ XML);
         $t->contains('<p>Review cites de la Cruz (2020/2021) and (Import Review Rule 2024/2025) for source date range audit.</p>', $blocks);
         $t->contains('<dt>de la Cruz 2020/2021</dt><dd>de la Cruz, Ana Maria. Migration Release Window. Review Press, 2020/2021. Original work published 2018/2019. https://example.test/range-manual. Accessed 2026-06-04/2026-06-05.</dd>', $blocks);
     },
+    'maps bounded biblatex split end date fields into csl date ranges' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{split-date-packet,
+  author            = {Roe, Pat},
+  title             = {Split Date Packet},
+  year              = {2020},
+  month             = {may},
+  day               = {9},
+  endyear           = {2021},
+  endmonth          = {jun},
+  endday            = {11},
+  origyear          = {2018},
+  origendyear       = {2019},
+  url               = {https://example.test/split-date},
+  urlyear           = {2026},
+  urlmonth          = {6},
+  urlday            = {1},
+  urlendyear        = {2026},
+  urlendmonth       = {6},
+  urlendday         = {2},
+  availableyear     = {2025},
+  availablemonth    = {4},
+  availableday      = {3},
+  availableendyear  = {2025},
+  availableendmonth = {4},
+  availableendday   = {5},
+  submittedyear     = {2024},
+  submittedmonth    = {3},
+  submittedendyear  = {2024},
+  submittedendmonth = {4}
+}
+
+@proceedings{split-event-proceedings,
+  editor        = {{Event Review Desk}},
+  title         = {Split Event Proceedings},
+  eventtitle    = {Migration Review Clinic},
+  eventyear     = {2026},
+  eventmonth    = {6},
+  eventday      = {4},
+  eventendyear  = {2026},
+  eventendmonth = {6},
+  eventendday   = {5},
+  date          = {2026},
+  publisher     = {Review Press}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(['date-parts' => [[2020, 5, 9], [2021, 6, 11]]], $items[0]['issued']);
+        $t->same(['date-parts' => [[2018], [2019]]], $items[0]['original-date']);
+        $t->same(['date-parts' => [[2026, 6, 1], [2026, 6, 2]]], $items[0]['accessed']);
+        $t->same(['date-parts' => [[2025, 4, 3], [2025, 4, 5]]], $items[0]['available-date']);
+        $t->same(['date-parts' => [[2024, 3], [2024, 4]]], $items[0]['submitted']);
+        $t->same(['date-parts' => [[2026, 6, 4], [2026, 6, 5]]], $items[1]['event-date']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $packet = $processor->item('split-date-packet');
+        $event = $processor->item('split-event-proceedings');
+        $t->same([[2020, 5, 9], [2021, 6, 11]], $packet['issuedDate']['rangeParts'] ?? null);
+        $t->same('2020-05-09/2021-06-11', $packet['issuedDate']['display'] ?? null);
+        $t->same('2018/2019', $packet['originalDate']['display'] ?? null);
+        $t->same('2026-06-01/2026-06-02', $packet['accessedDate']['display'] ?? null);
+        $t->same('2025-04-03/2025-04-05', $packet['availableDate']['display'] ?? null);
+        $t->same('2024-03/2024-04', $packet['submittedDate']['display'] ?? null);
+        $t->same('2026-06-04/2026-06-05', $event['eventDate']['display'] ?? null);
+        $t->same('(Roe 2020/2021; Event Review Desk 2026)', $processor->renderCitationCluster([
+            $citation('split-date-packet', '[@split-date-packet]'),
+            $citation('split-event-proceedings', '[@split-event-proceedings]'),
+        ]));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Split End Date Review</title>
+    <id>https://example.test/styles/bounded-biblatex-split-end-date-review</id>
+    <updated>2026-06-09T05:27:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="issued"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="event-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"/>
+      <date variable="original-date"/>
+      <date variable="accessed"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="event-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Split End Date Review', $summary['title'] ?? null);
+        $t->same('[Split Date Packet | 2020-05-09/2021-06-11 | 2025-04-03/2025-04-05 | 2024-03/2024-04; Split Event Proceedings | 2026 | 2026-06-04/2026-06-05]', $styled->renderCitationCluster([
+            $citation('split-date-packet', '[@split-date-packet]'),
+            $citation('split-event-proceedings', '[@split-event-proceedings]'),
+        ]));
+        $t->same('Split Date Packet :: 2020-05-09/2021-06-11 :: 2018/2019 :: 2026-06-01/2026-06-02 :: 2025-04-03/2025-04-05 :: 2024-03/2024-04', $styled->renderBibliographyEntry('split-date-packet'));
+        $t->same('Split Event Proceedings :: 2026 :: 2026-06-04/2026-06-05', $styled->renderBibliographyEntry('split-event-proceedings'));
+
+        $document = (new MarkdownReader())->read('Split date fields [@split-date-packet; @split-event-proceedings] keep review windows visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Split date fields [Split Date Packet | 2020-05-09/2021-06-11 | 2025-04-03/2025-04-05 | 2024-03/2024-04; Split Event Proceedings | 2026 | 2026-06-04/2026-06-05] keep review windows visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2020/2021</dt><dd>Split Date Packet :: 2020-05-09/2021-06-11 :: 2018/2019 :: 2026-06-01/2026-06-02 :: 2025-04-03/2025-04-05 :: 2024-03/2024-04</dd>', $blocks);
+    },
     'maps bounded biblatex season dates into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{seasonal-source,

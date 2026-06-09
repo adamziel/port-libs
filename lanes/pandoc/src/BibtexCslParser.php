@@ -1063,7 +1063,7 @@ final class BibtexCslParser
             'endminute' => 'endminute',
             'endsecond' => 'endsecond',
             'endtimezone' => 'endtimezone',
-        ]);
+        ], ['endyear', 'endmonth', 'endday']);
         if ($issued !== null) {
             $item['issued'] = $issued;
         }
@@ -1077,7 +1077,7 @@ final class BibtexCslParser
             'endminute' => 'origendminute',
             'endsecond' => 'origendsecond',
             'endtimezone' => 'origendtimezone',
-        ]);
+        ], ['origendyear', 'origendmonth', 'origendday']);
         if ($originalDate !== null) {
             $item['original-date'] = $originalDate;
         }
@@ -1091,7 +1091,7 @@ final class BibtexCslParser
             'endminute' => 'eventendminute',
             'endsecond' => 'eventendsecond',
             'endtimezone' => 'eventendtimezone',
-        ]);
+        ], ['eventendyear', 'eventendmonth', 'eventendday']);
         if ($eventDate !== null) {
             $item['event-date'] = $eventDate;
         }
@@ -1105,7 +1105,7 @@ final class BibtexCslParser
             'endminute' => 'availableendminute',
             'endsecond' => 'availableendsecond',
             'endtimezone' => 'availableendtimezone',
-        ]);
+        ], ['availableendyear', 'availableendmonth', 'availableendday']);
         if ($availableDate !== null) {
             $item['available-date'] = $availableDate;
         }
@@ -1119,7 +1119,7 @@ final class BibtexCslParser
             'endminute' => 'submittedendminute',
             'endsecond' => 'submittedendsecond',
             'endtimezone' => 'submittedendtimezone',
-        ]);
+        ], ['submittedendyear', 'submittedendmonth', 'submittedendday']);
         if ($submittedDate !== null) {
             $item['submitted'] = $submittedDate;
         }
@@ -1133,7 +1133,7 @@ final class BibtexCslParser
             'endminute' => 'urlendminute',
             'endsecond' => 'urlendsecond',
             'endtimezone' => 'urlendtimezone',
-        ]);
+        ], ['urlendyear', 'urlendmonth', 'urlendday']);
         if ($accessed !== null) {
             $item['accessed'] = $accessed;
         }
@@ -2378,9 +2378,10 @@ final class BibtexCslParser
      * @param list<string> $dateFields
      * @param list<string> $partFields
      * @param array<string, string> $timeFields
+     * @param list<string> $endPartFields
      * @return array<string, mixed>|null
      */
-    private static function dateFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = []): ?array
+    private static function dateFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = [], array $endPartFields = []): ?array
     {
         foreach ($dateFields as $field) {
             if (isset($fields[$field]) && trim($fields[$field]) !== '') {
@@ -2393,13 +2394,52 @@ final class BibtexCslParser
             }
         }
 
+        $hasEndPartField = $endPartFields !== [] && self::hasAnyField($fields, $endPartFields);
         if ($partFields === [] || !isset($fields[$partFields[0]]) || trim($fields[$partFields[0]]) === '') {
+            if ($hasEndPartField) {
+                throw new \InvalidArgumentException('BibTeX end date fields require ' . ($partFields[0] ?? 'year') . ' to be present');
+            }
+
             return null;
         }
 
         $year = self::cleanBibtexText($fields[$partFields[0]]);
         if (!preg_match('/^-?\d+$/', $year)) {
+            if ($hasEndPartField) {
+                throw new \InvalidArgumentException('BibTeX split date range fields require a numeric ' . $partFields[0] . ' field');
+            }
+
             return self::dateWithTimeParts(['literal' => $year], $fields, $timeFields, $partFields[0]);
+        }
+
+        $dateParts = [self::datePartListFromSplitFields($fields, $partFields, true)];
+        if ($hasEndPartField) {
+            $endParts = self::datePartListFromSplitFields($fields, $endPartFields, false);
+            if ($endParts === null) {
+                throw new \InvalidArgumentException('BibTeX split date range fields require ' . ($endPartFields[0] ?? 'endyear') . ' to be present');
+            }
+
+            $dateParts[] = $endParts;
+        }
+
+        return self::dateWithTimeParts(['date-parts' => $dateParts], $fields, $timeFields, $partFields[0]);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $partFields
+     * @return list<int>|null
+     */
+    private static function datePartListFromSplitFields(array $fields, array $partFields, bool $required): ?array
+    {
+        $yearField = $partFields[0] ?? null;
+        if ($yearField === null || !isset($fields[$yearField]) || trim($fields[$yearField]) === '') {
+            return $required ? [] : null;
+        }
+
+        $year = self::cleanBibtexText($fields[$yearField]);
+        if (!preg_match('/^-?\d+$/', $year)) {
+            throw new \InvalidArgumentException('BibTeX ' . $yearField . ' field must be numeric');
         }
 
         $parts = [(int) $year];
@@ -2410,13 +2450,13 @@ final class BibtexCslParser
         if (isset($partFields[2], $fields[$partFields[2]]) && trim($fields[$partFields[2]]) !== '') {
             $day = self::cleanBibtexText($fields[$partFields[2]]);
             if (!preg_match('/^\d+$/', $day)) {
-                throw new \InvalidArgumentException('BibTeX day field must be numeric');
+                throw new \InvalidArgumentException('BibTeX ' . $partFields[2] . ' field must be numeric');
             }
 
             $parts[] = (int) $day;
         }
 
-        return self::dateWithTimeParts(['date-parts' => [$parts]], $fields, $timeFields, $partFields[0]);
+        return $parts;
     }
 
     /**
