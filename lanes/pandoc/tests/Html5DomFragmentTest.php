@@ -2487,6 +2487,61 @@ return [
             $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata/value attribute: ' . $sourceAttribute);
         }
     },
+    'preserves meta itemprop scalar values in microdata summaries before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Article">'
+            . '<meta itemprop="dateModified schema:dateModified" content=" 2026-06-09T17:30:00Z ">'
+            . '<meta itemprop="bad<tag" content="lost scalar">'
+            . '<meta itemprop="empty" content="   ">'
+            . '<h1 itemprop="headline">Review title</h1>'
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-meta-value-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $microdataValueDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-value-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article" data-pandoc-microdata-properties="dateModified schema:dateModified headline" data-pandoc-microdata-property-count="3" data-pandoc-microdata-value-count="3">'
+            . '<span data-pandoc-microdata-property="dateModified schema:dateModified" data-pandoc-microdata-value="2026-06-09T17:30:00Z" data-pandoc-microdata-source="meta">Microdata dateModified schema:dateModified: 2026-06-09T17:30:00Z</span>'
+            . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Review title">Review title</h1></article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Microdata dateModified schema:dateModified: 2026-06-09T17:30:00ZReview title', $fragment->textContent());
+        $t->same(['article', 'h1', 'span'], $summary['elementNames']);
+        $t->same(['meta'], $summary['blockedTags']);
+        $t->same(['content', 'itemprop'], $summary['filteredAttributes']);
+        $t->same(2, count($microdataValueDiagnostics));
+        $t->same('meta', $microdataValueDiagnostics[0]['tag']);
+        $t->same('content', $microdataValueDiagnostics[0]['attribute']);
+        $t->same('data-pandoc-microdata-value', $microdataValueDiagnostics[0]['metadataAttribute']);
+        $t->same('h1', $microdataValueDiagnostics[1]['tag']);
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Article',
+            'data-pandoc-microdata-properties' => 'dateModified schema:dateModified headline',
+            'data-pandoc-microdata-property-count' => '3',
+            'data-pandoc-microdata-value-count' => '3',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-microdata-property' => 'dateModified schema:dateModified',
+            'data-pandoc-microdata-value' => '2026-06-09T17:30:00Z',
+            'data-pandoc-microdata-source' => 'meta',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same('/migration/microdata-meta-value-review.html', $document->children[0]->attr('part'));
+        foreach (['<meta', ' itemprop=', ' content=', 'bad&lt;tag', 'lost scalar'] as $sourceContent) {
+            $t->true(!str_contains($html, $sourceContent), 'Expected source meta microdata content to be replaced: ' . $sourceContent);
+            $t->true(!str_contains($blocks, $sourceContent), 'Expected WordPress blocks to omit source meta microdata content: ' . $sourceContent);
+        }
+    },
     'summarizes scoped microdata properties without crossing nested item boundaries' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article itemscope itemtype="https://schema.org/Event">'

@@ -4754,6 +4754,11 @@ final class Html5DomFragment
             'tag' => 'meta',
         ], $element);
 
+        $microdataMetadata = self::htmlMetaMicrodataMetadataNode($element, $diagnostics);
+        if ($microdataMetadata !== null) {
+            return [$microdataMetadata];
+        }
+
         $target = self::htmlMetaRefreshTarget($element);
         if ($target === null) {
             $charsetMetadata = self::htmlMetaCharsetMetadata($element);
@@ -4926,6 +4931,64 @@ final class Html5DomFragment
                 ],
             ],
         ], $element)];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlMetaMicrodataMetadataNode(\DOMElement $element, array &$diagnostics): ?array
+    {
+        if (!$element->hasAttribute('itemprop')) {
+            return null;
+        }
+
+        $properties = self::normalizeHtmlSemanticTermTokenList(
+            $element->getAttribute('itemprop'),
+            'meta',
+            'itemprop',
+            $element,
+            $diagnostics
+        );
+        if ($properties === null) {
+            return null;
+        }
+
+        $content = $element->hasAttribute('content')
+            ? self::normalizeHtmlMicrodataItemValue($element->getAttribute('content'))
+            : null;
+        if ($content === null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'meta',
+                'attribute' => 'content',
+                'reason' => 'invalid-microdata-meta-content',
+            ], $element);
+
+            return null;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'microdata-value-review',
+            'tag' => 'meta',
+            'attribute' => 'content',
+            'metadataAttribute' => 'data-pandoc-microdata-value',
+            'reason' => 'microdata-meta-content-preserved-as-review-metadata',
+        ], $element);
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => [
+                'data-pandoc-microdata-property' => $properties,
+                'data-pandoc-microdata-value' => $content,
+                'data-pandoc-microdata-source' => 'meta',
+            ],
+            'children' => [[
+                'type' => 'text',
+                'text' => 'Microdata ' . $properties . ': ' . $content,
+            ]],
+        ], $element);
     }
 
     private static function htmlMetaRefreshTarget(\DOMElement $element): ?string
