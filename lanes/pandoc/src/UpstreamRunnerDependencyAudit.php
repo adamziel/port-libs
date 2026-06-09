@@ -1711,6 +1711,7 @@ CABAL,
      *   benchmarkEntrySourceClosure:array{expected:array<string, array{entryFile:string, requiredSnippets:array<string, string>}>, present:array<string, array{entryFile:string, matchedSnippets:list<string>}>, missingTargets:list<string>, missingSemantics:array<string, list<string>>},
      *   cabalPlanCommands:array<string, array{program:string, arguments:list<string>, targets:list<string>, component:string, buildDirectory:string, workingDirectory:string, executionPolicy:string, outputCapture:list<string>}>,
      *   cabalPlanWorkspace:array{environmentPolicy:string, workingDirectory:string, environmentVariables:array<string, string>, buildDirectories:array<string, string>, transcriptFiles:array<string, string>, optionalPlanJsonFiles:array<string, string>, preflight:list<string>},
+     *   cabalPlanDescriptorClosure:array{expectedCommands:list<string>, presentCommands:list<string>, missingCommands:list<string>, unexpectedCommands:list<string>, commandPolicyViolations:list<string>, workspacePolicyViolations:list<string>, commandWorkspaceMismatches:list<string>},
      *   readyForNonMutatingCabalPlan:bool,
      *   blockedReasons:list<string>,
      *   nonMutatingPlan:list<string>,
@@ -1762,6 +1763,10 @@ CABAL,
         $runnerArtifactClosure = self::auditRunnerArtifactClosure($root);
         $benchmarkArtifactClosure = self::auditBenchmarkArtifactClosure($root);
         $benchmarkEntrySourceClosure = self::auditBenchmarkEntrySourceClosure($root);
+        $cabalPlanDescriptorClosure = self::auditCabalPlanDescriptorClosure(
+            self::expectedCabalPlanCommands(),
+            self::expectedCabalPlanWorkspace()
+        );
 
         $blockedReasons = [];
         if ($missingFiles !== []) {
@@ -2316,6 +2321,15 @@ CABAL,
         if ($benchmarkEntrySourceClosure['missingSemantics'] !== []) {
             $blockedReasons[] = 'missing benchmark entry point source semantics: ' . self::formatTargetFailures($benchmarkEntrySourceClosure['missingSemantics']);
         }
+        if (
+            $cabalPlanDescriptorClosure['missingCommands'] !== []
+            || $cabalPlanDescriptorClosure['unexpectedCommands'] !== []
+            || $cabalPlanDescriptorClosure['commandPolicyViolations'] !== []
+            || $cabalPlanDescriptorClosure['workspacePolicyViolations'] !== []
+            || $cabalPlanDescriptorClosure['commandWorkspaceMismatches'] !== []
+        ) {
+            $blockedReasons[] = 'invalid Cabal dry-run descriptor workspace: ' . self::formatCabalPlanDescriptorFailures($cabalPlanDescriptorClosure);
+        }
 
         $ready = $blockedReasons === [];
 
@@ -2358,6 +2372,7 @@ CABAL,
             'benchmarkEntrySourceClosure' => $benchmarkEntrySourceClosure,
             'cabalPlanCommands' => self::expectedCabalPlanCommands(),
             'cabalPlanWorkspace' => self::expectedCabalPlanWorkspace(),
+            'cabalPlanDescriptorClosure' => $cabalPlanDescriptorClosure,
             'readyForNonMutatingCabalPlan' => $ready,
             'blockedReasons' => $blockedReasons,
             'nonMutatingPlan' => $ready ? [
@@ -2367,10 +2382,10 @@ CABAL,
                 'record benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches, plus no unexpected benchmark-options or native/system dependency fields, non-empty source/data artifact closure, benchmark source/data artifact hashes, benchmark fixture semantics, and entry-source semantics before any benchmark execution',
                 'capture stable Cabal plan file provenance and any cabal.project.freeze unpinned-plan risk',
                 'prepare exact Cabal dry-run command descriptors for runner-test-dependencies and benchmark-dependencies before any reviewed solver/build command',
-                'prepare a descriptor-only local Cabal dry-run workspace with repo-local environment variable paths, build directories, transcript files, optional plan.json paths, and no live process environment output before any reviewed solver/build command',
+                'prepare a descriptor-only local Cabal dry-run workspace with validated repo-local environment variable paths, build directories, transcript files, optional plan.json paths, matching --builddir arguments, and no live process environment output before any reviewed solver/build command',
                 'only after the plan is reviewed, run a separate bounded runner slice with explicit artifact output paths',
             ] : [],
-            'activationGate' => self::activationGate($missingFiles, $missingTools, $planStabilityClosure, $compilerTestedWithClosure, $packageIdentityClosure, $packageSetupClosure, $packageFlagDefinitionClosure, $packageDataFileClosure, $packageExtraFileClosure, $packageNativeSystemFieldClosure, $packageSourceRepositoryClosure, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $projectUnconditionalFieldClosure, $projectConditionalBranchClosure, $runnerDependencyClosure, $benchmarkDependencyClosure, $luaEngineLibraryClosure, $serverLibraryClosure, $cliExecutableClosure, $runnerEntrySourceClosure, $runnerArtifactClosure, $benchmarkArtifactClosure, $benchmarkEntrySourceClosure),
+            'activationGate' => self::activationGate($missingFiles, $missingTools, $planStabilityClosure, $compilerTestedWithClosure, $packageIdentityClosure, $packageSetupClosure, $packageFlagDefinitionClosure, $packageDataFileClosure, $packageExtraFileClosure, $packageNativeSystemFieldClosure, $packageSourceRepositoryClosure, $projectPins, $projectSourceRepositoryClosure, $projectPackageClosure, $projectConstraintClosure, $projectUnconditionalFieldClosure, $projectConditionalBranchClosure, $runnerDependencyClosure, $benchmarkDependencyClosure, $luaEngineLibraryClosure, $serverLibraryClosure, $cliExecutableClosure, $runnerEntrySourceClosure, $runnerArtifactClosure, $benchmarkArtifactClosure, $benchmarkEntrySourceClosure, $cabalPlanDescriptorClosure),
         ];
     }
 
@@ -2932,6 +2947,145 @@ CABAL,
     public static function expectedCabalPlanWorkspace(): array
     {
         return self::CABAL_PLAN_WORKSPACE;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $commands
+     * @param array<string, mixed> $workspace
+     * @return array{
+     *   expectedCommands:list<string>,
+     *   presentCommands:list<string>,
+     *   missingCommands:list<string>,
+     *   unexpectedCommands:list<string>,
+     *   commandPolicyViolations:list<string>,
+     *   workspacePolicyViolations:list<string>,
+     *   commandWorkspaceMismatches:list<string>
+     * }
+     */
+    public static function auditCabalPlanDescriptorClosure(array $commands, array $workspace): array
+    {
+        $expectedCommands = array_keys(self::CABAL_PLAN_COMMANDS);
+        $presentCommands = array_keys($commands);
+        sort($presentCommands);
+        $missingCommands = array_values(array_diff($expectedCommands, $presentCommands));
+        $unexpectedCommands = array_values(array_diff($presentCommands, $expectedCommands));
+        $commandPolicyViolations = [];
+        $workspacePolicyViolations = [];
+        $commandWorkspaceMismatches = [];
+
+        $workspaceBuildDirectories = isset($workspace['buildDirectories']) && is_array($workspace['buildDirectories'])
+            ? $workspace['buildDirectories']
+            : [];
+
+        foreach ($expectedCommands as $name) {
+            if (!isset($commands[$name]) || !is_array($commands[$name])) {
+                continue;
+            }
+
+            $command = $commands[$name];
+            $arguments = isset($command['arguments']) && is_array($command['arguments'])
+                ? array_values(array_filter($command['arguments'], 'is_string'))
+                : [];
+            $targets = isset($command['targets']) && is_array($command['targets'])
+                ? array_values(array_filter($command['targets'], 'is_string'))
+                : [];
+            $buildDirectory = is_string($command['buildDirectory'] ?? null) ? $command['buildDirectory'] : '';
+            $workspaceBuildDirectory = is_string($workspaceBuildDirectories[$name] ?? null)
+                ? $workspaceBuildDirectories[$name]
+                : '';
+
+            if (($command['program'] ?? null) !== 'cabal') {
+                $commandPolicyViolations[] = $name . ' program must be cabal';
+            }
+            if (($command['executionPolicy'] ?? null) !== 'descriptor-only; do not execute from this isolated PHP lane') {
+                $commandPolicyViolations[] = $name . ' executionPolicy must remain descriptor-only';
+            }
+            foreach (['v2-build', '--offline', '--dry-run', '--only-dependencies'] as $requiredArgument) {
+                if (!in_array($requiredArgument, $arguments, true)) {
+                    $commandPolicyViolations[] = $name . ' missing required dry-run argument ' . $requiredArgument;
+                }
+            }
+            foreach ($targets as $target) {
+                if (!in_array($target, $arguments, true)) {
+                    $commandPolicyViolations[] = $name . ' target not present in arguments: ' . $target;
+                }
+            }
+
+            $buildDirectoryViolation = self::cabalPlanPathPolicyViolation($buildDirectory);
+            if ($buildDirectoryViolation !== null) {
+                $commandPolicyViolations[] = $name . ' buildDirectory ' . $buildDirectoryViolation . ': ' . $buildDirectory;
+            }
+
+            $builddirArguments = [];
+            foreach ($arguments as $argument) {
+                $argumentViolation = self::cabalPlanArgumentPathPolicyViolation($argument);
+                if ($argumentViolation !== null) {
+                    $commandPolicyViolations[] = $name . ' argument ' . $argumentViolation . ': ' . $argument;
+                }
+                if (str_starts_with($argument, '--builddir=')) {
+                    $builddirArguments[] = substr($argument, strlen('--builddir='));
+                }
+            }
+            if ($builddirArguments === []) {
+                $commandPolicyViolations[] = $name . ' missing --builddir argument';
+            }
+
+            if ($workspaceBuildDirectory === '') {
+                $commandWorkspaceMismatches[] = $name . ' missing matching workspace build directory';
+            } elseif ($buildDirectory !== $workspaceBuildDirectory) {
+                $commandWorkspaceMismatches[] = $name . ' command buildDirectory does not match workspace build directory';
+            }
+
+            foreach ($builddirArguments as $builddirArgument) {
+                if ($workspaceBuildDirectory !== '' && $builddirArgument !== $workspaceBuildDirectory) {
+                    $commandWorkspaceMismatches[] = $name . ' --builddir argument does not match workspace build directory';
+                }
+            }
+        }
+
+        $expectedEnvironmentVariables = array_keys(self::CABAL_PLAN_WORKSPACE['environmentVariables']);
+        $presentEnvironmentVariables = isset($workspace['environmentVariables']) && is_array($workspace['environmentVariables'])
+            ? array_keys($workspace['environmentVariables'])
+            : [];
+        sort($presentEnvironmentVariables);
+        foreach (array_diff($expectedEnvironmentVariables, $presentEnvironmentVariables) as $variable) {
+            $workspacePolicyViolations[] = 'missing environment variable path descriptor: ' . $variable;
+        }
+        foreach (array_diff($presentEnvironmentVariables, $expectedEnvironmentVariables) as $variable) {
+            $workspacePolicyViolations[] = 'unexpected environment variable path descriptor: ' . $variable;
+        }
+
+        if (($workspace['environmentPolicy'] ?? null) !== self::CABAL_PLAN_WORKSPACE['environmentPolicy']) {
+            $workspacePolicyViolations[] = 'environmentPolicy must forbid live process environment output';
+        }
+
+        foreach (['environmentVariables', 'buildDirectories', 'transcriptFiles', 'optionalPlanJsonFiles'] as $section) {
+            if (!isset($workspace[$section]) || !is_array($workspace[$section])) {
+                $workspacePolicyViolations[] = 'missing workspace descriptor section: ' . $section;
+                continue;
+            }
+
+            foreach ($workspace[$section] as $name => $path) {
+                if (!is_string($path)) {
+                    $workspacePolicyViolations[] = $section . '.' . (string) $name . ' path must be a string';
+                    continue;
+                }
+                $pathViolation = self::cabalPlanPathPolicyViolation($path);
+                if ($pathViolation !== null) {
+                    $workspacePolicyViolations[] = $section . '.' . (string) $name . ' ' . $pathViolation . ': ' . $path;
+                }
+            }
+        }
+
+        return [
+            'expectedCommands' => $expectedCommands,
+            'presentCommands' => $presentCommands,
+            'missingCommands' => $missingCommands,
+            'unexpectedCommands' => $unexpectedCommands,
+            'commandPolicyViolations' => $commandPolicyViolations,
+            'workspacePolicyViolations' => $workspacePolicyViolations,
+            'commandWorkspaceMismatches' => $commandWorkspaceMismatches,
+        ];
     }
 
     /**
@@ -8107,6 +8261,90 @@ CABAL,
         return implode('; ', $parts);
     }
 
+    private static function cabalPlanArgumentPathPolicyViolation(string $argument): ?string
+    {
+        if (str_starts_with($argument, '--builddir=')) {
+            return self::cabalPlanPathPolicyViolation(substr($argument, strlen('--builddir=')));
+        }
+
+        if (
+            preg_match('#(?:^|=)(?:/|~|[A-Za-z]:[\\\\/])#', $argument) === 1
+            || str_contains($argument, '$HOME')
+            || str_contains($argument, '${HOME}')
+            || str_contains($argument, '%USERPROFILE%')
+        ) {
+            return 'must not contain absolute or home-scoped paths';
+        }
+        if (
+            $argument === 'dist-newstyle'
+            || str_starts_with($argument, 'dist-newstyle/')
+            || str_contains($argument, '/dist-newstyle')
+        ) {
+            return 'must not use Cabal default dist-newstyle paths';
+        }
+
+        return null;
+    }
+
+    private static function cabalPlanPathPolicyViolation(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return 'must not be empty';
+        }
+        if (str_starts_with($path, '/') || preg_match('/^[A-Za-z]:[\\\\\\/]/', $path) === 1) {
+            return 'must be relative, not absolute';
+        }
+        if (
+            str_starts_with($path, '~')
+            || str_contains($path, '$HOME')
+            || str_contains($path, '${HOME}')
+            || str_contains($path, '%USERPROFILE%')
+        ) {
+            return 'must not be home-scoped';
+        }
+        if (
+            $path === 'dist-newstyle'
+            || str_starts_with($path, 'dist-newstyle/')
+            || str_contains($path, '/dist-newstyle')
+        ) {
+            return 'must not use Cabal default dist-newstyle paths';
+        }
+        if (preg_match('~(?:^|/)\.\.(?:/|$)~', $path) === 1) {
+            return 'must not contain parent-directory traversal';
+        }
+        if (!str_starts_with($path, '.port-libs/pandoc-runner/')) {
+            return 'must stay under .port-libs/pandoc-runner';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{missingCommands:list<string>, unexpectedCommands:list<string>, commandPolicyViolations:list<string>, workspacePolicyViolations:list<string>, commandWorkspaceMismatches:list<string>} $closure
+     */
+    private static function formatCabalPlanDescriptorFailures(array $closure): string
+    {
+        $parts = [];
+        if ($closure['missingCommands'] !== []) {
+            $parts[] = 'missing commands (' . implode(', ', $closure['missingCommands']) . ')';
+        }
+        if ($closure['unexpectedCommands'] !== []) {
+            $parts[] = 'unexpected commands (' . implode(', ', $closure['unexpectedCommands']) . ')';
+        }
+        if ($closure['commandPolicyViolations'] !== []) {
+            $parts[] = 'command policy (' . implode(', ', $closure['commandPolicyViolations']) . ')';
+        }
+        if ($closure['workspacePolicyViolations'] !== []) {
+            $parts[] = 'workspace policy (' . implode(', ', $closure['workspacePolicyViolations']) . ')';
+        }
+        if ($closure['commandWorkspaceMismatches'] !== []) {
+            $parts[] = 'command/workspace mismatch (' . implode(', ', $closure['commandWorkspaceMismatches']) . ')';
+        }
+
+        return implode('; ', $parts);
+    }
+
     /**
      * @param list<string> $missingFiles
      * @param list<string> $missingTools
@@ -8133,8 +8371,9 @@ CABAL,
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $runnerArtifactClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>, missingSemantics:array<string, list<string>>} $benchmarkArtifactClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $benchmarkEntrySourceClosure
+     * @param array{expectedCommands:list<string>, presentCommands:list<string>, missingCommands:list<string>, unexpectedCommands:list<string>, commandPolicyViolations:list<string>, workspacePolicyViolations:list<string>, commandWorkspaceMismatches:list<string>} $cabalPlanDescriptorClosure
      */
-    private static function activationGate(array $missingFiles, array $missingTools, array $planStabilityClosure, array $compilerTestedWithClosure, array $packageIdentityClosure, array $packageSetupClosure, array $packageFlagDefinitionClosure, array $packageDataFileClosure, array $packageExtraFileClosure, array $packageNativeSystemFieldClosure, array $packageSourceRepositoryClosure, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $projectUnconditionalFieldClosure, array $projectConditionalBranchClosure, array $runnerDependencyClosure, array $benchmarkDependencyClosure, array $luaEngineLibraryClosure, array $serverLibraryClosure, array $cliExecutableClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure, array $benchmarkArtifactClosure, array $benchmarkEntrySourceClosure): string
+    private static function activationGate(array $missingFiles, array $missingTools, array $planStabilityClosure, array $compilerTestedWithClosure, array $packageIdentityClosure, array $packageSetupClosure, array $packageFlagDefinitionClosure, array $packageDataFileClosure, array $packageExtraFileClosure, array $packageNativeSystemFieldClosure, array $packageSourceRepositoryClosure, array $projectPins, array $projectSourceRepositoryClosure, array $projectPackageClosure, array $projectConstraintClosure, array $projectUnconditionalFieldClosure, array $projectConditionalBranchClosure, array $runnerDependencyClosure, array $benchmarkDependencyClosure, array $luaEngineLibraryClosure, array $serverLibraryClosure, array $cliExecutableClosure, array $runnerEntrySourceClosure, array $runnerArtifactClosure, array $benchmarkArtifactClosure, array $benchmarkEntrySourceClosure, array $cabalPlanDescriptorClosure): string
     {
         $planStabilitySummary = $planStabilityClosure['unpinnedPlanRisk']
             ? 'capture cabal.project.freeze absence or invalidity as an unpinned-plan risk'
@@ -8322,11 +8561,16 @@ CABAL,
             && $benchmarkArtifactClosure['missingSemantics'] === []
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
+            && $cabalPlanDescriptorClosure['missingCommands'] === []
+            && $cabalPlanDescriptorClosure['unexpectedCommands'] === []
+            && $cabalPlanDescriptorClosure['commandPolicyViolations'] === []
+            && $cabalPlanDescriptorClosure['workspacePolicyViolations'] === []
+            && $cabalPlanDescriptorClosure['commandWorkspaceMismatches'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, no unexpected Cabal package flag definitions, exact package-level source-repository head closure, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project package stanza fields, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, no unexpected cabal.project conditional branches, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, ' . $planStabilitySummary . ', non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark fixture semantics, benchmark entry-point source semantics, Git pins, exact Cabal dry-run command descriptors runner-test-dependencies and benchmark-dependencies, and a repo-local dry-run workspace are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, no unexpected Cabal package flag definitions, exact package-level source-repository head closure, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project package stanza fields, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, no unexpected cabal.project conditional branches, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, ' . $planStabilitySummary . ', non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark fixture semantics, benchmark entry-point source semantics, Git pins, exact Cabal dry-run command descriptors runner-test-dependencies and benchmark-dependencies, and a validated repo-local dry-run workspace are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, no unexpected Cabal package flag definitions, exact package-level source-repository head closure, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project package stanza fields, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, no unexpected cabal.project conditional branches, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, stable Cabal plan file provenance or an explicit cabal.project.freeze unpinned-plan risk, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes and fixture semantics, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, ghc, cabal, exact cabal.project Git source-repository pins, exact Cabal dry-run command descriptors runner-test-dependencies and benchmark-dependencies, and a repo-local dry-run workspace before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, package flag definitions plus default/manual values for cabal.project flags, no unexpected Cabal package flag definitions, exact package-level source-repository head closure, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project package stanza fields, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, no unexpected cabal.project conditional branches, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, stable Cabal plan file provenance or an explicit cabal.project.freeze unpinned-plan risk, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes and fixture semantics, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, exact pandoc-cli conditional branch field bodies, non-empty pandoc-cli conditional source artifacts with hashes and enabled/disabled shim source semantics, ghc, cabal, exact cabal.project Git source-repository pins, exact Cabal dry-run command descriptors runner-test-dependencies and benchmark-dependencies, and a validated repo-local dry-run workspace before attempting a runner plan.';
     }
 }

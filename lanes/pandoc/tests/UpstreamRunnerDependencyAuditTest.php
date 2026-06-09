@@ -1167,6 +1167,72 @@ return [
         $t->contains('repo-local dry-run workspace', $audit['activationGate']);
     },
 
+    'records cabal dry-run descriptor closure before any workspace is created' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject()));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $closure = $audit['cabalPlanDescriptorClosure'];
+        $t->same([
+            'runner-test-dependencies',
+            'benchmark-dependencies',
+        ], $closure['expectedCommands']);
+        $t->same([
+            'benchmark-dependencies',
+            'runner-test-dependencies',
+        ], $closure['presentCommands']);
+        $t->same([], $closure['missingCommands']);
+        $t->same([], $closure['unexpectedCommands']);
+        $t->same([], $closure['commandPolicyViolations']);
+        $t->same([], $closure['workspacePolicyViolations']);
+        $t->same([], $closure['commandWorkspaceMismatches']);
+
+        $commands = UpstreamRunnerDependencyAudit::expectedCabalPlanCommands();
+        $workspace = UpstreamRunnerDependencyAudit::expectedCabalPlanWorkspace();
+        unset($commands['benchmark-dependencies']);
+        $commands['runner-test-dependencies']['buildDirectory'] = 'dist-newstyle';
+        $commands['runner-test-dependencies']['arguments'][3] = '--builddir=dist-newstyle';
+        $commands['home-runner'] = $commands['runner-test-dependencies'];
+        $commands['home-runner']['buildDirectory'] = '/home/claude/.cabal/store';
+        $commands['home-runner']['arguments'] = [
+            'v2-build',
+            '--offline',
+            '--dry-run',
+            '--only-dependencies',
+            '--builddir=/home/claude/.cabal/store',
+            'test:test-pandoc',
+        ];
+        $workspace['environmentPolicy'] = 'print process environment';
+        $workspace['environmentVariables']['CABAL_DIR'] = '/home/claude/.cabal';
+        $workspace['environmentVariables']['TMPDIR'] = '../tmp';
+        $workspace['buildDirectories']['runner-test-dependencies'] = '.port-libs/pandoc-runner/cabal-build/other';
+        $workspace['transcriptFiles']['benchmark-dependencies'] = '~/pandoc-runner.log';
+        $workspace['optionalPlanJsonFiles']['benchmark-dependencies'] = 'dist-newstyle/cache/plan.json';
+
+        $drift = UpstreamRunnerDependencyAudit::auditCabalPlanDescriptorClosure($commands, $workspace);
+        $t->same(['benchmark-dependencies'], $drift['missingCommands']);
+        $t->same(['home-runner'], $drift['unexpectedCommands']);
+        $commandPolicy = implode("\n", $drift['commandPolicyViolations']);
+        $workspacePolicy = implode("\n", $drift['workspacePolicyViolations']);
+        $workspaceMismatches = implode("\n", $drift['commandWorkspaceMismatches']);
+        $t->contains('runner-test-dependencies buildDirectory must not use Cabal default dist-newstyle paths: dist-newstyle', $commandPolicy);
+        $t->contains('runner-test-dependencies argument must not use Cabal default dist-newstyle paths: --builddir=dist-newstyle', $commandPolicy);
+        $t->contains('environmentPolicy must forbid live process environment output', $workspacePolicy);
+        $t->contains('environmentVariables.CABAL_DIR must be relative, not absolute: /home/claude/.cabal', $workspacePolicy);
+        $t->contains('environmentVariables.TMPDIR must not contain parent-directory traversal: ../tmp', $workspacePolicy);
+        $t->contains('transcriptFiles.benchmark-dependencies must not be home-scoped: ~/pandoc-runner.log', $workspacePolicy);
+        $t->contains('optionalPlanJsonFiles.benchmark-dependencies must not use Cabal default dist-newstyle paths: dist-newstyle/cache/plan.json', $workspacePolicy);
+        $t->contains('runner-test-dependencies command buildDirectory does not match workspace build directory', $workspaceMismatches);
+        $t->contains('runner-test-dependencies --builddir argument does not match workspace build directory', $workspaceMismatches);
+        $t->contains('validated repo-local environment variable paths', $audit['nonMutatingPlan'][6]);
+    },
+
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $root = $makeTree($files);
