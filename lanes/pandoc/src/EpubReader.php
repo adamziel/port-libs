@@ -576,6 +576,7 @@ final class EpubReader
             $linkedResourcesById,
             is_array($metadata['renditionLayout'] ?? null) ? $metadata['renditionLayout'] : []
         );
+        $manifestById = self::attachNonSpineMissingManifestDiagnostics($manifestById, $spine);
         $metadata['refinementSubjectSummary'] = self::metadataRefinementSubjectSummary(
             $metadata,
             $packageId,
@@ -4326,6 +4327,7 @@ final class EpubReader
         $missingItems = [];
         $externalItems = [];
         $itemsByPart = [];
+        $itemDiagnostics = [];
         foreach ($manifest as $item) {
             if (($item['external'] ?? false) === true) {
                 $externalItems[] = $item;
@@ -4336,6 +4338,20 @@ final class EpubReader
             $part = $item['part'] ?? null;
             if (is_string($part) && $part !== '') {
                 $itemsByPart[$part][] = $item;
+            }
+
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $itemDiagnostics[] = [
+                    'id' => (string) ($item['id'] ?? ''),
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                    'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                    'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                ] + $diagnostic;
             }
         }
 
@@ -4348,12 +4364,15 @@ final class EpubReader
             $duplicateItemCount += $group['itemCount'];
             $diagnostics[] = self::duplicateManifestPackagePartDiagnostic($group);
         }
+        $diagnostics = array_merge($diagnostics, $itemDiagnostics);
 
         return [
             'count' => count($manifest),
             'items' => $manifest,
             'itemsByPart' => $itemsByPart,
+            'missingItemCount' => count($missingItems),
             'missingItems' => $missingItems,
+            'externalItemCount' => count($externalItems),
             'externalItems' => $externalItems,
             'byteProvenance' => self::manifestByteProvenanceReport($manifest),
             'duplicatePackagePartCount' => count($duplicateGroups),
@@ -4363,8 +4382,57 @@ final class EpubReader
                 $duplicateGroups,
             )),
             'duplicatePackagePartItems' => $duplicateGroups,
+            'itemDiagnosticCount' => count($itemDiagnostics),
+            'itemDiagnostics' => $itemDiagnostics,
             'diagnostics' => $diagnostics,
             'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestById
+     * @param list<array<string, mixed>> $spine
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function attachNonSpineMissingManifestDiagnostics(array $manifestById, array $spine): array
+    {
+        $spineIds = [];
+        foreach ($spine as $item) {
+            $idref = $item['idref'] ?? null;
+            if (is_string($idref) && $idref !== '') {
+                $spineIds[$idref] = true;
+            }
+        }
+
+        foreach ($manifestById as $id => $item) {
+            if (isset($spineIds[$id]) || ($item['external'] ?? false) === true || ($item['exists'] ?? false) === true) {
+                continue;
+            }
+
+            $diagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+            $diagnostics[] = self::missingNonSpineManifestResourceDiagnostic($item);
+            $manifestById[$id]['diagnostics'] = $diagnostics;
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function missingNonSpineManifestResourceDiagnostic(array $item): array
+    {
+        return [
+            'type' => 'missing-non-spine-manifest-resource',
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+            'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+            'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+            'message' => 'EPUB OPF manifest item outside the spine references a package part that is missing from the ZIP package',
         ];
     }
 

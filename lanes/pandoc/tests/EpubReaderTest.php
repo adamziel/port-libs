@@ -3320,20 +3320,48 @@ XML;
         );
 
         $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithMissingAudio));
-        $missing = $result['importReport']['manifest']['missingItems'];
+        $manifestReport = $result['importReport']['manifest'];
+        $missing = $manifestReport['missingItems'];
         $assetById = [];
         foreach ($result['assets'] as $asset) {
             $assetById[$asset['id']] = $asset;
         }
 
+        $t->same(1, $manifestReport['missingItemCount']);
         $t->same(1, count($missing));
         $t->same('missing-audio', $missing[0]['id']);
         $t->same('/OEBPS/audio/missing.mp3', $missing[0]['part']);
+        $t->same('missing-non-spine-manifest-resource', $missing[0]['diagnostics'][0]['type']);
+        $t->same('missing-audio', $missing[0]['diagnostics'][0]['id']);
+        $t->same('/OEBPS/audio/missing.mp3', $missing[0]['diagnostics'][0]['part']);
+        $t->same(1, $manifestReport['itemDiagnosticCount']);
+        $t->same('missing-non-spine-manifest-resource', $manifestReport['itemDiagnostics'][0]['type']);
+        $t->same('missing-audio', $manifestReport['itemDiagnostics'][0]['id']);
+        $t->same('/OEBPS/audio/missing.mp3', $manifestReport['itemDiagnostics'][0]['part']);
+        $t->same($manifestReport['itemDiagnostics'][0], $manifestReport['diagnostics'][0]);
         $t->same(false, $assetById['missing-audio']['exists']);
         $t->same(null, $assetById['missing-audio']['byteLength']);
         $t->same(null, $assetById['missing-audio']['crc32']);
+        $t->same('missing-non-spine-manifest-resource', $assetById['missing-audio']['diagnostics'][0]['type']);
         $t->same(2, count($result['document']->children));
         $t->contains('Review appendix', $result['document']->children[1]->attr('html'));
+    },
+    'rejects missing spine package resources before manifest review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithMissingSpineContent = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/missing-spine.xhtml" media-type="application/xhtml+xml"/>',
+            $opfXml
+        );
+
+        $thrown = false;
+        try {
+            (new EpubReader())->readPackage($buildEpubPackage($opfWithMissingSpineContent));
+        } catch (RuntimeException $exception) {
+            $thrown = true;
+            $t->contains('EPUB spine item is missing from the package: /OEBPS/text/missing-spine.xhtml', $exception->getMessage());
+        }
+
+        $t->same(true, $thrown);
     },
     'reports remote OPF manifest resources without fetching or marking them missing' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithRemoteAudio = str_replace(
@@ -3362,10 +3390,16 @@ XML;
         $t->same(null, $remoteManifest['crc32']);
         $t->same('external-manifest-resource', $remoteManifest['diagnostics'][0]['type']);
 
-        $t->same([], $result['importReport']['manifest']['missingItems']);
-        $t->same(1, count($result['importReport']['manifest']['externalItems']));
-        $t->same('remote-audio', $result['importReport']['manifest']['externalItems'][0]['id']);
-        $t->same('https://cdn.example.test/audio/source-note.mp3', $result['importReport']['manifest']['externalItems'][0]['href']);
+        $manifestReport = $result['importReport']['manifest'];
+        $t->same(0, $manifestReport['missingItemCount']);
+        $t->same([], $manifestReport['missingItems']);
+        $t->same(1, $manifestReport['externalItemCount']);
+        $t->same(1, count($manifestReport['externalItems']));
+        $t->same('remote-audio', $manifestReport['externalItems'][0]['id']);
+        $t->same('https://cdn.example.test/audio/source-note.mp3', $manifestReport['externalItems'][0]['href']);
+        $t->same('external-manifest-resource', $manifestReport['itemDiagnostics'][0]['type']);
+        $t->same('remote-audio', $manifestReport['itemDiagnostics'][0]['id']);
+        $t->same(null, $manifestReport['itemDiagnostics'][0]['part']);
 
         $remoteAsset = $assetById['remote-audio'];
         $t->same(true, $remoteAsset['external']);
@@ -3448,6 +3482,10 @@ XML;
         foreach ($result['manifest'] as $item) {
             $manifestById[$item['id']] = $item;
         }
+        $itemDiagnosticsById = [];
+        foreach ($manifestReport['itemDiagnostics'] as $diagnostic) {
+            $itemDiagnosticsById[$diagnostic['id']] = $diagnostic;
+        }
 
         $t->same(8, $manifestReport['count']);
         $t->same(2, $manifestReport['duplicatePackagePartCount']);
@@ -3461,6 +3499,10 @@ XML;
         $t->same(['text/chapter1.xhtml', 'text/chapter1.xhtml#wp-review'], $manifestReport['duplicatePackagePartItems'][1]['hrefs']);
         $t->same('duplicate-manifest-package-part', $manifestReport['diagnostics'][0]['type']);
         $t->same('/OEBPS/images/cover.png', $manifestReport['diagnostics'][0]['part']);
+        $t->same(4, $manifestReport['itemDiagnosticCount']);
+        $t->same('duplicate-manifest-package-part', $itemDiagnosticsById['cover-image']['type']);
+        $t->same('/OEBPS/images/cover.png', $itemDiagnosticsById['cover-image']['part']);
+        $t->same(['cover-image', 'cover-review-copy'], $itemDiagnosticsById['cover-image']['ids']);
         $t->same('duplicate-manifest-package-part', $manifestById['chapter-1']['diagnostics'][0]['type']);
         $t->same(['chapter-1', 'chapter-review-copy'], $manifestById['chapter-review-copy']['duplicatePackagePartIds']);
         $t->same(true, $manifestById['cover-review-copy']['duplicatePackagePart']);
