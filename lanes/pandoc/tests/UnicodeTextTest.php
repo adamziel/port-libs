@@ -1407,6 +1407,32 @@ return [
         $t->same(5, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
         $t->contains('<p>本文�</p>', $blocks);
     },
+    'decodes bounded mac japanese source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Japanese\n\nLegacy \xB6\xC0\xB6\xC5 \x81\x41\x81\x42 \x82\xA0\x82\xA2\x82\xA4 \x83\x41\x83\x43\x83\x45 \xFD\xFE\xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-japanese');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macjapan');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $malformedTrail = UnicodeText::decodeBytes("\x82\"A", 'mac-japan');
+        $unmappedPair = UnicodeText::decodeBytes("\x88\x40A", 'x-mac-japanese');
+        $undefinedSingle = UnicodeText::decodeBytes("A\x80B\xE0", 'mac-japanese');
+
+        $t->same('mac-japan', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Japanese\n\nLegacy ｶﾀｶﾅ 、。 あいう アイウ ©™….", $decoded['text']);
+        $t->same(['encoding' => 'mac-japan', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Japanese', $document->children[0]->attr('text'));
+        $t->same("Legacy ｶﾀｶﾅ 、。 あいう アイウ ©™….", $document->children[1]->attr('text'));
+        $t->same(35, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(37, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="mac-japanese">Mac Japanese</h1>', $blocks);
+        $t->contains('<p>Legacy ｶﾀｶﾅ 、。 あいう アイウ ©™….</p>', $blocks);
+        $t->same("\u{FFFD}\"A", $malformedTrail['text']);
+        $t->same(1, $malformedTrail['repairs']);
+        $t->same("\u{FFFD}A", $unmappedPair['text']);
+        $t->same(1, $unmappedPair['repairs']);
+        $t->same("A\u{FFFD}B\u{FFFD}", $undefinedSingle['text']);
+        $t->same(2, $undefinedSingle['repairs']);
+    },
     'decodes bounded big5 traditional chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141adbbb4e4a143');
         $decoded = UnicodeText::decodeBytes($bytes, 'big5-hkscs');

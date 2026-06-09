@@ -360,6 +360,7 @@ final class PdfEngineHandoff
      *     pdfSignatureSeedValues: list<array<string, mixed>>,
      *     pdfSignatureLockPolicies: list<array<string, mixed>>,
      *     pdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
+     *     pdfSignatureAppearanceByteRanges: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
      *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
@@ -827,6 +828,7 @@ final class PdfEngineHandoff
         $pdfSignatureSeedValues = [];
         $pdfSignatureLockPolicies = [];
         $pdfSignatureFieldMdpPolicies = [];
+        $pdfSignatureAppearanceByteRanges = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -952,6 +954,7 @@ final class PdfEngineHandoff
                 $pdfSignatureSeedValues = $pdfInspection['signatureSeedValues'];
                 $pdfSignatureLockPolicies = $pdfInspection['signatureLockPolicies'];
                 $pdfSignatureFieldMdpPolicies = $pdfInspection['signatureFieldMdpPolicies'];
+                $pdfSignatureAppearanceByteRanges = $pdfInspection['signatureAppearanceByteRanges'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2846,6 +2849,44 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-revision-superseded:' . $supersededCount;
                     }
                 }
+                if ($pdfSignatureAppearanceByteRanges !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-appearance-byte-ranges:' . count($pdfSignatureAppearanceByteRanges);
+                    $statusCounts = [];
+                    $issueCounts = [];
+                    $coveredObjects = 0;
+                    $coveredStreams = 0;
+                    foreach ($pdfSignatureAppearanceByteRanges as $appearanceRange) {
+                        $reviewStatus = is_string($appearanceRange['reviewStatus'] ?? null) && $appearanceRange['reviewStatus'] !== ''
+                            ? $appearanceRange['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+                        if (($appearanceRange['objectCoveredBySignature'] ?? null) === true) {
+                            $coveredObjects++;
+                        }
+                        if (($appearanceRange['streamCoveredBySignature'] ?? null) === true) {
+                            $coveredStreams++;
+                        }
+                        foreach (($appearanceRange['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $reviewStatus => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-byte-range-status:' . $reviewStatus . ':' . $count;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-byte-range-issue:' . $issue . ':' . $count;
+                    }
+                    if ($coveredObjects > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-covered-objects:' . $coveredObjects;
+                    }
+                    if ($coveredStreams > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-covered-streams:' . $coveredStreams;
+                    }
+                }
                 if ($pdfDocumentSecurityStore !== []) {
                     $diagnostics[] = 'pdf-byte-dss';
                     $dssCerts = is_array($pdfDocumentSecurityStore['certs'] ?? null) ? $pdfDocumentSecurityStore['certs'] : [];
@@ -3431,6 +3472,7 @@ final class PdfEngineHandoff
             'pdfSignatureSeedValues' => $pdfSignatureSeedValues,
             'pdfSignatureLockPolicies' => $pdfSignatureLockPolicies,
             'pdfSignatureFieldMdpPolicies' => $pdfSignatureFieldMdpPolicies,
+            'pdfSignatureAppearanceByteRanges' => $pdfSignatureAppearanceByteRanges,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -3577,6 +3619,7 @@ final class PdfEngineHandoff
      *     finalPdfSignatureSeedValues: list<array<string, mixed>>,
      *     finalPdfSignatureLockPolicies: list<array<string, mixed>>,
      *     finalPdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
+     *     finalPdfSignatureAppearanceByteRanges: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
      *     finalPdfDocumentSecurityStore: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
@@ -3837,6 +3880,7 @@ final class PdfEngineHandoff
             'finalPdfSignatureSeedValues' => is_array($finalRun) && is_array($finalRun['pdfSignatureSeedValues'] ?? null) ? $finalRun['pdfSignatureSeedValues'] : [],
             'finalPdfSignatureLockPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureLockPolicies'] ?? null) ? $finalRun['pdfSignatureLockPolicies'] : [],
             'finalPdfSignatureFieldMdpPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureFieldMdpPolicies'] ?? null) ? $finalRun['pdfSignatureFieldMdpPolicies'] : [],
+            'finalPdfSignatureAppearanceByteRanges' => is_array($finalRun) && is_array($finalRun['pdfSignatureAppearanceByteRanges'] ?? null) ? $finalRun['pdfSignatureAppearanceByteRanges'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -4967,6 +5011,7 @@ final class PdfEngineHandoff
      *     signatureSeedValues:list<array<string, mixed>>,
      *     signatureLockPolicies:list<array<string, mixed>>,
      *     signatureFieldMdpPolicies:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
+     *     signatureAppearanceByteRanges:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
      *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
@@ -5033,6 +5078,7 @@ final class PdfEngineHandoff
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
+        $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
@@ -5163,6 +5209,7 @@ final class PdfEngineHandoff
             'signatureSeedValues' => $signatureSeedValues,
             'signatureLockPolicies' => $signatureLockPolicies,
             'signatureFieldMdpPolicies' => $signatureFieldMdpPolicies,
+            'signatureAppearanceByteRanges' => $signatureAppearanceByteRanges,
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -14517,6 +14564,240 @@ final class PdfEngineHandoff
         }
 
         return 'current-revision';
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, byteRange:list<int>}> $signatures
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $annotationAppearances
+     * @return list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfSignatureAppearanceByteRanges(array $signatures, array $annotationAppearances, string $pdfBytes): array
+    {
+        if ($signatures === [] || $annotationAppearances === []) {
+            return [];
+        }
+
+        $objectRanges = $this->pdfObjectByteRangesByReference($pdfBytes);
+        $summaries = [];
+        foreach ($signatures as $signature) {
+            foreach ($annotationAppearances as $appearance) {
+                if (($appearance['subtype'] ?? null) !== 'Widget') {
+                    continue;
+                }
+                if (!$this->pdfSignatureMatchesAppearance($signature, $appearance)) {
+                    continue;
+                }
+
+                $appearanceObject = is_string($appearance['appearanceObject'] ?? null) && $appearance['appearanceObject'] !== ''
+                    ? $appearance['appearanceObject']
+                    : null;
+                $range = $appearanceObject === null ? null : ($objectRanges[$this->pdfReferenceKey($appearanceObject)] ?? null);
+                $objectCovered = $this->pdfByteRangeCoversSpan(
+                    $signature['byteRange'] ?? [],
+                    $range['objectOffset'] ?? null,
+                    $range['objectBytes'] ?? null
+                );
+                $streamCovered = $this->pdfByteRangeCoversSpan(
+                    $signature['byteRange'] ?? [],
+                    $range['streamOffset'] ?? null,
+                    $range['streamBytes'] ?? null
+                );
+                $issues = $this->pdfSignatureAppearanceByteRangeIssues($signature['byteRange'] ?? [], $range, $objectCovered, $streamCovered);
+
+                $summaries[] = [
+                    'fieldName' => is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== '' ? $signature['fieldName'] : null,
+                    'fieldObject' => is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== '' ? $signature['fieldObject'] : null,
+                    'signatureObject' => is_string($signature['signatureObject'] ?? null) && $signature['signatureObject'] !== '' ? $signature['signatureObject'] : null,
+                    'page' => is_int($appearance['page'] ?? null) ? $appearance['page'] : 0,
+                    'pageObject' => is_string($appearance['pageObject'] ?? null) && $appearance['pageObject'] !== '' ? $appearance['pageObject'] : null,
+                    'annotationObject' => is_string($appearance['annotationObject'] ?? null) && $appearance['annotationObject'] !== '' ? $appearance['annotationObject'] : null,
+                    'appearance' => is_string($appearance['appearance'] ?? null) && $appearance['appearance'] !== '' ? $appearance['appearance'] : 'unknown',
+                    'stateName' => is_string($appearance['stateName'] ?? null) && $appearance['stateName'] !== '' ? $appearance['stateName'] : null,
+                    'appearanceObject' => $appearanceObject,
+                    'appearanceObjectOffset' => is_array($range) ? $range['objectOffset'] : null,
+                    'appearanceObjectBytes' => is_array($range) ? $range['objectBytes'] : null,
+                    'appearanceStreamOffset' => is_array($range) ? $range['streamOffset'] : null,
+                    'appearanceStreamBytes' => is_array($range) ? $range['streamBytes'] : null,
+                    'objectCoveredBySignature' => $objectCovered,
+                    'streamCoveredBySignature' => $streamCovered,
+                    'reviewStatus' => $this->pdfSignatureAppearanceByteRangeReviewStatus($issues),
+                    'issues' => $issues,
+                ];
+            }
+        }
+
+        usort(
+            $summaries,
+            static fn (array $a, array $b): int => [
+                $a['fieldName'] ?? '',
+                $a['fieldObject'] ?? '',
+                $a['page'],
+                $a['appearance'],
+                $a['stateName'] ?? '',
+                $a['appearanceObject'] ?? '',
+            ] <=> [
+                $b['fieldName'] ?? '',
+                $b['fieldObject'] ?? '',
+                $b['page'],
+                $b['appearance'],
+                $b['stateName'] ?? '',
+                $b['appearanceObject'] ?? '',
+            ]
+        );
+
+        return $summaries;
+    }
+
+    private function pdfSignatureMatchesAppearance(array $signature, array $appearance): bool
+    {
+        $fieldObject = is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== ''
+            ? $signature['fieldObject']
+            : null;
+        $annotationObject = is_string($appearance['annotationObject'] ?? null) && $appearance['annotationObject'] !== ''
+            ? $appearance['annotationObject']
+            : null;
+        if ($fieldObject !== null && $annotationObject !== null && $fieldObject === $annotationObject) {
+            return true;
+        }
+
+        $fieldName = is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== ''
+            ? $signature['fieldName']
+            : null;
+        $appearanceFieldName = is_string($appearance['fieldName'] ?? null) && $appearance['fieldName'] !== ''
+            ? $appearance['fieldName']
+            : null;
+
+        return $fieldName !== null && $appearanceFieldName !== null && $fieldName === $appearanceFieldName;
+    }
+
+    /**
+     * @return array<string, array{objectOffset:int, objectBytes:int, streamOffset:int|null, streamBytes:int|null}>
+     */
+    private function pdfObjectByteRangesByReference(string $pdfBytes): array
+    {
+        if (preg_match_all('/\b(\d+)\s+(\d+)\s+obj\b(.*?)\bendobj\b/s', $pdfBytes, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) < 1) {
+            return [];
+        }
+
+        $ranges = [];
+        foreach ($matches as $match) {
+            $objectBytes = $match[0][0];
+            $objectOffset = $match[0][1];
+            $stream = $this->pdfStreamByteRangeForObjectBytes($objectBytes, $objectOffset);
+            $ranges[$match[1][0] . ' ' . $match[2][0]] = [
+                'objectOffset' => $objectOffset,
+                'objectBytes' => strlen($objectBytes),
+                'streamOffset' => $stream['offset'],
+                'streamBytes' => $stream['bytes'],
+            ];
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @return array{offset:int|null, bytes:int|null}
+     */
+    private function pdfStreamByteRangeForObjectBytes(string $objectBytes, int $objectOffset): array
+    {
+        $streamPosition = strpos($objectBytes, 'stream');
+        if ($streamPosition === false) {
+            return ['offset' => null, 'bytes' => null];
+        }
+
+        $start = $streamPosition + strlen('stream');
+        if (substr($objectBytes, $start, 2) === "\r\n") {
+            $start += 2;
+        } elseif (isset($objectBytes[$start]) && ($objectBytes[$start] === "\n" || $objectBytes[$start] === "\r")) {
+            $start++;
+        }
+
+        $end = strpos($objectBytes, 'endstream', $start);
+        if ($end === false || $end < $start) {
+            return ['offset' => null, 'bytes' => null];
+        }
+
+        $bytes = substr($objectBytes, $start, $end - $start);
+        if (str_ends_with($bytes, "\r\n")) {
+            $bytes = substr($bytes, 0, -2);
+        } elseif (str_ends_with($bytes, "\n") || str_ends_with($bytes, "\r")) {
+            $bytes = substr($bytes, 0, -1);
+        }
+
+        return [
+            'offset' => $objectOffset + $start,
+            'bytes' => strlen($bytes),
+        ];
+    }
+
+    /**
+     * @param list<int> $byteRange
+     */
+    private function pdfByteRangeCoversSpan(array $byteRange, ?int $offset, ?int $bytes): ?bool
+    {
+        if ($offset === null || $bytes === null) {
+            return null;
+        }
+        if (count($byteRange) < 2 || count($byteRange) % 2 !== 0) {
+            return null;
+        }
+
+        $end = $offset + max(0, $bytes);
+        for ($index = 0; $index < count($byteRange); $index += 2) {
+            $rangeOffset = $byteRange[$index];
+            $rangeLength = $byteRange[$index + 1];
+            if (!is_int($rangeOffset) || !is_int($rangeLength) || $rangeOffset < 0 || $rangeLength < 0) {
+                return null;
+            }
+            $rangeEnd = $rangeOffset + $rangeLength;
+            if ($offset >= $rangeOffset && $end <= $rangeEnd) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<int> $byteRange
+     * @param array{objectOffset:int, objectBytes:int, streamOffset:int|null, streamBytes:int|null}|null $range
+     * @return list<string>
+     */
+    private function pdfSignatureAppearanceByteRangeIssues(array $byteRange, ?array $range, ?bool $objectCovered, ?bool $streamCovered): array
+    {
+        $issues = [];
+        if (count($byteRange) < 2 || count($byteRange) % 2 !== 0) {
+            $issues[] = 'missing-or-invalid-byte-range';
+        }
+        if ($range === null) {
+            $issues[] = 'missing-appearance-object-offset';
+        }
+        if ($objectCovered === false) {
+            $issues[] = 'appearance-object-outside-byte-range';
+        }
+        if ($streamCovered === false) {
+            $issues[] = 'appearance-stream-outside-byte-range';
+        }
+
+        return array_values(array_unique($issues));
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private function pdfSignatureAppearanceByteRangeReviewStatus(array $issues): string
+    {
+        if ($issues === []) {
+            return 'covered';
+        }
+        if (in_array('missing-or-invalid-byte-range', $issues, true)) {
+            return 'missing-byte-range';
+        }
+        if (in_array('missing-appearance-object-offset', $issues, true)) {
+            return 'unresolved';
+        }
+
+        return 'review';
     }
 
     /**

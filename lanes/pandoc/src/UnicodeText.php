@@ -4126,6 +4126,165 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const MAC_JAPAN_SINGLE_REPLACEMENTS = [
+        0xa0 => 0x00a0,
+        0xfd => 0x00a9,
+        0xfe => 0x2122,
+        0xff => 0x2026,
+    ];
+
+    /** @var array<int, int> */
+    private const MAC_JAPAN_PUNCTUATION_PAIRS = [
+        0x40 => 0x3000,
+        0x41 => 0x3001,
+        0x42 => 0x3002,
+        0x43 => 0xff0c,
+        0x44 => 0xff0e,
+        0x45 => 0x30fb,
+        0x46 => 0xff1a,
+        0x47 => 0xff1b,
+        0x48 => 0xff1f,
+        0x49 => 0xff01,
+        0x4a => 0x309b,
+        0x4b => 0x309c,
+        0x4c => 0x00b4,
+        0x4d => 0xff40,
+        0x4e => 0x00a8,
+        0x4f => 0xff3e,
+        0x50 => 0x203e,
+        0x51 => 0xff3f,
+        0x52 => 0x30fd,
+        0x53 => 0x30fe,
+        0x54 => 0x309d,
+        0x55 => 0x309e,
+        0x56 => 0x3003,
+        0x57 => 0x4edd,
+        0x58 => 0x3005,
+        0x59 => 0x3006,
+        0x5a => 0x3007,
+        0x5b => 0x30fc,
+        0x5c => 0x2014,
+        0x5d => 0x2010,
+        0x5e => 0xff0f,
+        0x5f => 0xff3c,
+        0x60 => 0x301c,
+        0x61 => 0x2016,
+        0x62 => 0xff5c,
+        0x63 => 0x22ef,
+        0x64 => 0x2025,
+        0x65 => 0x2018,
+        0x66 => 0x2019,
+        0x67 => 0x201c,
+        0x68 => 0x201d,
+        0x69 => 0xff08,
+        0x6a => 0xff09,
+        0x6b => 0x3014,
+        0x6c => 0x3015,
+        0x6d => 0xff3b,
+        0x6e => 0xff3d,
+        0x6f => 0xff5b,
+        0x70 => 0xff5d,
+        0x71 => 0x3008,
+        0x72 => 0x3009,
+        0x73 => 0x300a,
+        0x74 => 0x300b,
+        0x75 => 0x300c,
+        0x76 => 0x300d,
+        0x77 => 0x300e,
+        0x78 => 0x300f,
+        0x79 => 0x3010,
+        0x7a => 0x3011,
+        0x7b => 0xff0b,
+        0x7c => 0x2212,
+        0x7d => 0x00b1,
+        0x7e => 0x00d7,
+        0x80 => 0x00f7,
+        0x81 => 0xff1d,
+        0x82 => 0x2260,
+        0x83 => 0xff1c,
+        0x84 => 0xff1e,
+        0x85 => 0x2266,
+        0x86 => 0x2267,
+        0x87 => 0x221e,
+        0x88 => 0x2234,
+        0x89 => 0x2642,
+        0x8a => 0x2640,
+        0x8b => 0x00b0,
+        0x8c => 0x2032,
+        0x8d => 0x2033,
+        0x8e => 0x2103,
+        0x8f => 0xffe5,
+        0x90 => 0xff04,
+        0x91 => 0x00a2,
+        0x92 => 0x00a3,
+        0x93 => 0xff05,
+        0x94 => 0xff03,
+        0x95 => 0xff06,
+        0x96 => 0xff0a,
+        0x97 => 0xff20,
+        0x98 => 0x00a7,
+        0x99 => 0x2606,
+        0x9a => 0x2605,
+        0x9b => 0x25cb,
+        0x9c => 0x25cf,
+        0x9d => 0x25ce,
+        0x9e => 0x25c7,
+        0x9f => 0x25c6,
+        0xa0 => 0x25a1,
+        0xa1 => 0x25a0,
+        0xa2 => 0x25b3,
+        0xa3 => 0x25b2,
+        0xa4 => 0x25bd,
+        0xa5 => 0x25bc,
+        0xa6 => 0x203b,
+        0xa7 => 0x3012,
+        0xa8 => 0x2192,
+        0xa9 => 0x2190,
+        0xaa => 0x2191,
+        0xab => 0x2193,
+        0xac => 0x3013,
+        0xb8 => 0x2208,
+        0xb9 => 0x220b,
+        0xba => 0x2286,
+        0xbb => 0x2287,
+        0xbc => 0x2282,
+        0xbd => 0x2283,
+        0xbe => 0x222a,
+        0xbf => 0x2229,
+        0xc8 => 0x2227,
+        0xc9 => 0x2228,
+        0xca => 0x00ac,
+        0xcb => 0x21d2,
+        0xcc => 0x21d4,
+        0xcd => 0x2200,
+        0xce => 0x2203,
+        0xda => 0x2220,
+        0xdb => 0x22a5,
+        0xdc => 0x2312,
+        0xdd => 0x2202,
+        0xde => 0x2207,
+        0xdf => 0x2261,
+        0xe0 => 0x2252,
+        0xe1 => 0x226a,
+        0xe2 => 0x226b,
+        0xe3 => 0x221a,
+        0xe4 => 0x223d,
+        0xe5 => 0x221d,
+        0xe6 => 0x2235,
+        0xe7 => 0x222b,
+        0xe8 => 0x222c,
+        0xf0 => 0x212b,
+        0xf1 => 0x2030,
+        0xf2 => 0x266f,
+        0xf3 => 0x266d,
+        0xf4 => 0x266a,
+        0xf5 => 0x2020,
+        0xf6 => 0x2021,
+        0xf7 => 0x00b6,
+        0xfc => 0x25ef,
+    ];
+
+    /** @var array<int, int> */
     private const JIS0208_POINTERS = [
         1 => 0x3001,
         2 => 0x3002,
@@ -4568,6 +4727,7 @@ final class UnicodeText
         if ($normalized === 'shift_jis'
             || $normalized === 'euc-jp'
             || $normalized === 'iso-2022-jp'
+            || $normalized === 'mac-japan'
             || $normalized === 'big5'
             || $normalized === 'gbk'
             || $normalized === 'gb12345'
@@ -4581,6 +4741,7 @@ final class UnicodeText
                 'shift_jis' => self::decodeShiftJis($bytes),
                 'euc-jp' => self::decodeEucJp($bytes),
                 'iso-2022-jp' => self::decodeIso2022Jp($bytes),
+                'mac-japan' => self::decodeMacJapanese($bytes),
                 'big5' => self::decodeBig5($bytes),
                 'gbk' => self::decodeGbk($bytes),
                 'gb12345' => self::decodeGb12345($bytes),
@@ -5205,6 +5366,9 @@ final class UnicodeText
             'macukraine', 'xmacukraine', 'macukrainian', 'mac-ukrainian',
             'xmacukrainian', 'x-mac-ukrainian', 'csmacukrainian' => 'mac-ukrainian',
             'macgreek', 'mac-greek', 'xmacgreek', 'x-mac-greek' => 'mac-greek',
+            'macjapan', 'mac-japan', 'xmacjapan', 'x-mac-japan',
+            'macjapanese', 'mac-japanese', 'xmacjapanese', 'x-mac-japanese',
+            'csmacjapanese' => 'mac-japan',
             'xuserdefined', 'userdefined' => 'x-user-defined',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
             'cseucpkdfmtjapanese', 'eucjp', 'xeucjp' => 'euc-jp',
@@ -6197,6 +6361,108 @@ final class UnicodeText
         }
 
         return [$out, $repairs];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private static function decodeMacJapanese(string $bytes): array
+    {
+        $out = '';
+        $repairs = 0;
+        $length = strlen($bytes);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = ord($bytes[$offset]);
+            if ($byte <= 0x7f) {
+                $out .= self::fromCodepoint($byte);
+                continue;
+            }
+            if ($byte >= 0xa1 && $byte <= 0xdf) {
+                $out .= self::fromCodepoint(0xff61 + $byte - 0xa1);
+                continue;
+            }
+            if (isset(self::MAC_JAPAN_SINGLE_REPLACEMENTS[$byte])) {
+                $out .= self::fromCodepoint(self::MAC_JAPAN_SINGLE_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if (self::isMacJapaneseLeadByte($byte)) {
+                if ($offset + 1 >= $length) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
+
+                $trail = ord($bytes[$offset + 1]);
+                $codepoint = self::macJapaneseCodepoint($byte, $trail);
+                if ($codepoint === null) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    if (($trail >= 0x40 && $trail <= 0x7e) || ($trail >= 0x80 && $trail <= 0xfc)) {
+                        $offset++;
+                    }
+                    continue;
+                }
+
+                $out .= self::fromCodepoint($codepoint);
+                $offset++;
+                continue;
+            }
+
+            $out .= self::REPLACEMENT;
+            $repairs++;
+        }
+
+        return [$out, $repairs];
+    }
+
+    private static function isMacJapaneseLeadByte(int $byte): bool
+    {
+        return ($byte >= 0x81 && $byte <= 0x9f) || ($byte >= 0xe0 && $byte <= 0xed);
+    }
+
+    private static function macJapaneseCodepoint(int $lead, int $trail): ?int
+    {
+        if ($lead === 0x81) {
+            return self::MAC_JAPAN_PUNCTUATION_PAIRS[$trail] ?? null;
+        }
+        if ($lead === 0x82) {
+            if ($trail >= 0x4f && $trail <= 0x58) {
+                return 0xff10 + $trail - 0x4f;
+            }
+            if ($trail >= 0x60 && $trail <= 0x79) {
+                return 0xff21 + $trail - 0x60;
+            }
+            if ($trail >= 0x81 && $trail <= 0x9a) {
+                return 0xff41 + $trail - 0x81;
+            }
+            if ($trail >= 0x9f && $trail <= 0xf1) {
+                return 0x3041 + $trail - 0x9f;
+            }
+
+            return null;
+        }
+        if ($lead === 0x83) {
+            if ($trail >= 0x40 && $trail <= 0x7e) {
+                return 0x30a1 + $trail - 0x40;
+            }
+            if ($trail >= 0x80 && $trail <= 0x96) {
+                return 0x30e0 + $trail - 0x80;
+            }
+            if ($trail >= 0x9f && $trail <= 0xaf) {
+                return 0x0391 + $trail - 0x9f;
+            }
+            if ($trail >= 0xb0 && $trail <= 0xb6) {
+                return 0x03a3 + $trail - 0xb0;
+            }
+            if ($trail >= 0xbf && $trail <= 0xcf) {
+                return 0x03b1 + $trail - 0xbf;
+            }
+            if ($trail >= 0xd0 && $trail <= 0xd6) {
+                return 0x03c3 + $trail - 0xd0;
+            }
+        }
+
+        return null;
     }
 
     /**

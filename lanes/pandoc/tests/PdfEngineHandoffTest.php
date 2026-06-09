@@ -9017,6 +9017,116 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfSignatureByteRangePolicy']);
     },
 
+    'fake runner maps pdf signature appearance byte ranges from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signature-appearance.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $signatureHex = strtoupper(bin2hex($signatureBytes));
+        $appearanceBytes = "q 0 0 1 rg /SigMark Do Q\n";
+        $buildPdf = static function (int $byteRangeLength) use ($signatureHex, $appearanceBytes): string {
+            return implode("\n", [
+                '%PDF-1.7',
+                '1 0 obj',
+                '<< /Type /Catalog /Pages 2 0 R /AcroForm 7 0 R >>',
+                'endobj',
+                '2 0 obj',
+                '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+                'endobj',
+                '3 0 obj',
+                '<< /Type /Page /Parent 2 0 R /Annots [8 0 R] >>',
+                'endobj',
+                '7 0 obj',
+                '<< /Fields [8 0 R] /SigFlags 3 >>',
+                'endobj',
+                '8 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) /V 9 0 R /AS /Signed /AP << /N 10 0 R >> >>',
+                'endobj',
+                '9 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /ByteRange [0 ' . $byteRangeLength . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                '10 0 obj',
+                '<< /Type /XObject /Subtype /Form /BBox [0 0 180 48] /Resources << /XObject << /SigMark 11 0 R >> >> /Length ' . strlen($appearanceBytes) . ' >>',
+                'stream',
+                $appearanceBytes,
+                'endstream',
+                'endobj',
+                '11 0 obj',
+                '<< /Type /XObject /Subtype /Image /Width 16 /Height 16 /BitsPerComponent 8 /ColorSpace /DeviceGray /Length 0 >>',
+                'stream',
+                '',
+                'endstream',
+                'endobj',
+                'trailer',
+                '<< /Root 1 0 R >>',
+                'startxref',
+                '2048',
+                '%%EOF',
+                '',
+            ]);
+        };
+        $pdfBytes = $buildPdf(0);
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            $next = $buildPdf(strlen($pdfBytes));
+            if (strlen($next) === strlen($pdfBytes)) {
+                $pdfBytes = $next;
+                break;
+            }
+            $pdfBytes = $next;
+        }
+
+        $appearanceObjectOffset = strpos($pdfBytes, '10 0 obj');
+        $t->true($appearanceObjectOffset !== false, 'signature appearance object offset is present');
+        $appearanceObjectEnd = strpos($pdfBytes, 'endobj', (int) $appearanceObjectOffset);
+        $t->true($appearanceObjectEnd !== false, 'signature appearance object end is present');
+        $appearanceStreamOffset = strpos($pdfBytes, "stream\n", (int) $appearanceObjectOffset);
+        $t->true($appearanceStreamOffset !== false, 'signature appearance stream offset is present');
+        $appearanceStreamOffset = (int) $appearanceStreamOffset + strlen("stream\n");
+        $appearanceObjectBytes = (int) $appearanceObjectEnd + strlen('endobj') - (int) $appearanceObjectOffset;
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signature-appearance.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signature-appearance.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'fieldName' => 'review.signature',
+                'fieldObject' => '8 0 R',
+                'signatureObject' => '9 0 R',
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '8 0 R',
+                'appearance' => 'N',
+                'stateName' => null,
+                'appearanceObject' => '10 0 R',
+                'appearanceObjectOffset' => (int) $appearanceObjectOffset,
+                'appearanceObjectBytes' => $appearanceObjectBytes,
+                'appearanceStreamOffset' => $appearanceStreamOffset,
+                'appearanceStreamBytes' => strlen($appearanceBytes),
+                'objectCoveredBySignature' => true,
+                'streamCoveredBySignature' => true,
+                'reviewStatus' => 'covered',
+                'issues' => [],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureAppearanceByteRanges']);
+        $t->contains('pdf-byte-signature-appearance-byte-ranges:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-byte-range-status:covered:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-covered-objects:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-covered-streams:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureAppearanceByteRanges']);
+    },
+
     'fake runner maps pdf signatures to incremental trailer revisions' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/incremental-signature.pdf']);
