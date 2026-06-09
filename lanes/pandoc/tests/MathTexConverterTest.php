@@ -2343,6 +2343,8 @@ return [
         $variantMathml = $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}', true);
         $scriptVariantMathml = $converter->texToMathMl('\\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i');
         $singleTokenMathml = $converter->texToMathMl('\\mathbf x + \\mathbb R');
+        $greekVariantMathml = $converter->texToMathMl('\\mathit{\\Gamma\\alpha} + \\boldsymbol{\\Omega\\omega}_i', true);
+        $accessibleGreekMathml = $converter->texToAccessibleMathMl('\\boldsymbol{\\alpha_i} + \\mathit{\\Gamma}', false);
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $variantMathml);
         $t->contains('<mstyle mathvariant="normal"><mi>d</mi></mstyle><mi>x</mi>', $variantMathml);
@@ -2352,19 +2354,25 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code}</annotation>', $variantMathml);
         $t->contains('<msub><mstyle mathvariant="script"><mi>' . $u(0x2131) . '</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $u(0x211D) . '</mi></mstyle>', $scriptVariantMathml);
         $t->contains('<mstyle mathvariant="fraktur"><mi>' . $u(0x1D524) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>' . $u(0x2112) . '</mi></mstyle>', $scriptVariantMathml);
-        $t->contains('<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>', $scriptVariantMathml);
+        $t->contains('<msub><mstyle mathvariant="bold"><mi>' . $u(0x1D6C2) . '</mi></mstyle><mi>i</mi></msub>', $scriptVariantMathml);
         $t->contains('<mstyle mathvariant="bold"><mi>' . $u(0x1D431) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $u(0x211D) . '</mi></mstyle>', $singleTokenMathml);
+        $t->contains('<mstyle mathvariant="italic"><mrow><mi>' . $u(0x1D6E4) . '</mi><mi>' . $u(0x1D6FC) . '</mi></mrow></mstyle>', $greekVariantMathml);
+        $t->contains('<msub><mstyle mathvariant="bold"><mrow><mi>' . $u(0x1D6C0) . '</mi><mi>' . $u(0x1D6DA) . '</mi></mrow></mstyle><mi>i</mi></msub>', $greekVariantMathml);
+        $t->contains('alttext="alpha sub i plus gamma"', $accessibleGreekMathml);
+        $t->contains('intent="row(subscript(alpha,i),plus,gamma)"', $accessibleGreekMathml);
     },
     'converts bounded texmath math alphabet aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $u = static fn (int $codepoint): string => html_entity_decode('&#x' . strtoupper(dechex($codepoint)) . ';', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $aliasMathml = $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\pmb{q} + \\mathbold{z} + \\mathbfup{B}', true);
         $extendedAliasMathml = $converter->texToMathMl('\\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}');
+        $greekAliasMathml = $converter->texToMathMl('\\mathbfit{\\Gamma\\alpha} + \\mathbfsfup{\\Theta\\beta} + \\mathbfsfit{\\Omega\\omega}', true);
+        $accessibleGreekAliasMathml = $converter->texToAccessibleMathMl('\\bm{\\alpha_i} + \\mathbfsfit{\\Omega}');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $aliasMathml);
         $t->contains('<mstyle mathvariant="normal"><mi>x</mi></mstyle>', $aliasMathml);
         $t->contains('<mstyle mathvariant="bold"><mrow><mi>' . $u(0x1D400) . '</mi><mn>' . $u(0x1D7CF) . '</mn></mrow></mstyle>', $aliasMathml);
-        $t->contains('<mstyle mathvariant="bold"><msub><mi>α</mi><mi>' . $u(0x1D422) . '</mi></msub></mstyle>', $aliasMathml);
+        $t->contains('<mstyle mathvariant="bold"><msub><mi>' . $u(0x1D6C2) . '</mi><mi>' . $u(0x1D422) . '</mi></msub></mstyle>', $aliasMathml);
         $t->contains('<mstyle mathvariant="bold"><mi>' . $u(0x1D42A) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>' . $u(0x1D433) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mi>' . $u(0x1D401) . '</mi></mstyle>', $aliasMathml);
         $t->contains('<annotation encoding="application/x-tex">\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\pmb{q} + \\mathbold{z} + \\mathbfup{B}</annotation>', $aliasMathml);
         $t->contains('<mstyle mathvariant="double-struck"><mrow><mi>' . $u(0x211D) . '</mi><mn>' . $u(0x1D7DA) . '</mn></mrow></mstyle>', $extendedAliasMathml);
@@ -2374,8 +2382,16 @@ return [
         $t->contains('<mstyle mathvariant="bold-script"><mi>' . $u(0x1D4D5) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>' . $u(0x1D4DB) . '</mi></mstyle>', $extendedAliasMathml);
         $t->contains('<mstyle mathvariant="bold-fraktur"><mi>' . $u(0x1D58C) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-italic"><mi>' . $u(0x1D62F) . '</mi></mstyle>', $extendedAliasMathml);
         $t->contains('<annotation encoding="application/x-tex">\\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}</annotation>', $extendedAliasMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $greekAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-italic"><mrow><mi>' . $u(0x1D71E) . '</mi><mi>' . $u(0x1D736) . '</mi></mrow></mstyle>', $greekAliasMathml);
+        $t->contains('<mstyle mathvariant="bold-sans-serif"><mrow><mi>' . $u(0x1D75D) . '</mi><mi>' . $u(0x1D771) . '</mi></mrow></mstyle>', $greekAliasMathml);
+        $t->contains('<mstyle mathvariant="sans-serif-bold-italic"><mrow><mi>' . $u(0x1D7A8) . '</mi><mi>' . $u(0x1D7C2) . '</mi></mrow></mstyle>', $greekAliasMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\mathbfit{\\Gamma\\alpha} + \\mathbfsfup{\\Theta\\beta} + \\mathbfsfit{\\Omega\\omega}</annotation>', $greekAliasMathml);
+        $t->contains('alttext="alpha sub i plus omega"', $accessibleGreekAliasMathml);
+        $t->contains('intent="row(subscript(alpha,i),plus,omega)"', $accessibleGreekAliasMathml);
         $t->true(!str_contains($aliasMathml, '<mi>\\bm</mi>'));
         $t->true(!str_contains($extendedAliasMathml, '<mi>\\mathbfit</mi>'));
+        $t->true(!str_contains($greekAliasMathml, '<mi>\\mathbfsfit</mi>'));
     },
     'rewrites bounded tex math alphabet ascii runs to unicode alphanumeric mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
@@ -2389,7 +2405,7 @@ return [
         $t->contains('<mstyle mathvariant="fraktur"><mrow><mi>' . $u(0x1D524) . '</mi><mi>' . $u(0x211C) . '</mi></mrow></mstyle>', $alphabetMathml);
         $t->contains('<mstyle mathvariant="monospace"><mrow><mi>' . $u(0x1D68C) . '</mi><mi>' . $u(0x1D698) . '</mi><mi>' . $u(0x1D68D) . '</mi><mi>' . $u(0x1D68E) . '</mi><mn>' . $u(0x1D7FA) . $u(0x1D7F8) . '</mn></mrow></mstyle>', $alphabetMathml);
         $t->contains('<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>', $alphabetMathml);
-        $t->contains('<mstyle mathvariant="italic"><mi>' . $u(0x210E) . '</mi></mstyle><mo>+</mo><msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub><mo>+</mo><mstyle mathvariant="normal"><mi>d</mi></mstyle>', $safeFallbackMathml);
+        $t->contains('<mstyle mathvariant="italic"><mi>' . $u(0x210E) . '</mi></mstyle><mo>+</mo><msub><mstyle mathvariant="bold"><mi>' . $u(0x1D6C2) . '</mi></mstyle><mi>i</mi></msub><mo>+</mo><mstyle mathvariant="normal"><mi>d</mi></mstyle>', $safeFallbackMathml);
     },
     'rejects malformed bounded tex color phantom cancel and variant commands without invoking a tex engine' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

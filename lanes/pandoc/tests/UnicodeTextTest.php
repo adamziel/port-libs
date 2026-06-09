@@ -1559,6 +1559,29 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes big5 punctuation and quote bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Big5 Punctuation\n\n\xA1\x40\xA1\x75\xA4\xA4\xA4\xE5\xA1\x76\xA1\xA7quote\xA1\xA8\xA1\x48\xA1\x49\xA1\x46\xA1\x47\xA1\x42\xA1\x43\xA1\xB0\xA1\xB1\xA1\xB2 \xA1\x45.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'big5');
+        $document = (new MarkdownReader())->readBytes($bytes, 'big5-hkscs');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $quoteRun = UnicodeText::decodeBytes("\xA1\x75\xA1\x76\xA1\xA5\xA1\xA6\xA1\xA7\xA1\xA8", 'big5');
+        $cp950Bullet = UnicodeText::decodeBytes("\xA1\x45", 'windows-950');
+
+        $t->same('big5', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Big5 Punctuation\n\n　「中文」“quote”？！；：、。※§〃 •.", $decoded['text']);
+        $t->same('「」‘’“”', $quoteRun['text']);
+        $t->same(0, $quoteRun['repairs']);
+        $t->same('‧', $cp950Bullet['text']);
+        $t->same('cp950', $cp950Bullet['encoding']);
+        $t->same(['encoding' => 'big5', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Big5 Punctuation', $document->children[0]->attr('text'));
+        $t->same('　「中文」“quote”？！；：、。※§〃 •.', $document->children[1]->attr('text'));
+        $t->same(36, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(41, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="big5-punctuation">Big5 Punctuation</h1>', $blocks);
+        $t->contains('<p>　「中文」“quote”？！；：、。※§〃 •.</p>', $blocks);
+    },
     'decodes big5 kana and fullwidth extension bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Big5 Kana\n\nKana \xC6\xA1\xC6\xA2\xC6\xA3\xC6\xA4 \xC6\xA5\xC6\xA6; digits \xA2\xAF\xA2\xB0\xA2\xB1.";
         $decoded = UnicodeText::decodeBytes($bytes, 'big5');

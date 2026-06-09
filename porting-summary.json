@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:37:20 UTC",
-    "sourceCommit": "d6b8d62c153a417203f580bc18d733ded6712785",
-    "sourceCommitShort": "d6b8d62c153a",
+    "generated": "2026-06-09 06:38:27 UTC",
+    "sourceCommit": "ad40a2d1ac5c90ea788312b5839afd783b4060c8",
+    "sourceCommitShort": "ad40a2d1ac5c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "d6b8d62c153a417203f580bc18d733ded6712785",
-    "dashboardCommitShort": "d6b8d62c153a",
+    "dashboardCommit": "ad40a2d1ac5c90ea788312b5839afd783b4060c8",
+    "dashboardCommitShort": "ad40a2d1ac5c",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2844",
-            "coverage": "2,844 / 2,276 (125.0%)",
+            "mapped": "2846",
+            "coverage": "2,846 / 2,276 (125.0%)",
             "mapPercent": "125.0%",
             "unmapped": "0",
-            "php": "2,460 pass / 0 fail",
+            "php": "2,462 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC PDF engine handoff current-base missing-dependency dia...",
+            "audit": "2026-06-09 UTC charset/unicode-width current-base Big5 punctuation sl...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For PDF handoff follow-up, choose a non-overlapping fake-runn...",
-            "remainingGate": "No new native support component is needed for this PDF engine handoff...",
+            "nextTarget": "For charset/unicode-width follow-up, choose a non-overlapping...",
+            "remainingGate": "No new native support component is needed for this charset/unicode-wi...",
             "commit": "pending fast ba..."
         },
         {

@@ -223,6 +223,9 @@ $big5Bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141a
 $big5Source = (new MarkdownReader())->readBytes($big5Bytes, 'big5-hkscs');
 $big5Text = (string) $big5Source->children[1]->attr('text');
 $big5PointerText = UnicodeText::decodeBytes("\x88\x62\x88\x64\x88\xA3\x88\xA5", 'big5')['text'];
+$big5PunctuationBytes = "# Big5 Punctuation\n\n\xA1\x40\xA1\x75\xA4\xA4\xA4\xE5\xA1\x76\xA1\xA7quote\xA1\xA8\xA1\x48\xA1\x49\xA1\x46\xA1\x47\xA1\x42\xA1\x43\xA1\xB0\xA1\xB1\xA1\xB2 \xA1\x45.";
+$big5PunctuationSource = (new MarkdownReader())->readBytes($big5PunctuationBytes, 'big5-hkscs');
+$big5PunctuationText = (string) $big5PunctuationSource->children[1]->attr('text');
 $big5KanaBytes = "# Big5 Kana\n\nKana \xC6\xA1\xC6\xA2\xC6\xA3\xC6\xA4 \xC6\xA5\xC6\xA6; digits \xA2\xAF\xA2\xB0\xA2\xB1.";
 $big5KanaSource = (new MarkdownReader())->readBytes($big5KanaBytes, 'big5-hkscs');
 $big5KanaText = (string) $big5KanaSource->children[1]->attr('text');
@@ -944,6 +947,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Big5 punctuation source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $big5PunctuationText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5PunctuationSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5PunctuationText) . '/' . UnicodeText::displayWidth($big5PunctuationText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Big5 pointer sequences'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $big5PointerText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'big5:' . UnicodeText::displayWidth($big5PointerText)])]),
@@ -1558,6 +1566,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Big5 source</td><td>中文 Big5 測試，香港。</td><td>big5:22</td>')) {
         throw new RuntimeException('charset handoff self-test missing Big5 decode audit row');
+    }
+    if (($big5PunctuationSource->attr('sourceEncoding')['encoding'] ?? '') !== 'big5') {
+        throw new RuntimeException('charset handoff self-test missing Big5 punctuation source encoding');
+    }
+    if (!str_contains($blocks, '<td>Big5 punctuation source</td><td>　「中文」“quote”？！；：、。※§〃 •.</td><td>big5:36/41</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Big5 punctuation decode audit row');
     }
     if (!str_contains($blocks, "<td>Big5 pointer sequences</td><td>Ê\u{0304}Ê\u{030C}ê\u{0304}ê\u{030C}</td><td>big5:4</td>")) {
         throw new RuntimeException('charset handoff self-test missing Big5 two-codepoint pointer audit row');

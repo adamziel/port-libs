@@ -130,6 +130,8 @@ Math alphanumeric audit $\mathbb{AZ09} + \mathcal{FLO} + \mathfrak{gR} + \mathtt
 
 Math alphabet alias audit $\mathup{x} + \symbf{A1} + \bm{\alpha_i} + \mathds{R2} + \mathbfit{Az} + \mathbfsfup{R2} + \mathbfsfit{Az} + \mathbfscr{F} + \mathbfcal{L} + \mathbffrak{g} + \mathsfit{n}$ keeps texmath aliases semantic.
 
+Math alphabet Greek alias audit $\bm{\alpha_i} + \mathbfit{\Gamma\alpha} + \mathbfsfup{\Theta\beta} + \mathbfsfit{\Omega\omega}$ keeps Unicode Greek variants semantic.
+
 Stacked limits audit $\sum_{\substack{i=1 \\ i\ne j}}^{n} a_i + \lim_{\substack{x \to 0 \\ x > 0}} f(x)$ stays semantic.
 
 Prescript isotope audit $\prescript{14}{6}{C} + \prescript{\text{review}}{}{p_i} + \prescript{}{L}{\operatorname{score}}_j$ stays semantic.
@@ -320,6 +322,7 @@ $summary = [
     'mathVariantMathml' => $converter->texToMathMl('\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i'),
     'mathAlphanumericMathml' => $converter->texToMathMl('\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}'),
     'mathAlphabetAliasMathml' => $converter->texToMathMl('\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}'),
+    'mathAlphabetGreekAliasMathml' => $converter->texToMathMl('\\bm{\\alpha_i} + \\mathbfit{\\Gamma\\alpha} + \\mathbfsfup{\\Theta\\beta} + \\mathbfsfit{\\Omega\\omega}'),
     'substackMathml' => $converter->texToMathMl('\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x > 0}} f(x)'),
     'prescriptMathml' => $converter->texToMathMl('\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j'),
     'operatorLimitsMathml' => $converter->texToMathMl('\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx'),
@@ -490,7 +493,11 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Math TeX handoff self-test let a commented environment terminator close the environment');
     }
 
-    if (str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>') || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')) {
+    if (
+        str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\bm</mi>')
+        || str_contains($summary['mathAlphabetAliasMathml'], '<mi>\\mathbfit</mi>')
+        || str_contains($summary['mathAlphabetGreekAliasMathml'], '<mi>\\mathbfsfit</mi>')
+    ) {
         throw new RuntimeException('Math TeX handoff self-test emitted texmath math alphabet aliases as literal identifiers');
     }
 
@@ -894,6 +901,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i\\)</span>',
         '<span class="math inline">\\(\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}\\)</span>',
         '<span class="math inline">\\(\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}\\)</span>',
+        '<span class="math inline">\\(\\bm{\\alpha_i} + \\mathbfit{\\Gamma\\alpha} + \\mathbfsfup{\\Theta\\beta} + \\mathbfsfit{\\Omega\\omega}\\)</span>',
         '<span class="math inline">\\(\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)\\)</span>',
         '<span class="math inline">\\(\\prescript{14}{6}{C} + \\prescript{\\text{review}}{}{p_i} + \\prescript{}{L}{\\operatorname{score}}_j\\)</span>',
         '<span class="math inline">\\(\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx\\)</span>',
@@ -1049,7 +1057,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mstyle mathvariant="monospace"><mrow><mi>' . $mathSymbol(0x1D68C) . '</mi><mi>' . $mathSymbol(0x1D698) . '</mi><mi>' . $mathSymbol(0x1D68D) . '</mi><mi>' . $mathSymbol(0x1D68E) . '</mi></mrow></mstyle>',
         '<msub><mstyle mathvariant="script"><mi>' . $mathSymbol(0x2131) . '</mi></mstyle><mi>n</mi></msub><mo>+</mo><mstyle mathvariant="double-struck"><mi>' . $mathSymbol(0x211D) . '</mi></mstyle>',
         '<mstyle mathvariant="fraktur"><mi>' . $mathSymbol(0x1D524) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="script"><mi>' . $mathSymbol(0x2112) . '</mi></mstyle>',
-        '<msub><mstyle mathvariant="bold"><mi>α</mi></mstyle><mi>i</mi></msub>',
+        '<msub><mstyle mathvariant="bold"><mi>' . $mathSymbol(0x1D6C2) . '</mi></mstyle><mi>i</mi></msub>',
         '<mstyle mathvariant="double-struck"><mrow><mi>' . $mathSymbol(0x1D538) . '</mi><mi>' . $mathSymbol(0x2124) . '</mi><mn>' . $mathSymbol(0x1D7D8) . $mathSymbol(0x1D7E1) . '</mn></mrow></mstyle>',
         '<mstyle mathvariant="script"><mrow><mi>' . $mathSymbol(0x2131) . '</mi><mi>' . $mathSymbol(0x2112) . '</mi><mi>' . $mathSymbol(0x1D4AA) . '</mi></mrow></mstyle>',
         '<mstyle mathvariant="fraktur"><mrow><mi>' . $mathSymbol(0x1D524) . '</mi><mi>' . $mathSymbol(0x211C) . '</mi></mrow></mstyle>',
@@ -1145,11 +1153,14 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\mathrm{d}x + \\mathbf{v_i} + \\mathit{n} + \\mathsf{S} + \\mathtt{code} + \\mathcal{F}_n + \\mathbb{R} + \\mathfrak{g} + \\mathscr{L} + \\boldsymbol{\\alpha}_i</annotation>',
         '<annotation encoding="application/x-tex">\\mathbb{AZ09} + \\mathcal{FLO} + \\mathfrak{gR} + \\mathtt{code42}</annotation>',
         '<mstyle mathvariant="normal"><mi>x</mi></mstyle><mo>+</mo><mstyle mathvariant="bold"><mrow><mi>' . $mathSymbol(0x1D400) . '</mi><mn>' . $mathSymbol(0x1D7CF) . '</mn></mrow></mstyle>',
-        '<mstyle mathvariant="bold"><msub><mi>α</mi><mi>' . $mathSymbol(0x1D422) . '</mi></msub></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mrow><mi>' . $mathSymbol(0x211D) . '</mi><mn>' . $mathSymbol(0x1D7DA) . '</mn></mrow></mstyle>',
+        '<mstyle mathvariant="bold"><msub><mi>' . $mathSymbol(0x1D6C2) . '</mi><mi>' . $mathSymbol(0x1D422) . '</mi></msub></mstyle><mo>+</mo><mstyle mathvariant="double-struck"><mrow><mi>' . $mathSymbol(0x211D) . '</mi><mn>' . $mathSymbol(0x1D7DA) . '</mn></mrow></mstyle>',
         '<mstyle mathvariant="bold-italic"><mrow><mi>' . $mathSymbol(0x1D468) . '</mi><mi>' . $mathSymbol(0x1D49B) . '</mi></mrow></mstyle><mo>+</mo><mstyle mathvariant="bold-sans-serif"><mrow><mi>' . $mathSymbol(0x1D5E5) . '</mi><mn>' . $mathSymbol(0x1D7EE) . '</mn></mrow></mstyle>',
         '<mstyle mathvariant="sans-serif-bold-italic"><mrow><mi>' . $mathSymbol(0x1D63C) . '</mi><mi>' . $mathSymbol(0x1D66F) . '</mi></mrow></mstyle><mo>+</mo><mstyle mathvariant="bold-script"><mi>' . $mathSymbol(0x1D4D5) . '</mi></mstyle>',
         '<mstyle mathvariant="bold-script"><mi>' . $mathSymbol(0x1D4DB) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="bold-fraktur"><mi>' . $mathSymbol(0x1D58C) . '</mi></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-italic"><mi>' . $mathSymbol(0x1D62F) . '</mi></mstyle>',
         '<annotation encoding="application/x-tex">\\mathup{x} + \\symbf{A1} + \\bm{\\alpha_i} + \\mathds{R2} + \\mathbfit{Az} + \\mathbfsfup{R2} + \\mathbfsfit{Az} + \\mathbfscr{F} + \\mathbfcal{L} + \\mathbffrak{g} + \\mathsfit{n}</annotation>',
+        '<mstyle mathvariant="bold"><msub><mi>' . $mathSymbol(0x1D6C2) . '</mi><mi>' . $mathSymbol(0x1D422) . '</mi></msub></mstyle><mo>+</mo><mstyle mathvariant="bold-italic"><mrow><mi>' . $mathSymbol(0x1D71E) . '</mi><mi>' . $mathSymbol(0x1D736) . '</mi></mrow></mstyle>',
+        '<mstyle mathvariant="bold-sans-serif"><mrow><mi>' . $mathSymbol(0x1D75D) . '</mi><mi>' . $mathSymbol(0x1D771) . '</mi></mrow></mstyle><mo>+</mo><mstyle mathvariant="sans-serif-bold-italic"><mrow><mi>' . $mathSymbol(0x1D7A8) . '</mi><mi>' . $mathSymbol(0x1D7C2) . '</mi></mrow></mstyle>',
+        '<annotation encoding="application/x-tex">\\bm{\\alpha_i} + \\mathbfit{\\Gamma\\alpha} + \\mathbfsfup{\\Theta\\beta} + \\mathbfsfit{\\Omega\\omega}</annotation>',
         '<annotation encoding="application/x-tex">\\sum_{\\substack{i=1 \\\\ i\\ne j}}^{n} a_i + \\lim_{\\substack{x \\to 0 \\\\ x &gt; 0}} f(x)</annotation>',
         '<annotation encoding="application/x-tex">\\sum\\limits_{i=1}^{n} p_i + \\lim\\limits_{x \\to 0} f(x) + \\int\\nolimits_{0}^{1} g(x) dx</annotation>',
         '<annotation encoding="application/x-tex">\\begin{align}f(p_i) &amp;= m_i \\\\ g(p_i) &amp;= \\frac{a_i}{b_i}\\end{align} + \\begin{gathered}x+y \\\\ z\\end{gathered} + \\begin{split}S &amp;= \\sum_{i=1}^{n} p_i \\\\ &amp;= \\frac{a}{b}\\end{split}</annotation>',

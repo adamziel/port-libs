@@ -259,7 +259,7 @@ final class PandocUpstreamRunnerDependencyAudit
 
         foreach (self::REQUIRED_SOURCE_FILES as $relativePath) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
-            if (is_file($path)) {
+            if (self::hasNonEmptyFile($path)) {
                 $present[] = $relativePath;
             } else {
                 $missing[] = $relativePath;
@@ -269,7 +269,7 @@ final class PandocUpstreamRunnerDependencyAudit
         $stablePlanFiles = [];
         foreach (self::STABLE_PLAN_FILES as $relativePath) {
             $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
-            if (is_file($path)) {
+            if (self::hasNonEmptyFile($path)) {
                 $stablePlanFiles[] = $relativePath;
             }
         }
@@ -281,5 +281,16 @@ final class PandocUpstreamRunnerDependencyAudit
             'missing' => $missing,
             'stablePlanFiles' => $stablePlanFiles,
         ];
+    }
+
+    private static function hasNonEmptyFile(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+
+        $size = filesize($path);
+
+        return $size !== false && $size > 0;
     }
 }

@@ -115,6 +115,45 @@ return [
         }
     },
 
+    'blocks empty source placeholders and ignores empty stable plan files in lightweight cache gate' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $writePandocRunnerSource): void {
+        $root = $makeTempDir();
+        try {
+            $checkout = $root . '/cache/pandoc';
+            mkdir($checkout, 0777, true);
+            $writePandocRunnerSource($checkout);
+            $writeFile($checkout, 'pandoc.cabal', '');
+            $writeFile($checkout, 'cabal.project.freeze', '');
+
+            $blockedAudit = PandocUpstreamRunnerDependencyAudit::fromLaneAndCacheRoots(
+                $root . '/lane',
+                $root . '/cache',
+                ['ghc' => '9.10.3', 'cabal' => '3.12.1.0']
+            );
+
+            $t->same(PandocUpstreamRunnerDependencyAudit::STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE, $blockedAudit->status());
+            $t->same(null, $blockedAudit->completeSourceRoot());
+            $t->same(false, $blockedAudit->hasHydratedCheckout());
+            $t->same(['pandoc.cabal'], $blockedAudit->missingSourceFiles());
+            $t->same([], $blockedAudit->stablePlanFiles());
+            $t->contains('no single local checkout', $blockedAudit->summary());
+
+            $writeFile($checkout, 'pandoc.cabal', "name: pandoc\n");
+
+            $readyAudit = PandocUpstreamRunnerDependencyAudit::fromLaneAndCacheRoots(
+                $root . '/lane',
+                $root . '/cache',
+                ['ghc' => '9.10.3', 'cabal' => '3.12.1.0']
+            );
+
+            $t->same(PandocUpstreamRunnerDependencyAudit::STATUS_READY_FOR_DEPENDENCY_PLAN, $readyAudit->status());
+            $t->same($checkout, $readyAudit->completeSourceRoot());
+            $t->same(['cabal.project'], $readyAudit->stablePlanFiles());
+            $t->contains('cabal.project.freeze', implode("\n", $readyAudit->activationGate()));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'requires ghc and cabal before claiming a dependency-plan-ready checkout' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePandocRunnerSource): void {
         $root = $makeTempDir();
         try {

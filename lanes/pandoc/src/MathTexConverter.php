@@ -964,6 +964,7 @@ final class MathTexConverter
         'ο' => 'omicron',
         'π' => 'pi',
         'ρ' => 'rho',
+        'ϱ' => 'rho',
         'σ' => 'sigma',
         'τ' => 'tau',
         'υ' => 'upsilon',
@@ -1643,6 +1644,11 @@ final class MathTexConverter
         $token = trim($token);
         if ($token === '') {
             return '';
+        }
+
+        $mathVariantText = $this->mathVariantAccessibilityText($token);
+        if ($mathVariantText !== null) {
+            return $mathVariantText;
         }
 
         return self::ACCESSIBILITY_TOKEN_TEXT[$token] ?? $token;
@@ -4319,8 +4325,10 @@ final class MathTexConverter
 
     private function rewriteMathVariantIdentifiers(string $mathml, string $variant): string
     {
-        $rewritten = preg_replace_callback('/<mi>([A-Za-z0-9])<\/mi>/', function (array $matches) use ($variant): string {
-            $character = $this->mathVariantUnicodeCharacter($variant, $matches[1]) ?? $matches[1];
+        $rewritten = preg_replace_callback('/<mi>([^<]*)<\/mi>/u', function (array $matches) use ($variant): string {
+            $character = $this->singleUtf8Codepoint($matches[1]) !== null
+                ? ($this->mathVariantUnicodeCharacter($variant, $matches[1]) ?? $matches[1])
+                : $matches[1];
 
             return '<mi>' . $this->esc($character) . '</mi>';
         }, $mathml);
@@ -4354,7 +4362,21 @@ final class MathTexConverter
 
     private function mathVariantUnicodeCodepoint(string $variant, string $character): ?int
     {
-        $ord = ord($character);
+        $codepoint = $this->singleUtf8Codepoint($character);
+        if ($codepoint === null) {
+            return null;
+        }
+
+        $greekCodepoint = $this->mathGreekVariantUnicodeCodepoint($variant, $codepoint);
+        if ($greekCodepoint !== null) {
+            return $greekCodepoint;
+        }
+
+        if ($codepoint > 0x7F) {
+            return null;
+        }
+
+        $ord = $codepoint;
 
         return match ($variant) {
             'bold' => $this->mathVariantOffsetCodepoint($ord, 0x1D400, 0x1D41A, 0x1D7CE),
@@ -4372,6 +4394,71 @@ final class MathTexConverter
             'script' => $this->mathScriptCodepoint($ord, $character),
             default => null,
         };
+    }
+
+    private function mathGreekVariantUnicodeCodepoint(string $variant, int $codepoint): ?int
+    {
+        $offset = $this->mathGreekAlphabetOffset($codepoint);
+        if ($offset === null) {
+            return null;
+        }
+
+        $bases = match ($variant) {
+            'bold' => ['upper' => 0x1D6A8, 'lower' => 0x1D6C2, 'symbol' => 0x1D6DB],
+            'italic' => ['upper' => 0x1D6E2, 'lower' => 0x1D6FC, 'symbol' => 0x1D715],
+            'bold-italic' => ['upper' => 0x1D71C, 'lower' => 0x1D736, 'symbol' => 0x1D74F],
+            'bold-sans-serif' => ['upper' => 0x1D756, 'lower' => 0x1D770, 'symbol' => 0x1D789],
+            'sans-serif-bold-italic' => ['upper' => 0x1D790, 'lower' => 0x1D7AA, 'symbol' => 0x1D7C3],
+            default => null,
+        };
+        if ($bases === null) {
+            return null;
+        }
+
+        return $bases[$offset['range']] + $offset['offset'];
+    }
+
+    /**
+     * @return array{range:'upper'|'lower'|'symbol', offset:int}|null
+     */
+    private function mathGreekAlphabetOffset(int $codepoint): ?array
+    {
+        $upper = [
+            0x0391 => 0, 0x0392 => 1, 0x0393 => 2, 0x0394 => 3, 0x0395 => 4,
+            0x0396 => 5, 0x0397 => 6, 0x0398 => 7, 0x0399 => 8, 0x039A => 9,
+            0x039B => 10, 0x039C => 11, 0x039D => 12, 0x039E => 13, 0x039F => 14,
+            0x03A0 => 15, 0x03A1 => 16, 0x03F4 => 17, 0x03A3 => 18, 0x03A4 => 19,
+            0x03A5 => 20, 0x03A6 => 21, 0x03A7 => 22, 0x03A8 => 23, 0x03A9 => 24,
+        ];
+        if (isset($upper[$codepoint])) {
+            return ['range' => 'upper', 'offset' => $upper[$codepoint]];
+        }
+
+        $lower = [
+            0x03B1 => 0, 0x03B2 => 1, 0x03B3 => 2, 0x03B4 => 3, 0x03B5 => 4,
+            0x03B6 => 5, 0x03B7 => 6, 0x03B8 => 7, 0x03B9 => 8, 0x03BA => 9,
+            0x03BB => 10, 0x03BC => 11, 0x03BD => 12, 0x03BE => 13, 0x03BF => 14,
+            0x03C0 => 15, 0x03C1 => 16, 0x03C2 => 17, 0x03C3 => 18, 0x03C4 => 19,
+            0x03C5 => 20, 0x03C6 => 21, 0x03C7 => 22, 0x03C8 => 23, 0x03C9 => 24,
+        ];
+        if (isset($lower[$codepoint])) {
+            return ['range' => 'lower', 'offset' => $lower[$codepoint]];
+        }
+
+        $symbols = [
+            0x2202 => 0,
+            0x03F5 => 1,
+            0x03D1 => 2,
+            0x03F0 => 3,
+            0x03D5 => 4,
+            0x03F1 => 5,
+            0x03D6 => 6,
+        ];
+        if (isset($symbols[$codepoint])) {
+            return ['range' => 'symbol', 'offset' => $symbols[$codepoint]];
+        }
+
+        return null;
     }
 
     private function mathVariantOffsetCodepoint(int $ord, int $uppercaseBase, int $lowercaseBase, ?int $digitBase): ?int
@@ -4454,6 +4541,199 @@ final class MathTexConverter
         }
 
         return $this->mathVariantOffsetCodepoint($ord, 0x1D49C, 0x1D4B6, null);
+    }
+
+    private function mathVariantAccessibilityText(string $token): ?string
+    {
+        $codepoints = $this->utf8Codepoints($token);
+        if ($codepoints === null || count($codepoints) === 0) {
+            return null;
+        }
+
+        $parts = [];
+        $asciiAlphanumeric = true;
+        foreach ($codepoints as $codepoint) {
+            $base = $this->mathVariantBaseCharacter($codepoint);
+            if ($base === null) {
+                return null;
+            }
+
+            if (preg_match('/^[A-Za-z0-9]$/', $base) !== 1) {
+                $asciiAlphanumeric = false;
+            }
+            $parts[] = self::ACCESSIBILITY_TOKEN_TEXT[$base] ?? $base;
+        }
+
+        return $asciiAlphanumeric ? implode('', $parts) : implode(' ', $parts);
+    }
+
+    private function mathVariantBaseCharacter(int $codepoint): ?string
+    {
+        static $latinDigitBaseByCodepoint = null;
+
+        if ($latinDigitBaseByCodepoint === null) {
+            $latinDigitBaseByCodepoint = [];
+            $variants = [
+                'bold',
+                'bold-fraktur',
+                'bold-italic',
+                'bold-sans-serif',
+                'bold-script',
+                'double-struck',
+                'fraktur',
+                'italic',
+                'monospace',
+                'sans-serif',
+                'sans-serif-bold-italic',
+                'sans-serif-italic',
+                'script',
+            ];
+            $characters = array_merge(range('A', 'Z'), range('a', 'z'), range('0', '9'));
+
+            foreach ($variants as $variant) {
+                foreach ($characters as $character) {
+                    $variantCodepoint = $this->mathVariantUnicodeCodepoint($variant, $character);
+                    if ($variantCodepoint !== null) {
+                        $latinDigitBaseByCodepoint[$variantCodepoint] = $character;
+                    }
+                }
+            }
+        }
+
+        return $latinDigitBaseByCodepoint[$codepoint] ?? $this->mathVariantGreekBaseCharacter($codepoint);
+    }
+
+    private function mathVariantGreekBaseCharacter(int $codepoint): ?string
+    {
+        $sets = [
+            ['upper' => 0x1D6A8, 'lower' => 0x1D6C2, 'symbol' => 0x1D6DB],
+            ['upper' => 0x1D6E2, 'lower' => 0x1D6FC, 'symbol' => 0x1D715],
+            ['upper' => 0x1D71C, 'lower' => 0x1D736, 'symbol' => 0x1D74F],
+            ['upper' => 0x1D756, 'lower' => 0x1D770, 'symbol' => 0x1D789],
+            ['upper' => 0x1D790, 'lower' => 0x1D7AA, 'symbol' => 0x1D7C3],
+        ];
+        $base = [
+            'upper' => [
+                0x0391, 0x0392, 0x0393, 0x0394, 0x0395,
+                0x0396, 0x0397, 0x0398, 0x0399, 0x039A,
+                0x039B, 0x039C, 0x039D, 0x039E, 0x039F,
+                0x03A0, 0x03A1, 0x03F4, 0x03A3, 0x03A4,
+                0x03A5, 0x03A6, 0x03A7, 0x03A8, 0x03A9,
+            ],
+            'lower' => [
+                0x03B1, 0x03B2, 0x03B3, 0x03B4, 0x03B5,
+                0x03B6, 0x03B7, 0x03B8, 0x03B9, 0x03BA,
+                0x03BB, 0x03BC, 0x03BD, 0x03BE, 0x03BF,
+                0x03C0, 0x03C1, 0x03C2, 0x03C3, 0x03C4,
+                0x03C5, 0x03C6, 0x03C7, 0x03C8, 0x03C9,
+            ],
+            'symbol' => [0x2202, 0x03F5, 0x03D1, 0x03F0, 0x03D5, 0x03F1, 0x03D6],
+        ];
+
+        foreach ($sets as $set) {
+            foreach ($base as $range => $baseCodepoints) {
+                $offset = $codepoint - $set[$range];
+                if (isset($baseCodepoints[$offset])) {
+                    return $this->utf8FromCodepoint($baseCodepoints[$offset]);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function utf8Codepoints(string $text): ?array
+    {
+        $codepoints = [];
+        $offset = 0;
+        while ($offset < strlen($text)) {
+            $codepoint = $this->readUtf8Codepoint($text, $offset);
+            if ($codepoint === null) {
+                return null;
+            }
+            $codepoints[] = $codepoint;
+        }
+
+        return $codepoints;
+    }
+
+    private function singleUtf8Codepoint(string $text): ?int
+    {
+        $codepoints = $this->utf8Codepoints($text);
+        if ($codepoints === null || count($codepoints) !== 1) {
+            return null;
+        }
+
+        return $codepoints[0];
+    }
+
+    private function readUtf8Codepoint(string $text, int &$offset): ?int
+    {
+        $first = ord($text[$offset] ?? "\0");
+        $offset++;
+
+        if ($first <= 0x7F) {
+            return $first;
+        }
+
+        if (($first & 0xE0) === 0xC0) {
+            $second = $this->readUtf8ContinuationCodepoint($text, $offset);
+            if ($second === null) {
+                return null;
+            }
+            $codepoint = (($first & 0x1F) << 6) | $second;
+
+            return $codepoint >= 0x80 ? $codepoint : null;
+        }
+
+        if (($first & 0xF0) === 0xE0) {
+            $second = $this->readUtf8ContinuationCodepoint($text, $offset);
+            $third = $this->readUtf8ContinuationCodepoint($text, $offset);
+            if ($second === null || $third === null) {
+                return null;
+            }
+            $codepoint = (($first & 0x0F) << 12) | ($second << 6) | $third;
+            if ($codepoint < 0x800 || ($codepoint >= 0xD800 && $codepoint <= 0xDFFF)) {
+                return null;
+            }
+
+            return $codepoint;
+        }
+
+        if (($first & 0xF8) === 0xF0) {
+            $second = $this->readUtf8ContinuationCodepoint($text, $offset);
+            $third = $this->readUtf8ContinuationCodepoint($text, $offset);
+            $fourth = $this->readUtf8ContinuationCodepoint($text, $offset);
+            if ($second === null || $third === null || $fourth === null) {
+                return null;
+            }
+            $codepoint = (($first & 0x07) << 18) | ($second << 12) | ($third << 6) | $fourth;
+            if ($codepoint < 0x10000 || $codepoint > 0x10FFFF) {
+                return null;
+            }
+
+            return $codepoint;
+        }
+
+        return null;
+    }
+
+    private function readUtf8ContinuationCodepoint(string $text, int &$offset): ?int
+    {
+        if ($offset >= strlen($text)) {
+            return null;
+        }
+
+        $byte = ord($text[$offset]);
+        $offset++;
+        if (($byte & 0xC0) !== 0x80) {
+            return null;
+        }
+
+        return $byte & 0x3F;
     }
 
     private function utf8FromCodepoint(int $codepoint): string
