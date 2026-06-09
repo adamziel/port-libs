@@ -3769,6 +3769,142 @@ return [
         $t->same($contentBytes, $inspection['archive']->read('/packet/metadata-layout/content.md'));
     },
 
+    'preflights gzip tar record boundaries before package handoff' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $contentBytes = "# GZIP TAR record boundary\n\nReady for WordPress archive review.\n";
+        $localPaxPayload = $paxPayload([
+            'path' => 'packet/boundary/content.md',
+            'comment' => 'boundary review metadata',
+        ]);
+        $tarBytes = $rawTarHeader('PaxHeaders/boundary', 'x', $localPaxPayload, 0, false)
+            . $rawTarHeader('placeholder.md', '0', $contentBytes, 1780479102, false)
+            . str_repeat("\0", 1024);
+        $firstSplit = 640;
+        $secondSplit = 1536;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $firstSplit), [
+            'filename' => 'record-boundary-part-1.tar',
+            'comment' => 'metadata record head',
+        ]) . GzipStream::build(substr($tarBytes, $firstSplit, $secondSplit - $firstSplit), [
+            'filename' => 'record-boundary-part-2.tar',
+            'comment' => 'metadata tail and entry head',
+        ]) . GzipStream::build(substr($tarBytes, $secondSplit), [
+            'filename' => 'record-boundary-part-3.tar',
+            'comment' => 'entry payload tail',
+        ]);
+        $alignedGzip = GzipStream::build(substr($tarBytes, 0, 1024), [
+            'filename' => 'record-boundary-aligned-1.tar',
+        ]) . GzipStream::build(substr($tarBytes, 1024), [
+            'filename' => 'record-boundary-aligned-2.tar',
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectGzipTarRecordBoundaryPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes),
+            strlen($contentBytes)
+        );
+        $alignedPolicy = ArchiveCompressionStream::inspectGzipTarRecordBoundaryPolicy(
+            $alignedGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes),
+            strlen($contentBytes)
+        );
+        $metadataBoundary = $policy['boundaries'][0];
+        $entryBoundary = $policy['boundaries'][1];
+        $metadataSplitRecord = $metadataBoundary['splitRecords'][0];
+        $entrySplitRecord = $entryBoundary['splitRecords'][0];
+
+        $t->same('archive-gzip-tar-record-boundary-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(3, $policy['memberCount']);
+        $t->same(2, $policy['boundaryCount']);
+        $t->same(0, $policy['alignedBoundaryCount']);
+        $t->same(2, $policy['splitBoundaryCount']);
+        $t->same(2, $policy['splitRecordCount']);
+        $t->same(1, $policy['splitMetadataRecordCount']);
+        $t->same(1, $policy['splitEntryRecordCount']);
+        $t->same(1, $policy['entryCount']);
+        $t->same(1, $policy['metadataLayoutCount']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('gzip-tar-record-boundary-review', $policy['extractionPolicy']);
+        $t->same([
+            'gzip-member-boundary-splits-tar-record',
+            'gzip-member-boundary-splits-tar-entry-record',
+            'gzip-member-boundary-splits-tar-metadata-record',
+        ], $policy['diagnostics']);
+        $t->same('gzip', $policy['stream']['type']);
+        $t->same(['record-boundary-part-1.tar', 'record-boundary-part-2.tar', 'record-boundary-part-3.tar'], array_column($policy['stream']['members'], 'filename'));
+        $t->same([0, $firstSplit, $secondSplit], array_column($policy['stream']['members'], 'decodedDataOffset'));
+        $t->same([$firstSplit, $secondSplit, strlen($tarBytes)], array_column($policy['stream']['members'], 'decodedDataEndOffset'));
+
+        $t->same(0, $metadataBoundary['boundaryIndex']);
+        $t->same($firstSplit, $metadataBoundary['decodedBoundaryOffset']);
+        $t->same('record-boundary-part-1.tar', $metadataBoundary['previousMemberLabel']);
+        $t->same('record-boundary-part-2.tar', $metadataBoundary['nextMemberLabel']);
+        $t->same(1, $metadataBoundary['splitRecordCount']);
+        $t->same(1, $metadataBoundary['splitMetadataRecordCount']);
+        $t->same(0, $metadataBoundary['splitEntryRecordCount']);
+        $t->same('review-before-conversion', $metadataBoundary['policy']);
+        $t->same([
+            'gzip-member-boundary-splits-tar-record',
+            'gzip-member-boundary-splits-tar-metadata-record',
+        ], $metadataBoundary['diagnostics']);
+        $t->same('metadata', $metadataSplitRecord['recordKind']);
+        $t->same('PaxHeaders/boundary', $metadataSplitRecord['name']);
+        $t->same('pax-local', $metadataSplitRecord['role']);
+        $t->same('pax-local', $metadataSplitRecord['metadataKind']);
+        $t->same(['comment', 'path'], $metadataSplitRecord['paxHeaderKeys']);
+        $t->same(0, $metadataSplitRecord['headerOffset']);
+        $t->same(512, $metadataSplitRecord['dataOffset']);
+        $t->same(1024, $metadataSplitRecord['recordEndOffset']);
+        $t->same(1024, $metadataSplitRecord['recordSize']);
+        $t->same($firstSplit, $metadataSplitRecord['splitOffsetInRecord']);
+        $t->same(['gzip-member-boundary-splits-tar-metadata-record'], $metadataSplitRecord['diagnostics']);
+
+        $t->same(1, $entryBoundary['boundaryIndex']);
+        $t->same($secondSplit, $entryBoundary['decodedBoundaryOffset']);
+        $t->same('record-boundary-part-2.tar', $entryBoundary['previousMemberLabel']);
+        $t->same('record-boundary-part-3.tar', $entryBoundary['nextMemberLabel']);
+        $t->same(1, $entryBoundary['splitRecordCount']);
+        $t->same(1, $entryBoundary['splitEntryRecordCount']);
+        $t->same(0, $entryBoundary['splitMetadataRecordCount']);
+        $t->same('review-before-conversion', $entryBoundary['policy']);
+        $t->same([
+            'gzip-member-boundary-splits-tar-record',
+            'gzip-member-boundary-splits-tar-entry-record',
+        ], $entryBoundary['diagnostics']);
+        $t->same('entry', $entrySplitRecord['recordKind']);
+        $t->same('packet/boundary/content.md', $entrySplitRecord['name']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $entrySplitRecord['role']);
+        $t->same(1024, $entrySplitRecord['headerOffset']);
+        $t->same(1536, $entrySplitRecord['dataOffset']);
+        $t->same(2048, $entrySplitRecord['recordEndOffset']);
+        $t->same(1024, $entrySplitRecord['recordSize']);
+        $t->same($secondSplit - 1024, $entrySplitRecord['splitOffsetInRecord']);
+        $t->same(['gzip-member-boundary-splits-tar-entry-record'], $entrySplitRecord['diagnostics']);
+
+        $t->same(false, isset($policy['tarBytes']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($metadataSplitRecord['data']));
+        $t->same(false, isset($entrySplitRecord['data']));
+
+        $t->same('within-thresholds', $alignedPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $alignedPolicy['extractionPolicy']);
+        $t->same([], $alignedPolicy['diagnostics']);
+        $t->same(2, $alignedPolicy['memberCount']);
+        $t->same(1, $alignedPolicy['boundaryCount']);
+        $t->same(1, $alignedPolicy['alignedBoundaryCount']);
+        $t->same(0, $alignedPolicy['splitBoundaryCount']);
+        $t->same(0, $alignedPolicy['splitRecordCount']);
+        $t->same('metadata', $alignedPolicy['boundaries'][0]['policy']);
+        $t->same([], $alignedPolicy['boundaries'][0]['splitRecords']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipTarRecordBoundaryPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'inspects tar entry byte layout for package review streams' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"tar-layout","target":"wordpress"}';
         $documentBytes = '<w:document><w:body><w:p>Layout-aware tar source</w:p></w:body></w:document>';

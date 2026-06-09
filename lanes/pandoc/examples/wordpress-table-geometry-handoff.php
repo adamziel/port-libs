@@ -190,6 +190,22 @@ $cellNoWrapTables = array_values(array_filter(
     $cellNoWrapDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$rowBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="row-background-grid" data-source="html-reader">
+<caption>Row background review</caption>
+<thead>
+<tr bgcolor="#FFF4CC"><th>Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr style="background-color: #e6ffed"><td>Posts</td><td>Ready</td></tr>
+<tr bgcolor="yellow" style="background-color: rgb(230, 255, 237)"><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$rowBackgroundTables = array_values(array_filter(
+    $rowBackgroundDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $cellBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="cell-background-grid" data-source="html-reader">
 <caption>Cell background review</caption>
@@ -1359,6 +1375,7 @@ $document = new AstNode('document', [], [
     ...$legacyFrameTables,
     ...$legacySpacingTables,
     ...$cellNoWrapTables,
+    ...$rowBackgroundTables,
     ...$cellBackgroundTables,
     ...$cellBorderPresentationTables,
     ...$cellSideBorderPresentationTables,
@@ -2710,6 +2727,53 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($cellNoWrapPacket, JSON_THROW_ON_ERROR);
     json_encode($cellNoWrapDowngrades, JSON_THROW_ON_ERROR);
+
+    $rowBackgroundTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'row-background-grid') {
+            $rowBackgroundTable = $node;
+            break;
+        }
+    }
+    $rowBackgroundPacket = $rowBackgroundTable instanceof AstNode ? $rowBackgroundTable->attr('tableGeometry') : null;
+    $rowBackgroundDowngrades = $rowBackgroundTable instanceof AstNode ? TableGeometry::reviewPacket($rowBackgroundTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $rowBackgroundDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $rowBackgroundDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'row-background'
+        ));
+        $rowBackgroundDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$rowBackgroundTable instanceof AstNode
+        || !is_array($rowBackgroundPacket)
+        || ($rowBackgroundPacket['summary']['hasRowBackgrounds'] ?? null) !== true
+        || ($rowBackgroundPacket['summary']['rowBackgroundCount'] ?? null) !== 3
+        || ($rowBackgroundPacket['summary']['rowBackgroundRows'] ?? null) !== [0, 1]
+        || ($rowBackgroundPacket['summary']['rowBackgroundGlobalRows'] ?? null) !== [0, 1, 2]
+        || ($rowBackgroundPacket['summary']['rowBackgroundSections'] ?? null) !== ['head', 'body']
+        || ($rowBackgroundPacket['summary']['rowBackgroundColors'] ?? null) !== ['#fff4cc', '#e6ffed', 'rgb(230, 255, 237)']
+        || ($rowBackgroundPacket['rowBackgrounds'][0]['attributes'] ?? null) !== ['bgcolor' => '#fff4cc']
+        || ($rowBackgroundPacket['rowBackgrounds'][2]['legacyBackgroundColor'] ?? null) !== 'yellow'
+        || ($rowBackgroundDiagnostics['markdown']['code'] ?? null) !== 'markdown-row-background-require-raw-html'
+        || ($rowBackgroundDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-row-background-review-required'
+        || ($rowBackgroundDiagnostics['latex']['code'] ?? null) !== 'latex-row-background-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML row background metadata');
+    }
+    if (
+        !str_contains($blocks, '<tr bgcolor="#FFF4CC"><th>Source</th><th>Status</th></tr>')
+        || !str_contains($blocks, '<tr style="background-color: #e6ffed"><td>Posts</td><td>Ready</td></tr>')
+        || !str_contains($blocks, '<tr bgcolor="yellow" style="background-color: rgb(230, 255, 237)"><td>Media</td><td>Review</td></tr>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing WordPress row background output');
+    }
+    json_encode($rowBackgroundPacket, JSON_THROW_ON_ERROR);
+    json_encode($rowBackgroundDowngrades, JSON_THROW_ON_ERROR);
 
     $cellBackgroundTable = null;
     foreach ($document->children as $node) {

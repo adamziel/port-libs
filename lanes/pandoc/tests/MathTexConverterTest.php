@@ -594,6 +594,47 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wprelated[\\small]{x}{y}', false, $macros));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wprelated*{x}', false, $macros));
     },
+    'captures bounded raw tex declarations with nested balanced templates from markdown' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\newcommand{\\wpnestedscore}[1]{\\operatorname{nested\\,review}_{#1}}',
+            '\\DeclarePairedDelimiterX{\\wpfilter}[2]{\\langle}{\\rangle}{#1 , \\operatorname{media}_{#2}}',
+            '\\DeclarePairedDelimiterXPP{\\wpwrapped}[1]{\\operatorname{pre}_{0}}{\\lbrack}{\\rbrack}{\\operatorname{suf}_{1}}{#1}',
+            '',
+            '$\\wpnestedscore{p_i} + \\wpfilter{p_i}{m_i} + \\wpwrapped{q_i}$',
+        ]));
+        $firstDeclaration = $document->children[0];
+        $secondDeclaration = $document->children[1];
+        $thirdDeclaration = $document->children[2];
+        $math = $document->children[3]->children[0];
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\wpnestedscore{p_i} + \\wpfilter{p_i}{m_i} + \\wpwrapped{q_i}', true, $macros);
+        $readerMathml = $converter->mathMlFor($math);
+
+        $t->same('raw_tex', $firstDeclaration->type);
+        $t->same('newcommand', $firstDeclaration->attr('command'));
+        $t->same('\\newcommand{\\wpnestedscore}[1]{\\operatorname{nested\\,review}_{#1}}', $firstDeclaration->attr('tex'));
+        $t->same('raw_tex', $secondDeclaration->type);
+        $t->same('DeclarePairedDelimiterX', $secondDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterX{\\wpfilter}[2]{\\langle}{\\rangle}{#1 , \\operatorname{media}_{#2}}', $secondDeclaration->attr('tex'));
+        $t->same('raw_tex', $thirdDeclaration->type);
+        $t->same('DeclarePairedDelimiterXPP', $thirdDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterXPP{\\wpwrapped}[1]{\\operatorname{pre}_{0}}{\\lbrack}{\\rbrack}{\\operatorname{suf}_{1}}{#1}', $thirdDeclaration->attr('tex'));
+        $t->same([
+            'wpnestedscore' => ['arity' => 1, 'template' => '\\operatorname{nested\\,review}_{#1}'],
+            'wpfilter' => ['arity' => 2, 'template' => '\\left\\langle #1 , \\operatorname{media}_{#2} \\right\\rangle'],
+            'wpwrapped' => ['arity' => 1, 'template' => '\\operatorname{pre}_{0} \\left\\lbrack #1 \\right\\rbrack \\operatorname{suf}_{1}'],
+        ], $macros);
+        $t->same('\\operatorname{nested\\,review}_{p_i} + \\left\\langle p_i , \\operatorname{media}_{m_i} \\right\\rangle + \\operatorname{pre}_{0} \\left\\lbrack q_i \\right\\rbrack \\operatorname{suf}_{1}', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\wpnestedscore{p_i} + \\wpfilter{p_i}{m_i} + \\wpwrapped{q_i}</annotation>', $mathml);
+        $t->contains('<msub><mi>nested review</mi><msub><mi>p</mi><mi>i</mi></msub></msub>', $mathml);
+        $t->contains('<mo fence="true" stretchy="true">⟨</mo><msub><mi>p</mi><mi>i</mi></msub><mo>,</mo><msub><mi>media</mi><msub><mi>m</mi><mi>i</mi></msub></msub><mo fence="true" stretchy="true">⟩</mo>', $mathml);
+        $t->contains('<msub><mi>pre</mi><mn>0</mn></msub><mo fence="true" stretchy="true">[</mo><msub><mi>q</mi><mi>i</mi></msub><mo fence="true" stretchy="true">]</mo><msub><mi>suf</mi><mn>1</mn></msub>', $mathml);
+        $t->contains('<msub><mi>nested review</mi><msub><mi>p</mi><mi>i</mi></msub></msub>', $readerMathml);
+        $t->contains('<msub><mi>media</mi><msub><mi>m</mi><mi>i</mi></msub></msub>', $readerMathml);
+        $t->true(!str_contains($mathml . $readerMathml, '<mi>\\wpnestedscore</mi>') && !str_contains($mathml . $readerMathml, '<mi>\\wpfilter</mi>') && !str_contains($mathml . $readerMathml, '<mi>\\wpwrapped</mi>'));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 

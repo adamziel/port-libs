@@ -2286,6 +2286,105 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table row background metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="row-background-grid" data-source="html-reader">
+<caption>Row background review</caption>
+<thead>
+<tr bgcolor="#FFF4CC"><th>Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr style="background-color: #e6ffed"><td>Posts</td><td>Ready</td></tr>
+<tr bgcolor="yellow" style="background-color: rgb(230, 255, 237)"><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $backgroundDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'row-background'
+            ));
+            $backgroundDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $backgrounds = is_array($packet['rowBackgrounds'] ?? null) ? $packet['rowBackgrounds'] : [];
+        $t->same(3, count($backgrounds));
+        $t->same(true, $packet['summary']['hasRowBackgrounds'] ?? null);
+        $t->same(3, $packet['summary']['rowBackgroundCount'] ?? null);
+        $t->same([0, 1], $packet['summary']['rowBackgroundRows'] ?? null);
+        $t->same([0, 1, 2], $packet['summary']['rowBackgroundGlobalRows'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['rowBackgroundSections'] ?? null);
+        $t->same(['#fff4cc', '#e6ffed', 'rgb(230, 255, 237)'], $packet['summary']['rowBackgroundColors'] ?? null);
+        $t->same(['bgcolor', 'style'], $packet['summary']['rowBackgroundSources'] ?? null);
+
+        $t->same('SourceStatus', $backgrounds[0]['text'] ?? null);
+        $t->same(true, $backgrounds[0]['headerRow'] ?? null);
+        $t->same('head', $backgrounds[0]['section'] ?? null);
+        $t->same(0, $backgrounds[0]['row'] ?? null);
+        $t->same(0, $backgrounds[0]['globalRow'] ?? null);
+        $t->same('#fff4cc', $backgrounds[0]['backgroundColor'] ?? null);
+        $t->same('bgcolor', $backgrounds[0]['backgroundColorSource'] ?? null);
+        $t->same(['bgcolor' => '#fff4cc'], $backgrounds[0]['attributes'] ?? null);
+        $t->same('#FFF4CC', $backgrounds[0]['sourceAttributes']['htmlAttributes']['bgcolor'] ?? null);
+
+        $t->same('PostsReady', $backgrounds[1]['text'] ?? null);
+        $t->same(false, $backgrounds[1]['headerRow'] ?? null);
+        $t->same('body', $backgrounds[1]['section'] ?? null);
+        $t->same(0, $backgrounds[1]['row'] ?? null);
+        $t->same(1, $backgrounds[1]['globalRow'] ?? null);
+        $t->same('#e6ffed', $backgrounds[1]['backgroundColor'] ?? null);
+        $t->same('style', $backgrounds[1]['backgroundColorSource'] ?? null);
+        $t->same(['background-color' => '#e6ffed'], $backgrounds[1]['attributes'] ?? null);
+        $t->same('background-color: #e6ffed', $backgrounds[1]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same('MediaReview', $backgrounds[2]['text'] ?? null);
+        $t->same(1, $backgrounds[2]['row'] ?? null);
+        $t->same(2, $backgrounds[2]['globalRow'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[2]['backgroundColor'] ?? null);
+        $t->same('style', $backgrounds[2]['backgroundColorSource'] ?? null);
+        $t->same('yellow', $backgrounds[2]['legacyBackgroundColor'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[2]['cssBackgroundColor'] ?? null);
+        $t->same([
+            'background-color' => 'rgb(230, 255, 237)',
+            'bgcolor' => 'yellow',
+        ], $backgrounds[2]['attributes'] ?? null);
+
+        $t->same([
+            'markdown-row-background-require-raw-html',
+            'asciidoc-row-background-review-required',
+            'latex-row-background-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $backgroundDiagnostics['markdown'],
+            $backgroundDiagnostics['asciidoc'],
+            $backgroundDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-row-background', $backgroundDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-row-background', $backgroundDiagnostics['markdown']['source'] ?? null);
+        $t->same(3, $backgroundDiagnostics['markdown']['rowCount'] ?? null);
+        $t->same([0, 1], $backgroundDiagnostics['markdown']['rows'] ?? null);
+        $t->same([0, 1, 2], $backgroundDiagnostics['markdown']['globalRows'] ?? null);
+        $t->same(['head', 'body'], $backgroundDiagnostics['markdown']['sections'] ?? null);
+        $t->same(['#fff4cc', '#e6ffed', 'rgb(230, 255, 237)'], $backgroundDiagnostics['markdown']['colors'] ?? null);
+
+        $t->contains('<tr bgcolor="#FFF4CC"><th>Source</th><th>Status</th></tr>', $blocks);
+        $t->contains('<tr style="background-color: #e6ffed"><td>Posts</td><td>Ready</td></tr>', $blocks);
+        $t->contains('<tr bgcolor="yellow" style="background-color: rgb(230, 255, 237)"><td>Media</td><td>Review</td></tr>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes html table cell border presentation metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="cell-border-presentation-grid" data-source="html-reader">

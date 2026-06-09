@@ -836,6 +836,126 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function inspectGzipTarRecordBoundaryPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR) {
+            throw new \RuntimeException("GZIP TAR record-boundary policy requires a GZIP TAR archive stream format: {$format}");
+        }
+
+        $inspection = self::inspectTarStream($bytes, $format, $maxUncompressedBytes, $maxUnpackedBytes);
+        $stream = $inspection['stream'];
+        $members = array_values(array_filter($stream['members'] ?? [], 'is_array'));
+        $entryLayouts = array_values(array_filter($inspection['entryLayouts'] ?? [], 'is_array'));
+        $metadataLayouts = array_values(array_filter($inspection['metadataLayouts'] ?? [], 'is_array'));
+        $boundaries = [];
+        $splitBoundaryCount = 0;
+        $splitRecordCount = 0;
+        $splitEntryRecordCount = 0;
+        $splitMetadataRecordCount = 0;
+
+        for ($index = 0; $index + 1 < count($members); $index++) {
+            $member = $members[$index];
+            $nextMember = $members[$index + 1];
+            $boundaryOffset = (int) ($member['decodedDataEndOffset'] ?? 0);
+            $splitRecords = [];
+
+            foreach ($metadataLayouts as $layout) {
+                $splitRecord = self::gzipTarBoundarySplitMetadataRecord($layout, $boundaryOffset);
+                if ($splitRecord !== null) {
+                    $splitRecords[] = $splitRecord;
+                }
+            }
+
+            foreach ($entryLayouts as $layout) {
+                $splitRecord = self::gzipTarBoundarySplitEntryRecord($layout, $boundaryOffset);
+                if ($splitRecord !== null) {
+                    $splitRecords[] = $splitRecord;
+                }
+            }
+
+            $entrySplitCount = count(array_filter(
+                $splitRecords,
+                static fn (array $record): bool => ($record['recordKind'] ?? null) === 'entry'
+            ));
+            $metadataSplitCount = count($splitRecords) - $entrySplitCount;
+            $boundaryDiagnostics = [];
+            if ($splitRecords !== []) {
+                $splitBoundaryCount++;
+                $boundaryDiagnostics[] = 'gzip-member-boundary-splits-tar-record';
+            }
+
+            if ($entrySplitCount > 0) {
+                $boundaryDiagnostics[] = 'gzip-member-boundary-splits-tar-entry-record';
+            }
+
+            if ($metadataSplitCount > 0) {
+                $boundaryDiagnostics[] = 'gzip-member-boundary-splits-tar-metadata-record';
+            }
+
+            $splitRecordCount += count($splitRecords);
+            $splitEntryRecordCount += $entrySplitCount;
+            $splitMetadataRecordCount += $metadataSplitCount;
+
+            $boundaries[] = [
+                'boundaryIndex' => $index,
+                'previousMemberIndex' => $index,
+                'nextMemberIndex' => $index + 1,
+                'previousMemberLabel' => self::gzipMemberReviewLabel($member),
+                'nextMemberLabel' => self::gzipMemberReviewLabel($nextMember),
+                'decodedBoundaryOffset' => $boundaryOffset,
+                'splitRecordCount' => count($splitRecords),
+                'splitEntryRecordCount' => $entrySplitCount,
+                'splitMetadataRecordCount' => $metadataSplitCount,
+                'policy' => $splitRecords === [] ? 'metadata' : 'review-before-conversion',
+                'diagnostics' => $boundaryDiagnostics,
+                'splitRecords' => $splitRecords,
+            ];
+        }
+
+        $diagnostics = [];
+        if ($splitRecordCount > 0) {
+            $diagnostics[] = 'gzip-member-boundary-splits-tar-record';
+        }
+
+        if ($splitEntryRecordCount > 0) {
+            $diagnostics[] = 'gzip-member-boundary-splits-tar-entry-record';
+        }
+
+        if ($splitMetadataRecordCount > 0) {
+            $diagnostics[] = 'gzip-member-boundary-splits-tar-metadata-record';
+        }
+
+        return [
+            'type' => 'archive-gzip-tar-record-boundary-policy',
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => (int) $inspection['uncompressedSize'],
+            'memberCount' => count($members),
+            'boundaryCount' => count($boundaries),
+            'alignedBoundaryCount' => count($boundaries) - $splitBoundaryCount,
+            'splitBoundaryCount' => $splitBoundaryCount,
+            'splitRecordCount' => $splitRecordCount,
+            'splitEntryRecordCount' => $splitEntryRecordCount,
+            'splitMetadataRecordCount' => $splitMetadataRecordCount,
+            'entryCount' => count($entryLayouts),
+            'metadataLayoutCount' => count($metadataLayouts),
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'gzip-tar-record-boundary-review',
+            'diagnostics' => $diagnostics,
+            'boundaries' => $boundaries,
+            'stream' => $stream,
+        ];
+    }
+
+    /**
      * @param array<int|string, string> $dictionaries
      * @return array<string, mixed>
      */
@@ -3629,6 +3749,74 @@ final class ArchiveCompressionStream
         }
 
         throw new \RuntimeException("Unsupported gzip member package-boundary kind: {$expectedKind}");
+    }
+
+    private static function gzipMemberReviewLabel(array $member): ?string
+    {
+        if (is_string($member['filenameText'] ?? null) && $member['filenameText'] !== '') {
+            return $member['filenameText'];
+        }
+
+        if (is_string($member['filename'] ?? null) && $member['filename'] !== '') {
+            return $member['filename'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return ?array<string, mixed>
+     */
+    private static function gzipTarBoundarySplitEntryRecord(array $layout, int $boundaryOffset): ?array
+    {
+        $headerOffset = (int) ($layout['headerOffset'] ?? 0);
+        $recordSize = (int) ($layout['recordSize'] ?? 0);
+        $recordEndOffset = $headerOffset + $recordSize;
+        if ($recordSize <= 0 || $boundaryOffset <= $headerOffset || $boundaryOffset >= $recordEndOffset) {
+            return null;
+        }
+
+        return [
+            'recordKind' => 'entry',
+            'name' => (string) ($layout['name'] ?? ''),
+            'role' => (string) ($layout['type'] ?? ''),
+            'headerOffset' => $headerOffset,
+            'dataOffset' => (int) ($layout['dataOffset'] ?? ($headerOffset + 512)),
+            'dataEndOffset' => (int) ($layout['dataEndOffset'] ?? ($headerOffset + 512)),
+            'recordEndOffset' => $recordEndOffset,
+            'recordSize' => $recordSize,
+            'splitOffsetInRecord' => $boundaryOffset - $headerOffset,
+            'policy' => 'review-before-conversion',
+            'diagnostics' => ['gzip-member-boundary-splits-tar-entry-record'],
+        ];
+    }
+
+    /**
+     * @return ?array<string, mixed>
+     */
+    private static function gzipTarBoundarySplitMetadataRecord(array $layout, int $boundaryOffset): ?array
+    {
+        $headerOffset = (int) ($layout['headerOffset'] ?? 0);
+        $recordEndOffset = (int) ($layout['recordEndOffset'] ?? $headerOffset);
+        if ($boundaryOffset <= $headerOffset || $boundaryOffset >= $recordEndOffset) {
+            return null;
+        }
+
+        return [
+            'recordKind' => 'metadata',
+            'name' => (string) ($layout['name'] ?? ''),
+            'role' => (string) ($layout['role'] ?? ''),
+            'metadataKind' => (string) ($layout['metadataKind'] ?? ''),
+            'paxHeaderKeys' => array_values($layout['paxHeaderKeys'] ?? []),
+            'headerOffset' => $headerOffset,
+            'dataOffset' => (int) ($layout['dataOffset'] ?? ($headerOffset + 512)),
+            'dataEndOffset' => (int) ($layout['dataEndOffset'] ?? ($headerOffset + 512)),
+            'recordEndOffset' => $recordEndOffset,
+            'recordSize' => $recordEndOffset - $headerOffset,
+            'splitOffsetInRecord' => $boundaryOffset - $headerOffset,
+            'policy' => 'review-before-conversion',
+            'diagnostics' => ['gzip-member-boundary-splits-tar-metadata-record'],
+        ];
     }
 
     /**

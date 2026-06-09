@@ -444,6 +444,31 @@ $gzipMemberBoundaryInspection = ArchiveCompressionStream::inspectGzipMemberPacka
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
     strlen($boundaryFirstArchive->bytes()) + strlen($boundarySecondArchive->bytes())
 );
+$gzipRecordBoundaryContentBytes = "# GZIP record boundary example\n\nReady for bounded WordPress archive review.\n";
+$gzipRecordBoundaryArchiveBytes = $rawTarHeader('PaxHeaders/record-boundary', 'x', $paxPayload([
+    'path' => 'packet/record-boundary/content.md',
+    'comment' => 'review gzip member record boundaries',
+]), 0, false)
+    . $rawTarHeader('placeholder-record.md', '0', $gzipRecordBoundaryContentBytes, 1780479102, false)
+    . str_repeat("\0", 1024);
+$gzipRecordBoundaryFirstSplit = 640;
+$gzipRecordBoundarySecondSplit = 1536;
+$gzipRecordBoundaryUpload = GzipStream::build(substr($gzipRecordBoundaryArchiveBytes, 0, $gzipRecordBoundaryFirstSplit), [
+    'filename' => 'wordpress-record-boundary-part-1.tar',
+    'comment' => 'metadata record head',
+]) . GzipStream::build(substr($gzipRecordBoundaryArchiveBytes, $gzipRecordBoundaryFirstSplit, $gzipRecordBoundarySecondSplit - $gzipRecordBoundaryFirstSplit), [
+    'filename' => 'wordpress-record-boundary-part-2.tar',
+    'comment' => 'metadata tail and content header',
+]) . GzipStream::build(substr($gzipRecordBoundaryArchiveBytes, $gzipRecordBoundarySecondSplit), [
+    'filename' => 'wordpress-record-boundary-part-3.tar',
+    'comment' => 'content payload tail',
+]);
+$gzipRecordBoundaryInspection = ArchiveCompressionStream::inspectGzipTarRecordBoundaryPolicy(
+    $gzipRecordBoundaryUpload,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($gzipRecordBoundaryArchiveBytes),
+    strlen($gzipRecordBoundaryContentBytes)
+);
 $gzipMemberCountManifestBytes = '{"source":"gzip-member-count-example","target":"wordpress"}';
 $gzipMemberCountContentBytes = "# GZIP member count example\n\nReady for bounded WordPress archive review.\n";
 $gzipMemberCountArchiveBytes = TarArchive::fromEntries([
@@ -1682,6 +1707,23 @@ if (in_array('--self-test', $argv, true)) {
         'gzipMemberBoundaryStandaloneCount' => 2,
         'gzipMemberBoundaryFirstEntry' => ['packet/first.md'],
         'gzipMemberBoundarySecondEntry' => ['packet/second.md'],
+        'gzipRecordBoundaryType' => 'archive-gzip-tar-record-boundary-policy',
+        'gzipRecordBoundaryPolicy' => 'review-before-conversion',
+        'gzipRecordBoundaryExtractionPolicy' => 'gzip-tar-record-boundary-review',
+        'gzipRecordBoundaryDiagnostics' => [
+            'gzip-member-boundary-splits-tar-record',
+            'gzip-member-boundary-splits-tar-entry-record',
+            'gzip-member-boundary-splits-tar-metadata-record',
+        ],
+        'gzipRecordBoundaryMemberCount' => 3,
+        'gzipRecordBoundaryBoundaryCount' => 2,
+        'gzipRecordBoundarySplitBoundaryCount' => 2,
+        'gzipRecordBoundarySplitRecordCount' => 2,
+        'gzipRecordBoundarySplitMetadataCount' => 1,
+        'gzipRecordBoundarySplitEntryCount' => 1,
+        'gzipRecordBoundaryFirstKind' => 'metadata',
+        'gzipRecordBoundarySecondKind' => 'entry',
+        'gzipRecordBoundarySecondName' => 'packet/record-boundary/content.md',
         'gzipMemberCountType' => 'archive-gzip-member-count-policy',
         'gzipMemberCountPolicy' => 'review-before-conversion',
         'gzipMemberCountExtractionPolicy' => 'gzip-member-count-review',
@@ -2173,6 +2215,22 @@ if (in_array('--self-test', $argv, true)) {
         || ($gzipMemberBoundaryInspection['members'][0]['standalonePackage'] ?? null) !== true
         || isset($gzipMemberBoundaryInspection['members'][0]['archive'])
         || isset($gzipMemberBoundaryInspection['members'][1]['tarBytes'])
+        || $gzipRecordBoundaryInspection['type'] !== $expected['gzipRecordBoundaryType']
+        || $gzipRecordBoundaryInspection['handoffPolicy'] !== $expected['gzipRecordBoundaryPolicy']
+        || $gzipRecordBoundaryInspection['extractionPolicy'] !== $expected['gzipRecordBoundaryExtractionPolicy']
+        || $gzipRecordBoundaryInspection['diagnostics'] !== $expected['gzipRecordBoundaryDiagnostics']
+        || $gzipRecordBoundaryInspection['memberCount'] !== $expected['gzipRecordBoundaryMemberCount']
+        || $gzipRecordBoundaryInspection['boundaryCount'] !== $expected['gzipRecordBoundaryBoundaryCount']
+        || $gzipRecordBoundaryInspection['splitBoundaryCount'] !== $expected['gzipRecordBoundarySplitBoundaryCount']
+        || $gzipRecordBoundaryInspection['splitRecordCount'] !== $expected['gzipRecordBoundarySplitRecordCount']
+        || $gzipRecordBoundaryInspection['splitMetadataRecordCount'] !== $expected['gzipRecordBoundarySplitMetadataCount']
+        || $gzipRecordBoundaryInspection['splitEntryRecordCount'] !== $expected['gzipRecordBoundarySplitEntryCount']
+        || ($gzipRecordBoundaryInspection['boundaries'][0]['splitRecords'][0]['recordKind'] ?? null) !== $expected['gzipRecordBoundaryFirstKind']
+        || ($gzipRecordBoundaryInspection['boundaries'][1]['splitRecords'][0]['recordKind'] ?? null) !== $expected['gzipRecordBoundarySecondKind']
+        || ($gzipRecordBoundaryInspection['boundaries'][1]['splitRecords'][0]['name'] ?? null) !== $expected['gzipRecordBoundarySecondName']
+        || isset($gzipRecordBoundaryInspection['tarBytes'])
+        || isset($gzipRecordBoundaryInspection['archive'])
+        || isset($gzipRecordBoundaryInspection['boundaries'][1]['splitRecords'][0]['data'])
         || $gzipMemberCountInspection['type'] !== $expected['gzipMemberCountType']
         || $gzipMemberCountInspection['handoffPolicy'] !== $expected['gzipMemberCountPolicy']
         || $gzipMemberCountInspection['extractionPolicy'] !== $expected['gzipMemberCountExtractionPolicy']
@@ -2828,6 +2886,12 @@ echo 'gzipPlatform.memberPolicies=' . implode(',', array_column($gzipPlatformPol
 echo 'gzipMemberBoundary.policy=' . $gzipMemberBoundaryInspection['policy'] . "\n";
 echo 'gzipMemberBoundary.standalonePackageMemberCount=' . $gzipMemberBoundaryInspection['standalonePackageMemberCount'] . "\n";
 echo 'gzipMemberBoundary.diagnostics=' . implode(',', $gzipMemberBoundaryInspection['diagnostics']) . "\n";
+echo 'gzipRecordBoundary.handoffPolicy=' . $gzipRecordBoundaryInspection['handoffPolicy'] . "\n";
+echo 'gzipRecordBoundary.splitBoundaryCount=' . $gzipRecordBoundaryInspection['splitBoundaryCount'] . "\n";
+echo 'gzipRecordBoundary.splitRecordKinds=' . implode(',', array_map(
+    static fn (array $boundary): string => (string) ($boundary['splitRecords'][0]['recordKind'] ?? 'aligned'),
+    $gzipRecordBoundaryInspection['boundaries']
+)) . "\n";
 echo 'gzipMemberCount.handoffPolicy=' . $gzipMemberCountInspection['handoffPolicy'] . "\n";
 echo 'gzipMemberCount.memberCount=' . $gzipMemberCountInspection['memberCount'] . "\n";
 echo 'gzipMemberCount.overLimitMemberCount=' . $gzipMemberCountInspection['overLimitMemberCount'] . "\n";

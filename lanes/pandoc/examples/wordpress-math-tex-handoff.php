@@ -15,15 +15,19 @@ $markdown = <<<'MARKDOWN'
 
 \newcommand{\wptuple}[1]{\langle #1 \rangle}
 \newcommand{\wpreview}[2][draft]{#2 + #1}
+\newcommand{\wpnestedscore}[1]{\operatorname{nested\,review}_{#1}}
 \DeclareMathOperator{\wpreviewscore}{review\,score}
 \DeclareMathOperator*{\wpargreview}{arg\,review}
 \DeclarePairedDelimiter{\wpabs}{\lvert}{\rvert}
 \DeclarePairedDelimiterX{\wpbetween}[2]{\langle}{\rangle}{#1 , #2}
+\DeclarePairedDelimiterX{\wpfilter}[2]{\langle}{\rangle}{#1 , \operatorname{media}_{#2}}
 \DeclarePairedDelimiterXPP{\wprelated}[2]{\alpha\,}{\lbrack}{\rbrack}{\,\omega}{#1 \mid #2}
 
 Reviewer equation $\wptuple{post_id,media_id}$ stays editable.
 
 Optional macro audit $\wpreview{p_i} + \wpreview[final]{m_i}$ stays editable.
+
+Nested macro declaration audit $\wpnestedscore{p_i} + \wpfilter{p_i}{m_i}$ keeps balanced templates editable.
 
 Declared operator audit $\wpreviewscore_i(p_i)$ stays semantic.
 
@@ -238,6 +242,7 @@ $summary = [
     'mathml' => $converter->mathMlFor($displayMath),
     'macroExpandedMathml' => $converter->texToMathMl('\\wptuple{post_id,media_id}', false, $converter->macroDefinitionsFromDocument($document)),
     'optionalMacroMathml' => $converter->texToMathMl('\\wpreview{p_i} + \\wpreview[final]{m_i}', false, $converter->macroDefinitionsFromDocument($document)),
+    'nestedMacroMathml' => $converter->texToMathMl('\\wpnestedscore{p_i} + \\wpfilter{p_i}{m_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'declaredOperatorMathml' => $converter->texToMathMl('\\wpreviewscore_i(p_i)', false, $converter->macroDefinitionsFromDocument($document)),
     'starredDeclaredOperatorMathml' => $converter->texToMathMl('\\wpargreview_{p_i \\in P}^{\\text{draft}} f(p_i)', true, $converter->macroDefinitionsFromDocument($document)),
     'declaredPairedDelimiterMathml' => $converter->texToMathMl('\\wpabs{p_i + m_i}', false, $converter->macroDefinitionsFromDocument($document)),
@@ -346,6 +351,15 @@ $appendSummaryValue($summary);
 if (($argv[1] ?? '') === '--self-test') {
     if (str_contains($summary['macroExpandedMathml'], '<mi>\\wptuple</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test left bounded macro unexpanded');
+    }
+
+    if (
+        str_contains($summary['nestedMacroMathml'], '<mi>\\wpnestedscore</mi>')
+        || str_contains($summary['nestedMacroMathml'], '<mi>\\wpfilter</mi>')
+        || !str_contains($summary['nestedMacroMathml'], '<msub><mi>nested review</mi><msub><mi>p</mi><mi>i</mi></msub></msub>')
+        || !str_contains($summary['nestedMacroMathml'], '<mo fence="true" stretchy="true">⟨</mo><msub><mi>p</mi><mi>i</mi></msub><mo>,</mo><msub><mi>media</mi><msub><mi>m</mi><mi>i</mi></msub></msub><mo fence="true" stretchy="true">⟩</mo>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test left nested balanced macro declaration unexpanded');
     }
 
     if (str_contains($summary['declaredOperatorMathml'], '<mi>\\wpreviewscore</mi>')) {

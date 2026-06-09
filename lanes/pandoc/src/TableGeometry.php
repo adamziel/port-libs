@@ -1846,6 +1846,7 @@ final class TableGeometry
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
+        $rowBackgrounds = self::rowBackgrounds($sections);
         $cellBackgrounds = self::cellBackgrounds($coverageRecords);
         $cellBorderPresentations = self::cellBorderPresentations($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
@@ -1887,6 +1888,7 @@ final class TableGeometry
             'columnDecimalAlignments' => $columnDecimalAlignments,
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
+            'rowBackgrounds' => $rowBackgrounds,
             'cellBackgrounds' => $cellBackgrounds,
             'cellBorderPresentations' => $cellBorderPresentations,
             'directionality' => $directionality,
@@ -1913,6 +1915,7 @@ final class TableGeometry
                 $columnDecimalAlignments,
                 $cellDecimalAlignments,
                 $cellNoWraps,
+                $rowBackgrounds,
                 $cellBackgrounds,
                 $cellBorderPresentations,
                 $rowGroups,
@@ -4945,6 +4948,7 @@ final class TableGeometry
         array $columnDecimalAlignments,
         array $cellDecimalAlignments,
         array $cellNoWraps,
+        array $rowBackgrounds,
         array $cellBackgrounds,
         array $cellBorderPresentations,
         array $rowGroups,
@@ -5287,6 +5291,13 @@ final class TableGeometry
             'hasCellNoWraps' => $cellNoWraps !== [],
             'cellNoWrapColumns' => self::cellNoWrapColumns($cellNoWraps),
             'cellNoWrapSections' => self::cellNoWrapStringValues($cellNoWraps, 'section'),
+            'rowBackgroundCount' => count($rowBackgrounds),
+            'hasRowBackgrounds' => $rowBackgrounds !== [],
+            'rowBackgroundRows' => self::rowBackgroundRows($rowBackgrounds, 'row'),
+            'rowBackgroundGlobalRows' => self::rowBackgroundRows($rowBackgrounds, 'globalRow'),
+            'rowBackgroundSections' => self::rowBackgroundStringValues($rowBackgrounds, 'section'),
+            'rowBackgroundColors' => self::rowBackgroundStringValues($rowBackgrounds, 'backgroundColor'),
+            'rowBackgroundSources' => self::rowBackgroundStringValues($rowBackgrounds, 'backgroundColorSource'),
             'cellBackgroundCount' => count($cellBackgrounds),
             'hasCellBackgrounds' => $cellBackgrounds !== [],
             'cellBackgroundColumns' => self::cellBackgroundColumns($cellBackgrounds),
@@ -5680,6 +5691,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
@@ -5764,6 +5776,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
@@ -5864,6 +5877,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
@@ -7407,6 +7421,206 @@ final class TableGeometry
             'columns' => self::cellNoWrapColumns($records),
             'sections' => self::cellNoWrapStringValues($records, 'section'),
             'cells' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     * @return list<array<string, mixed>>
+     */
+    private static function rowBackgrounds(array $sections): array
+    {
+        $records = [];
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionName = (string) ($section['section'] ?? '');
+            $globalRowStart = max(0, (int) ($section['globalRowStart'] ?? 0));
+            $rowEntries = is_array($section['rowEntries'] ?? null) ? $section['rowEntries'] : [];
+            $columnCount = max(0, (int) ($section['columnCount'] ?? 0));
+            foreach ($rowEntries as $rowIndex => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $row = $entry['row'] ?? null;
+                $background = self::rowBackgroundFromNode($row);
+                if ($background === []) {
+                    continue;
+                }
+
+                $globalRow = $globalRowStart + max(0, (int) $rowIndex);
+                $record = [
+                    'section' => $sectionName,
+                    'rowRole' => (string) ($entry['rowRole'] ?? ''),
+                    'row' => max(0, (int) $rowIndex),
+                    'globalRow' => $globalRow,
+                    'rowRange' => [max(0, (int) $rowIndex), max(0, (int) $rowIndex) + 1],
+                    'globalRowRange' => [$globalRow, $globalRow + 1],
+                    'columnCount' => $columnCount,
+                    'source' => 'html-table-row-background',
+                    'backgroundColor' => (string) ($background['backgroundColor'] ?? ''),
+                    'backgroundColorSource' => (string) ($background['backgroundColorSource'] ?? ''),
+                    'text' => $row instanceof AstNode ? self::plainText($row) : '',
+                    'headerRow' => (bool) ($entry['header'] ?? false),
+                    'rowHeadColumns' => max(0, (int) ($entry['rowHeadColumns'] ?? 0)),
+                ];
+
+                foreach (['legacyBackgroundColor', 'cssBackgroundColor'] as $key) {
+                    $value = trim((string) ($background[$key] ?? ''));
+                    if ($value !== '') {
+                        $record[$key] = $value;
+                    }
+                }
+
+                foreach (['attributes', 'sourceAttributes'] as $key) {
+                    $attributes = is_array($background[$key] ?? null) ? $background[$key] : [];
+                    if ($attributes !== []) {
+                        $record[$key] = $attributes;
+                    }
+                }
+
+                $records[] = $record;
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rowBackgroundFromNode(mixed $node): array
+    {
+        if (!$node instanceof AstNode) {
+            return [];
+        }
+
+        $legacyBackgroundColor = self::normalizeTableBackgroundColorAttribute(
+            self::sourceHtmlAttribute($node, 'bgcolor')
+        );
+        $cssBackgroundColor = self::normalizeTableBackgroundStyleAttribute(
+            self::sourceHtmlAttribute($node, 'style')
+        );
+        if ($legacyBackgroundColor === '' && $cssBackgroundColor === '') {
+            return [];
+        }
+
+        $attributes = [];
+        if ($cssBackgroundColor !== '') {
+            $attributes['background-color'] = $cssBackgroundColor;
+        }
+        if ($legacyBackgroundColor !== '') {
+            $attributes['bgcolor'] = $legacyBackgroundColor;
+        }
+
+        $sourceAttributes = [];
+        $htmlAttributes = self::stringAttributeMap($node->attr('htmlAttributes', []), true);
+        if ($htmlAttributes !== []) {
+            $sourceAttributes['htmlAttributes'] = $htmlAttributes;
+        }
+        $nodeAttributes = self::stringAttributeMap($node->attr('attributes', []), false);
+        if ($nodeAttributes !== []) {
+            $sourceAttributes['attributes'] = $nodeAttributes;
+        }
+
+        $record = [
+            'source' => 'html-table-row-background',
+            'attributes' => $attributes,
+            'backgroundColor' => $cssBackgroundColor !== '' ? $cssBackgroundColor : $legacyBackgroundColor,
+            'backgroundColorSource' => $cssBackgroundColor !== '' ? 'style' : 'bgcolor',
+        ];
+
+        if ($legacyBackgroundColor !== '') {
+            $record['legacyBackgroundColor'] = $legacyBackgroundColor;
+        }
+        if ($cssBackgroundColor !== '') {
+            $record['cssBackgroundColor'] = $cssBackgroundColor;
+        }
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function rowBackgroundRows(array $records, string $key): array
+    {
+        $rows = [];
+        foreach ($records as $record) {
+            if (!is_array($record) || !isset($record[$key]) || !is_numeric($record[$key])) {
+                continue;
+            }
+
+            $rows[] = max(0, (int) $record[$key]);
+        }
+
+        return array_values(array_unique($rows));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function rowBackgroundStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function rowBackgroundWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-row-background-require-raw-html', 'raw-html-row-background'],
+            'asciidoc' => ['asciidoc-row-background-review-required', 'row-background-review'],
+            'latex' => ['latex-row-background-review-required', 'table-row-background-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::rowBackgrounds(self::sectionGrids($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'row-background',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-row-background',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'rowCount' => count($records),
+            'rows' => self::rowBackgroundRows($records, 'row'),
+            'globalRows' => self::rowBackgroundRows($records, 'globalRow'),
+            'sections' => self::rowBackgroundStringValues($records, 'section'),
+            'colors' => self::rowBackgroundStringValues($records, 'backgroundColor'),
+            'backgroundColorSources' => self::rowBackgroundStringValues($records, 'backgroundColorSource'),
+            'records' => $records,
         ]];
     }
 

@@ -9824,6 +9824,11 @@ final class MarkdownReader
      */
     private function tryReadRawTexMacroDefinition(string $line): ?array
     {
+        $balanced = $this->tryReadBalancedRawTexMacroDefinition($line);
+        if ($balanced !== null) {
+            return $balanced;
+        }
+
         if (
             preg_match(
                 '/^ {0,3}\\\\(DeclareMathOperator)(\*)?\{\\\\([A-Za-z]+)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
@@ -9916,6 +9921,314 @@ final class MarkdownReader
             'arity' => isset($m[3]) && $m[3] !== '' ? (int) $m[3] : 0,
             'template' => $m[4],
         ];
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadBalancedRawTexMacroDefinition(string $line): ?array
+    {
+        if (preg_match('/^ {0,3}\\\\/', $line) !== 1) {
+            return null;
+        }
+
+        $source = trim($line);
+        $offset = 1;
+        $command = $this->readRawTexCommandName($source, $offset);
+        if ($command === '') {
+            return null;
+        }
+
+        if ($command === 'DeclareMathOperator') {
+            $starred = false;
+            if (($source[$offset] ?? '') === '*') {
+                $starred = true;
+                $offset++;
+            }
+
+            $name = $this->readRawTexMacroNameReference($source, $offset);
+            if ($name === null) {
+                return null;
+            }
+            $offset = $name['next'];
+
+            $body = $this->readTexBraceArgument($source, $offset);
+            if ($body === null) {
+                return null;
+            }
+            $offset = $body['next'];
+
+            return $this->finishRawTexMacroDefinition($source, $offset, [
+                'command' => $command,
+                'name' => $name['name'],
+                'arity' => 0,
+                'template' => '\\operatorname' . ($starred ? '*' : '') . '{' . $body['value'] . '}',
+            ]);
+        }
+
+        if ($command === 'DeclarePairedDelimiterXPP') {
+            $name = $this->readRawTexMacroNameReference($source, $offset);
+            if ($name === null) {
+                return null;
+            }
+            $offset = $name['next'];
+
+            $arity = null;
+            $parsedArity = $this->readRawTexBracketArgument($source, $offset);
+            if ($parsedArity !== null) {
+                if (ctype_digit(trim($parsedArity['value'])) === false) {
+                    return null;
+                }
+                $arity = (int) trim($parsedArity['value']);
+                $offset = $parsedArity['next'];
+            }
+
+            $prefix = $this->readTexBraceArgument($source, $offset);
+            if ($prefix === null) {
+                return null;
+            }
+            $left = $this->readTexBraceArgument($source, $prefix['next']);
+            if ($left === null) {
+                return null;
+            }
+            $right = $this->readTexBraceArgument($source, $left['next']);
+            if ($right === null) {
+                return null;
+            }
+            $suffix = $this->readTexBraceArgument($source, $right['next']);
+            if ($suffix === null) {
+                return null;
+            }
+            $templateBody = $this->readTexBraceArgument($source, $suffix['next']);
+            if ($templateBody === null) {
+                return null;
+            }
+
+            $template = '';
+            $prefixValue = trim($prefix['value']);
+            $suffixValue = trim($suffix['value']);
+            if ($prefixValue !== '') {
+                $template .= $prefixValue . ' ';
+            }
+            $template .= '\\left' . trim($left['value']) . ' ' . trim($templateBody['value']) . ' \\right' . trim($right['value']);
+            if ($suffixValue !== '') {
+                $template .= ' ' . $suffixValue;
+            }
+
+            return $this->finishRawTexMacroDefinition($source, $templateBody['next'], [
+                'command' => $command,
+                'name' => $name['name'],
+                'arity' => $arity ?? $this->inferRawTexMacroArity($templateBody['value']),
+                'template' => $template,
+            ]);
+        }
+
+        if ($command === 'DeclarePairedDelimiterX') {
+            $name = $this->readRawTexMacroNameReference($source, $offset);
+            if ($name === null) {
+                return null;
+            }
+            $offset = $name['next'];
+
+            $arity = null;
+            $parsedArity = $this->readRawTexBracketArgument($source, $offset);
+            if ($parsedArity !== null) {
+                if (ctype_digit(trim($parsedArity['value'])) === false) {
+                    return null;
+                }
+                $arity = (int) trim($parsedArity['value']);
+                $offset = $parsedArity['next'];
+            }
+
+            $left = $this->readTexBraceArgument($source, $offset);
+            if ($left === null) {
+                return null;
+            }
+            $right = $this->readTexBraceArgument($source, $left['next']);
+            if ($right === null) {
+                return null;
+            }
+            $templateBody = $this->readTexBraceArgument($source, $right['next']);
+            if ($templateBody === null) {
+                return null;
+            }
+
+            return $this->finishRawTexMacroDefinition($source, $templateBody['next'], [
+                'command' => $command,
+                'name' => $name['name'],
+                'arity' => $arity ?? $this->inferRawTexMacroArity($templateBody['value']),
+                'template' => '\\left' . trim($left['value']) . ' ' . trim($templateBody['value']) . ' \\right' . trim($right['value']),
+            ]);
+        }
+
+        if ($command === 'DeclarePairedDelimiter') {
+            $name = $this->readRawTexMacroNameReference($source, $offset);
+            if ($name === null) {
+                return null;
+            }
+            $offset = $name['next'];
+
+            $left = $this->readTexBraceArgument($source, $offset);
+            if ($left === null) {
+                return null;
+            }
+            $right = $this->readTexBraceArgument($source, $left['next']);
+            if ($right === null) {
+                return null;
+            }
+
+            return $this->finishRawTexMacroDefinition($source, $right['next'], [
+                'command' => $command,
+                'name' => $name['name'],
+                'arity' => 1,
+                'template' => '\\left' . trim($left['value']) . ' #1 \\right' . trim($right['value']),
+            ]);
+        }
+
+        if (!in_array($command, ['newcommand', 'renewcommand', 'providecommand'], true)) {
+            return null;
+        }
+
+        $name = $this->readRawTexMacroNameReference($source, $offset);
+        if ($name === null) {
+            return null;
+        }
+        $offset = $name['next'];
+
+        $arity = 0;
+        $firstOptional = $this->readRawTexBracketArgument($source, $offset);
+        if ($firstOptional !== null) {
+            $firstValue = trim($firstOptional['value']);
+            $offset = $firstOptional['next'];
+            if ($firstValue !== '' && ctype_digit($firstValue)) {
+                $arity = (int) $firstValue;
+                $defaultOptional = $this->readRawTexBracketArgument($source, $offset);
+                if ($defaultOptional !== null) {
+                    $offset = $defaultOptional['next'];
+                }
+            }
+        }
+
+        $template = $this->readTexBraceArgument($source, $offset);
+        if ($template === null) {
+            return null;
+        }
+
+        return $this->finishRawTexMacroDefinition($source, $template['next'], [
+            'command' => $command,
+            'name' => $name['name'],
+            'arity' => $arity,
+            'template' => $template['value'],
+        ]);
+    }
+
+    private function readRawTexCommandName(string $source, int &$offset): string
+    {
+        $length = strlen($source);
+        $start = $offset;
+        while ($offset < $length && ctype_alpha($source[$offset])) {
+            $offset++;
+        }
+
+        return substr($source, $start, $offset - $start);
+    }
+
+    /**
+     * @return array{name:string, next:int}|null
+     */
+    private function readRawTexMacroNameReference(string $source, int $offset): ?array
+    {
+        $offset = $this->skipRawTexSpaces($source, $offset);
+        if (($source[$offset] ?? '') === '{' && ($source[$offset + 1] ?? '') === '\\') {
+            $cursor = $offset + 2;
+            $name = $this->readRawTexCommandName($source, $cursor);
+            if ($name === '' || ($source[$cursor] ?? '') !== '}') {
+                return null;
+            }
+
+            return [
+                'name' => $name,
+                'next' => $cursor + 1,
+            ];
+        }
+
+        if (($source[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $cursor = $offset + 1;
+        $name = $this->readRawTexCommandName($source, $cursor);
+        if ($name === '') {
+            return null;
+        }
+
+        return [
+            'name' => $name,
+            'next' => $cursor,
+        ];
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function readRawTexBracketArgument(string $source, int $offset): ?array
+    {
+        $offset = $this->skipRawTexSpaces($source, $offset);
+        if (($source[$offset] ?? '') !== '[') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($source);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($source[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($source[$cursor] === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($source[$cursor] !== ']') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return [
+                    'value' => substr($source, $offset + 1, $cursor - $offset - 1),
+                    'next' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{command:string, name:string, arity:int, template:string} $definition
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function finishRawTexMacroDefinition(string $source, int $offset, array $definition): ?array
+    {
+        $offset = $this->skipRawTexSpaces($source, $offset);
+        if ($offset !== strlen($source)) {
+            return null;
+        }
+
+        return $definition;
+    }
+
+    private function skipRawTexSpaces(string $source, int $offset): int
+    {
+        $length = strlen($source);
+        while ($offset < $length && ($source[$offset] === ' ' || $source[$offset] === "\t")) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     private function inferRawTexMacroArity(string $template): int
