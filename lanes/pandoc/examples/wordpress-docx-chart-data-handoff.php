@@ -18,6 +18,8 @@ $package = ZipPackage::fromParts([
   <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/charts/style1.xml" ContentType="application/vnd.ms-office.chartstyle+xml"/>
+  <Override PartName="/word/charts/colors1.xml" ContentType="application/vnd.ms-office.chartcolorstyle+xml"/>
 </Types>
 XML],
     ['name' => '_rels/.rels', 'data' => <<<'XML'
@@ -33,6 +35,8 @@ XML],
     ['name' => 'word/charts/_rels/chart1.xml.rels', 'data' => <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdChartWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/chart-data.xlsx"/>
+  <Relationship Id="rIdChartStyle" Type="http://schemas.microsoft.com/office/2011/relationships/chartStyle" Target="style1.xml"/>
+  <Relationship Id="rIdChartColors" Type="http://schemas.microsoft.com/office/2011/relationships/chartColorStyle" Target="colors1.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -61,13 +65,20 @@ XML],
 XML],
     ['name' => 'word/charts/chart1.xml', 'data' => <<<'XML'
 <c:chartSpace
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:style val="201"/>
+  <c:clrMapOvr>
+    <a:overrideClrMapping bg1="lt1" tx1="dk1" accent1="accent3" accent2="accent4" hlink="hlink" folHlink="folHlink"/>
+  </c:clrMapOvr>
   <c:externalData r:id="rIdChartWorkbook">
     <c:autoUpdate val="0"/>
   </c:externalData>
 </c:chartSpace>
 XML],
+    ['name' => 'word/charts/style1.xml', 'data' => '<c15:chartStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" id="201"/>'],
+    ['name' => 'word/charts/colors1.xml', 'data' => '<c15:colorStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" meth="cycle"/>'],
     ['name' => 'word/embeddings/chart-data.xlsx', 'data' => 'XLSXCHARTDATA'],
 ]);
 
@@ -91,6 +102,18 @@ if (in_array('--self-test', $argv, true)) {
     if (!is_array($attrs) || ($attrs['data-docx-chart-external-data-id'] ?? null) !== 'rIdChartWorkbook') {
         throw new RuntimeException('DOCX chart embedded-data example did not expose the workbook relationship id');
     }
+    if (($attrs['data-docx-chart-style-val'] ?? null) !== '201') {
+        throw new RuntimeException('DOCX chart embedded-data example did not expose the chart style value');
+    }
+    if (($attrs['data-docx-chart-color-map-accent-1'] ?? null) !== 'accent3') {
+        throw new RuntimeException('DOCX chart embedded-data example did not expose chart color mapping metadata');
+    }
+    if (($attrs['data-docx-chart-style-target-part'] ?? null) !== '/word/charts/style1.xml') {
+        throw new RuntimeException('DOCX chart embedded-data example did not resolve the chart style part');
+    }
+    if (($attrs['data-docx-chart-color-style-target-part'] ?? null) !== '/word/charts/colors1.xml') {
+        throw new RuntimeException('DOCX chart embedded-data example did not resolve the chart color-style part');
+    }
     if (($attrs['data-docx-chart-external-data-target-part'] ?? null) !== '/word/embeddings/chart-data.xlsx') {
         throw new RuntimeException('DOCX chart embedded-data example did not resolve the workbook target part');
     }
@@ -100,8 +123,14 @@ if (in_array('--self-test', $argv, true)) {
     if (($attrs['data-docx-chart-external-data-bytes'] ?? null) !== '13') {
         throw new RuntimeException('DOCX chart embedded-data example did not expose workbook byte count');
     }
-    if (!str_contains($blocks, 'class="docx-drawing-placeholder docx-drawing-chart docx-chart-embedded-data"')) {
+    if (!str_contains($blocks, 'class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"')) {
         throw new RuntimeException('DOCX chart embedded-data example did not render the WordPress review class');
+    }
+    if (!str_contains($blocks, 'data-docx-chart-style-target-part="/word/charts/style1.xml"')) {
+        throw new RuntimeException('DOCX chart embedded-data example did not render chart style metadata');
+    }
+    if (!str_contains($blocks, 'data-docx-chart-color-style-target-part="/word/charts/colors1.xml"')) {
+        throw new RuntimeException('DOCX chart embedded-data example did not render chart color-style metadata');
     }
     if (!str_contains($blocks, 'data-docx-chart-external-data-target-part="/word/embeddings/chart-data.xlsx"')) {
         throw new RuntimeException('DOCX chart embedded-data example did not render workbook target metadata');

@@ -431,6 +431,8 @@ $drawingPlaceholderContentTypesXml = <<<'XML'
   <Default Extension="xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>
+  <Override PartName="/word/charts/style1.xml" ContentType="application/vnd.ms-office.chartstyle+xml"/>
+  <Override PartName="/word/charts/colors1.xml" ContentType="application/vnd.ms-office.chartcolorstyle+xml"/>
   <Override PartName="/word/diagrams/data1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>
   <Override PartName="/word/diagrams/layout1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml"/>
   <Override PartName="/word/diagrams/quickStyle1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml"/>
@@ -451,13 +453,20 @@ XML;
 $drawingPlaceholderChartRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdChartWorkbook" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="../embeddings/chart-data.xlsx"/>
+  <Relationship Id="rIdChartStyle" Type="http://schemas.microsoft.com/office/2011/relationships/chartStyle" Target="style1.xml"/>
+  <Relationship Id="rIdChartColors" Type="http://schemas.microsoft.com/office/2011/relationships/chartColorStyle" Target="colors1.xml"/>
 </Relationships>
 XML;
 
 $drawingPlaceholderChartXml = <<<'XML'
 <c:chartSpace
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
   xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:style val="201"/>
+  <c:clrMapOvr>
+    <a:overrideClrMapping bg1="lt1" tx1="dk1" accent1="accent3" accent2="accent4" hlink="hlink" folHlink="folHlink"/>
+  </c:clrMapOvr>
   <c:externalData r:id="rIdChartWorkbook">
     <c:autoUpdate val="0"/>
   </c:externalData>
@@ -3901,6 +3910,8 @@ $buildDrawingPlaceholderPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $drawingPlaceholderRelationshipsXml],
         ['name' => 'word/charts/chart1.xml', 'data' => $drawingPlaceholderChartXml],
         ['name' => 'word/charts/_rels/chart1.xml.rels', 'data' => $drawingPlaceholderChartRelationshipsXml],
+        ['name' => 'word/charts/style1.xml', 'data' => '<c15:chartStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" id="201"/>'],
+        ['name' => 'word/charts/colors1.xml', 'data' => '<c15:colorStyle xmlns:c15="http://schemas.microsoft.com/office/drawing/2012/chartStyle" meth="cycle"/>'],
         ['name' => 'word/embeddings/chart-data.xlsx', 'data' => 'XLSXCHARTDATA'],
         ['name' => 'word/diagrams/data1.xml', 'data' => '<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
         ['name' => 'word/diagrams/layout1.xml', 'data' => '<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"/>'],
@@ -5380,7 +5391,15 @@ return [
 
         $chart = $paragraph->children[1];
         $t->same('span', $chart->type);
-        $t->same(['docx-drawing-placeholder', 'docx-drawing-chart', 'docx-chart-embedded-data'], $chart->attr('classes'));
+        $t->same([
+            'docx-drawing-placeholder',
+            'docx-drawing-chart',
+            'docx-chart-style',
+            'docx-chart-override-color-mapping',
+            'docx-chart-style-part',
+            'docx-chart-color-style-part',
+            'docx-chart-embedded-data',
+        ], $chart->attr('classes'));
         $t->same('DOCX chart: Quarterly sales chart', $chart->children[0]->attr('text'));
         $chartAttributes = $chart->attr('attributes');
         $t->same('chart', $chartAttributes['data-docx-drawing-kind']);
@@ -5396,7 +5415,25 @@ return [
         $t->same('true', $chartAttributes['data-docx-exists']);
         $t->same('application/vnd.openxmlformats-officedocument.drawingml.chart+xml', $chartAttributes['data-docx-content-type']);
         $t->same('/word/charts/_rels/chart1.xml.rels', $chartAttributes['data-docx-chart-relationship-part']);
-        $t->same('1', $chartAttributes['data-docx-chart-relationship-count']);
+        $t->same('3', $chartAttributes['data-docx-chart-relationship-count']);
+        $t->same('201', $chartAttributes['data-docx-chart-style-val']);
+        $t->same('override', $chartAttributes['data-docx-chart-color-map']);
+        $t->same('lt1', $chartAttributes['data-docx-chart-color-map-background-1']);
+        $t->same('dk1', $chartAttributes['data-docx-chart-color-map-text-1']);
+        $t->same('accent3', $chartAttributes['data-docx-chart-color-map-accent-1']);
+        $t->same('accent4', $chartAttributes['data-docx-chart-color-map-accent-2']);
+        $t->same('hlink', $chartAttributes['data-docx-chart-color-map-hyperlink']);
+        $t->same('folHlink', $chartAttributes['data-docx-chart-color-map-followed-hyperlink']);
+        $t->same('rIdChartStyle', $chartAttributes['data-docx-chart-style-relationship-id']);
+        $t->same('http://schemas.microsoft.com/office/2011/relationships/chartStyle', $chartAttributes['data-docx-chart-style-relationship-type']);
+        $t->same('/word/charts/style1.xml', $chartAttributes['data-docx-chart-style-target-part']);
+        $t->same('application/vnd.ms-office.chartstyle+xml', $chartAttributes['data-docx-chart-style-content-type']);
+        $t->true((int) $chartAttributes['data-docx-chart-style-bytes'] > 0, 'Chart style part byte count should be preserved');
+        $t->same('rIdChartColors', $chartAttributes['data-docx-chart-color-style-relationship-id']);
+        $t->same('http://schemas.microsoft.com/office/2011/relationships/chartColorStyle', $chartAttributes['data-docx-chart-color-style-relationship-type']);
+        $t->same('/word/charts/colors1.xml', $chartAttributes['data-docx-chart-color-style-target-part']);
+        $t->same('application/vnd.ms-office.chartcolorstyle+xml', $chartAttributes['data-docx-chart-color-style-content-type']);
+        $t->true((int) $chartAttributes['data-docx-chart-color-style-bytes'] > 0, 'Chart color-style part byte count should be preserved');
         $t->same('rIdChartWorkbook', $chartAttributes['data-docx-chart-external-data-id']);
         $t->same('false', $chartAttributes['data-docx-chart-external-data-auto-update']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/package', $chartAttributes['data-docx-chart-external-data-type']);
@@ -5428,15 +5465,23 @@ return [
         $t->same('/word/diagrams/colors1.xml', $diagramAttributes['data-docx-diagram-colors-target-part']);
         $t->same('.', $paragraph->children[4]->attr('text'));
 
-        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-embedded-data', $markdown);
+        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-style .docx-chart-override-color-mapping .docx-chart-style-part .docx-chart-color-style-part .docx-chart-embedded-data', $markdown);
         $t->contains('data-docx-relationship-id="rIdChart"', $markdown);
+        $t->contains('data-docx-chart-style-val="201"', $markdown);
+        $t->contains('data-docx-chart-color-map-accent-1="accent3"', $markdown);
+        $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $markdown);
+        $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $markdown);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $markdown);
         $t->contains('data-docx-chart-external-data-target-part="/word/embeddings/chart-data.xlsx"', $markdown);
         $t->contains('[DOCX diagram: Review workflow diagram]{.docx-drawing-placeholder .docx-drawing-diagram', $markdown);
         $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $markdown);
 
-        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-embedded-data"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"', $blocks);
         $t->contains('data-docx-relationship-id="rIdChart"', $blocks);
+        $t->contains('data-docx-chart-style-val="201"', $blocks);
+        $t->contains('data-docx-chart-color-map-accent-1="accent3"', $blocks);
+        $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $blocks);
+        $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $blocks);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $blocks);
         $t->contains('data-docx-chart-external-data-target-part="/word/embeddings/chart-data.xlsx"', $blocks);
         $t->contains('DOCX chart: Quarterly sales chart</span>', $blocks);
@@ -5446,9 +5491,46 @@ return [
 
         $report = $result['importReport'];
         $t->same(5, $report['relationshipCount']);
-        $t->same(6, $report['reachableRelationshipCount']);
+        $t->same(8, $report['reachableRelationshipCount']);
         $t->same([], $report['relationshipIssues']);
         $t->same(0, $report['media']['count']);
+    },
+    'preserves DOCX chart style and color style metadata for reviewer handoff' => static function (TestRunner $t) use ($buildDrawingPlaceholderPackage): void {
+        $result = (new DocxReader())->readPackage($buildDrawingPlaceholderPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $chart = $document->children[0]->children[1];
+        $classes = $chart->attr('classes');
+        $t->true(is_array($classes) && in_array('docx-chart-style', $classes, true), 'Chart placeholder should expose chart style metadata class');
+        $t->true(is_array($classes) && in_array('docx-chart-override-color-mapping', $classes, true), 'Chart placeholder should expose override color mapping class');
+        $t->true(is_array($classes) && in_array('docx-chart-style-part', $classes, true), 'Chart placeholder should expose chart style relationship class');
+        $t->true(is_array($classes) && in_array('docx-chart-color-style-part', $classes, true), 'Chart placeholder should expose chart color-style relationship class');
+
+        $attrs = $chart->attr('attributes');
+        $t->same('201', $attrs['data-docx-chart-style-val']);
+        $t->same('override', $attrs['data-docx-chart-color-map']);
+        $t->same('accent3', $attrs['data-docx-chart-color-map-accent-1']);
+        $t->same('accent4', $attrs['data-docx-chart-color-map-accent-2']);
+        $t->same('rIdChartStyle', $attrs['data-docx-chart-style-relationship-id']);
+        $t->same('/word/charts/style1.xml', $attrs['data-docx-chart-style-target-part']);
+        $t->same('application/vnd.ms-office.chartstyle+xml', $attrs['data-docx-chart-style-content-type']);
+        $t->same('rIdChartColors', $attrs['data-docx-chart-color-style-relationship-id']);
+        $t->same('/word/charts/colors1.xml', $attrs['data-docx-chart-color-style-target-part']);
+        $t->same('application/vnd.ms-office.chartcolorstyle+xml', $attrs['data-docx-chart-color-style-content-type']);
+        $t->true((int) $attrs['data-docx-chart-style-bytes'] > 0, 'Chart style relationship target byte count should be preserved');
+        $t->true((int) $attrs['data-docx-chart-color-style-bytes'] > 0, 'Chart color-style relationship target byte count should be preserved');
+
+        $t->contains('data-docx-chart-style-val="201"', $markdown);
+        $t->contains('data-docx-chart-color-map-accent-1="accent3"', $markdown);
+        $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $markdown);
+        $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $markdown);
+
+        $t->contains('data-docx-chart-style-val="201"', $blocks);
+        $t->contains('data-docx-chart-color-map-accent-1="accent3"', $blocks);
+        $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $blocks);
+        $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $blocks);
     },
     'preserves DOCX DrawingML shape text as reviewer spans' => static function (TestRunner $t) use ($buildDrawingTextPackage): void {
         $document = (new DocxReader())->readDocument($buildDrawingTextPackage());

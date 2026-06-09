@@ -45,6 +45,8 @@ final class DocxReader
     public const REL_TYPE_CUSTOM_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
     public const REL_TYPE_ALTERNATIVE_FORMAT_IMPORT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     public const REL_TYPE_CHART = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+    public const REL_TYPE_CHART_STYLE = 'http://schemas.microsoft.com/office/2011/relationships/chartStyle';
+    public const REL_TYPE_CHART_COLOR_STYLE = 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle';
     public const REL_TYPE_DIAGRAM_DATA = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
     public const REL_TYPE_DIAGRAM_LAYOUT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
     public const REL_TYPE_DIAGRAM_QUICK_STYLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
@@ -8087,7 +8089,7 @@ final class DocxReader
             $geometryAttrs = $this->drawingGeometryAttrs($this->drawingContainerForElement($chart, $drawing));
             $metadataAttrs = $this->mergeNodeMetadataAttrs(
                 $geometryAttrs,
-                $this->chartEmbeddedDataAttrs($relationship, $package, $relationships)
+                $this->chartPartMetadataAttrs($relationship, $package, $relationships)
             );
             $nodes[] = $this->drawingRelationshipPlaceholderNode(
                 'chart',
@@ -8105,7 +8107,7 @@ final class DocxReader
     /**
      * @return array{classes:list<string>, attributes:array<string, string>}
      */
-    private function chartEmbeddedDataAttrs(
+    private function chartPartMetadataAttrs(
         OpcRelationship $chartRelationship,
         ZipPackage $package,
         OpcRelationships $relationships
@@ -8138,13 +8140,38 @@ final class DocxReader
             return $attrs;
         }
 
+        $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartStyleAndColorAttrs($chartRoot));
+
         $externalData = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'externalData');
-        if (!$externalData instanceof \DOMElement) {
+        $relationshipPart = OpcRelationships::relationshipPartNameForSource($chartTargetPart);
+        if (!OpcRelationships::packageHasRelationshipsForSource($package, $chartTargetPart)) {
+            if ($externalData instanceof \DOMElement) {
+                $attrs['attributes']['data-docx-chart-relationship-part'] = $relationshipPart;
+                $attrs['classes'][] = 'docx-chart-data-missing';
+                $attrs['attributes']['data-docx-chart-external-data-issues'] = 'missing-relationship-part';
+            }
+
             return $attrs;
         }
 
-        $relationshipPart = OpcRelationships::relationshipPartNameForSource($chartTargetPart);
+        try {
+            $chartRelationships = OpcRelationships::fromPackage($package, $chartTargetPart);
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            if ($externalData instanceof \DOMElement) {
+                $attrs['attributes']['data-docx-chart-relationship-part'] = $relationshipPart;
+                $attrs['classes'][] = 'docx-chart-data-missing';
+                $attrs['attributes']['data-docx-chart-external-data-issues'] = 'invalid-relationship-part';
+            }
+
+            return $attrs;
+        }
+
         $attrs['attributes']['data-docx-chart-relationship-part'] = $relationshipPart;
+        $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartStyleAndColorRelationshipAttrs($chartRelationships, $package));
+
+        if (!$externalData instanceof \DOMElement) {
+            return $attrs;
+        }
 
         $externalDataId = $this->relationshipAttr($externalData, 'id');
         if ($externalDataId !== null && $externalDataId !== '') {
@@ -8154,22 +8181,6 @@ final class DocxReader
         $autoUpdate = $this->chartExternalDataAutoUpdate($externalData);
         if ($autoUpdate !== null) {
             $attrs['attributes']['data-docx-chart-external-data-auto-update'] = $autoUpdate;
-        }
-
-        if (!OpcRelationships::packageHasRelationshipsForSource($package, $chartTargetPart)) {
-            $attrs['classes'][] = 'docx-chart-data-missing';
-            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'missing-relationship-part';
-
-            return $attrs;
-        }
-
-        try {
-            $chartRelationships = OpcRelationships::fromPackage($package, $chartTargetPart);
-        } catch (\InvalidArgumentException | \RuntimeException) {
-            $attrs['classes'][] = 'docx-chart-data-missing';
-            $attrs['attributes']['data-docx-chart-external-data-issues'] = 'invalid-relationship-part';
-
-            return $attrs;
         }
 
         $attrs['attributes']['data-docx-chart-relationship-count'] = (string) count($chartRelationships->all());
@@ -8201,6 +8212,102 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function chartStyleAndColorAttrs(\DOMElement $chartRoot): array
+    {
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        $style = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'style');
+        if ($style instanceof \DOMElement) {
+            $value = trim($style->getAttribute('val'));
+            if ($value !== '') {
+                $attrs['classes'][] = 'docx-chart-style';
+                $attrs['attributes']['data-docx-chart-style-val'] = $value;
+            }
+        }
+
+        $colorMapOverride = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'clrMapOvr');
+        if ($colorMapOverride instanceof \DOMElement) {
+            $masterColorMapping = $this->firstChildElement($colorMapOverride, self::DRAWINGML_MAIN_NS, 'masterClrMapping');
+            if ($masterColorMapping instanceof \DOMElement) {
+                $attrs['classes'][] = 'docx-chart-master-color-mapping';
+                $attrs['attributes']['data-docx-chart-color-map'] = 'master';
+            }
+
+            $overrideColorMapping = $this->firstChildElement($colorMapOverride, self::DRAWINGML_MAIN_NS, 'overrideClrMapping');
+            if ($overrideColorMapping instanceof \DOMElement) {
+                $attrs['classes'][] = 'docx-chart-override-color-mapping';
+                $attrs['attributes']['data-docx-chart-color-map'] = 'override';
+                foreach ([
+                    'bg1' => 'background-1',
+                    'tx1' => 'text-1',
+                    'bg2' => 'background-2',
+                    'tx2' => 'text-2',
+                    'accent1' => 'accent-1',
+                    'accent2' => 'accent-2',
+                    'accent3' => 'accent-3',
+                    'accent4' => 'accent-4',
+                    'accent5' => 'accent-5',
+                    'accent6' => 'accent-6',
+                    'hlink' => 'hyperlink',
+                    'folHlink' => 'followed-hyperlink',
+                ] as $source => $suffix) {
+                    $this->appendDrawingAttribute($overrideColorMapping, $source, $attrs['attributes'], 'data-docx-chart-color-map-' . $suffix);
+                }
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($attrs['classes'])),
+            'attributes' => $attrs['attributes'],
+        ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function chartStyleAndColorRelationshipAttrs(OpcRelationships $chartRelationships, ZipPackage $package): array
+    {
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        foreach ([
+            'style' => [self::REL_TYPE_CHART_STYLE, 'docx-chart-style-part'],
+            'color-style' => [self::REL_TYPE_CHART_COLOR_STYLE, 'docx-chart-color-style-part'],
+        ] as $prefix => [$relationshipType, $className]) {
+            $relationship = $chartRelationships->firstOfType($relationshipType);
+            if (!$relationship instanceof OpcRelationship) {
+                continue;
+            }
+
+            $attrs['classes'][] = $className;
+            $attributePrefix = 'data-docx-chart-' . $prefix;
+            $attrs['attributes'][$attributePrefix . '-relationship-id'] = $relationship->id;
+            $attrs['attributes'][$attributePrefix . '-relationship-type'] = $relationship->type;
+            $targetAttrs = $this->drawingRelationshipTargetAttrs($relationship, $package, $chartRelationships);
+            foreach ($targetAttrs as $name => $value) {
+                $attrs['attributes'][$attributePrefix . '-' . $name] = $value;
+            }
+
+            $targetPart = $targetAttrs['target-part'] ?? null;
+            if (is_string($targetPart) && $targetPart !== '' && $package->has($targetPart)) {
+                $attrs['attributes'][$attributePrefix . '-bytes'] = (string) strlen($package->read($targetPart));
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($attrs['classes'])),
+            'attributes' => $attrs['attributes'],
+        ];
     }
 
     private function chartExternalDataAutoUpdate(\DOMElement $externalData): ?string
