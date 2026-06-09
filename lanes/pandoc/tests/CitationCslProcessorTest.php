@@ -22072,6 +22072,90 @@ XML);
         $t->contains('<p>Periodical issue source [periodical issue | Migration Review Issue | Journal of Migration Review | 42 | 1-96 | Complete issue queued for import] keeps journal-article routing stable.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import</dd>', $blocks);
     },
+    'maps bibtex misc entries to csl document conditionals' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@misc{legacy-misc-packet,
+  author       = {Smith, Ada},
+  title        = {Legacy Misc Source Packet},
+  date         = {2026},
+  howpublished = {Exported CMS packet},
+  note         = {Queued for reviewer import},
+  url          = {https://example.test/legacy-misc}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('legacy-misc-packet', $items[0]['id'] ?? null);
+        $t->same('document', $items[0]['type'] ?? null);
+        $t->same('misc', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('Legacy Misc Source Packet', $items[0]['title'] ?? null);
+        $t->same('Exported CMS packet', $items[0]['medium'] ?? null);
+        $t->same('Queued for reviewer import', $items[0]['note'] ?? null);
+        $t->same('https://example.test/legacy-misc', $items[0]['URL'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Misc Document Type Review</title>
+    <id>https://example.test/styles/bounded-misc-document-type-review</id>
+    <updated>2026-06-09T07:02:57+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if type="document">
+          <group delimiter=" | ">
+            <text value="document"/>
+            <text variable="title"/>
+            <text variable="medium"/>
+            <text variable="note"/>
+          </group>
+        </if>
+        <else>
+          <text value="fallback"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <choose>
+        <if type="document">
+          <group delimiter=" :: ">
+            <text value="document"/>
+            <text variable="title"/>
+            <text variable="medium"/>
+            <text variable="note"/>
+            <text variable="URL"/>
+          </group>
+        </if>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('legacy-misc-packet');
+        $t->same('Bounded Misc Document Type Review', $summary['title'] ?? null);
+        $t->same(['document'], $summary['citationRendering'][0]['branches'][0]['types'] ?? null);
+        $t->same('document', $item['type'] ?? null);
+        $t->same('misc', $item['raw']['rawBibtex']['type'] ?? null);
+        $t->same('Exported CMS packet', $item['medium'] ?? null);
+        $t->same('https://example.test/legacy-misc', $item['url'] ?? null);
+
+        $t->same('[document | Legacy Misc Source Packet | Exported CMS packet | Queued for reviewer import]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-misc-packet', 'text' => '[@legacy-misc-packet]']),
+        ]));
+        $t->same('document :: Legacy Misc Source Packet :: Exported CMS packet :: Queued for reviewer import :: https://example.test/legacy-misc', $processor->renderBibliographyEntry('legacy-misc-packet'));
+
+        $document = (new MarkdownReader())->read('Misc source [@legacy-misc-packet] keeps generic document routing stable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Misc source [document | Legacy Misc Source Packet | Exported CMS packet | Queued for reviewer import] keeps generic document routing stable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>document :: Legacy Misc Source Packet :: Exported CMS packet :: Queued for reviewer import :: https://example.test/legacy-misc</dd>', $blocks);
+    },
     'renders bounded csl camelcase title and publication aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

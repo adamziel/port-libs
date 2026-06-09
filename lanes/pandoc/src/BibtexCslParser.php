@@ -1299,6 +1299,7 @@ final class BibtexCslParser
             'set' => 'entry',
             'booklet' => 'pamphlet',
             'letter' => 'personal_communication',
+            'misc' => 'document',
             'collection', 'manual', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',
             'phdthesis', 'mastersthesis', 'mathesis' => 'thesis',
             'report', 'techreport' => 'report',

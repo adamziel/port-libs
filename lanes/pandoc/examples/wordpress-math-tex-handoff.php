@@ -102,6 +102,8 @@ Combined over-under audit $\overunderset{\text{publish}}{\operatorname{draft}}{p
 
 Unbraced brace audit $\overbrace x_i^n + \underbrace y_j + \overbracket x^2 + \underbracket y_0$ keeps texToken bases semantic.
 
+Over-under group audit $\overparen{p_i + m_i}^{\text{review}} + \underparen{q_i}_{0} + \overgroup{x+y} + \undergroup{z}$ stays semantic.
+
 Buildrel relation audit $\buildrel{\text{def}}\over= + A \buildrel{\operatorname{iso}}\over\longrightarrow B$ stays semantic.
 
 Infix audit ${a+b \over c+d} + {n \choose k} + {n \atop k} + {p_i \brack m_i} + {x+y \brace z} + {n \bangle k}$ stays semantic.
@@ -307,6 +309,7 @@ $summary = [
     'aboveBelowMathml' => $converter->texToMathMl('\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}'),
     'combinedOverUnderMathml' => $converter->texToMathMl('\\overunderset{\\text{publish}}{\\operatorname{draft}}{p_i} + \\underoverset{0}{\\infty}{\\lim}_{n \\to \\infty} a_n'),
     'tokenBraceWrapperMathml' => $converter->texToMathMl('\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0'),
+    'parenGroupWrapperMathml' => $converter->texToMathMl('\\overparen{p_i + m_i}^{\\text{review}} + \\underparen{q_i}_{0} + \\overgroup{x+y} + \\undergroup{z}'),
     'buildrelMathml' => $converter->texToMathMl('\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B'),
     'infixFractionMathml' => $converter->texToMathMl('{a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}'),
     'withDelimsFractionMathml' => $converter->texToMathMl('{a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}'),
@@ -824,6 +827,19 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['parenGroupWrapperMathml'], '<mi>\\overparen</mi>')
+        || str_contains($summary['parenGroupWrapperMathml'], '<mi>\\underparen</mi>')
+        || str_contains($summary['parenGroupWrapperMathml'], '<mi>\\overgroup</mi>')
+        || str_contains($summary['parenGroupWrapperMathml'], '<mi>\\undergroup</mi>')
+        || !str_contains($summary['parenGroupWrapperMathml'], '<msup><mover><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>⏜</mo></mover><mtext>review</mtext></msup>')
+        || !str_contains($summary['parenGroupWrapperMathml'], '<msub><munder><msub><mi>q</mi><mi>i</mi></msub><mo>⏝</mo></munder><mn>0</mn></msub>')
+        || !str_contains($summary['parenGroupWrapperMathml'], '<mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo>⏠</mo></mover>')
+        || !str_contains($summary['parenGroupWrapperMathml'], '<munder><mi>z</mi><mo>⏡</mo></munder>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map over/under parenthesis and group wrappers');
+    }
+
+    if (
         str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\smash</mi>')
         || str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\mathllap</mi>')
         || str_contains($summary['tokenLayoutWrapperMathml'], '<mi>\\mathrlap</mi>')
@@ -887,6 +903,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\overset{\\text{new}}{p_i} + \\underset{0}{\\lim}_{n \\to \\infty} a_n + \\overbrace{x + y}^{\\text{sum}} + \\underbrace{m_i}_{\\text{media}} + \\displaystyle \\frac{q}{r}\\)</span>',
         '<span class="math inline">\\(\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0\\)</span>',
         '<annotation encoding="application/x-tex">\\overbrace x_i^n + \\underbrace y_j + \\overbracket x^2 + \\underbracket y_0</annotation>',
+        '<span class="math inline">\\(\\overparen{p_i + m_i}^{\\text{review}} + \\underparen{q_i}_{0} + \\overgroup{x+y} + \\undergroup{z}\\)</span>',
+        '<annotation encoding="application/x-tex">\\overparen{p_i + m_i}^{\\text{review}} + \\underparen{q_i}_{0} + \\overgroup{x+y} + \\undergroup{z}</annotation>',
         '<span class="math inline">\\(\\buildrel{\\text{def}}\\over= + A \\buildrel{\\operatorname{iso}}\\over\\longrightarrow B\\)</span>',
         '<span class="math inline">\\({a+b \\over c+d} + {n \\choose k} + {n \\atop k} + {p_i \\brack m_i} + {x+y \\brace z} + {n \\bangle k}\\)</span>',
         '<span class="math inline">\\({a+b \\overwithdelims() c+d} + {n \\atopwithdelims\\langle\\rangle k} + {p_i \\abovewithdelims[]1pt m_i}\\)</span>',

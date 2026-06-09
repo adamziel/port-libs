@@ -84,7 +84,7 @@ $opfXml = <<<'XML'
     <meta refines="#chapter-spine" property="rendition:viewport">width=1024,height=768</meta>
     <meta refines="#missing-review-subject" property="schema:reviewStatus">needs source audit</meta>
     <meta name="cover" content="legacy-cover"/>
-    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
+    <link id="review-record" title="WordPress EPUB review record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>
     <link id="remote-onix" rel="record" href="https://metadata.example.test/onix/source.xml" media-type="application/xml" properties="onix"/>
     <link id="creator-voicing" rel="voicing" refines="#creator" href="audio/creator-name.mp3" media-type="audio/mpeg"/>
     <link id="a11y-record" rel="record accessibility-summary" href="meta/accessibility.json" media-type="application/ld+json" properties="accessibility-metadata schema-org"/>
@@ -964,6 +964,9 @@ XML;
     if (($result['metadata']['links'][0]['byteSha256'] ?? null) !== hash('sha256', '{"@context":"https://schema.org","name":"WordPress EPUB review record"}')) {
         throw new RuntimeException('Expected EPUB OPF metadata linked record hash for review deduplication');
     }
+    if (($result['metadata']['links'][0]['title'] ?? null) !== 'WordPress EPUB review record') {
+        throw new RuntimeException('Expected EPUB OPF metadata linked record title provenance');
+    }
     if (($result['metadata']['links'][0]['language'] ?? null) !== 'ar' || ($result['metadata']['links'][0]['direction'] ?? null) !== 'rtl') {
         throw new RuntimeException('Expected EPUB OPF metadata linked record to inherit language and direction');
     }
@@ -982,6 +985,9 @@ XML;
     $metadataLinkTargets = $result['metadata']['linkTargetReport'] ?? [];
     if (($metadataLinkTargets['linkCount'] ?? null) !== 4 || ($metadataLinkTargets['publicationLinkCount'] ?? null) !== 3 || ($metadataLinkTargets['refinedLinkCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB OPF metadata link target report to separate publication and refined links');
+    }
+    if (($metadataLinkTargets['publicationItems'][0]['title'] ?? null) !== 'WordPress EPUB review record') {
+        throw new RuntimeException('Expected EPUB OPF metadata link target report to preserve title provenance');
     }
     if (($metadataLinkTargets['unmanifestedLocalLinkCount'] ?? null) !== 2 || ($metadataLinkTargets['externalLinkCount'] ?? null) !== 1 || ($metadataLinkTargets['missingLinkCount'] ?? null) !== 1) {
         throw new RuntimeException('Expected EPUB OPF metadata link target report to flag unmanifested, external, and missing records');
@@ -1842,6 +1848,7 @@ echo 'collectionLinkRels=' . implode(',', $result['collections'][0]['linkReport'
 echo 'collectionExternalLinks=' . ($result['collections'][0]['linkReport']['externalCount'] ?? 0) . "\n";
 echo 'metadataLinks=' . count($result['metadata']['links'] ?? []) . "\n";
 echo 'metadataRecordTarget=' . ($result['metadata']['links'][0]['target'] ?? '') . "\n";
+echo 'metadataRecordTitle=' . ($result['metadata']['links'][0]['title'] ?? '') . "\n";
 echo 'metadataRecordLanguage=' . ($result['metadata']['links'][0]['language'] ?? '') . "\n";
 echo 'metadataRecordDirection=' . ($result['metadata']['links'][0]['direction'] ?? '') . "\n";
 echo 'metadataRecordSha256=' . ($result['metadata']['links'][0]['byteSha256'] ?? '') . "\n";

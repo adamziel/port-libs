@@ -43,6 +43,7 @@ $contentTypesXml = <<<'XML'
   <Override PartName="/_xmlsignatures/sig-fragment.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-dot-segments.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-reference-uri-kinds.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-enveloped-transform.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
   <Override PartName="/_xmlsignatures/sig-unsafe-reference.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
@@ -294,6 +295,24 @@ $referenceUriKindSignatureXml = <<<'XML'
 </ds:Signature>
 XML;
 
+$envelopedTransformSignatureXml = <<<'XML'
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+        <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
 $unsafeReferenceSignatureXml = <<<'XML'
 <ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
   <ds:SignedInfo>
@@ -420,6 +439,7 @@ $package = ZipPackage::fromParts([
     ['name' => '_xmlsignatures/sig-fragment.xml', 'data' => $fragmentReferenceSignatureXml],
     ['name' => '_xmlsignatures/sig-dot-segments.xml', 'data' => $dotSegmentReferenceSignatureXml],
     ['name' => '_xmlsignatures/sig-reference-uri-kinds.xml', 'data' => $referenceUriKindSignatureXml],
+    ['name' => '_xmlsignatures/sig-enveloped-transform.xml', 'data' => $envelopedTransformSignatureXml],
     ['name' => '_xmlsignatures/sig-unsafe-reference.xml', 'data' => $unsafeReferenceSignatureXml],
 ]);
 
@@ -1976,6 +1996,26 @@ foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-r
         'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
     ];
 }
+$signatureEnvelopedTransformGuards = [];
+foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-enveloped-transform.xml') as $transform) {
+    $signatureEnvelopedTransformGuards[] = [
+        'signaturePart' => $transform['signaturePart'],
+        'referenceUri' => $transform['referenceUri'],
+        'relationshipPartName' => $transform['relationshipPartName'],
+        'source' => $transform['source'],
+        'sourceIds' => $transform['sourceIds'],
+        'followingCanonicalizationAlgorithm' => $transform['followingCanonicalizationAlgorithm'],
+        'followedByCanonicalization' => $transform['followedByCanonicalization'],
+        'relationshipIds' => $transform['relationshipIds'],
+        'relationshipCount' => $transform['relationshipCount'],
+        'selectorValid' => $transform['selectorValid'],
+        'relationshipTargetsValid' => $transform['relationshipTargetsValid'],
+        'valid' => $transform['valid'],
+        'issues' => $transform['issues'],
+        'relationshipXmlBytes' => $transform['relationshipXmlBytes'],
+        'relationshipXmlSha256' => $transform['relationshipXmlSha256'],
+    ];
+}
 $signatureUnsafeReferenceGuards = [];
 foreach ($graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-unsafe-reference.xml') as $transform) {
     $signatureUnsafeReferenceGuards[] = [
@@ -2027,6 +2067,7 @@ $digitalSignatures = $graph->preflightDigitalSignatures();
 $digitalSignatureRelationshipRoles = $graph->preflightDigitalSignatureRelationshipRoles();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
 $digitalSignatureSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig1.xml');
+$signatureEnvelopedSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-enveloped-transform.xml');
 $encryptedPackages = $graph->preflightEncryptedPackages();
 $embeddedPackages = $graph->preflightEmbeddedPackages($documentPart);
 $embeddedPackageGraphs = $graph->preflightEmbeddedPackageGraphs($documentPart);
@@ -2467,6 +2508,8 @@ $summary = [
     'signatureFragmentReferenceGuards' => $signatureFragmentReferenceGuards,
     'signatureDotSegmentReferenceGuards' => $signatureDotSegmentReferenceGuards,
     'signatureReferenceUriKindGuards' => $signatureReferenceUriKindGuards,
+    'signatureEnvelopedTransformGuards' => $signatureEnvelopedTransformGuards,
+    'signatureEnvelopedSignedInfoReferences' => $signatureEnvelopedSignedInfoReferences,
     'signatureUnsafeReferenceGuards' => $signatureUnsafeReferenceGuards,
     'reachableRelationships' => $reachableTargets,
     'integrity' => [
@@ -2772,6 +2815,22 @@ $summary = [
             ],
             $digitalSignatureSignedInfoReferences
         )),
+        'signatureEnvelopedTransformGuard' => $signatureEnvelopedTransformGuards[0] ?? null,
+        'signatureEnvelopedSignedInfoReferenceGuard' => isset($signatureEnvelopedSignedInfoReferences[0])
+            ? [
+                'uri' => $signatureEnvelopedSignedInfoReferences[0]['uri'],
+                'targetPart' => $signatureEnvelopedSignedInfoReferences[0]['targetPart'],
+                'relationshipPart' => $signatureEnvelopedSignedInfoReferences[0]['relationshipPart'],
+                'transformAlgorithms' => $signatureEnvelopedSignedInfoReferences[0]['transformAlgorithms'],
+                'relationshipTransformIndexes' => $signatureEnvelopedSignedInfoReferences[0]['relationshipTransformIndexes'],
+                'canonicalizationTransformIndexes' => $signatureEnvelopedSignedInfoReferences[0]['canonicalizationTransformIndexes'],
+                'relationshipTransformCount' => $signatureEnvelopedSignedInfoReferences[0]['relationshipTransformCount'],
+                'canonicalizationTransformCount' => $signatureEnvelopedSignedInfoReferences[0]['canonicalizationTransformCount'],
+                'relationshipTransformFollowedByCanonicalization' => $signatureEnvelopedSignedInfoReferences[0]['relationshipTransformFollowedByCanonicalization'],
+                'valid' => $signatureEnvelopedSignedInfoReferences[0]['valid'],
+                'issues' => $signatureEnvelopedSignedInfoReferences[0]['issues'],
+            ]
+            : null,
         'encryptedPackages' => array_values(array_map(
             static fn (array $encryptedPackage): array => [
                 'id' => $encryptedPackage['id'],
@@ -3191,9 +3250,9 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageConsistency']['relationshipTargetsValid'] ?? null) !== false
         || ($summary['packageConsistency']['relationshipTypePoliciesValid'] ?? null) !== true
         || ($summary['packageConsistency']['summary'] ?? null) !== ($summary['wordpressImport']['packageConsistencySummary'] ?? null)
-        || ($summary['packageConsistency']['summary']['packagePartCount'] ?? null) !== 33
+        || ($summary['packageConsistency']['summary']['packagePartCount'] ?? null) !== 34
         || ($summary['packageConsistency']['summary']['invalidPackagePartCount'] ?? null) !== 1
-        || ($summary['packageConsistency']['summary']['contentTypeOverrideCount'] ?? null) !== 24
+        || ($summary['packageConsistency']['summary']['contentTypeOverrideCount'] ?? null) !== 25
         || ($summary['packageConsistency']['summary']['invalidContentTypeOverrideCount'] ?? null) !== 2
         || ($summary['packageConsistency']['summary']['relationshipTargetCount'] ?? null) !== 26
         || ($summary['packageConsistency']['summary']['invalidRelationshipTargetCount'] ?? null) !== 3
@@ -3368,15 +3427,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['relationshipRolePolicySummary']['issues'] ?? null) !== []
         || ($summary['wordpressImport']['relationshipRolePolicySummary']['invalidRoles'] ?? null) !== []
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['valid'] ?? null) !== false
-        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['inventoryPartCount'] ?? null) !== 33
-        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['packagePartCount'] ?? null) !== 33
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['inventoryPartCount'] ?? null) !== 34
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['packagePartCount'] ?? null) !== 34
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['relationshipPartCount'] ?? null) !== 6
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['relationshipSourcePartCount'] ?? null) !== 5
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['directReferencePartCount'] ?? null) !== 19
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['reachableReferencePartCount'] ?? null) !== 12
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['directOnlyPartCount'] ?? null) !== 7
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['missingReferencedPartCount'] ?? null) !== 0
-        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedPackagePartCount'] ?? null) !== 8
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedPackagePartCount'] ?? null) !== 9
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedRelationshipPartCount'] ?? null) !== 6
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['invalidPartCount'] ?? null) !== 1
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['externalDirectReferenceCount'] ?? null) !== 5
@@ -3394,6 +3453,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedPackagePartNames'] ?? null) !== [
             '/_xmlsignatures/sig-dot-segments.xml',
             '/_xmlsignatures/sig-duplicate-selector.xml',
+            '/_xmlsignatures/sig-enveloped-transform.xml',
             '/_xmlsignatures/sig-fragment.xml',
             '/_xmlsignatures/sig-missing-rels.xml',
             '/_xmlsignatures/sig-reference-uri-kinds.xml',
@@ -3410,8 +3470,8 @@ if (($argv[1] ?? '') === '--self-test') {
         ]
         || ($summary['packagePartRelationshipCoverage']['parts'][0]['coverage'] ?? null) !== 'direct-only'
         || ($summary['packagePartRelationshipCoverage']['parts'][1]['coverage'] ?? null) !== 'unreferenced-relationship-part'
-        || ($summary['packagePartRelationshipCoverage']['parts'][12]['coverage'] ?? null) !== 'direct-and-reachable'
-        || ($summary['packagePartRelationshipCoverage']['parts'][26]['coverage'] ?? null) !== 'unreferenced-package-part'
+        || ($summary['packagePartRelationshipCoverage']['parts'][13]['coverage'] ?? null) !== 'direct-and-reachable'
+        || ($summary['packagePartRelationshipCoverage']['parts'][27]['coverage'] ?? null) !== 'unreferenced-package-part'
         || ($summary['relationshipRolePolicySummary']['source'] ?? null) !== null
         || array_column($summary['relationshipRolePolicySummary']['roles'] ?? [], 'role') !== [
             'core-properties',
@@ -4202,6 +4262,35 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['signatureReferenceUriKindGuards'][2]['issues'] ?? null) !== ['relationship-transform-reference-external-uri']
         || !array_key_exists('relationshipXml', $summary['signatureReferenceUriKindGuards'][2] ?? [])
         || $summary['signatureReferenceUriKindGuards'][2]['relationshipXml'] !== null
+        || count($summary['signatureEnvelopedTransformGuards'] ?? []) !== 1
+        || ($summary['signatureEnvelopedTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-enveloped-transform.xml'
+        || ($summary['signatureEnvelopedTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['signatureEnvelopedTransformGuards'][0]['relationshipPartName'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['signatureEnvelopedTransformGuards'][0]['source'] ?? null) !== '/word/document.xml'
+        || ($summary['signatureEnvelopedTransformGuards'][0]['sourceIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureEnvelopedTransformGuards'][0]['followingCanonicalizationAlgorithm'] ?? null) !== 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'
+        || ($summary['signatureEnvelopedTransformGuards'][0]['followedByCanonicalization'] ?? null) !== true
+        || ($summary['signatureEnvelopedTransformGuards'][0]['relationshipIds'] ?? null) !== ['rIdHero']
+        || ($summary['signatureEnvelopedTransformGuards'][0]['relationshipCount'] ?? null) !== 1
+        || ($summary['signatureEnvelopedTransformGuards'][0]['selectorValid'] ?? null) !== true
+        || ($summary['signatureEnvelopedTransformGuards'][0]['relationshipTargetsValid'] ?? null) !== true
+        || ($summary['signatureEnvelopedTransformGuards'][0]['valid'] ?? null) !== false
+        || ($summary['signatureEnvelopedTransformGuards'][0]['issues'] ?? null) !== ['relationship-transform-with-enveloped-signature-transform']
+        || count($summary['signatureEnvelopedSignedInfoReferences'] ?? []) !== 1
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['transformAlgorithms'] ?? null) !== [
+            OpcRelationshipGraph::RELATIONSHIP_TRANSFORM_ALGORITHM,
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
+        ]
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['relationshipTransformIndexes'] ?? null) !== [0]
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['canonicalizationTransformIndexes'] ?? null) !== [1]
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['relationshipTransformCount'] ?? null) !== 1
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['canonicalizationTransformCount'] ?? null) !== 1
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['relationshipTransformFollowedByCanonicalization'] ?? null) !== true
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['valid'] ?? null) !== false
+        || ($summary['signatureEnvelopedSignedInfoReferences'][0]['issues'] ?? null) !== ['signed-info-relationship-transform-with-enveloped-signature-transform']
+        || ($summary['wordpressImport']['signatureEnvelopedTransformGuard']['issues'] ?? null) !== ['relationship-transform-with-enveloped-signature-transform']
+        || ($summary['wordpressImport']['signatureEnvelopedSignedInfoReferenceGuard']['issues'] ?? null) !== ['signed-info-relationship-transform-with-enveloped-signature-transform']
         || count($summary['signatureUnsafeReferenceGuards'] ?? []) !== 8
         || array_column($summary['signatureUnsafeReferenceGuards'] ?? [], 'issues', 'referenceUri') !== [
             '/word/_rels/document%ZZ.xml.rels' => ['invalid-reference-uri', 'relationship-transform-reference-malformed-percent-escape'],

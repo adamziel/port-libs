@@ -2164,6 +2164,28 @@ return [
         $t->contains('alttext="x plus y over over bracket plus z under under bracket"', $accessibleMathml);
         $t->contains('intent="row(over(row(x,plus,y),over_bracket),plus,under(z,under_bracket))"', $accessibleMathml);
     },
+    'converts bounded tex overparen underparen overgroup and undergroup accents to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $parenMathml = $converter->texToMathMl('\\overparen{p_i + m_i}^{\\text{review}} + \\underparen{q_i}_{0}', true);
+        $groupMathml = $converter->texToMathMl('\\overgroup{x+y} + \\undergroup{z}');
+        $tokenMathml = $converter->texToMathMl('\\overparen x^2 + \\undergroup y_0');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\overparen{x+y} + \\undergroup{z}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $parenMathml);
+        $t->contains('<msup><mover><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow><mo>⏜</mo></mover><mtext>review</mtext></msup>', $parenMathml);
+        $t->contains('<msub><munder><msub><mi>q</mi><mi>i</mi></msub><mo>⏝</mo></munder><mn>0</mn></msub>', $parenMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overparen{p_i + m_i}^{\\text{review}} + \\underparen{q_i}_{0}</annotation>', $parenMathml);
+        $t->contains('<mover><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo>⏠</mo></mover><mo>+</mo><munder><mi>z</mi><mo>⏡</mo></munder>', $groupMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overgroup{x+y} + \\undergroup{z}</annotation>', $groupMathml);
+        $t->contains('<msup><mover><mi>x</mi><mo>⏜</mo></mover><mn>2</mn></msup><mo>+</mo><msub><munder><mi>y</mi><mo>⏡</mo></munder><mn>0</mn></msub>', $tokenMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overparen x^2 + \\undergroup y_0</annotation>', $tokenMathml);
+        $t->contains('alttext="x plus y over over parenthesis plus z under under group"', $accessibleMathml);
+        $t->contains('intent="row(over(row(x,plus,y),over_parenthesis),plus,under(z,under_group))"', $accessibleMathml);
+        $t->true(!str_contains($parenMathml . $groupMathml . $tokenMathml, '<mi>\\overparen</mi>'));
+        $t->true(!str_contains($parenMathml . $groupMathml . $tokenMathml, '<mi>\\undergroup</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overparen{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\undergroup_1'));
+    },
     'converts bounded tex color phantom and cancel commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $colorMathml = $converter->texToMathMl('\\color{red}{p_i} + \\textcolor{#336699}{\\operatorname{media}} + \\color{review-blue}{x+y}', true);

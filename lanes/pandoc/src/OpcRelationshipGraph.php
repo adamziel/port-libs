@@ -59,6 +59,7 @@ final class OpcRelationshipGraph
     private const ENCRYPTED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-package.encrypted-package';
     private const EMBEDDED_PACKAGE_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.package';
     private const EMBEDDED_OBJECT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.oleObject';
+    private const XML_SIGNATURE_ENVELOPED_SIGNATURE_TRANSFORM_ALGORITHM = 'http://www.w3.org/2000/09/xmldsig#enveloped-signature';
     private const XML_SIGNATURE_DIGEST_ALGORITHMS = [
         'http://www.w3.org/2000/09/xmldsig#sha1' => ['profile' => 'sha1', 'expectedDecodedBytes' => 20],
         'http://www.w3.org/2001/04/xmlenc#sha256' => ['profile' => 'sha256', 'expectedDecodedBytes' => 32],
@@ -3596,6 +3597,18 @@ final class OpcRelationshipGraph
             $referenceIndex++;
             $referenceUri = $reference->hasAttribute('URI') ? $reference->getAttribute('URI') : '';
             $transforms = self::xmlSignatureReferenceTransforms($reference);
+            $transformAlgorithms = [];
+            foreach ($transforms as $referenceTransform) {
+                $transformAlgorithms[] = $referenceTransform->hasAttribute('Algorithm')
+                    ? trim($referenceTransform->getAttribute('Algorithm'))
+                    : '';
+            }
+            $hasEnvelopedSignatureTransform = in_array(
+                self::XML_SIGNATURE_ENVELOPED_SIGNATURE_TRANSFORM_ALGORITHM,
+                $transformAlgorithms,
+                true,
+            );
+
             foreach ($transforms as $transformIndex => $transform) {
                 if ($transform->getAttribute('Algorithm') !== self::RELATIONSHIP_TRANSFORM_ALGORITHM) {
                     continue;
@@ -3673,6 +3686,9 @@ final class OpcRelationshipGraph
                 $followedByCanonicalization = $followingCanonicalization !== null;
                 if (!$followedByCanonicalization) {
                     $issues[] = 'relationship-transform-not-followed-by-canonicalization';
+                }
+                if ($hasEnvelopedSignatureTransform) {
+                    $issues[] = 'relationship-transform-with-enveloped-signature-transform';
                 }
 
                 $relationshipIds = [];
@@ -4558,6 +4574,13 @@ final class OpcRelationshipGraph
         }
         if ($relationshipPart && $relationshipTransformCount > 1) {
             $issues[] = 'signed-info-multiple-relationship-transforms';
+        }
+        if (
+            $relationshipPart
+            && $relationshipTransformCount > 0
+            && in_array(self::XML_SIGNATURE_ENVELOPED_SIGNATURE_TRANSFORM_ALGORITHM, $transformAlgorithms, true)
+        ) {
+            $issues[] = 'signed-info-relationship-transform-with-enveloped-signature-transform';
         }
         if (
             $relationshipPart

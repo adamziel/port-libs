@@ -5158,6 +5158,7 @@ XML;
         $t->same(false, $invalidTransforms[0]['valid']);
         $t->same([
             'relationship-transform-not-followed-by-canonicalization',
+            'relationship-transform-with-enveloped-signature-transform',
             'multiple-relationship-transforms-for-part',
         ], $invalidTransforms[0]['issues']);
         $t->same(false, $invalidTransforms[1]['valid']);
@@ -5182,6 +5183,83 @@ XML;
         ], $invalidTransforms[2]['issues']);
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/missing.xml'));
+    },
+    'flags enveloped signature transforms on OPC relationship part references' => static function (TestRunner $t): void {
+        $digest = base64_encode(str_repeat('d', 32));
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-enveloped-transform.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+</Relationships>
+XML;
+
+        $signatureXml = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:mdssi="http://schemas.openxmlformats.org/package/2006/digital-signature">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml">
+      <ds:Transforms>
+        <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
+          <mdssi:RelationshipReference SourceId="rIdHero"/>
+        </ds:Transform>
+        <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+        <ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+      </ds:Transforms>
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$digest}</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => '_xmlsignatures/sig-enveloped-transform.xml', 'data' => $signatureXml],
+        ]));
+
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-enveloped-transform.xml');
+        $t->same(1, count($transforms));
+        $t->same('/word/_rels/document.xml.rels', $transforms[0]['relationshipPartName']);
+        $t->same('/word/document.xml', $transforms[0]['source']);
+        $t->same(['rIdHero'], $transforms[0]['relationshipIds']);
+        $t->same(true, $transforms[0]['followedByCanonicalization']);
+        $t->same(false, $transforms[0]['valid']);
+        $t->same(['relationship-transform-with-enveloped-signature-transform'], $transforms[0]['issues']);
+        $t->contains('Id="rIdHero"', $transforms[0]['relationshipXml']);
+
+        $references = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-enveloped-transform.xml');
+        $t->same(1, count($references));
+        $t->same([
+            'http://schemas.openxmlformats.org/package/2006/RelationshipTransform',
+            'http://www.w3.org/TR/2001/REC-xml-c14n-20010315',
+            'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
+        ], $references[0]['transformAlgorithms']);
+        $t->same([0], $references[0]['relationshipTransformIndexes']);
+        $t->same([1], $references[0]['canonicalizationTransformIndexes']);
+        $t->same(1, $references[0]['relationshipTransformCount']);
+        $t->same(1, $references[0]['canonicalizationTransformCount']);
+        $t->same(true, $references[0]['relationshipTransformFollowedByCanonicalization']);
+        $t->same(32, $references[0]['digestValueDecodedBytes']);
+        $t->same(false, $references[0]['valid']);
+        $t->same(['signed-info-relationship-transform-with-enveloped-signature-transform'], $references[0]['issues']);
     },
     'preflights OPC signature relationship transform reference content type queries' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

@@ -1219,8 +1219,12 @@ final class MathTexConverter
         '⎱' => 'right moustache',
         '⎪' => 'brace extender',
         '‖' => 'double vertical bar',
+        '⏜' => 'over parenthesis',
+        '⏝' => 'under parenthesis',
         '⏞' => 'over brace',
         '⏟' => 'under brace',
+        '⏠' => 'over group',
+        '⏡' => 'under group',
         '⎴' => 'over bracket',
         '⎵' => 'under bracket',
         '´' => 'acute',
@@ -3145,6 +3149,34 @@ final class MathTexConverter
             return '<munder>'
                 . $this->parseRequiredTexToken($source, $offset, 'underbracket base')
                 . '<mo>⎵</mo>'
+                . '</munder>';
+        }
+
+        if ($command === 'overparen') {
+            return '<mover>'
+                . $this->parseRequiredTexToken($source, $offset, 'overparen base')
+                . '<mo>⏜</mo>'
+                . '</mover>';
+        }
+
+        if ($command === 'underparen') {
+            return '<munder>'
+                . $this->parseRequiredTexToken($source, $offset, 'underparen base')
+                . '<mo>⏝</mo>'
+                . '</munder>';
+        }
+
+        if ($command === 'overgroup') {
+            return '<mover>'
+                . $this->parseRequiredTexToken($source, $offset, 'overgroup base')
+                . '<mo>⏠</mo>'
+                . '</mover>';
+        }
+
+        if ($command === 'undergroup') {
+            return '<munder>'
+                . $this->parseRequiredTexToken($source, $offset, 'undergroup base')
+                . '<mo>⏡</mo>'
                 . '</munder>';
         }
 

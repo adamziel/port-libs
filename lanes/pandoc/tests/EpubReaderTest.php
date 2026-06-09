@@ -3779,6 +3779,49 @@ XML;
         );
         $t->same(false, in_array('/OEBPS/meta/review-record.json', $unmanifestedParts, true));
     },
+    'preserves OPF metadata link title provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $reviewRecordBytes = '{"@context":"https://schema.org","name":"Titled publication record"}';
+        $chapterRecordBytes = '{"@context":"https://schema.org","name":"Titled chapter record"}';
+        $opfWithTitledMetadataLinks = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-spine" idref="chapter-1"/>',
+            $opfXml
+        );
+        $opfWithTitledMetadataLinks = str_replace(
+            '</metadata>',
+            '<link id="review-record" title="Publication review packet" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json" properties="schema-org reviewer" hreflang="en"/>'
+            . '<link id="chapter-review" title="Chapter reviewer packet" rel="record preview" refines="#chapter-spine" href="meta/chapter-review.json" media-type="application/ld+json"/>'
+            . '</metadata>',
+            $opfWithTitledMetadataLinks
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithTitledMetadataLinks,
+            null,
+            [
+                ['name' => 'OEBPS/meta/review-record.json', 'data' => $reviewRecordBytes],
+                ['name' => 'OEBPS/meta/chapter-review.json', 'data' => $chapterRecordBytes],
+            ],
+        ));
+
+        $links = $result['metadata']['links'];
+        $targetReport = $result['metadata']['linkTargetReport'];
+        $spineLinkedResources = $result['spine'][0]['linkedResources'];
+
+        $t->same('Publication review packet', $links[0]['title']);
+        $t->same('Chapter reviewer packet', $links[1]['title']);
+        $t->same('Publication review packet', $result['metadata']['raw'][7]['title']);
+        $t->same('Chapter reviewer packet', $result['metadata']['raw'][8]['title']);
+        $t->same('Publication review packet', $result['metadata']['linksByRel']['alternate'][0]['title']);
+        $t->same('Chapter reviewer packet', $result['metadata']['linksByRefinedId']['chapter-spine'][0]['title']);
+        $t->same('Chapter reviewer packet', $spineLinkedResources[0]['title']);
+        $t->same('Chapter reviewer packet', $result['document']->children[0]->attr('linkedResources')[0]['title']);
+        $t->same('Publication review packet', $targetReport['publicationItems'][0]['title']);
+        $t->same('Chapter reviewer packet', $targetReport['refinedItems'][0]['title']);
+        $t->same('Publication review packet', $targetReport['itemsByRel']['alternate'][0]['title']);
+        $t->same($targetReport, $result['importReport']['metadata']['linkTargetReport']);
+        $t->same($links, $result['document']->attr('metadata')['links']);
+    },
     'reports OPF metadata link target policy for publication resources' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $reviewRecordBytes = '{"@context":"https://schema.org","name":"Publication review record"}';
         $manifestRecordBytes = '{"@context":"https://schema.org","name":"Manifested publication record"}';
