@@ -17347,6 +17347,50 @@ MD;
         $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe quote event handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'style="color:red"') && !str_contains($blocks, 'style="border:0"'), 'Unsafe style attributes should not survive paragraph or quote handoff');
     },
+    'writes wordpress html writer attributes for list containers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', [
+                'id' => 'bullet-attrs',
+                'classes' => ['review-list'],
+                'taskList' => true,
+                'attributes' => [
+                    'data-pandoc-block' => 'bullet-list',
+                    'aria-label' => 'Reviewer checklist',
+                    'xml:lang' => 'en-US',
+                    'onclick' => 'alert(1)',
+                    'style' => 'list-style:none',
+                ],
+            ], [
+                new AstNode('list_item', ['taskChecked' => false], [
+                    new AstNode('text', ['text' => 'Review source']),
+                ]),
+            ]),
+            new AstNode('ordered_list', [
+                'start' => 4,
+                'style' => 'upper_alpha',
+                'id' => 'ordered-attrs',
+                'classes' => ['review-order'],
+                'attributes' => [
+                    'data-pandoc-block' => 'ordered-list',
+                    'lang' => 'fr',
+                    'title' => 'Escaped "order"',
+                    'onmouseover' => 'alert(1)',
+                    'style' => 'color:red',
+                ],
+            ], [
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [new AstNode('text', ['text' => 'Confirm order'])]),
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<ul id="bullet-attrs" class="task-list review-list" data-pandoc-block="bullet-list" aria-label="Reviewer checklist" xml:lang="en-US"><li><label><input type="checkbox" />Review source</label></li></ul>', $blocks);
+        $t->contains('<ol start="4" type="A" id="ordered-attrs" class="review-order" data-pandoc-block="ordered-list" lang="fr" title="Escaped &quot;order&quot;"><li>Confirm order</li></ol>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe list event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe ordered-list event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe list style attributes should not survive HTML writer attribute handoff');
+    },
     'writes wordpress html writer attributes for figures' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('figure', [
