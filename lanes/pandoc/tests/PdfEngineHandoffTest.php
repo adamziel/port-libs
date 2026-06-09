@@ -441,6 +441,57 @@ MARKDOWN);
         ], $sequence['finalSourceMapLineRanges']);
     },
 
+    'plans tex jobname and output-directory sidecar artifacts without executing engines' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'xelatex',
+            'outputPath' => 'handoff/review.pdf',
+            'engineOptions' => ['-file-line-error', '-jobname=review-final', '-output-directory', 'build/pdf', '-recorder', '-synctex=1'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake bounded handoff with redirected sidecars\n%%EOF\n";
+        $fls = implode("\n", [
+            'PWD /tmp/pandoc-pdf-work',
+            'INPUT handoff/review.tex',
+            'INPUT chapters/source-note.tex',
+            'OUTPUT build/pdf/review-final.aux',
+            'OUTPUT build/pdf/review-final.pdf',
+            '',
+        ]);
+        $bcf = '<bcf version="3.9" />';
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'chapters/source-note.tex' => '\input{review}',
+                'build/pdf/review-final.log' => "This is XeTeX, Version 3.141592653\n",
+                'build/pdf/review-final.fls' => $fls,
+                'build/pdf/review-final.bcf' => $bcf,
+                'handoff/review.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same('build/pdf/review-final', $plan['engineArtifactStem']);
+        $t->same('build/pdf/review-final.log', $plan['engineLogFile']);
+        $t->same([
+            'build/pdf/review-final.log',
+            'build/pdf/review-final.aux',
+            'build/pdf/review-final.out',
+            'build/pdf/review-final.toc',
+            'build/pdf/review-final.fls',
+            'build/pdf/review-final.synctex.gz',
+        ], $plan['expectedEngineArtifacts']);
+        $t->contains('pdf-engine-artifact-stem:build/pdf/review-final', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-recorder:build/pdf/review-final.fls', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-source-map:build/pdf/review-final.synctex.gz', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(['build/pdf/review-final.log'], $result['engineLogFiles']);
+        $t->same(['build/pdf/review-final.fls' => hash('sha256', $fls)], $result['engineDependencyArtifactsSha256']);
+        $t->same(['build/pdf/review-final.bcf' => hash('sha256', $bcf)], $result['bibliographyArtifactsSha256']);
+        $t->same(['chapters/source-note.tex', 'handoff/review.tex'], $result['engineInputFiles']);
+        $t->same(['build/pdf/review-final.aux', 'build/pdf/review-final.pdf'], $result['engineOutputFiles']);
+        $t->contains('produced-engine-artifacts:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
+        $t->contains('bibliography-sidecars:1', implode(',', $result['diagnostics']));
+    },
+
     'fake runner validates staged source and pdf-like output bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'lualatex', 'outputPath' => 'review.pdf']);

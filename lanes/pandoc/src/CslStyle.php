@@ -1910,6 +1910,9 @@ final class CslStyle
             'introduction',
             'foreword',
             'afterword',
+            'namea',
+            'nameb',
+            'namec',
         ];
     }
 

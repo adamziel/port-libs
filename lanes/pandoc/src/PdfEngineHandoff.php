@@ -92,6 +92,7 @@ final class PdfEngineHandoff
      *     writerArguments: list<string>,
      *     sourceArtifacts: list<string>,
      *     engineLogFile: string|null,
+     *     engineArtifactStem: string,
      *     expectedEngineArtifacts: list<string>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
@@ -138,12 +139,13 @@ final class PdfEngineHandoff
             array_merge([$templateFile], $includeInHeaderFiles),
             static fn (?string $path): bool => $path !== null && $path !== ''
         ));
-        $expectedEngineArtifacts = $this->expectedEngineArtifactsFor($engine, $profile['family'], $sourceFile);
-        $recorderFile = $this->recorderFileFor($engine, $profile['family'], $sourceFile, $engineOptions);
+        $engineArtifactStem = $this->engineArtifactStemFor($profile['family'], $sourceFile, $engineOptions);
+        $expectedEngineArtifacts = $this->expectedEngineArtifactsFor($engine, $profile['family'], $engineArtifactStem);
+        $recorderFile = $this->recorderFileFor($engine, $profile['family'], $engineArtifactStem, $engineOptions);
         if ($recorderFile !== null && !in_array($recorderFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $recorderFile;
         }
-        $sourceMapFile = $this->sourceMapFileFor($profile['family'], $sourceFile, $engineOptions);
+        $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $sourceMapFile;
         }
@@ -187,6 +189,9 @@ final class PdfEngineHandoff
         if ($sourceMapFile !== null) {
             $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
+        if ($engineArtifactStem !== $this->sourceStem($sourceFile)) {
+            $diagnostics[] = 'pdf-engine-artifact-stem:' . $engineArtifactStem;
+        }
         if ($expectedEngineArtifacts !== []) {
             $diagnostics[] = 'pdf-engine-artifacts:' . count($expectedEngineArtifacts);
         }
@@ -216,6 +221,7 @@ final class PdfEngineHandoff
             'writerArguments' => $writerArguments,
             'sourceArtifacts' => $sourceArtifacts,
             'engineLogFile' => $engineLogFile,
+            'engineArtifactStem' => $engineArtifactStem,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
@@ -409,6 +415,9 @@ final class PdfEngineHandoff
         $sourceFile = $this->requirePlanString($plan, 'sourceFile');
         $outputFile = $this->requirePlanString($plan, 'outputFile');
         $engine = $this->requirePlanString($plan, 'engine');
+        $engineArtifactStem = isset($plan['engineArtifactStem']) && is_string($plan['engineArtifactStem']) && $plan['engineArtifactStem'] !== ''
+            ? $this->normalizeRelativePath($plan['engineArtifactStem'], 'PDF engine artifact stem')
+            : $this->sourceStem($sourceFile);
         $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
             ? $plan['engineProgram']
             : $engine;
@@ -506,7 +515,7 @@ final class PdfEngineHandoff
             if (isset($reservedFiles[$path])) {
                 continue;
             }
-            if (!in_array($path, $expectedEngineArtifacts, true) && !$this->isKnownEngineArtifact($path, $sourceFile)) {
+            if (!in_array($path, $expectedEngineArtifacts, true) && !$this->isKnownEngineArtifact($path, $sourceFile, $engineArtifactStem)) {
                 continue;
             }
 
@@ -4648,9 +4657,37 @@ final class PdfEngineHandoff
     /**
      * @return list<string>
      */
-    private function expectedEngineArtifactsFor(string $engine, string $family, string $sourceFile): array
+    private function engineArtifactStemFor(string $family, string $sourceFile, array $engineOptions): string
     {
-        $stem = $this->sourceStem($sourceFile);
+        $sourceStem = $this->sourceStem($sourceFile);
+        if ($family !== 'latex' && $family !== 'context') {
+            return $sourceStem;
+        }
+
+        $directory = $this->sourceDirectory($sourceStem);
+        $basename = $this->sourceBasename($sourceStem);
+        $jobName = $family === 'latex'
+            ? $this->safeEngineJobName($this->engineOptionValue($engineOptions, ['-jobname', '--jobname']))
+            : null;
+        $outputDirectory = $family === 'latex'
+            ? $this->safeEngineOutputDirectory($this->engineOptionValue($engineOptions, ['-output-directory', '--output-directory', '-outdir', '--outdir']))
+            : null;
+
+        if ($jobName !== null) {
+            $basename = $jobName;
+        }
+        if ($outputDirectory !== null) {
+            $directory = $outputDirectory;
+        }
+
+        return $directory === '' ? $basename : $directory . '/' . $basename;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function expectedEngineArtifactsFor(string $engine, string $family, string $artifactStem): array
+    {
         $extensions = [];
 
         if ($family === 'latex') {
@@ -4665,7 +4702,7 @@ final class PdfEngineHandoff
 
         $artifacts = [];
         foreach ($extensions as $extension) {
-            $artifacts[] = $stem . '.' . $extension;
+            $artifacts[] = $artifactStem . '.' . $extension;
         }
 
         return $artifacts;
@@ -4674,7 +4711,7 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
-    private function sourceMapFileFor(string $family, string $sourceFile, array $engineOptions): ?string
+    private function sourceMapFileFor(string $family, string $artifactStem, array $engineOptions): ?string
     {
         if ($family !== 'latex') {
             return null;
@@ -4682,7 +4719,7 @@ final class PdfEngineHandoff
 
         foreach ($engineOptions as $option) {
             if ($this->isSyncTexEngineOption($option)) {
-                return $this->sourceStem($sourceFile) . '.synctex.gz';
+                return $artifactStem . '.synctex.gz';
             }
         }
 
@@ -4692,18 +4729,18 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
-    private function recorderFileFor(string $engine, string $family, string $sourceFile, array $engineOptions): ?string
+    private function recorderFileFor(string $engine, string $family, string $artifactStem, array $engineOptions): ?string
     {
         if ($family !== 'latex') {
             return null;
         }
         if ($engine === 'latexmk') {
-            return $this->sourceStem($sourceFile) . '.fls';
+            return $artifactStem . '.fls';
         }
 
         foreach ($engineOptions as $option) {
             if ($this->isRecorderEngineOption($option)) {
-                return $this->sourceStem($sourceFile) . '.fls';
+                return $artifactStem . '.fls';
             }
         }
 
@@ -4755,31 +4792,117 @@ final class PdfEngineHandoff
         return $sourceFile;
     }
 
-    private function isKnownEngineArtifact(string $path, string $sourceFile): bool
+    private function sourceDirectory(string $path): string
     {
-        $stem = $this->sourceStem($sourceFile);
-        if (!str_starts_with($path, $stem . '.')) {
-            return false;
+        $lastSlash = strrpos($path, '/');
+
+        return $lastSlash === false ? '' : substr($path, 0, $lastSlash);
+    }
+
+    private function sourceBasename(string $path): string
+    {
+        $lastSlash = strrpos($path, '/');
+
+        return $lastSlash === false ? $path : substr($path, $lastSlash + 1);
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @param list<string> $names
+     */
+    private function engineOptionValue(array $engineOptions, array $names): ?string
+    {
+        $value = null;
+        $count = count($engineOptions);
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            foreach ($names as $name) {
+                if (
+                    $option === $name
+                    && $index + 1 < $count
+                    && $engineOptions[$index + 1] !== ''
+                    && !str_starts_with($engineOptions[$index + 1], '-')
+                ) {
+                    $value = $engineOptions[$index + 1];
+                    continue;
+                }
+                if (str_starts_with($option, $name . '=')) {
+                    $value = substr($option, strlen($name) + 1);
+                }
+            }
         }
 
-        $extension = substr($path, strlen($stem) + 1);
+        return $value;
+    }
 
-        return in_array($extension, [
-            'aux',
-            'bbl',
-            'bcf',
-            'blg',
-            'fdb_latexmk',
-            'fls',
-            'log',
-            'out',
-            'run.xml',
-            'synctex',
-            'synctex.gz',
-            'toc',
-            'tuc',
-            'xdv',
-        ], true);
+    private function safeEngineJobName(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        try {
+            $jobName = $this->normalizeRelativePath($value, 'PDF engine job name');
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        return str_contains($jobName, '/') ? null : $jobName;
+    }
+
+    private function safeEngineOutputDirectory(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = str_replace('\\', '/', trim($value));
+        if ($value === '' || $value === '.') {
+            return '';
+        }
+
+        try {
+            return $this->normalizeRelativePath($value, 'PDF engine output directory');
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+    }
+
+    private function isKnownEngineArtifact(string $path, string $sourceFile, ?string $artifactStem = null): bool
+    {
+        $stems = [$this->sourceStem($sourceFile)];
+        if ($artifactStem !== null && $artifactStem !== '') {
+            $stems[] = $artifactStem;
+        }
+        $stems = array_values(array_unique($stems));
+
+        foreach ($stems as $stem) {
+            if (!str_starts_with($path, $stem . '.')) {
+                continue;
+            }
+
+            $extension = substr($path, strlen($stem) + 1);
+            if (in_array($extension, [
+                'aux',
+                'bbl',
+                'bcf',
+                'blg',
+                'fdb_latexmk',
+                'fls',
+                'log',
+                'out',
+                'run.xml',
+                'synctex',
+                'synctex.gz',
+                'toc',
+                'tuc',
+                'xdv',
+            ], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isBibliographyArtifactPath(string $path): bool

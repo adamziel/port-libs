@@ -1297,6 +1297,78 @@ return [
         $t->contains('package flag definitions plus default/manual values', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks unexpected cabal package flag definitions before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['pandoc.cabal'] = str_replace(
+            "flag http\n",
+            implode("\n", [
+                'flag runner_audit_network',
+                '  description: Enable generated runner network fixtures',
+                '  default: False',
+                '  manual: True',
+                '',
+                'flag http',
+            ]) . "\n",
+            $files['pandoc.cabal']
+        );
+        $files['pandoc-lua-engine/pandoc-lua-engine.cabal'] .= implode("\n", [
+            '',
+            'flag generated_lua_runner',
+            '  description: Enable generated Lua runner fixtures',
+            '  default: False',
+        ]);
+        $files['pandoc-cli/pandoc-cli.cabal'] = str_replace(
+            "flag nightly\n",
+            implode("\n", [
+                'flag generated_binary_wrapper',
+                '  description: Enable generated binary wrapper tests',
+                '  default: False',
+                '',
+                'flag nightly',
+            ]) . "\n",
+            $files['pandoc-cli/pandoc-cli.cabal']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['missingFlags']);
+        $t->same([], $audit['packageFlagDefinitionClosure']['mismatchedFlagFields']);
+        $t->same([
+            'embed_data_files',
+            'http',
+            'runner_audit_network',
+        ], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc.cabal']);
+        $t->same([
+            'generated_lua_runner',
+        ], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc-lua-engine/pandoc-lua-engine.cabal']);
+        $t->same([
+            'generated_binary_wrapper',
+            'lua',
+            'nightly',
+            'repl',
+            'server',
+        ], $audit['packageFlagDefinitionClosure']['presentFlags']['pandoc-cli/pandoc-cli.cabal']);
+        $t->same([
+            'pandoc.cabal' => ['runner_audit_network'],
+            'pandoc-lua-engine/pandoc-lua-engine.cabal' => ['generated_lua_runner'],
+            'pandoc-cli/pandoc-cli.cabal' => ['generated_binary_wrapper'],
+        ], $audit['packageFlagDefinitionClosure']['unexpectedFlags']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('unexpected Cabal package flag definitions: pandoc.cabal (runner_audit_network)', $blocked);
+        $t->contains('pandoc-lua-engine/pandoc-lua-engine.cabal (generated_lua_runner)', $blocked);
+        $t->contains('pandoc-cli/pandoc-cli.cabal (generated_binary_wrapper)', $blocked);
+        $t->contains('no unexpected Cabal package flag definitions', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'records cabal plan stability provenance before solver planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $root = $makeTree($files);

@@ -40,6 +40,11 @@ $plan = $handoff->plan($document, [
     ],
     'engineOptions' => ['-file-line-error', '-recorder', '-synctex=1'],
 ]);
+$redirectedArtifactPlan = $handoff->plan($document, [
+    'engine' => 'xelatex',
+    'outputPath' => 'handoff/pdf-review-packet.pdf',
+    'engineOptions' => ['-jobname=pdf-review-final', '-output-directory=handoff/engine', '-recorder', '-synctex=1'],
+]);
 $fakeXmpMetadata = implode("\n", [
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
     '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
@@ -977,7 +982,14 @@ $summary = [
     'skippedResourceReferences' => $plan['skippedResourceReferences'],
     'sourceArtifacts' => $plan['sourceArtifacts'],
     'engineLogFile' => $plan['engineLogFile'],
+    'engineArtifactStem' => $plan['engineArtifactStem'],
     'expectedEngineArtifacts' => $plan['expectedEngineArtifacts'],
+    'redirectedArtifactPlan' => [
+        'engineArtifactStem' => $redirectedArtifactPlan['engineArtifactStem'],
+        'engineLogFile' => $redirectedArtifactPlan['engineLogFile'],
+        'expectedEngineArtifacts' => $redirectedArtifactPlan['expectedEngineArtifacts'],
+        'diagnostics' => $redirectedArtifactPlan['diagnostics'],
+    ],
     'templateVariables' => $plan['templateVariables'],
     'metadata' => $plan['metadata'],
     'sourceSha256' => $plan['sourceSha256'],
@@ -1348,6 +1360,13 @@ if (in_array('--self-test', $argv, true)) {
         'handoff/pdf-review-packet.run.xml',
         'handoff/pdf-review-packet.fls',
         'handoff/pdf-review-packet.synctex.gz',
+        'engineArtifactStem',
+        'redirectedArtifactPlan',
+        'handoff/engine/pdf-review-final',
+        'handoff/engine/pdf-review-final.log',
+        'handoff/engine/pdf-review-final.fls',
+        'handoff/engine/pdf-review-final.synctex.gz',
+        'pdf-engine-artifact-stem:handoff/engine/pdf-review-final',
         'documentclass=scrartcl',
         '-recorder',
         '-synctex=1',

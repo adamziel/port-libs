@@ -19081,6 +19081,104 @@ XML);
 </style>
 XML));
     },
+    'applies bounded csl is creator conditionals for biblatex custom name variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'custom-name-packet',
+                'type' => 'report',
+                'title' => 'Custom Name Packet',
+                'namea' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'nameb' => [
+                    ['literal' => 'Migration Desk'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'custom-name-c-packet',
+                'type' => 'report',
+                'title' => 'Name C Packet',
+                'namec' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'plain-name-packet',
+                'type' => 'report',
+                'title' => 'Plain Packet',
+                'author' => [
+                    ['literal' => 'Plain Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Custom Creator Condition Review</title>
+    <id>https://example.test/styles/bounded-custom-creator-condition-review</id>
+    <updated>2026-06-09T07:02:57+00:00</updated>
+  </info>
+  <macro name="custom-name-route">
+    <choose>
+      <if is-creator="namea nameb" match="all">
+        <text value="custom-both"/>
+      </if>
+      <else-if is-creator="namea namec" match="any">
+        <text value="custom-any"/>
+      </else-if>
+      <else-if is-creator="namea nameb namec" match="none">
+        <text value="custom-none"/>
+      </else-if>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text macro="custom-name-route"/>
+        <names variable="namea nameb namec author" delimiter="; "/>
+        <text variable="title"/>
+        <date variable="issued"><date-part name="year"/></date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text macro="custom-name-route"/>
+      <names variable="namea nameb namec author" delimiter="; "/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branches = $summary['macros']['custom-name-route'][0]['branches'] ?? [];
+        $t->same(['namea', 'nameb'], $branches[0]['isCreator'] ?? null);
+        $t->same('all', $branches[0]['match'] ?? null);
+        $t->same(['namea', 'namec'], $branches[1]['isCreator'] ?? null);
+        $t->same('any', $branches[1]['match'] ?? null);
+        $t->same(['namea', 'nameb', 'namec'], $branches[2]['isCreator'] ?? null);
+        $t->same('none', $branches[2]['match'] ?? null);
+        $t->same('Migration Desk', $processor->item('custom-name-packet')['biblatexCustomNames']['nameb'][0]['literal'] ?? null);
+
+        $t->same('(custom-both | Review Desk | Custom Name Packet | 2026; custom-any | Archive Desk | Name C Packet | 2025; custom-none | Plain Desk | Plain Packet | 2024)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'custom-name-packet', 'text' => '[@custom-name-packet]']),
+            new AstNode('citation', ['id' => 'custom-name-c-packet', 'text' => '[@custom-name-c-packet]']),
+            new AstNode('citation', ['id' => 'plain-name-packet', 'text' => '[@plain-name-packet]']),
+        ]));
+        $t->same('Custom Name Packet :: custom-both :: Review Desk', $processor->renderBibliographyEntry('custom-name-packet'));
+        $t->same('Name C Packet :: custom-any :: Archive Desk', $processor->renderBibliographyEntry('custom-name-c-packet'));
+        $t->same('Plain Packet :: custom-none :: Plain Desk', $processor->renderBibliographyEntry('plain-name-packet'));
+
+        $document = (new MarkdownReader())->read('Custom name routes [@custom-name-packet; @plain-name-packet] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Custom name routes (custom-both | Review Desk | Custom Name Packet | 2026; custom-none | Plain Desk | Plain Packet | 2024) remain visible.</p>', $blocks);
+        $t->contains('<dd>Custom Name Packet :: custom-both :: Review Desk</dd>', $blocks);
+        $t->contains('<dd>Plain Packet :: custom-none :: Plain Desk</dd>', $blocks);
+    },
     'applies bounded csl is creator conditionals for extended creator roles' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
