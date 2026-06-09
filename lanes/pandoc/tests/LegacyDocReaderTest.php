@@ -6465,6 +6465,153 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC document-information field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC source-location fields and include aliases around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $plcfldMom, $u32): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $text = 'Sources '
+            . $fieldBegin . ' FILENAME \p \* MERGEFORMAT ' . $fieldSeparator . 'C:\Sites\wp\legacy packet.doc' . $fieldEnd
+            . ' template '
+            . $fieldBegin . ' TEMPLATE ' . $fieldSeparator . 'Migration.dotm' . $fieldEnd
+            . ' size '
+            . $fieldBegin . ' FILESIZE \# "#,##0 KB" ' . $fieldSeparator . '12 KB' . $fieldEnd
+            . ' import '
+            . $fieldBegin . ' IMPORT "C:\Legacy\Figures\chart.png" \d ' . $fieldSeparator . 'chart' . $fieldEnd
+            . ' include '
+            . $fieldBegin . ' INCLUDE "https://example.test/legacy/clause.doc" \c "Heading 2" \! ' . $fieldSeparator . 'clause' . $fieldEnd
+            . ".\r";
+
+        $typeCodes = [
+            'FILENAME' => 0x1d,
+            'TEMPLATE' => 0x1e,
+            'FILESIZE' => 0x45,
+            'IMPORT' => 0x37,
+            'INCLUDE' => 0x24,
+        ];
+        $fieldRecords = [];
+        $pendingNames = [];
+        foreach (str_split($text) as $position => $character) {
+            if ($character === $fieldBegin) {
+                $remaining = substr($text, $position + 1);
+                $name = null;
+                foreach ($typeCodes as $candidate => $_typeCode) {
+                    if (preg_match('/^\s*' . preg_quote($candidate, '/') . '\b/', $remaining) === 1) {
+                        $name = $candidate;
+                        break;
+                    }
+                }
+                $t->true(is_string($name), 'field begin should be followed by a supported test field instruction');
+                $pendingNames[] = (string) $name;
+                $fieldRecords[] = ['cp' => $position, 'character' => 0x13, 'typeCode' => $typeCodes[$name ?? 'FILENAME']];
+                continue;
+            }
+
+            if ($character === $fieldSeparator) {
+                $fieldRecords[] = ['cp' => $position, 'character' => 0x14];
+                continue;
+            }
+
+            if ($character === $fieldEnd) {
+                $t->true($pendingNames !== [], 'field end should close a pending test field instruction');
+                array_pop($pendingNames);
+                $fieldRecords[] = ['cp' => $position, 'character' => 0x15];
+            }
+        }
+        $t->same([], $pendingNames, 'all generated source-location fields should close');
+        $fieldTable = $plcfldMom($fieldRecords, strlen($text));
+        $wordDocument = $buildExtendedFibWordDocument($text);
+        $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+        $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $wordDocument,
+            '0Table' => $fieldTable,
+        ]));
+        $document = $result['document'];
+        $fields = $result['fields'];
+        $fieldCharacters = $result['fieldCharacters'];
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(5, $result['metadata']['fieldCount'], 'source-location fixture should expose five parsed fields');
+        $t->same(15, $result['metadata']['fieldCharacterCount'], 'source-location fixture should expose begin/separator/end markers for five fields');
+        $t->same(['filename', 'template', 'filesize', 'import', 'include'], array_column($fields, 'type'), 'field table should preserve MS-DOC source field type names');
+        $t->same([0x1d, 0x1e, 0x45, 0x37, 0x24], array_column($fields, 'typeCode'), 'field table should preserve source field type codes');
+        $t->same($fields, $result['metadata']['fields']);
+        $t->same($fields, $document->attr('fields'));
+        $t->same('filename', $fieldCharacters[0]['type']);
+        $t->same('include', $fieldCharacters[12]['type']);
+
+        $filename = $paragraph->children[1];
+        $template = $paragraph->children[3];
+        $filesize = $paragraph->children[5];
+        $import = $paragraph->children[7];
+        $include = $paragraph->children[9];
+
+        $t->same('span', $filename->type, 'FILENAME should be represented as a safe source field span');
+        $t->same(['legacy-doc-field', 'legacy-doc-source-field', 'legacy-doc-field-filename'], $filename->attr('classes'), 'FILENAME should expose source-field classes');
+        $filenameAttrs = $filename->attr('attributes');
+        $t->same('filename', $filenameAttrs['data-legacy-doc-field']);
+        $t->same('FILENAME \p \* MERGEFORMAT', $filenameAttrs['data-legacy-doc-field-instruction']);
+        $t->same('document-filename', $filenameAttrs['data-legacy-doc-source-field-type']);
+        $t->same('metadata-only-native-review', $filenameAttrs['data-legacy-doc-source-field-policy']);
+        $t->same('MERGEFORMAT', $filenameAttrs['data-legacy-doc-field-format']);
+        $t->same('p', $filenameAttrs['data-legacy-doc-source-field-switches']);
+        $t->same('true', $filenameAttrs['data-legacy-doc-source-field-switch-p']);
+        $t->same('file-path', $filenameAttrs['data-legacy-doc-source-field-result-kind']);
+        $t->same('legacy packet.doc', $filenameAttrs['data-legacy-doc-source-field-basename']);
+        $t->same('true', $filenameAttrs['data-legacy-doc-source-field-full-path']);
+        $t->same('C:\Sites\wp\legacy packet.doc', $filename->children[0]->attr('text'));
+
+        $t->same('span', $template->type, 'TEMPLATE should be represented as a safe source field span');
+        $templateAttrs = $template->attr('attributes');
+        $t->same('template', $templateAttrs['data-legacy-doc-field']);
+        $t->same('template-filename', $templateAttrs['data-legacy-doc-source-field-type']);
+        $t->same('filename', $templateAttrs['data-legacy-doc-source-field-result-kind']);
+        $t->same('Migration.dotm', $templateAttrs['data-legacy-doc-source-field-basename']);
+        $t->same('Migration.dotm', $template->children[0]->attr('text'));
+
+        $t->same('span', $filesize->type, 'FILESIZE should be represented as a safe source field span');
+        $filesizeAttrs = $filesize->attr('attributes');
+        $t->same('filesize', $filesizeAttrs['data-legacy-doc-field']);
+        $t->same('file-size', $filesizeAttrs['data-legacy-doc-source-field-type']);
+        $t->same('byte-size', $filesizeAttrs['data-legacy-doc-source-field-result-kind']);
+        $t->same('12 KB', $filesize->children[0]->attr('text'));
+
+        $t->same('span', $import->type, 'IMPORT should be represented as a safe include-picture alias span');
+        $t->same(['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-import'], $import->attr('classes'));
+        $importAttrs = $import->attr('attributes');
+        $t->same('import', $importAttrs['data-legacy-doc-field']);
+        $t->same('picture', $importAttrs['data-legacy-doc-include-field-type']);
+        $t->same('C:\Legacy\Figures\chart.png', $importAttrs['data-legacy-doc-include-source']);
+        $t->same('file-path', $importAttrs['data-legacy-doc-include-source-kind']);
+        $t->same('chart.png', $importAttrs['data-legacy-doc-include-source-basename']);
+        $t->same('d', $importAttrs['data-legacy-doc-include-field-switches']);
+        $t->same('true', $importAttrs['data-legacy-doc-include-field-switch-d']);
+        $t->same('chart', $import->children[0]->attr('text'));
+
+        $t->same('span', $include->type, 'INCLUDE should be represented as a safe include-text alias span');
+        $t->same(['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-include'], $include->attr('classes'));
+        $includeAttrs = $include->attr('attributes');
+        $t->same('include', $includeAttrs['data-legacy-doc-field']);
+        $t->same('text', $includeAttrs['data-legacy-doc-include-field-type']);
+        $t->same('https://example.test/legacy/clause.doc', $includeAttrs['data-legacy-doc-include-source']);
+        $t->same('external-url', $includeAttrs['data-legacy-doc-include-source-kind']);
+        $t->same('clause.doc', $includeAttrs['data-legacy-doc-include-source-basename']);
+        $t->same('c !', $includeAttrs['data-legacy-doc-include-field-switches']);
+        $t->same('Heading 2', $includeAttrs['data-legacy-doc-include-field-switch-c']);
+        $t->same('true', $includeAttrs['data-legacy-doc-include-field-lock-result']);
+        $t->same('clause', $include->children[0]->attr('text'));
+
+        $t->contains('legacy-doc-source-field legacy-doc-field-filename', $blocks);
+        $t->contains('data-legacy-doc-source-field-type="document-filename"', $blocks);
+        $t->contains('data-legacy-doc-include-field-type="picture"', $blocks);
+        $t->contains('data-legacy-doc-include-field-type="text"', $blocks);
+        $visibleText = strip_tags($blocks);
+        foreach (['FILENAME', 'TEMPLATE', 'FILESIZE', 'IMPORT', 'INCLUDE'] as $instructionText) {
+            $t->true(!str_contains($visibleText, $instructionText), $instructionText . ' instruction text should remain hidden from visible WordPress text');
+        }
+    },
     'preserves legacy DOC SET field assignments as hidden handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

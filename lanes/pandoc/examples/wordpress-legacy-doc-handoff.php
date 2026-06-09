@@ -771,6 +771,16 @@ $secondPieceText = "\rReview\v"
     . $fieldSeparator . 'nested p. '
     . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '9' . $fieldEnd
     . $fieldEnd
+    . ' '
+    . $fieldBegin . ' FILENAME \p \* MERGEFORMAT ' . $fieldSeparator . 'C:\Sites\wp\legacy packet.doc' . $fieldEnd
+    . ' '
+    . $fieldBegin . ' TEMPLATE ' . $fieldSeparator . 'Migration.dotm' . $fieldEnd
+    . ' '
+    . $fieldBegin . ' FILESIZE \# "#,##0 KB" ' . $fieldSeparator . '12 KB' . $fieldEnd
+    . ' '
+    . $fieldBegin . ' IMPORT "chart-alias.png" \d ' . $fieldSeparator . 'alias chart' . $fieldEnd
+    . ' '
+    . $fieldBegin . ' INCLUDE "https://e.test/alias.doc" \c "H2" \! ' . $fieldSeparator . 'alias clause' . $fieldEnd
     . "\x01"
     . ' pic ' . "\x01"
     . ".\r";
@@ -913,6 +923,9 @@ $fieldTypeCodes = [
     'PAGEREF' => 0x25,
     'PAGE' => 0x21,
     'DATE' => 0x1f,
+    'FILENAME' => 0x1d,
+    'TEMPLATE' => 0x1e,
+    'FILESIZE' => 0x45,
     'ASK' => 0x26,
     'FILLIN' => 0x27,
     'FORMTEXT' => 0x46,
@@ -920,6 +933,8 @@ $fieldTypeCodes = [
     'DATA' => 0x28,
     'DOCVARIABLE' => 0x40,
     'SYMBOL' => 0x39,
+    'IMPORT' => 0x37,
+    'INCLUDE' => 0x24,
     'INCLUDEPICTURE' => 0x43,
     'INCLUDETEXT' => 0x44,
     'GOTOBUTTON' => 0x32,
@@ -2643,7 +2658,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['fieldCharacterCount'] ?? null) !== $totalFieldRecordCount || count($summary['fieldCharacters'] ?? []) !== $totalFieldRecordCount) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field-character inventory');
     }
-    if (($summary['metadata']['fieldCount'] ?? null) !== 23 || count($summary['fields'] ?? []) !== 23) {
+    if (($summary['metadata']['fieldCount'] ?? null) !== 28 || count($summary['fields'] ?? []) !== 28) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld field range inventory');
     }
     if (($summary['metadata']['fields'] ?? []) !== ($summary['fields'] ?? [])) {
@@ -2655,7 +2670,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (array_column($summary['fieldStories'] ?? [], 'story') !== ['main', 'header', 'endnote', 'textbox', 'header-textbox'] || array_column($summary['fieldStories'] ?? [], 'table') !== ['PlcfldMom', 'PlcfldHdr', 'PlcfldEdn', 'PlcfldTxbx', 'PlcfldHdrTxbx']) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story table mapping');
     }
-    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [19, 1, 1, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords), count($textboxFieldRecords), count($headerTextboxFieldRecords)]) {
+    if (array_column($summary['fieldStories'] ?? [], 'fieldCount') !== [24, 1, 1, 1, 1] || array_column($summary['fieldStories'] ?? [], 'fieldCharacterCount') !== [count($fieldRecords), count($headerFieldRecords), count($endnoteFieldRecords), count($textboxFieldRecords), count($headerTextboxFieldRecords)]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing Plcfld story field counts');
     }
     if (array_column($summary['fieldStories'] ?? [], 'characterCount') !== [$totalPieceCharacters, $headerSubdocumentCharacters, $endnoteSubdocumentCharacters, $textboxSubdocumentCharacters, $headerTextboxSubdocumentCharacters]) {
@@ -2681,6 +2696,11 @@ if (($argv[1] ?? '') === '--self-test') {
         'autonumlgl',
         'page',
         'hyperlink',
+        'filename',
+        'template',
+        'filesize',
+        'import',
+        'include',
         'date',
         'noteref',
         'page',
@@ -2798,16 +2818,31 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('Legacy DOC handoff self-test missing outer nested HYPERLINK Plcfld metadata');
     }
-    if (($summary['fields'][19]['story'] ?? '') !== 'header' || ($summary['fields'][19]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][19]['type'] ?? '') !== 'date') {
+    if (($summary['fields'][19]['typeCode'] ?? null) !== 0x1d || ($summary['fields'][19]['type'] ?? '') !== 'filename') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FILENAME Plcfld metadata');
+    }
+    if (($summary['fields'][20]['typeCode'] ?? null) !== 0x1e || ($summary['fields'][20]['type'] ?? '') !== 'template') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing TEMPLATE Plcfld metadata');
+    }
+    if (($summary['fields'][21]['typeCode'] ?? null) !== 0x45 || ($summary['fields'][21]['type'] ?? '') !== 'filesize') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing FILESIZE Plcfld metadata');
+    }
+    if (($summary['fields'][22]['typeCode'] ?? null) !== 0x37 || ($summary['fields'][22]['type'] ?? '') !== 'import') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing IMPORT Plcfld metadata');
+    }
+    if (($summary['fields'][23]['typeCode'] ?? null) !== 0x24 || ($summary['fields'][23]['type'] ?? '') !== 'include') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing INCLUDE Plcfld metadata');
+    }
+    if (($summary['fields'][24]['story'] ?? '') !== 'header' || ($summary['fields'][24]['typeCode'] ?? null) !== 0x1f || ($summary['fields'][24]['type'] ?? '') !== 'date') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header Plcfld DATE metadata');
     }
-    if (($summary['fields'][20]['story'] ?? '') !== 'endnote' || ($summary['fields'][20]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][20]['type'] ?? '') !== 'noteref') {
+    if (($summary['fields'][25]['story'] ?? '') !== 'endnote' || ($summary['fields'][25]['typeCode'] ?? null) !== 0x05 || ($summary['fields'][25]['type'] ?? '') !== 'noteref') {
         throw new RuntimeException('Legacy DOC handoff self-test missing endnote Plcfld NOTEREF metadata');
     }
-    if (($summary['fields'][21]['story'] ?? '') !== 'textbox' || ($summary['fields'][21]['typeCode'] ?? null) !== 0x21 || ($summary['fields'][21]['type'] ?? '') !== 'page') {
+    if (($summary['fields'][26]['story'] ?? '') !== 'textbox' || ($summary['fields'][26]['typeCode'] ?? null) !== 0x21 || ($summary['fields'][26]['type'] ?? '') !== 'page') {
         throw new RuntimeException('Legacy DOC handoff self-test missing textbox Plcfld PAGE metadata');
     }
-    if (($summary['fields'][22]['story'] ?? '') !== 'header-textbox' || ($summary['fields'][22]['typeCode'] ?? null) !== 0x03 || ($summary['fields'][22]['type'] ?? '') !== 'ref') {
+    if (($summary['fields'][27]['story'] ?? '') !== 'header-textbox' || ($summary['fields'][27]['typeCode'] ?? null) !== 0x03 || ($summary['fields'][27]['type'] ?? '') !== 'ref') {
         throw new RuntimeException('Legacy DOC handoff self-test missing header textbox Plcfld REF metadata');
     }
     foreach ([
@@ -2833,6 +2868,11 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="legacy-doc-field legacy-doc-action-field legacy-doc-field-gotobutton" data-legacy-doc-field="gotobutton" data-legacy-doc-field-instruction="GOTOBUTTON legacy_anchor &quot;Jump to source&quot;" data-legacy-doc-action-field-type="navigation" data-legacy-doc-action-field-destination="legacy_anchor" data-legacy-doc-action-field-destination-kind="bookmark-or-goto-target" data-legacy-doc-action-field-policy="metadata-only-native-review" data-legacy-doc-action-field-execution="disabled" data-legacy-doc-action-field-display-text="Jump to source">Jump to source</span>',
         '<span class="legacy-doc-field legacy-doc-numbering-field legacy-doc-field-autonumlgl" data-legacy-doc-field="autonumlgl" data-legacy-doc-field-instruction="AUTONUMLGL" data-legacy-doc-numbering-field-type="auto-number-legal" data-legacy-doc-numbering-field-list-policy="metadata-only-native-review" data-legacy-doc-numbering-field-list-match-count="1" data-legacy-doc-numbering-field-list-ilfo="1" data-legacy-doc-numbering-field-list-lsid="1001" data-legacy-doc-numbering-field-list-first-paragraph-cp="0" data-legacy-doc-numbering-field-list-index="1" data-legacy-doc-numbering-field-list-template-code="2001" data-legacy-doc-numbering-field-list-simple="true" data-legacy-doc-numbering-field-list-level="0" data-legacy-doc-numbering-field-list-start-at="3" data-legacy-doc-numbering-field-list-number-format="decimal" data-legacy-doc-numbering-field-list-text-template="%1." data-legacy-doc-numbering-field-list-follow="space" data-legacy-doc-numbering-field-list-override-level="0" data-legacy-doc-numbering-field-list-override-start-at="7">2.1</span>',
         '<a href="https://example.test/audit#page" title="Nested page link">nested p. <span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">9</span></a>',
+        '<span class="legacy-doc-field legacy-doc-source-field legacy-doc-field-filename" data-legacy-doc-field="filename" data-legacy-doc-field-instruction="FILENAME \p \* MERGEFORMAT" data-legacy-doc-source-field-type="document-filename" data-legacy-doc-source-field-policy="metadata-only-native-review" data-legacy-doc-field-format="MERGEFORMAT" data-legacy-doc-source-field-switches="p" data-legacy-doc-source-field-switch-p="true" data-legacy-doc-source-field-result-kind="file-path" data-legacy-doc-source-field-basename="legacy packet.doc" data-legacy-doc-source-field-full-path="true">C:\Sites\wp\legacy packet.doc</span>',
+        '<span class="legacy-doc-field legacy-doc-source-field legacy-doc-field-template" data-legacy-doc-field="template" data-legacy-doc-field-instruction="TEMPLATE" data-legacy-doc-source-field-type="template-filename" data-legacy-doc-source-field-policy="metadata-only-native-review" data-legacy-doc-source-field-result-kind="filename" data-legacy-doc-source-field-basename="Migration.dotm">Migration.dotm</span>',
+        '<span class="legacy-doc-field legacy-doc-source-field legacy-doc-field-filesize" data-legacy-doc-field="filesize" data-legacy-doc-field-instruction="FILESIZE \# &quot;#,##0 KB&quot;" data-legacy-doc-source-field-type="file-size" data-legacy-doc-source-field-policy="metadata-only-native-review" data-legacy-doc-source-field-result-kind="byte-size">12 KB</span>',
+        '<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-import" data-legacy-doc-field="import" data-legacy-doc-field-instruction="IMPORT &quot;chart-alias.png&quot; \d" data-legacy-doc-include-field-type="picture" data-legacy-doc-include-source="chart-alias.png" data-legacy-doc-include-source-kind="file-path" data-legacy-doc-include-source-basename="chart-alias.png" data-legacy-doc-include-field-switches="d" data-legacy-doc-include-field-switch-d="true">alias chart</span>',
+        '<span class="legacy-doc-field legacy-doc-include-field legacy-doc-field-include" data-legacy-doc-field="include" data-legacy-doc-field-instruction="INCLUDE &quot;https://e.test/alias.doc&quot; \c &quot;H2&quot; \!" data-legacy-doc-include-field-type="text" data-legacy-doc-include-source="https://e.test/alias.doc" data-legacy-doc-include-source-kind="external-url" data-legacy-doc-include-source-basename="alias.doc" data-legacy-doc-include-field-switches="c !" data-legacy-doc-include-field-switch-c="H2" data-legacy-doc-include-field-lock-result="true">alias clause</span>',
         '<span class="legacy-doc-object-ref" data-legacy-doc-object-ref="1" data-legacy-doc-object-reference-cp="' . (string) ($summary['embeddedObjectReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-object-character-code="1" data-legacy-doc-object-can-expose-bytes="false" data-legacy-doc-object-storage="ObjectPool/_42" data-legacy-doc-object-id="_42" data-legacy-doc-object-label="legacy-data.xlsx" data-legacy-doc-object-native-data-bytes="' . strlen($embeddedNativeData) . '" data-legacy-doc-object-transmission-format="unicode-text" data-legacy-doc-object-has-native-data="true" data-legacy-doc-object-has-presentation-data="true">embedded object: legacy-data.xlsx</span>',
         '<span class="legacy-doc-picture-ref" data-legacy-doc-picture-ref="1" data-legacy-doc-picture-reference-cp="' . (string) ($summary['pictureReferences'][0]['referenceCp'] ?? '') . '" data-legacy-doc-picture-character-code="1" data-legacy-doc-picture-can-expose-bytes="false" data-legacy-doc-picture-source="chpx-data-stream" data-legacy-doc-picture-policy="metadata-only-native-review" data-legacy-doc-picture-data-stream-offset="' . (string) $pictureDataStreamOffset . '" data-legacy-doc-picture-data-stream-available-bytes="' . (string) (strlen($pictureDataStream) - $pictureDataStreamOffset) . '" data-legacy-doc-picture-source-sprms="sprmCFSpec sprmCPicLocation sprmCFData" data-legacy-doc-picture-data-stream-kind="binary-data">inline picture</span>',
     ] as $needle) {
@@ -2840,7 +2880,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Legacy DOC handoff self-test missing: ' . $needle);
         }
     }
-    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'ASK', 'FILLIN', 'FORMTEXT', 'MERGEFIELD', 'DOCVARIABLE', 'SYMBOL', 'INCLUDEPICTURE', 'INCLUDETEXT', 'MACROBUTTON', 'GOTOBUTTON', 'AUTONUMLGL', 'ApproveImport', 'legacy_anchor', 'DATE', 'NOTEREF'] as $instruction) {
+    foreach (['HYPERLINK', 'REF', 'PAGEREF', 'ASK', 'FILLIN', 'FORMTEXT', 'MERGEFIELD', 'DOCVARIABLE', 'SYMBOL', 'INCLUDEPICTURE', 'INCLUDETEXT', 'FILENAME', 'TEMPLATE', 'FILESIZE', 'IMPORT', 'INCLUDE', 'MACROBUTTON', 'GOTOBUTTON', 'AUTONUMLGL', 'ApproveImport', 'legacy_anchor', 'DATE', 'NOTEREF'] as $instruction) {
         if (str_contains(strip_tags($blocks), $instruction)) {
             throw new RuntimeException('Legacy DOC handoff self-test rendered hidden field instruction: ' . $instruction);
         }

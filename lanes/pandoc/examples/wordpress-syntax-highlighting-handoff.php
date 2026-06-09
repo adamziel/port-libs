@@ -538,6 +538,12 @@ if (!$pascalCodeBlock instanceof PortLibs\Pandoc\AstNode || $pascalCodeBlock->ty
 }
 $pascal = $highlighter->highlightCodeBlock($pascalCodeBlock, 'haddock');
 $pascalWordpressBlock = $highlighter->wordpressHtmlBlock($pascalCodeBlock, 'haddock');
+$groovyCodeBlock = $document->children[86] ?? null;
+if (!$groovyCodeBlock instanceof PortLibs\Pandoc\AstNode || $groovyCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Groovy/Gradle review packet code block');
+}
+$groovy = $highlighter->highlightCodeBlock($groovyCodeBlock, 'zenburn');
+$groovyWordpressBlock = $highlighter->wordpressHtmlBlock($groovyCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2360,6 +2366,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($pascalWordpressBlock, '<span class="fu">WriteLn</span><span class="op">(</span><span class="fu">NormalizedTitle</span>')) {
         throw new RuntimeException('Expected Pascal WordPress block token handoff');
     }
+    if (($groovy['language'] ?? '') !== 'groovy') {
+        throw new RuntimeException('Expected Groovy language alias handoff');
+    }
+    if (($groovy['requestedLanguage'] ?? '') !== 'gradle') {
+        throw new RuntimeException('Expected Gradle requested-language metadata');
+    }
+    if (($groovy['lineNumbering']['start'] ?? null) !== 1380) {
+        throw new RuntimeException('Expected Groovy line-number start handoff');
+    }
+    if (!str_contains($groovy['html'], '<span class="ot">@Grab</span><span class="op">(</span><span class="st">&#039;org.codehaus.groovy:groovy-json:3.0.21&#039;</span><span class="op">)</span>')) {
+        throw new RuntimeException('Expected Groovy annotation token handoff');
+    }
+    if (!str_contains($groovy['html'], '<span class="kw">def</span> <span class="va">normalizedTitle</span> <span class="op">=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trim</span><span class="op">()</span> <span class="op">?:</span>')) {
+        throw new RuntimeException('Expected Groovy safe navigation and Elvis operator handoff');
+    }
+    if (!str_contains($groovy['html'], '<span class="fu">pipeline</span> <span class="op">{</span>')) {
+        throw new RuntimeException('Expected Groovy Jenkins pipeline token handoff');
+    }
+    if (!str_contains($groovyWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Groovy WordPress style metadata');
+    }
+    if (!str_contains($groovyWordpressBlock, '<span class="fu">writeJSON</span> <span class="ot">file</span><span class="op">:</span> <span class="st">&#039;review.json&#039;</span>')) {
+        throw new RuntimeException('Expected Groovy Gradle/Jenkins WordPress block token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2464,6 +2494,7 @@ echo "lineHighlightHighlightedHtml:\n" . $lineHighlight['html'] . "\n";
 echo "dHighlightedHtml:\n" . $d['html'] . "\n";
 echo "commonLispHighlightedHtml:\n" . $commonLisp['html'] . "\n";
 echo "pascalHighlightedHtml:\n" . $pascal['html'] . "\n";
+echo "groovyHighlightedHtml:\n" . $groovy['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2539,4 +2570,5 @@ echo "lineHighlightWordpressBlock:\n" . $lineHighlightWordpressBlock . "\n";
 echo "dWordpressBlock:\n" . $dWordpressBlock . "\n";
 echo "commonLispWordpressBlock:\n" . $commonLispWordpressBlock . "\n";
 echo "pascalWordpressBlock:\n" . $pascalWordpressBlock . "\n";
+echo "groovyWordpressBlock:\n" . $groovyWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

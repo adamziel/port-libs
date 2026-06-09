@@ -79,6 +79,7 @@ final class Html5DomFragment
     private const HTML_FRAGMENT_INACTIVE_BASE_ANCESTORS = [
         'applet' => true,
         'button' => true,
+        'canvas' => true,
         'datalist' => true,
         'form' => true,
         'iframe' => true,
@@ -3076,6 +3077,7 @@ final class Html5DomFragment
     {
         return in_array(strtolower($name), [
             'button',
+            'canvas',
             'datalist',
             'form',
             'applet',

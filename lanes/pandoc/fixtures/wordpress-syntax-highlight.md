@@ -1647,3 +1647,30 @@ begin
   WriteLn(NormalizedTitle(Packet));
 end.
 ```
+
+``` {.gradle #groovy-review .numberLines startFrom=1380}
+// Groovy Gradle/Jenkins WordPress import review helper
+import groovy.json.JsonSlurper
+
+@Grab('org.codehaus.groovy:groovy-json:3.0.21')
+class ReviewPacket {
+    Long sourceId
+    String title
+    List<String> blocks = []
+}
+
+def packet = new JsonSlurper().parseText('{"sourceId":42,"title":" Legacy ","blocks":["core/paragraph"]}') as ReviewPacket
+def normalizedTitle = packet.title?.trim() ?: "Import ${packet.sourceId}"
+
+pipeline {
+    agent any
+    stages {
+        stage('WordPress review') {
+            steps {
+                sh "wp post meta update ${packet.sourceId} import_title '${normalizedTitle}'"
+                writeJSON file: 'review.json', json: [title: normalizedTitle, dryRun: true]
+            }
+        }
+    }
+}
+```

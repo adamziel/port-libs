@@ -672,6 +672,50 @@ return [
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<applet'), 'Expected WordPress blocks to omit applet wrapper');
     },
+    'unwraps canvas fallback content while ignoring inactive base metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<canvas width="400" height="200"><base href="https://inactive.example.test/assets/">'
+            . '<p>Canvas fallback <a href="fallback.html">review</a><a href="javascript:alert(1)">bad</a></p><script>drop()</script></canvas>'
+            . '<base href="https://source.example.test/import/posts/post.html"><p><a href="./after.html">after</a></p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/canvas-fallback-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<p>Canvas fallback <a href="https://source.example.test/import/posts/fallback.html">review</a><a>bad</a></p>'
+            . '<p><a href="https://source.example.test/import/posts/after.html">after</a></p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Canvas fallback reviewbadafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'canvas', 'script'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag', 'blocked-tag'], $policyDiagnostics);
+        $t->same('p', $nodes[0]['name']);
+        $t->same('https://source.example.test/import/posts/fallback.html', $nodes[0]['children'][1]['attrs']['href']);
+        $t->same([], $nodes[0]['children'][2]['attrs']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('https://source.example.test/import/posts/after.html', $nodes[1]['children'][0]['attrs']['href']);
+        $t->same('/migration/canvas-fallback-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<canvas'), 'Expected canvas wrapper to be stripped');
+        $t->true(!str_contains($html, 'width='), 'Expected canvas drawing dimensions to stay hidden');
+        $t->true(!str_contains($html, 'height='), 'Expected canvas drawing dimensions to stay hidden');
+        $t->true(!str_contains($html, 'inactive.example.test'), 'Expected canvas-local base metadata to stay inactive');
+        $t->true(!str_contains($html, '<script'), 'Expected active canvas fallback script to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe canvas fallback URL to stay hidden');
+        $t->true(!str_contains($blocks, '<canvas'), 'Expected WordPress blocks to omit canvas wrapper');
+    },
     'converts safe object and embed sources into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

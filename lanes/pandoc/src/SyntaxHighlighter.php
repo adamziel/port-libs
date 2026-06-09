@@ -165,6 +165,7 @@ final class SyntaxHighlighter
         'javascript' => 'javascript',
         'javascript-react' => 'jsx',
         'java' => 'java',
+        'jenkinsfile' => 'groovy',
         'js' => 'javascript',
         'jsx' => 'jsx',
         'json' => 'json',
@@ -205,6 +206,12 @@ final class SyntaxHighlighter
         'gfm' => 'markdown',
         'go' => 'go',
         'golang' => 'go',
+        'gradle' => 'groovy',
+        'gradle-groovy' => 'groovy',
+        'groovy' => 'groovy',
+        'groovy-script' => 'groovy',
+        'groovy-source' => 'groovy',
+        'gvy' => 'groovy',
         'gql' => 'graphql',
         'graphql' => 'graphql',
         'graphql-query' => 'graphql',
@@ -826,6 +833,7 @@ final class SyntaxHighlighter
             'fortran' => $this->tokenizeFortran($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
+            'groovy' => $this->tokenizeGroovy($code),
             'hcl' => $this->tokenizeHcl($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
@@ -1883,6 +1891,36 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\.\\.\\.|[{}()[\\]:,|=!.@])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeGroovy(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#![^\\n]*/'],
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^\\$\\/[\\s\\S]*?\\/\\$/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', "/^'''[\\s\\S]*?'''/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['string', '/^\\/(?:\\\\.|\\[[^\\]\\n]*(?:\\\\.[^\\]\\n]*)*\\]|[^\\/\\\\\\n])+\\/[imsux]*/'],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_.]*/'],
+            ['keyword', '/^\\b(?:abstract|as|assert|break|case|catch|class|continue|def|default|do|else|enum|extends|finally|for|goto|if|implements|import|in|instanceof|interface|native|new|package|return|super|switch|this|throw|throws|trait|try|var|while)\\b/'],
+            ['constant', '/^\\b(?:false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:BigDecimal|BigInteger|Boolean|Closure|Double|File|Float|Integer|JsonBuilder|JsonSlurper|List|Long|Map|Object|Pattern|Set|String|URL|boolean|byte|char|double|float|int|long|short|void)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|0[0-7](?:_?[0-7])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)[gGiIlLfFdD]?\\b/'],
+            ['function', '/^\\b(?:archiveArtifacts|echo|error|fileExists|findFiles|getProperty|junit|library|node|parallel|pipeline|readFile|readJSON|sh|stage|stash|steps|timeout|trim|unstash|writeFile|writeJSON)\\b(?=\\s*(?:\\(|\\{|["\']|[A-Za-z_]|$))/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\?\\.|\\*\\.|\\.&|\\.\\.<?|<=>|==~|=~|=>|::|\\?\\:|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<=?|>>=?|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 

@@ -171,6 +171,11 @@ return [
         $t->same('go', SyntaxHighlighter::normalizeLanguage('go'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('golang'));
         $t->same('go', SyntaxHighlighter::normalizeLanguage('language-go'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('groovy'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('gvy'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('gradle'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('Jenkinsfile'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('language-gradle-groovy'));
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql'));
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('gql'));
         $t->same('graphql', SyntaxHighlighter::normalizeLanguage('graphql-schema'));
@@ -4207,6 +4212,58 @@ return [
         $t->same('delphi', $directDelphi['requestedLanguage']);
         $t->contains('<span class="kw">function</span> <span class="fu">Queue</span><span class="op">(</span><span class="kw">const</span> <span class="va">Packet</span><span class="op">:</span> <span class="dt">TReviewPacket</span><span class="op">):</span> <span class="dt">string</span><span class="op">;</span>', $directDelphi['html']);
         $t->contains('<span class="fu">WriteLn</span><span class="op">(</span><span class="va">Packet</span><span class="op">.</span><span class="va">SourceId</span><span class="op">);</span>', $directDelphi['html']);
+    },
+    'highlights groovy gradle and jenkins review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[86] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Groovy/Gradle review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directJenkinsfile = $highlighter->highlight(
+            'node { stage("Review") { sh "wp post list --post_type=post" } }',
+            'Jenkinsfile'
+        );
+
+        $t->same('gradle', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('groovy'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('gradle'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('gvy'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('jenkinsfile'));
+        $t->same('groovy', SyntaxHighlighter::normalizeLanguage('language-groovy-script'));
+        $t->same('groovy', $highlighted['language']);
+        $t->same('gradle', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1380, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource gradle numberLines"><code class="sourceCode groovy" style="counter-reset: source-line 1379;">', $highlighted['html']);
+        $t->contains('<span id="groovy-review-1380"><a href="#groovy-review-1380"></a><span class="co">// Groovy Gradle/Jenkins WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">groovy</span><span class="op">.</span><span class="va">json</span><span class="op">.</span><span class="dt">JsonSlurper</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@Grab</span><span class="op">(</span><span class="st">&#039;org.codehaus.groovy:groovy-json:3.0.21&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">class</span> <span class="dt">ReviewPacket</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="dt">Long</span> <span class="va">sourceId</span>', $highlighted['html']);
+        $t->contains('<span class="dt">List</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">&gt;</span> <span class="va">blocks</span> <span class="op">=</span> <span class="op">[]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="va">packet</span> <span class="op">=</span> <span class="kw">new</span> <span class="dt">JsonSlurper</span><span class="op">().</span><span class="fu">parseText</span>', $highlighted['html']);
+        $t->contains('<span class="kw">as</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="va">normalizedTitle</span> <span class="op">=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">?.</span><span class="fu">trim</span><span class="op">()</span> <span class="op">?:</span> <span class="st">&quot;Import ${packet.sourceId}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">pipeline</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="fu">stage</span><span class="op">(</span><span class="st">&#039;WordPress review&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">sh</span> <span class="st">&quot;wp post meta update ${packet.sourceId} import_title &#039;${normalizedTitle}&#039;&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">writeJSON</span> <span class="ot">file</span><span class="op">:</span> <span class="st">&#039;review.json&#039;</span><span class="op">,</span> <span class="ot">json</span><span class="op">:</span> <span class="op">[</span><span class="ot">title</span><span class="op">:</span> <span class="va">normalizedTitle</span><span class="op">,</span> <span class="ot">dryRun</span><span class="op">:</span> <span class="cn">true</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="fu">writeJSON</span> <span class="ot">file</span><span class="op">:</span> <span class="st">&#039;review.json&#039;</span>', $wordpressBlock);
+        $t->same('groovy', $directJenkinsfile['language']);
+        $t->same('Jenkinsfile', $directJenkinsfile['requestedLanguage']);
+        $t->contains('<span class="fu">node</span> <span class="op">{</span> <span class="fu">stage</span><span class="op">(</span><span class="st">&quot;Review&quot;</span><span class="op">)</span>', $directJenkinsfile['html']);
+        $t->contains('<span class="fu">sh</span> <span class="st">&quot;wp post list --post_type=post&quot;</span>', $directJenkinsfile['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -138,9 +138,12 @@ final class LegacyDocReader
         0x16 => 'savedate',
         0x17 => 'printdate',
         0x1a => 'numpages',
+        0x1d => 'filename',
+        0x1e => 'template',
         0x1f => 'date',
         0x20 => 'time',
         0x21 => 'page',
+        0x24 => 'include',
         0x25 => 'pageref',
         0x26 => 'ask',
         0x27 => 'fillin',
@@ -150,6 +153,7 @@ final class LegacyDocReader
         0x34 => 'autonumout',
         0x35 => 'autonumlgl',
         0x36 => 'autonum',
+        0x37 => 'import',
         0x39 => 'symbol',
         0x3b => 'mergefield',
         0x40 => 'docvariable',
@@ -157,6 +161,7 @@ final class LegacyDocReader
         0x42 => 'sectionpages',
         0x43 => 'includepicture',
         0x44 => 'includetext',
+        0x45 => 'filesize',
         0x46 => 'formtext',
         0x47 => 'formcheckbox',
         0x48 => 'noteref',
@@ -1782,6 +1787,11 @@ final class LegacyDocReader
             return $numberingFieldAttrs;
         }
 
+        $sourceLocationFieldAttrs = $this->sourceLocationFieldAttrs($fieldName, $tokens, $instruction, $result);
+        if ($sourceLocationFieldAttrs !== null) {
+            return $sourceLocationFieldAttrs;
+        }
+
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
@@ -2428,6 +2438,8 @@ final class LegacyDocReader
     private function includeFieldAttrs(string $fieldName, array $tokens, string $instruction): ?array
     {
         $fieldTypes = [
+            'IMPORT' => 'picture',
+            'INCLUDE' => 'text',
             'INCLUDEPICTURE' => 'picture',
             'INCLUDETEXT' => 'text',
         ];
@@ -2521,6 +2533,93 @@ final class LegacyDocReader
 
         return [
             'classes' => ['legacy-doc-field', 'legacy-doc-include-field', 'legacy-doc-field-' . $fieldKey],
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>,attributes:array<string,string>}|null
+     */
+    private function sourceLocationFieldAttrs(string $fieldName, array $tokens, string $instruction, string $result): ?array
+    {
+        $fieldTypes = [
+            'FILENAME' => 'document-filename',
+            'TEMPLATE' => 'template-filename',
+            'FILESIZE' => 'file-size',
+        ];
+        if (!isset($fieldTypes[$fieldName])) {
+            return null;
+        }
+
+        $fieldKey = strtolower($fieldName);
+        $attributes = [
+            'data-legacy-doc-field' => $fieldKey,
+            'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-legacy-doc-source-field-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-source-field-policy' => 'metadata-only-native-review',
+        ];
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-legacy-doc-field-format'] = $format;
+        }
+
+        $switches = [];
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '' || !str_starts_with($token, '\\')) {
+                continue;
+            }
+
+            $switch = strtolower(substr($token, 1));
+            if ($switch === '') {
+                continue;
+            }
+            if (($switch === '*' || $switch === '@' || $switch === '#') && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+                continue;
+            }
+
+            $switches[] = $switch;
+            if (isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                $index++;
+            }
+        }
+
+        if ($switches !== []) {
+            $switches = array_values(array_unique($switches));
+            $attributes['data-legacy-doc-source-field-switches'] = implode(' ', $switches);
+            foreach ($switches as $switch) {
+                $attributeSwitch = preg_replace('/[^a-z0-9-]/', '', $switch);
+                if (!is_string($attributeSwitch) || $attributeSwitch === '') {
+                    continue;
+                }
+
+                $attributes['data-legacy-doc-source-field-switch-' . $attributeSwitch] = 'true';
+            }
+        }
+
+        $resultText = trim($result);
+        if ($fieldName === 'FILESIZE') {
+            $attributes['data-legacy-doc-source-field-result-kind'] = 'byte-size';
+        } elseif ($resultText !== '') {
+            $resultKind = $this->legacyPathKind($resultText);
+            if ($resultKind === 'file-path' && !str_contains($resultText, '/') && !str_contains($resultText, '\\')) {
+                $resultKind = 'filename';
+            }
+            $attributes['data-legacy-doc-source-field-result-kind'] = $resultKind;
+            $basename = $this->legacyPathBasename($resultText);
+            if ($basename !== '') {
+                $attributes['data-legacy-doc-source-field-basename'] = $basename;
+            }
+            if ($resultKind === 'file-path' || in_array('p', $switches, true)) {
+                $attributes['data-legacy-doc-source-field-full-path'] = 'true';
+            }
+        }
+
+        return [
+            'classes' => ['legacy-doc-field', 'legacy-doc-source-field', 'legacy-doc-field-' . $fieldKey],
             'attributes' => $attributes,
         ];
     }
