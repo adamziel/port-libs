@@ -717,6 +717,73 @@ XML;
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
     },
+    'maps ODT paragraph text properties into styled inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithParagraphTextProperties = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="StrongParagraph" style:family="paragraph" style:display-name="Strong Paragraph">
+      <style:text-properties fo:font-weight="bold"/>
+    </style:style>
+    <style:style style:name="InheritedEmphasisParagraph" style:family="paragraph" style:parent-style-name="StrongParagraph" style:display-name="Inherited Emphasis Paragraph">
+      <style:text-properties fo:font-style="italic" fo:font-variant="small-caps"/>
+    </style:style>
+    <style:style style:name="PlainParagraph" style:family="paragraph" style:display-name="Plain Paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithParagraphTextProperties = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="StrongParagraph">Important <text:a xlink:href="https://example.test/source">source</text:a> packet.</text:p>
+      <text:p text:style-name="InheritedEmphasisParagraph">Inherited emphasis packet.</text:p>
+      <text:p text:style-name="PlainParagraph">Plain styled paragraph.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithParagraphTextProperties, null, $stylesWithParagraphTextProperties));
+        $blocks = $result['document']->children;
+
+        $t->same(3, count($blocks));
+        $t->same('Important source packet.', $blocks[0]->attr('text'));
+        $t->same('strong', $blocks[0]->children[0]->type);
+        $strongSpan = $blocks[0]->children[0]->children[0];
+        $t->same('span', $strongSpan->type);
+        $t->same('StrongParagraph', $strongSpan->attr('styleName'));
+        $t->same('StrongParagraph', $strongSpan->attr('attributes')['data-odf-style-name']);
+        $t->same('link', $strongSpan->children[1]->type);
+        $t->same('https://example.test/source', $strongSpan->children[1]->attr('url'));
+
+        $t->same('small_caps', $blocks[1]->children[0]->type);
+        $t->same('emph', $blocks[1]->children[0]->children[0]->type);
+        $t->same('strong', $blocks[1]->children[0]->children[0]->children[0]->type);
+        $emphasisSpan = $blocks[1]->children[0]->children[0]->children[0]->children[0];
+        $t->same('span', $emphasisSpan->type);
+        $t->same('InheritedEmphasisParagraph', $emphasisSpan->attr('styleName'));
+        $t->same('StrongParagraph', $blocks[1]->attr('style')['parentName']);
+        $t->same(true, $blocks[1]->attr('style')['textProperties']['bold']);
+        $t->same(true, $blocks[1]->attr('style')['textProperties']['italic']);
+        $t->same(true, $blocks[1]->attr('style')['textProperties']['smallCaps']);
+
+        $t->same('text', $blocks[2]->children[0]->type);
+        $t->same('Plain styled paragraph.', $blocks[2]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('**[Important [source](https://example.test/source) packet.]{data-odf-style-name="StrongParagraph"}**', $markdown);
+        $t->contains('[***[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}***]{.smallcaps}', $markdown);
+        $t->contains('<p><strong><span data-odf-style-name="StrongParagraph">Important <a href="https://example.test/source">source</a> packet.</span></strong></p>', $blocksHtml);
+        $t->contains('<p><span style="font-variant:small-caps"><em><strong><span data-odf-style-name="InheritedEmphasisParagraph">Inherited emphasis packet.</span></strong></em></span></p>', $blocksHtml);
+        $t->contains('<p>Plain styled paragraph.</p>', $blocksHtml);
+    },
     'maps ODT source text styles into inline code spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithSourceText = <<<'XML'
 <office:document-styles

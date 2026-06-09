@@ -1222,6 +1222,21 @@ return [
         $t->same("A\u{FFFD}B", $malformedEscape['text']);
         $t->same(1, $malformedEscape['repairs']);
     },
+    'repairs iso 2022 jp sources that end before returning to ascii state' => static function (TestRunner $t): void {
+        $bytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n\x1B\$B\x4B\x5C\x4A\x38";
+        $decoded = UnicodeText::decodeBytes($bytes, 'iso-2022-jp');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csiso2022jp');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('iso-2022-jp', $decoded['encoding']);
+        $t->same("# 計画\n\n本文\u{FFFD}", $decoded['text']);
+        $t->same(1, $decoded['repairs']);
+        $t->same(['encoding' => 'iso-2022-jp', 'bom' => null, 'repairs' => 1], $document->attr('sourceEncoding'));
+        $t->same('計画', $document->children[0]->attr('text'));
+        $t->same("本文\u{FFFD}", $document->children[1]->attr('text'));
+        $t->same(5, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<p>本文�</p>', $blocks);
+    },
     'decodes bounded big5 traditional chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141adbbb4e4a143');
         $decoded = UnicodeText::decodeBytes($bytes, 'big5-hkscs');

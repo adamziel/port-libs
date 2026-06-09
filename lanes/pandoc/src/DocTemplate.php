@@ -6098,14 +6098,7 @@ CSS;
             return $value;
         }
 
-        $label = '';
-        while ($number > 0) {
-            $number--;
-            $label = chr(ord('a') + ($number % 26)) . $label;
-            $number = intdiv($number, 26);
-        }
-
-        return $label;
+        return chr(ord('a') + (($number - 1) % 26));
     }
 
     private function pipeRomanText(string $value): string

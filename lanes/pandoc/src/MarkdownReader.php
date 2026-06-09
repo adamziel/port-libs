@@ -65,6 +65,8 @@ final class MarkdownReader
         '!!' => 'tag:yaml.org,2002:',
     ];
 
+    private string $yamlMetadataSchemaVersion = '1.1';
+
     private bool $resolveFootnoteReferences = true;
 
     /**
@@ -610,6 +612,7 @@ final class MarkdownReader
         $previousYamlMetadataCollectionProvenance = $this->yamlMetadataCollectionProvenance;
         $previousYamlMetadataInvalid = $this->yamlMetadataInvalid;
         $previousYamlMetadataTagHandles = $this->yamlMetadataTagHandles;
+        $previousYamlMetadataSchemaVersion = $this->yamlMetadataSchemaVersion;
         $this->yamlMetadataAnchors = [];
         $this->yamlMetadataDiagnostics = [];
         $this->yamlMetadataDiagnosticPath = [];
@@ -622,6 +625,7 @@ final class MarkdownReader
         $this->yamlMetadataCollectionProvenance = [];
         $this->yamlMetadataInvalid = false;
         $this->yamlMetadataTagHandles = ['!!' => 'tag:yaml.org,2002:'];
+        $this->yamlMetadataSchemaVersion = '1.1';
         try {
             if ($this->yamlMetadataHasLeadingTabIndentation($yamlLines)) {
                 return [];
@@ -671,6 +675,7 @@ final class MarkdownReader
             $this->yamlMetadataCollectionProvenance = $previousYamlMetadataCollectionProvenance;
             $this->yamlMetadataInvalid = $previousYamlMetadataInvalid;
             $this->yamlMetadataTagHandles = $previousYamlMetadataTagHandles;
+            $this->yamlMetadataSchemaVersion = $previousYamlMetadataSchemaVersion;
         }
     }
 
@@ -1616,6 +1621,7 @@ final class MarkdownReader
             'supported' => $supported ? 'true' : 'false',
         ] + $this->yamlMetadataSourceLineAttrs();
         if ($supported) {
+            $this->yamlMetadataSchemaVersion = $version;
             return;
         }
 
@@ -5130,10 +5136,24 @@ final class MarkdownReader
 
     private function parseYamlExplicitBooleanScalar(string $value): bool|string
     {
-        return $this->parseYamlBooleanScalar($value) ?? $value;
+        return $this->parseYamlLegacyBooleanScalar($value) ?? $value;
     }
 
     private function parseYamlBooleanScalar(string $value): ?bool
+    {
+        $normalized = strtolower(trim($value));
+        if ($this->yamlMetadataSchemaVersion === '1.2') {
+            return match ($normalized) {
+                'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+
+        return $this->parseYamlLegacyBooleanScalar($value);
+    }
+
+    private function parseYamlLegacyBooleanScalar(string $value): ?bool
     {
         return match (strtolower(trim($value))) {
             'y', 'yes', 'true', 'on' => true,

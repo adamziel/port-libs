@@ -4220,6 +4220,82 @@ XML);
         $t->contains('<dt>Migration Audio Desk 2026</dt><dd>song :: Migration Audio Review</dd>', $blocks);
         $t->contains('<dt>Archive Artwork Desk 2025</dt><dd>graphic :: Migration Artwork</dd>', $blocks);
     },
+    'maps bounded biblatex director creators into csl media metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@movie{film-credit-source,
+  director          = {Doe, Jane and {{Migration Film Unit}}},
+  director+an:credit = {1=restored credit; 2:name=literal credit verified},
+  title             = {Restored Import Film},
+  date              = {2026},
+  howpublished      = {Restored film packet},
+  url               = {https://example.test/restored-import-film}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('motion_picture', $items[0]['type'] ?? null);
+        $t->same([[
+            'family' => 'Doe',
+            'given' => 'Jane',
+            'annotations' => [[
+                'part' => 'credit',
+                'value' => 'restored credit',
+            ]],
+        ], [
+            'literal' => 'Migration Film Unit',
+            'annotations' => [[
+                'part' => 'name',
+                'value' => 'literal credit verified',
+            ]],
+        ]], $items[0]['director'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('film-credit-source');
+        $t->same('motion_picture', $item['type'] ?? null);
+        $t->same('Doe', $item['directors'][0]['family'] ?? null);
+        $t->same('Jane', $item['directors'][0]['given'] ?? null);
+        $t->same('Migration Film Unit', $item['directors'][1]['literal'] ?? null);
+        $t->same('credit', $item['directors'][0]['annotations'][0]['part'] ?? null);
+        $t->same('literal credit verified', $item['directors'][1]['annotations'][0]['value'] ?? null);
+        $t->same(
+            'Restored Import Film. 2026. Medium: Restored film packet. Name annotations: Director 1 credit: restored credit; Director 2: literal credit verified. Directed by Doe, Jane; Migration Film Unit. https://example.test/restored-import-film.',
+            $processor->renderBibliographyEntry('film-credit-source')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="director"/>
+        <text variable="title"/>
+        <text variable="type"/>
+        <text variable="medium"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="director"><label form="verb" suffix=" "/><name initialize-with=". " name-as-sort-order="all"/></names>
+      <text variable="name-annotation-summary"/>
+      <text variable="medium"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Doe and Migration Film Unit | Restored Import Film | motion_picture | Restored film packet]', $styled->renderCitationCluster([
+            $citation('film-credit-source', '[@film-credit-source]'),
+        ]));
+        $t->same('Restored Import Film :: directed by Doe, J.; Migration Film Unit :: Director 1 credit: restored credit; Director 2: literal credit verified :: Restored film packet', $styled->renderBibliographyEntry('film-credit-source'));
+
+        $document = (new MarkdownReader())->read('Director credit review cites [@film-credit-source].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Director credit review cites [Doe and Migration Film Unit | Restored Import Film | motion_picture | Restored film packet].</p>', $blocks);
+        $t->contains('<dt>Restored Import Film 2026</dt><dd>Restored Import Film :: directed by Doe, J.; Migration Film Unit :: Director 1 credit: restored credit; Director 2: literal credit verified :: Restored film packet</dd>', $blocks);
+    },
     'maps bounded biblatex unpublished eventtitle entries into csl speech type' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @unpublished{migration-talk,

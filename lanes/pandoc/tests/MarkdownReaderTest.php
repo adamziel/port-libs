@@ -1080,6 +1080,92 @@ return [
         $t->same('1', $unsupportedDiagnostics[0]['sourceLine'] ?? '');
         $t->same(false, array_key_exists('__yamlMetadataDirectiveProvenance', $unsupportedMeta));
     },
+    'maps pandoc yaml 1.2 boolean schema without legacy synonyms' => static function (TestRunner $t): void {
+        $yaml12 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '---',
+            'title: YAML 1.2 bool **Packet**',
+            'review:',
+            '  published: yes',
+            '  archived: no',
+            '  enabled: on',
+            '  disabled: OFF',
+            '  truthy: true',
+            '  blocked: FALSE',
+            '  explicit-enabled: !!bool yes',
+            'flow-review: {published: y, archived: n, enabled: ON, disabled: off, truthy: true, blocked: false, explicit-disabled: !!bool OFF}',
+            '...',
+            '',
+            '# YAML 1.2 bool body',
+        ]));
+        $yaml11 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.1',
+            '---',
+            'title: YAML 1.1 bool **Packet**',
+            'review: {published: yes, archived: no, enabled: on, disabled: OFF, truthy: true, blocked: FALSE}',
+            '...',
+            '',
+            '# YAML 1.1 bool body',
+        ]));
+        $yaml12Meta = $yaml12->attr('meta');
+        $yaml11Meta = $yaml11->attr('meta');
+        $yaml12Typed = [];
+        foreach ($yaml12->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml12Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $yaml11Typed = [];
+        foreach ($yaml11->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml11Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($yaml12);
+
+        $t->same('yes', $yaml12Meta['review']['published']);
+        $t->same('no', $yaml12Meta['review']['archived']);
+        $t->same('on', $yaml12Meta['review']['enabled']);
+        $t->same('OFF', $yaml12Meta['review']['disabled']);
+        $t->same(true, $yaml12Meta['review']['truthy']);
+        $t->same(false, $yaml12Meta['review']['blocked']);
+        $t->same(true, $yaml12Meta['review']['explicit-enabled']);
+        $t->same('y', $yaml12Meta['flow-review']['published']);
+        $t->same('n', $yaml12Meta['flow-review']['archived']);
+        $t->same('ON', $yaml12Meta['flow-review']['enabled']);
+        $t->same('off', $yaml12Meta['flow-review']['disabled']);
+        $t->same(true, $yaml12Meta['flow-review']['truthy']);
+        $t->same(false, $yaml12Meta['flow-review']['blocked']);
+        $t->same(false, $yaml12Meta['flow-review']['explicit-disabled']);
+        $t->same(false, array_key_exists('/review/published', $yaml12Typed));
+        $t->same(false, array_key_exists('/review/archived', $yaml12Typed));
+        $t->same(false, array_key_exists('/review/enabled', $yaml12Typed));
+        $t->same(false, array_key_exists('/review/disabled', $yaml12Typed));
+        $t->same('boolean', $yaml12Typed['/review/truthy']['scalarType'] ?? null);
+        $t->same('boolean', $yaml12Typed['/review/blocked']['scalarType'] ?? null);
+        $t->same('bool', $yaml12Typed['/review/explicit-enabled']['explicitTag'] ?? null);
+        $t->same(false, array_key_exists('/flow-review/published', $yaml12Typed));
+        $t->same(false, array_key_exists('/flow-review/archived', $yaml12Typed));
+        $t->same(false, array_key_exists('/flow-review/enabled', $yaml12Typed));
+        $t->same(false, array_key_exists('/flow-review/disabled', $yaml12Typed));
+        $t->same('boolean', $yaml12Typed['/flow-review/truthy']['scalarType'] ?? null);
+        $t->same('boolean', $yaml12Typed['/flow-review/blocked']['scalarType'] ?? null);
+        $t->same('bool', $yaml12Typed['/flow-review/explicit-disabled']['explicitTag'] ?? null);
+        $t->same(true, $yaml11Meta['review']['published']);
+        $t->same(false, $yaml11Meta['review']['archived']);
+        $t->same(true, $yaml11Meta['review']['enabled']);
+        $t->same(false, $yaml11Meta['review']['disabled']);
+        $t->same(true, $yaml11Meta['review']['truthy']);
+        $t->same(false, $yaml11Meta['review']['blocked']);
+        $t->same('boolean', $yaml11Typed['/review/published']['scalarType'] ?? null);
+        $t->same('boolean', $yaml11Typed['/review/archived']['scalarType'] ?? null);
+        $t->same('boolean', $yaml11Typed['/review/enabled']['scalarType'] ?? null);
+        $t->same('boolean', $yaml11Typed['/review/disabled']['scalarType'] ?? null);
+        $t->same('yaml-1-2-bool-body', $yaml12->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-1-2-bool-body">YAML 1.2 bool body</h1>', $blocks);
+    },
     'records pandoc yaml invalid tag directive diagnostics before metadata document' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

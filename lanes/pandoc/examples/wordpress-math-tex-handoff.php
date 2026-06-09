@@ -53,6 +53,8 @@ $$\sum_{i=1}^{n} \operatorname{migrate}(p_i) + \frac{a_1}{\sqrt{b^2}} + \sqrt[3]
 
 Plain root audit $\root 3 \of{x_i + y_i} + \root n+1 \of{\frac{a}{b}}$ stays semantic.
 
+TeX token argument audit $\sqrt x_i + \sqrt[3]y_j + \frac12 + \dfrac a b + \binom n k + \overset\alpha q_i + \underset 0 r_i + \boxed s_i + \phantom t_i + \hphantom u_i + \vphantom v_i + \cancel w_i + \bcancel x + \xcancel y$ stays semantic.
+
 Partial array rule audit $\begin{array}{l|c|r}p_i & m_i & 1 \\ \cline{2-3} q_i & n_i & 2 \\ \cline{1-1}\cline{3-3} r_i & s_i & 3\end{array}$ stays semantic.
 
 Repeated array preamble audit $\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\ p_2 & m_2 & 2\end{array}$ stays semantic.
@@ -238,6 +240,7 @@ $summary = [
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'extendedRelationAliasMathml' => $converter->texToMathMl('\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
+    'texTokenArgumentMathml' => $converter->texToMathMl('\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k + \\overset\\alpha q_i + \\underset 0 r_i + \\boxed s_i + \\phantom t_i + \\hphantom u_i + \\vphantom v_i + \\cancel w_i + \\bcancel x + \\xcancel y'),
     'arrayClineMathml' => $converter->texToMathMl('\\begin{array}{l|c|r}p_i & m_i & 1 \\\\ \\cline{2-3} q_i & n_i & 2 \\\\ \\cline{1-1}\\cline{3-3} r_i & s_i & 3\\end{array}'),
     'arrayRepeatedPreambleMathml' => $converter->texToMathMl('\\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\\\ p_2 & m_2 & 2\\end{array}'),
     'arrayWidthColumnMathml' => $converter->texToMathMl('\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i & \\text{middle review} & 1 \\\\ q_i & n_i & 2\\end{array}'),
@@ -404,6 +407,16 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     if (
+        str_contains($summary['texTokenArgumentMathml'], '<mi>\\boxed</mi>')
+        || str_contains($summary['texTokenArgumentMathml'], '<mi>\\cancel</mi>')
+        || str_contains($summary['texTokenArgumentMathml'], '<mi>\\overset</mi>')
+        || !str_contains($summary['texTokenArgumentMathml'], '<mfrac><mn>1</mn><mn>2</mn></mfrac>')
+        || !str_contains($summary['texTokenArgumentMathml'], '<msub><menclose notation="box"><mi>s</mi></menclose><mi>i</mi></msub>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map unbraced TeX token arguments');
+    }
+
+    if (
         str_contains($summary['colorDeclarationMathml'], '<mi>\\color</mi>')
         || !str_contains($summary['colorDeclarationMathml'], '<mstyle mathcolor="reviewblue"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mfrac><mi>a</mi><mi>b</mi></mfrac></mrow></mstyle>')
     ) {
@@ -546,6 +559,11 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}\\)</span>',
         '<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mn>3</mn></mroot><mo>+</mo><mroot><mfrac><mi>a</mi><mi>b</mi></mfrac><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></mroot>',
         '<annotation encoding="application/x-tex">\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}</annotation>',
+        '<span class="math inline">\\(\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k + \\overset\\alpha q_i + \\underset 0 r_i + \\boxed s_i + \\phantom t_i + \\hphantom u_i + \\vphantom v_i + \\cancel w_i + \\bcancel x + \\xcancel y\\)</span>',
+        '<msub><msqrt><mi>x</mi></msqrt><mi>i</mi></msub><mo>+</mo><msub><mroot><mi>y</mi><mn>3</mn></mroot><mi>j</mi></msub><mo>+</mo><mfrac><mn>1</mn><mn>2</mn></mfrac>',
+        '<msub><mover><mi>q</mi><mi>α</mi></mover><mi>i</mi></msub><mo>+</mo><msub><munder><mi>r</mi><mn>0</mn></munder><mi>i</mi></msub>',
+        '<msub><menclose notation="box"><mi>s</mi></menclose><mi>i</mi></msub><mo>+</mo><msub><mphantom><mi>t</mi></mphantom><mi>i</mi></msub>',
+        '<annotation encoding="application/x-tex">\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k + \\overset\\alpha q_i + \\underset 0 r_i + \\boxed s_i + \\phantom t_i + \\hphantom u_i + \\vphantom v_i + \\cancel w_i + \\bcancel x + \\xcancel y</annotation>',
         '<span class="math inline">\\(\\begin{array}{l|c|r}p_i &amp; m_i &amp; 1 \\\\ \\cline{2-3} q_i &amp; n_i &amp; 2 \\\\ \\cline{1-1}\\cline{3-3} r_i &amp; s_i &amp; 3\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{*{2}{c|}r}p_1 &amp; m_1 &amp; 1 \\\\ p_2 &amp; m_2 &amp; 2\\end{array}\\)</span>',
         '<span class="math inline">\\(\\begin{array}{p{2cm}|m{1.5em}|b{8pt}}p_i &amp; \\text{middle review} &amp; 1 \\\\ q_i &amp; n_i &amp; 2\\end{array}\\)</span>',

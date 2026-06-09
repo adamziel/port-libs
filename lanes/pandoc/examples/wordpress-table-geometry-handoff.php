@@ -1523,6 +1523,23 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($multiWriterPacket, JSON_THROW_ON_ERROR);
 
+    $markdownGridPacket = TableGeometry::reviewPacket($document->children[0], [
+        'idPrefix' => 'Migration Grid',
+        'writers' => ['markdown-grid-table'],
+    ]);
+    if (
+        ($markdownGridPacket['summary']['writerDowngradeCodes'] ?? null) !== ['markdown-grid-table-required']
+        || ($markdownGridPacket['writerDowngrades']['markdown-grid-table'][0]['requiredFeature'] ?? null) !== 'grid_tables'
+        || ($markdownGridPacket['writerDowngrades']['markdown-grid-table'][0]['spanTypes'] ?? null) !== ['colspan', 'rowspan']
+        || ($markdownGridPacket['writerDowngrades']['markdown-grid-table'][0]['requiredSlots'] ?? null) !== [
+            ['section' => 'head', 'row' => 0, 'column' => 1, 'covering' => 'colspan'],
+            ['section' => 'body', 'row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+        ]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing Markdown grid-table extension requirement diagnostics');
+    }
+    json_encode($markdownGridPacket, JSON_THROW_ON_ERROR);
+
     $sectionDiagnostics = TableGeometry::diagnostics($document->children[1]);
     if (!str_contains($blocks, '<colgroup><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/><col style="width:25%"/></colgroup>')) {
         throw new RuntimeException('Table geometry self-test missing trailing colspec width');

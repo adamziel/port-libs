@@ -34,6 +34,30 @@ return [
         $t->contains('<mroot><mrow><msub><mi>x</mi><mi>i</mi></msub><mo>+</mo><msub><mi>y</mi><mi>i</mi></msub></mrow><mi>k</mi></mroot>', $docxRootMathml);
         $t->contains('<annotation encoding="application/x-tex">\\sqrt[k]{x_i + y_i}</annotation>', $docxRootMathml);
     },
+    'converts bounded tex token command arguments to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $rootFractionMathml = $converter->texToMathMl('\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k', true);
+        $wrapperMathml = $converter->texToMathMl('\\overset\\alpha x_i + \\underset 0 y_i + \\boxed q_i + \\phantom r_i + \\hphantom s_i + \\vphantom t_i + \\cancel u_i + \\bcancel v + \\xcancel w', true);
+        $combinedMathml = $rootFractionMathml . $wrapperMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $rootFractionMathml);
+        $t->contains('<msub><msqrt><mi>x</mi></msqrt><mi>i</mi></msub>', $rootFractionMathml);
+        $t->contains('<msub><mroot><mi>y</mi><mn>3</mn></mroot><mi>j</mi></msub>', $rootFractionMathml);
+        $t->contains('<mfrac><mn>1</mn><mn>2</mn></mfrac>', $rootFractionMathml);
+        $t->contains('<mstyle displaystyle="true"><mfrac><mi>a</mi><mi>b</mi></mfrac></mstyle>', $rootFractionMathml);
+        $t->contains('<mo fence="true" stretchy="true">(</mo><mfrac linethickness="0"><mi>n</mi><mi>k</mi></mfrac><mo fence="true" stretchy="true">)</mo>', $rootFractionMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\sqrt x_i + \\sqrt[3]y_j + \\frac12 + \\dfrac a b + \\binom n k</annotation>', $rootFractionMathml);
+        $t->contains('<msub><mover><mi>x</mi><mi>α</mi></mover><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><munder><mi>y</mi><mn>0</mn></munder><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><menclose notation="box"><mi>q</mi></menclose><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><mphantom><mi>r</mi></mphantom><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><mpadded height="0" depth="0"><mphantom><mi>s</mi></mphantom></mpadded><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><mpadded width="0"><mphantom><mi>t</mi></mphantom></mpadded><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<msub><menclose notation="updiagonalstrike"><mi>u</mi></menclose><mi>i</mi></msub>', $wrapperMathml);
+        $t->contains('<menclose notation="downdiagonalstrike"><mi>v</mi></menclose><mo>+</mo><menclose notation="updiagonalstrike downdiagonalstrike"><mi>w</mi></menclose>', $wrapperMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overset\\alpha x_i + \\underset 0 y_i + \\boxed q_i + \\phantom r_i + \\hphantom s_i + \\vphantom t_i + \\cancel u_i + \\bcancel v + \\xcancel w</annotation>', $wrapperMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\boxed</mi>') && !str_contains($combinedMathml, '<mi>\\cancel</mi>') && !str_contains($combinedMathml, '<mi>\\overset</mi>'));
+    },
     'converts bounded plain tex root of syntax to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $plainRootMathml = $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}', true);
@@ -1984,7 +2008,10 @@ return [
         $converter = new MathTexConverter();
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac{a}{'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\frac}1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[]{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\sqrt[3{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\root'));
@@ -2032,6 +2059,8 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{}{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\stackrel{x}_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\overset_1 x'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underset 0 _1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\unknown{x}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\middle|'));
@@ -2062,6 +2091,7 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\underrightarrow_1'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boxed'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boxed{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\boxed}'));
     },
     'renders latex writer math and raw tex without dropping source content' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);

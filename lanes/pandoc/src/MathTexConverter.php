@@ -2621,7 +2621,7 @@ final class MathTexConverter
 
         if ($command === 'sqrt') {
             $degree = $this->parseOptionalRootDegree($source, $offset);
-            $radicand = $this->parseRequiredGroup($source, $offset);
+            $radicand = $this->parseRequiredTexToken($source, $offset, 'sqrt radicand', true);
 
             if ($degree !== null) {
                 return '<mroot>' . $radicand . $degree . '</mroot>';
@@ -2719,15 +2719,15 @@ final class MathTexConverter
         }
 
         if ($command === 'overset') {
-            $above = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset above');
-            $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'overset base');
+            $above = $this->parseRequiredTexToken($source, $offset, 'overset above');
+            $base = $this->parseRequiredTexToken($source, $offset, 'overset base');
 
             return '<mover>' . $base . $above . '</mover>';
         }
 
         if ($command === 'underset') {
-            $below = $this->parseRequiredNonEmptyGroup($source, $offset, 'underset below');
-            $base = $this->parseRequiredNonEmptyGroup($source, $offset, 'underset base');
+            $below = $this->parseRequiredTexToken($source, $offset, 'underset below');
+            $base = $this->parseRequiredTexToken($source, $offset, 'underset base');
 
             return '<munder>' . $base . $below . '</munder>';
         }
@@ -2766,7 +2766,7 @@ final class MathTexConverter
 
         if ($command === 'boxed') {
             return '<menclose notation="box">'
-                . $this->parseRequiredNonEmptyGroup($source, $offset, 'boxed content')
+                . $this->parseRequiredTexToken($source, $offset, 'boxed content')
                 . '</menclose>';
         }
 
@@ -3116,8 +3116,8 @@ final class MathTexConverter
 
     private function parseBinomialCommand(string $source, int &$offset, ?bool $displaystyle): string
     {
-        $numerator = $this->parseRequiredNonEmptyGroup($source, $offset, 'binomial numerator');
-        $denominator = $this->parseRequiredNonEmptyGroup($source, $offset, 'binomial denominator');
+        $numerator = $this->parseRequiredTexToken($source, $offset, 'binomial numerator');
+        $denominator = $this->parseRequiredTexToken($source, $offset, 'binomial denominator');
         $binomial = '<mrow>'
             . '<mo fence="true" stretchy="true">(</mo>'
             . '<mfrac linethickness="0">' . $numerator . $denominator . '</mfrac>'
@@ -3134,8 +3134,8 @@ final class MathTexConverter
     private function parseFractionCommand(string $source, int &$offset, ?bool $displaystyle): string
     {
         $fraction = '<mfrac>'
-            . $this->parseRequiredGroup($source, $offset)
-            . $this->parseRequiredGroup($source, $offset)
+            . $this->parseRequiredTexToken($source, $offset, 'fraction numerator', true)
+            . $this->parseRequiredTexToken($source, $offset, 'fraction denominator', true)
             . '</mfrac>';
 
         if ($displaystyle === null) {
@@ -3662,7 +3662,7 @@ final class MathTexConverter
     private function parsePhantomCommand(string $source, int &$offset, string $command): string
     {
         $content = '<mphantom>'
-            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . $this->parseRequiredTexToken($source, $offset, $command . ' content')
             . '</mphantom>';
 
         if ($command === 'hphantom') {
@@ -3731,7 +3731,7 @@ final class MathTexConverter
     private function parseCancelCommand(string $source, int &$offset, string $command): string
     {
         return '<menclose notation="' . self::CANCEL_COMMANDS[$command] . '">'
-            . $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' content')
+            . $this->parseRequiredTexToken($source, $offset, $command . ' content')
             . '</menclose>';
     }
 
@@ -3999,7 +3999,7 @@ final class MathTexConverter
     {
         $this->skipWhitespace($source, $offset);
         $char = $source[$offset] ?? '';
-        if ($char === '' || $char === '_' || $char === '^') {
+        if ($char === '' || $char === '_' || $char === '^' || $char === '}' || $char === '&') {
             throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $offset);
         }
 
@@ -6579,14 +6579,27 @@ final class MathTexConverter
 
     private function parseRequiredAtomOrGroup(string $source, int &$offset, string $label): string
     {
+        return $this->parseRequiredTexToken($source, $offset, $label);
+    }
+
+    private function parseRequiredTexToken(string $source, int &$offset, string $label, bool $allowEmptyGroup = false): string
+    {
         $this->skipWhitespace($source, $offset);
         $char = $source[$offset] ?? '';
-        if ($char === '' || $char === '_' || $char === '^') {
+        if ($char === '' || $char === '_' || $char === '^' || $char === '}' || $char === '&') {
             throw new \InvalidArgumentException('Expected TeX ' . $label . ' content at offset ' . $offset);
         }
 
         if ($char === '{') {
-            return $this->parseRequiredNonEmptyGroup($source, $offset, $label);
+            return $allowEmptyGroup
+                ? $this->parseRequiredGroup($source, $offset)
+                : $this->parseRequiredNonEmptyGroup($source, $offset, $label);
+        }
+
+        if (ctype_digit($char)) {
+            $offset++;
+
+            return '<mn>' . $this->esc($char) . '</mn>';
         }
 
         return $this->parseAtom($source, $offset);

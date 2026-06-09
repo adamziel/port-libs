@@ -17,6 +17,7 @@ final class BibtexCslParser
         'holder',
         'translator',
         'bookauthor',
+        'director',
         'eventorganizer',
         'executive-producer',
         'executiveproducer',
@@ -844,6 +845,11 @@ final class BibtexCslParser
         $containerAuthor = self::namesFromBibtexField($fields, 'bookauthor');
         if ($containerAuthor !== []) {
             $item['container-author'] = $containerAuthor;
+        }
+
+        $director = self::namesFromBibtexField($fields, 'director');
+        if ($director !== []) {
+            $item['director'] = $director;
         }
 
         $eventOrganizer = self::eventOrganizerNames($type, $fields);

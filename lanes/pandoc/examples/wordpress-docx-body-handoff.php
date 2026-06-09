@@ -724,6 +724,11 @@ XML],
       <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
       <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360"/>
       <w:cols w:num="2" w:space="360" w:equalWidth="0"/>
+      <w:type w:val="continuous"/>
+      <w:titlePg/>
+      <w:pgNumType w:start="3" w:fmt="lowerRoman" w:chapStyle="2" w:chapSep="hyphen"/>
+      <w:lnNumType w:start="5" w:countBy="2" w:restart="newPage" w:distance="360"/>
+      <w:docGrid w:type="lines" w:linePitch="360" w:charSpace="80"/>
       <w:footnotePr>
         <w:pos w:val="beneathText"/>
         <w:numFmt w:val="lowerLetter"/>
@@ -1218,6 +1223,30 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['sectionProperties'][0]['columns']['count'] ?? 0) !== 2) {
         throw new RuntimeException('DOCX body handoff self-test missing section column count');
+    }
+    if (($summary['sectionProperties'][0]['sectionType'] ?? '') !== 'continuous') {
+        throw new RuntimeException('DOCX body handoff self-test missing section type metadata');
+    }
+    if (($summary['sectionProperties'][0]['titlePage'] ?? null) !== true) {
+        throw new RuntimeException('DOCX body handoff self-test missing title-page metadata');
+    }
+    if (($summary['sectionProperties'][0]['pageNumbering']['start'] ?? 0) !== 3 || ($summary['sectionProperties'][0]['pageNumbering']['format'] ?? '') !== 'lowerRoman') {
+        throw new RuntimeException('DOCX body handoff self-test missing page-numbering metadata');
+    }
+    if (($summary['sectionProperties'][0]['pageNumbering']['chapterStyle'] ?? 0) !== 2 || ($summary['sectionProperties'][0]['pageNumbering']['chapterSeparator'] ?? '') !== 'hyphen') {
+        throw new RuntimeException('DOCX body handoff self-test missing chapter page-numbering metadata');
+    }
+    if (($summary['sectionProperties'][0]['lineNumbering']['start'] ?? 0) !== 5 || ($summary['sectionProperties'][0]['lineNumbering']['countBy'] ?? 0) !== 2) {
+        throw new RuntimeException('DOCX body handoff self-test missing line-numbering counters');
+    }
+    if (($summary['sectionProperties'][0]['lineNumbering']['restart'] ?? '') !== 'newPage' || ($summary['sectionProperties'][0]['lineNumbering']['distanceTwips'] ?? 0) !== 360) {
+        throw new RuntimeException('DOCX body handoff self-test missing line-numbering policy');
+    }
+    if (($summary['sectionProperties'][0]['documentGrid']['type'] ?? '') !== 'lines' || ($summary['sectionProperties'][0]['documentGrid']['linePitchTwips'] ?? 0) !== 360) {
+        throw new RuntimeException('DOCX body handoff self-test missing section document-grid line metadata');
+    }
+    if (($summary['sectionProperties'][0]['documentGrid']['charSpaceTwips'] ?? 0) !== 80) {
+        throw new RuntimeException('DOCX body handoff self-test missing section document-grid character metadata');
     }
     if (($summary['sectionProperties'][0]['footnoteProperties']['numberFormat'] ?? '') !== 'lowerLetter') {
         throw new RuntimeException('DOCX body handoff self-test missing footnote numbering format');

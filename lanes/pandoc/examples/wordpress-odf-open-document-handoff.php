@@ -52,6 +52,9 @@ $stylesXml = <<<'XML'
     <style:style style:name="ReviewQuote" style:family="paragraph" style:display-name="Review Quote">
       <style:paragraph-properties fo:margin-left="6mm"/>
     </style:style>
+    <style:style style:name="StyledSummary" style:family="paragraph" style:display-name="Styled Summary">
+      <style:text-properties fo:font-weight="bold"/>
+    </style:style>
     <style:style style:name="Preformatted_20_Text" style:family="paragraph" style:display-name="Preformatted Text"/>
     <style:style style:name="SourceCode" style:family="paragraph" style:parent-style-name="Preformatted_20_Text" style:display-name="Source Code"/>
     <style:style style:name="Table" style:family="paragraph" style:display-name="Table"/>
@@ -267,6 +270,7 @@ $contentXml = <<<'XML'
         </text:index-body>
       </text:illustration-index>
       <text:p text:style-name="Table">Table 1: Review matrix caption</text:p>
+      <text:p text:style-name="StyledSummary">Styled source summary keeps <text:a xlink:href="https://example.test/styled-source">review link</text:a> prominent.</text:p>
       <text:section text:name="Linked Policy Appendix" text:protected="true" text:protection-key="review-key" text:protection-key-digest-algorithm="http://www.w3.org/2000/09/xmldsig#sha1">
         <text:section-source xlink:href="Sections/policy-appendix.odt" xlink:type="simple" text:section-name="Policy Appendix" text:filter-name="writer8"/>
         <text:p>Linked appendix fallback text.</text:p>
@@ -608,6 +612,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<div class="caption odf-table-caption" data-odf-table-caption-style-name="Table"><p>Table 1: Review matrix caption</p></div>')) {
         throw new RuntimeException('Expected ODT table caption style paragraphs to render as WordPress caption divs');
+    }
+    if (!str_contains($blocks, '<p><strong><span data-odf-style-name="StyledSummary">Styled source summary keeps <a href="https://example.test/styled-source">review link</a> prominent.</span></strong></p>')) {
+        throw new RuntimeException('Expected ODT paragraph text properties to render as styled WordPress inline content');
     }
     if (!str_contains($blocks, '<sup><span data-odf-style-name="SourceSuperscript">TM</span></sup>')) {
         throw new RuntimeException('Expected ODT superscript source mark to render in WordPress blocks');

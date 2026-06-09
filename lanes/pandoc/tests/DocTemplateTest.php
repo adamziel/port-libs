@@ -993,13 +993,13 @@ TPL;
         ]), $output);
     },
 
-    'renders pandoc doctemplate alphabetic pipe overflow markers' => static function (TestRunner $t): void {
+    'renders pandoc doctemplate alphabetic pipe modulo markers' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
-        $t->same('[y][z][aa][ab][az][ba][zz][aaa]', $renderer->render('$for(numbers)$[$it/alpha$]$endfor$', [
+        $t->same('[y][z][a][b][z][a][z][a]', $renderer->render('$for(numbers)$[$it/alpha$]$endfor$', [
             'numbers' => [25, 26, 27, 28, 52, 53, 702, 703],
         ]));
-        $t->same('Y Z AA AB AZ BA ZZ AAA', $renderer->render('$for(numbers)$$it/alpha/uppercase$$sep$ $endfor$', [
+        $t->same('Y Z A B Z A Z A', $renderer->render('$for(numbers)$$it/alpha/uppercase$$sep$ $endfor$', [
             'numbers' => [25, 26, 27, 28, 52, 53, 702, 703],
         ]));
         $t->same('0 draft', $renderer->render('$for(values)$$it/alpha$$sep$ $endfor$', [
@@ -1024,6 +1024,17 @@ TPL;
             'zero' => 0,
             'one' => 1,
         ]));
+    },
+
+    'renders pandoc doctemplate alpha pipe as single modulo glyph in review lists' => static function (TestRunner $t): void {
+        $output = (new DocTemplate())->render('$for(items/pairs)$$it.key/alpha/uppercase$: $it.value$$sep$ | $endfor$', [
+            'items' => array_map(static fn (int $index): string => 'review-' . $index, range(1, 28)),
+        ]);
+
+        $t->same(
+            'A: review-1 | B: review-2 | C: review-3 | D: review-4 | E: review-5 | F: review-6 | G: review-7 | H: review-8 | I: review-9 | J: review-10 | K: review-11 | L: review-12 | M: review-13 | N: review-14 | O: review-15 | P: review-16 | Q: review-17 | R: review-18 | S: review-19 | T: review-20 | U: review-21 | V: review-22 | W: review-23 | X: review-24 | Y: review-25 | Z: review-26 | A: review-27 | B: review-28',
+            $output,
+        );
     },
 
     'pads pandoc doctemplate block pipes by unicode display width' => static function (TestRunner $t): void {

@@ -1396,6 +1396,31 @@ final class DocxReader
             $attrs['columns'] = $columns;
         }
 
+        $sectionType = $this->sectionType($sectionProperties);
+        if ($sectionType !== null) {
+            $attrs['sectionType'] = $sectionType;
+        }
+
+        $titlePage = $this->sectionTitlePage($sectionProperties);
+        if ($titlePage !== null) {
+            $attrs['titlePage'] = $titlePage;
+        }
+
+        $pageNumbering = $this->sectionPageNumbering($sectionProperties);
+        if ($pageNumbering !== []) {
+            $attrs['pageNumbering'] = $pageNumbering;
+        }
+
+        $lineNumbering = $this->sectionLineNumbering($sectionProperties);
+        if ($lineNumbering !== []) {
+            $attrs['lineNumbering'] = $lineNumbering;
+        }
+
+        $documentGrid = $this->sectionDocumentGrid($sectionProperties);
+        if ($documentGrid !== []) {
+            $attrs['documentGrid'] = $documentGrid;
+        }
+
         $footnoteProperties = $this->sectionNoteProperties($sectionProperties, 'footnotePr');
         if ($footnoteProperties !== []) {
             $attrs['footnoteProperties'] = $footnoteProperties;
@@ -1432,6 +1457,118 @@ final class DocxReader
         );
         if ($footers !== []) {
             $attrs['footers'] = $footers;
+        }
+
+        return $attrs;
+    }
+
+    private function sectionType(\DOMElement $sectionProperties): ?string
+    {
+        $type = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'type');
+        if (!$type instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = $this->wordAttr($type, 'val');
+
+        return $value === null || $value === '' ? null : $value;
+    }
+
+    private function sectionTitlePage(\DOMElement $sectionProperties): ?bool
+    {
+        $titlePage = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'titlePg');
+
+        return $titlePage instanceof \DOMElement ? $this->onOffWordAttr($titlePage, 'val', true) : null;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function sectionPageNumbering(\DOMElement $sectionProperties): array
+    {
+        $pageNumbering = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'pgNumType');
+        if (!$pageNumbering instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        foreach ([
+            'fmt' => 'format',
+            'chapSep' => 'chapterSeparator',
+        ] as $source => $target) {
+            $value = $this->wordAttr($pageNumbering, $source);
+            if ($value !== null && $value !== '') {
+                $attrs[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'start' => 'start',
+            'chapStyle' => 'chapterStyle',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($pageNumbering, $source);
+            if ($value !== null) {
+                $attrs[$target] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function sectionLineNumbering(\DOMElement $sectionProperties): array
+    {
+        $lineNumbering = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'lnNumType');
+        if (!$lineNumbering instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        $restart = $this->wordAttr($lineNumbering, 'restart');
+        if ($restart !== null && $restart !== '') {
+            $attrs['restart'] = $restart;
+        }
+
+        foreach ([
+            'start' => 'start',
+            'countBy' => 'countBy',
+            'distance' => 'distanceTwips',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($lineNumbering, $source);
+            if ($value !== null) {
+                $attrs[$target] = $value;
+            }
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, int|string>
+     */
+    private function sectionDocumentGrid(\DOMElement $sectionProperties): array
+    {
+        $grid = $this->firstChildElement($sectionProperties, self::WORDPROCESSINGML_NS, 'docGrid');
+        if (!$grid instanceof \DOMElement) {
+            return [];
+        }
+
+        $attrs = [];
+        $type = $this->wordAttr($grid, 'type');
+        if ($type !== null && $type !== '') {
+            $attrs['type'] = $type;
+        }
+
+        foreach ([
+            'linePitch' => 'linePitchTwips',
+            'charSpace' => 'charSpaceTwips',
+        ] as $source => $target) {
+            $value = $this->optionalIntWordAttr($grid, $source);
+            if ($value !== null) {
+                $attrs[$target] = $value;
+            }
         }
 
         return $attrs;

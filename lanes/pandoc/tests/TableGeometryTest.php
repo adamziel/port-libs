@@ -2016,6 +2016,58 @@ return [
         $t->same(['markdown', 'rst'], $packet['summary']['writerDowngradeWriters'] ?? null);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports markdown grid-table extension requirements without pipe-table span flattening' => static function (TestRunner $t) use ($buildSectionGridDocument): void {
+        $table = $buildSectionGridDocument()->children[0];
+        $diagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'markdown-grid-table');
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Markdown Grid',
+            'writers' => ['markdown', 'markdown-grid-table'],
+        ]);
+
+        $t->same(['markdown-grid-table-required'], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $diagnostics));
+        $t->same('markdown-grid-table', $diagnostics[0]['writer'] ?? null);
+        $t->same('spans', $diagnostics[0]['reason'] ?? null);
+        $t->same('grid_tables', $diagnostics[0]['requiredFeature'] ?? null);
+        $t->same('Normalized table grid review', $diagnostics[0]['caption'] ?? null);
+        $t->same(4, $diagnostics[0]['columnCount'] ?? null);
+        $t->same(['colspan', 'rowspan'], $diagnostics[0]['spanTypes'] ?? null);
+        $t->same(2, $diagnostics[0]['spannedCellCount'] ?? null);
+        $t->same(4, $diagnostics[0]['requiredSlotCount'] ?? null);
+        $t->same([
+            ['section' => 'head', 'row' => 0, 'column' => 0, 'columns' => [0, 1], 'rawColspan' => 2, 'rawRowspan' => 1],
+            ['section' => 'body', 'row' => 0, 'column' => 0, 'columns' => [0, 1], 'rawColspan' => 2, 'rawRowspan' => 2],
+        ], $diagnostics[0]['spannedCells'] ?? null);
+        $t->same([
+            ['section' => 'head', 'row' => 0, 'column' => 1, 'covering' => 'colspan'],
+            ['section' => 'body', 'row' => 0, 'column' => 1, 'covering' => 'colspan'],
+            ['section' => 'body', 'row' => 1, 'column' => 0, 'covering' => 'rowspan'],
+            ['section' => 'body', 'row' => 1, 'column' => 1, 'covering' => 'rowspan-colspan'],
+        ], $diagnostics[0]['requiredSlots'] ?? null);
+
+        $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'markdown+grid_tables'));
+        $t->same($diagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'pandoc-markdown-grid-table'));
+        $plainTable = new AstNode('table', ['caption' => 'Plain Markdown grid table'], [
+            new AstNode('table_body', [], [
+                new AstNode('table_row', [], [
+                    new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                    new AstNode('table_cell', ['text' => 'Ready'], [new AstNode('text', ['text' => 'Ready'])]),
+                ]),
+            ]),
+        ]);
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($plainTable, 'markdown-grid-table'));
+        $t->same(['markdown', 'markdown-grid-table'], array_keys($packet['writerDowngrades']));
+        $t->same($diagnostics, $packet['writerDowngrades']['markdown-grid-table'] ?? null);
+        $t->same(5, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-column-widths-approximated',
+            'markdown-colspan-flattened',
+            'markdown-rowspan-flattened',
+            'markdown-grid-table-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['markdown', 'markdown-grid-table'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        json_encode($diagnostics, JSON_THROW_ON_ERROR);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'reports cell coverage with visual column specs for importer audits' => static function (TestRunner $t) use ($buildCellCoverageDocument): void {
         $document = $buildCellCoverageDocument();
         $table = $document->children[0];

@@ -872,29 +872,29 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['typed-review']['approved'] ?? null) !== true) {
         throw new RuntimeException('YAML metadata self-test missing explicit bool tag coercion');
     }
-    if (($meta['typed-review']['legacy-approved'] ?? null) !== true) {
-        throw new RuntimeException('YAML metadata self-test missing yes boolean synonym');
+    if (($meta['typed-review']['legacy-approved'] ?? null) !== 'yes') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 yes as a string');
     }
-    if (($meta['typed-review']['legacy-blocked'] ?? null) !== false) {
-        throw new RuntimeException('YAML metadata self-test missing NO boolean synonym');
+    if (($meta['typed-review']['legacy-blocked'] ?? null) !== 'NO') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 NO as a string');
     }
-    if (($meta['typed-review']['legacy-enabled'] ?? null) !== true) {
-        throw new RuntimeException('YAML metadata self-test missing On boolean synonym');
+    if (($meta['typed-review']['legacy-enabled'] ?? null) !== 'On') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 On as a string');
     }
-    if (($meta['typed-review']['legacy-disabled'] ?? null) !== false) {
-        throw new RuntimeException('YAML metadata self-test missing off boolean synonym');
+    if (($meta['typed-review']['legacy-disabled'] ?? null) !== 'off') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 off as a string');
     }
     if (($meta['typed-review']['explicit-legacy-enabled'] ?? null) !== true) {
-        throw new RuntimeException('YAML metadata self-test missing explicit y boolean synonym');
+        throw new RuntimeException('YAML metadata self-test missing explicit bool tag y coercion');
     }
     if (($meta['typed-review']['quoted-legacy-approved'] ?? null) !== 'yes') {
         throw new RuntimeException('YAML metadata self-test failed to preserve quoted yes string');
     }
-    if (($meta['boolean-synonym-flow-review']['published'] ?? null) !== true || ($meta['boolean-synonym-flow-review']['archived'] ?? null) !== false) {
-        throw new RuntimeException('YAML metadata self-test missing flow y/n boolean synonyms');
+    if (($meta['boolean-synonym-flow-review']['published'] ?? null) !== 'y' || ($meta['boolean-synonym-flow-review']['archived'] ?? null) !== 'n') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 flow y/n strings');
     }
-    if (($meta['boolean-synonym-flow-review']['enabled'] ?? null) !== true || ($meta['boolean-synonym-flow-review']['disabled'] ?? null) !== false) {
-        throw new RuntimeException('YAML metadata self-test missing flow on/off boolean synonyms');
+    if (($meta['boolean-synonym-flow-review']['enabled'] ?? null) !== 'ON' || ($meta['boolean-synonym-flow-review']['disabled'] ?? null) !== 'OFF') {
+        throw new RuntimeException('YAML metadata self-test did not preserve YAML 1.2 flow on/off strings');
     }
     if (($meta['boolean-synonym-flow-review']['quoted'] ?? null) !== 'off') {
         throw new RuntimeException('YAML metadata self-test failed to preserve quoted off string');
@@ -1179,7 +1179,6 @@ if (($argv[1] ?? '') === '--self-test') {
         '/typed-sequence-review/3' => ['null', 'null', 'reviewer note is intentionally nulled'],
         '/source-captured-at' => ['timestamp', 'timestamp', '2026-06-05 06:46:51Z'],
         '/typed-flow-review/elapsed' => ['number', 'int', '0:01:05'],
-        '/boolean-synonym-flow-review/published' => ['boolean', null, 'y'],
     ] as $expectedTypedPath => [$expectedType, $expectedTag, $expectedSource]) {
         $entry = $yamlTypedScalarProvenance[$expectedTypedPath] ?? null;
         if ($entry === null) {
@@ -1194,6 +1193,20 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (array_key_exists('/typed-review/quoted-legacy-approved', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded quoted yes as a typed scalar');
+    }
+    foreach ([
+        '/typed-review/legacy-approved',
+        '/typed-review/legacy-blocked',
+        '/typed-review/legacy-enabled',
+        '/typed-review/legacy-disabled',
+        '/boolean-synonym-flow-review/published',
+        '/boolean-synonym-flow-review/archived',
+        '/boolean-synonym-flow-review/enabled',
+        '/boolean-synonym-flow-review/disabled',
+    ] as $yaml12LegacyBoolPath) {
+        if (array_key_exists($yaml12LegacyBoolPath, $yamlTypedScalarProvenance)) {
+            throw new RuntimeException('YAML metadata self-test recorded YAML 1.2 legacy boolean word as a typed scalar');
+        }
     }
     if (array_key_exists('/typed-block-review/invalid-priority', $yamlTypedScalarProvenance)) {
         throw new RuntimeException('YAML metadata self-test recorded invalid explicit block integer as a typed scalar');
@@ -2226,13 +2239,13 @@ echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
 echo 'Typed review revision: ' . ($meta['typed-review']['typed-revision'] ?? '') . ' / confidence ' . ($meta['typed-review']['confidence'] ?? '') . "\n";
 echo 'Typed review duration seconds: ' . ($meta['typed-review']['review-duration-seconds'] ?? '') . ' / flow ' . ($meta['typed-flow-review']['elapsed'] ?? '') . "\n";
 echo 'Boolean synonym review: '
-    . (($meta['typed-review']['legacy-approved'] ?? null) === true ? 'yes=true' : 'yes=missing')
+    . (($meta['typed-review']['legacy-approved'] ?? null) === 'yes' ? 'yes=string' : 'yes=missing')
     . ' / '
-    . (($meta['typed-review']['legacy-blocked'] ?? null) === false ? 'NO=false' : 'NO=missing')
+    . (($meta['typed-review']['legacy-blocked'] ?? null) === 'NO' ? 'NO=string' : 'NO=missing')
     . ' / '
-    . (($meta['boolean-synonym-flow-review']['enabled'] ?? null) === true ? 'ON=true' : 'ON=missing')
+    . (($meta['boolean-synonym-flow-review']['enabled'] ?? null) === 'ON' ? 'ON=string' : 'ON=missing')
     . ' / '
-    . (($meta['boolean-synonym-flow-review']['disabled'] ?? null) === false ? 'OFF=false' : 'OFF=missing')
+    . (($meta['boolean-synonym-flow-review']['disabled'] ?? null) === 'OFF' ? 'OFF=string' : 'OFF=missing')
     . "\n";
 echo 'Tag directive review: ' . ($meta['tag-directive-review']['owner'] ?? '') . ' / priority ' . ($meta['tag-directive-review']['priority'] ?? '') . "\n";
 echo 'Non-specific tag review: ' . ($meta['non-specific-review']['owner'] ?? '') . ' / ' . implode(', ', $meta['non-specific-review']['labels'] ?? []) . "\n";

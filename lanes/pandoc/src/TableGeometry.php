@@ -1040,6 +1040,94 @@ final class TableGeometry
     }
 
     /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function markdownGridTableWriterDiagnostics(array $coverage, string $writer, ?AstNode $table): array
+    {
+        $spannedCells = [];
+        $requiredSlots = [];
+        $spanTypes = [];
+        $blockCells = [];
+        $blockTypes = [];
+
+        foreach ($coverage as $record) {
+            $rawColspan = max(1, (int) ($record['rawColspan'] ?? 1));
+            $rawRowspan = max(1, (int) ($record['rawRowspan'] ?? 1));
+            $hasSpan = $rawColspan > 1 || $rawRowspan > 1;
+            if ($rawColspan > 1) {
+                $spanTypes[] = 'colspan';
+                array_push($requiredSlots, ...self::sectionedFlattenedSlotRecords($record, 'colspan'));
+            }
+            if ($rawRowspan > 1) {
+                $spanTypes[] = 'rowspan';
+                array_push($requiredSlots, ...self::sectionedFlattenedSlotRecords($record, 'rowspan'));
+            }
+            if ($hasSpan) {
+                $spannedCells[] = [
+                    'section' => (string) ($record['section'] ?? ''),
+                    'row' => (int) ($record['row'] ?? 0),
+                    'column' => (int) ($record['column'] ?? 0),
+                    'columns' => self::intList($record['columns'] ?? []),
+                    'rawColspan' => $rawColspan,
+                    'rawRowspan' => $rawRowspan,
+                ];
+            }
+
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode || self::nestedTableSummaries($node) !== []) {
+                continue;
+            }
+
+            $content = self::cellContentSummary($node);
+            if ($content === []) {
+                continue;
+            }
+
+            $cellBlockTypes = self::stringList($content['blockTypes'] ?? []);
+            foreach ($cellBlockTypes as $blockType) {
+                $blockTypes[] = $blockType;
+            }
+            $blockCells[] = [
+                'section' => (string) ($record['section'] ?? ''),
+                'row' => (int) ($record['row'] ?? 0),
+                'column' => (int) ($record['column'] ?? 0),
+                'columns' => self::intList($record['columns'] ?? []),
+                'blockCount' => (int) ($content['blockCount'] ?? 0),
+                'blockTypes' => $cellBlockTypes,
+            ];
+        }
+
+        if ($spannedCells === [] && $blockCells === []) {
+            return [];
+        }
+
+        $reason = $spannedCells !== [] ? 'spans' : 'block-content';
+        if ($spannedCells !== [] && $blockCells !== []) {
+            $reason = 'spans-and-block-content';
+        }
+
+        return [[
+            'code' => 'markdown-grid-table-required',
+            'writer' => $writer,
+            'reason' => $reason,
+            'requiredFeature' => 'grid_tables',
+            'source' => 'pandoc-markdown-grid-tables',
+            'caption' => $table instanceof AstNode ? (string) $table->attr('caption', '') : '',
+            'hasCaption' => $table instanceof AstNode && trim((string) $table->attr('caption', '')) !== '',
+            'columnCount' => $table instanceof AstNode ? self::columnCount($table) : 0,
+            'spanTypes' => array_values(array_unique($spanTypes)),
+            'spannedCellCount' => count($spannedCells),
+            'spannedCells' => $spannedCells,
+            'requiredSlotCount' => count($requiredSlots),
+            'requiredSlots' => $requiredSlots,
+            'blockContentCellCount' => count($blockCells),
+            'blockCells' => $blockCells,
+            'blockTypes' => array_values(array_unique($blockTypes)),
+        ]];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private static function spanNormalizationDiagnostics(AstNode $table): array
@@ -5562,6 +5650,10 @@ final class TableGeometry
                 return $diagnostics;
             }
 
+            if ($writer === 'markdown-grid-table') {
+                return self::markdownGridTableWriterDiagnostics($coverage, $writer, $table);
+            }
+
             if ($writer !== 'rst') {
                 return [];
             }
@@ -7642,6 +7734,17 @@ final class TableGeometry
     private static function normalizeWriterName(string $writer): string
     {
         $writer = strtolower(trim(str_replace('_', '-', $writer)));
+        if (in_array($writer, [
+            'markdown-grid-table',
+            'markdown-grid-tables',
+            'markdown+grid-tables',
+            'pandoc-markdown-grid-table',
+            'pandoc-markdown-grid-tables',
+            'pandoc-markdown+grid-tables',
+        ], true)) {
+            return 'markdown-grid-table';
+        }
+
         if (in_array($writer, ['rst', 'rst-grid-table', 'restructuredtext', 'restructured-text', 'restructured-text-grid-table'], true)) {
             return 'rst';
         }
@@ -7827,6 +7930,26 @@ final class TableGeometry
         }
 
         return $flattened;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return list<array{section:string,row:int,column:int,covering:string}>
+     */
+    private static function sectionedFlattenedSlotRecords(array $record, string $spanAxis): array
+    {
+        $section = (string) ($record['section'] ?? '');
+        $records = [];
+        foreach (self::flattenedSlotRecords($record, $spanAxis) as $slot) {
+            $records[] = [
+                'section' => $section,
+                'row' => (int) $slot['row'],
+                'column' => (int) $slot['column'],
+                'covering' => (string) $slot['covering'],
+            ];
+        }
+
+        return $records;
     }
 
     /**

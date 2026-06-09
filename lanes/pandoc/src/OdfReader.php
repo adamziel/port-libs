@@ -1226,6 +1226,7 @@ final class OdfReader
             $attrs['level'] = max(1, min(6, $headingLevel));
             $headingAnchor = $this->extractHeadingBookmarkAnchor($inlines);
             $inlines = $headingAnchor['inlines'];
+            $inlines = $this->paragraphTextStyledInlineNodes($inlines, $styleName, $style);
             $text = $this->plainInlineText($inlines);
             $attributeAnchor = $headingAnchor['anchor'] === null ? $this->headingAttributeAnchor($paragraph) : null;
             $attrs['text'] = $text;
@@ -1242,6 +1243,10 @@ final class OdfReader
 
             return new AstNode('heading', $attrs, $inlines);
         }
+
+        $inlines = $this->paragraphTextStyledInlineNodes($inlines, $styleName, $style);
+        $text = $this->plainInlineText($inlines);
+        $attrs['text'] = $text;
 
         $node = new AstNode('paragraph', $attrs, $inlines);
         if ($styleName === 'Table') {
@@ -6034,7 +6039,30 @@ final class OdfReader
             ])];
         }
 
-        if ($styleName !== '') {
+        return $this->styledInlineNodes($children, $styleName, $style, true);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param array<string, mixed> $style
+     * @return list<AstNode>
+     */
+    private function paragraphTextStyledInlineNodes(array $children, string $styleName, array $style): array
+    {
+        return $this->styledInlineNodes($children, $styleName, $style, false);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param array<string, mixed> $style
+     * @return list<AstNode>
+     */
+    private function styledInlineNodes(array $children, string $styleName, array $style, bool $wrapStyleNameWithoutTextProperties): array
+    {
+        $properties = $style['textProperties'] ?? [];
+        $hasTextProperties = is_array($properties) && $this->hasTextPropertyModifiers($properties);
+
+        if ($styleName !== '' && ($wrapStyleNameWithoutTextProperties || $hasTextProperties)) {
             $children = [new AstNode('span', [
                 'sourceFormat' => 'odt',
                 'styleName' => $styleName,
@@ -6042,11 +6070,34 @@ final class OdfReader
             ], $children)];
         }
 
-        $properties = $style['textProperties'] ?? [];
         if (!is_array($properties)) {
             return $children;
         }
 
+        return $this->applyTextPropertyModifiers($children, $properties);
+    }
+
+    /**
+     * @param array<string, mixed> $properties
+     */
+    private function hasTextPropertyModifiers(array $properties): bool
+    {
+        foreach (['bold', 'italic', 'underline', 'strikeout', 'smallCaps', 'superscript', 'subscript'] as $property) {
+            if (($properties[$property] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     * @param array<string, mixed> $properties
+     * @return list<AstNode>
+     */
+    private function applyTextPropertyModifiers(array $children, array $properties): array
+    {
         if (($properties['bold'] ?? false) === true) {
             $children = [new AstNode('strong', [], $children)];
         }

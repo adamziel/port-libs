@@ -5537,6 +5537,11 @@ final class UnicodeText
             $offset++;
         }
 
+        if ($state !== 'ascii') {
+            $out .= self::REPLACEMENT;
+            $repairs++;
+        }
+
         return [$out, $repairs];
     }
 

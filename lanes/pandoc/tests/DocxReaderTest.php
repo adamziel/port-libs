@@ -3121,6 +3121,11 @@ $sectionPropertiesDocumentXml = <<<'XML'
           <w:pgSz w:w="12240" w:h="15840" w:orient="portrait"/>
           <w:pgMar w:top="1440" w:right="1080" w:bottom="1440" w:left="1080" w:header="720" w:footer="720" w:gutter="0"/>
           <w:cols w:num="1" w:space="720"/>
+          <w:type w:val="nextPage"/>
+          <w:titlePg/>
+          <w:pgNumType w:start="3" w:fmt="lowerRoman" w:chapStyle="2" w:chapSep="hyphen"/>
+          <w:lnNumType w:start="5" w:countBy="2" w:restart="newPage" w:distance="360"/>
+          <w:docGrid w:type="lines" w:linePitch="360" w:charSpace="80"/>
         </w:sectPr>
       </w:pPr>
       <w:r><w:t>Portrait packet section</w:t></w:r>
@@ -3131,6 +3136,11 @@ $sectionPropertiesDocumentXml = <<<'XML'
       <w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/>
       <w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360"/>
       <w:cols w:num="2" w:space="360" w:equalWidth="0"/>
+      <w:type w:val="continuous"/>
+      <w:titlePg w:val="0"/>
+      <w:pgNumType w:start="12" w:fmt="decimal"/>
+      <w:lnNumType w:start="1" w:countBy="1" w:restart="continuous"/>
+      <w:docGrid w:type="snapToChars" w:linePitch="312"/>
     </w:sectPr>
   </w:body>
 </w:document>
@@ -8949,6 +8959,19 @@ return [
         $t->same(1, $portrait['columns']['count']);
         $t->same(true, $portrait['columns']['equalWidth']);
         $t->same(720, $portrait['columns']['spaceTwips']);
+        $t->same('nextPage', $portrait['sectionType']);
+        $t->same(true, $portrait['titlePage']);
+        $t->same(3, $portrait['pageNumbering']['start']);
+        $t->same('lowerRoman', $portrait['pageNumbering']['format']);
+        $t->same(2, $portrait['pageNumbering']['chapterStyle']);
+        $t->same('hyphen', $portrait['pageNumbering']['chapterSeparator']);
+        $t->same(5, $portrait['lineNumbering']['start']);
+        $t->same(2, $portrait['lineNumbering']['countBy']);
+        $t->same('newPage', $portrait['lineNumbering']['restart']);
+        $t->same(360, $portrait['lineNumbering']['distanceTwips']);
+        $t->same('lines', $portrait['documentGrid']['type']);
+        $t->same(360, $portrait['documentGrid']['linePitchTwips']);
+        $t->same(80, $portrait['documentGrid']['charSpaceTwips']);
         $t->same('rIdHeaderDefault', $portrait['headers'][0]['id']);
         $t->same('default', $portrait['headers'][0]['type']);
         $t->same('/word/header1.xml', $portrait['headers'][0]['target']);
@@ -8978,6 +9001,18 @@ return [
         $t->same(2, $landscape['columns']['count']);
         $t->same(false, $landscape['columns']['equalWidth']);
         $t->same(360, $landscape['columns']['spaceTwips']);
+        $t->same('continuous', $landscape['sectionType']);
+        $t->same(false, $landscape['titlePage']);
+        $t->same(12, $landscape['pageNumbering']['start']);
+        $t->same('decimal', $landscape['pageNumbering']['format']);
+        $t->true(!isset($landscape['pageNumbering']['chapterStyle']), 'DOCX page numbering should not invent chapter style metadata');
+        $t->same(1, $landscape['lineNumbering']['start']);
+        $t->same(1, $landscape['lineNumbering']['countBy']);
+        $t->same('continuous', $landscape['lineNumbering']['restart']);
+        $t->true(!isset($landscape['lineNumbering']['distanceTwips']), 'DOCX line numbering should not invent distance metadata');
+        $t->same('snapToChars', $landscape['documentGrid']['type']);
+        $t->same(312, $landscape['documentGrid']['linePitchTwips']);
+        $t->true(!isset($landscape['documentGrid']['charSpaceTwips']), 'DOCX document grid should not invent char-space metadata');
         $t->same('even', $landscape['headers'][0]['type']);
         $t->same('/word/header-even.xml', $landscape['headers'][0]['target']);
         $t->same(true, $landscape['headers'][0]['exists']);
@@ -8985,6 +9020,24 @@ return [
         $reportSections = $result['importReport']['sections'];
         $t->same(2, $reportSections['count']);
         $t->same($sections, $reportSections['items']);
+    },
+    'preserves DOCX section pagination line numbering and document grid metadata' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
+        $result = (new DocxReader())->readPackage($buildSectionPropertiesPackage());
+        $sections = $result['importReport']['sections']['items'];
+
+        $portrait = $sections[0];
+        $t->same('nextPage', $portrait['sectionType']);
+        $t->same(true, $portrait['titlePage']);
+        $t->same(['format' => 'lowerRoman', 'chapterSeparator' => 'hyphen', 'start' => 3, 'chapterStyle' => 2], $portrait['pageNumbering']);
+        $t->same(['restart' => 'newPage', 'start' => 5, 'countBy' => 2, 'distanceTwips' => 360], $portrait['lineNumbering']);
+        $t->same(['type' => 'lines', 'linePitchTwips' => 360, 'charSpaceTwips' => 80], $portrait['documentGrid']);
+
+        $landscape = $sections[1];
+        $t->same('continuous', $landscape['sectionType']);
+        $t->same(false, $landscape['titlePage']);
+        $t->same(['format' => 'decimal', 'start' => 12], $landscape['pageNumbering']);
+        $t->same(['restart' => 'continuous', 'start' => 1, 'countBy' => 1], $landscape['lineNumbering']);
+        $t->same(['type' => 'snapToChars', 'linePitchTwips' => 312], $landscape['documentGrid']);
     },
     'imports DOCX header and footer body parts from section references' => static function (TestRunner $t) use ($buildSectionPropertiesPackage): void {
         $result = (new DocxReader())->readPackage($buildSectionPropertiesPackage());

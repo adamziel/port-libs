@@ -177,6 +177,9 @@ $iso2022JpBytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n"
     . "\x1B(J \x5C\x7E\x1B(B ASCII";
 $iso2022JpSource = (new MarkdownReader())->readBytes($iso2022JpBytes, 'csiso2022jp');
 $iso2022JpText = (string) $iso2022JpSource->children[1]->attr('text');
+$iso2022JpTruncatedBytes = "# \x1B\$B\x37\x57\x32\x68\x1B(B\n\n\x1B\$B\x4B\x5C\x4A\x38";
+$iso2022JpTruncatedSource = (new MarkdownReader())->readBytes($iso2022JpTruncatedBytes, 'iso-2022-jp');
+$iso2022JpTruncatedText = (string) $iso2022JpTruncatedSource->children[1]->attr('text');
 $big5Bytes = (string) hex2bin('2320a4a4a4e50a0aa4a4a4e5204269673520b4fab8d5a141adbbb4e4a143');
 $big5Source = (new MarkdownReader())->readBytes($big5Bytes, 'big5-hkscs');
 $big5Text = (string) $big5Source->children[1]->attr('text');
@@ -765,6 +768,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022JpSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($iso2022JpText) . '/' . UnicodeText::displayWidth($iso2022JpText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'ISO-2022-JP truncated'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $iso2022JpTruncatedText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($iso2022JpTruncatedSource->attr('sourceEncoding')['encoding'] ?? '') . ':repairs=' . ($iso2022JpTruncatedSource->attr('sourceEncoding')['repairs'] ?? 0) . ':width=' . UnicodeText::displayWidth($iso2022JpTruncatedText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Big5 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $big5Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($big5Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($big5Text)])]),
@@ -1243,6 +1251,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>ISO-2022-JP source</td><td>本文と半角ｶﾀｶﾅ、丸①波～崎。 ¥‾ ASCII</td><td>iso-2022-jp:36/38</td>")) {
         throw new RuntimeException('charset handoff self-test missing ISO-2022-JP decode audit row');
+    }
+    if (($iso2022JpTruncatedSource->attr('sourceEncoding')['repairs'] ?? 0) !== 1) {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP final-state repair metadata');
+    }
+    if (!str_contains($blocks, "<td>ISO-2022-JP truncated</td><td>本文\u{FFFD}</td><td>iso-2022-jp:repairs=1:width=5</td>")) {
+        throw new RuntimeException('charset handoff self-test missing ISO-2022-JP final-state repair audit row');
     }
     if (($big5Source->attr('sourceEncoding')['encoding'] ?? '') !== 'big5') {
         throw new RuntimeException('charset handoff self-test missing Big5 source encoding');
