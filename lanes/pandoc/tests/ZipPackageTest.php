@@ -3504,6 +3504,57 @@ return [
         $t->same('<w:comments><w:comment>descriptor remains valid</w:comment></w:comments>', $package->read('/word/comments.xml'));
     },
 
+    'preflights zip package prefixes before raw strict import' => static function (TestRunner $t) use ($buildPrefixedPackage): void {
+        $zip = $buildPrefixedPackage();
+        $prefix = "MZhidden-review-stub\n";
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($zip);
+        $summary = ZipPackage::packagePrefixPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(true, $summary['hasPackagePrefix']);
+        $t->same(strlen($prefix), $summary['prefixByteCount']);
+        $t->same(16, $summary['prefixPreviewByteCount']);
+        $t->same(bin2hex(substr($prefix, 0, 16)), $summary['prefixPreviewHex']);
+        $t->same('mz-executable-stub', $summary['prefixSignature']);
+        $t->same(true, $summary['hasExecutableStubPrefix']);
+        $t->same(strlen($prefix), $summary['firstLocalHeaderOffset']);
+        $t->same($archive['centralDirectoryOffset'], $summary['centralDirectoryOffset']);
+        $t->same($archive['centralDirectoryOffset'] - strlen($prefix), $summary['centralDirectoryOffsetAfterPrefix']);
+        $t->same($archive['eocdOffset'] - strlen($prefix), $summary['eocdOffsetAfterPrefix']);
+        $t->same(['local-header-prefix-bytes'], $summary['localHeaderSpanIssues']);
+        $t->same([], $summary['localHeaderSpanIssuesWithoutPrefix']);
+        $t->same(true, $summary['isPackageLayoutOtherwiseContiguous']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['package-prefix-bytes', 'package-prefix-mz-executable-stub'], $summary['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(1, $rawStrict['entryCount']);
+        $t->same($summary, $rawStrict['packagePrefix']);
+        $t->same(1, $rawStrict['localHeaderSpans']['entryCount']);
+        $t->same(0, $rawStrict['localHeaderSpans']['issueEntryCount']);
+        $t->same(['local-header-prefix-bytes'], $rawStrict['localHeaderSpans']['issues']);
+        $t->contains('local-header-span-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-prefix-bytes', implode(',', $rawStrict['diagnostics']));
+        $t->contains('package-prefix-bytes', implode(',', $rawStrict['diagnostics']));
+        $t->contains('package-prefix-mz-executable-stub', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+
+        $safeSummary = ZipPackage::packagePrefixPreflight(ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>ordinary prefix-free package</w:p></w:document>',
+            ],
+        ])->bytes());
+        $t->same(false, $safeSummary['hasPackagePrefix']);
+        $t->same(0, $safeSummary['prefixByteCount']);
+        $t->same('', $safeSummary['prefixPreviewHex']);
+        $t->same(null, $safeSummary['prefixSignature']);
+        $t->same(true, $safeSummary['isSupportedByBoundedReader']);
+        $t->same([], $safeSummary['issues']);
+    },
+
     'rejects duplicate zip local header offsets before package import preflight' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildDuplicateLocalOffsetPackage()));
     },

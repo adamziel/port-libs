@@ -1417,6 +1417,55 @@ $buildDuplicateLocalOffsetBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 2, 2, strlen($central), strlen($body), 0);
 };
+$buildPrefixedZipBackedPackage = static function () use ($crc32): string {
+    $prefix = "MZhidden-review-stub\n";
+    $name = 'word/document.xml';
+    $data = '<w:document><w:p>Prefixed package should stay blocked</w:p></w:document>';
+    $crc = $crc32($data);
+    $localHeaderOffset = strlen($prefix);
+
+    $body = $prefix . pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0
+    );
+    $body .= $name . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($name),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        $localHeaderOffset
+    );
+    $central .= $name;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildCentralDirectorySignatureBackedPackage = static function () use ($crc32): string {
     $name = 'word/document.xml';
     $data = '<w:document><w:body><w:p>Signed central directory metadata is inspectable</w:p></w:body></w:document>';
@@ -2800,6 +2849,15 @@ $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPa
 $rawStrictTrailingEocdBytes = $strictImportPackage->bytes() . "detached reviewer bytes\n";
 $rawStrictTrailingEocdSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($rawStrictTrailingEocdBytes);
 $rawStrictTrailingEocdPreflight = ZipPackage::rawStrictImportPreflight($rawStrictTrailingEocdBytes, 4096, 100.0, 4096);
+$prefixedZipBytes = $buildPrefixedZipBackedPackage();
+$prefixedZipPrefixPreflight = ZipPackage::packagePrefixPreflight($prefixedZipBytes);
+$rawStrictPrefixedZipPreflight = ZipPackage::rawStrictImportPreflight($prefixedZipBytes, 4096, 100.0, 4096);
+$prefixedZipRejected = false;
+try {
+    ZipPackage::fromString($prefixedZipBytes);
+} catch (RuntimeException $exception) {
+    $prefixedZipRejected = str_contains($exception->getMessage(), 'unexpected bytes before the first local header');
+}
 $emptyStrictImportPackage = ZipPackage::fromParts([]);
 $emptyStrictImportPreflight = $emptyStrictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $emptyRawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($emptyStrictImportPackage->bytes(), 4096, 100.0, 4096);
@@ -4616,6 +4674,22 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        !$prefixedZipRejected
+        || ($prefixedZipPrefixPreflight['hasPackagePrefix'] ?? null) !== true
+        || ($prefixedZipPrefixPreflight['prefixByteCount'] ?? null) !== strlen("MZhidden-review-stub\n")
+        || ($prefixedZipPrefixPreflight['prefixSignature'] ?? null) !== 'mz-executable-stub'
+        || ($prefixedZipPrefixPreflight['isPackageLayoutOtherwiseContiguous'] ?? null) !== true
+        || ($prefixedZipPrefixPreflight['isSupportedByBoundedReader'] ?? null) !== false
+        || ($rawStrictPrefixedZipPreflight['isValid'] ?? null) !== false
+        || ($rawStrictPrefixedZipPreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictPrefixedZipPreflight['packagePrefix'] ?? null) !== $prefixedZipPrefixPreflight
+        || !in_array('package-prefix-bytes', $rawStrictPrefixedZipPreflight['diagnostics'] ?? [], true)
+        || !in_array('package-prefix-mz-executable-stub', $rawStrictPrefixedZipPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to report prefixed package bytes');
+    }
+
+    if (
         ($emptyStrictImportPreflight['isValid'] ?? null) !== false
         || ($emptyStrictImportPreflight['diagnostics'] ?? null) !== ['empty-package']
         || ($emptyStrictImportPreflight['contentPresence']['hasEntries'] ?? null) !== false
@@ -6257,6 +6331,10 @@ echo 'zipSplitArchiveEntryCount=' . $splitZipDiskPreflight['splitArchiveEntryCou
 echo 'zipSplitArchiveIssues=' . implode(',', $splitZipDiskPreflight['issues']) . "\n";
 echo 'zipRawStrictSplitPolicy=' . ($rawStrictSplitZipPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictSplitDiagnostics=' . implode(',', $rawStrictSplitZipPreflight['diagnostics']) . "\n";
+echo 'zipPackagePrefixPolicy=' . ($prefixedZipRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipPackagePrefixBytes=' . $prefixedZipPrefixPreflight['prefixByteCount'] . "\n";
+echo 'zipPackagePrefixSignature=' . ($prefixedZipPrefixPreflight['prefixSignature'] ?? 'none') . "\n";
+echo 'zipRawStrictPackagePrefixDiagnostics=' . implode(',', $rawStrictPrefixedZipPreflight['diagnostics']) . "\n";
 echo 'zipArchiveExtraDataPolicy=' . ($archiveExtraDataRecordRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipArchiveExtraDataRecordCount=' . $archiveExtraDataRecordPreflight['archiveExtraDataRecordCount'] . "\n";
 echo 'zipArchiveExtraDataLocation=' . ($archiveExtraDataRecordPreflight['archiveExtraDataRecords'][0]['location'] ?? 'none') . "\n";

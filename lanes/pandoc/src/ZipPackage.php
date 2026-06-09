@@ -1392,6 +1392,80 @@ final class ZipPackage
     }
 
     /**
+     * @return array{
+     *     entryCount:int,
+     *     hasPackagePrefix:bool,
+     *     prefixByteCount:int,
+     *     prefixPreviewHex:string,
+     *     prefixPreviewByteCount:int,
+     *     prefixSignature:?string,
+     *     hasExecutableStubPrefix:bool,
+     *     firstLocalHeaderOffset:?int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryOffsetAfterPrefix:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     eocdOffsetAfterPrefix:int,
+     *     localHeaderSpanIssues:list<string>,
+     *     localHeaderSpanIssuesWithoutPrefix:list<string>,
+     *     isPackageLayoutOtherwiseContiguous:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public static function packagePrefixPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before package prefixes can be scanned');
+        }
+
+        $localHeaderSpans = self::localHeaderSpanPreflight($bytes);
+        $prefixByteCount = $localHeaderSpans['unexpectedPrefixBytes'];
+        $prefixPreviewByteCount = min($prefixByteCount, 16);
+        $prefixSignature = null;
+        if ($prefixByteCount >= 2 && substr($bytes, 0, 2) === 'MZ') {
+            $prefixSignature = 'mz-executable-stub';
+        }
+
+        $issues = [];
+        if ($prefixByteCount > 0) {
+            $issues[] = 'package-prefix-bytes';
+        }
+        if ($prefixSignature === 'mz-executable-stub') {
+            $issues[] = 'package-prefix-mz-executable-stub';
+        }
+
+        $localHeaderSpanIssuesWithoutPrefix = array_values(array_filter(
+            $localHeaderSpans['issues'],
+            static fn (string $issue): bool => $issue !== 'local-header-prefix-bytes'
+        ));
+
+        return [
+            'entryCount' => $localHeaderSpans['entryCount'],
+            'hasPackagePrefix' => $prefixByteCount > 0,
+            'prefixByteCount' => $prefixByteCount,
+            'prefixPreviewHex' => bin2hex(substr($bytes, 0, $prefixPreviewByteCount)),
+            'prefixPreviewByteCount' => $prefixPreviewByteCount,
+            'prefixSignature' => $prefixSignature,
+            'hasExecutableStubPrefix' => $prefixSignature === 'mz-executable-stub',
+            'firstLocalHeaderOffset' => $localHeaderSpans['entries'][0]['localHeaderOffset'] ?? null,
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectoryOffsetAfterPrefix' => max(0, $archive['centralDirectoryOffset'] - $prefixByteCount),
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'eocdOffset' => $archive['eocdOffset'],
+            'eocdOffsetAfterPrefix' => max(0, $archive['eocdOffset'] - $prefixByteCount),
+            'localHeaderSpanIssues' => $localHeaderSpans['issues'],
+            'localHeaderSpanIssuesWithoutPrefix' => $localHeaderSpanIssuesWithoutPrefix,
+            'isPackageLayoutOtherwiseContiguous' => $localHeaderSpanIssuesWithoutPrefix === [],
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $archive
      * @return array{issue:string, location:string, error:string}|null
      */
@@ -5430,6 +5504,7 @@ final class ZipPackage
      *     localHeaderNames:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
      *     localHeaderSpans:?array<string, mixed>,
+     *     packagePrefix:?array<string, mixed>,
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
@@ -5525,6 +5600,7 @@ final class ZipPackage
                 'localHeaderNames' => null,
                 'localHeaderMetadata' => null,
                 'localHeaderSpans' => null,
+                'packagePrefix' => null,
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
                 'compressionMethods' => null,
@@ -5550,6 +5626,7 @@ final class ZipPackage
         $localHeaderNames = null;
         $localHeaderMetadata = null;
         $localHeaderSpans = null;
+        $packagePrefix = null;
         $archiveExtraDataRecords = null;
         $encryption = null;
         $compressionMethods = null;
@@ -5604,6 +5681,14 @@ final class ZipPackage
             if ($localHeaderSpans !== null && !$localHeaderSpans['isSupportedByBoundedReader']) {
                 $addDiagnostic('local-header-span-issues');
                 $addDiagnostics($localHeaderSpans['issues']);
+            }
+
+            $packagePrefix = $runPreflight(
+                'package-prefix',
+                static fn (): array => self::packagePrefixPreflight($bytes)
+            );
+            if ($packagePrefix !== null && !$packagePrefix['isSupportedByBoundedReader']) {
+                $addDiagnostics($packagePrefix['issues']);
             }
 
             $archiveExtraDataRecords = $runPreflight(
@@ -5691,6 +5776,7 @@ final class ZipPackage
             ?? $localHeaderNames['entryCount']
             ?? $localHeaderMetadata['entryCount']
             ?? $localHeaderSpans['entryCount']
+            ?? $packagePrefix['entryCount']
             ?? $splitArchive['entryCount']
             ?? $encryption['entryCount']
             ?? $compressionMethods['entryCount']
@@ -5722,6 +5808,7 @@ final class ZipPackage
             'localHeaderNames' => $localHeaderNames,
             'localHeaderMetadata' => $localHeaderMetadata,
             'localHeaderSpans' => $localHeaderSpans,
+            'packagePrefix' => $packagePrefix,
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
             'compressionMethods' => $compressionMethods,
