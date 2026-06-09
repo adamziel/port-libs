@@ -392,4 +392,47 @@ return [
             'media-resource-mapped:' . $preloadedSource,
         ], $extracted['diagnostics']);
     },
+
+    'disambiguates decoded media extraction path collisions' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $encodedSource = 'assets/%6Co%67o.png';
+        $encodedBytes = "encoded logo bytes\n";
+        $literalBytes = "literal logo bytes\n";
+        $bag->insertMedia($encodedSource, 'image/png', $encodedBytes);
+        $bag->insertMedia('assets/logo.png', 'image/png', $literalBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/logo.png',
+                    'title' => 'Literal logo',
+                ], [new AstNode('text', ['text' => 'Literal logo'])]),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $encodedSource,
+                    'title' => 'Encoded logo',
+                ], [new AstNode('text', ['text' => 'Encoded logo'])]),
+            ]),
+        ]);
+
+        $expectedEncodedPath = 'assets/logo-' . substr(sha1($encodedSource . "\0" . sha1($encodedBytes)), 0, 12) . '.png';
+        $extracted = $bag->extractMedia($document, 'media');
+        $mappedDocument = $extracted['document'];
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+
+        $t->same('assets/logo.png', $entriesBySource['assets/logo.png']['mediaPath']);
+        $t->same($expectedEncodedPath, $entriesBySource[$encodedSource]['mediaPath']);
+        $t->same('media/assets/logo.png', $mappedDocument->children[0]->children[0]->attr('url'));
+        $t->same('media/' . $expectedEncodedPath, $mappedDocument->children[1]->children[0]->attr('url'));
+        $t->same([
+            'media-resource-path-collision:' . $encodedSource,
+            'media-resource-mapped:assets/logo.png',
+            'media-resource-mapped:' . $encodedSource,
+        ], $extracted['diagnostics']);
+        $t->same(2, count(array_unique(array_column($extracted['entries'], 'path'))));
+    },
 ];

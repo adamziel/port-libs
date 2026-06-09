@@ -187,21 +187,26 @@ final class MediaBag
         $destination = self::normalizeExtractionDestination($destination);
         $entries = [];
         $diagnostics = [];
-        foreach ($this->itemsByCanonicalSource as $item) {
+        $plannedPaths = $this->plannedExtractionPaths();
+        foreach ($this->itemsForExtraction() as $item) {
+            $mediaPath = $plannedPaths[$item['canonicalSource']] ?? $item['path'];
             $entries[] = [
-                'path' => $destination . '/' . $item['path'],
-                'mediaPath' => $item['path'],
+                'path' => $destination . '/' . $mediaPath,
+                'mediaPath' => $mediaPath,
                 'mimeType' => $item['mimeType'],
                 'byteLength' => $item['byteLength'],
                 'sha1' => $item['sha1'],
                 'source' => $item['source'],
                 'contents' => $item['contents'],
             ];
+            if ($mediaPath !== $item['path']) {
+                $diagnostics[] = 'media-resource-path-collision:' . self::diagnosticSource($item['source']);
+            }
         }
 
         usort($entries, static fn (array $a, array $b): int => $a['path'] <=> $b['path']);
 
-        $document = $this->mapImages($document, function (AstNode $image) use ($destination, &$diagnostics): AstNode {
+        $document = $this->mapImages($document, function (AstNode $image) use ($destination, $plannedPaths, &$diagnostics): AstNode {
             $source = (string) $image->attr('url', '');
             $item = $this->lookupImageSource($source);
             if ($item === null) {
@@ -209,7 +214,7 @@ final class MediaBag
             }
 
             $attrs = $image->attrs;
-            $attrs['url'] = $destination . '/' . $item['path'];
+            $attrs['url'] = $destination . '/' . ($plannedPaths[$item['canonicalSource']] ?? $item['path']);
             $diagnostics[] = 'media-resource-mapped:' . self::diagnosticSource($source);
 
             return new AstNode($image->type, $attrs, $image->children);
@@ -220,6 +225,50 @@ final class MediaBag
             'entries' => $entries,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return list<array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int}>
+     */
+    private function itemsForExtraction(): array
+    {
+        $items = array_values($this->itemsByCanonicalSource);
+        usort($items, static function (array $a, array $b): int {
+            $path = $a['path'] <=> $b['path'];
+            if ($path !== 0) {
+                return $path;
+            }
+
+            $aLiteral = $a['canonicalSource'] === $a['path'];
+            $bLiteral = $b['canonicalSource'] === $b['path'];
+            if ($aLiteral !== $bLiteral) {
+                return $aLiteral ? -1 : 1;
+            }
+
+            return $a['canonicalSource'] <=> $b['canonicalSource'];
+        });
+
+        return $items;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function plannedExtractionPaths(): array
+    {
+        $paths = [];
+        $used = [];
+        foreach ($this->itemsForExtraction() as $item) {
+            $path = $item['path'];
+            if (isset($used[$path]) && $used[$path] !== $item['sha1']) {
+                $path = self::disambiguateMediaPath($path, $item['sha1'], $item['canonicalSource'], $used);
+            }
+
+            $paths[$item['canonicalSource']] = $path;
+            $used[$path] = $item['sha1'];
+        }
+
+        return $paths;
     }
 
     private static function canonicalizeSource(string $source): string
@@ -354,6 +403,24 @@ final class MediaBag
         $extension = self::pathExtension($path);
 
         return str_contains($extension, '%') ? '' : $extension;
+    }
+
+    /**
+     * @param array<string, string> $usedPaths
+     */
+    private static function disambiguateMediaPath(string $path, string $sha1, string $canonicalSource, array $usedPaths): string
+    {
+        $extension = self::pathExtension($path);
+        $stem = $extension === '' ? $path : substr($path, 0, -strlen($extension));
+        $seed = $canonicalSource . "\0" . $sha1;
+
+        do {
+            $suffix = substr(sha1($seed), 0, 12);
+            $candidate = $stem . '-' . $suffix . $extension;
+            $seed = $candidate . "\0" . $seed;
+        } while (isset($usedPaths[$candidate]) && $usedPaths[$candidate] !== $sha1);
+
+        return $candidate;
     }
 
     private static function pathExtension(string $path): string
