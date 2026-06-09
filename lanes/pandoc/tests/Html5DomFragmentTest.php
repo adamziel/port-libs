@@ -4208,6 +4208,75 @@ return [
         $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected non-fetch picture source candidate to be stripped');
         $t->true(!str_contains($html, '(max-width: 47em)'), 'Expected empty unsafe source branch to be pruned');
     },
+    'converts portal sources and drops orphan source sets before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<article>'
+            . '<source srcset="./orphan.avif 1x, javascript:alert(1) 2x" type="image/avif">'
+            . '<video controls><source src="./movie.mp4" type="video/mp4"><source src="java&#10;script:alert(1)" type="video/webm"></video>'
+            . '<portal src="./portal/review.html" referrerpolicy="strict-origin" title="Portal preview"><p>Portal fallback</p></portal>'
+            . '<portal src="java&#10;script:alert(1)" title="Bad portal"><p>Bad fallback</p></portal>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/portal-source-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article>'
+            . '<video controls><source src="https://source.example.test/import/posts/movie.mp4" type="video/mp4"><source type="video/webm"></video>'
+            . '<a href="https://source.example.test/import/posts/portal/review.html" data-pandoc-portal-src="true" title="Portal preview" data-pandoc-portal-referrerpolicy="strict-origin">Portal preview</a>'
+            . '<p>Portal fallback</p><p>Bad fallback</p>'
+            . '</article>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['a', 'article', 'p', 'source', 'video'], $summary['elementNames']);
+        $t->same(['base', 'portal', 'source'], $summary['blockedTags']);
+        $t->same(['referrerpolicy', 'src', 'srcset'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'unsafe-url',
+            'unsafe-url',
+            'blocked-tag',
+            'portal-source-review',
+            'referrer-policy-review',
+            'blocked-tag',
+            'unsafe-url',
+            'blocked-tag',
+        ], $policyDiagnostics);
+        $t->same('article', $nodes[0]['name']);
+        $t->same('video', $nodes[0]['children'][0]['name']);
+        $t->same(2, count($nodes[0]['children'][0]['children']));
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/movie.mp4',
+            'type' => 'video/mp4',
+        ], $nodes[0]['children'][0]['children'][0]['attrs']);
+        $t->same(['type' => 'video/webm'], $nodes[0]['children'][0]['children'][1]['attrs']);
+        $t->same('a', $nodes[0]['children'][1]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/portal/review.html',
+            'data-pandoc-portal-src' => 'true',
+            'title' => 'Portal preview',
+            'data-pandoc-portal-referrerpolicy' => 'strict-origin',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same('Portal fallback', $nodes[0]['children'][2]['children'][0]['text']);
+        $t->same('Bad fallback', $nodes[0]['children'][3]['children'][0]['text']);
+        $t->same('/migration/portal-source-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<portal'), 'Expected live portal elements to be stripped');
+        $t->true(!str_contains($html, 'orphan.avif'), 'Expected orphan source-set candidates to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe portal and source URLs to be stripped');
+        $t->true(!str_contains($html, ' referrerpolicy='), 'Expected live portal referrer policy to move into inert metadata');
+    },
     'filters reserved pandoc data attributes and html namespace declarations before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article data-source="legacy" data-pandoc-link-rel="canonical" data-pandoc-fragment-root="1" aria-label="Review packet" xmlns="http://www.w3.org/1999/xhtml">'

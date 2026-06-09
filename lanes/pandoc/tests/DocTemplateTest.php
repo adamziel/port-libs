@@ -4702,6 +4702,23 @@ TPL;
         ]));
     },
 
+    'returns pandoc doctemplate loop literal before resolving over-limit partials' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+        $partials = [];
+        for ($index = 0; $index < 49; $index++) {
+            $partials['review-depth-' . $index] = '${ review-depth-' . ($index + 1) . '() }';
+        }
+        $partials['review-depth-49'] = '${ missing-over-limit() }';
+
+        $t->same('(loop)', $renderer->render('${ review-depth-0() }', [], $partials));
+
+        $beforeLimit = $partials;
+        unset($beforeLimit['review-depth-48'], $beforeLimit['review-depth-49']);
+        $beforeLimit['review-depth-48'] = '${ missing-before-limit() }';
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('${ review-depth-0() }', [], $beforeLimit));
+    },
+
     'throws on missing pandoc doctemplate partials' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

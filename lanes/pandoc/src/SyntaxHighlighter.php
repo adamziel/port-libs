@@ -251,6 +251,13 @@ final class SyntaxHighlighter
         'powershell' => 'powershell',
         'p6' => 'raku',
         'php' => 'php',
+        'proto' => 'protobuf',
+        'proto2' => 'protobuf',
+        'proto3' => 'protobuf',
+        'protobuf' => 'protobuf',
+        'protobuf3' => 'protobuf',
+        'protocol-buffer' => 'protobuf',
+        'protocol-buffers' => 'protobuf',
         'postgres' => 'sql',
         'postgresql' => 'sql',
         'ps1' => 'powershell',
@@ -803,6 +810,7 @@ final class SyntaxHighlighter
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
             'powershell' => $this->tokenizePowerShell($code),
+            'protobuf' => $this->tokenizeProtobuf($code),
             'python' => $this->tokenizePython($code),
             'r' => $this->tokenizeR($code),
             'raku' => $this->tokenizeRaku($code),
@@ -1451,6 +1459,29 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^[{}()[\\];,.+*\\/%=!<>?:|&@`-]/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeProtobuf(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:default|enum|extend|extensions|import|message|oneof|option|optional|package|packed|repeated|required|reserved|returns|rpc|service|syntax|to)\\b(?!\\.)/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['number', '/^\\b(?:inf|nan)\\b/i'],
+            ['datatype', '/^\\b(?:bool|bytes|double|fixed32|fixed64|float|int32|int64|map|sfixed32|sfixed64|sint32|sint64|string|uint32|uint64)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|0[0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
+            ['attribute', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*=)/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:[{}()[\\]<>;,.=:+*\\/|-])/'],
         ]);
     }
 

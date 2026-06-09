@@ -1854,6 +1854,10 @@ final class MarkdownReader
     private function yamlExplicitKeySourceStartsQuoted(string $source): bool
     {
         $source = ltrim($source);
+        if ($source !== '' && $this->yamlPlainMappingKeyMayStartWithDirective($source)) {
+            [$source] = $this->parseYamlValueDirectives($source, false);
+            $source = ltrim($source);
+        }
 
         return $source !== '' && ($source[0] === '"' || $source[0] === "'");
     }
@@ -4267,7 +4271,7 @@ final class MarkdownReader
             $key = trim($m[1]);
         }
 
-        return $key !== '' && ($key[0] === '"' || $key[0] === "'");
+        return $this->yamlExplicitKeySourceStartsQuoted($key);
     }
 
     private function normalizeYamlFlowKeyOnlyItem(string $item): string

@@ -159,6 +159,19 @@ $contentXml = <<<'XML'
         text:master-page-name="Endnotes"
         text:start-value="1"
         style:num-format="i"/>
+      <text:linenumbering-configuration
+        text:number-lines="true"
+        text:style-name="ReviewLineNumber"
+        text:offset="0.5cm"
+        text:number-position="left"
+        text:increment="5"
+        text:count-empty-lines="true"
+        text:count-in-text-boxes="false"
+        text:restart-on-page="true"
+        style:num-format="1"
+        style:num-letter-sync="true">
+        <text:linenumbering-separator text:increment="3">|</text:linenumbering-separator>
+      </text:linenumbering-configuration>
       <text:tracked-changes>
         <text:changed-region text:id="chg-add-source-note">
           <text:insertion>
@@ -910,6 +923,12 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['noteConfigurationSeparatorCount'] ?? 0) !== 1
         || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnoteSeparator']['relWidth'] ?? '') !== '25%') {
         throw new RuntimeException('Expected ODT footnote separator metadata to be preserved for WordPress review');
+    }
+    if (($result['importReport']['content']['lineNumberingConfigurationCount'] ?? 0) !== 1
+        || ($result['importReport']['content']['lineNumberingSeparatorCount'] ?? 0) !== 1
+        || ($result['contentDeclarations']['lineNumberingConfiguration']['styleName'] ?? '') !== 'ReviewLineNumber'
+        || ($result['contentDeclarations']['lineNumberingConfiguration']['separator']['text'] ?? '') !== '|') {
+        throw new RuntimeException('Expected ODT line-numbering configuration metadata to be preserved for WordPress review');
     }
     if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT tracked changes to be reported');

@@ -835,6 +835,29 @@ return [
         $t->contains('<annotation encoding="application/x-tex">\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j</annotation>', $displayLimitsMathml);
         $t->contains('<mi>review</mi><mo>+</mo><mi>x</mi>', $plainStarredMathml);
     },
+    'converts bounded tex unbraced operatorname tokens to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $charMathml = $converter->texToMathMl('\\operatorname x_i');
+        $commandMathml = $converter->texToMathMl('\\operatorname\\alpha_i + \\operatorname\\leq p', true);
+        $starredMathml = $converter->texToMathMl('\\operatorname*\\max_{i=1}^{n} p_i', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\operatorname\\alpha_i + \\operatorname*\\max_{j}^{n} p_j', true);
+
+        $t->contains('<msub><mi>x</mi><mi>i</mi></msub>', $charMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname x_i</annotation>', $charMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $commandMathml);
+        $t->contains('<msub><mi>α</mi><mi>i</mi></msub><mo>+</mo><mi>≤</mi><mi>p</mi>', $commandMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname\\alpha_i + \\operatorname\\leq p</annotation>', $commandMathml);
+        $t->contains('<munderover><mi>max</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $starredMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname*\\max_{i=1}^{n} p_i</annotation>', $starredMathml);
+        $t->contains('alttext="alpha sub i plus max under j over n p sub j"', $accessibleMathml);
+        $t->contains('intent="row(subscript(alpha,i),plus,underover(max,j,n),subscript(p,j))"', $accessibleMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatorname\\alpha_i + \\operatorname*\\max_{j}^{n} p_j</annotation>', $accessibleMathml);
+        $t->true(!str_contains($commandMathml, '<mi>\\operatorname</mi>'));
+        $t->true(!str_contains($starredMathml, '<mi>\\operatorname</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname\\input'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname_1'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname*^2'));
+    },
     'converts bounded tex math class wrappers to mathml metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $classMathml = $converter->texToMathMl('\\mathop{\\operatorname{argmax}}\\limits_{p_i \\in P}^{\\text{draft}} f(p_i) + a \\mathrel{\\approx} b + x \\mathbin{\\cdot} y + \\mathord{0}', true);

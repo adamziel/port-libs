@@ -5478,6 +5478,10 @@ CSS;
         bool $initialBreakableSpaces = false,
     ): string
     {
+        if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
+            return '(loop)';
+        }
+
         if (!array_key_exists($name, $partials) || !is_string($partials[$name])) {
             $fallback = $this->defaultPartialFallbackFor($name, $partialSources);
             if ($fallback === null) {
@@ -5497,10 +5501,6 @@ CSS;
             );
 
             return $this->stripIncludedPartialFinalNewline($rendered);
-        }
-
-        if (count($partialStack) >= self::MAX_PARTIAL_DEPTH) {
-            return '(loop)';
         }
 
         $rendered = $this->renderTemplate(

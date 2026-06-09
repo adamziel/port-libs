@@ -2662,10 +2662,7 @@ final class MathTexConverter
                 $offset++;
             }
 
-            $operatorName = $this->normalizeMathOperatorNameText($this->readRequiredGroupText($source, $offset));
-            if ($operatorName === '') {
-                throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
-            }
+            $operatorName = $this->readMathOperatorNameArgument($source, $offset);
 
             return '<mi>' . $this->esc($operatorName) . '</mi>';
         }
@@ -2897,6 +2894,65 @@ final class MathTexConverter
         }
 
         return '<mi>' . $this->esc('\\' . $command) . '</mi>';
+    }
+
+    private function readMathOperatorNameArgument(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        if (($source[$offset] ?? '') === '{') {
+            $operatorName = $this->normalizeMathOperatorNameText($this->readRequiredGroupText($source, $offset));
+        } else {
+            $operatorName = $this->normalizeMathOperatorNameText($this->readMathOperatorNameTokenText($source, $offset));
+        }
+
+        if ($operatorName === '') {
+            throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
+        }
+
+        return $operatorName;
+    }
+
+    private function readMathOperatorNameTokenText(string $source, int &$offset): string
+    {
+        $this->skipWhitespace($source, $offset);
+        $start = $offset;
+        $char = $source[$offset] ?? '';
+        if ($char === '' || $char === '{' || $char === '}' || $char === '_' || $char === '^' || $char === "'") {
+            throw new \InvalidArgumentException('Expected TeX operator name at offset ' . $offset);
+        }
+
+        if ($char === '\\') {
+            $offset++;
+            $command = $this->readCommandName($source, $offset);
+            if (isset(self::IDENTIFIER_COMMANDS[$command])) {
+                return self::IDENTIFIER_COMMANDS[$command];
+            }
+
+            if (isset(self::FUNCTION_COMMANDS[$command])) {
+                return self::FUNCTION_COMMANDS[$command];
+            }
+
+            if (isset(self::OPERATOR_COMMANDS[$command])) {
+                return self::OPERATOR_COMMANDS[$command];
+            }
+
+            if (isset(self::DELIMITER_COMMANDS[$command])) {
+                return self::DELIMITER_COMMANDS[$command];
+            }
+
+            throw new \InvalidArgumentException('Unsupported TeX operator name command \\' . $command . ' at offset ' . $start);
+        }
+
+        $remaining = substr($source, $offset);
+        if (preg_match('/\A./us', $remaining, $m) === 1) {
+            $offset += strlen($m[0]);
+
+            return $m[0];
+        }
+
+        $offset++;
+
+        return $char;
     }
 
     private function parseEnvironment(string $source, int &$offset): string

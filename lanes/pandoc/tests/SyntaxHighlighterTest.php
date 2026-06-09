@@ -198,6 +198,10 @@ return [
         $t->same('powershell', SyntaxHighlighter::normalizeLanguage('psm1'));
         $t->same('powershell', SyntaxHighlighter::normalizeLanguage('pwsh'));
         $t->same('powershell', SyntaxHighlighter::normalizeLanguage('language-ps1'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('proto'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('protobuf'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('protocol-buffer'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('language-protobuf'));
         $t->same('java', SyntaxHighlighter::normalizeLanguage('java'));
         $t->same('xml', SyntaxHighlighter::normalizeLanguage('xml'));
         $t->same('xml', SyntaxHighlighter::normalizeLanguage('svg'));
@@ -3809,6 +3813,60 @@ return [
         $t->same('just', $directJust['language']);
         $t->same('justfile', $directJust['requestedLanguage']);
         $t->contains('<span class="re">default source_id=&quot;legacy-42&quot;</span><span class="op">:</span> <span class="op">@</span><span class="fu">just</span> <span class="va">review</span> <span class="va">{{source_id}}</span>', $directJust['html']);
+    },
+    'highlights protobuf review schemas with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[79] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Protobuf review schema code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directProto = $highlighter->highlight(
+            'message ImportReview { optional string title = 1 [default = "Untitled"]; }',
+            'protocol-buffer'
+        );
+
+        $t->same('proto', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('proto'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('protobuf'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('protocol-buffer'));
+        $t->same('protobuf', SyntaxHighlighter::normalizeLanguage('protocol-buffers'));
+        $t->same('protobuf', $highlighted['language']);
+        $t->same('proto', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1240, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource proto numberLines"><code class="sourceCode protobuf" style="counter-reset: source-line 1239;">', $highlighted['html']);
+        $t->contains('<span id="protobuf-review-1240"><a href="#protobuf-review-1240"></a><span class="co">// Protobuf WordPress import review schema</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">syntax</span> <span class="op">=</span> <span class="st">&quot;proto3&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">package</span> <span class="va">wordpress</span><span class="op">.</span><span class="va">import</span><span class="op">.</span><span class="va">v1</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="st">&quot;google/protobuf/timestamp.proto&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">option</span> <span class="ot">php_namespace</span> <span class="op">=</span> <span class="st">&quot;WordPress\\\\Import\\\\Review&quot;</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">message</span> <span class="dt">ReviewPacket</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">reserved</span> <span class="dv">12</span> <span class="kw">to</span> <span class="dv">15</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">string</span> <span class="ot">source_id</span> <span class="op">=</span> <span class="dv">1</span> <span class="op">[</span><span class="ot">json_name</span> <span class="op">=</span> <span class="st">&quot;sourceId&quot;</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="kw">optional</span> <span class="dt">string</span> <span class="ot">title</span> <span class="op">=</span> <span class="dv">2</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">repeated</span> <span class="dt">Block</span> <span class="ot">blocks</span> <span class="op">=</span> <span class="dv">3</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span> <span class="ot">metadata</span> <span class="op">=</span> <span class="dv">4</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">oneof</span> <span class="va">publish_target</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="dt">bool</span> <span class="ot">dry_run</span> <span class="op">=</span> <span class="dv">6</span> <span class="op">[</span><span class="kw">default</span> <span class="op">=</span> <span class="cn">true</span><span class="op">];</span>', $highlighted['html']);
+        $t->contains('<span class="dt">bytes</span> <span class="ot">raw_html</span> <span class="op">=</span> <span class="dv">2</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">service</span> <span class="dt">ImportReview</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">rpc</span> <span class="fu">Queue</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">)</span> <span class="kw">returns</span> <span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">service</span> <span class="dt">ImportReview</span>', $wordpressBlock);
+        $t->same('protobuf', $directProto['language']);
+        $t->same('protocol-buffer', $directProto['requestedLanguage']);
+        $t->contains('<span class="kw">message</span> <span class="dt">ImportReview</span> <span class="op">{</span> <span class="kw">optional</span> <span class="dt">string</span> <span class="ot">title</span> <span class="op">=</span> <span class="dv">1</span>', $directProto['html']);
+        $t->contains('<span class="op">[</span><span class="kw">default</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span><span class="op">];</span>', $directProto['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -2723,6 +2723,141 @@ return [
         $t->same('timestamped-review.tar', $timestampedMember['filename']);
     },
 
+    'preflights gzip timestamp metadata before package handoff' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-timestamp-policy","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP timestamp policy\n\nReady for WordPress archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $secondOffset = 512;
+        $thirdOffset = 1536;
+        $gzip = GzipStream::build(substr($tarBytes, 0, $secondOffset), [
+            'filename' => 'wordpress-timestamp-part-1.tar',
+            'comment' => 'reproducible first package segment',
+            'modifiedAt' => 0,
+            'extraFlags' => 4,
+            'operatingSystem' => 3,
+        ]) . GzipStream::build(substr($tarBytes, $secondOffset, $thirdOffset - $secondOffset), [
+            'filename' => 'wordpress-timestamp-part-2.tar',
+            'comment' => 'timestamped second package segment',
+            'modifiedAt' => 1780479010,
+            'extraFlags' => 2,
+            'operatingSystem' => 255,
+        ]) . GzipStream::build(substr($tarBytes, $thirdOffset), [
+            'filename' => 'wordpress-timestamp-part-3.tar',
+            'comment' => 'timestamped final package segment',
+            'modifiedAt' => 1780479020,
+            'extraFlags' => 0,
+            'operatingSystem' => 11,
+        ]);
+        $zipBytes = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>GZIP zero timestamp ZIP package</w:p></w:body></w:document>',
+            ],
+        ])->bytes();
+        $zipGzip = GzipStream::build($zipBytes, [
+            'filename' => 'wordpress-zero-timestamp-package.zip',
+            'modifiedAt' => 0,
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectGzipTimestampPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $zipPolicy = ArchiveCompressionStream::inspectGzipTimestampPolicy(
+            $zipGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $roundTrip = ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-timestamp-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(3, $policy['memberCount']);
+        $t->same(2, $policy['timestampedMemberCount']);
+        $t->same(1, $policy['unknownModifiedAtMemberCount']);
+        $t->same(1780479010, $policy['earliestModifiedAt']);
+        $t->same('2026-06-03T09:30:10Z', $policy['earliestModifiedAtText']);
+        $t->same(1780479020, $policy['latestModifiedAt']);
+        $t->same('2026-06-03T09:30:20Z', $policy['latestModifiedAtText']);
+        $t->same(10, $policy['timestampSpreadSeconds']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $policy['extractionPolicy']);
+        $t->same([
+            'gzip-member-timestamp-metadata-present',
+            'gzip-member-timestamp-metadata-varies',
+        ], $policy['diagnostics']);
+        $t->same([
+            'wordpress-timestamp-part-1.tar',
+            'wordpress-timestamp-part-2.tar',
+            'wordpress-timestamp-part-3.tar',
+        ], array_column($policy['members'], 'filename'));
+        $t->same([
+            'reproducible first package segment',
+            'timestamped second package segment',
+            'timestamped final package segment',
+        ], array_column($policy['members'], 'commentText'));
+        $t->same([0, 1780479010, 1780479020], array_column($policy['members'], 'modifiedAt'));
+        $t->same([false, true, true], array_column($policy['members'], 'modifiedAtKnown'));
+        $t->same([null, '2026-06-03T09:30:10Z', '2026-06-03T09:30:20Z'], array_column($policy['members'], 'modifiedAtText'));
+        $t->same(['fastest-compression', 'maximum-compression', 'unspecified'], array_column($policy['members'], 'extraFlagsMeaning'));
+        $t->same(['unix', 'unknown', 'ntfs-filesystem'], array_column($policy['members'], 'operatingSystemName'));
+        $t->same(['metadata', 'review-before-conversion', 'review-before-conversion'], array_column($policy['members'], 'policy'));
+        $t->same([
+            [],
+            ['gzip-member-mtime-present', 'gzip-member-mtime-varies'],
+            ['gzip-member-mtime-present', 'gzip-member-mtime-varies'],
+        ], array_column($policy['members'], 'diagnostics'));
+        $t->same([0, $secondOffset, $thirdOffset], array_column($policy['members'], 'decodedDataOffset'));
+        $t->same([$secondOffset, $thirdOffset, strlen($tarBytes)], array_column($policy['members'], 'decodedDataEndOffset'));
+        $t->true(($policy['members'][1]['memberOffset'] ?? 0) > ($policy['members'][0]['memberOffset'] ?? 0));
+        $t->true(($policy['members'][2]['memberOffset'] ?? 0) > ($policy['members'][1]['memberOffset'] ?? 0));
+        $t->same(($policy['members'][1]['memberOffset'] ?? null), ($policy['members'][0]['nextMemberOffset'] ?? null));
+        $t->same(($policy['members'][2]['memberOffset'] ?? null), ($policy['members'][1]['nextMemberOffset'] ?? null));
+        $t->same(false, isset($policy['members'][0]['data']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($policy['tarBytes']));
+        $t->same('{"source":"gzip-timestamp-policy","target":"wordpress"}', $roundTrip->read('/packet/manifest.json'));
+        $t->same("# GZIP timestamp policy\n\nReady for WordPress archive review.\n", $roundTrip->read('/packet/content.md'));
+
+        $t->same('archive-gzip-timestamp-policy', $zipPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_ZIP, $zipPolicy['format']);
+        $t->same(1, $zipPolicy['memberCount']);
+        $t->same(0, $zipPolicy['timestampedMemberCount']);
+        $t->same(1, $zipPolicy['unknownModifiedAtMemberCount']);
+        $t->same(null, $zipPolicy['earliestModifiedAt']);
+        $t->same(null, $zipPolicy['latestModifiedAtText']);
+        $t->same(null, $zipPolicy['timestampSpreadSeconds']);
+        $t->same('within-thresholds', $zipPolicy['handoffPolicy']);
+        $t->same([], $zipPolicy['diagnostics']);
+        $t->same('wordpress-zero-timestamp-package.zip', $zipPolicy['members'][0]['filename']);
+        $t->same('metadata', $zipPolicy['members'][0]['policy']);
+        $t->same([], $zipPolicy['members'][0]['diagnostics']);
+        $t->same(false, isset($zipPolicy['members'][0]['data']));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipTimestampPolicy(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'accepts nul-padded gzip package streams and rejects nonzero trailers' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

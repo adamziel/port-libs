@@ -2745,6 +2745,66 @@ XML;
         $t->contains('[^1]: Separator footnote body.', $markdown);
         $t->contains('<li id="fn-1"><p>Separator footnote body.</p>', $blocksHtml);
     },
+    'maps ODT line numbering configuration into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithLineNumbering = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:linenumbering-configuration
+        text:number-lines="true"
+        text:style-name="ReviewLineNumber"
+        text:offset="0.5cm"
+        text:number-position="left"
+        text:increment="5"
+        text:count-empty-lines="true"
+        text:count-in-text-boxes="false"
+        text:restart-on-page="true"
+        style:num-format="1"
+        style:num-letter-sync="true">
+        <text:linenumbering-separator text:increment="3">|</text:linenumbering-separator>
+      </text:linenumbering-configuration>
+      <text:p>Line-numbered legal review source.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithLineNumbering));
+        $document = $result['document'];
+        $declarations = $result['contentDeclarations'];
+        $documentDeclarations = $document->attr('contentDeclarations');
+        $configuration = $declarations['lineNumberingConfiguration'];
+        $separator = $configuration['separator'];
+
+        $t->same(1, $declarations['lineNumberingConfigurationCount']);
+        $t->same(1, $declarations['lineNumberingSeparatorCount']);
+        $t->same(true, $configuration['numberLines']);
+        $t->same('ReviewLineNumber', $configuration['styleName']);
+        $t->same('0.5cm', $configuration['offset']);
+        $t->same('left', $configuration['numberPosition']);
+        $t->same(5, $configuration['increment']);
+        $t->same(true, $configuration['countEmptyLines']);
+        $t->same(false, $configuration['countInTextBoxes']);
+        $t->same(true, $configuration['restartOnPage']);
+        $t->same('1', $configuration['numFormat']);
+        $t->same(true, $configuration['numLetterSync']);
+        $t->same(3, $separator['increment']);
+        $t->same('|', $separator['text']);
+        $t->same($declarations, $documentDeclarations);
+        $t->same(1, $result['importReport']['contentDeclarations']['lineNumberingConfigurationCount']);
+        $t->same(1, $result['importReport']['contentDeclarations']['lineNumberingSeparatorCount']);
+        $t->same('ReviewLineNumber', $result['importReport']['contentDeclarations']['lineNumberingConfiguration']['styleName']);
+        $t->same(1, $result['importReport']['content']['lineNumberingConfigurationCount']);
+        $t->same(1, $result['importReport']['content']['lineNumberingSeparatorCount']);
+        $t->same('Line-numbered legal review source.', $document->children[0]->attr('text'));
+
+        $blocksHtml = (new WordPressBlockWriter())->write($document);
+        $t->contains('<p>Line-numbered legal review source.</p>', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'ReviewLineNumber'), 'Line numbering configuration must stay review metadata, not rendered prose');
+    },
     'preserves ODT link metadata for Markdown and WordPress review output' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkMetadata = <<<'XML'
 <office:document-content

@@ -520,7 +520,13 @@ final class EpubReader
         );
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $packageId = self::nullableAttribute($root, 'id');
-        $manifestById = $this->readManifest($package, $opfPart, $manifestElement, $refinementsById);
+        $manifestById = $this->readManifest(
+            $package,
+            $opfPart,
+            $manifestElement,
+            $refinementsById,
+            $prefixReport['bindingsByPrefix']
+        );
         $manifestById = self::attachManifestPackagePartDiagnostics($manifestById);
         $encryption = $this->readEncryption($package, $manifestById);
         $manifestById = $this->attachEncryptionToManifest($manifestById, $encryption);
@@ -1139,6 +1145,36 @@ final class EpubReader
             'resolved' => $bindingIri !== null && $bindingIri !== '',
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, string> $prefixBindings
+     *
+     * @return ?array<string, mixed>
+     */
+    private static function manifestPropertyVocabulary(?string $property, array $prefixBindings): ?array
+    {
+        $term = self::metadataPropertyVocabulary($property, $prefixBindings);
+        if (!is_array($term)) {
+            return null;
+        }
+
+        $diagnostics = [];
+        foreach ($term['diagnostics'] ?? [] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            if (($diagnostic['type'] ?? null) === 'unknown-package-prefix') {
+                $diagnostic['type'] = 'unknown-manifest-property-prefix';
+                $diagnostic['message'] = 'EPUB OPF manifest item property uses a prefix that is not declared on the package element';
+            }
+            $diagnostics[] = $diagnostic;
+        }
+
+        $term['diagnostics'] = $diagnostics;
+
+        return $term;
     }
 
     /**
@@ -4037,7 +4073,8 @@ final class EpubReader
         ZipPackage $package,
         string $opfPart,
         \DOMElement $manifestElement,
-        array $refinementsById
+        array $refinementsById,
+        array $prefixBindings = []
     ): array
     {
         $manifest = [];
@@ -4053,6 +4090,7 @@ final class EpubReader
             }
 
             $properties = self::spaceDelimited($item->getAttribute('properties'));
+            $propertyVocabulary = self::manifestItemPropertyVocabularyReport($properties, $prefixBindings, $id);
             $resourceFlags = self::resourcePropertyFlags($properties);
             $resourceReviewFlags = self::resourceReviewFlags($resourceFlags);
 
@@ -4070,6 +4108,7 @@ final class EpubReader
                     'external' => true,
                     'mediaType' => $mediaType,
                     'properties' => $properties,
+                    'propertyVocabulary' => $propertyVocabulary,
                     'resourceFlags' => $resourceFlags,
                     'resourceReviewFlags' => $resourceReviewFlags,
                     'refinements' => self::metadataRefinementsForId($refinementsById, $id),
@@ -4108,6 +4147,7 @@ final class EpubReader
                 'external' => false,
                 'mediaType' => $mediaType,
                 'properties' => $properties,
+                'propertyVocabulary' => $propertyVocabulary,
                 'resourceFlags' => $resourceFlags,
                 'resourceReviewFlags' => $resourceReviewFlags,
                 'refinements' => self::metadataRefinementsForId($refinementsById, $id),
@@ -4125,6 +4165,71 @@ final class EpubReader
         }
 
         return $manifest;
+    }
+
+    /**
+     * @param list<string> $properties
+     * @param array<string, string> $prefixBindings
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestItemPropertyVocabularyReport(array $properties, array $prefixBindings, string $manifestId): array
+    {
+        $items = [];
+        $diagnostics = [];
+        $prefixedCount = 0;
+        $resolvedCount = 0;
+        $unresolvedCount = 0;
+
+        foreach ($properties as $index => $property) {
+            if (!is_string($property) || $property === '') {
+                continue;
+            }
+
+            $vocabulary = self::manifestPropertyVocabulary($property, $prefixBindings);
+            if (!is_array($vocabulary)) {
+                continue;
+            }
+
+            if (($vocabulary['prefixed'] ?? false) === true) {
+                ++$prefixedCount;
+                if (($vocabulary['resolved'] ?? false) === true) {
+                    ++$resolvedCount;
+                } else {
+                    ++$unresolvedCount;
+                }
+            }
+
+            $item = [
+                'index' => (int) $index,
+                'property' => $property,
+                'vocabulary' => $vocabulary,
+            ];
+
+            foreach ($vocabulary['diagnostics'] ?? [] as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = [
+                        'manifestId' => $manifestId,
+                        'index' => (int) $index,
+                        'property' => $property,
+                    ] + $diagnostic;
+                }
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'manifestId' => $manifestId,
+            'present' => $items !== [],
+            'count' => count($items),
+            'prefixedCount' => $prefixedCount,
+            'resolvedCount' => $resolvedCount,
+            'unresolvedCount' => $unresolvedCount,
+            'items' => $items,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
     }
 
     /**
@@ -7874,6 +7979,7 @@ final class EpubReader
      */
     private static function resourcePropertyReport(array $manifest): array
     {
+        $propertyVocabulary = self::manifestPropertyVocabularySummary($manifest);
         $items = [];
         $itemsById = [];
         $itemsByProperty = [
@@ -7915,6 +8021,7 @@ final class EpubReader
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
                 'exists' => (bool) ($item['exists'] ?? false),
                 'properties' => $recognized,
+                'propertyVocabulary' => is_array($item['propertyVocabulary'] ?? null) ? $item['propertyVocabulary'] : null,
                 'flags' => $flags,
                 'reviewFlags' => $reviewFlags,
                 'reviewRequired' => $reviewFlags !== [],
@@ -7947,6 +8054,126 @@ final class EpubReader
             'itemsById' => $itemsById,
             'itemsByProperty' => $itemsByProperty,
             'reviewItems' => $reviewItems,
+            'propertyVocabulary' => $propertyVocabulary,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestPropertyVocabularySummary(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $byPrefix = [];
+        $diagnostics = [];
+        $propertyTokenCount = 0;
+        $prefixedPropertyCount = 0;
+        $resolvedPropertyCount = 0;
+        $unresolvedPropertyCount = 0;
+
+        foreach ($manifest as $item) {
+            $report = is_array($item['propertyVocabulary'] ?? null) ? $item['propertyVocabulary'] : null;
+            if (!is_array($report) || ($report['count'] ?? 0) === 0) {
+                continue;
+            }
+
+            $manifestId = (string) ($item['id'] ?? '');
+            $summaryItem = [
+                'id' => $manifestId,
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                'external' => (bool) ($item['external'] ?? false),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+                'propertyVocabulary' => $report,
+            ];
+            $items[] = $summaryItem;
+            if ($manifestId !== '') {
+                $itemsById[$manifestId] = $summaryItem;
+            }
+
+            foreach ($report['items'] ?? [] as $propertyItem) {
+                if (!is_array($propertyItem)) {
+                    continue;
+                }
+
+                ++$propertyTokenCount;
+                $vocabulary = is_array($propertyItem['vocabulary'] ?? null) ? $propertyItem['vocabulary'] : null;
+                if (!is_array($vocabulary) || ($vocabulary['prefixed'] ?? false) !== true) {
+                    continue;
+                }
+
+                ++$prefixedPropertyCount;
+                $prefix = is_string($vocabulary['prefix'] ?? null) ? $vocabulary['prefix'] : '';
+                if ($prefix !== '') {
+                    if (!isset($byPrefix[$prefix])) {
+                        $byPrefix[$prefix] = [
+                            'prefix' => $prefix,
+                            'bindingIri' => is_string($vocabulary['bindingIri'] ?? null) ? $vocabulary['bindingIri'] : null,
+                            'propertyTokenCount' => 0,
+                            'resolvedCount' => 0,
+                            'unresolvedCount' => 0,
+                            'properties' => [],
+                            'manifestIds' => [],
+                        ];
+                    }
+
+                    ++$byPrefix[$prefix]['propertyTokenCount'];
+                    $byPrefix[$prefix]['properties'][] = (string) ($propertyItem['property'] ?? '');
+                    $byPrefix[$prefix]['manifestIds'][] = $manifestId;
+                }
+
+                if (($vocabulary['resolved'] ?? false) === true) {
+                    ++$resolvedPropertyCount;
+                    if ($prefix !== '') {
+                        ++$byPrefix[$prefix]['resolvedCount'];
+                    }
+                } else {
+                    ++$unresolvedPropertyCount;
+                    if ($prefix !== '') {
+                        ++$byPrefix[$prefix]['unresolvedCount'];
+                    }
+                    foreach ($vocabulary['diagnostics'] ?? [] as $diagnostic) {
+                        if (is_array($diagnostic)) {
+                            $diagnostics[] = [
+                                'manifestId' => $manifestId,
+                                'href' => (string) ($item['href'] ?? ''),
+                                'index' => (int) ($propertyItem['index'] ?? 0),
+                                'property' => (string) ($propertyItem['property'] ?? ''),
+                            ] + $diagnostic;
+                        }
+                    }
+                }
+            }
+        }
+
+        foreach ($byPrefix as $prefix => $summary) {
+            $byPrefix[$prefix]['properties'] = array_values(array_unique(array_filter(
+                $summary['properties'],
+                static fn (string $property): bool => $property !== '',
+            )));
+            $byPrefix[$prefix]['manifestIds'] = array_values(array_unique(array_filter(
+                $summary['manifestIds'],
+                static fn (string $manifestId): bool => $manifestId !== '',
+            )));
+        }
+
+        return [
+            'present' => $propertyTokenCount > 0,
+            'itemCount' => count($items),
+            'propertyTokenCount' => $propertyTokenCount,
+            'prefixedPropertyCount' => $prefixedPropertyCount,
+            'resolvedPropertyCount' => $resolvedPropertyCount,
+            'unresolvedPropertyCount' => $unresolvedPropertyCount,
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'byPrefix' => $byPrefix,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
         ];
     }
 

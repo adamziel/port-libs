@@ -87,7 +87,7 @@ $opfXml = <<<'XML'
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
-    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources" media-overlay="mo-chapter"/>
+    <item id="chapter" href="text/chapter.xhtml" media-type="application/xhtml+xml" properties="mathml svg remote-resources schema:encodingFormat" media-overlay="mo-chapter"/>
     <item id="slideshow" href="slides/source-slideshow.xml" media-type="application/x-demo-slideshow" fallback="slideshow-handler" fallback-style="style"/>
     <item id="slideshow-handler" href="text/slideshow-fallback.xhtml" media-type="application/xhtml+xml" properties="scripted"/>
     <item id="bound-tour" href="interactive/tour.bin" media-type="application/x-bound-tour"/>
@@ -1038,6 +1038,12 @@ XML;
     }
     if (($result['resourceProperties']['itemsById']['chapter']['reviewFlags'] ?? []) !== ['mathml', 'svg', 'remote-resources']) {
         throw new RuntimeException('Expected EPUB chapter resource review flags for MathML, SVG, and remote resources');
+    }
+    if (($result['resourceProperties']['propertyVocabulary']['itemsById']['chapter']['propertyVocabulary']['items'][3]['vocabulary']['iri'] ?? null) !== 'https://schema.org/encodingFormat') {
+        throw new RuntimeException('Expected EPUB manifest item properties to resolve package prefix vocabulary IRIs');
+    }
+    if (($result['document']->attr('resourceProperties')['propertyVocabulary']['itemsById']['chapter']['propertyVocabulary']['items'][3]['vocabulary']['iri'] ?? null) !== 'https://schema.org/encodingFormat') {
+        throw new RuntimeException('Expected WordPress EPUB handoff to expose resolved manifest property vocabulary');
     }
     if (($result['resourceProperties']['itemsById']['slideshow-handler']['reviewFlags'] ?? []) !== ['scripted']) {
         throw new RuntimeException('Expected EPUB fallback handler resource review flag for scripting');

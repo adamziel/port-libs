@@ -496,6 +496,12 @@ if (!$justCodeBlock instanceof PortLibs\Pandoc\AstNode || $justCodeBlock->type !
 }
 $just = $highlighter->highlightCodeBlock($justCodeBlock, 'haddock');
 $justWordpressBlock = $highlighter->wordpressHtmlBlock($justCodeBlock, 'haddock');
+$protobufCodeBlock = $document->children[79] ?? null;
+if (!$protobufCodeBlock instanceof PortLibs\Pandoc\AstNode || $protobufCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Protobuf review schema code block');
+}
+$protobuf = $highlighter->highlightCodeBlock($protobufCodeBlock, 'tango');
+$protobufWordpressBlock = $highlighter->wordpressHtmlBlock($protobufCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2165,6 +2171,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($justWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
         throw new RuntimeException('Expected Justfile WordPress style metadata');
     }
+    if (($protobuf['language'] ?? '') !== 'protobuf') {
+        throw new RuntimeException('Expected Protobuf language alias handoff');
+    }
+    if (($protobuf['requestedLanguage'] ?? '') !== 'proto') {
+        throw new RuntimeException('Expected proto requested-language metadata');
+    }
+    if (($protobuf['lineNumbering']['start'] ?? null) !== 1240) {
+        throw new RuntimeException('Expected Protobuf line-number start handoff');
+    }
+    if (!str_contains($protobuf['html'], '<span class="kw">message</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected Protobuf message token handoff');
+    }
+    if (!str_contains($protobuf['html'], '<span class="dt">map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">string</span><span class="op">&gt;</span> <span class="ot">metadata</span>')) {
+        throw new RuntimeException('Expected Protobuf map field token handoff');
+    }
+    if (!str_contains($protobuf['html'], '<span class="kw">rpc</span> <span class="fu">Queue</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">)</span> <span class="kw">returns</span>')) {
+        throw new RuntimeException('Expected Protobuf rpc token handoff');
+    }
+    if (!str_contains($protobufWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Protobuf WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2263,6 +2290,7 @@ echo "rakuHighlightedHtml:\n" . $raku['html'] . "\n";
 echo "fennelHighlightedHtml:\n" . $fennel['html'] . "\n";
 echo "mesonHighlightedHtml:\n" . $meson['html'] . "\n";
 echo "justHighlightedHtml:\n" . $just['html'] . "\n";
+echo "protobufHighlightedHtml:\n" . $protobuf['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2332,4 +2360,5 @@ echo "rakuWordpressBlock:\n" . $rakuWordpressBlock . "\n";
 echo "fennelWordpressBlock:\n" . $fennelWordpressBlock . "\n";
 echo "mesonWordpressBlock:\n" . $mesonWordpressBlock . "\n";
 echo "justWordpressBlock:\n" . $justWordpressBlock . "\n";
+echo "protobufWordpressBlock:\n" . $protobufWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

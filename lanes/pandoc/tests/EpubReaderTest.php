@@ -4084,6 +4084,71 @@ XML;
         $t->same(['mathml', 'svg', 'remote-resources'], $result['document']->children[0]->attr('resourceReviewFlags'));
         $t->same(['scripted', 'switch'], $result['document']->children[1]->attr('resourceReviewFlags'));
     },
+    'resolves OPF manifest property vocabulary terms for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithManifestVocabulary = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review#">',
+            $opfXml
+        );
+        $opfWithManifestVocabulary = str_replace(
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav rendition:layout-pre-paginated"/>',
+            $opfWithManifestVocabulary
+        );
+        $opfWithManifestVocabulary = str_replace(
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml" properties="mathml schema:encodingFormat review:source-record unknown:review-flag"/>',
+            $opfWithManifestVocabulary
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithManifestVocabulary));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $chapterVocabulary = $manifestById['chapter-1']['propertyVocabulary'];
+        $t->same(true, $chapterVocabulary['present']);
+        $t->same(4, $chapterVocabulary['count']);
+        $t->same(3, $chapterVocabulary['prefixedCount']);
+        $t->same(2, $chapterVocabulary['resolvedCount']);
+        $t->same(1, $chapterVocabulary['unresolvedCount']);
+        $t->same('mathml', $chapterVocabulary['items'][0]['property']);
+        $t->same(false, $chapterVocabulary['items'][0]['vocabulary']['prefixed']);
+        $t->same('schema:encodingFormat', $chapterVocabulary['items'][1]['property']);
+        $t->same('https://schema.org/encodingFormat', $chapterVocabulary['items'][1]['vocabulary']['iri']);
+        $t->same('review:source-record', $chapterVocabulary['items'][2]['property']);
+        $t->same('https://example.invalid/epub-review#source-record', $chapterVocabulary['items'][2]['vocabulary']['iri']);
+        $t->same(false, $chapterVocabulary['items'][3]['vocabulary']['resolved']);
+        $t->same('unknown-manifest-property-prefix', $chapterVocabulary['items'][3]['vocabulary']['diagnostics'][0]['type']);
+        $t->same('chapter-1', $chapterVocabulary['diagnostics'][0]['manifestId']);
+
+        $navVocabulary = $manifestById['nav']['propertyVocabulary'];
+        $t->same('rendition:layout-pre-paginated', $navVocabulary['items'][1]['property']);
+        $t->same('http://www.idpf.org/vocab/rendition/#layout-pre-paginated', $navVocabulary['items'][1]['vocabulary']['iri']);
+
+        $report = $result['resourceProperties']['propertyVocabulary'];
+        $t->same(true, $report['present']);
+        $t->same(3, $report['itemCount']);
+        $t->same(7, $report['propertyTokenCount']);
+        $t->same(4, $report['prefixedPropertyCount']);
+        $t->same(3, $report['resolvedPropertyCount']);
+        $t->same(1, $report['unresolvedPropertyCount']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $report['itemsById']['chapter-1']['part']);
+        $t->same(['schema:encodingFormat'], $report['byPrefix']['schema']['properties']);
+        $t->same(['chapter-1'], $report['byPrefix']['schema']['manifestIds']);
+        $t->same(['review:source-record'], $report['byPrefix']['review']['properties']);
+        $t->same(['unknown:review-flag'], $report['byPrefix']['unknown']['properties']);
+        $t->same(1, $report['diagnosticCount']);
+        $t->same('unknown:review-flag', $report['diagnostics'][0]['property']);
+        $t->same('unknown-manifest-property-prefix', $report['diagnostics'][0]['type']);
+
+        $t->same(['mathml'], $manifestById['chapter-1']['resourceReviewFlags']);
+        $t->same('https://schema.org/encodingFormat', $result['resourceProperties']['itemsById']['chapter-1']['propertyVocabulary']['items'][1]['vocabulary']['iri']);
+        $t->same('https://example.invalid/epub-review#source-record', $result['importReport']['manifest']['items'][1]['propertyVocabulary']['items'][2]['vocabulary']['iri']);
+        $t->same($report, $result['importReport']['resourceProperties']['propertyVocabulary']);
+        $t->same($report, $result['document']->attr('resourceProperties')['propertyVocabulary']);
+    },
     'scans EPUB XHTML content resources without fetching remote references' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $contentScanXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">

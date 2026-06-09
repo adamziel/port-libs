@@ -249,6 +249,8 @@ final class OdfReader
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                     'noteConfigurationSeparatorCount' => (int) ($content['contentDeclarations']['noteConfigurationSeparatorCount'] ?? 0),
+                    'lineNumberingConfigurationCount' => (int) ($content['contentDeclarations']['lineNumberingConfigurationCount'] ?? 0),
+                    'lineNumberingSeparatorCount' => (int) ($content['contentDeclarations']['lineNumberingSeparatorCount'] ?? 0),
                     'contentValidationCount' => (int) ($content['contentDeclarations']['contentValidationCount'] ?? 0),
                     'contentValidationConditionCount' => (int) ($content['contentDeclarations']['contentValidationConditionCount'] ?? 0),
                     'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
@@ -3283,6 +3285,10 @@ final class OdfReader
             }
         }
 
+        $lineNumberingConfiguration = $this->lineNumberingConfigurationFromText($text);
+        $lineNumberingConfigurationCount = $lineNumberingConfiguration === [] ? 0 : 1;
+        $lineNumberingSeparatorCount = is_array($lineNumberingConfiguration['separator'] ?? null) ? 1 : 0;
+
         $sequenceDeclarations = [];
         $sequenceDecls = self::firstChildElement($text, 'sequence-decls', self::TEXT_NS);
         if ($sequenceDecls instanceof \DOMElement) {
@@ -3473,6 +3479,9 @@ final class OdfReader
             'noteConfigurationSeparatorCount' => $noteConfigurationSeparatorCount,
             'noteConfigurations' => $noteConfigurations,
             'noteConfigurationsByClass' => $noteConfigurationsByClass,
+            'lineNumberingConfigurationCount' => $lineNumberingConfigurationCount,
+            'lineNumberingSeparatorCount' => $lineNumberingSeparatorCount,
+            'lineNumberingConfiguration' => $lineNumberingConfiguration,
             'sequenceDeclarationCount' => count($sequenceDeclarations),
             'sequenceDeclarations' => $sequenceDeclarations,
             'variableDeclarationCount' => count($variableDeclarations),
@@ -3513,6 +3522,59 @@ final class OdfReader
             'drawLayers' => $drawLayers,
             'drawLayersByName' => $drawLayersByName,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function lineNumberingConfigurationFromText(\DOMElement $text): array
+    {
+        $configuration = self::firstChildElement($text, 'linenumbering-configuration', self::TEXT_NS);
+        if (!$configuration instanceof \DOMElement) {
+            $configuration = self::firstChildElement($text, 'line-numbering-configuration', self::TEXT_NS);
+        }
+
+        if (!$configuration instanceof \DOMElement) {
+            return [];
+        }
+
+        return $this->lineNumberingConfigurationDefinition($configuration);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function lineNumberingConfigurationDefinition(\DOMElement $configuration): array
+    {
+        $separator = self::firstChildElement($configuration, 'linenumbering-separator', self::TEXT_NS);
+        if (!$separator instanceof \DOMElement) {
+            $separator = self::firstChildElement($configuration, 'line-numbering-separator', self::TEXT_NS);
+        }
+
+        return self::withoutEmpty([
+            'numberLines' => self::nullableBool(self::attr($configuration, self::TEXT_NS, 'number-lines')),
+            'styleName' => self::nullable(self::attr($configuration, self::TEXT_NS, 'style-name')),
+            'offset' => self::nullable(self::attr($configuration, self::TEXT_NS, 'offset')),
+            'numberPosition' => self::nullable(self::attr($configuration, self::TEXT_NS, 'number-position')),
+            'increment' => self::nullableInt(self::attr($configuration, self::TEXT_NS, 'increment')),
+            'countEmptyLines' => self::nullableBool(self::attr($configuration, self::TEXT_NS, 'count-empty-lines')),
+            'countInTextBoxes' => self::nullableBool(self::attr($configuration, self::TEXT_NS, 'count-in-text-boxes')),
+            'restartOnPage' => self::nullableBool(self::attr($configuration, self::TEXT_NS, 'restart-on-page')),
+            'numFormat' => self::nullable(self::attr($configuration, self::STYLE_NS, 'num-format')),
+            'numLetterSync' => self::nullableBool(self::attr($configuration, self::STYLE_NS, 'num-letter-sync')),
+            'separator' => $separator instanceof \DOMElement ? $this->lineNumberingSeparatorDefinition($separator) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function lineNumberingSeparatorDefinition(\DOMElement $separator): array
+    {
+        return self::withoutEmpty([
+            'increment' => self::nullableInt(self::attr($separator, self::TEXT_NS, 'increment')),
+            'text' => self::nullable(self::normalizedText($separator)),
+        ]);
     }
 
     /**

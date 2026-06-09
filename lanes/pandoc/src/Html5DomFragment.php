@@ -245,7 +245,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'portal-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -505,6 +505,10 @@ final class Html5DomFragment
             return self::normalizeHtmlTitleElement($node, $diagnostics);
         }
 
+        if ($mode === 'html' && $elementForeignContext === null && $name === 'portal') {
+            return self::normalizeHtmlPortalElement($node, $diagnostics, $elementForeignContext, $baseUrl);
+        }
+
         if ($mode === 'html' && self::isBlockedElement($name)) {
             $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'blocked-tag',
@@ -558,7 +562,17 @@ final class Html5DomFragment
             self::markHtmlHiddenInertReviewMetadata($node, $name, $attrs, $diagnostics);
         }
 
-        if ($mode === 'html' && self::isEmptyHtmlPictureSourceElement($node, $name, $attrs)) {
+        if ($mode === 'html' && $elementForeignContext === null && $name === 'source' && !self::hasHtmlMediaSourceContext($node)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'blocked-tag',
+                'tag' => $name,
+                'reason' => 'source-element-outside-media-context',
+            ], $node);
+
+            return $children === [] ? null : $children;
+        }
+
+        if ($mode === 'html' && $elementForeignContext === null && self::isEmptyHtmlMediaSourceElement($node, $name, $attrs)) {
             $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'empty-source',
                 'tag' => $name,
@@ -2080,6 +2094,107 @@ final class Html5DomFragment
     }
 
     /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeHtmlPortalElement(
+        \DOMElement $element,
+        array &$diagnostics,
+        ?string $foreignContext,
+        ?string $baseUrl
+    ): array {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'blocked-tag',
+            'tag' => 'portal',
+        ], $element);
+
+        $children = self::normalizeChildren(
+            $element,
+            'html',
+            $diagnostics,
+            self::childForeignContext($element, 'portal', $foreignContext),
+            $baseUrl
+        );
+        $portalSource = self::normalizeHtmlPortalSourceElement($element, $diagnostics, $baseUrl);
+
+        return $portalSource === null ? $children : [$portalSource, ...$children];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function normalizeHtmlPortalSourceElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
+    {
+        if (!$element->hasAttribute('src')) {
+            return null;
+        }
+
+        $target = $element->getAttribute('src');
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-url',
+                'tag' => 'portal',
+                'attribute' => 'src',
+            ], $element);
+
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'normalized-url',
+                'tag' => 'portal',
+                'attribute' => 'src',
+            ], $element);
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+        $title = $element->hasAttribute('title')
+            ? self::cleanHtmlMetadataAttribute($element->getAttribute('title'))
+            : '';
+        $attrs = [
+            'href' => $href,
+            'data-pandoc-portal-src' => 'true',
+        ];
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'portal-source-review',
+            'tag' => 'portal',
+            'attribute' => 'src',
+            'reason' => 'portal-source-preserved-as-review-link',
+        ], $element);
+
+        if ($element->hasAttribute('referrerpolicy')) {
+            $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
+                $element->getAttribute('referrerpolicy'),
+                'portal',
+                $diagnostics
+            );
+            if ($referrerPolicy !== null) {
+                $attrs['data-pandoc-portal-referrerpolicy'] = $referrerPolicy;
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'portal');
+            }
+        }
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $title !== '' ? $title : 'Portal source',
+            ]],
+        ], $element);
+    }
+
+    /**
      * @param array<string, string> $attrs
      * @param list<array<string, mixed>> $diagnostics
      */
@@ -2321,12 +2436,19 @@ final class Html5DomFragment
     /**
      * @param array<string, string> $attrs
      */
-    private static function isEmptyHtmlPictureSourceElement(\DOMElement $element, string $name, array $attrs): bool
+    private static function isEmptyHtmlMediaSourceElement(\DOMElement $element, string $name, array $attrs): bool
     {
         return self::hasHtmlAncestor($element, 'picture')
             && strtolower($name) === 'source'
             && !array_key_exists('src', $attrs)
             && !array_key_exists('srcset', $attrs);
+    }
+
+    private static function hasHtmlMediaSourceContext(\DOMElement $element): bool
+    {
+        return self::hasHtmlAncestor($element, 'audio')
+            || self::hasHtmlAncestor($element, 'picture')
+            || self::hasHtmlAncestor($element, 'video');
     }
 
     private static function hasHtmlAncestor(\DOMElement $element, string $name): bool

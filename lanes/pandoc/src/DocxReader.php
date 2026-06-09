@@ -3064,6 +3064,7 @@ final class DocxReader
         $this->appendParagraphTabsMetadata($properties, $classes, $attributes);
         $this->appendParagraphBorderMetadata($properties, $classes, $attributes);
         $this->appendParagraphFrameMetadata($properties, $classes, $attributes);
+        $this->appendParagraphPolicyMetadata($properties, $classes, $attributes);
 
         if ($this->hasOnOffChild($properties, 'keepNext')) {
             $classes[] = 'docx-keep-next';
@@ -3510,6 +3511,38 @@ final class DocxReader
 
         foreach ($frameAttributes as $name => $value) {
             $attributes['data-docx-frame-' . $name] = $value;
+        }
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendParagraphPolicyMetadata(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        foreach ([
+            'keepLines' => ['keep-lines', 'docx-keep-lines'],
+            'widowControl' => ['widow-control', 'docx-widow-control'],
+            'contextualSpacing' => ['contextual-spacing', 'docx-contextual-spacing'],
+            'mirrorIndents' => ['mirror-indents', 'docx-mirror-indents'],
+            'suppressLineNumbers' => ['suppress-line-numbers', 'docx-suppress-line-numbers'],
+            'suppressAutoHyphens' => ['suppress-auto-hyphens', 'docx-suppress-auto-hyphens'],
+            'snapToGrid' => ['snap-to-grid', 'docx-snap-to-grid'],
+        ] as $localName => [$attributeName, $className]) {
+            $child = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, $localName);
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->wordAttr($child, 'val');
+            $enabled = $value === null || $value === '' ? true : $this->onOffStringValue($value);
+            if ($enabled === null) {
+                continue;
+            }
+
+            $classes[] = 'docx-paragraph-policy';
+            $classes[] = $enabled ? $className : $className . '-off';
+            $attributes['data-docx-' . $attributeName] = $enabled ? 'true' : 'false';
         }
     }
 

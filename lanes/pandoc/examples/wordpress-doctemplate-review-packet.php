@@ -320,6 +320,17 @@ HTML,
         exit(1);
     }
 
+    $recursionLimitPartials = [];
+    for ($index = 0; $index < 49; $index++) {
+        $recursionLimitPartials['review-depth-' . $index] = '${ review-depth-' . ($index + 1) . '() }';
+    }
+    $recursionLimitPartials['review-depth-49'] = '${ missing-over-limit() }';
+    $recursionLimitPacket = (new DocTemplate())->render('${ review-depth-0() }', [], $recursionLimitPartials);
+    if ($recursionLimitPacket !== '(loop)') {
+        fwrite(STDERR, "Unexpected doctemplate partial recursion-limit output\n");
+        exit(1);
+    }
+
     $typstDefinitionsFallback = (new DocTemplate())->renderResource('review-packets/typst-review', [
         'review-packets/typst-review.typst' => <<<'TYPST'
 ${ definitions.typst() }

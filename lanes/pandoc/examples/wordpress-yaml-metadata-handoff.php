@@ -420,6 +420,10 @@ True: uppercase boolean-looking source field
 ? '3.14'
 : quoted float-looking source field
 "0o52": quoted octal-looking source field
+? !wpd!key "On"
+: tagged quoted boolean-looking source field
+? !wpd!key "0b101"
+: tagged quoted binary-looking source field
 ambiguous-field-review:
   true: nested reviewer boolean key stays visible
   15: nested reviewer numeric key stays visible
@@ -521,7 +525,9 @@ summary: >- # later metadata block overrides the first review status
   flow-document-review: {status: queued, priority: !!int "2", labels: [flow, metadata]},
   flow-document-references: [{id: flow-document-ref, title: "Flow document source", issued: {date-parts: [[2026, 6, 5]]}}],
   "flow-document:no": quoted top-level flow field,
-  ? "flow-document:15": quoted explicit flow key
+  ? "flow-document:15": quoted explicit flow key,
+  ? !wpd!key "No": flow tagged quoted boolean-looking source field,
+  ? !wpd!key "0b110": flow tagged quoted binary-looking source field
 }
 ---
 
@@ -1058,7 +1064,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('YAML metadata self-test confused core/non-specific tags with custom tag provenance');
     }
     $yamlTagPaths = array_column($yamlTagProvenance, 'path');
-    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/flow-implicit-tag-key-review/owner', '/flow-implicit-tag-key-review/source:key', '/tag-uri-suffix-review/owner', '/tag-uri-suffix-review/source-uri', '/tag-uri-suffix-review/fragment-owner', '/tag-uri-suffix-review/scoped-owner', '/flow-tag-uri-suffix-review/owner', '/flow-tag-uri-suffix-review/source:key', '/block-explicit-null-review/tagged-source', '/verbatim-tag-review/source-uri'] as $expectedPath) {
+    foreach (['/review/owner', '/tag-directive-review/labels/0', '/flow-tag-directive-review/source:key', '/flow-implicit-tag-key-review/owner', '/flow-implicit-tag-key-review/source:key', '/On', '/0b101', '/No', '/0b110', '/tag-uri-suffix-review/owner', '/tag-uri-suffix-review/source-uri', '/tag-uri-suffix-review/fragment-owner', '/tag-uri-suffix-review/scoped-owner', '/flow-tag-uri-suffix-review/owner', '/flow-tag-uri-suffix-review/source:key', '/block-explicit-null-review/tagged-source', '/verbatim-tag-review/source-uri'] as $expectedPath) {
         if (!in_array($expectedPath, $yamlTagPaths, true)) {
             throw new RuntimeException('YAML metadata self-test missing custom tag provenance path ' . $expectedPath);
         }
@@ -1755,6 +1761,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['flow-document:15'] ?? '') !== 'quoted explicit flow key') {
         throw new RuntimeException('YAML metadata self-test missing quoted explicit top-level flow key');
     }
+    if (($meta['On'] ?? '') !== 'tagged quoted boolean-looking source field') {
+        throw new RuntimeException('YAML metadata self-test missing tagged quoted explicit top-level block key');
+    }
+    if (($meta['0b101'] ?? '') !== 'tagged quoted binary-looking source field') {
+        throw new RuntimeException('YAML metadata self-test missing tagged quoted explicit top-level numeric block key');
+    }
+    if (($meta['No'] ?? '') !== 'flow tagged quoted boolean-looking source field') {
+        throw new RuntimeException('YAML metadata self-test missing tagged quoted explicit top-level flow key');
+    }
+    if (($meta['0b110'] ?? '') !== 'flow tagged quoted binary-looking source field') {
+        throw new RuntimeException('YAML metadata self-test missing tagged quoted explicit top-level numeric flow key');
+    }
     if (array_key_exists('yes', $meta) || array_key_exists('True', $meta) || array_key_exists('15', $meta) || array_key_exists('0x2A', $meta)) {
         throw new RuntimeException('YAML metadata self-test promoted ambiguous top-level field names');
     }
@@ -1770,7 +1788,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['0o52'] ?? '') !== 'quoted octal-looking source field') {
         throw new RuntimeException('YAML metadata self-test dropped quoted octal-looking top-level field');
     }
-    if (array_intersect(['no', 'Off', '3.14', '0o52'], array_column($yamlDiagnostics, 'field')) !== []) {
+    if (array_intersect(['no', 'Off', '3.14', '0o52', 'On', '0b101', 'No', '0b110'], array_column($yamlDiagnostics, 'field')) !== []) {
         throw new RuntimeException('YAML metadata self-test flagged quoted ambiguous top-level field names');
     }
     if (($meta['ambiguous-field-review']['true'] ?? '') !== 'nested reviewer boolean key stays visible') {

@@ -369,6 +369,23 @@ $textHintPolicyInspection = ArchiveCompressionStream::inspectGzipTextHintPolicy(
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
     strlen($archive->bytes())
 );
+$gzipTimestampPolicySplitOffset = 512;
+$gzipTimestampPolicyUpload = GzipStream::build(substr($archive->bytes(), 0, $gzipTimestampPolicySplitOffset), [
+    'filename' => 'wordpress-timestamp-policy-part-1.tar',
+    'comment' => 'reproducible timestamp segment',
+    'modifiedAt' => 0,
+]) . GzipStream::build(substr($archive->bytes(), $gzipTimestampPolicySplitOffset), [
+    'filename' => 'wordpress-timestamp-policy-part-2.tar',
+    'comment' => 'timestamped package segment',
+    'modifiedAt' => 1780479068,
+    'extraFlags' => 2,
+    'operatingSystem' => 255,
+]);
+$gzipTimestampPolicyInspection = ArchiveCompressionStream::inspectGzipTimestampPolicy(
+    $gzipTimestampPolicyUpload,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($archive->bytes())
+);
 $boundaryFirstArchive = TarArchive::fromEntries([
     [
         'name' => 'packet/first.md',
@@ -1468,6 +1485,20 @@ if (in_array('--self-test', $argv, true)) {
         'gzipTextHintBinaryCount' => 1,
         'gzipTextHintFilename' => 'wordpress-text-hint-review.tar',
         'gzipTextHintDiagnostics' => ['gzip-text-hint-binary-payload'],
+        'gzipTimestampPolicyType' => 'archive-gzip-timestamp-policy',
+        'gzipTimestampPolicy' => 'review-before-conversion',
+        'gzipTimestampExtractionPolicy' => 'metadata-only-no-extraction',
+        'gzipTimestampDiagnostics' => ['gzip-member-timestamp-metadata-present'],
+        'gzipTimestampMemberCount' => 2,
+        'gzipTimestampTimestampedCount' => 1,
+        'gzipTimestampUnknownCount' => 1,
+        'gzipTimestampLatestText' => '2026-06-03T09:31:08Z',
+        'gzipTimestampFilenames' => [
+            'wordpress-timestamp-policy-part-1.tar',
+            'wordpress-timestamp-policy-part-2.tar',
+        ],
+        'gzipTimestampPolicies' => ['metadata', 'review-before-conversion'],
+        'gzipTimestampMemberDiagnostics' => [[], ['gzip-member-mtime-present']],
         'gzipMemberBoundaryPolicy' => 'review-before-conversion',
         'gzipMemberBoundaryDiagnostics' => [
             'gzip-combined-package-decode-failed',
@@ -1879,6 +1910,22 @@ if (in_array('--self-test', $argv, true)) {
         || ($textHintPolicyInspection['members'][0]['policy'] ?? null) !== 'review'
         || ($textHintPolicyInspection['members'][0]['diagnostics'][0] ?? null) !== 'gzip-text-hint-binary-payload'
         || isset($textHintPolicyInspection['members'][0]['data'])
+        || $gzipTimestampPolicyInspection['type'] !== $expected['gzipTimestampPolicyType']
+        || $gzipTimestampPolicyInspection['handoffPolicy'] !== $expected['gzipTimestampPolicy']
+        || $gzipTimestampPolicyInspection['extractionPolicy'] !== $expected['gzipTimestampExtractionPolicy']
+        || $gzipTimestampPolicyInspection['diagnostics'] !== $expected['gzipTimestampDiagnostics']
+        || $gzipTimestampPolicyInspection['memberCount'] !== $expected['gzipTimestampMemberCount']
+        || $gzipTimestampPolicyInspection['timestampedMemberCount'] !== $expected['gzipTimestampTimestampedCount']
+        || $gzipTimestampPolicyInspection['unknownModifiedAtMemberCount'] !== $expected['gzipTimestampUnknownCount']
+        || $gzipTimestampPolicyInspection['latestModifiedAtText'] !== $expected['gzipTimestampLatestText']
+        || $gzipTimestampPolicyInspection['timestampSpreadSeconds'] !== 0
+        || array_column($gzipTimestampPolicyInspection['members'], 'filename') !== $expected['gzipTimestampFilenames']
+        || array_column($gzipTimestampPolicyInspection['members'], 'policy') !== $expected['gzipTimestampPolicies']
+        || array_column($gzipTimestampPolicyInspection['members'], 'diagnostics') !== $expected['gzipTimestampMemberDiagnostics']
+        || ($gzipTimestampPolicyInspection['members'][1]['decodedDataOffset'] ?? null) !== $gzipTimestampPolicySplitOffset
+        || isset($gzipTimestampPolicyInspection['members'][1]['data'])
+        || isset($gzipTimestampPolicyInspection['archive'])
+        || isset($gzipTimestampPolicyInspection['tarBytes'])
         || $gzipMemberBoundaryInspection['policy'] !== $expected['gzipMemberBoundaryPolicy']
         || $gzipMemberBoundaryInspection['diagnostics'] !== $expected['gzipMemberBoundaryDiagnostics']
         || $gzipMemberBoundaryInspection['standalonePackageMemberCount'] !== $expected['gzipMemberBoundaryStandaloneCount']
@@ -2451,6 +2498,11 @@ echo 'gzipTextHint.handoffPolicy=' . $textHintPolicyInspection['handoffPolicy'] 
 echo 'gzipTextHint.binaryTextHintMemberCount=' . $textHintPolicyInspection['binaryTextHintMemberCount'] . "\n";
 echo 'gzipTextHint.filename=' . $textHintPolicyInspection['members'][0]['filename'] . "\n";
 echo 'gzipTextHint.diagnostics=' . implode(',', $textHintPolicyInspection['diagnostics']) . "\n";
+echo 'gzipTimestamp.handoffPolicy=' . $gzipTimestampPolicyInspection['handoffPolicy'] . "\n";
+echo 'gzipTimestamp.timestampedMemberCount=' . $gzipTimestampPolicyInspection['timestampedMemberCount'] . "\n";
+echo 'gzipTimestamp.unknownModifiedAtMemberCount=' . $gzipTimestampPolicyInspection['unknownModifiedAtMemberCount'] . "\n";
+echo 'gzipTimestamp.latestModifiedAtText=' . $gzipTimestampPolicyInspection['latestModifiedAtText'] . "\n";
+echo 'gzipTimestamp.memberPolicies=' . implode(',', array_column($gzipTimestampPolicyInspection['members'], 'policy')) . "\n";
 echo 'gzipMemberBoundary.policy=' . $gzipMemberBoundaryInspection['policy'] . "\n";
 echo 'gzipMemberBoundary.standalonePackageMemberCount=' . $gzipMemberBoundaryInspection['standalonePackageMemberCount'] . "\n";
 echo 'gzipMemberBoundary.diagnostics=' . implode(',', $gzipMemberBoundaryInspection['diagnostics']) . "\n";

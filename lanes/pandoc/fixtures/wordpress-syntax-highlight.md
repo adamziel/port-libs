@@ -1486,3 +1486,37 @@ review source_id:
 publish source_id dry_run="true":
     if [ "{{dry_run}}" = "true" ]; then echo "dry run"; else wp post update {{source_id}} --post_status=publish; fi
 ```
+
+``` {.proto #protobuf-review .numberLines startFrom=1240}
+// Protobuf WordPress import review schema
+syntax = "proto3";
+
+package wordpress.import.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option php_namespace = "WordPress\\Import\\Review";
+option java_package = "org.wordpress.importer.review";
+
+message ReviewPacket {
+  reserved 12 to 15;
+  string source_id = 1 [json_name = "sourceId"];
+  optional string title = 2;
+  repeated Block blocks = 3;
+  map<string, string> metadata = 4;
+  oneof publish_target {
+    string post_status = 5;
+    bool dry_run = 6 [default = true];
+  }
+}
+
+message Block {
+  string name = 1;
+  bytes raw_html = 2;
+  repeated string media_url = 3;
+}
+
+service ImportReview {
+  rpc Queue(ReviewPacket) returns (ReviewPacket);
+}
+```

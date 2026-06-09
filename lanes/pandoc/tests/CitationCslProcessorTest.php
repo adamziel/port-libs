@@ -962,6 +962,76 @@ XML);
             'biblatex-options' => ['skipbib=true', ['nested']],
         ]]));
     },
+    'omits bounded biblatex skipbib entries from appended bibliographies' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{visible-manual,
+  author    = {Smith, Ada},
+  title     = {Visible Review Manual},
+  date      = {2026},
+  publisher = {Review Press},
+  options   = {skipbib=false, useprefix=true}
+}
+
+@online{suppressed-snapshot,
+  author  = {Desk, Review},
+  title   = {Suppressed Review Snapshot},
+  date    = {2025},
+  url     = {https://example.test/suppressed},
+  options = {skipbib=true, dashed=false}
+}
+
+@misc{bare-skip-source,
+  author  = {Ng, Nia},
+  title   = {Bare Skip Source},
+  date    = {2024},
+  options = {skipbib}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same(['skipbib=false', 'useprefix=true'], $items[0]['biblatex-options'] ?? null);
+        $t->same(['skipbib=true', 'dashed=false'], $items[1]['biblatex-options'] ?? null);
+        $t->same(['skipbib'], $items[2]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $visible = $processor->item('visible-manual');
+        $suppressed = $processor->item('suppressed-snapshot');
+        $bare = $processor->item('bare-skip-source');
+        $t->same(false, $visible['biblatexSkipBibliography'] ?? null);
+        $t->same('include', $visible['biblatexBibliographyVisibility'] ?? null);
+        $t->same(true, $suppressed['biblatexSkipBibliography'] ?? null);
+        $t->same('omit', $suppressed['biblatexBibliographyVisibility'] ?? null);
+        $t->same(true, $bare['biblatexSkipBibliography'] ?? null);
+
+        $t->same(
+            '(Smith 2026; Desk 2025; Ng 2024)',
+            $processor->renderCitationCluster([
+                $citation('visible-manual', '[@visible-manual]'),
+                $citation('suppressed-snapshot', '[@suppressed-snapshot]'),
+                $citation('bare-skip-source', '[@bare-skip-source]'),
+            ])
+        );
+        $t->same(
+            'Desk, Review. Suppressed Review Snapshot. 2025. BibLaTeX options: skipbib=true; dashed=false. https://example.test/suppressed.',
+            $processor->renderBibliographyEntry('suppressed-snapshot')
+        );
+
+        $document = (new MarkdownReader())->read('Skipbib source @visible-manual cites suppressed packets [@suppressed-snapshot; @bare-skip-source] without listing them.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Skipbib source Smith (2026) cites suppressed packets (Desk 2025; Ng 2024) without listing them.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Visible Review Manual. Review Press, 2026. BibLaTeX options: skipbib=false; useprefix=true.</dd>', $blocks);
+        $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true entry must not be appended to the bibliography');
+        $t->true(!str_contains($blocks, '<dt>Ng 2024</dt>'), 'bare skipbib entry must not be appended to the bibliography');
+
+        $skipOnly = (new WordPressBlockWriter())->write($processor->appendBibliography(
+            (new MarkdownReader())->read('Only skipped packet [@suppressed-snapshot].'),
+            'Works Cited'
+        ));
+        $t->contains('<p>Only skipped packet (Desk 2025).</p>', $skipOnly);
+        $t->true(!str_contains($skipOnly, '<h2'), 'skipbib-only documents must not append an empty bibliography heading');
+        $t->true(!str_contains($skipOnly, '<dt>Desk 2025</dt>'), 'skipbib-only documents must not append hidden bibliography entries');
+    },
     'preserves bounded biblatex xref metadata without crossref inheritance' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{xref-dossier,

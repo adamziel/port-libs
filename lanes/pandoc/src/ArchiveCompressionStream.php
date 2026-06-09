@@ -987,6 +987,118 @@ final class ArchiveCompressionStream
 
     /**
      * @return array{
+     *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     timestampedMemberCount:int,
+     *     unknownModifiedAtMemberCount:int,
+     *     earliestModifiedAt:?int,
+     *     earliestModifiedAtText:?string,
+     *     latestModifiedAt:?int,
+     *     latestModifiedAtText:?string,
+     *     timestampSpreadSeconds:?int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectGzipTimestampPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP timestamp policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
+        $timestampedMemberCount = 0;
+        $unknownModifiedAtMemberCount = 0;
+        $knownModifiedAtValues = [];
+        $members = [];
+
+        foreach ($inspection['members'] as $index => $member) {
+            $modifiedAtKnown = (bool) $member['modifiedAtKnown'];
+            $memberDiagnostics = [];
+            if ($modifiedAtKnown) {
+                $timestampedMemberCount++;
+                $knownModifiedAtValues[] = (int) $member['modifiedAt'];
+                $memberDiagnostics[] = 'gzip-member-mtime-present';
+            } else {
+                $unknownModifiedAtMemberCount++;
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $member['filenameText'],
+                'filenameEncoding' => $member['filenameEncoding'],
+                'comment' => $member['comment'],
+                'commentText' => $member['commentText'],
+                'commentEncoding' => $member['commentEncoding'],
+                'modifiedAt' => $member['modifiedAt'],
+                'modifiedAtKnown' => $modifiedAtKnown,
+                'modifiedAtText' => $member['modifiedAtText'],
+                'extraFlagsMeaning' => $member['extraFlagsMeaning'],
+                'operatingSystemName' => $member['operatingSystemName'],
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'uncompressedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'memberOffset' => $member['memberOffset'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
+                'policy' => $modifiedAtKnown ? 'review-before-conversion' : 'metadata',
+                'diagnostics' => $memberDiagnostics,
+            ];
+        }
+
+        $diagnostics = [];
+        $earliestModifiedAt = null;
+        $latestModifiedAt = null;
+        $timestampSpreadSeconds = null;
+        if ($knownModifiedAtValues !== []) {
+            $earliestModifiedAt = min($knownModifiedAtValues);
+            $latestModifiedAt = max($knownModifiedAtValues);
+            $timestampSpreadSeconds = $latestModifiedAt - $earliestModifiedAt;
+            $diagnostics[] = 'gzip-member-timestamp-metadata-present';
+        }
+
+        if ($timestampSpreadSeconds !== null && $timestampSpreadSeconds > 0) {
+            $diagnostics[] = 'gzip-member-timestamp-metadata-varies';
+            foreach ($members as &$member) {
+                if (($member['modifiedAtKnown'] ?? false) === true) {
+                    $member['diagnostics'][] = 'gzip-member-mtime-varies';
+                }
+            }
+            unset($member);
+        }
+
+        return [
+            'type' => 'archive-gzip-timestamp-policy',
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $inspection['uncompressedSize'],
+            'memberCount' => $inspection['memberCount'],
+            'timestampedMemberCount' => $timestampedMemberCount,
+            'unknownModifiedAtMemberCount' => $unknownModifiedAtMemberCount,
+            'earliestModifiedAt' => $earliestModifiedAt,
+            'earliestModifiedAtText' => self::gzipModifiedAtText($earliestModifiedAt),
+            'latestModifiedAt' => $latestModifiedAt,
+            'latestModifiedAtText' => self::gzipModifiedAtText($latestModifiedAt),
+            'timestampSpreadSeconds' => $timestampSpreadSeconds,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => 'metadata-only-no-extraction',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
      *     kind:string,
      *     format:string,
      *     compressedSize:int,
@@ -3641,6 +3753,15 @@ final class ArchiveCompressionStream
             self::FORMAT_GZIP_ZIP => self::FORMAT_ZIP,
             default => throw new \RuntimeException("Unsupported gzip package stream format: {$format}"),
         };
+    }
+
+    private static function gzipModifiedAtText(?int $modifiedAt): ?string
+    {
+        if ($modifiedAt === null || $modifiedAt === 0) {
+            return null;
+        }
+
+        return gmdate('Y-m-d\TH:i:s\Z', $modifiedAt);
     }
 
     /**

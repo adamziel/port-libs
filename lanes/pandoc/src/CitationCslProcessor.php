@@ -389,7 +389,10 @@ final class CitationCslProcessor
     {
         $ids = $this->uniqueKnownCitationIds($document);
         $yearSuffixes = $this->yearSuffixesForIds($ids);
-        $ids = $this->sortBibliographyIds($ids);
+        $ids = array_values(array_filter(
+            $this->sortBibliographyIds($ids),
+            fn (string $id): bool => !$this->itemSkipsBibliography($id)
+        ));
         if ($ids === []) {
             return [];
         }
@@ -922,6 +925,7 @@ final class CitationCslProcessor
         ]);
         $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords']);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
+        $biblatexSkipBibliography = self::biblatexSkipBibliography($biblatexOptions);
         $biblatexLanguageOptions = self::stringListFromFirstField($item, [
             'biblatexLanguageOptions',
             'biblatex-language-options',
@@ -1091,6 +1095,8 @@ final class CitationCslProcessor
             'dateSeasonSummary' => $dateSeasonSummary,
             'biblatexOptions' => $biblatexOptions,
             'biblatexOptionSummary' => implode('; ', $biblatexOptions),
+            'biblatexSkipBibliography' => $biblatexSkipBibliography,
+            'biblatexBibliographyVisibility' => $biblatexSkipBibliography ? 'omit' : 'include',
             'biblatexLanguageOptions' => $biblatexLanguageOptions,
             'biblatexLanguageOptionSummary' => implode('; ', $biblatexLanguageOptions),
             'biblatexFieldAnnotations' => $biblatexFieldAnnotations,
@@ -1291,6 +1297,38 @@ final class CitationCslProcessor
         }
 
         return $strings;
+    }
+
+    /**
+     * @param list<string> $options
+     */
+    private static function biblatexSkipBibliography(array $options): bool
+    {
+        $skip = false;
+        foreach ($options as $option) {
+            $option = strtolower(trim(str_replace('_', '-', $option)));
+            if ($option === '') {
+                continue;
+            }
+
+            if ($option === 'skipbib') {
+                $skip = true;
+                continue;
+            }
+
+            if (!str_starts_with($option, 'skipbib=')) {
+                continue;
+            }
+
+            $value = trim(substr($option, strlen('skipbib=')));
+            if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+                $skip = true;
+            } elseif (in_array($value, ['0', 'false', 'no', 'off'], true)) {
+                $skip = false;
+            }
+        }
+
+        return $skip;
     }
 
     /**
@@ -3571,6 +3609,14 @@ final class CitationCslProcessor
     private function canonicalCitationId(string $id): string
     {
         return $this->canonicalIdsById[$id] ?? $id;
+    }
+
+    private function itemSkipsBibliography(string $id): bool
+    {
+        $canonicalId = $this->canonicalCitationId($id);
+        $item = $this->itemsById[$canonicalId] ?? null;
+
+        return is_array($item) && ($item['biblatexSkipBibliography'] ?? false) === true;
     }
 
     /**
@@ -7992,6 +8038,8 @@ final class CitationCslProcessor
             'biblatex-field-annotations', 'biblatex-field-annotation-summary', 'biblatex-field-annotations-summary', 'field-annotation-summary' => (string) ($item['biblatexFieldAnnotationSummary'] ?? ''),
             'biblatex-options', 'biblatexoptions' => implode(', ', is_array($item['biblatexOptions'] ?? null) ? $item['biblatexOptions'] : []),
             'biblatex-option-summary', 'biblatex-options-summary', 'biblatexoptionssummary' => (string) ($item['biblatexOptionSummary'] ?? ''),
+            'skipbib', 'biblatex-skipbib', 'biblatex-skip-bibliography' => ($item['biblatexSkipBibliography'] ?? false) === true ? 'true' : '',
+            'biblatex-bibliography-visibility' => (string) ($item['biblatexBibliographyVisibility'] ?? ''),
             'biblatex-language-options', 'biblatexlanguageoptions', 'langidopts', 'language-options' => implode(', ', is_array($item['biblatexLanguageOptions'] ?? null) ? $item['biblatexLanguageOptions'] : []),
             'biblatex-language-option-summary', 'biblatex-language-options-summary', 'biblatexlanguageoptionssummary', 'language-option-summary', 'language-options-summary' => (string) ($item['biblatexLanguageOptionSummary'] ?? ''),
             'refsection', 'ref-section', 'biblatex-refsection', 'biblatexrefsection' => (string) ($item['biblatexRefsection'] ?? ''),

@@ -5257,6 +5257,72 @@ return [
         $t->same('quoted-ambiguous-yaml-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="quoted-ambiguous-yaml-body">Quoted ambiguous YAML body</h1>', $blocks);
     },
+    'keeps tagged quoted explicit top-level yaml field names as strings' => static function (TestRunner $t): void {
+        $blockDocument = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Tagged quoted explicit key **Packet**',
+            '? !wp-key "yes"',
+            ': tagged quoted boolean-looking source field',
+            '? !wp-key "15"',
+            ': tagged quoted numeric-looking source field',
+            '? !!str "0x2A"',
+            ': core-tag quoted hexadecimal-looking source field',
+            '...',
+            '',
+            '# Tagged quoted explicit key body',
+        ]));
+        $flowDocument = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '{',
+            '  title: Flow tagged quoted explicit key **Packet**,',
+            '  ? !wp-key "yes": flow tagged quoted boolean-looking source field,',
+            '  ? !wp-key "15": flow tagged quoted numeric-looking source field,',
+            '  ? !!str "0x2A": flow core-tag quoted hexadecimal-looking source field',
+            '}',
+            '...',
+            '',
+            '# Flow tagged quoted explicit key body',
+        ]));
+        $blockMeta = $blockDocument->attr('meta');
+        $flowMeta = $flowDocument->attr('meta');
+        $blockDiagnostics = $blockDocument->attr('yamlMetadataDiagnostics', []);
+        $flowDiagnostics = $flowDocument->attr('yamlMetadataDiagnostics', []);
+        $blockProvenance = $blockDocument->attr('yamlMetadataTagProvenance', []);
+        $flowProvenance = $flowDocument->attr('yamlMetadataTagProvenance', []);
+        $blockPairs = array_map(
+            static fn (array $entry): string => ($entry['tag'] ?? '') . "\0" . ($entry['path'] ?? ''),
+            $blockProvenance
+        );
+        $flowPairs = array_map(
+            static fn (array $entry): string => ($entry['tag'] ?? '') . "\0" . ($entry['path'] ?? ''),
+            $flowProvenance
+        );
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+        $flowOutput = (new WordPressBlockWriter())->write($flowDocument);
+
+        $t->same('Tagged quoted explicit key **Packet**', $blockMeta['title']);
+        $t->same('tagged quoted boolean-looking source field', $blockMeta['yes']);
+        $t->same('tagged quoted numeric-looking source field', $blockMeta[15]);
+        $t->same('core-tag quoted hexadecimal-looking source field', $blockMeta['0x2A']);
+        $t->same('Flow tagged quoted explicit key **Packet**', $flowMeta['title']);
+        $t->same('flow tagged quoted boolean-looking source field', $flowMeta['yes']);
+        $t->same('flow tagged quoted numeric-looking source field', $flowMeta[15]);
+        $t->same('flow core-tag quoted hexadecimal-looking source field', $flowMeta['0x2A']);
+        $t->same([], $blockDiagnostics);
+        $t->same([], $flowDiagnostics);
+        $t->true(in_array('!wp-key' . "\0" . '/yes', $blockPairs, true));
+        $t->true(in_array('!wp-key' . "\0" . '/15', $blockPairs, true));
+        $t->true(in_array('!wp-key' . "\0" . '/yes', $flowPairs, true));
+        $t->true(in_array('!wp-key' . "\0" . '/15', $flowPairs, true));
+        $t->same(false, in_array('!!str', array_column($blockProvenance, 'tag'), true));
+        $t->same(false, in_array('!!str', array_column($flowProvenance, 'tag'), true));
+        $t->same('heading', $blockDocument->children[0]->type);
+        $t->same('tagged-quoted-explicit-key-body', $blockDocument->children[0]->attr('id'));
+        $t->same('heading', $flowDocument->children[0]->type);
+        $t->same('flow-tagged-quoted-explicit-key-body', $flowDocument->children[0]->attr('id'));
+        $t->contains('<h1 id="tagged-quoted-explicit-key-body">Tagged quoted explicit key body</h1>', $blockOutput);
+        $t->contains('<h1 id="flow-tagged-quoted-explicit-key-body">Flow tagged quoted explicit key body</h1>', $flowOutput);
+    },
     'keeps blank-led yaml-looking fences as markdown body' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',
