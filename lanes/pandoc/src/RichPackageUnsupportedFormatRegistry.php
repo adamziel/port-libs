@@ -1,0 +1,475 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class RichPackageUnsupportedFormatRegistry
+{
+    public const UPSTREAM_COMMIT = '0640c4c9859aa5a3ede082c190fcd5883c24ac83';
+
+    /**
+     * @var array<string, array{
+     *     extensions:list<string>,
+     *     directions:array<string, array{
+     *         upstream:bool,
+     *         state:string,
+     *         code:string,
+     *         countsAsDirectSupport:bool,
+     *         component:?string,
+     *         gates:list<string>,
+     *         diagnostics:list<string>
+     *     }>
+     * }>
+     */
+    private const FORMAT_ROWS = [
+        'docx' => [
+            'extensions' => ['docx'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'bounded-native-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.bounded-native',
+                    'countsAsDirectSupport' => true,
+                    'component' => 'DocxReader',
+                    'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'docx-openxml-core'],
+                    'diagnostics' => [],
+                ],
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'docx-openxml-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'odt' => [
+            'extensions' => ['odt'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'bounded-native-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.bounded-native',
+                    'countsAsDirectSupport' => true,
+                    'component' => 'OdtReader',
+                    'gates' => ['shared-zip-package-core', 'odf-open-document-core'],
+                    'diagnostics' => [],
+                ],
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'odf-open-document-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'opendocument' => [
+            'extensions' => [],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['odf-open-document-writer-core'],
+                    'diagnostics' => ['writer-component-missing'],
+                ],
+            ],
+        ],
+        'epub' => [
+            'extensions' => ['epub'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'bounded-native-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.bounded-native',
+                    'countsAsDirectSupport' => true,
+                    'component' => 'EpubReader',
+                    'gates' => ['shared-zip-package-core', 'epub3-package-core', 'xml-html5-dom-core'],
+                    'diagnostics' => [],
+                ],
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'epub3-package-writer-core', 'xml-html5-dom-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'epub2' => [
+            'extensions' => [],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'epub2-package-writer-core', 'xml-html5-dom-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'epub3' => [
+            'extensions' => [],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'epub3-package-writer-core', 'xml-html5-dom-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'pptx' => [
+            'extensions' => ['pptx'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-core'],
+                    'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+                ],
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'xlsx' => [
+            'extensions' => ['xlsx'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'],
+                    'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+                ],
+            ],
+        ],
+        'chunkedhtml' => [
+            'extensions' => [],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['shared-zip-package-core', 'xml-html5-dom-core', 'chunked-html-package-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+    ];
+
+    /**
+     * @var array<string, array{format:string, component:?string, gates:list<string>, diagnostics:list<string>}>
+     */
+    private const SOURCE_ALIASES = [
+        'doc' => [
+            'format' => 'doc',
+            'component' => 'LegacyDocReader',
+            'gates' => ['legacy-doc-cfb-core'],
+            'diagnostics' => ['source-alias-only', 'not-upstream-direct-reader-token', 'legacy-cfb-handoff-only'],
+        ],
+        'docx' => [
+            'format' => 'docx',
+            'component' => 'DocxReader',
+            'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'docx-openxml-core'],
+            'diagnostics' => [],
+        ],
+        'odt' => [
+            'format' => 'odt',
+            'component' => 'OdtReader',
+            'gates' => ['shared-zip-package-core', 'odf-open-document-core'],
+            'diagnostics' => [],
+        ],
+        'ods' => [
+            'format' => 'ods',
+            'component' => null,
+            'gates' => ['shared-zip-package-core', 'odf-spreadsheet-reader-core'],
+            'diagnostics' => ['source-alias-only', 'not-upstream-direct-reader-token', 'reader-component-missing'],
+        ],
+        'odp' => [
+            'format' => 'odp',
+            'component' => null,
+            'gates' => ['shared-zip-package-core', 'odf-presentation-reader-core'],
+            'diagnostics' => ['source-alias-only', 'not-upstream-direct-reader-token', 'reader-component-missing'],
+        ],
+        'epub' => [
+            'format' => 'epub',
+            'component' => 'EpubReader',
+            'gates' => ['shared-zip-package-core', 'epub3-package-core', 'xml-html5-dom-core'],
+            'diagnostics' => [],
+        ],
+        'pptx' => [
+            'format' => 'pptx',
+            'component' => null,
+            'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'pptx-openxml-core'],
+            'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+        ],
+        'xlsx' => [
+            'format' => 'xlsx',
+            'component' => null,
+            'gates' => ['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'],
+            'diagnostics' => ['reader-component-missing', 'external-office-conversion-disallowed'],
+        ],
+        'zip' => [
+            'format' => 'zip',
+            'component' => 'ZipPackage',
+            'gates' => ['shared-zip-package-core'],
+            'diagnostics' => ['source-alias-only', 'container-preflight-only', 'not-pandoc-document-format'],
+        ],
+    ];
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageFormats(): array
+    {
+        return array_keys(self::FORMAT_ROWS);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function statusReport(): array
+    {
+        $inputStatuses = self::statusesForDirection('input');
+        $outputStatuses = self::statusesForDirection('output');
+
+        return [
+            'upstreamCommit' => self::UPSTREAM_COMMIT,
+            'source' => [
+                'inputFormats' => 'Text.Pandoc.Readers.readers package-style formats',
+                'outputFormats' => 'Text.Pandoc.Writers.writers package-style formats',
+                'sourceAliases' => 'Text.Pandoc.Format.formatFromFilePath rich package extensions',
+            ],
+            'denominators' => [
+                'richPackageFormats' => count(self::FORMAT_ROWS),
+                'upstreamRichPackageInputs' => count($inputStatuses),
+                'upstreamRichPackageOutputs' => count($outputStatuses),
+                'sourceAliasExtensions' => count(self::SOURCE_ALIASES),
+            ],
+            'directSupport' => [
+                'input' => self::supportCounts($inputStatuses),
+                'output' => self::supportCounts($outputStatuses),
+            ],
+            'unsupportedDiagnostics' => [
+                'input' => self::unsupportedDiagnostics('input'),
+                'output' => self::unsupportedDiagnostics('output'),
+            ],
+            'sourceAliasDiagnostics' => self::sourceAliasDiagnostics(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function formatStatus(string $format, string $direction): array
+    {
+        $format = self::normalizeFormat($format);
+        $direction = self::normalizeDirection($direction);
+
+        if (!isset(self::FORMAT_ROWS[$format])) {
+            throw new \InvalidArgumentException("Unknown rich package format: {$format}");
+        }
+
+        $row = self::FORMAT_ROWS[$format];
+        $directionStatus = $row['directions'][$direction] ?? null;
+
+        if ($directionStatus === null) {
+            return [
+                'format' => $format,
+                'direction' => $direction,
+                'state' => 'not-upstream-rich-package-format',
+                'code' => 'pandoc.rich-package.' . $direction . '.not-upstream-format',
+                'countsAsDirectSupport' => false,
+                'upstream' => false,
+                'component' => null,
+                'gates' => [],
+                'diagnostics' => ['not-advertised-by-upstream-pandoc'],
+                'sourceExtensions' => $row['extensions'],
+            ];
+        }
+
+        return [
+            'format' => $format,
+            'direction' => $direction,
+            'state' => $directionStatus['state'],
+            'code' => $directionStatus['code'],
+            'countsAsDirectSupport' => $directionStatus['countsAsDirectSupport'],
+            'upstream' => $directionStatus['upstream'],
+            'component' => $directionStatus['component'],
+            'gates' => $directionStatus['gates'],
+            'diagnostics' => $directionStatus['diagnostics'],
+            'sourceExtensions' => $row['extensions'],
+        ];
+    }
+
+    public static function sourceFormatForExtension(string $extension): ?string
+    {
+        $extension = strtolower(ltrim($extension, '.'));
+        return self::SOURCE_ALIASES[$extension]['format'] ?? null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function sourceAliasStatus(string $extension): array
+    {
+        $extension = strtolower(ltrim($extension, '.'));
+        $alias = self::SOURCE_ALIASES[$extension] ?? null;
+
+        if ($alias === null) {
+            throw new \InvalidArgumentException("Unknown rich package source extension: {$extension}");
+        }
+
+        $format = $alias['format'];
+        $directInput = isset(self::FORMAT_ROWS[$format])
+            ? self::formatStatus($format, 'input')
+            : null;
+        $countsAsDirectSupport = $directInput !== null && $directInput['countsAsDirectSupport'] === true;
+
+        return [
+            'extension' => $extension,
+            'format' => $format,
+            'state' => $countsAsDirectSupport ? 'direct-rich-package-input' : 'unsupported-rich-package-source-alias',
+            'code' => $countsAsDirectSupport
+                ? 'pandoc.rich-package.source-alias.direct-input'
+                : 'pandoc.rich-package.source-alias.unsupported-format',
+            'countsAsDirectSupport' => $countsAsDirectSupport,
+            'component' => $alias['component'],
+            'gates' => $alias['gates'],
+            'diagnostics' => $alias['diagnostics'],
+            'directInputState' => $directInput['state'] ?? null,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function unsupportedDiagnostics(?string $direction = null): array
+    {
+        $directions = $direction === null
+            ? ['input', 'output']
+            : [self::normalizeDirection($direction)];
+        $diagnostics = [];
+
+        foreach ($directions as $currentDirection) {
+            foreach (self::statusesForDirection($currentDirection) as $status) {
+                if ($status['countsAsDirectSupport'] === true) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'format' => $status['format'],
+                    'direction' => $currentDirection,
+                    'state' => $status['state'],
+                    'code' => $status['code'],
+                    'gates' => $status['gates'],
+                    'diagnostics' => $status['diagnostics'],
+                    'sourceExtensions' => $status['sourceExtensions'],
+                ];
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function sourceAliasDiagnostics(): array
+    {
+        $diagnostics = [];
+
+        foreach (array_keys(self::SOURCE_ALIASES) as $extension) {
+            $status = self::sourceAliasStatus($extension);
+            if ($status['countsAsDirectSupport'] === false) {
+                $diagnostics[] = $status;
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function statusesForDirection(string $direction): array
+    {
+        $direction = self::normalizeDirection($direction);
+        $statuses = [];
+
+        foreach (array_keys(self::FORMAT_ROWS) as $format) {
+            $status = self::formatStatus($format, $direction);
+            if ($status['upstream'] === true) {
+                $statuses[] = $status;
+            }
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $statuses
+     * @return array{supported:int, unsupported:int, total:int}
+     */
+    private static function supportCounts(array $statuses): array
+    {
+        $supported = 0;
+
+        foreach ($statuses as $status) {
+            if ($status['countsAsDirectSupport'] === true) {
+                $supported++;
+            }
+        }
+
+        return [
+            'supported' => $supported,
+            'unsupported' => count($statuses) - $supported,
+            'total' => count($statuses),
+        ];
+    }
+
+    private static function normalizeFormat(string $format): string
+    {
+        return strtolower(trim($format));
+    }
+
+    private static function normalizeDirection(string $direction): string
+    {
+        $direction = strtolower(trim($direction));
+        if ($direction !== 'input' && $direction !== 'output') {
+            throw new \InvalidArgumentException("Unsupported rich package direction: {$direction}");
+        }
+
+        return $direction;
+    }
+}
