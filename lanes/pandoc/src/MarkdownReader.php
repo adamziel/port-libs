@@ -350,7 +350,7 @@ final class MarkdownReader
                 continue;
             }
             $this->flushListStack($listStack, $blocks);
-            $paragraph[] = trim($line);
+            $paragraph[] = $this->normalizeParagraphLine($line);
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
@@ -14318,6 +14318,13 @@ final class MarkdownReader
         return implode("\n", $paragraph);
     }
 
+    private function normalizeParagraphLine(string $line): string
+    {
+        $trimmed = trim($line);
+
+        return preg_match('/ {2,}\z/', $line) === 1 ? $trimmed . '  ' : $trimmed;
+    }
+
     /**
      * @param list<array{indent:int, ordered: bool, start: int|null, items: list<AstNode>}> $listStack
      * @param list<AstNode> $blocks
@@ -14407,6 +14414,14 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
+                if (preg_match('/ {2,}\z/', $buffer) === 1) {
+                    $buffer = rtrim($buffer, ' ');
+                    $this->flushText($buffer, $nodes);
+                    $nodes[] = new AstNode('linebreak');
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('softbreak');
                 $offset++;

@@ -7074,6 +7074,25 @@ return [
         $t->contains('<p><code>hi there</code></p>', $blocks);
         $t->contains('<p><code>hi````there</code></p>', $blocks);
     },
+    'maps upstream markdown reader trailing-space hard line breaks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("alpha  \nbeta\n\n*marked*  \nnext\n\nsoft \nbreak");
+        $hardBreak = $document->children[0];
+        $inlineHardBreak = $document->children[1];
+        $softBreak = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $hardBreak->children));
+        $t->same('alpha', $hardBreak->children[0]->attr('text'));
+        $t->same('beta', $hardBreak->children[2]->attr('text'));
+        $t->same("alpha\nbeta", $hardBreak->attr('text'));
+        $t->same(['emph', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $inlineHardBreak->children));
+        $t->same('marked', $inlineHardBreak->children[0]->children[0]->attr('text'));
+        $t->same('next', $inlineHardBreak->children[2]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $softBreak->children));
+        $t->same('soft break', $softBreak->attr('text'));
+        $t->contains('<p>alpha<br/>beta</p>', $blocks);
+        $t->contains('<p><em>marked</em><br/>next</p>', $blocks);
+    },
     'maps upstream markdown reader inline code attributes and spaced literals' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '`document.write("Hello");`{.javascript}',
