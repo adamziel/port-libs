@@ -2719,6 +2719,63 @@ return [
         $t->same('comment-provenance-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="comment-provenance-body">Comment provenance body</h1>', $blocks);
     },
+    'records pandoc yaml standalone comments inside block sequences as review provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Sequence comment **Packet**',
+            'review:',
+            '  steps:',
+            '    # collect reviewer source comment',
+            '    - Collect source metadata',
+            '    # publish reviewer source comment',
+            '    - Publish WordPress blocks',
+            '  owners:',
+            '    - Import Desk',
+            '    # owner handoff comment',
+            '    - QA Desk',
+            'references:',
+            '  # reference sequence comment',
+            '  - id: sequence-comment-ref',
+            '    metadata:',
+            '      labels:',
+            '        # nested label sequence comment',
+            '        - source',
+            '        - review',
+            '...',
+            '',
+            '# Sequence comment body',
+        ]));
+        $meta = $document->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Sequence comment **Packet**', $meta['title']);
+        $t->same(['Collect source metadata', 'Publish WordPress blocks'], $meta['review']['steps']);
+        $t->same(['Import Desk', 'QA Desk'], $meta['review']['owners']);
+        $t->same('sequence-comment-ref', $meta['references'][0]['id']);
+        $t->same(['source', 'review'], $meta['references'][0]['metadata']['labels']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(5, count($comments));
+        $t->same(array_fill(0, 5, 'yaml-comment'), array_column($comments, 'type'));
+        $t->same(array_fill(0, 5, 'standalone'), array_column($comments, 'context'));
+        $t->same([
+            'collect reviewer source comment',
+            'publish reviewer source comment',
+            'owner handoff comment',
+            'reference sequence comment',
+            'nested label sequence comment',
+        ], array_column($comments, 'comment'));
+        $t->same([
+            '/review/steps',
+            '/review/steps',
+            '/review/owners',
+            '/references',
+            '/references/0/metadata/labels',
+        ], array_column($comments, 'path'));
+        $t->same(['5', '7', '11', '14', '18'], array_column($comments, 'sourceLine'));
+        $t->same('sequence-comment-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="sequence-comment-body">Sequence comment body</h1>', $blocks);
+    },
     'records pandoc yaml explicit key separator comments as review provenance' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -7,6 +7,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\Html5DomFragment;
 use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\XmlHtml5Dom;
 use PortLibs\Pandoc\XmlHtmlDom;
 
 $fragment = <<<'HTML'
@@ -28,6 +29,14 @@ HTML;
 
 $dom = XmlHtmlDom::loadHtmlFragment($fragment, 'WordPress source HTML fragment');
 $html = XmlHtmlDom::serializeHtmlFragment($dom);
+$facadeBody = XmlHtml5Dom::parseHtmlFragmentBody(
+    '<section data-source="legacy-facade"><p>A&NoBreak;B &hopf; &copy</p>'
+    . '<textarea>Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea></section>'
+);
+if (!$facadeBody instanceof DOMElement) {
+    throw new RuntimeException('Expected XmlHtml5Dom facade fragment body to parse');
+}
+$facadeHtml = XmlHtml5Dom::serializeHtmlFragment($facadeBody);
 $reviewXml = XmlHtmlDom::loadXmlDocument(
     '<?xml version="1.0" encoding="UTF-8"?><review><item source="legacy">DOM packet</item></review>',
     'WordPress XML review packet',
@@ -53,6 +62,7 @@ $shadowAccessibilityFragment = Html5DomFragment::fromHtml(
 );
 $document = new AstNode('document', [], [
     new AstNode('raw_html', ['format' => 'html', 'html' => $html]),
+    new AstNode('raw_html', ['format' => 'html', 'html' => $facadeHtml]),
 ]);
 $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -101,6 +111,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($html, '<script data-review="metadata" type="application/json">{"source":"legacy <html> & notes"}</script>')) {
         throw new RuntimeException('Expected raw text JSON script serialization for review metadata');
+    }
+    if (!str_contains($facadeHtml, '<section data-source="legacy-facade"><p>A' . "\u{2060}" . 'B ' . "\u{1D559}" . ' ©</p><textarea>Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea></section>')) {
+        throw new RuntimeException('Expected XmlHtml5Dom facade to reuse hardened HTML5 parsing and serialization');
+    }
+    if (str_contains($facadeHtml, '&amp;NoBreak;') || str_contains($facadeHtml, '<script>alert(1)</script>')) {
+        throw new RuntimeException('Expected XmlHtml5Dom facade handoff to decode extra references and escape RCDATA source markup');
+    }
+    try {
+        XmlHtml5Dom::parseHtmlFragmentBody('<!DOCTYPE html><p>bad</p>');
+
+        throw new RuntimeException('Expected XmlHtml5Dom facade to reject unsafe fragment declarations');
+    } catch (InvalidArgumentException) {
     }
     if (($reviewXml->documentElement?->tagName ?? '') !== 'review' || $reviewXml->documentElement->textContent !== 'DOM packet') {
         throw new RuntimeException('Expected XML declaration-bearing review packet to parse safely');
@@ -175,6 +197,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo "XML/HTML5 DOM handoff for WordPress import:\n";
 echo "fragmentHtml:\n" . $html . "\n";
+echo "facadeFragmentHtml:\n" . $facadeHtml . "\n";
 echo "namespacedReviewXml:\n" . $namespacedReviewFragment->serialize() . "\n";
 echo "xmlPolicyReviewXml:\n" . $xmlPolicyReviewFragment->serialize() . "\n";
 echo "shadowAccessibilityHtml:\n" . $shadowAccessibilityFragment->serialize() . "\n";

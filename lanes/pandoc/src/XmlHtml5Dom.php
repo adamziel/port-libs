@@ -6,12 +6,13 @@ namespace PortLibs\Pandoc;
 
 final class XmlHtml5Dom
 {
-    private const HTML_FLAGS = LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING;
-    private const XML_FLAGS = LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING;
-
     public static function parseHtmlDocument(string $html): ?\DOMDocument
     {
-        return self::loadHtml('<?xml encoding="UTF-8">' . $html);
+        try {
+            return Html5Dom::parseHtmlDocument($html);
+        } catch (\RuntimeException) {
+            return null;
+        }
     }
 
     public static function parseHtmlDocumentBody(string $html): ?\DOMElement
@@ -23,7 +24,13 @@ final class XmlHtml5Dom
 
     public static function parseHtmlFragment(string $html): ?\DOMDocument
     {
-        return self::loadHtml('<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>');
+        try {
+            $body = Html5Dom::parseHtmlFragment($html);
+        } catch (\RuntimeException) {
+            return null;
+        }
+
+        return $body->ownerDocument instanceof \DOMDocument ? $body->ownerDocument : null;
     }
 
     public static function parseHtmlFragmentBody(string $html): ?\DOMElement
@@ -42,27 +49,7 @@ final class XmlHtml5Dom
 
     public static function parseXmlDocument(string $xml, string $label = 'XML'): \DOMDocument
     {
-        if (preg_match('/<!DOCTYPE\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException($label . ' must not declare a doctype');
-        }
-
-        $previous = libxml_use_internal_errors(true);
-        $document = new \DOMDocument('1.0', 'UTF-8');
-        $document->resolveExternals = false;
-        $document->substituteEntities = false;
-
-        try {
-            $loaded = $document->loadXML($xml, self::XML_FLAGS);
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previous);
-        }
-
-        if (!$loaded || !$document->documentElement instanceof \DOMElement) {
-            throw new \InvalidArgumentException('Unable to parse ' . $label);
-        }
-
-        return $document;
+        return XmlHtmlDom::loadXmlDocument($xml, $label);
     }
 
     public static function serializeHtmlFragment(\DOMNode $node): string
@@ -79,41 +66,9 @@ final class XmlHtml5Dom
         }
 
         if ($node instanceof \DOMElement && strtolower($node->localName) === 'body') {
-            $html = '';
-            foreach ($node->childNodes as $child) {
-                $serialized = $document->saveHTML($child);
-                if ($serialized === false) {
-                    throw new \RuntimeException('Failed to serialize HTML fragment node');
-                }
-
-                $html .= $serialized;
-            }
-
-            return $html;
+            return Html5Dom::serializeHtmlChildren($node);
         }
 
-        $html = $document->saveHTML($node);
-        if ($html === false) {
-            throw new \RuntimeException('Failed to serialize HTML fragment node');
-        }
-
-        return $html;
-    }
-
-    private static function loadHtml(string $source): ?\DOMDocument
-    {
-        $previous = libxml_use_internal_errors(true);
-        $document = new \DOMDocument('1.0', 'UTF-8');
-        $document->resolveExternals = false;
-        $document->substituteEntities = false;
-
-        try {
-            $loaded = $document->loadHTML($source, self::HTML_FLAGS);
-        } finally {
-            libxml_clear_errors();
-            libxml_use_internal_errors($previous);
-        }
-
-        return $loaded ? $document : null;
+        return XmlHtmlDom::serializeHtmlNode($node);
     }
 }

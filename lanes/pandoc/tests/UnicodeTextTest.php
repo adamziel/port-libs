@@ -391,7 +391,7 @@ return [
     'decodes mac cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xEC\xEF\xEE\xF0\xF2\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \xD2\xEF\xF0\xE8\xE2\xE5\xF2\xD3 \xD1 \xFF20; \xDD\xEB\xEA\xE0 \xDC 7; \xBA\xBB\xB8\xB9.";
         $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-cyrillic');
-        $document = (new MarkdownReader())->readBytes($bytes, 'x-mac-ukrainian');
+        $document = (new MarkdownReader())->readBytes($bytes, 'maccyrillic');
         $blocks = (new WordPressBlockWriter())->write($document);
         $specials = UnicodeText::decodeBytes("\xA2\xA7\xB4\xB6\xB8\xB9\xBA\xBB\xD0\xD1\xD2\xD3\xDC\xDD\xDE\xDF\xFF", 'mac-cyrillic');
 
@@ -408,6 +408,29 @@ return [
         $t->same(63, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
         $t->contains('<h1 id="импорт">Импорт</h1>', $blocks);
         $t->contains('<p>Редактор “привет” — €20; Ёлка № 7; ЇїЄє.</p>', $blocks);
+    },
+    'decodes mac ukrainian source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \x93\xEA\xF0\xE0\xBB\xED\xE0\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x8A\xE8\xBB\xE2; \xBA\xE6\xE0\xEA \xB6\xE0\xED\xEE\xEA; \xB8\xA7\xBA\xA2; currency \xFF20.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-ukrainian');
+        $document = (new MarkdownReader())->readBytes($bytes, 'mac-ukraine');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA2\xA7\xB6\xB8\xB9\xBA\xBB\xFF", 'macukrainian');
+        $macCyrillicComparison = UnicodeText::decodeBytes("\xFF", 'mac-cyrillic');
+
+        $t->same('mac-ukrainian', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Україна\n\nРедактор Київ; Їжак ґанок; ЄІЇҐ; currency ¤20.", $decoded['text']);
+        $t->same('ҐІґЄєЇї¤', $specials['text']);
+        $t->same('mac-ukrainian', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same('€', $macCyrillicComparison['text']);
+        $t->same(['encoding' => 'mac-ukrainian', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Україна', $document->children[0]->attr('text'));
+        $t->same('Редактор Київ; Їжак ґанок; ЄІЇҐ; currency ¤20.', $document->children[1]->attr('text'));
+        $t->same(46, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(65, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="україна">Україна</h1>', $blocks);
+        $t->contains('<p>Редактор Київ; Їжак ґанок; ЄІЇҐ; currency ¤20.</p>', $blocks);
     },
     'decodes mac greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xB6\xEC\xEC\xC0\xE4\xE1\n\n\xAA\xF9\xEE\xF4\xC0\xEB\xF4\xE8\xF7 \xD2\xF0\xE8\xE7\xDC\xD3 \xD1 \xA9 20; \xD9\xDF \xFD\xFE; \xFF.";

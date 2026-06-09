@@ -44,6 +44,11 @@ final class BibtexCslParser
         'performer',
         'producer',
         'recipient',
+        'redactor',
+        'founder',
+        'continuator',
+        'reviser',
+        'collaborator',
         'reviewed-author',
         'reviewedauthor',
         'script-writer',
@@ -880,6 +885,11 @@ final class BibtexCslParser
             'illustrator' => ['illustrator'],
             'interviewer' => ['interviewer'],
             'recipient' => ['recipient'],
+            'redactor' => ['redactor'],
+            'founder' => ['founder'],
+            'continuator' => ['continuator'],
+            'reviser' => ['reviser'],
+            'collaborator' => ['collaborator'],
             'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
         ] as $cslNameVariable => $fieldNames) {
             $names = self::namesFromFirstBibtexField($fields, $fieldNames);

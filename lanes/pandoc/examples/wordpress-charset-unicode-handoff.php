@@ -78,6 +78,9 @@ $koi8UText = (string) $koi8USource->children[1]->attr('text');
 $macCyrillicBytes = "# \x88\xEC\xEF\xEE\xF0\xF2\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \xD2\xEF\xF0\xE8\xE2\xE5\xF2\xD3 \xD1 \xFF20; \xDD\xEB\xEA\xE0 \xDC 7; \xBA\xBB\xB8\xB9.";
 $macCyrillicSource = (new MarkdownReader())->readBytes($macCyrillicBytes, 'x-mac-cyrillic');
 $macCyrillicText = (string) $macCyrillicSource->children[1]->attr('text');
+$macUkrainianBytes = "# \x93\xEA\xF0\xE0\xBB\xED\xE0\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \x8A\xE8\xBB\xE2; \xBA\xE6\xE0\xEA \xB6\xE0\xED\xEE\xEA; \xB8\xA7\xBA\xA2; currency \xFF20.";
+$macUkrainianSource = (new MarkdownReader())->readBytes($macUkrainianBytes, 'x-mac-ukrainian');
+$macUkrainianText = (string) $macUkrainianSource->children[1]->attr('text');
 $macGreekBytes = "# \xB6\xEC\xEC\xC0\xE4\xE1\n\n\xAA\xF9\xEE\xF4\xC0\xEB\xF4\xE8\xF7 \xD2\xF0\xE8\xE7\xDC\xD3 \xD1 \xA9 20; \xD9\xDF \xFD\xFE; \xFF.";
 $macGreekSource = (new MarkdownReader())->readBytes($macGreekBytes, 'x-mac-greek');
 $macGreekText = (string) $macGreekSource->children[1]->attr('text');
@@ -633,6 +636,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macCyrillicSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macCyrillicText) . '/' . UnicodeText::displayWidth($macCyrillicText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Ukrainian source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macUkrainianText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macUkrainianSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macUkrainianText) . '/' . UnicodeText::displayWidth($macUkrainianText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Greek source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $macGreekText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macGreekSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macGreekText) . '/' . UnicodeText::displayWidth($macGreekText, 'wide')])]),
@@ -1110,6 +1118,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Mac Cyrillic source</td><td>Редактор “привет” — €20; Ёлка № 7; ЇїЄє.</td><td>mac-cyrillic:40/63</td>')) {
         throw new RuntimeException('charset handoff self-test missing Mac Cyrillic decode audit row');
+    }
+    if (($macUkrainianSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-ukrainian') {
+        throw new RuntimeException('charset handoff self-test missing Mac Ukrainian source encoding');
+    }
+    if (!str_contains($blocks, '<td>Mac Ukrainian source</td><td>Редактор Київ; Їжак ґанок; ЄІЇҐ; currency ¤20.</td><td>mac-ukrainian:46/65</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Mac Ukrainian decode audit row');
     }
     if (($macGreekSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-greek') {
         throw new RuntimeException('charset handoff self-test missing Mac Greek source encoding');

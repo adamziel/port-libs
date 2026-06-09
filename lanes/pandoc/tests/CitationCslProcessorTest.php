@@ -5810,6 +5810,98 @@ XML);
         $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
         $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
     },
+    'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{direct-extended-roles,
+  author       = {Smith, Ada},
+  title        = {Direct Extended Role Packet},
+  date         = {2026},
+  publisher    = {Review Press},
+  redactor     = {Roe, Pat and {{Migration Desk}}},
+  founder      = {{Founding Review Board}},
+  continuator  = {Ng, Nia},
+  reviser      = {Curator, Eli},
+  collaborator = {{Source Review Desk}},
+  redactor+an  = {1=redaction verified; 2:name=literal redactor verified},
+  founder+an:role = {1=founding source owner},
+  collaborator+an = {1=collaboration queue verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Roe', $items[0]['redactor'][0]['family'] ?? null);
+        $t->same('Pat', $items[0]['redactor'][0]['given'] ?? null);
+        $t->same('Migration Desk', $items[0]['redactor'][1]['literal'] ?? null);
+        $t->same('redaction verified', $items[0]['redactor'][0]['annotations'][0]['value'] ?? null);
+        $t->same('name', $items[0]['redactor'][1]['annotations'][0]['part'] ?? null);
+        $t->same('Founding Review Board', $items[0]['founder'][0]['literal'] ?? null);
+        $t->same('role', $items[0]['founder'][0]['annotations'][0]['part'] ?? null);
+        $t->same('founding source owner', $items[0]['founder'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Ng', $items[0]['continuator'][0]['family'] ?? null);
+        $t->same('Curator', $items[0]['reviser'][0]['family'] ?? null);
+        $t->same('Source Review Desk', $items[0]['collaborator'][0]['literal'] ?? null);
+        $t->same('collaboration queue verified', $items[0]['collaborator'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['redactor']));
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['founder']));
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['collaborator']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('direct-extended-roles');
+        $t->same('Roe', $item['redactors'][0]['family'] ?? null);
+        $t->same('Migration Desk', $item['redactors'][1]['literal'] ?? null);
+        $t->same('Founding Review Board', $item['founders'][0]['literal'] ?? null);
+        $t->same('Ng', $item['continuators'][0]['family'] ?? null);
+        $t->same('Curator', $item['revisers'][0]['family'] ?? null);
+        $t->same('Source Review Desk', $item['collaborators'][0]['literal'] ?? null);
+        $t->same('redaction verified', $item['redactors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('role', $item['founders'][0]['annotations'][0]['part'] ?? null);
+        $t->same('collaboration queue verified', $item['collaborators'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="redactor"/>
+        <names variable="founder"/>
+        <names variable="continuator"/>
+        <names variable="reviser"/>
+        <names variable="collaborator"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="redactor"/>
+      <names variable="founder"/>
+      <names variable="continuator"/>
+      <names variable="reviser"/>
+      <names variable="collaborator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $annotationSummary = 'Redactor 1: redaction verified; Redactor 2: literal redactor verified; Founder 1 role: founding source owner; Collaborator 1: collaboration queue verified';
+        $t->same(
+            '[Roe and Migration Desk | Founding Review Board | Ng | Curator | Source Review Desk | ' . $annotationSummary . ']',
+            $styled->renderCitationCluster([$citation('direct-extended-roles', '[@direct-extended-roles]')])
+        );
+        $t->same(
+            'Direct Extended Role Packet :: Roe, Pat; Migration Desk :: Founding Review Board :: Ng, Nia :: Curator, Eli :: Source Review Desk :: ' . $annotationSummary,
+            $styled->renderBibliographyEntry('direct-extended-roles')
+        );
+
+        $document = (new MarkdownReader())->read('Direct extended source @direct-extended-roles preserves revision creator fields.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct extended source Smith (2026) preserves revision creator fields.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Direct Extended Role Packet :: Roe, Pat; Migration Desk :: Founding Review Board :: Ng, Nia :: Curator, Eli :: Source Review Desk :: ' . $annotationSummary . '</dd>', $blocks);
+    },
     'maps bounded biblatex primary editor type roles into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{primary-compiler-review,

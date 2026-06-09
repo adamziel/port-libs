@@ -3407,6 +3407,11 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const MAC_UKRAINE_REPLACEMENTS = [
+        0xff => 0x00a4,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_GREEK_REPLACEMENTS = [
         0x80 => 0x00c4,
         0x81 => 0x00b9,
@@ -3952,6 +3957,7 @@ final class UnicodeText
             || $normalized === 'mac-romania'
             || $normalized === 'mac-central-europe'
             || $normalized === 'mac-cyrillic'
+            || $normalized === 'mac-ukrainian'
             || $normalized === 'mac-greek'
             || $normalized === 'x-user-defined'
         ) {
@@ -4585,8 +4591,9 @@ final class UnicodeText
             'maccenteuro', 'xmaccenteuro', 'maccenteurope', 'xmaccenteurope',
             'maccentraleurope', 'xmaccentraleurope', 'maccentraleuropean', 'xmaccentraleuropean',
             'macce', 'xmacce' => 'mac-central-europe',
-            'maccyrillic', 'mac-cyrillic', 'xmaccyrillic', 'x-mac-cyrillic',
-            'macukrainian', 'mac-ukrainian', 'xmacukrainian', 'x-mac-ukrainian' => 'mac-cyrillic',
+            'maccyrillic', 'mac-cyrillic', 'xmaccyrillic', 'x-mac-cyrillic' => 'mac-cyrillic',
+            'macukraine', 'xmacukraine', 'macukrainian', 'mac-ukrainian',
+            'xmacukrainian', 'x-mac-ukrainian', 'csmacukrainian' => 'mac-ukrainian',
             'macgreek', 'mac-greek', 'xmacgreek', 'x-mac-greek' => 'mac-greek',
             'xuserdefined', 'userdefined' => 'x-user-defined',
             'csshiftjis', 'ms932', 'mskanji', 'shiftjis', 'sjis', 'windows31j', 'xsjis', 'cp932' => 'shift_jis',
@@ -5523,6 +5530,10 @@ final class UnicodeText
             }
             if ($encoding === 'mac-cyrillic' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::MAC_CYRILLIC_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'mac-ukrainian' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::MAC_UKRAINE_REPLACEMENTS[$byte] ?? self::MAC_CYRILLIC_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'mac-greek' && $byte >= 0x80) {

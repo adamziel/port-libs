@@ -470,8 +470,10 @@ plain-continuation-review:
       status: pending
     Ready.
   steps:
+    # collect source packet sequence comment
     - Collect source
       metadata packet
+    # approve source packet sequence comment
     - Approve
       WordPress import
 plain-continuation-reference:
@@ -1987,6 +1989,8 @@ if (($argv[1] ?? '') === '--self-test') {
         "/flow-comment-labels\0source label",
         "/flow-comment-review\0reviewer queue state",
         "/flow-comment-review\0reviewer import tag",
+        "/plain-continuation-review/steps\0collect source packet sequence comment",
+        "/plain-continuation-review/steps\0approve source packet sequence comment",
         "/source-summary\0folded source note for reviewer queue",
         "/source-review-log\0folded reviewer log with preserved nested lines",
         "/summary\0later metadata block overrides the first review status",

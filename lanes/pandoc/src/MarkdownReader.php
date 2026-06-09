@@ -2506,7 +2506,8 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/^-[ \t]?(.*)$/', $normalized[0]) === 1) {
+        $firstContentLine = $this->firstYamlContentLine($normalized);
+        if ($firstContentLine !== null && preg_match('/^-[ \t]?(.*)$/', $firstContentLine) === 1) {
             return $this->parseYamlSequence(
                 $normalized,
                 $sourceLines,
@@ -2622,6 +2623,15 @@ final class MarkdownReader
                 continue;
             }
 
+            if (str_starts_with(trim($line), '#')) {
+                $this->withYamlMetadataSourceLine(
+                    $sourceLines[$index] ?? null,
+                    fn (): mixed => $this->recordYamlStandaloneCommentProvenance(trim($line))
+                );
+                $index++;
+                continue;
+            }
+
             if (preg_match('/^-[ \t]?(.*)$/', $line, $m) !== 1) {
                 $index++;
                 continue;
@@ -2643,6 +2653,13 @@ final class MarkdownReader
             $childrenSourceLines = [];
             $index++;
             while ($index < $count && preg_match('/^-[ \t]?/', $lines[$index]) !== 1) {
+                if (
+                    str_starts_with(trim($lines[$index]), '#')
+                    && $this->countIndentColumns($lines[$index]) === 0
+                ) {
+                    break;
+                }
+
                 $children[] = $lines[$index];
                 $childrenSourceLines[] = $sourceLines[$index] ?? null;
                 $index++;
@@ -2928,6 +2945,23 @@ final class MarkdownReader
         );
 
         return $items;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function firstYamlContentLine(array $lines): ?string
+    {
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            return $trimmed;
+        }
+
+        return null;
     }
 
     private function isYamlCompactSequenceMappingSource(string $sourceValue): bool

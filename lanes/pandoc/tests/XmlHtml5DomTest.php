@@ -23,9 +23,43 @@ return [
         $t->true($hr instanceof DOMElement);
         $t->same('hr', strtolower($hr->localName));
         $t->same(
-            '<section data-stage="review">Alpha<br>Beta<img src="/media/a.jpg" alt="A &amp; B"></section><hr>',
+            '<section data-stage="review">Alpha<br>Beta<img alt="A &amp; B" src="/media/a.jpg"></section><hr>',
             XmlHtml5Dom::serializeHtmlFragment($body)
         );
+    },
+    'routes legacy facade html fragments through hardened html5 parsing' => static function (TestRunner $t): void {
+        $body = XmlHtml5Dom::parseHtmlFragmentBody(
+            '<p data-review="refs">A&NoBreak;B &hopf; &copy</p>'
+                . '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b></textarea>'
+                . '<template data-source="legacy-template"><p>Template <script>drop()</script> &amp; <b>note</b></p></template>'
+                . '<svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient><foreignObject><div viewBox="html"><textPath>HTML fallback</textPath></div></foreignObject></svg>'
+        );
+        $paragraph = $body instanceof DOMElement ? $body->getElementsByTagName('p')->item(0) : null;
+        $textarea = $body instanceof DOMElement ? $body->getElementsByTagName('textarea')->item(0) : null;
+        $template = $body instanceof DOMElement ? $body->getElementsByTagName('template')->item(0) : null;
+        $svg = $body instanceof DOMElement ? $body->getElementsByTagName('svg')->item(0) : null;
+        $serialized = $body instanceof DOMElement ? XmlHtml5Dom::serializeHtmlFragment($body) : '';
+
+        $t->true($body instanceof DOMElement);
+        $t->true($paragraph instanceof DOMElement);
+        $t->same("A\u{2060}B \u{1D559} ©", $paragraph instanceof DOMElement ? $paragraph->textContent : null);
+        $t->true($textarea instanceof DOMElement);
+        $t->same('Reviewer <script>alert(1)</script> & <b>note</b>', $textarea instanceof DOMElement ? $textarea->textContent : null);
+        $t->same(0, $textarea instanceof DOMElement ? $textarea->getElementsByTagName('*')->length : -1);
+        $t->true($template instanceof DOMElement);
+        $t->same('<p>Template <script>drop()</script> &amp; <b>note</b></p>', $template instanceof DOMElement ? $template->textContent : null);
+        $t->same(0, $template instanceof DOMElement ? $template->getElementsByTagName('*')->length : -1);
+        $t->true($svg instanceof DOMElement);
+        $t->same(
+            '<p data-review="refs">A' . "\u{2060}" . 'B ' . "\u{1D559}" . ' ©</p>'
+                . '<textarea data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;</textarea>'
+                . '<template data-source="legacy-template">&lt;p&gt;Template &lt;script&gt;drop()&lt;/script&gt; &amp;amp; &lt;b&gt;note&lt;/b&gt;&lt;/p&gt;</template>'
+                . '<svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient><foreignObject><div viewbox="html"><textpath>HTML fallback</textpath></div></foreignObject></svg>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, '&amp;NoBreak;'), 'Expected extra HTML5 references to decode through the facade');
+        $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected RCDATA source-looking script to stay escaped');
+        $t->true(!str_contains($serialized, '<b>note</b>'), 'Expected template source-looking inline markup to stay escaped');
     },
     'parses full html documents and exposes body plus metadata nodes' => static function (TestRunner $t): void {
         $document = XmlHtml5Dom::parseHtmlDocument(<<<'HTML'
@@ -65,6 +99,15 @@ HTML);
             InvalidArgumentException::class,
             static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument('<root><unclosed></root>', 'malformed XML')
         );
+    },
+    'rejects unsafe html and xml facade inputs before libxml repair' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn (): ?DOMElement => XmlHtml5Dom::parseHtmlFragmentBody('<!DOCTYPE html><p>bad</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): ?DOMElement => XmlHtml5Dom::parseHtmlFragmentBody('<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>&reviewer;</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): ?DOMElement => XmlHtml5Dom::parseHtmlFragmentBody('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
+        $t->throws(InvalidArgumentException::class, static fn (): ?DOMDocument => XmlHtml5Dom::parseHtmlDocument('<!DOCTYPE html SYSTEM "file:///etc/passwd"><html><body>bad</body></html>'));
+        $t->throws(InvalidArgumentException::class, static fn (): ?DOMDocument => XmlHtml5Dom::parseHtmlDocument("<html><body>bad\0packet</body></html>"));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument('<?xml-stylesheet href="https://example.invalid/review.xsl"?><pkg/>', 'stylesheet XML'));
+        $t->throws(InvalidArgumentException::class, static fn (): DOMDocument => XmlHtml5Dom::parseXmlDocument("<pkg>bad\0packet</pkg>", 'NUL XML'));
     },
     'keeps markdown html reader paths on the shared html5 fragment loader' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
