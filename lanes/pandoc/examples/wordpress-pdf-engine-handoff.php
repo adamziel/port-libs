@@ -614,6 +614,19 @@ $fakeMissingProgram = $handoff->fakeRun($plan, [
     'exitCode' => 127,
     'stderr' => "xelatex: command not found\n",
 ]);
+$fakeMissingDependencyLog = implode("\n", [
+    "! LaTeX Error: File `review-style.sty' not found.",
+    'Package fontspec Error: The font "Source Serif 4" cannot be found.',
+    'kpathsea: Running mktextfm SourceSerif4-Regular',
+    '',
+]);
+$fakeMissingDependency = $handoff->fakeRun($plan, [
+    'exitCode' => 1,
+    'files' => [
+        $plan['sourceFile'] => (string) $plan['sourceBytes'],
+        $plan['engineLogFile'] ?? 'handoff/pdf-review-packet.log' => $fakeMissingDependencyLog,
+    ],
+]);
 $fakeFinalPdfBytes = implode("\n", [
     '%PDF-1.5',
     '84 0 obj',
@@ -1151,6 +1164,13 @@ $summary = [
         'engineMissingProgram' => $fakeMissingProgram['engineMissingProgram'],
         'engineMissingProgramName' => $fakeMissingProgram['engineMissingProgramName'],
         'diagnostics' => $fakeMissingProgram['diagnostics'],
+    ],
+    'fakeMissingDependency' => [
+        'ok' => $fakeMissingDependency['ok'],
+        'reason' => $fakeMissingDependency['reason'],
+        'engineMissingDependencies' => $fakeMissingDependency['engineMissingDependencies'],
+        'engineMissingDependencyKinds' => $fakeMissingDependency['engineMissingDependencyKinds'],
+        'diagnostics' => $fakeMissingDependency['diagnostics'],
     ],
     'fakeRunSequence' => [
         'ok' => $fakeSequence['ok'],
@@ -2534,6 +2554,18 @@ if (in_array('--self-test', $argv, true)) {
         'engine-program-missing:xelatex',
         '"engineMissingProgram":true',
         '"engineMissingProgramName":"xelatex"',
+        'fakeMissingDependency',
+        'engineMissingDependencies',
+        '"kind":"tex-file"',
+        '"name":"review-style.sty"',
+        '"kind":"font"',
+        '"name":"Source Serif 4"',
+        '"kind":"font-metric"',
+        '"name":"SourceSerif4-Regular"',
+        'engine-missing-dependencies:3',
+        'engine-missing-dependency-kind:tex-file:1',
+        'engine-missing-dependency-kind:font:1',
+        'engine-missing-dependency-kind:font-metric:1',
         'fakeRunSequence',
         'fake-runner-attempts:2',
         'fake-runner-attempt-rerun-needed:1',

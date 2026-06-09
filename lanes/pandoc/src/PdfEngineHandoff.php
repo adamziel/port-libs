@@ -259,6 +259,8 @@ final class PdfEngineHandoff
      *     engineLogFiles: list<string>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
+     *     engineMissingDependencies: list<array{kind:string, name:string, message:string}>,
+     *     engineMissingDependencyKinds: array<string, int>,
      *     bibliographyWarnings: list<string>,
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
@@ -711,6 +713,8 @@ final class PdfEngineHandoff
             $diagnostics[] = 'engine-program-missing:' . $missingProgram['program'];
         }
         $engineMessages = $this->extractEngineMessages($engineTexts);
+        $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
+        $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
         $declaredOutput = $this->extractDeclaredOutput($engineTexts);
         if ($engineMessages['warnings'] !== []) {
@@ -718,6 +722,15 @@ final class PdfEngineHandoff
         }
         if ($engineMessages['errors'] !== []) {
             $diagnostics[] = 'engine-log-errors:' . count($engineMessages['errors']);
+        }
+        if ($engineMissingDependencies !== []) {
+            $diagnostics[] = 'engine-missing-dependencies:' . count($engineMissingDependencies);
+            foreach ($engineMissingDependencyKinds as $kind => $count) {
+                $diagnostics[] = 'engine-missing-dependency-kind:' . $kind . ':' . $count;
+            }
+            foreach ($engineMissingDependencies as $dependency) {
+                $diagnostics[] = 'engine-missing-dependency:' . $dependency['kind'] . ':' . $dependency['name'];
+            }
         }
         if ($bibliographyMessages['warnings'] !== []) {
             $diagnostics[] = 'bibliography-warnings:' . count($bibliographyMessages['warnings']);
@@ -3700,6 +3713,8 @@ final class PdfEngineHandoff
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
+            'engineMissingDependencies' => $engineMissingDependencies,
+            'engineMissingDependencyKinds' => $engineMissingDependencyKinds,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
             'bibliographyErrors' => $bibliographyMessages['errors'],
             'bibliographyNeeded' => $bibliographyMessages['needed'],
@@ -4012,6 +4027,10 @@ final class PdfEngineHandoff
      *     missingEngineTranscriptInputFiles: list<string>,
      *     engineMissingProgram: bool,
      *     engineMissingProgramName: string|null,
+     *     finalEngineMissingDependencies: list<array{kind:string, name:string, message:string}>,
+     *     finalEngineMissingDependencyKinds: array<string, int>,
+     *     engineMissingDependencies: list<array{kind:string, name:string, message:string}>,
+     *     engineMissingDependencyKinds: array<string, int>,
      *     engineWarnings: list<string>,
      *     engineErrors: list<string>,
      *     bibliographyWarnings: list<string>,
@@ -4035,6 +4054,7 @@ final class PdfEngineHandoff
         $attemptResults = [];
         $warnings = [];
         $errors = [];
+        $missingDependenciesByKey = [];
         $bibliographyWarnings = [];
         $bibliographyErrors = [];
         $diagnostics = ['fake-runner-attempts:' . count($runs)];
@@ -4087,6 +4107,27 @@ final class PdfEngineHandoff
                     $errors[] = $error;
                 }
             }
+            foreach ($attempt['engineMissingDependencies'] ?? [] as $dependency) {
+                if (!is_array($dependency)) {
+                    continue;
+                }
+
+                $kind = is_string($dependency['kind'] ?? null) ? $dependency['kind'] : '';
+                $name = is_string($dependency['name'] ?? null) ? $dependency['name'] : '';
+                $message = is_string($dependency['message'] ?? null) ? $dependency['message'] : '';
+                if ($kind === '' || $name === '') {
+                    continue;
+                }
+
+                $key = $kind . ':' . $name;
+                if (!isset($missingDependenciesByKey[$key])) {
+                    $missingDependenciesByKey[$key] = [
+                        'kind' => $kind,
+                        'name' => $name,
+                        'message' => $message,
+                    ];
+                }
+            }
             foreach ($attempt['bibliographyWarnings'] ?? [] as $warning) {
                 if (is_string($warning) && $warning !== '') {
                     $bibliographyWarnings[] = $warning;
@@ -4114,6 +4155,11 @@ final class PdfEngineHandoff
             $diagnostics[] = 'fake-runner-final-bibliography-needed';
         } elseif ($hadBibliographyNeededAttempt) {
             $diagnostics[] = 'fake-runner-final-bibliography-cleared';
+        }
+        $engineMissingDependencies = array_values($missingDependenciesByKey);
+        $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
+        if ($engineMissingDependencies !== []) {
+            $diagnostics[] = 'fake-runner-missing-dependencies:' . count($engineMissingDependencies);
         }
 
         return [
@@ -4281,6 +4327,10 @@ final class PdfEngineHandoff
             'missingEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['missingEngineTranscriptInputFiles'] ?? null) ? $finalRun['missingEngineTranscriptInputFiles'] : [],
             'engineMissingProgram' => is_array($finalRun) && ($finalRun['engineMissingProgram'] ?? false) === true,
             'engineMissingProgramName' => is_array($finalRun) && is_string($finalRun['engineMissingProgramName'] ?? null) ? $finalRun['engineMissingProgramName'] : null,
+            'finalEngineMissingDependencies' => is_array($finalRun) && is_array($finalRun['engineMissingDependencies'] ?? null) ? $finalRun['engineMissingDependencies'] : [],
+            'finalEngineMissingDependencyKinds' => is_array($finalRun) && is_array($finalRun['engineMissingDependencyKinds'] ?? null) ? $finalRun['engineMissingDependencyKinds'] : [],
+            'engineMissingDependencies' => $engineMissingDependencies,
+            'engineMissingDependencyKinds' => $engineMissingDependencyKinds,
             'engineWarnings' => array_values(array_unique($warnings)),
             'engineErrors' => array_values(array_unique($errors)),
             'bibliographyWarnings' => array_values(array_unique($bibliographyWarnings)),
@@ -5161,6 +5211,133 @@ final class PdfEngineHandoff
             'errors' => array_values(array_unique($errors)),
             'rerunNeeded' => $rerunNeeded,
         ];
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return list<array{kind:string, name:string, message:string}>
+     */
+    private function extractEngineMissingDependencies(array $texts): array
+    {
+        $dependencies = [];
+        $seen = [];
+
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
+                if (preg_match('~\bFile\s+[`\'"]([^`\'"]+)[`\'"]\s+not\s+found\b~i', $line, $matches) === 1) {
+                    $name = $this->normalizeEngineMissingDependencyName($matches[1]);
+                    $this->addEngineMissingDependency(
+                        $dependencies,
+                        $seen,
+                        $this->engineMissingDependencyKindForFile($name),
+                        $name,
+                        $line
+                    );
+                }
+                if (preg_match('~I\s+can[\'’]t\s+find\s+file\s+[`\'"]?([^`\'"\s.]+(?:\.[A-Za-z0-9_-]+)?)[`\'"]?~i', $line, $matches) === 1) {
+                    $name = $this->normalizeEngineMissingDependencyName($matches[1]);
+                    $this->addEngineMissingDependency(
+                        $dependencies,
+                        $seen,
+                        $this->engineMissingDependencyKindForFile($name),
+                        $name,
+                        $line
+                    );
+                }
+                if (preg_match('~fontspec\s+Error:\s+The\s+font\s+[`\'"]([^`\'"]+)[`\'"]\s+(?:cannot\s+be\s+found|not\s+found)~i', $line, $matches) === 1) {
+                    $this->addEngineMissingDependency(
+                        $dependencies,
+                        $seen,
+                        'font',
+                        $this->normalizeEngineMissingDependencyName($matches[1]),
+                        $line
+                    );
+                }
+                if (preg_match('~\bFont\b.*=\s*[`\'"]([^`\'"]+)[`\'"].*(?:not\s+loadable|not\s+found)~i', $line, $matches) === 1) {
+                    $this->addEngineMissingDependency(
+                        $dependencies,
+                        $seen,
+                        'font',
+                        $this->normalizeEngineMissingDependencyName($matches[1]),
+                        $line
+                    );
+                }
+                if (preg_match('~\bkpathsea:\s+Running\s+mk(?:textfm|tex(?:pk|mf)?)\s+([^\s]+)~i', $line, $matches) === 1) {
+                    $this->addEngineMissingDependency(
+                        $dependencies,
+                        $seen,
+                        'font-metric',
+                        $this->normalizeEngineMissingDependencyName($matches[1]),
+                        $line
+                    );
+                }
+            }
+        }
+
+        return array_values($dependencies);
+    }
+
+    /**
+     * @param list<array{kind:string, name:string, message:string}> $dependencies
+     * @return array<string, int>
+     */
+    private function summarizeEngineMissingDependencyKinds(array $dependencies): array
+    {
+        $counts = [];
+        foreach ($dependencies as $dependency) {
+            $kind = $dependency['kind'];
+            $counts[$kind] = ($counts[$kind] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array{kind:string, name:string, message:string}> $dependencies
+     * @param array<string, true> $seen
+     */
+    private function addEngineMissingDependency(array &$dependencies, array &$seen, string $kind, string $name, string $message): void
+    {
+        $name = $this->normalizeEngineMissingDependencyName($name);
+        if ($name === '') {
+            return;
+        }
+
+        $key = $kind . ':' . strtolower($name);
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $dependencies[] = [
+            'kind' => $kind,
+            'name' => $name,
+            'message' => $message,
+        ];
+    }
+
+    private function normalizeEngineMissingDependencyName(string $name): string
+    {
+        return trim($name, " \t\n\r\0\x0B`'\".,;:");
+    }
+
+    private function engineMissingDependencyKindForFile(string $name): string
+    {
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        if (in_array($extension, ['sty', 'cls', 'clo', 'def', 'cfg', 'lco', 'fd', 'map', 'enc'], true)) {
+            return 'tex-file';
+        }
+        if (in_array($extension, ['tfm', 'ofm', 'vf'], true)) {
+            return 'font-metric';
+        }
+
+        return 'engine-file';
     }
 
     /**

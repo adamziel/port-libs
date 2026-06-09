@@ -11128,6 +11128,55 @@ MARKDOWN);
         $t->contains('engine-log-errors:2', implode(',', $result['diagnostics']));
     },
 
+    'fake runner extracts engine missing dependency diagnostics without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'review.pdf']);
+        $log = implode("\n", [
+            "! LaTeX Error: File `review-style.sty' not found.",
+            'Package fontspec Error: The font "Source Serif 4" cannot be found.',
+            'kpathsea: Running mktextfm SourceSerif4-Regular',
+            '! Font TU/SourceSerif4(0)/m/n/10="Source Serif 4" at 10.0pt not loadable: Metric (TFM) file or installed font not found.',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'exitCode' => 1,
+            'files' => [
+                'review.tex' => (string) $plan['sourceBytes'],
+                'review.log' => $log,
+            ],
+        ]);
+
+        $expected = [
+            [
+                'kind' => 'tex-file',
+                'name' => 'review-style.sty',
+                'message' => "! LaTeX Error: File `review-style.sty' not found.",
+            ],
+            [
+                'kind' => 'font',
+                'name' => 'Source Serif 4',
+                'message' => 'Package fontspec Error: The font "Source Serif 4" cannot be found.',
+            ],
+            [
+                'kind' => 'font-metric',
+                'name' => 'SourceSerif4-Regular',
+                'message' => 'kpathsea: Running mktextfm SourceSerif4-Regular',
+            ],
+        ];
+
+        $t->same(false, $result['ok']);
+        $t->same('engine-log-error', $result['reason']);
+        $t->same($expected, $result['engineMissingDependencies']);
+        $t->same(['font' => 1, 'font-metric' => 1, 'tex-file' => 1], $result['engineMissingDependencyKinds']);
+        $t->contains('engine-missing-dependencies:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-missing-dependency-kind:tex-file:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-missing-dependency-kind:font:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-missing-dependency-kind:font-metric:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-missing-dependency:tex-file:review-style.sty', implode(',', $result['diagnostics']));
+        $t->contains('engine-missing-dependency:font:Source Serif 4', implode(',', $result['diagnostics']));
+    },
+
     'fake runner records missing pdf engine executable diagnostics without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
