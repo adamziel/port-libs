@@ -2742,6 +2742,108 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): array => $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/missing.xml'));
     },
+    'preflights OPC digital signature SignedInfo same-document references' => static function (TestRunner $t): void {
+        $sha256Digest = base64_encode(str_repeat('d', 32));
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/_xmlsignatures/sig-same-document.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signatureXml = <<<XML
+<ds:Signature Id="signatureRoot" xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="#manifestPackageParts">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="#signatureObject">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="#missingManifest">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="#duplicateManifest">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="#">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:Object Id="signatureObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/word/document.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+    <ds:Manifest Id="duplicateManifest"/>
+    <ds:Manifest Id="duplicateManifest"/>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => '_xmlsignatures/sig-same-document.xml', 'data' => $signatureXml],
+        ]));
+
+        $references = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-same-document.xml');
+        $byUri = array_column($references, null, 'uri');
+
+        $t->same(5, count($references));
+        $t->same(true, $byUri['#manifestPackageParts']['sameDocumentReference']);
+        $t->same('manifestPackageParts', $byUri['#manifestPackageParts']['sameDocumentFragment']);
+        $t->same(true, $byUri['#manifestPackageParts']['sameDocumentTargetMatched']);
+        $t->same(1, $byUri['#manifestPackageParts']['sameDocumentTargetMatchCount']);
+        $t->same(['Manifest'], $byUri['#manifestPackageParts']['sameDocumentTargetMatchedElementNames']);
+        $t->same(null, $byUri['#manifestPackageParts']['targetPart']);
+        $t->same(null, $byUri['#manifestPackageParts']['exists']);
+        $t->same(null, $byUri['#manifestPackageParts']['contentType']);
+        $t->same(false, $byUri['#manifestPackageParts']['relationshipPart']);
+        $t->same(true, $byUri['#manifestPackageParts']['valid']);
+        $t->same([], $byUri['#manifestPackageParts']['issues']);
+
+        $t->same('signatureObject', $byUri['#signatureObject']['sameDocumentFragment']);
+        $t->same(true, $byUri['#signatureObject']['sameDocumentTargetMatched']);
+        $t->same(1, $byUri['#signatureObject']['sameDocumentTargetMatchCount']);
+        $t->same(['Object'], $byUri['#signatureObject']['sameDocumentTargetMatchedElementNames']);
+        $t->same(true, $byUri['#signatureObject']['valid']);
+        $t->same([], $byUri['#signatureObject']['issues']);
+
+        $t->same('missingManifest', $byUri['#missingManifest']['sameDocumentFragment']);
+        $t->same(false, $byUri['#missingManifest']['sameDocumentTargetMatched']);
+        $t->same(0, $byUri['#missingManifest']['sameDocumentTargetMatchCount']);
+        $t->same([], $byUri['#missingManifest']['sameDocumentTargetMatchedElementNames']);
+        $t->same(false, $byUri['#missingManifest']['valid']);
+        $t->same(['unmatched-signed-info-same-document-reference'], $byUri['#missingManifest']['issues']);
+
+        $t->same('duplicateManifest', $byUri['#duplicateManifest']['sameDocumentFragment']);
+        $t->same(true, $byUri['#duplicateManifest']['sameDocumentTargetMatched']);
+        $t->same(2, $byUri['#duplicateManifest']['sameDocumentTargetMatchCount']);
+        $t->same(['Manifest', 'Manifest'], $byUri['#duplicateManifest']['sameDocumentTargetMatchedElementNames']);
+        $t->same(false, $byUri['#duplicateManifest']['valid']);
+        $t->same(['ambiguous-signed-info-same-document-reference'], $byUri['#duplicateManifest']['issues']);
+
+        $t->same('', $byUri['#']['sameDocumentFragment']);
+        $t->same(false, $byUri['#']['sameDocumentTargetMatched']);
+        $t->same(false, $byUri['#']['valid']);
+        $t->same(['invalid-signed-info-same-document-reference'], $byUri['#']['issues']);
+
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-same-document.xml');
+        $t->same(false, $metadata['valid']);
+        $t->same(['duplicate-manifest-id'], $metadata['issues']);
+        $t->same(['duplicateManifest'], $metadata['objects'][0]['duplicateManifestIds']);
+        $t->same(3, $metadata['objects'][0]['manifestCount']);
+        $t->same(1, $metadata['objects'][0]['manifestReferenceCount']);
+    },
     'classifies OPC digital signature digest algorithms and decoded lengths' => static function (TestRunner $t): void {
         $sha1Digest = base64_encode(str_repeat('s', 20));
         $sha256Digest = base64_encode(str_repeat('d', 32));

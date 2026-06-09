@@ -45,6 +45,8 @@ final class LegacyDocReader
     private const FIB_LCB_DOP = 0x0196;
     private const FIB_FC_STTBF_ASSOC = 0x019a;
     private const FIB_LCB_STTBF_ASSOC = 0x019e;
+    private const FIB_FC_PMS = 0x01fa;
+    private const FIB_LCB_PMS = 0x01fe;
     private const FIB_FC_STW_USER = 0x027a;
     private const FIB_LCB_STW_USER = 0x027e;
     private const FIB_FC_ROUTE_SLIP = 0x02ca;
@@ -176,7 +178,7 @@ final class LegacyDocReader
     private array $activeListOverrides = [];
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -184,7 +186,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -280,6 +282,19 @@ final class LegacyDocReader
             $metadata['subdocumentReferenceCount'] = count($subdocumentReferences);
             $metadata['subdocumentReferencePolicy'] = 'metadata-only-native-review';
             $metadata['subdocumentReferences'] = $subdocumentReferences;
+        }
+        $mailMergeSettings = $this->mailMergeSettingsReport($wordDocument, $tableStream, $externalFileReferences);
+        if ($mailMergeSettings !== []) {
+            $metadata['mailMergeSettingsPolicy'] = $mailMergeSettings['extractionPolicy'];
+            $metadata['mailMergeSourceRecordCount'] = (int) $mailMergeSettings['sourceRecordCount'];
+            $metadata['mailMergeSettings'] = $mailMergeSettings;
+            if (isset($mailMergeSettings['sqlQuery'])) {
+                $metadata['mailMergeSqlQuery'] = $mailMergeSettings['sqlQuery'];
+                $metadata['mailMergeSqlQueryPolicy'] = $mailMergeSettings['sqlQueryPolicy'];
+            }
+            if (isset($mailMergeSettings['recordFilterStrings']) && is_array($mailMergeSettings['recordFilterStrings'])) {
+                $metadata['mailMergeRecordFilterStringCount'] = count($mailMergeSettings['recordFilterStrings']);
+            }
         }
         $routeSlip = $this->routeSlipReport($wordDocument, $tableStream);
         if ($routeSlip !== []) {
@@ -516,6 +531,7 @@ final class LegacyDocReader
             'saveHistory' => $saveHistory,
             'externalFileReferences' => $externalFileReferences,
             'subdocumentReferences' => $subdocumentReferences,
+            'mailMergeSettings' => $mailMergeSettings,
             'routeSlip' => $routeSlip,
         ];
 
@@ -577,6 +593,7 @@ final class LegacyDocReader
             'saveHistory' => $saveHistory,
             'externalFileReferences' => $externalFileReferences,
             'subdocumentReferences' => $subdocumentReferences,
+            'mailMergeSettings' => $mailMergeSettings,
             'routeSlip' => $routeSlip,
         ];
     }
@@ -4214,6 +4231,377 @@ final class LegacyDocReader
         }
 
         return $flags === [] ? 'unspecified' : 'unknown';
+    }
+
+    /**
+     * @param list<array<string,mixed>> $externalFileReferences
+     * @return array<string,mixed>
+     */
+    private function mailMergeSettingsReport(string $wordDocument, ?string $tableStream, array $externalFileReferences): array
+    {
+        if (strlen($wordDocument) < self::FIB_LCB_PMS + 4) {
+            return [];
+        }
+        $fcMin = self::u32($wordDocument, 24);
+        if ($fcMin > 0 && self::FIB_LCB_PMS + 4 > $fcMin) {
+            return [];
+        }
+
+        $length = self::u32($wordDocument, self::FIB_LCB_PMS);
+        if ($length === 0) {
+            return [];
+        }
+        if ($tableStream === null) {
+            throw new \RuntimeException('Legacy DOC Pms mail-merge settings require the selected table stream');
+        }
+
+        $offset = self::u32($wordDocument, self::FIB_FC_PMS);
+
+        return $this->parseMailMergeSettings(
+            $this->tableStreamSlice($tableStream, $offset, $length, 'Pms mail-merge settings'),
+            $externalFileReferences
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $externalFileReferences
+     * @return array<string,mixed>
+     */
+    private function parseMailMergeSettings(string $bytes, array $externalFileReferences): array
+    {
+        $length = strlen($bytes);
+        if ($length < 30) {
+            throw new \RuntimeException('Legacy DOC Pms mail-merge settings are truncated');
+        }
+
+        $cursor = 0;
+        $stateBits = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $state = $this->legacyDocMailMergeState($stateBits);
+        $headerFieldSourceIndex = ord($bytes[$cursor]);
+        $cursor++;
+        $dataFetchSourceIndex = ord($bytes[$cursor]);
+        $cursor++;
+        if ($headerFieldSourceIndex > 1 || $dataFetchSourceIndex > 1) {
+            throw new \RuntimeException('Legacy DOC Pms mail-merge source index is outside the two PMFS records');
+        }
+
+        $currentRecordIndex = self::u32($bytes, $cursor);
+        $cursor += 4;
+        if ($currentRecordIndex > 0xfffffff0 && $currentRecordIndex !== 0xffffffff) {
+            throw new \RuntimeException('Legacy DOC Pms current record index uses a reserved sentinel value');
+        }
+
+        $sourceRecords = [];
+        for ($index = 0; $index < 2; $index++) {
+            $record = $this->readLegacyDocMailMergeSourceRecord($bytes, $cursor, $index, $externalFileReferences);
+            if ($record['source'] !== 'none') {
+                $sourceRecords[] = $record;
+            }
+        }
+
+        $recordFilterBits = self::u32($bytes, $cursor);
+        $cursor += 4;
+        $recordFilter = $this->legacyDocMailMergeRecordFilter($recordFilterBits);
+
+        $sqlByteCount = self::u16($bytes, $cursor);
+        $cursor += 2;
+
+        $report = [
+            'sourceTable' => 'Pms',
+            'extractionPolicy' => 'metadata-only-native-review',
+            'stateBits' => $stateBits,
+            'state' => $state,
+            'stateFlags' => $state['flags'],
+            'documentType' => $state['documentType'],
+            'destination' => $state['destination'],
+            'headerFieldSourceIndex' => $headerFieldSourceIndex,
+            'dataFetchSourceIndex' => $dataFetchSourceIndex,
+            'sourceRecordCount' => count($sourceRecords),
+            'sourceRecords' => $sourceRecords,
+            'recordFilter' => $recordFilter,
+        ];
+        if ($currentRecordIndex === 0xffffffff) {
+            $report['currentRecordNil'] = true;
+        } else {
+            $report['currentRecordIndex'] = $currentRecordIndex;
+        }
+
+        if ($sqlByteCount > 0) {
+            if (($sqlByteCount % 2) !== 0) {
+                throw new \RuntimeException('Legacy DOC Pms SQL query byte count must be UTF-16LE aligned');
+            }
+            if ($cursor + $sqlByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC Pms SQL query points outside the settings payload');
+            }
+
+            $sqlBytes = substr($bytes, $cursor, $sqlByteCount);
+            $cursor += $sqlByteCount;
+            if ($sqlByteCount < 2 || substr($sqlBytes, -2) !== "\0\0") {
+                throw new \RuntimeException('Legacy DOC Pms SQL query must be null-terminated');
+            }
+
+            $query = $this->decodeUtf16Le(substr($sqlBytes, 0, -2));
+            if ($this->textCharacterLength($query) > 4096) {
+                throw new \RuntimeException('Legacy DOC Pms SQL query exceeds the bounded native reader limit');
+            }
+            $report['sqlQuery'] = $query;
+            $report['sqlQueryPolicy'] = 'metadata-only-native-review';
+        }
+
+        if ((int) $recordFilter['sttbfRfsHandle'] !== 0) {
+            $report['recordFilterStrings'] = $this->readLegacyDocUnicodeSttbStrings(
+                $bytes,
+                $cursor,
+                'Pms SttbfRfs record-filter string table',
+                64,
+                1024
+            );
+            $report['recordFilterStringCount'] = count($report['recordFilterStrings']);
+        }
+
+        if ($cursor !== $length) {
+            throw new \RuntimeException('Legacy DOC Pms mail-merge settings contain trailing bytes');
+        }
+
+        return $report;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $externalFileReferences
+     * @return array<string,mixed>
+     */
+    private function readLegacyDocMailMergeSourceRecord(string $bytes, int &$cursor, int $index, array $externalFileReferences): array
+    {
+        if ($cursor + 8 > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC Pms source record is truncated');
+        }
+
+        $sourceCode = ord($bytes[$cursor]);
+        $cursor++;
+        $flags = ord($bytes[$cursor]);
+        $cursor++;
+        if (($flags & ~0x0f) !== 0) {
+            throw new \RuntimeException('Legacy DOC Pms source record contains unknown flag bits');
+        }
+
+        $fieldToken = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $recordToken = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $fnpi = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $referenceTypeCode = $fnpi & 0x000f;
+        $documentIndex = ($fnpi >> 4) & 0x0fff;
+        $source = $this->legacyDocMailMergeSourceName($sourceCode);
+
+        $record = [
+            'index' => $index,
+            'sourceCode' => $sourceCode,
+            'source' => $source,
+            'flagBits' => $flags,
+            'flags' => $this->legacyDocMailMergeSourceFlags($flags),
+            'fieldSeparatorTokenCode' => $fieldToken,
+            'fieldSeparatorToken' => $this->legacyDocMailMergeSeparatorTokenName($fieldToken),
+            'recordSeparatorTokenCode' => $recordToken,
+            'recordSeparatorToken' => $this->legacyDocMailMergeSeparatorTokenName($recordToken),
+            'fnpi' => $fnpi,
+            'referenceTypeCode' => $referenceTypeCode,
+            'referenceType' => $this->legacyDocExternalFileReferenceType($referenceTypeCode),
+            'documentIndex' => $documentIndex,
+            'canExposeBytes' => false,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+        if ($source === 'none') {
+            if ($flags !== 0 || $fieldToken !== 0 || $recordToken !== 0 || $fnpi !== 0) {
+                throw new \RuntimeException('Legacy DOC Pms empty source record contains active metadata');
+            }
+
+            return $record;
+        }
+
+        $reference = $this->legacyDocMailMergeExternalReference($externalFileReferences, $fnpi);
+        if ($reference === null && (($flags & 0x01) !== 0 || $source === 'data-file')) {
+            throw new \RuntimeException('Legacy DOC Pms source record references a missing external filename entry');
+        }
+        if ($reference !== null) {
+            $path = (string) $reference['path'];
+            $record['externalFileReferenceIndex'] = (int) $reference['index'];
+            $record['path'] = $path;
+            $record['pathKind'] = $this->legacyPathKind($path);
+            $record['pathCharacterCount'] = (int) ($reference['pathCharacterCount'] ?? $this->textCharacterLength($path));
+            $record['basename'] = (string) ($reference['basename'] ?? $this->legacyPathBasename($path));
+            $record['referenceTypeCode'] = (int) $reference['referenceTypeCode'];
+            $record['referenceType'] = (string) $reference['referenceType'];
+            $record['documentIndex'] = (int) $reference['documentIndex'];
+            $record['ichRelative'] = (int) $reference['ichRelative'];
+            $record['fileSystem'] = (string) $reference['fileSystem'];
+            $record['fileSystemFlags'] = is_array($reference['fileSystemFlags'] ?? null)
+                ? array_values(array_map(static fn (mixed $flag): string => (string) $flag, $reference['fileSystemFlags']))
+                : [];
+            if (isset($reference['relativePath'])) {
+                $record['relativePath'] = (string) $reference['relativePath'];
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function legacyDocMailMergeState(int $bits): array
+    {
+        $flags = [];
+        if (($bits & 0x0001) !== 0) {
+            $flags[] = 'main-document-selected';
+        }
+        if (($bits & 0x0002) !== 0) {
+            $flags[] = 'data-source-selected';
+        }
+        if (($bits & 0x0004) !== 0) {
+            $flags[] = 'header-file-selected';
+        }
+        if (($bits & 0x0100) !== 0) {
+            $flags[] = 'automatic-label-or-envelope';
+        }
+        if (($bits & 0x0400) !== 0) {
+            $flags[] = 'suppress-blank-lines';
+        }
+        if (($bits & 0x0800) !== 0) {
+            $flags[] = 'record-selection-enabled';
+        }
+
+        $documentTypeCode = ($bits >> 3) & 0x001f;
+        $destinationCode = ($bits >> 13) & 0x0007;
+
+        return [
+            'flags' => $flags,
+            'mainDocumentSelected' => ($bits & 0x0001) !== 0,
+            'dataSourceSelected' => ($bits & 0x0002) !== 0,
+            'headerFileSelected' => ($bits & 0x0004) !== 0,
+            'documentTypeCode' => $documentTypeCode,
+            'documentType' => $this->legacyDocMailMergeDocumentType($documentTypeCode),
+            'destinationCode' => $destinationCode,
+            'destination' => $this->legacyDocMailMergeDestination($destinationCode),
+            'automaticLabelOrEnvelope' => ($bits & 0x0100) !== 0,
+            'suppressBlankLines' => ($bits & 0x0400) !== 0,
+            'recordSelectionEnabled' => ($bits & 0x0800) !== 0,
+            'reservedBits' => $bits & 0x1200,
+        ];
+    }
+
+    private function legacyDocMailMergeDocumentType(int $code): string
+    {
+        return match ($code) {
+            0 => 'normal',
+            1 => 'letters',
+            2 => 'envelopes',
+            4 => 'labels',
+            8 => 'catalog',
+            default => 'unknown:' . $code,
+        };
+    }
+
+    private function legacyDocMailMergeDestination(int $code): string
+    {
+        return match ($code) {
+            0 => 'new-document',
+            1 => 'printer',
+            2 => 'email',
+            4 => 'fax',
+            default => 'unknown:' . $code,
+        };
+    }
+
+    private function legacyDocMailMergeSourceName(int $code): string
+    {
+        return match ($code) {
+            0xff => 'none',
+            0 => 'data-file',
+            1 => 'dde',
+            2 => 'odbc',
+            3 => 'query-file',
+            4 => 'address-book',
+            default => 'unknown:' . $code,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function legacyDocMailMergeSourceFlags(int $flags): array
+    {
+        $names = [];
+        if (($flags & 0x01) !== 0) {
+            $names[] = 'link-to-filename';
+        }
+        if (($flags & 0x02) !== 0) {
+            $names[] = 'link-to-connection-string';
+        }
+        if (($flags & 0x04) !== 0) {
+            $names[] = 'no-prompt-query';
+        }
+        if (($flags & 0x08) !== 0) {
+            $names[] = 'query';
+        }
+
+        return $names;
+    }
+
+    private function legacyDocMailMergeSeparatorTokenName(int $code): string
+    {
+        return match ($code) {
+            0 => 'none',
+            0x0009 => 'tab',
+            0x000a => 'line-feed',
+            0x000d => 'carriage-return',
+            0x002c => 'comma',
+            0x003b => 'semicolon',
+            default => 'token:' . $code,
+        };
+    }
+
+    /**
+     * @param list<array<string,mixed>> $externalFileReferences
+     * @return array<string,mixed>|null
+     */
+    private function legacyDocMailMergeExternalReference(array $externalFileReferences, int $fnpi): ?array
+    {
+        foreach ($externalFileReferences as $reference) {
+            if ((int) ($reference['fnpi'] ?? -1) === $fnpi) {
+                return $reference;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function legacyDocMailMergeRecordFilter(int $bits): array
+    {
+        $errorCheckCode = ($bits >> 1) & 0x0003;
+        if ($errorCheckCode === 3) {
+            throw new \RuntimeException('Legacy DOC Pms record-filter error-check mode uses a reserved value');
+        }
+
+        return [
+            'raw' => $bits,
+            'showDataForm' => ($bits & 0x00000001) !== 0,
+            'errorCheckCode' => $errorCheckCode,
+            'errorCheckMode' => match ($errorCheckCode) {
+                0 => 'none',
+                1 => 'simulate',
+                2 => 'complete',
+            },
+            'manualDocumentSetup' => ($bits & 0x00000008) !== 0,
+            'mailAsPlainText' => ($bits & 0x00000010) !== 0,
+            'defaultSqlQuery' => ($bits & 0x00000040) !== 0,
+            'recordFilteringEnabled' => ($bits & 0x00000080) !== 0,
+            'sttbfRfsHandle' => ($bits >> 16) & 0xffff,
+        ];
     }
 
     /**

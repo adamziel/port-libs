@@ -1342,6 +1342,81 @@ CABAL,
         'executable pandoc: if flag(repl)',
     ];
 
+    private const CLI_EXECUTABLE_EXPECTED_CONDITIONAL_FIELD_CLOSURE = [
+        'common common-options: if os(windows)' => [
+            'sourceDirectories' => [],
+            'ghcOptions' => [],
+            'cppOptions' => ['-D_WINDOWS'],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: if arch(wasm32)' => [
+            'sourceDirectories' => ['wasm'],
+            'ghcOptions' => [],
+            'cppOptions' => [],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: else after if arch(wasm32)' => [
+            'sourceDirectories' => [],
+            'ghcOptions' => ['-threaded'],
+            'cppOptions' => [],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: if flag(nightly)' => [
+            'sourceDirectories' => [],
+            'ghcOptions' => [],
+            'cppOptions' => ['-DNIGHTLY'],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: if flag(server)' => [
+            'sourceDirectories' => ['server'],
+            'ghcOptions' => [],
+            'cppOptions' => [],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: else after if flag(server)' => [
+            'sourceDirectories' => [],
+            'ghcOptions' => [],
+            'cppOptions' => ['-DNO_SERVER'],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: if flag(lua)' => [
+            'sourceDirectories' => ['lua'],
+            'ghcOptions' => [],
+            'cppOptions' => [],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: else after if flag(lua)' => [
+            'sourceDirectories' => [],
+            'ghcOptions' => [],
+            'cppOptions' => ['-DNO_LUA'],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+        'executable pandoc: if flag(repl)' => [
+            'sourceDirectories' => ['repl'],
+            'ghcOptions' => [],
+            'cppOptions' => [],
+            'buildDepends' => [],
+            'otherModules' => [],
+            'nativeSystemFields' => [],
+        ],
+    ];
+
     /**
      * @param array<string, string|array{available?: bool, version?: string|null}> $tools
      * @return array{
@@ -1896,6 +1971,12 @@ CABAL,
         }
         if ($cliExecutableClosure['unexpectedConditionalBranches'] !== []) {
             $blockedReasons[] = 'unexpected pandoc-cli executable conditional branches: ' . implode(', ', $cliExecutableClosure['unexpectedConditionalBranches']);
+        }
+        if ($cliExecutableClosure['missingConditionalFieldEntries'] !== []) {
+            $blockedReasons[] = 'missing pandoc-cli executable conditional branch fields: ' . self::formatTargetFailures($cliExecutableClosure['missingConditionalFieldEntries']);
+        }
+        if ($cliExecutableClosure['unexpectedConditionalFieldEntries'] !== []) {
+            $blockedReasons[] = 'unexpected pandoc-cli executable conditional branch fields: ' . self::formatTargetFailures($cliExecutableClosure['unexpectedConditionalFieldEntries']);
         }
         if ($cliExecutableClosure['unexpectedNativeSystemFields'] !== []) {
             $blockedReasons[] = 'unexpected pandoc-cli executable native/system dependencies: ' . implode(', ', $cliExecutableClosure['unexpectedNativeSystemFields']);
@@ -2743,6 +2824,14 @@ CABAL,
     public static function expectedCliExecutableConditionalBranches(): array
     {
         return self::CLI_EXECUTABLE_EXPECTED_CONDITIONAL_BRANCHES;
+    }
+
+    /**
+     * @return array<string, array{sourceDirectories:list<string>, ghcOptions:list<string>, cppOptions:list<string>, buildDepends:list<string>, otherModules:list<string>, nativeSystemFields:list<string>}>
+     */
+    public static function expectedCliExecutableConditionalFieldClosure(): array
+    {
+        return self::CLI_EXECUTABLE_EXPECTED_CONDITIONAL_FIELD_CLOSURE;
     }
 
     /**
@@ -4869,9 +4958,17 @@ CABAL,
     {
         $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, self::CLI_EXECUTABLE_PACKAGE_FILE);
         $present = [];
+        $presentConditionalFieldClosure = [];
         if (is_file($path)) {
-            $executables = self::parseCabalExecutables((string) file_get_contents($path));
+            $contents = (string) file_get_contents($path);
+            $executables = self::parseCabalExecutables($contents);
             $present = $executables[self::CLI_EXECUTABLE_NAME] ?? [];
+            $stanzas = self::parseCabalStanzas($contents);
+            $presentConditionalFieldClosure = self::resolveCabalStanzaConditionalFieldBlocks(
+                'executable:' . self::CLI_EXECUTABLE_NAME,
+                $stanzas,
+                self::parseCabalConditionalFieldBlocks($contents)
+            );
         }
 
         $missingExecutable = $present === [];
@@ -5032,6 +5129,11 @@ CABAL,
             }
         }
 
+        $conditionalFieldDiff = self::diffConditionalFieldClosure(
+            self::CLI_EXECUTABLE_EXPECTED_CONDITIONAL_FIELD_CLOSURE,
+            $presentConditionalFieldClosure
+        );
+
         return [
             'packageFile' => self::CLI_EXECUTABLE_PACKAGE_FILE,
             'executableName' => self::CLI_EXECUTABLE_NAME,
@@ -5076,6 +5178,10 @@ CABAL,
             'presentConditionalBranches' => $presentConditionalBranches,
             'missingConditionalBranches' => $missingConditionalBranches,
             'unexpectedConditionalBranches' => $unexpectedConditionalBranches,
+            'expectedConditionalFieldClosure' => self::CLI_EXECUTABLE_EXPECTED_CONDITIONAL_FIELD_CLOSURE,
+            'presentConditionalFieldClosure' => $presentConditionalFieldClosure,
+            'missingConditionalFieldEntries' => $conditionalFieldDiff['missing'],
+            'unexpectedConditionalFieldEntries' => $conditionalFieldDiff['unexpected'],
             'presentDefaultExtensions' => $presentDefaultExtensions,
             'unexpectedDefaultExtensions' => $presentDefaultExtensions,
             'presentCppOptions' => $presentCppOptions,
@@ -5841,6 +5947,276 @@ CABAL,
         }
 
         return $stanzas;
+    }
+
+    /**
+     * @return array<string, array<string, array<string, string>>>
+     */
+    private static function parseCabalConditionalFieldBlocks(string $contents): array
+    {
+        $blocks = [];
+        $currentKey = null;
+        $currentLabel = null;
+        $activeBranch = null;
+        $conditionalIndent = null;
+        $lastCondition = null;
+        $lastField = null;
+        $lastFieldIndent = null;
+
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            if (preg_match('/^custom-setup\s*$/i', $line) === 1) {
+                $currentKey = 'custom-setup:default';
+                $currentLabel = 'custom-setup default';
+                $activeBranch = null;
+                $conditionalIndent = null;
+                $lastCondition = null;
+                $lastField = null;
+                $lastFieldIndent = null;
+                continue;
+            }
+
+            if (preg_match('/^library\s*$/i', $line) === 1) {
+                $currentKey = 'library:default';
+                $currentLabel = 'library default';
+                $activeBranch = null;
+                $conditionalIndent = null;
+                $lastCondition = null;
+                $lastField = null;
+                $lastFieldIndent = null;
+                continue;
+            }
+
+            if (preg_match('/^([A-Za-z][A-Za-z0-9-]*)\s+([A-Za-z0-9_.-]+)\s*$/', $line, $match) === 1) {
+                $type = strtolower($match[1]);
+                if (in_array($type, ['test-suite', 'benchmark', 'executable', 'common', 'library', 'flag'], true)) {
+                    $currentKey = $type . ':' . $match[2];
+                    $currentLabel = $type . ' ' . $match[2];
+                    $activeBranch = null;
+                    $conditionalIndent = null;
+                    $lastCondition = null;
+                    $lastField = null;
+                    $lastFieldIndent = null;
+                    continue;
+                }
+            }
+
+            if ($currentKey === null || $currentLabel === null) {
+                continue;
+            }
+
+            if (preg_match('/^\S/', $line) === 1) {
+                $currentKey = null;
+                $currentLabel = null;
+                $activeBranch = null;
+                $conditionalIndent = null;
+                $lastCondition = null;
+                $lastField = null;
+                $lastFieldIndent = null;
+                continue;
+            }
+
+            $trimmed = trim($line);
+            $indent = strlen($line) - strlen(ltrim($line));
+
+            if ($activeBranch !== null && $conditionalIndent !== null) {
+                if ($trimmed === '') {
+                    continue;
+                }
+
+                if ($indent <= $conditionalIndent) {
+                    if ($indent === $conditionalIndent && preg_match('/^(?:elif|else)\b/i', $trimmed) === 1) {
+                        $condition = self::normalizeCabalListItem($trimmed);
+                        $activeBranch = self::conditionalFieldBranchLabel($currentLabel, $condition, $lastCondition);
+                        $blocks[$currentKey][$activeBranch] ??= [];
+                        if (preg_match('/^else\b/i', $condition) !== 1) {
+                            $lastCondition = $condition;
+                        }
+                        $lastField = null;
+                        $lastFieldIndent = null;
+                        continue;
+                    }
+
+                    $activeBranch = null;
+                    $conditionalIndent = null;
+                    $lastField = null;
+                    $lastFieldIndent = null;
+                } else {
+                    if (preg_match('/^(?:if|elif|else)\b/i', $trimmed) === 1) {
+                        continue;
+                    }
+
+                    if ($lastField !== null && $lastFieldIndent !== null && $indent > $lastFieldIndent) {
+                        $continuation = trim($line);
+                        if ($continuation !== '') {
+                            $blocks[$currentKey][$activeBranch][$lastField] .= "\n" . $continuation;
+                        }
+                        continue;
+                    }
+
+                    if (preg_match('/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/', $line, $match) === 1) {
+                        $lastField = strtolower($match[1]);
+                        $lastFieldIndent = $indent;
+                        $blocks[$currentKey][$activeBranch] = self::mergeCabalFields(
+                            $blocks[$currentKey][$activeBranch] ?? [],
+                            [$lastField => trim($match[2])]
+                        );
+                    }
+
+                    continue;
+                }
+            }
+
+            if (preg_match('/^(?:if|elif|else)\b/i', $trimmed) === 1) {
+                $condition = self::normalizeCabalListItem($trimmed);
+                $activeBranch = self::conditionalFieldBranchLabel($currentLabel, $condition, $lastCondition);
+                $blocks[$currentKey][$activeBranch] ??= [];
+                if (preg_match('/^else\b/i', $condition) !== 1) {
+                    $lastCondition = $condition;
+                }
+                $conditionalIndent = $indent;
+                $lastField = null;
+                $lastFieldIndent = null;
+            }
+        }
+
+        return $blocks;
+    }
+
+    private static function conditionalFieldBranchLabel(string $stanzaLabel, string $condition, ?string $previousCondition): string
+    {
+        if (preg_match('/^else\b/i', $condition) === 1 && $previousCondition !== null) {
+            return $stanzaLabel . ': else after ' . $previousCondition;
+        }
+
+        return $stanzaLabel . ': ' . $condition;
+    }
+
+    /**
+     * @param array<string, array{type:string, name:string, fields:array<string, string>, conditionals:list<string>}> $stanzas
+     * @param array<string, array<string, array<string, string>>> $blocks
+     * @param array<string, bool> $seen
+     * @return array<string, array{sourceDirectories:list<string>, ghcOptions:list<string>, cppOptions:list<string>, buildDepends:list<string>, otherModules:list<string>, nativeSystemFields:list<string>}>
+     */
+    private static function resolveCabalStanzaConditionalFieldBlocks(string $key, array $stanzas, array $blocks, array $seen = []): array
+    {
+        if (!array_key_exists($key, $stanzas) || array_key_exists($key, $seen)) {
+            return [];
+        }
+
+        $seen[$key] = true;
+        $resolved = [];
+        foreach (self::parseCabalImportNames($stanzas[$key]['fields']['import'] ?? '') as $importName) {
+            foreach (self::resolveCabalStanzaConditionalFieldBlocks('common:' . $importName, $stanzas, $blocks, $seen) as $label => $fields) {
+                $resolved[$label] = self::mergeNormalizedConditionalFields($resolved[$label] ?? [], $fields);
+            }
+        }
+
+        foreach ($blocks[$key] ?? [] as $label => $fields) {
+            $resolved[$label] = self::mergeNormalizedConditionalFields(
+                $resolved[$label] ?? [],
+                self::normalizeCabalConditionalFields($fields)
+            );
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return array{sourceDirectories:list<string>, ghcOptions:list<string>, cppOptions:list<string>, buildDepends:list<string>, otherModules:list<string>, nativeSystemFields:list<string>}
+     */
+    private static function normalizeCabalConditionalFields(array $fields): array
+    {
+        $dependencyConstraints = self::extractCabalDependencyConstraints($fields['build-depends'] ?? '');
+        $buildDepends = [];
+        foreach (self::extractCabalDependencyNames($fields['build-depends'] ?? '') as $dependency) {
+            $buildDepends[] = self::formatCabalSetupDependency($dependency, $dependencyConstraints[$dependency] ?? '');
+        }
+
+        return [
+            'sourceDirectories' => self::splitWords($fields['hs-source-dirs'] ?? ''),
+            'ghcOptions' => self::splitWords($fields['ghc-options'] ?? ''),
+            'cppOptions' => self::splitWords($fields['cpp-options'] ?? ''),
+            'buildDepends' => $buildDepends,
+            'otherModules' => self::extractCabalModuleNames($fields['other-modules'] ?? ''),
+            'nativeSystemFields' => self::unexpectedCabalNativeSystemFields(
+                self::extractCabalNativeSystemFields($fields),
+                []
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, list<string>> $base
+     * @param array<string, list<string>> $next
+     * @return array<string, list<string>>
+     */
+    private static function mergeNormalizedConditionalFields(array $base, array $next): array
+    {
+        foreach (['sourceDirectories', 'ghcOptions', 'cppOptions', 'buildDepends', 'otherModules', 'nativeSystemFields'] as $field) {
+            $base[$field] ??= [];
+            $next[$field] ??= [];
+        }
+
+        foreach ($next as $field => $values) {
+            foreach ($values as $value) {
+                if (!in_array($value, $base[$field] ?? [], true)) {
+                    $base[$field][] = $value;
+                }
+            }
+        }
+
+        return $base;
+    }
+
+    /**
+     * @param array<string, array<string, list<string>>> $expected
+     * @param array<string, array<string, list<string>>> $present
+     * @return array{missing:array<string, list<string>>, unexpected:array<string, list<string>>}
+     */
+    private static function diffConditionalFieldClosure(array $expected, array $present): array
+    {
+        $missing = [];
+        $unexpected = [];
+
+        foreach ($expected as $label => $expectedFields) {
+            $presentFields = $present[$label] ?? [];
+            foreach ($expectedFields as $field => $expectedValues) {
+                foreach ($expectedValues as $value) {
+                    if (!in_array($value, $presentFields[$field] ?? [], true)) {
+                        $missing[$label][] = self::formatConditionalFieldEntry($field, $value);
+                    }
+                }
+            }
+        }
+
+        foreach ($present as $label => $presentFields) {
+            $expectedFields = $expected[$label] ?? [];
+            foreach ($presentFields as $field => $presentValues) {
+                foreach ($presentValues as $value) {
+                    if (!in_array($value, $expectedFields[$field] ?? [], true)) {
+                        $unexpected[$label][] = self::formatConditionalFieldEntry($field, $value);
+                    }
+                }
+            }
+        }
+
+        return [
+            'missing' => $missing,
+            'unexpected' => $unexpected,
+        ];
+    }
+
+    private static function formatConditionalFieldEntry(string $field, string $value): string
+    {
+        return match ($field) {
+            'sourceDirectories' => 'hs-source-dirs: ' . $value,
+            'ghcOptions' => 'ghc-options: ' . $value,
+            'cppOptions' => 'cpp-options: ' . $value,
+            'buildDepends' => 'build-depends: ' . $value,
+            'otherModules' => 'other-modules: ' . $value,
+            default => $value,
+        };
     }
 
     /**
@@ -6732,7 +7108,7 @@ CABAL,
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedTestOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedModuleInterfaceFields:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedConditionalBranches:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>, missingOtherModules:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>} $runnerDependencyClosure
      * @param array{missingTargets:list<string>, mismatchedEntryPoints:array<string, list<string>>, missingDependencies:array<string, list<string>>, unexpectedDependencies:array<string, list<string>>, mismatchedDependencyConstraints:array<string, array<string, array{expected:string, actual:string}>>, missingExecutableOptions:array<string, list<string>>, unexpectedExecutableOptions:array<string, list<string>>, mismatchedDefaultLanguages:array<string, array{expected:string, actual:string|null}>, unexpectedSourceDirectories:array<string, list<string>>, unexpectedMixins:array<string, list<string>>, unexpectedBuildTools:array<string, list<string>>, unexpectedBenchmarkOptions:array<string, list<string>>, unexpectedDefaultExtensions:array<string, list<string>>, unexpectedOtherExtensions:array<string, list<string>>, unexpectedCppOptions:array<string, list<string>>, unexpectedAutogenModules:array<string, list<string>>, unexpectedReexportedModules:array<string, list<string>>, unexpectedModuleInterfaceFields:array<string, list<string>>, unexpectedOtherModules:array<string, list<string>>, unexpectedExtraSourceFiles:array<string, list<string>>, unexpectedExtraDocFiles:array<string, list<string>>, unexpectedExtraTmpFiles:array<string, list<string>>, unexpectedDataFiles:array<string, list<string>>, unexpectedConditionalBranches:array<string, list<string>>, unexpectedNativeSystemFields:array<string, list<string>>} $benchmarkDependencyClosure
      * @param array{missingDependencies:list<string>, unexpectedDependencies:list<string>, missingExposedModules:list<string>, unexpectedExposedModules:list<string>, missingSourceDirectories:list<string>, unexpectedSourceDirectories:list<string>, missingOtherModules:list<string>, unexpectedOtherModules:list<string>, missingSourceArtifacts:list<string>, wrongTypeSourceArtifacts:array<string, array{expected:string, actual:string}>, emptySourceArtifacts:list<string>, mismatchedDefaultLanguage:array{expected:string, actual:string|null}|null, unexpectedMixins:list<string>, unexpectedBuildTools:list<string>, unexpectedAutogenModules:list<string>, unexpectedReexportedModules:list<string>, unexpectedModuleInterfaceFields:list<string>, unexpectedDefaultExtensions:list<string>, unexpectedOtherExtensions:list<string>, unexpectedExtraSourceFiles:list<string>, unexpectedExtraDocFiles:list<string>, unexpectedExtraTmpFiles:list<string>, unexpectedDataFiles:list<string>, unexpectedConditionalBranches:list<string>, unexpectedNativeSystemFields:list<string>} $luaEngineLibraryClosure
-     * @param array{missingExecutable:bool, mismatchedEntryPoint:list<string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, mismatchedDependencyConstraints:array<string, array{expected:string, actual:string}>, missingExecutableOptions:list<string>, unexpectedExecutableOptions:list<string>, mismatchedDefaultLanguage:array{expected:string, actual:string|null}|null, missingCommonImports:list<string>, unexpectedCommonImports:list<string>, unresolvedCommonImports:list<string>, missingSourceDirectories:list<string>, unexpectedSourceDirectories:list<string>, unexpectedMixins:list<string>, unexpectedBuildTools:list<string>, missingOtherExtensions:list<string>, unexpectedOtherExtensions:list<string>, unexpectedDefaultExtensions:list<string>, unexpectedCppOptions:list<string>, unexpectedAutogenModules:list<string>, unexpectedReexportedModules:list<string>, unexpectedModuleInterfaceFields:list<string>, missingOtherModules:list<string>, unexpectedOtherModules:list<string>, unexpectedExtraSourceFiles:list<string>, unexpectedExtraDocFiles:list<string>, unexpectedExtraTmpFiles:list<string>, unexpectedDataFiles:list<string>, missingConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>, unexpectedNativeSystemFields:list<string>} $cliExecutableClosure
+     * @param array{missingExecutable:bool, mismatchedEntryPoint:list<string>, missingDependencies:list<string>, unexpectedDependencies:list<string>, mismatchedDependencyConstraints:array<string, array{expected:string, actual:string}>, missingExecutableOptions:list<string>, unexpectedExecutableOptions:list<string>, mismatchedDefaultLanguage:array{expected:string, actual:string|null}|null, missingCommonImports:list<string>, unexpectedCommonImports:list<string>, unresolvedCommonImports:list<string>, missingSourceDirectories:list<string>, unexpectedSourceDirectories:list<string>, unexpectedMixins:list<string>, unexpectedBuildTools:list<string>, missingOtherExtensions:list<string>, unexpectedOtherExtensions:list<string>, unexpectedDefaultExtensions:list<string>, unexpectedCppOptions:list<string>, unexpectedAutogenModules:list<string>, unexpectedReexportedModules:list<string>, unexpectedModuleInterfaceFields:list<string>, missingOtherModules:list<string>, unexpectedOtherModules:list<string>, unexpectedExtraSourceFiles:list<string>, unexpectedExtraDocFiles:list<string>, unexpectedExtraTmpFiles:list<string>, unexpectedDataFiles:list<string>, missingConditionalBranches:list<string>, unexpectedConditionalBranches:list<string>, missingConditionalFieldEntries:array<string, list<string>>, unexpectedConditionalFieldEntries:array<string, list<string>>, unexpectedNativeSystemFields:list<string>} $cliExecutableClosure
      * @param array{missingTargets:list<string>, missingSemantics:array<string, list<string>>} $runnerEntrySourceClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $runnerArtifactClosure
      * @param array{missing:list<string>, wrongType:array<string, array{expected:string, actual:string}>, emptyFiles:list<string>} $benchmarkArtifactClosure
@@ -6895,6 +7271,8 @@ CABAL,
             && $cliExecutableClosure['unexpectedDataFiles'] === []
             && $cliExecutableClosure['missingConditionalBranches'] === []
             && $cliExecutableClosure['unexpectedConditionalBranches'] === []
+            && $cliExecutableClosure['missingConditionalFieldEntries'] === []
+            && $cliExecutableClosure['unexpectedConditionalFieldEntries'] === []
             && $cliExecutableClosure['unexpectedNativeSystemFields'] === []
             && $runnerEntrySourceClosure['missingTargets'] === []
             && $runnerEntrySourceClosure['missingSemantics'] === []
@@ -6907,10 +7285,10 @@ CABAL,
             && $benchmarkEntrySourceClosure['missingTargets'] === []
             && $benchmarkEntrySourceClosure['missingSemantics'] === []
         ) {
-            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
+            return 'Hydrated Pandoc checkout, required Cabal toolchain, Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure for Pandoc templates/data payloads, exact package-level extra-doc-files and extra-source-files closure for documentation and source fixture globs, no unexpected package-level extra-tmp-files or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package/flag/constraint closure, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, non-empty runner source/golden fixtures with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, buildable runner test-suite stanzas, exitcode-stdio runner types, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, direct build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure with exact exposed-modules, exact pandoc-lua-engine library source directory and other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, and Haskell2010 library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, exposed modules, source directories, other modules, source artifacts, mixins or build-tool dependencies, generated modules, reexported modules, module interface fields, default/other extensions, file artifact globs, native/system dependency fields, or unexpected library conditional branches, exact pandoc-server library dependency, exposed-module, source-directory, and default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, and exact pandoc-cli conditional branch field bodies, non-empty benchmark component dependency/artifact closure with artifact hashes, benchmark entry-point source semantics, and Git pins are present; record a non-mutating solver/build plan before any Haskell runner or benchmark execution.';
         }
 
         return 'Hydrate Pandoc upstream commit ' . self::UPSTREAM_COMMIT
-            . ' with Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
+            . ' with Cabal package identity/version headers, package flag definitions for cabal.project flags, exact package-level data-files closure, no unexpected package-level data-files, exact package-level extra-doc-files and extra-source-files closure, no unexpected package-level extra-doc-files, extra-source-files, extra-tmp-files, or native/system dependency fields, no package custom-setup/setup-depends hooks, pandoc.cabal tested-with GHC matrix, cabal.project package entries/flags/constraints, no unexpected cabal.project package entries or flags, no unexpected cabal.project solver constraints, no unexpected cabal.project unconditional plan fields, exact cabal.project source-repository Git types and locations, no unexpected cabal.project source-repository packages, no unexpected cabal.project source-repository package fields, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, non-empty runner source/golden fixtures with artifact hashes, non-empty benchmark source/data artifacts with artifact hashes, runner entry-point source semantics including command-emulation parser/error handling and full Tasty group dispatch, benchmark entry-point source semantics, buildable exitcode-stdio test-suite types and buildable benchmark components, Haskell2010 default-language closure, exact absent runner and benchmark manual fields, exact runner and benchmark common import closure, no unresolved runner or benchmark common imports, test entry points and benchmark entry points, direct runner build-depends and benchmark build-depends with pinned version constraints, no unexpected runner or benchmark direct build-depends, exact runner and benchmark executable options, no unexpected runner or benchmark hs-source-dirs, no unexpected runner or benchmark mixins, no runner or benchmark build-tool dependencies, no unexpected runner test-options, no unexpected benchmark-options, no unexpected runner or benchmark default-extensions, no unexpected runner or benchmark other-extensions, no unexpected runner or benchmark cpp-options, no unexpected runner or benchmark autogen-modules, no unexpected runner or benchmark reexported-modules, no unexpected runner or benchmark module interface fields, no unexpected runner or benchmark other-modules, no unexpected runner or benchmark extra-source-files, no unexpected runner or benchmark extra-doc-files, no unexpected runner or benchmark extra-tmp-files, no unexpected runner or benchmark data-files, no unexpected runner or benchmark conditional branches, no unexpected runner or benchmark native/system dependency fields, runner other-modules closure, exact pandoc-lua-engine library HsLua module dependency closure, exact pandoc-lua-engine library exposed-modules closure, exact pandoc-lua-engine library other-modules closure, non-empty pandoc-lua-engine library source artifacts with artifact hashes, Haskell2010 pandoc-lua-engine library default-language, no unexpected pandoc-lua-engine library Lua support build-depends, no unexpected pandoc-lua-engine library exposed modules, no unexpected pandoc-lua-engine library source directories, no unexpected pandoc-lua-engine library other modules, no unexpected pandoc-lua-engine library source artifacts, no unexpected pandoc-lua-engine library mixins or build-tool dependencies, no unexpected pandoc-lua-engine library generated, reexported, or module interface fields, no unexpected pandoc-lua-engine library default/other extensions, no unexpected pandoc-lua-engine library file artifact globs, no unexpected pandoc-lua-engine library native/system dependency fields, no unexpected pandoc-lua-engine library conditional branches, exact pandoc-server library dependency/exposed-module/source-directory/default-language closure, exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure, and exact pandoc-cli conditional branch field bodies, ghc, cabal, and exact cabal.project Git source-repository pins before attempting a runner plan.';
     }
 }

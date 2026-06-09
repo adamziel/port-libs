@@ -243,6 +243,7 @@ final class OdfReader
                     'continuedListCount' => $contentStats['continuedListCount'],
                     'listHeaderCount' => $contentStats['listHeaderCount'],
                     'imageListStyleCount' => $contentStats['imageListStyleCount'],
+                    'listTextPropertyCount' => $contentStats['listTextPropertyCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
                     'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
                     'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
@@ -1361,6 +1362,11 @@ final class OdfReader
             }
             $this->addImageListStyleHtmlAttributes($htmlAttributes, $definition);
         }
+        $textProperties = $definition['textProperties'] ?? [];
+        if (is_array($textProperties) && $textProperties !== []) {
+            $attrs['listTextProperties'] = $textProperties;
+            $this->addListTextPropertyHtmlAttributes($htmlAttributes, $textProperties);
+        }
         if ($ordered) {
             $attrs['style'] = $this->orderedListStyle((string) ($definition['format'] ?? '1'));
             $attrs['start'] = $start;
@@ -1509,6 +1515,40 @@ final class OdfReader
                 continue;
             }
             $htmlAttributes['data-odf-list-label-' . self::kebabCase((string) $name)] = (string) $value;
+        }
+    }
+
+    /**
+     * @param array<string, string> $htmlAttributes
+     * @param array<string, mixed> $textProperties
+     */
+    private function addListTextPropertyHtmlAttributes(array &$htmlAttributes, array $textProperties): void
+    {
+        $htmlAttributes['data-odf-list-text-property-count'] = (string) count($textProperties);
+
+        foreach ($textProperties as $name => $value) {
+            if ($name === 'fontFace' && is_array($value)) {
+                foreach ($value as $fontFaceName => $fontFaceValue) {
+                    if (is_bool($fontFaceValue)) {
+                        $htmlAttributes['data-odf-list-text-font-face-' . self::kebabCase((string) $fontFaceName)] = $fontFaceValue ? 'true' : 'false';
+                        continue;
+                    }
+                    if (!is_scalar($fontFaceValue) || (string) $fontFaceValue === '') {
+                        continue;
+                    }
+                    $htmlAttributes['data-odf-list-text-font-face-' . self::kebabCase((string) $fontFaceName)] = (string) $fontFaceValue;
+                }
+                continue;
+            }
+
+            if (is_bool($value)) {
+                $htmlAttributes['data-odf-list-text-' . self::kebabCase((string) $name)] = $value ? 'true' : 'false';
+                continue;
+            }
+            if (!is_scalar($value) || (string) $value === '') {
+                continue;
+            }
+            $htmlAttributes['data-odf-list-text-' . self::kebabCase((string) $name)] = (string) $value;
         }
     }
 
@@ -7482,7 +7522,7 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $listStyles[$name] = $this->listStyleDefinition($listStyle);
+            $listStyles[$name] = $this->listStyleDefinition($listStyle, $fontFaces);
         }
 
         $tableTemplates = [];
@@ -7848,9 +7888,10 @@ final class OdfReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $fontFaces
      * @return array{name:string, levels:array<int, array<string, mixed>>}
      */
-    private function listStyleDefinition(\DOMElement $listStyle): array
+    private function listStyleDefinition(\DOMElement $listStyle, array $fontFaces = []): array
     {
         $levels = [];
         foreach (self::childElements($listStyle) as $levelStyle) {
@@ -7882,6 +7923,13 @@ final class OdfReader
             $levelProperties = $this->listLevelProperties($levelStyle);
             if ($levelProperties !== []) {
                 $levelDefinition['levelProperties'] = $levelProperties;
+            }
+            $textProperties = self::firstChildElement($levelStyle, 'text-properties', self::STYLE_NS);
+            if ($textProperties instanceof \DOMElement) {
+                $listTextProperties = $this->textProperties($textProperties, $fontFaces);
+                if ($listTextProperties !== []) {
+                    $levelDefinition['textProperties'] = $listTextProperties;
+                }
             }
 
             $levels[$level] = $levelDefinition;
@@ -8376,6 +8424,7 @@ final class OdfReader
             'continuedListCount' => 0,
             'listHeaderCount' => 0,
             'imageListStyleCount' => 0,
+            'listTextPropertyCount' => 0,
             'tableTemplateReferenceCount' => 0,
             'tableColumnDefinitionCount' => 0,
             'hiddenTableColumnCount' => 0,
@@ -8588,6 +8637,13 @@ final class OdfReader
             }
             if (($node->type === 'ordered_list' || $node->type === 'bullet_list') && $node->attr('listImageStyle') === true) {
                 $stats['imageListStyleCount']++;
+            }
+            $listTextProperties = $node->attr('listTextProperties', []);
+            if (($node->type === 'ordered_list' || $node->type === 'bullet_list')
+                && is_array($listTextProperties)
+                && $listTextProperties !== []
+            ) {
+                $stats['listTextPropertyCount']++;
             }
 
             $childStats = $this->contentNodeStats($node->children);

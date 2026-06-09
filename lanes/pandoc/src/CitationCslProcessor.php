@@ -9210,6 +9210,9 @@ final class CitationCslProcessor
             $term = str_replace('.', '', $term);
         }
         $term = $this->applyNamePartTextCase($term, $label);
+        if (($label['quotes'] ?? false) === true) {
+            $term = $this->style->term('open-quote') . $term . $this->style->term('close-quote');
+        }
         if ($term === '') {
             return $renderedNames;
         }

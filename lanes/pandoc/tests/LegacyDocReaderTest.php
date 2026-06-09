@@ -786,6 +786,72 @@ $sttbFnm = static function (array $references) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$pms = static function (array $options = []) use ($u16, $u32, $utf16le): string {
+    $sourceRecord = static function (array $source) use ($u16): string {
+        $sourceCode = (int) ($source['sourceCode'] ?? 0xff);
+        $flags = (!empty($source['linkToFilename']) ? 0x01 : 0)
+            | (!empty($source['linkToConnectionString']) ? 0x02 : 0)
+            | (!empty($source['noPromptQuery']) ? 0x04 : 0)
+            | (!empty($source['query']) ? 0x08 : 0);
+        $documentIndex = (int) ($source['documentIndex'] ?? 0);
+        $referenceTypeCode = (int) ($source['referenceTypeCode'] ?? ($sourceCode === 0xff ? 0 : 3));
+        $fnpi = (($documentIndex & 0x0fff) << 4) | ($referenceTypeCode & 0x000f);
+
+        return chr($sourceCode & 0xff)
+            . chr($flags & 0xff)
+            . $u16((int) ($source['fieldToken'] ?? 0))
+            . $u16((int) ($source['recordToken'] ?? 0))
+            . $u16($fnpi);
+    };
+
+    $wpms = (int) ($options['state'] ?? (
+        0x0001
+        | 0x0002
+        | 0x0004
+        | (0x01 << 3)
+        | (1 << 10)
+        | (1 << 11)
+        | (0x02 << 13)
+    ));
+    $sources = $options['sources'] ?? [];
+    $source0 = is_array($sources[0] ?? null) ? $sources[0] : ['sourceCode' => 0xff];
+    $source1 = is_array($sources[1] ?? null) ? $sources[1] : ['sourceCode' => 0xff];
+    $sqlQuery = (string) ($options['sqlQuery'] ?? '');
+    $sqlBytes = $sqlQuery === '' ? '' : $utf16le($sqlQuery . "\0");
+    $rfs = (int) ($options['recordFilter'] ?? (
+        0x0001
+        | (0x02 << 1)
+        | (1 << 3)
+        | (1 << 4)
+        | (1 << 6)
+        | (1 << 7)
+    ));
+
+    $bytes = $u16($wpms)
+        . chr((int) ($options['headerFieldSourceIndex'] ?? 1))
+        . chr((int) ($options['dataFetchSourceIndex'] ?? 0))
+        . $u32((int) ($options['currentRecordIndex'] ?? 23))
+        . $sourceRecord($source0)
+        . $sourceRecord($source1)
+        . $u32($rfs)
+        . $u16(strlen($sqlBytes))
+        . $sqlBytes;
+
+    $recordFilterStrings = array_values(array_map(
+        static fn (mixed $value): string => (string) $value,
+        $options['recordFilterStrings'] ?? []
+    ));
+    if ($recordFilterStrings !== []) {
+        $bytes = substr_replace($bytes, $u32($rfs | (1 << 16)), 24, 4);
+        $bytes .= $u16(0xffff) . $u16(count($recordFilterStrings)) . $u16(0);
+        foreach ($recordFilterStrings as $string) {
+            $encoded = $utf16le($string);
+            $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+        }
+    }
+
+    return $bytes;
+};
 $sttbfCaption = static function (array $captions) use ($u16, $utf16le): string {
     $bytes = $u16(0xffff) . $u16(count($captions)) . $u16(6);
     foreach ($captions as $caption) {
@@ -6087,6 +6153,134 @@ return [
         foreach (['DATA', $dataSource, $headerDocument] as $hiddenSource) {
             $t->true(!str_contains(strip_tags($blocks), $hiddenSource), 'Legacy DOC DATA field instructions and sources should not render as visible text');
         }
+    },
+    'extracts legacy DOC Pms mail-merge settings as metadata-only review state' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $sttbFnm, $pms, $u16, $u32): void {
+        $text = "Mail merge packet stays readable\r";
+        $dataSource = 'C:\Data\mailmerge-customers.csv';
+        $headerDocument = 'C:\Data\mailmerge-headers.doc';
+        $externalFileTable = $sttbFnm([
+            [
+                'path' => $dataSource,
+                'referenceTypeCode' => 3,
+                'documentIndex' => 11,
+                'ichRelative' => 8,
+                'fnfb' => 0x08,
+            ],
+            [
+                'path' => $headerDocument,
+                'referenceTypeCode' => 3,
+                'documentIndex' => 12,
+                'ichRelative' => 8,
+                'fnfb' => 0x08,
+            ],
+        ]);
+        $settings = $pms([
+            'sources' => [
+                [
+                    'sourceCode' => 0,
+                    'linkToFilename' => true,
+                    'linkToConnectionString' => true,
+                    'noPromptQuery' => true,
+                    'query' => true,
+                    'fieldToken' => 0x002c,
+                    'recordToken' => 0x000d,
+                    'documentIndex' => 11,
+                    'referenceTypeCode' => 3,
+                ],
+                [
+                    'sourceCode' => 0,
+                    'linkToFilename' => true,
+                    'fieldToken' => 0x0009,
+                    'recordToken' => 0x000d,
+                    'documentIndex' => 12,
+                    'referenceTypeCode' => 3,
+                ],
+            ],
+            'sqlQuery' => 'SELECT * FROM Customers WHERE City = "Paris"',
+            'recordFilterStrings' => ['City = Paris', 'OptedIn = TRUE'],
+        ]);
+
+        $buildPmsDoc = static function (string $settingsBytes, string $externalBytes = '') use ($buildCfb, $buildExtendedFibWordDocument, $text, $u32): string {
+            $tableStream = $settingsBytes . $externalBytes;
+            $wordDocument = $buildExtendedFibWordDocument($text);
+            $wordDocument = substr_replace($wordDocument, $u32(0), 0x01fa, 4);
+            $wordDocument = substr_replace($wordDocument, $u32(strlen($settingsBytes)), 0x01fe, 4);
+            if ($externalBytes !== '') {
+                $wordDocument = substr_replace($wordDocument, $u32(strlen($settingsBytes)), 0x02da, 4);
+                $wordDocument = substr_replace($wordDocument, $u32(strlen($externalBytes)), 0x02de, 4);
+            }
+
+            return $buildCfb([
+                'WordDocument' => $wordDocument,
+                '0Table' => $tableStream,
+            ]);
+        };
+
+        $result = (new LegacyDocReader())->readBytes($buildPmsDoc($settings, $externalFileTable));
+        $document = $result['document'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $settingsResult = $result['mailMergeSettings'];
+        $sourceRecords = $settingsResult['sourceRecords'];
+
+        $t->same($settingsResult, $result['metadata']['mailMergeSettings']);
+        $t->same($settingsResult, $document->attr('mailMergeSettings'));
+        $t->same('Pms', $settingsResult['sourceTable']);
+        $t->same('metadata-only-native-review', $settingsResult['extractionPolicy']);
+        $t->same('letters', $settingsResult['documentType']);
+        $t->same('email', $settingsResult['destination']);
+        $t->same(1, $settingsResult['headerFieldSourceIndex']);
+        $t->same(0, $settingsResult['dataFetchSourceIndex']);
+        $t->same(23, $settingsResult['currentRecordIndex']);
+        $t->same('SELECT * FROM Customers WHERE City = "Paris"', $settingsResult['sqlQuery']);
+        $t->same('metadata-only-native-review', $settingsResult['sqlQueryPolicy']);
+        $t->same(['City = Paris', 'OptedIn = TRUE'], $settingsResult['recordFilterStrings']);
+        $t->same(2, $settingsResult['sourceRecordCount']);
+        $t->same(2, $result['metadata']['mailMergeSourceRecordCount']);
+        $t->same(2, $result['metadata']['mailMergeRecordFilterStringCount']);
+        $t->same('metadata-only-native-review', $result['metadata']['mailMergeSettingsPolicy']);
+
+        $t->same('data-file', $sourceRecords[0]['source']);
+        $t->same(['link-to-filename', 'link-to-connection-string', 'no-prompt-query', 'query'], $sourceRecords[0]['flags']);
+        $t->same('comma', $sourceRecords[0]['fieldSeparatorToken']);
+        $t->same('carriage-return', $sourceRecords[0]['recordSeparatorToken']);
+        $t->same(11, $sourceRecords[0]['documentIndex']);
+        $t->same(0, $sourceRecords[0]['externalFileReferenceIndex']);
+        $t->same($dataSource, $sourceRecords[0]['path']);
+        $t->same('mailmerge-customers.csv', $sourceRecords[0]['basename']);
+        $t->same('mail-merge-data-source', $sourceRecords[0]['referenceType']);
+        $t->same(false, $sourceRecords[0]['canExposeBytes']);
+        $t->same('data-file', $sourceRecords[1]['source']);
+        $t->same('tab', $sourceRecords[1]['fieldSeparatorToken']);
+        $t->same('carriage-return', $sourceRecords[1]['recordSeparatorToken']);
+        $t->same(12, $sourceRecords[1]['documentIndex']);
+        $t->same(1, $sourceRecords[1]['externalFileReferenceIndex']);
+        $t->same($headerDocument, $sourceRecords[1]['path']);
+        $t->same('mailmerge-headers.doc', $sourceRecords[1]['basename']);
+        $t->same('mail-merge-data-source', $sourceRecords[1]['referenceType']);
+        $t->same(2, $result['metadata']['externalFileReferenceCount']);
+        $t->contains('<p>Mail merge packet stays readable</p>', $blocks);
+        foreach ([$dataSource, $headerDocument, 'SELECT * FROM Customers'] as $hiddenSource) {
+            $t->true(!str_contains(strip_tags($blocks), $hiddenSource), 'Legacy DOC Pms settings should not render as visible text');
+        }
+
+        $badSourceIndex = substr_replace($settings, "\x02", 2, 1);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildPmsDoc($badSourceIndex, $externalFileTable)));
+
+        $badCurrentRecord = substr_replace($settings, $u32(0xfffffff1), 4, 4);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildPmsDoc($badCurrentRecord, $externalFileTable)));
+
+        $badSqlLength = substr_replace($settings, $u16(3), 28, 2);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildPmsDoc($badSqlLength, $externalFileTable)));
+
+        $missingExternalSettings = $pms([
+            'sources' => [[
+                'sourceCode' => 0,
+                'linkToFilename' => true,
+                'documentIndex' => 44,
+                'referenceTypeCode' => 3,
+            ]],
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildPmsDoc($missingExternalSettings)));
     },
     'preserves legacy DOC document-information field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";

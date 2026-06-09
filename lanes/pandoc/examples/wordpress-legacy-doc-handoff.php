@@ -393,6 +393,71 @@ $sttbFnm = static function (array $references) use ($u16, $utf16le): string {
 
     return $bytes;
 };
+$pms = static function (array $options = []) use ($u16, $u32, $utf16le): string {
+    $sourceRecord = static function (array $source) use ($u16): string {
+        $sourceCode = (int) ($source['sourceCode'] ?? 0xff);
+        $flags = (!empty($source['linkToFilename']) ? 0x01 : 0)
+            | (!empty($source['linkToConnectionString']) ? 0x02 : 0)
+            | (!empty($source['noPromptQuery']) ? 0x04 : 0)
+            | (!empty($source['query']) ? 0x08 : 0);
+        $documentIndex = (int) ($source['documentIndex'] ?? 0);
+        $referenceTypeCode = (int) ($source['referenceTypeCode'] ?? ($sourceCode === 0xff ? 0 : 3));
+        $fnpi = (($documentIndex & 0x0fff) << 4) | ($referenceTypeCode & 0x000f);
+
+        return chr($sourceCode & 0xff)
+            . chr($flags & 0xff)
+            . $u16((int) ($source['fieldToken'] ?? 0))
+            . $u16((int) ($source['recordToken'] ?? 0))
+            . $u16($fnpi);
+    };
+
+    $wpms = (int) ($options['state'] ?? (
+        0x0001
+        | 0x0002
+        | (0x01 << 3)
+        | (1 << 10)
+        | (1 << 11)
+        | (0x02 << 13)
+    ));
+    $sources = $options['sources'] ?? [];
+    $source0 = is_array($sources[0] ?? null) ? $sources[0] : ['sourceCode' => 0xff];
+    $source1 = is_array($sources[1] ?? null) ? $sources[1] : ['sourceCode' => 0xff];
+    $sqlQuery = (string) ($options['sqlQuery'] ?? '');
+    $sqlBytes = $sqlQuery === '' ? '' : $utf16le($sqlQuery . "\0");
+    $rfs = (int) ($options['recordFilter'] ?? (
+        0x0001
+        | (0x02 << 1)
+        | (1 << 3)
+        | (1 << 4)
+        | (1 << 6)
+        | (1 << 7)
+    ));
+
+    $bytes = $u16($wpms)
+        . chr((int) ($options['headerFieldSourceIndex'] ?? 0))
+        . chr((int) ($options['dataFetchSourceIndex'] ?? 0))
+        . $u32((int) ($options['currentRecordIndex'] ?? 7))
+        . $sourceRecord($source0)
+        . $sourceRecord($source1)
+        . $u32($rfs)
+        . $u16(strlen($sqlBytes))
+        . $sqlBytes;
+
+    $recordFilterStrings = array_values(array_map(
+        static fn (mixed $value): string => (string) $value,
+        $options['recordFilterStrings'] ?? []
+    ));
+    if ($recordFilterStrings !== []) {
+        $bytes = substr_replace($bytes, $u32($rfs | (1 << 16)), 24, 4);
+        $bytes .= $u16(0xffff) . $u16(count($recordFilterStrings)) . $u16(0);
+        foreach ($recordFilterStrings as $string) {
+            $encoded = $utf16le($string);
+            $bytes .= $u16(intdiv(strlen($encoded), 2)) . $encoded;
+        }
+    }
+
+    return $bytes;
+};
 $sttbfCaption = static function (array $captions) use ($u16, $utf16le): string {
     $bytes = $u16(0xffff) . $u16(count($captions)) . $u16(6);
     foreach ($captions as $caption) {
@@ -1141,6 +1206,21 @@ $externalFileTable = $sttbFnm([
         'fnfb' => 0x10,
     ],
 ]);
+$mailMergeSettingsTable = $pms([
+    'sources' => [[
+        'sourceCode' => 0,
+        'linkToFilename' => true,
+        'linkToConnectionString' => true,
+        'noPromptQuery' => true,
+        'query' => true,
+        'fieldToken' => 0x002c,
+        'recordToken' => 0x000d,
+        'documentIndex' => 4,
+        'referenceTypeCode' => 3,
+    ]],
+    'sqlQuery' => 'SELECT * FROM LegacyContacts WHERE Segment = "review"',
+    'recordFilterStrings' => ['Segment = review'],
+]);
 $routeSlipTable = $routeSlip([
     [
         'entryId' => "entry-id-001",
@@ -1200,7 +1280,8 @@ $fcSttbfAssoc = $fcPlcfHdd + strlen($plcfHdd);
 $fcStwUser = $fcSttbfAssoc + strlen($associatedStringsTable);
 $fcSttbSavedBy = $fcStwUser + strlen($documentVariablesTable);
 $fcSttbFnm = $fcSttbSavedBy + strlen($saveHistoryTable);
-$fcRouteSlip = $fcSttbFnm + strlen($externalFileTable);
+$fcPms = $fcSttbFnm + strlen($externalFileTable);
+$fcRouteSlip = $fcPms + strlen($mailMergeSettingsTable);
 $fcSttbfRMark = $fcRouteSlip + strlen($routeSlipTable);
 $fcSttbfCaption = $fcSttbfRMark + strlen($revisionAuthorTable);
 $fcSttbfAutoCaption = $fcSttbfCaption + strlen($captionDefinitionTable);
@@ -1220,7 +1301,7 @@ $fcPlcBteChpx = $fcPlcBtePapx + strlen($plcBtePapx);
 $fcStshf = $fcPlcBteChpx + strlen($plcBteChpx);
 $fcPlfLst = $fcStshf + strlen($stsh);
 $fcPlfLfo = $fcPlfLst + strlen($plfLst) + strlen($listOrderedLevel) + strlen($listBulletLevel);
-$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $routeSlipTable . $revisionAuthorTable . $captionDefinitionTable . $autoCaptionTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
+$tableStream = $clx . $dop . $plcfldMom . $plcfldHdr . $plcfldEdn . $plcfldTxbx . $plcfldHdrTxbx . $plcfHdd . $associatedStringsTable . $documentVariablesTable . $saveHistoryTable . $externalFileTable . $mailMergeSettingsTable . $routeSlipTable . $revisionAuthorTable . $captionDefinitionTable . $autoCaptionTable . $sttbfBkmk . $plcfBkf . $plcfBkl . $plcffndRef . $plcffndTxt . $plcfendRef . $plcfendTxt . $plcfandRef . $plcfandTxt . $commentAuthors . $plcfSed . $plcBtePapx . $plcBteChpx . $stsh . $plfLst . $listOrderedLevel . $listBulletLevel . $plfLfo;
 $wordDocument = substr_replace($wordDocument, $u32($fcStshf), 0x00a2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($stsh)), 0x00a6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcPlcfHdd), 0x00f2, 4);
@@ -1255,6 +1336,8 @@ $wordDocument = substr_replace($wordDocument, $u32($fcSttbSavedBy), 0x02d2, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($saveHistoryTable)), 0x02d6, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbFnm), 0x02da, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($externalFileTable)), 0x02de, 4);
+$wordDocument = substr_replace($wordDocument, $u32($fcPms), 0x01fa, 4);
+$wordDocument = substr_replace($wordDocument, $u32(strlen($mailMergeSettingsTable)), 0x01fe, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcRouteSlip), 0x02ca, 4);
 $wordDocument = substr_replace($wordDocument, $u32(strlen($routeSlipTable)), 0x02ce, 4);
 $wordDocument = substr_replace($wordDocument, $u32($fcSttbfRMark), 0x0232, 4);
@@ -1791,6 +1874,7 @@ $summary = [
     'saveHistory' => $result['saveHistory'],
     'externalFileReferences' => $result['externalFileReferences'],
     'subdocumentReferences' => $result['subdocumentReferences'],
+    'mailMergeSettings' => $result['mailMergeSettings'],
     'routeSlip' => $result['routeSlip'],
     'difatSector' => $difatSector,
     'blockCount' => count($result['document']->children),
@@ -1907,6 +1991,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($summary['subdocumentReferences'][1]['path'] ?? '') !== 'https://e.test/c.doc' || ($summary['subdocumentReferences'][1]['pathKind'] ?? '') !== 'external-url' || ($summary['subdocumentReferences'][1]['externalFileReferenceIndex'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing URL subdocument reference metadata');
+    }
+    if (($summary['metadata']['mailMergeSettingsPolicy'] ?? '') !== 'metadata-only-native-review' || ($summary['metadata']['mailMergeSourceRecordCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Pms mail-merge settings metadata');
+    }
+    if (($summary['mailMergeSettings']['documentType'] ?? '') !== 'letters' || ($summary['mailMergeSettings']['destination'] ?? '') !== 'email') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Pms mail-merge state metadata');
+    }
+    if (($summary['mailMergeSettings']['sourceRecords'][0]['externalFileReferenceIndex'] ?? null) !== 1 || ($summary['mailMergeSettings']['sourceRecords'][0]['path'] ?? '') !== 'https://example.test/merge/source.csv') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Pms/SttbFnm source linkage');
+    }
+    if (($summary['mailMergeSettings']['sourceRecords'][0]['fieldSeparatorToken'] ?? '') !== 'comma' || ($summary['mailMergeSettings']['sourceRecords'][0]['recordSeparatorToken'] ?? '') !== 'carriage-return') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Pms separator metadata');
+    }
+    if (($summary['mailMergeSettings']['sqlQuery'] ?? '') !== 'SELECT * FROM LegacyContacts WHERE Segment = "review"' || ($summary['mailMergeSettings']['recordFilterStrings'][0] ?? '') !== 'Segment = review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing Pms SQL/filter metadata');
+    }
+    if (str_contains($visibleBlocks, 'LegacyContacts') || str_contains($visibleBlocks, 'Segment = review')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered Pms metadata into blocks');
     }
     foreach ([
         'data-legacy-doc-include-external-reference-index="2"',

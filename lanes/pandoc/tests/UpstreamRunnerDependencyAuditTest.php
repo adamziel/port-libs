@@ -875,6 +875,10 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableConditionalBranches(), $audit['cliExecutableClosure']['presentConditionalBranches']);
         $t->same([], $audit['cliExecutableClosure']['missingConditionalBranches']);
         $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalBranches']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableConditionalFieldClosure(), $audit['cliExecutableClosure']['expectedConditionalFieldClosure']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableConditionalFieldClosure(), $audit['cliExecutableClosure']['presentConditionalFieldClosure']);
+        $t->same([], $audit['cliExecutableClosure']['missingConditionalFieldEntries']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalFieldEntries']);
         $t->same([], $audit['cliExecutableClosure']['unexpectedDefaultExtensions']);
         $t->same([], $audit['cliExecutableClosure']['unexpectedCppOptions']);
         $t->same([], $audit['cliExecutableClosure']['unexpectedBuildTools']);
@@ -2776,6 +2780,140 @@ return [
         $t->contains('unexpected pandoc-cli executable other-modules: PandocCLI.Generated', $blocked);
         $t->contains('unexpected pandoc-cli executable conditional branches: executable pandoc: if flag(profile)', $blocked);
         $t->contains('exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks pandoc cli conditional branch field drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $cliCabal): void {
+        $cliPackage = str_replace(
+            [
+                '    hs-source-dirs: wasm',
+                '    ghc-options: -threaded',
+                "  if flag(server)\n    hs-source-dirs: server",
+                '    cpp-options: -DNO_LUA',
+            ],
+            [
+                '    hs-source-dirs: generated-wasm',
+                '    ghc-options: -eventlog',
+                "  if flag(server)\n    hs-source-dirs: server generated-server\n    build-depends: pandoc-server-audit >= 0.1 && < 0.2",
+                '    cpp-options: -DNO_LUA_DISABLED',
+            ],
+            $cliCabal()
+        );
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            null,
+            true,
+            null,
+            $cliPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['cliExecutableClosure']['missingConditionalBranches']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalBranches']);
+        $t->same([
+            'common common-options: if os(windows)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => [],
+                'cppOptions' => ['-D_WINDOWS'],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: if arch(wasm32)' => [
+                'sourceDirectories' => ['generated-wasm'],
+                'ghcOptions' => [],
+                'cppOptions' => [],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: else after if arch(wasm32)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => ['-eventlog'],
+                'cppOptions' => [],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: if flag(nightly)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => [],
+                'cppOptions' => ['-DNIGHTLY'],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: if flag(server)' => [
+                'sourceDirectories' => ['server', 'generated-server'],
+                'ghcOptions' => [],
+                'cppOptions' => [],
+                'buildDepends' => ['pandoc-server-audit >= 0.1 && < 0.2'],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: else after if flag(server)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => [],
+                'cppOptions' => ['-DNO_SERVER'],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: if flag(lua)' => [
+                'sourceDirectories' => ['lua'],
+                'ghcOptions' => [],
+                'cppOptions' => [],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: else after if flag(lua)' => [
+                'sourceDirectories' => [],
+                'ghcOptions' => [],
+                'cppOptions' => ['-DNO_LUA_DISABLED'],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+            'executable pandoc: if flag(repl)' => [
+                'sourceDirectories' => ['repl'],
+                'ghcOptions' => [],
+                'cppOptions' => [],
+                'buildDepends' => [],
+                'otherModules' => [],
+                'nativeSystemFields' => [],
+            ],
+        ], $audit['cliExecutableClosure']['presentConditionalFieldClosure']);
+        $t->same([
+            'executable pandoc: if arch(wasm32)' => ['hs-source-dirs: wasm'],
+            'executable pandoc: else after if arch(wasm32)' => ['ghc-options: -threaded'],
+            'executable pandoc: else after if flag(lua)' => ['cpp-options: -DNO_LUA'],
+        ], $audit['cliExecutableClosure']['missingConditionalFieldEntries']);
+        $t->same([
+            'executable pandoc: if arch(wasm32)' => ['hs-source-dirs: generated-wasm'],
+            'executable pandoc: else after if arch(wasm32)' => ['ghc-options: -eventlog'],
+            'executable pandoc: if flag(server)' => [
+                'hs-source-dirs: generated-server',
+                'build-depends: pandoc-server-audit >= 0.1 && < 0.2',
+            ],
+            'executable pandoc: else after if flag(lua)' => ['cpp-options: -DNO_LUA_DISABLED'],
+        ], $audit['cliExecutableClosure']['unexpectedConditionalFieldEntries']);
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: wasm); executable pandoc: else after if arch(wasm32) (ghc-options: -threaded); executable pandoc: else after if flag(lua) (cpp-options: -DNO_LUA)', $blocked);
+        $t->contains('unexpected pandoc-cli executable conditional branch fields: executable pandoc: if arch(wasm32) (hs-source-dirs: generated-wasm); executable pandoc: else after if arch(wasm32) (ghc-options: -eventlog); executable pandoc: if flag(server) (hs-source-dirs: generated-server, build-depends: pandoc-server-audit >= 0.1 && < 0.2); executable pandoc: else after if flag(lua) (cpp-options: -DNO_LUA_DISABLED)', $blocked);
+        $t->contains('exact pandoc-cli conditional branch field bodies', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks lua engine library exposed-module drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

@@ -115,6 +115,10 @@ $signatureXml = <<<'XML'
       <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
       <ds:DigestValue>SGVsbG8=</ds:DigestValue>
     </ds:Reference>
+    <ds:Reference URI="#manifestPackageParts">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>SGVsbG8=</ds:DigestValue>
+    </ds:Reference>
   </ds:SignedInfo>
   <ds:KeyInfo>
     <ds:X509Data>
@@ -2345,6 +2349,11 @@ $summary = [
                 'uri' => $reference['uri'],
                 'targetPart' => $reference['targetPart'],
                 'contentType' => $reference['contentType'],
+                'sameDocumentReference' => $reference['sameDocumentReference'],
+                'sameDocumentFragment' => $reference['sameDocumentFragment'],
+                'sameDocumentTargetMatched' => $reference['sameDocumentTargetMatched'],
+                'sameDocumentTargetMatchCount' => $reference['sameDocumentTargetMatchCount'],
+                'sameDocumentTargetMatchedElementNames' => $reference['sameDocumentTargetMatchedElementNames'],
                 'relationshipPart' => $reference['relationshipPart'],
                 'referenceContentType' => $reference['referenceContentType'],
                 'referenceContentTypeMatches' => $reference['referenceContentTypeMatches'],
@@ -2680,6 +2689,20 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
         || ($summary['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
         || ($summary['digitalSignatureSignedInfoReferences'][0]['issues'] ?? null) !== []
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['uri'] ?? null) !== '#manifestPackageParts'
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['targetPart'] ?? null) !== null
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['contentType'] ?? null) !== null
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['sameDocumentReference'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['sameDocumentFragment'] ?? null) !== 'manifestPackageParts'
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatched'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatchCount'] ?? null) !== 1
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatchedElementNames'] ?? null) !== ['Manifest']
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['relationshipPart'] ?? null) !== false
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['relationshipTransformCount'] ?? null) !== 0
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['digestAlgorithm'] ?? null) !== 'http://www.w3.org/2001/04/xmlenc#sha256'
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['valid'] ?? null) !== true
+        || ($summary['digitalSignatureSignedInfoReferences'][1]['issues'] ?? null) !== []
         || ($summary['digitalSignatureMetadata']['certificates'][0]['decodedBytes'] ?? null) !== 17
         || ($summary['digitalSignatureMetadata']['certificates'][0]['sha256'] ?? null) !== '339af39211d5f1a9de3c16e229830accd22d7063980248a5ea57edf61cac6c6d'
         || ($summary['digitalSignatureMetadata']['certificates'][0]['valid'] ?? null) !== true
@@ -2720,6 +2743,16 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['valid'] ?? null) !== true
         || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][0]['issues'] ?? null) !== []
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['uri'] ?? null) !== '#manifestPackageParts'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['sameDocumentReference'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['sameDocumentFragment'] ?? null) !== 'manifestPackageParts'
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatched'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatchCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['sameDocumentTargetMatchedElementNames'] ?? null) !== ['Manifest']
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['relationshipPart'] ?? null) !== false
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['relationshipTransformCount'] ?? null) !== 0
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['valid'] ?? null) !== true
+        || ($summary['wordpressImport']['digitalSignatureSignedInfoReferences'][1]['issues'] ?? null) !== []
         || ($summary['encryptedPackages'][0]['id'] ?? null) !== 'rIdEncryptedPackage'
         || ($summary['encryptedPackages'][0]['role'] ?? null) !== 'encrypted-package'
         || ($summary['encryptedPackages'][0]['source'] ?? null) !== '/'

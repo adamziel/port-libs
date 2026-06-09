@@ -2330,7 +2330,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, sameDocumentReference:bool, sameDocumentFragment:?string, sameDocumentTargetMatched:bool, sameDocumentTargetMatchCount:int, sameDocumentTargetMatchedElementNames:list<string>, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}>
      */
     public function preflightDigitalSignatureSignedInfoReferences(string $signaturePartName): array
     {
@@ -2354,6 +2354,7 @@ final class OpcRelationshipGraph
             return [];
         }
 
+        $sameDocumentIdIndex = self::xmlSignatureSameDocumentIdIndex($root);
         $references = [];
         foreach ($signedInfo->childNodes as $child) {
             if (
@@ -2370,6 +2371,7 @@ final class OpcRelationshipGraph
                 $signaturePartName,
                 $this->package,
                 $this->contentTypes,
+                $sameDocumentIdIndex,
             );
         }
 
@@ -3502,7 +3504,8 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
+     * @param array<string, list<string>> $sameDocumentIdIndex
+     * @return array{signaturePart:string, referenceIndex:int, uri:?string, targetPart:?string, exists:?bool, contentType:?string, sameDocumentReference:bool, sameDocumentFragment:?string, sameDocumentTargetMatched:bool, sameDocumentTargetMatchCount:int, sameDocumentTargetMatchedElementNames:list<string>, relationshipPart:bool, referenceContentType:?string, referenceContentTypeMatches:?bool, transformAlgorithms:list<string>, relationshipTransformIndexes:list<int>, canonicalizationTransformIndexes:list<int>, relationshipTransformCount:int, canonicalizationTransformCount:int, canonicalizationTransformAlgorithms:list<string>, canonicalizationTransforms:list<array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}>, relationshipTransformFollowingCanonicalization:?array{algorithm:string, profile:string, version:string, exclusive:bool, withComments:bool}, relationshipTransformFollowedByCanonicalization:?bool, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValue:?string, digestValueBase64Length:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>, parseError:?string}
      */
     private static function digitalSignatureSignedInfoReferenceMetadata(
         \DOMElement $reference,
@@ -3510,12 +3513,17 @@ final class OpcRelationshipGraph
         string $signaturePartName,
         ZipPackage $package,
         OpcContentTypes $contentTypes,
+        array $sameDocumentIdIndex,
     ): array {
         $issues = [];
         $parseError = null;
         $targetPart = null;
         $exists = null;
         $contentType = null;
+        $sameDocumentReference = false;
+        $sameDocumentFragment = null;
+        $sameDocumentTargetMatched = false;
+        $sameDocumentTargetMatchedElementNames = [];
         $relationshipPart = false;
         $referenceContentTypeMatches = null;
         $uri = $reference->hasAttribute('URI') ? trim($reference->getAttribute('URI')) : null;
@@ -3528,7 +3536,19 @@ final class OpcRelationshipGraph
         ) {
             $issues[] = 'signed-info-reference-external-uri';
         } elseif (str_starts_with($uri, '#')) {
-            $issues[] = 'signed-info-reference-fragment-uri';
+            $sameDocumentReference = true;
+            $sameDocumentFragment = substr($uri, 1);
+            if ($sameDocumentFragment === '') {
+                $issues[] = 'invalid-signed-info-same-document-reference';
+            } else {
+                $sameDocumentTargetMatchedElementNames = $sameDocumentIdIndex[$sameDocumentFragment] ?? [];
+                $sameDocumentTargetMatched = $sameDocumentTargetMatchedElementNames !== [];
+                if (!$sameDocumentTargetMatched) {
+                    $issues[] = 'unmatched-signed-info-same-document-reference';
+                } elseif (count($sameDocumentTargetMatchedElementNames) > 1) {
+                    $issues[] = 'ambiguous-signed-info-same-document-reference';
+                }
+            }
         } else {
             try {
                 $targetPart = OpcPackagePath::stripQueryAndFragment(
@@ -3667,6 +3687,11 @@ final class OpcRelationshipGraph
             'targetPart' => $targetPart,
             'exists' => $exists,
             'contentType' => $contentType,
+            'sameDocumentReference' => $sameDocumentReference,
+            'sameDocumentFragment' => $sameDocumentFragment,
+            'sameDocumentTargetMatched' => $sameDocumentTargetMatched,
+            'sameDocumentTargetMatchCount' => count($sameDocumentTargetMatchedElementNames),
+            'sameDocumentTargetMatchedElementNames' => $sameDocumentTargetMatchedElementNames,
             'relationshipPart' => $relationshipPart,
             'referenceContentType' => $referenceContentType,
             'referenceContentTypeMatches' => $referenceContentTypeMatches,

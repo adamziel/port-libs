@@ -1156,7 +1156,7 @@ final class CslStyle
     }
 
     /**
-     * @return array{position:string, form:string, plural:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool}|array{}
+     * @return array{position:string, form:string, plural:string, prefix:string, suffix:string, textCase:string, stripPeriods:bool, quotes:bool}|array{}
      */
     private static function namesLabelRenderingOptions(\DOMElement $names, ?\DOMElement $name, string $scope): array
     {
@@ -1198,6 +1198,7 @@ final class CslStyle
             'suffix' => self::optionalAttribute($label, 'suffix'),
             'textCase' => self::textCaseAttribute($label, $scope),
             'stripPeriods' => self::booleanRenderingAttribute($label, 'strip-periods', false, $scope),
+            'quotes' => self::booleanRenderingAttribute($label, 'quotes', false, $scope),
         ];
     }
 

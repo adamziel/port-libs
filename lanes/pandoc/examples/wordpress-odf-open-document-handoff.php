@@ -100,6 +100,7 @@ $stylesXml = <<<'XML'
         <style:list-level-properties text:min-label-width="0.28in" text:list-level-position-and-space-mode="label-alignment">
           <style:list-level-label-alignment text:label-followed-by="listtab" text:list-tab-stop-position="0.35in" fo:text-indent="-0.2in" fo:margin-left="0.45in"/>
         </style:list-level-properties>
+        <style:text-properties fo:font-style="italic" style:font-name="SourceMono"/>
       </text:list-level-style-image>
     </text:list-style>
     <table:table-template
@@ -919,8 +920,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['importReport']['content']['imageListStyleCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT image list style metadata to be counted in the import report');
     }
+    if (($result['importReport']['content']['listTextPropertyCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT list marker text style metadata to be counted in the import report');
+    }
     if (!str_contains($blocks, '<ul data-odf-list-image-style="true" data-odf-list-image-href="Pictures/review-bullet.svg" data-odf-list-image-type="simple" data-odf-list-image-show="embed" data-odf-list-image-actuate="onLoad" data-odf-list-image-title="Review badge" data-odf-list-image-width="0.18in" data-odf-list-image-height="0.18in"')) {
         throw new RuntimeException('Expected ODT image list style metadata to survive WordPress blocks');
+    }
+    if (!str_contains($blocks, 'data-odf-list-text-property-count="5"')
+        || !str_contains($blocks, 'data-odf-list-text-font-name="SourceMono"')
+        || !str_contains($blocks, 'data-odf-list-text-font-pitch="fixed"')
+        || !str_contains($blocks, 'data-odf-list-text-fixed-pitch="true"')
+        || !str_contains($blocks, 'data-odf-list-text-italic="true"')) {
+        throw new RuntimeException('Expected ODT list marker text style metadata to survive WordPress blocks');
     }
     if (!str_contains($blocks, 'data-odf-list-label-label-followed-by="listtab"')
         || !str_contains($blocks, '<li>Review image bullet metadata</li></ul>')) {

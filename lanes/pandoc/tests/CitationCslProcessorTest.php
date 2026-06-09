@@ -9110,6 +9110,96 @@ XML;
             $t->same('CSL citation names label form must be long, short, verb, verb-short, or symbol', $exception->getMessage());
         }
     },
+    'applies bounded csl names child label quote rendering' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'quoted-editor-source',
+                'type' => 'book',
+                'title' => 'Quoted Label Packet',
+                'editor' => [
+                    ['family' => 'Curator', 'given' => 'Eli'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Label Quote Review Style</title>
+    <id>https://example.test/styles/bounded-name-label-quote-review</id>
+    <updated>2026-06-09T02:13:08+00:00</updated>
+  </info>
+  <locale>
+    <terms>
+      <term name="open-quote">"</term>
+      <term name="close-quote">"</term>
+    </terms>
+  </locale>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" ">
+        <names variable="editor" delimiter=", ">
+          <label form="short" plural="always" suffix=" " quotes="true"/>
+          <name initialize-with=". "/>
+        </names>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" | ">
+      <names variable="editor" delimiter="; ">
+        <name initialize-with=". " name-as-sort-order="all"/>
+        <label form="short" plural="always" prefix=", " quotes="true"/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $citationLabel = $summary['citationRendering'][0]['children'][0]['nameRendering']['label'] ?? [];
+        $bibliographyLabel = $summary['bibliographyRendering'][0]['nameRendering']['label'] ?? [];
+        $t->same('Bounded Name Label Quote Review Style', $summary['title'] ?? null);
+        $t->same(true, $citationLabel['quotes'] ?? null);
+        $t->same('before', $citationLabel['position'] ?? null);
+        $t->same(' ', $citationLabel['suffix'] ?? null);
+        $t->same(true, $bibliographyLabel['quotes'] ?? null);
+        $t->same('after', $bibliographyLabel['position'] ?? null);
+        $t->same(', ', $bibliographyLabel['prefix'] ?? null);
+
+        $t->same('("eds." Curator and Ng 2026)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'quoted-editor-source', 'text' => '[@quoted-editor-source]']),
+        ]));
+        $t->same('Curator, E.; Ng, N., "eds." | Quoted Label Packet', $processor->renderBibliographyEntry('quoted-editor-source'));
+
+        $document = (new MarkdownReader())->read('Quoted role labels cite [@quoted-editor-source] before review.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Quoted role labels cite (&quot;eds.&quot; Curator and Ng 2026) before review.</p>', $blocks);
+        $t->contains('<dt>Curator and Ng 2026</dt><dd>Curator, E.; Ng, N., &quot;eds.&quot; | Quoted Label Packet</dd>', $blocks);
+
+        $invalidQuotes = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>Invalid Names Label Quotes</title><id>https://example.test/styles/invalid-names-label-quotes</id></info>
+  <citation><layout><names variable="editor"><label quotes="sometimes"/><name/></names></layout></citation>
+  <bibliography><layout><names variable="editor"><name/></names></layout></bibliography>
+</style>
+XML;
+        try {
+            CitationCslProcessor::fromItems([])->withCslStyle($invalidQuotes);
+            throw new RuntimeException('Expected invalid names label quotes to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('CSL citation rendering attribute quotes must be true or false', $exception->getMessage());
+        }
+    },
     'renders bounded csl names variable lists as ordered creator groups' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

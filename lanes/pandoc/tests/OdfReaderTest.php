@@ -2420,6 +2420,103 @@ XML;
         $t->same('image/svg+xml', $manifestByPath['Pictures/review-bullet.svg']['mediaType']);
         $t->same(true, $manifestByPath['Pictures/review-bullet.svg']['exists']);
     },
+    'preserves ODT list level text properties for WordPress marker review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithListTextProperties = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="ListMono" svg:font-family="'List Mono'" style:font-family-generic="modern" style:font-pitch="fixed"/>
+  </office:font-face-decls>
+  <office:styles>
+    <text:list-style style:name="StyledReviewMarkers">
+      <text:list-level-style-number text:level="1" style:num-format="1" text:start-value="1">
+        <style:text-properties fo:font-weight="bold" fo:font-style="italic" fo:font-variant="small-caps" style:font-name="ListMono"/>
+      </text:list-level-style-number>
+      <text:list-level-style-bullet text:level="2" text:bullet-char="-">
+        <style:text-properties style:text-underline-style="solid" style:text-line-through-style="solid"/>
+      </text:list-level-style-bullet>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithListTextProperties = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:list text:style-name="StyledReviewMarkers">
+        <text:list-item>
+          <text:p>Styled marker source item</text:p>
+          <text:list>
+            <text:list-item><text:p>Nested marker style metadata</text:p></text:list-item>
+          </text:list>
+        </text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithListTextProperties, null, $stylesWithListTextProperties));
+        $levels = $result['listStyles']['StyledReviewMarkers']['levels'];
+        $outerList = $result['document']->children[0];
+        $innerList = $outerList->children[0]->children[1];
+        $outerProperties = $outerList->attr('listTextProperties');
+        $innerProperties = $innerList->attr('listTextProperties');
+        $outerAttributes = $outerList->attr('htmlAttributes');
+        $innerAttributes = $innerList->attr('htmlAttributes');
+
+        $t->same('number', $levels[1]['type']);
+        $t->same('ListMono', $levels[1]['textProperties']['fontName']);
+        $t->same("'List Mono'", $levels[1]['textProperties']['fontFace']['fontFamily']);
+        $t->same('modern', $levels[1]['textProperties']['fontFace']['fontFamilyGeneric']);
+        $t->same('fixed', $levels[1]['textProperties']['fontPitch']);
+        $t->same(true, $levels[1]['textProperties']['fixedPitch']);
+        $t->same(true, $levels[1]['textProperties']['bold']);
+        $t->same(true, $levels[1]['textProperties']['italic']);
+        $t->same(true, $levels[1]['textProperties']['smallCaps']);
+        $t->same('bullet', $levels[2]['type']);
+        $t->same(true, $levels[2]['textProperties']['underline']);
+        $t->same(true, $levels[2]['textProperties']['strikeout']);
+
+        $t->same('ordered_list', $outerList->type);
+        $t->same('ListMono', $outerProperties['fontName']);
+        $t->same(true, $outerProperties['fixedPitch']);
+        $t->same(true, $outerProperties['bold']);
+        $t->same(true, $outerProperties['italic']);
+        $t->same(true, $outerProperties['smallCaps']);
+        $t->same('7', $outerAttributes['data-odf-list-text-property-count']);
+        $t->same('ListMono', $outerAttributes['data-odf-list-text-font-name']);
+        $t->same("'List Mono'", $outerAttributes['data-odf-list-text-font-face-font-family']);
+        $t->same('modern', $outerAttributes['data-odf-list-text-font-face-font-family-generic']);
+        $t->same('fixed', $outerAttributes['data-odf-list-text-font-pitch']);
+        $t->same('true', $outerAttributes['data-odf-list-text-fixed-pitch']);
+        $t->same('true', $outerAttributes['data-odf-list-text-bold']);
+        $t->same('true', $outerAttributes['data-odf-list-text-italic']);
+        $t->same('true', $outerAttributes['data-odf-list-text-small-caps']);
+
+        $t->same('bullet_list', $innerList->type);
+        $t->same(true, $innerProperties['underline']);
+        $t->same(true, $innerProperties['strikeout']);
+        $t->same('2', $innerAttributes['data-odf-list-text-property-count']);
+        $t->same('true', $innerAttributes['data-odf-list-text-underline']);
+        $t->same('true', $innerAttributes['data-odf-list-text-strikeout']);
+        $t->same(2, $result['importReport']['content']['listTextPropertyCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('1.  Styled marker source item', $markdown);
+        $t->contains('- Nested marker style metadata', $markdown);
+        $t->contains('<ol data-odf-list-text-property-count="7" data-odf-list-text-font-name="ListMono" data-odf-list-text-font-face-name="ListMono"', $blocksHtml);
+        $t->contains('data-odf-list-text-font-face-font-family="&#039;List Mono&#039;"', $blocksHtml);
+        $t->contains('data-odf-list-text-bold="true" data-odf-list-text-italic="true" data-odf-list-text-small-caps="true"', $blocksHtml);
+        $t->contains('<ul data-odf-list-text-property-count="2" data-odf-list-text-underline="true" data-odf-list-text-strikeout="true"><li>Nested marker style metadata</li></ul>', $blocksHtml);
+    },
     'honors explicit ODT list start values before continued numbering' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $stylesWithExplicitStartLists = <<<'XML'
 <office:document-styles
