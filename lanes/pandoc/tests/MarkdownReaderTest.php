@@ -10044,6 +10044,49 @@ MD;
         $t->contains('{#review-packet .wp-import .needs-review data-source="batch-42"}', $markdown);
         $t->contains('> Keep nested quote with packet.', $markdown);
     },
+    'maps pandoc markdown fenced div extension reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            '::: {#review-packet .wp-import .needs-review data-source="batch-84"}',
+            'Fenced **review** packet.',
+            '',
+            '> Keep nested quote with packet.',
+            ':::',
+            '',
+            '::: sidebar',
+            'Class shortcut block.',
+            ':::',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $div = $document->children[0] ?? new AstNode('missing');
+        $shortcut = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('div', $div->type);
+        $t->same('review-packet', $div->attr('id'));
+        $t->same(['wp-import', 'needs-review'], $div->attr('classes'));
+        $t->same(['data-source' => 'batch-84'], $div->attr('attributes'));
+        $t->same(['paragraph', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $div->children));
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $div->children[0]->children));
+        $t->same('review', $div->children[0]->children[1]->children[0]->attr('text'));
+        $t->same('Keep nested quote with packet.', $div->children[1]->children[0]->attr('text'));
+
+        $t->same('div', $shortcut->type);
+        $t->same(['sidebar'], $shortcut->attr('classes'));
+        $t->same('Class shortcut block.', $shortcut->children[0]->attr('text'));
+        $t->contains('<div id="review-packet" class="wp-import needs-review" data-source="batch-84"><p>Fenced <strong>review</strong> packet.</p><blockquote><p>Keep nested quote with packet.</p></blockquote></div>', $blocks);
+        $t->contains('<div class="sidebar"><p>Class shortcut block.</p></div>', $blocks);
+        $t->same(implode("\n", [
+            '::: {#review-packet .wp-import .needs-review data-source="batch-84"}',
+            'Fenced **review** packet.',
+            '',
+            '> Keep nested quote with packet.',
+            ':::',
+            '',
+            '::: {.sidebar}',
+            'Class shortcut block.',
+            ':::',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer fenced code block attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

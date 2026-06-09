@@ -158,6 +158,11 @@ final class MarkdownReader
                 $blocks[] = $blockQuote;
                 continue;
             }
+            $fencedDivBlock = $paragraph === [] && $listStack === [] ? $this->tryReadFencedDivBlock($lines, $index) : null;
+            if ($fencedDivBlock !== null) {
+                $blocks[] = $fencedDivBlock;
+                continue;
+            }
             $divBlock = $paragraph === [] && $listStack === [] ? $this->tryReadDivBlock($lines, $index) : null;
             if ($divBlock !== null) {
                 $blocks[] = $divBlock;
@@ -8113,6 +8118,88 @@ final class MarkdownReader
     private function buildLineBlockLine(string $text): AstNode
     {
         return new AstNode('line', ['text' => $text], $text === '' ? [] : $this->parseInlines($text));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadFencedDivBlock(array $lines, int &$index): ?AstNode
+    {
+        $opening = $this->matchFencedDivOpening($lines[$index] ?? '');
+        if ($opening === null) {
+            return null;
+        }
+
+        $content = [];
+        $count = count($lines);
+        for ($cursor = $index + 1; $cursor < $count; $cursor++) {
+            if ($this->isFencedDivClosing($lines[$cursor], $opening['length'])) {
+                $index = $cursor;
+                $inner = $content === [] ? [] : $this->read(implode("\n", $content))->children;
+
+                return new AstNode('div', $opening['attrs'], $inner);
+            }
+
+            $content[] = $lines[$cursor];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{length:int, attrs:array<string, mixed>}|null
+     */
+    private function matchFencedDivOpening(string $line): ?array
+    {
+        $line = $this->expandTabsToSpaces($line);
+        if (preg_match('/^ {0,3}(:{3,})(?:[ \t]+(.*?))?[ \t]*$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $attrs = $this->parseFencedDivAttributes(trim($m[2] ?? ''));
+        if ($attrs === null) {
+            return null;
+        }
+
+        return [
+            'length' => strlen($m[1]),
+            'attrs' => $attrs,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseFencedDivAttributes(string $info): ?array
+    {
+        if ($info === '') {
+            return [];
+        }
+
+        if ($info[0] === '{' && str_ends_with($info, '}')) {
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec(substr($info, 1, -1));
+
+            return $this->markdownAttributeAstAttrs($id, $classes, $attributes);
+        }
+
+        $classes = preg_split('/[ \t]+/', $info, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($classes as $class) {
+            if (preg_match('/^[A-Za-z0-9_-]+$/', $class) !== 1) {
+                return null;
+            }
+        }
+
+        return $classes === [] ? [] : $this->markdownAttributeAstAttrs(null, $classes, []);
+    }
+
+    private function isFencedDivClosing(string $line, int $openingLength): bool
+    {
+        $line = $this->expandTabsToSpaces($line);
+        if (preg_match('/^ {0,3}(:{3,})[ \t]*$/', $line, $m) !== 1) {
+            return false;
+        }
+
+        return strlen($m[1]) >= $openingLength;
     }
 
     /**
