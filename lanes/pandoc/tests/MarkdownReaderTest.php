@@ -17216,6 +17216,63 @@ XML;
         $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe inline focus handlers should not survive HTML writer attribute handoff');
         $t->true(!str_contains($blocks, 'style='), 'Unsafe inline style attributes should not survive HTML writer attribute handoff');
     },
+    'writes wordpress html writer role attributes' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'role-heading',
+                'attributes' => [
+                    'role' => 'doc-subtitle',
+                    'aria-label' => 'Role heading',
+                    'onclick' => 'alert(1)',
+                ],
+            ], [new AstNode('text', ['text' => 'Role metadata'])]),
+            new AstNode('paragraph', [
+                'attributes' => [
+                    'role' => 'note',
+                    'data-pandoc-role-source' => 'html-writer',
+                ],
+            ], [
+                new AstNode('span', [
+                    'attributes' => [
+                        'role' => 'term',
+                        'xml:lang' => 'en',
+                        'style' => 'color:red',
+                    ],
+                ], [new AstNode('text', ['text' => 'review role'])]),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => '/source',
+                    'attributes' => [
+                        'role' => 'doc-biblioref',
+                        'onmouseover' => 'alert(1)',
+                    ],
+                ], [new AstNode('text', ['text' => 'source'])]),
+            ]),
+            new AstNode('table', [
+                'id' => 'role-table',
+                'attributes' => [
+                    'role' => 'presentation',
+                    'aria-label' => 'Layout table',
+                    'onclick' => 'alert(1)',
+                ],
+            ], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Cell'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<h2 id="role-heading" role="doc-subtitle" aria-label="Role heading">Role metadata</h2>', $blocks);
+        $t->contains('<p role="note" data-pandoc-role-source="html-writer"><span role="term" xml:lang="en">review role</span> <a href="/source" role="doc-biblioref">source</a></p>', $blocks);
+        $t->contains('<table id="role-table" role="presentation" aria-label="Layout table">', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe block event handlers should not survive role attribute handoff');
+        $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe inline event handlers should not survive role attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe inline style attributes should not survive role attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);
