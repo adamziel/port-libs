@@ -4706,6 +4706,7 @@ final class UnicodeText
             || $normalized === 'iso-8859-16'
             || $normalized === 'tis-620'
             || $normalized === 'iso-8859-15'
+            || $normalized === 'gb1988'
             || $normalized === 'macintosh'
             || $normalized === 'mac-symbol'
             || $normalized === 'mac-dingbats'
@@ -5344,6 +5345,8 @@ final class UnicodeText
             'iso885916', 'iso885916:2001', 'latin10', 'latin-10', 'l10', 'isoir226', 'csisolatin10' => 'iso-8859-16',
             'tis620', 'tis6202533', 'cstis620', 'isoir166', 'iso885911', 'iso8859112001', 'thai' => 'tis-620',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
+            'gb1988', 'gb198880', 'gb1988:1980', 'gb19881980', 'gb1988-80', 'gb-1988-80',
+            'cn', 'isoir57', 'csiso57gb1988' => 'gb1988',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
             'symbol', 'macsymbol', 'mac-symbol', 'xmacsymbol', 'x-mac-symbol',
             'cssymbol' => 'mac-symbol',
@@ -5950,6 +5953,25 @@ final class UnicodeText
             if ($encoding === 'iso-8859-15' && isset(self::ISO_8859_15_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::ISO_8859_15_REPLACEMENTS[$byte]);
                 continue;
+            }
+            if ($encoding === 'gb1988') {
+                if ($byte === 0x24) {
+                    $out .= "\u{00A5}";
+                    continue;
+                }
+                if ($byte === 0x7e) {
+                    $out .= "\u{203E}";
+                    continue;
+                }
+                if ($byte >= 0xa1 && $byte <= 0xdf) {
+                    $out .= self::fromCodepoint(0xff61 + ($byte - 0xa1));
+                    continue;
+                }
+                if ($byte >= 0x80) {
+                    $out .= self::REPLACEMENT;
+                    $repairs++;
+                    continue;
+                }
             }
             if ($encoding === 'windows-1250' && isset(self::WINDOWS_1250_REPLACEMENTS[$byte])) {
                 $out .= self::fromCodepoint(self::WINDOWS_1250_REPLACEMENTS[$byte]);

@@ -1483,6 +1483,28 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes gb1988 yen overline and halfwidth punctuation into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# GB1988\n\nCurrency \$~ halfwidth \xA1\xB0\xDF ASCII.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'gb_1988-80');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csISO57GB1988');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $utf8Comparison = UnicodeText::decodeBytes($bytes, 'utf-8');
+        $undefined = UnicodeText::decodeBytes("A\x80\xA0\xE0B", 'gb1988');
+
+        $t->same('gb1988', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# GB1988\n\nCurrency ¥‾ halfwidth ｡ｰﾟ ASCII.", $decoded['text']);
+        $t->same("# GB1988\n\nCurrency \$~ halfwidth ��� ASCII.", $utf8Comparison['text']);
+        $t->same(['encoding' => 'gb1988', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('GB1988', $document->children[0]->attr('text'));
+        $t->same('Currency ¥‾ halfwidth ｡ｰﾟ ASCII.', $document->children[1]->attr('text'));
+        $t->same(32, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(33, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="gb1988">GB1988</h1>', $blocks);
+        $t->contains('<p>Currency ¥‾ halfwidth ｡ｰﾟ ASCII.</p>', $blocks);
+        $t->same("A\u{FFFD}\u{FFFD}\u{FFFD}B", $undefined['text']);
+        $t->same(3, $undefined['repairs']);
+    },
     'decodes bounded gb12345 traditional chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec4204742313233343520b2e2cad4a3acb1b1bea9a1a3');
         $decoded = UnicodeText::decodeBytes($bytes, 'gb12345');
