@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 08:19:06 UTC",
-    "sourceCommit": "97de110aacaed264e8500affd75660cedeab7a0e",
-    "sourceCommitShort": "97de110aacae",
+    "generated": "2026-06-09 08:23:42 UTC",
+    "sourceCommit": "e8462716baed1244ed5b9f195429af80b17d479b",
+    "sourceCommitShort": "e8462716baed",
     "sourceBranch": "unknown",
-    "dashboardCommit": "97de110aacaed264e8500affd75660cedeab7a0e",
-    "dashboardCommitShort": "97de110aacae",
+    "dashboardCommit": "e8462716baed1244ed5b9f195429af80b17d479b",
+    "dashboardCommitShort": "e8462716baed",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,895 / 2,276 (127.2%)",
             "mapPercent": "127.2%",
             "unmapped": "0",
-            "php": "2,524 pass / 0 fail",
-            "phase": "native PHP Pandoc current-base HTML5 DOM/raw-review support; input co...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-input-controls current-base slice...",
-            "currentWork": "Pandoc HTML reader raw-control preservation now includes input elements alongside ifr...",
+            "php": "2,525 pass / 0 fail",
+            "phase": "native PHP Pandoc current-base HTML5 DOM/raw-review support; link res...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-link-resource-tags current-base s...",
+            "currentWork": "Pandoc HTML reader raw-control preservation now includes link resource tags alongside...",
             "nextTarget": "Continue current-base Pandoc no-external-tooling slices acros...",
-            "remainingGate": "No new native support component is needed for this HTML input-control...",
+            "remainingGate": "No new native support component is needed for this HTML link-resource...",
             "commit": "pending fast ba..."
         },
         {

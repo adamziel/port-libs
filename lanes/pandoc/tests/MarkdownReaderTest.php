@@ -13962,6 +13962,35 @@ XML;
         $t->contains('<p>Before <input data-source="batch-42" name="source-id" type="hidden" value="42"> after.</p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document input should not be dropped from the paragraph');
     },
+    'maps upstream html reader link resource tags as raw review markup' => static function (TestRunner $t): void {
+        $link = '<link rel="preload" href="/review.css" as="style" data-source="batch-43">';
+        $blockDocument = (new MarkdownReader())->read($link . "\n\nAfter the preload link.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($link, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the preload link.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $link, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;link'), 'Standalone link resource tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . '<link rel="help" href="https://example.test/help" data-source="batch-43">'
+            . ' after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineLink = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<link data-source="batch-43" href="https://example.test/help" rel="help">', $inlineLink->attr('html'));
+        $t->contains('<p>Before <link data-source="batch-43" href="https://example.test/help" rel="help"> after.</p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document link resource tag should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
