@@ -3133,6 +3133,148 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory and local-header extra-field byte structure before
+     * package instantiation, so malformed package metadata can be diagnosed
+     * without trusting extra-field parsers that expect complete records.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     extraFieldEntryCount:int,
+     *     issueEntryCount:int,
+     *     centralExtraFieldIssueEntryCount:int,
+     *     localExtraFieldIssueEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     issueEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function extraFieldStructurePolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before extra-field structure can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issueEntries = [];
+        $issues = [];
+        $extraFieldEntryCount = 0;
+        $centralExtraFieldIssueEntryCount = 0;
+        $localExtraFieldIssueEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $centralSummary = self::extraFieldStructureSummary($centralExtraFieldData, 'central');
+            $localHeader = self::localHeaderMetadataForStructurePolicy($bytes, $localHeaderOffset);
+            $localSummary = self::extraFieldStructureSummary($localHeader['extraFieldData'], 'local');
+            $entryIssues = array_values(array_unique(array_merge(
+                $centralSummary['issues'],
+                $localSummary['issues']
+            )));
+
+            if ($centralSummary['byteLength'] > 0 || $localSummary['byteLength'] > 0) {
+                ++$extraFieldEntryCount;
+            }
+            if (!$centralSummary['isWellFormed']) {
+                ++$centralExtraFieldIssueEntryCount;
+            }
+            if (!$localSummary['isWellFormed']) {
+                ++$localExtraFieldIssueEntryCount;
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'localHeaderAvailable' => $localHeader['available'],
+                'localHeaderError' => $localHeader['error'],
+                'centralExtraFieldLength' => $extraLength,
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'hasExtraFields' => $centralSummary['byteLength'] > 0 || $localSummary['byteLength'] > 0,
+                'hasExtraFieldStructureIssues' => $entryIssues !== [],
+                'policy' => $entryIssues === [] ? 'metadata' : 'blocked',
+                'issues' => $entryIssues,
+                'centralExtraFields' => $centralSummary,
+                'localExtraFields' => $localSummary,
+            ];
+            $entries[] = $entry;
+            if ($entryIssues !== []) {
+                $issueEntries[] = $entry;
+                $issues = array_values(array_unique(array_merge($issues, $entryIssues)));
+            }
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'issueEntryCount' => count($issueEntries),
+            'centralExtraFieldIssueEntryCount' => $centralExtraFieldIssueEntryCount,
+            'localExtraFieldIssueEntryCount' => $localExtraFieldIssueEntryCount,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'issueEntries' => $issueEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * Classify platform metadata entries that should not be imported as
      * document content or package assets.
      *
@@ -6491,6 +6633,7 @@ final class ZipPackage
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
      *     platformMetadata:?array<string, mixed>,
+     *     extraFieldStructure:?array<string, mixed>,
      *     unicodeExtraFields:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
@@ -6597,6 +6740,7 @@ final class ZipPackage
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
                 'platformMetadata' => null,
+                'extraFieldStructure' => null,
                 'unicodeExtraFields' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
@@ -6626,6 +6770,7 @@ final class ZipPackage
         $creatorHostSystems = null;
         $externalAttributes = null;
         $platformMetadata = null;
+        $extraFieldStructure = null;
         $unicodeExtraFields = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
@@ -6742,6 +6887,15 @@ final class ZipPackage
                 $addDiagnostics($platformMetadata['issues']);
             }
 
+            $extraFieldStructure = $runPreflight(
+                'extra-field-structure-policy',
+                static fn (): array => self::extraFieldStructurePolicyPreflight($bytes)
+            );
+            if ($extraFieldStructure !== null && !$extraFieldStructure['isSupportedByBoundedReader']) {
+                $addDiagnostic('extra-field-structure-issues');
+                $addDiagnostics($extraFieldStructure['issues']);
+            }
+
             $unicodeExtraFields = $runPreflight(
                 'unicode-extra-field-policy',
                 static fn (): array => self::unicodeExtraFieldPolicyPreflight($bytes)
@@ -6804,6 +6958,7 @@ final class ZipPackage
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
             ?? $platformMetadata['entryCount']
+            ?? $extraFieldStructure['entryCount']
             ?? $unicodeExtraFields['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
@@ -6841,6 +6996,7 @@ final class ZipPackage
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
             'platformMetadata' => $platformMetadata,
+            'extraFieldStructure' => $extraFieldStructure,
             'unicodeExtraFields' => $unicodeExtraFields,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,
@@ -9627,6 +9783,132 @@ final class ZipPackage
         return [
             'text' => $name,
             'encoding' => $encoding,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     fieldCount:int,
+     *     byteLength:int,
+     *     isWellFormed:bool,
+     *     issues:list<string>,
+     *     fields:list<array<string, mixed>>
+     * }
+     */
+    private static function extraFieldStructureSummary(string $extraFieldData, string $scope): array
+    {
+        $fields = [];
+        $issues = [];
+        $cursor = 0;
+        $length = strlen($extraFieldData);
+
+        while ($cursor < $length) {
+            if ($cursor + 4 > $length) {
+                $issue = $scope . '-extra-field-truncated-header';
+                $fields[] = [
+                    'id' => null,
+                    'idHex' => null,
+                    'headerOffset' => $cursor,
+                    'dataOffset' => null,
+                    'declaredDataLength' => null,
+                    'availableDataBytes' => $length - $cursor,
+                    'recordEnd' => null,
+                    'isTruncated' => true,
+                    'issue' => $issue,
+                ];
+                $issues[] = $issue;
+                break;
+            }
+
+            $id = self::readUInt16($extraFieldData, $cursor);
+            $declaredDataLength = self::readUInt16($extraFieldData, $cursor + 2);
+            $dataOffset = $cursor + 4;
+            $availableDataBytes = max(0, min($declaredDataLength, $length - $dataOffset));
+            $recordEnd = $dataOffset + $declaredDataLength;
+            $issue = null;
+            if ($recordEnd > $length) {
+                $issue = $scope . '-extra-field-truncated-payload';
+                $issues[] = $issue;
+            }
+
+            $fields[] = [
+                'id' => $id,
+                'idHex' => sprintf('%04x', $id),
+                'headerOffset' => $cursor,
+                'dataOffset' => $dataOffset,
+                'declaredDataLength' => $declaredDataLength,
+                'availableDataBytes' => $availableDataBytes,
+                'recordEnd' => $recordEnd,
+                'isTruncated' => $issue !== null,
+                'issue' => $issue,
+            ];
+
+            if ($issue !== null) {
+                break;
+            }
+
+            $cursor = $recordEnd;
+        }
+
+        return [
+            'fieldCount' => count($fields),
+            'byteLength' => $length,
+            'isWellFormed' => $issues === [],
+            'issues' => $issues,
+            'fields' => $fields,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     available:bool,
+     *     error:?string,
+     *     rawName:string,
+     *     nameLength:?int,
+     *     extraFieldLength:?int,
+     *     extraFieldData:string,
+     *     dataOffset:?int
+     * }
+     */
+    private static function localHeaderMetadataForStructurePolicy(string $bytes, int $offset): array
+    {
+        $length = strlen($bytes);
+        if ($offset < 0 || $offset + 30 > $length || substr($bytes, $offset, 4) !== self::LOCAL_FILE_SIGNATURE) {
+            return [
+                'available' => false,
+                'error' => 'local-header-unavailable',
+                'rawName' => '',
+                'nameLength' => null,
+                'extraFieldLength' => null,
+                'extraFieldData' => '',
+                'dataOffset' => null,
+            ];
+        }
+
+        $nameLength = self::readUInt16($bytes, $offset + 26);
+        $extraLength = self::readUInt16($bytes, $offset + 28);
+        $variableStart = $offset + 30;
+        $dataOffset = $variableStart + $nameLength + $extraLength;
+        if ($dataOffset > $length) {
+            return [
+                'available' => false,
+                'error' => 'local-header-variable-fields-truncated',
+                'rawName' => '',
+                'nameLength' => $nameLength,
+                'extraFieldLength' => $extraLength,
+                'extraFieldData' => '',
+                'dataOffset' => null,
+            ];
+        }
+
+        return [
+            'available' => true,
+            'error' => null,
+            'rawName' => substr($bytes, $variableStart, $nameLength),
+            'nameLength' => $nameLength,
+            'extraFieldLength' => $extraLength,
+            'extraFieldData' => substr($bytes, $variableStart + $nameLength, $extraLength),
+            'dataOffset' => $dataOffset,
         ];
     }
 

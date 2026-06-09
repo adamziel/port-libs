@@ -7105,6 +7105,8 @@ return [
         $t->same(true, $safeRaw['compressionMethods']['isSupportedByBoundedReader']);
         $t->same(false, $safeRaw['encryption']['hasEncryptedEntries']);
         $t->same(0, $safeRaw['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
+        $t->same(true, $safeRaw['extraFieldStructure']['isSupportedByBoundedReader']);
+        $t->same(0, $safeRaw['extraFieldStructure']['issueEntryCount']);
         $t->same(0, $safeRaw['zip64ExtraFields']['zip64ExtraFieldEntryCount']);
         $t->same(0, $safeRaw['dataDescriptors']['mismatchedDescriptorEntryCount']);
         $t->same(true, $safeRaw['strictImport']['isValid']);
@@ -7253,6 +7255,65 @@ return [
         $t->same(null, $encryptedRaw['strictImport']);
         $t->contains('encrypted-zip-entries', implode(',', $encryptedRaw['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
+    },
+
+    'preflights malformed zip extra field structure before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $centralTruncatedPayload = pack('vv', 0xcafe, 4) . 'A';
+        $localTruncatedHeader = "\xbe\xef";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>central malformed extra field</w:p></w:document>',
+                'centralExtra' => $centralTruncatedPayload,
+                'localExtra' => '',
+            ],
+            [
+                'name' => 'word/media/local-extra.bin',
+                'data' => 'local malformed extra field',
+                'centralExtra' => '',
+                'localExtra' => $localTruncatedHeader,
+            ],
+        ]);
+
+        $summary = ZipPackage::extraFieldStructurePolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['extraFieldEntryCount']);
+        $t->same(2, $summary['issueEntryCount']);
+        $t->same(1, $summary['centralExtraFieldIssueEntryCount']);
+        $t->same(1, $summary['localExtraFieldIssueEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['central-extra-field-truncated-payload', 'local-extra-field-truncated-header'], $summary['issues']);
+
+        $centralIssueEntry = $summary['issueEntries'][0];
+        $t->same('word/document.xml', $centralIssueEntry['name']);
+        $t->same(false, $centralIssueEntry['centralExtraFields']['isWellFormed']);
+        $t->same(true, $centralIssueEntry['localExtraFields']['isWellFormed']);
+        $t->same(1, $centralIssueEntry['centralExtraFields']['fieldCount']);
+        $t->same(0xcafe, $centralIssueEntry['centralExtraFields']['fields'][0]['id']);
+        $t->same('cafe', $centralIssueEntry['centralExtraFields']['fields'][0]['idHex']);
+        $t->same(4, $centralIssueEntry['centralExtraFields']['fields'][0]['declaredDataLength']);
+        $t->same(1, $centralIssueEntry['centralExtraFields']['fields'][0]['availableDataBytes']);
+        $t->same('central-extra-field-truncated-payload', $centralIssueEntry['centralExtraFields']['fields'][0]['issue']);
+
+        $localIssueEntry = $summary['issueEntries'][1];
+        $t->same('word/media/local-extra.bin', $localIssueEntry['name']);
+        $t->same(true, $localIssueEntry['centralExtraFields']['isWellFormed']);
+        $t->same(false, $localIssueEntry['localExtraFields']['isWellFormed']);
+        $t->same(1, $localIssueEntry['localExtraFields']['fieldCount']);
+        $t->same(null, $localIssueEntry['localExtraFields']['fields'][0]['id']);
+        $t->same(2, $localIssueEntry['localExtraFields']['fields'][0]['availableDataBytes']);
+        $t->same('local-extra-field-truncated-header', $localIssueEntry['localExtraFields']['fields'][0]['issue']);
+
+        $t->same($summary, $rawStrict['extraFieldStructure']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->contains('extra-field-structure-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-extra-field-truncated-payload', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-extra-field-truncated-header', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
     'preflights zip64 extended information extra field plans before package import' => static function (TestRunner $t) use ($buildZipPackage, $packUInt64): void {

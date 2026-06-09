@@ -2051,6 +2051,77 @@ $buildExtraFieldIdMismatchBackedPackage = static function () use ($crc32): strin
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildMalformedExtraFieldStructureBackedPackage = static function () use ($crc32): string {
+    $entries = [
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Malformed central extra field</w:p></w:body></w:document>',
+            'localExtra' => '',
+            'centralExtra' => pack('vv', 0xcafe, 4) . 'A',
+        ],
+        [
+            'name' => 'word/media/local-extra.bin',
+            'data' => "Malformed local extra field bytes\n",
+            'localExtra' => "\xbe\xef",
+            'centralExtra' => '',
+        ],
+    ];
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'];
+        $localExtra = $entry['localExtra'];
+        $centralExtra = $entry['centralExtra'];
+        $crc = $crc32($data);
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            strlen($localExtra)
+        );
+        $body .= $name . $localExtra . $data;
+
+        $centralRecord = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            strlen($centralExtra),
+            0,
+            0,
+            0,
+            0x81a40000,
+            $localHeaderOffset
+        );
+        $centralRecords[] = $centralRecord . $name . $centralExtra;
+    }
+
+    $central = implode('', $centralRecords);
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), 0);
+};
 $buildDuplicateExtraFieldBackedPackage = static function () use ($crc32): string {
     $name = 'word/media/duplicate-extra-review.bin';
     $data = "Duplicate ZIP extra field metadata should stay blocked for strict media import\n";
@@ -3311,6 +3382,20 @@ try {
     $extraFieldValueMismatchPackage->assertMatchingExtraFieldValues();
 } catch (RuntimeException $exception) {
     $extraFieldValueMismatchRejected = str_contains($exception->getMessage(), 'central/local extra field value mismatches');
+}
+$malformedExtraFieldStructureBytes = $buildMalformedExtraFieldStructureBackedPackage();
+$malformedExtraFieldStructurePreflight = ZipPackage::extraFieldStructurePolicyPreflight($malformedExtraFieldStructureBytes);
+$malformedExtraFieldStructureRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $malformedExtraFieldStructureBytes,
+    4096,
+    100.0,
+    4096
+);
+$malformedExtraFieldStructureRejected = false;
+try {
+    ZipPackage::fromString($malformedExtraFieldStructureBytes);
+} catch (RuntimeException $exception) {
+    $malformedExtraFieldStructureRejected = str_contains($exception->getMessage(), 'extra field');
 }
 $pathHierarchyCollisionPackage = ZipPackage::fromParts([
     [
@@ -5299,6 +5384,24 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        !$malformedExtraFieldStructureRejected
+        || ($malformedExtraFieldStructurePreflight['entryCount'] ?? null) !== 2
+        || ($malformedExtraFieldStructurePreflight['issueEntryCount'] ?? null) !== 2
+        || ($malformedExtraFieldStructurePreflight['centralExtraFieldIssueEntryCount'] ?? null) !== 1
+        || ($malformedExtraFieldStructurePreflight['localExtraFieldIssueEntryCount'] ?? null) !== 1
+        || ($malformedExtraFieldStructurePreflight['issues'] ?? null) !== [
+            'central-extra-field-truncated-payload',
+            'local-extra-field-truncated-header',
+        ]
+        || ($malformedExtraFieldStructureRawStrictPreflight['extraFieldStructure'] ?? null) !== $malformedExtraFieldStructurePreflight
+        || !in_array('extra-field-structure-issues', $malformedExtraFieldStructureRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('central-extra-field-truncated-payload', $malformedExtraFieldStructureRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('local-extra-field-truncated-header', $malformedExtraFieldStructureRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected malformed ZIP extra-field structure to be reported before media import instantiation');
+    }
+
+    if (
         !$pathHierarchyCollisionRejected
         || ($pathHierarchyCollisionPreflight['collisionEntryCount'] ?? null) !== 3
         || ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? null) !== 'word/media'
@@ -6823,6 +6926,8 @@ echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'reject
 echo 'zipExtraFieldIdMismatchEntry=' . ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldValueMismatchPolicy=' . ($extraFieldValueMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExtraFieldValueMismatchEntry=' . ($extraFieldValueMismatchPreflight['valueMismatchedEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipExtraFieldStructureIssueEntries=' . $malformedExtraFieldStructurePreflight['issueEntryCount'] . "\n";
+echo 'zipRawExtraFieldStructureIssues=' . implode(',', $malformedExtraFieldStructureRawStrictPreflight['extraFieldStructure']['issues'] ?? []) . "\n";
 echo 'zipPathHierarchyCollisionPolicy=' . ($pathHierarchyCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPathHierarchyCollisionEntry=' . ($pathHierarchyCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipCaseInsensitiveNameCollisionPolicy=' . ($caseInsensitiveNameCollisionRejected ? 'rejected' : 'not-rejected') . "\n";
