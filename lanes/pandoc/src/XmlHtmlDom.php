@@ -587,14 +587,25 @@ final class XmlHtmlDom
         }
 
         $children = self::summarizeChildNodes($node);
-
-        return [[
+        $summary = [
             'type' => 'element',
             'name' => $name,
             'attributes' => self::htmlAttributes($node),
             'text' => self::normalizedText($node),
             'children' => $children,
-        ]];
+        ];
+
+        if ($name === 'select') {
+            $options = self::selectOptionSummaries($node);
+            $summary['formControl'] = 'select';
+            $summary['selectOptions'] = $options;
+            $summary['selectedValues'] = array_values(array_map(
+                static fn (array $option): string => (string) $option['value'],
+                array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
+            ));
+        }
+
+        return [$summary];
     }
 
     private static function serializeNode(\DOMNode $node): string
@@ -743,6 +754,62 @@ final class XmlHtmlDom
         }
 
         return [$fostered, $children];
+    }
+
+    /**
+     * @return list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}>
+     */
+    private static function selectOptionSummaries(\DOMElement $select): array
+    {
+        $options = [];
+        foreach ($select->childNodes as $child) {
+            self::collectSelectOptionSummaries($child, null, false, $options);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}> $options
+     */
+    private static function collectSelectOptionSummaries(\DOMNode $node, ?string $group, bool $groupDisabled, array &$options): void
+    {
+        if (!$node instanceof \DOMElement) {
+            return;
+        }
+
+        $name = strtolower(self::htmlElementName($node));
+        if ($name === 'optgroup') {
+            $nextGroup = $node->getAttribute('label');
+            $nextGroupDisabled = $groupDisabled || $node->hasAttribute('disabled');
+            foreach ($node->childNodes as $child) {
+                self::collectSelectOptionSummaries($child, $nextGroup, $nextGroupDisabled, $options);
+            }
+
+            return;
+        }
+
+        if ($name === 'option') {
+            $text = self::normalizedText($node);
+            $option = [
+                'value' => $node->hasAttribute('value') ? $node->getAttribute('value') : $text,
+                'label' => $node->hasAttribute('label') ? $node->getAttribute('label') : $text,
+                'text' => $text,
+                'selected' => $node->hasAttribute('selected'),
+                'disabled' => $groupDisabled || $node->hasAttribute('disabled'),
+            ];
+            if ($group !== null) {
+                $option['group'] = $group;
+                $option['groupDisabled'] = $groupDisabled;
+            }
+            $options[] = $option;
+
+            return;
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::collectSelectOptionSummaries($child, $group, $groupDisabled, $options);
+        }
     }
 
     /**
