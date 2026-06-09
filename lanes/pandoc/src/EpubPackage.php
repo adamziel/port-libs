@@ -486,6 +486,7 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
                 'coverImagePart' => $assetSummary['coverImagePart'],
@@ -777,6 +778,25 @@ final class EpubPackage
         $missingTargetCount = 0;
         $externalTargetCount = 0;
         $diagnostics = [];
+        $documentPart = null;
+
+        foreach ($sections as $section) {
+            if (is_string($section['partName'] ?? null) && $section['partName'] !== '') {
+                $documentPart = $section['partName'];
+                break;
+            }
+        }
+        if ($documentPart === null && is_array($navigation) && is_string($navigation['partName'] ?? null)) {
+            $documentPart = $navigation['partName'];
+        }
+
+        $documentSections = $source === 'nav' ? $sections : [];
+        $documentDiagnostics = self::navDocumentDiagnosticReport(
+            $documentSections,
+            $documentPart,
+            $source === 'nav'
+        );
+        array_push($diagnostics, ...$documentDiagnostics['diagnostics']);
 
         foreach ($sections as $sectionIndex => $section) {
             $entries = is_array($section['entries'] ?? null) ? array_values($section['entries']) : [];
@@ -825,6 +845,162 @@ final class EpubPackage
             'localTargetCount' => $localTargetCount,
             'missingTargetCount' => $missingTargetCount,
             'externalTargetCount' => $externalTargetCount,
+            'documentDiagnostics' => $documentDiagnostics,
+            'documentDiagnosticCount' => $documentDiagnostics['diagnosticCount'],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     *
+     * @return array<string, mixed>
+     */
+    private static function navDocumentDiagnosticReport(array $sections, ?string $part, bool $documentPresent): array
+    {
+        $primaryTypes = [
+            'toc' => true,
+            'landmarks' => true,
+            'page-list' => true,
+        ];
+        $typeSections = [
+            'toc' => [],
+            'landmarks' => [],
+            'page-list' => [],
+        ];
+        $diagnostics = [];
+        $emptySectionCount = 0;
+        $hiddenPrimarySectionCount = 0;
+        $missingOrderedListSectionCount = 0;
+        $untypedSectionCount = 0;
+
+        if ($documentPresent && $sections === []) {
+            $diagnostics[] = [
+                'type' => 'missing-nav-document-section',
+                'part' => $part,
+                'message' => 'EPUB navigation document does not contain any XHTML nav sections',
+            ];
+        }
+
+        foreach ($sections as $sectionIndex => $section) {
+            $sectionTypes = array_values(array_filter(
+                is_array($section['types'] ?? null) ? $section['types'] : [],
+                static fn (mixed $type): bool => is_string($type) && $type !== '',
+            ));
+            $sectionId = is_string($section['id'] ?? null) ? $section['id'] : null;
+            $sectionTitle = is_string($section['title'] ?? null)
+                ? $section['title']
+                : (is_string($section['label'] ?? null) ? $section['label'] : '');
+            $itemCount = is_int($section['itemCount'] ?? null)
+                ? $section['itemCount']
+                : count(is_array($section['entries'] ?? null) ? $section['entries'] : []);
+
+            if ($sectionTypes === []) {
+                ++$untypedSectionCount;
+                $diagnostics[] = [
+                    'type' => 'missing-nav-section-type',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'title' => $sectionTitle,
+                    'message' => 'EPUB navigation section is missing an epub:type value',
+                ];
+            }
+
+            foreach ($sectionTypes as $sectionType) {
+                if (isset($primaryTypes[$sectionType])) {
+                    $typeSections[$sectionType][] = [
+                        'sectionIndex' => $sectionIndex,
+                        'sectionId' => $sectionId,
+                        'title' => $sectionTitle,
+                    ];
+                }
+            }
+
+            $primarySectionTypes = array_values(array_filter(
+                $sectionTypes,
+                static fn (string $type): bool => isset($primaryTypes[$type]),
+            ));
+            if ($primarySectionTypes !== [] && ($section['hidden'] ?? false) === true) {
+                ++$hiddenPrimarySectionCount;
+                $diagnostics[] = [
+                    'type' => 'hidden-primary-nav-section',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $primarySectionTypes,
+                    'message' => 'EPUB primary navigation section is hidden and may not be visible to readers',
+                ];
+            }
+
+            if (($section['hasOrderedList'] ?? false) !== true) {
+                ++$missingOrderedListSectionCount;
+                $diagnostics[] = [
+                    'type' => 'missing-nav-section-ordered-list',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                    'message' => 'EPUB navigation section does not contain a direct ordered list',
+                ];
+            }
+
+            if ($itemCount === 0) {
+                ++$emptySectionCount;
+                $diagnostics[] = [
+                    'type' => 'empty-nav-section',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                    'message' => 'EPUB navigation section has no resolved navigation items',
+                ];
+            }
+        }
+
+        $duplicatePrimaryTypeCount = 0;
+        foreach ($typeSections as $type => $matches) {
+            if (count($matches) <= 1) {
+                continue;
+            }
+
+            ++$duplicatePrimaryTypeCount;
+            $diagnostics[] = [
+                'type' => 'duplicate-primary-nav-section',
+                'part' => $part,
+                'sectionType' => $type,
+                'sectionCount' => count($matches),
+                'sectionIndexes' => array_column($matches, 'sectionIndex'),
+                'sectionIds' => array_values(array_filter(
+                    array_column($matches, 'sectionId'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'message' => 'EPUB navigation document declares more than one primary section for the same nav type',
+            ];
+        }
+
+        if ($documentPresent && $sections !== [] && $typeSections['toc'] === []) {
+            $diagnostics[] = [
+                'type' => 'missing-nav-toc-section',
+                'part' => $part,
+                'message' => 'EPUB navigation document is missing a toc nav section',
+            ];
+        }
+
+        return [
+            'present' => $documentPresent && $sections !== [],
+            'part' => $part,
+            'sectionCount' => count($sections),
+            'primarySectionCount' => count($typeSections['toc']) + count($typeSections['landmarks']) + count($typeSections['page-list']),
+            'tocSectionCount' => count($typeSections['toc']),
+            'landmarksSectionCount' => count($typeSections['landmarks']),
+            'pageListSectionCount' => count($typeSections['page-list']),
+            'duplicatePrimaryTypeCount' => $duplicatePrimaryTypeCount,
+            'emptySectionCount' => $emptySectionCount,
+            'hiddenPrimarySectionCount' => $hiddenPrimarySectionCount,
+            'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
+            'untypedSectionCount' => $untypedSectionCount,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -2447,12 +2623,19 @@ final class EpubPackage
             }
 
             $types = self::epubTypes($node);
-            $list = self::firstChildElement($node, 'ol') ?? self::firstDescendantElement($node, 'ol');
+            $directList = self::firstChildElement($node, 'ol');
+            $list = $directList ?? self::firstDescendantElement($node, 'ol');
             $entries = $list instanceof \DOMElement ? self::parseNavList($list, $navPartName, 1) : [];
+            $label = self::navSectionLabel($node);
             $section = [
+                'id' => self::emptyToNull($node->getAttribute('id')),
                 'type' => $types[0] ?? null,
                 'types' => $types,
-                'label' => self::navSectionLabel($node),
+                'label' => $label,
+                'title' => $label,
+                'hidden' => self::elementHidden($node),
+                'hasOrderedList' => $directList instanceof \DOMElement,
+                'itemCount' => count($entries),
                 'partName' => $navPartName,
                 'entries' => $entries,
             ];
@@ -5053,6 +5236,15 @@ final class EpubPackage
         }
 
         return null;
+    }
+
+    private static function elementHidden(\DOMElement $element): bool
+    {
+        if ($element->hasAttribute('hidden')) {
+            return true;
+        }
+
+        return strtolower(trim($element->getAttribute('aria-hidden'))) === 'true';
     }
 
     /**
