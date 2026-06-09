@@ -209,6 +209,7 @@ final class PandocJsonWriter
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
+            'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),
             default => throw new \InvalidArgumentException("Unsupported AST block node for Pandoc JSON: {$node->type}"),
         };
@@ -280,6 +281,33 @@ final class PandocJsonWriter
         }
 
         return $this->writeBlocks($node->children);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function writeFigureBlocks(AstNode $node): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = ['t' => 'Plain', 'c' => $this->writeInlines($inlines)];
+                $inlines = [];
+            }
+            $blocks[] = $this->writeBlock($child);
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = ['t' => 'Plain', 'c' => $this->writeInlines($inlines)];
+        }
+
+        return $blocks;
     }
 
     /**

@@ -208,6 +208,7 @@ final class PandocJsonReader
             'LineBlock' => $this->readLineBlock($content),
             'HorizontalRule' => new AstNode('horizontal_rule'),
             'Div' => $this->readDivBlock($content),
+            'Figure' => $this->readFigureBlock($content),
             'Table' => $this->readTableBlock($content),
             default => throw new \InvalidArgumentException("Unsupported Pandoc block constructor: {$tag}"),
         };
@@ -324,6 +325,17 @@ final class PandocJsonReader
         return new AstNode('div', $this->readAttrTuple($tuple[0]), $this->readBlocks($this->listContent($tuple[1], 'Div blocks')));
     }
 
+    private function readFigureBlock(mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 3, 'Figure');
+        $attrs = array_merge(
+            $this->readAttrTuple($tuple[0]),
+            $this->readCaptionAttrs($tuple[1], 'Figure')
+        );
+
+        return new AstNode('figure', $attrs, $this->readBlocks($this->listContent($tuple[2], 'Figure blocks')));
+    }
+
     private function readTableBlock(mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 6, 'Table');
@@ -359,17 +371,25 @@ final class PandocJsonReader
      */
     private function readTableCaptionAttrs(mixed $caption): array
     {
-        $content = $this->constructorContent($caption, 'Caption', 'Table caption', false);
-        $tuple = $this->tuple($content, 2, 'Table caption');
+        return $this->readCaptionAttrs($caption, 'Table');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readCaptionAttrs(mixed $caption, string $context): array
+    {
+        $content = $this->constructorContent($caption, 'Caption', "{$context} caption", false);
+        $tuple = $this->tuple($content, 2, "{$context} caption");
         $attrs = [];
 
-        $shortCaptionInlines = $this->readShortCaptionInlines($tuple[0]);
+        $shortCaptionInlines = $this->readShortCaptionInlines($tuple[0], $context);
         if ($shortCaptionInlines !== []) {
             $attrs['shortCaptionInlines'] = $shortCaptionInlines;
             $attrs['shortCaption'] = trim($this->plainText($shortCaptionInlines));
         }
 
-        $captionBlocks = $this->readBlocks($this->listContent($tuple[1], 'Table caption blocks'));
+        $captionBlocks = $this->readBlocks($this->listContent($tuple[1], "{$context} caption blocks"));
         if ($captionBlocks === []) {
             $attrs['caption'] = '';
 
@@ -390,18 +410,18 @@ final class PandocJsonReader
     /**
      * @return list<AstNode>
      */
-    private function readShortCaptionInlines(mixed $shortCaption): array
+    private function readShortCaptionInlines(mixed $shortCaption, string $context): array
     {
         if ($shortCaption === null || $shortCaption === []) {
             return [];
         }
 
-        $content = $this->constructorContent($shortCaption, 'ShortCaption', 'Table short caption', false);
+        $content = $this->constructorContent($shortCaption, 'ShortCaption', "{$context} short caption", false);
         if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
             $content = $content[0];
         }
 
-        return $this->readInlines($this->listContent($content, 'Table short caption'));
+        return $this->readInlines($this->listContent($content, "{$context} short caption"));
     }
 
     /**

@@ -435,6 +435,88 @@ return [
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe event handler attributes must not render on Pandoc Div output');
         $t->true(!str_contains($blocks, 'onmouseover='), 'Unsafe mouse event attributes must not render on Pandoc Div output');
     },
+    'renders pandoc json figure attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
+        $figureBlock = ['t' => 'Figure', 'c' => [
+            [
+                'json-figure',
+                ['wp-import-figure'],
+                [
+                    ['data-review', 'figure'],
+                    ['xml:lang', 'fr-CA'],
+                    ['title', 'Escaped "figure" title'],
+                    ['latex-placement', 'htbp'],
+                    ['onclick', 'alert(1)'],
+                    ['style', 'display:none'],
+                ],
+            ],
+            [
+                [
+                    ['t' => 'Str', 'c' => 'Short'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'figure'],
+                ],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Reviewer'],
+                        ['t' => 'Space'],
+                        ['t' => 'Emph', 'c' => [
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ]],
+                ],
+            ],
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Image', 'c' => [
+                        ['', ['review-image'], [['data-image', 'source']]],
+                        [
+                            ['t' => 'Str', 'c' => 'Review'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'image'],
+                        ],
+                        ['media/review.png', 'Figure image'],
+                    ]],
+                ]],
+            ],
+        ]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket($packet);
+        $figure = $document->children[0];
+        $image = $figure->children[0]->children[0];
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded)->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('figure', $figure->type);
+        $t->same('json-figure', $figure->attr('id'));
+        $t->same(['wp-import-figure'], $figure->attr('classes'));
+        $t->same('fr-CA', $figure->attr('attributes')['xml:lang'] ?? null);
+        $t->same('Reviewer figure', $figure->attr('caption'));
+        $t->same('Short figure', $figure->attr('shortCaption'));
+        $t->same('image', $image->type);
+        $t->same(['review-image'], $image->attr('classes'));
+        $t->same('Figure', $encoded['blocks'][0]['t']);
+        $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
+        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Reviewer', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Para', $encoded['blocks'][0]['c'][2][0]['t']);
+        $t->same('Reviewer figure', $roundTrip->attr('caption'));
+        $t->contains(
+            '<figure class="wp-block-image wp-import-figure" id="json-figure" data-review="figure" xml:lang="fr-CA" title="Escaped &quot;figure&quot; title" data-pandoc-latex-placement="htbp">',
+            $blocks
+        );
+        $t->contains('<img src="media/review.png" alt="" title="Figure image" class="review-image" data-image="source"/>', $blocks);
+        $t->contains('<figcaption>Reviewer figure</figcaption>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers must not render on Pandoc Figure output');
+        $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe style attributes must not render on Pandoc Figure output');
+    },
     'round trips pandoc json table captions through shared table ast' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

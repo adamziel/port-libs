@@ -2313,13 +2313,7 @@ final class WordPressBlockWriter
 
     private function renderFigureHtml(AstNode $node): string
     {
-        $image = null;
-        foreach ($node->children as $child) {
-            if ($child->type === 'image') {
-                $image = $child;
-                break;
-            }
-        }
+        $image = $this->firstFigureImage($node);
         if (!$image instanceof AstNode) {
             $image = new AstNode('image', [
                 'url' => '',
@@ -2334,6 +2328,27 @@ final class WordPressBlockWriter
         }
 
         return $html . '</figure>';
+    }
+
+    private function firstFigureImage(AstNode $node): ?AstNode
+    {
+        foreach ($node->children as $child) {
+            if ($child->type === 'image') {
+                return $child;
+            }
+
+            if (!in_array($child->type, ['paragraph', 'plain'], true)) {
+                continue;
+            }
+
+            foreach ($child->children as $inline) {
+                if ($inline->type === 'image') {
+                    return $inline;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function renderImageFigureAttrs(AstNode $node): string
