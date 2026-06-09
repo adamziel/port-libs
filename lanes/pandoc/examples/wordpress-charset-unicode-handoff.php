@@ -199,6 +199,9 @@ $gb18030RangeText = (string) $gb18030RangeSource->children[1]->attr('text');
 $eucKrBytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
 $eucKrSource = (new MarkdownReader())->readBytes($eucKrBytes, 'ks_c_5601-1987');
 $eucKrText = (string) $eucKrSource->children[1]->attr('text');
+$windows949Bytes = "# UHC\n\nWindows-949 UHC \x81\x41\x81\x42\x81\x43 \x81\x51\x81\x52 \x81\xA1\x81\xA2.";
+$windows949Source = (new MarkdownReader())->readBytes($windows949Bytes, 'windows-949');
+$windows949Text = (string) $windows949Source->children[1]->attr('text');
 $hzGb2312Bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}";
 $hzGb2312Source = (new MarkdownReader())->readBytes($hzGb2312Bytes, 'hz-gb-2312');
 $hzGb2312Text = (string) $hzGb2312Source->children[1]->attr('text');
@@ -827,6 +830,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucKrSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucKrText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Windows-949 UHC source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $windows949Text])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows949Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows949Text)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'HZ-GB-2312 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $hzGb2312Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($hzGb2312Text)])]),
@@ -1331,6 +1339,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>EUC-KR source</td><td>한글 EUC-KR 테스트, 서울.</td><td>euc-kr:25</td>')) {
         throw new RuntimeException('charset handoff self-test missing EUC-KR decode audit row');
+    }
+    if (($windows949Source->attr('sourceEncoding')['encoding'] ?? '') !== 'windows-949') {
+        throw new RuntimeException('charset handoff self-test missing Windows-949 source encoding');
+    }
+    if (!str_contains($blocks, '<td>Windows-949 UHC source</td><td>Windows-949 UHC 갂갃갅 갦갧 걾걿.</td><td>windows-949:33</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Windows-949 UHC decode audit row');
     }
     if (($hzGb2312Source->attr('sourceEncoding')['encoding'] ?? '') !== 'hz-gb-2312') {
         throw new RuntimeException('charset handoff self-test missing HZ-GB-2312 source encoding');

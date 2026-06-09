@@ -291,14 +291,48 @@ $cliCabal = static function (): string {
         '  default-language: Haskell2010',
         '  other-extensions: OverloadedStrings',
         '  build-depends: base >= 4.18 && < 5',
+        '  ghc-options: -Wall',
+        '               -fno-warn-unused-do-bind',
+        '               -Wincomplete-record-updates',
+        '               -Wnoncanonical-monad-instances',
+        '               -Wcpp-undef',
+        '               -Wincomplete-uni-patterns',
+        '               -Widentities',
+        '               -Wpartial-fields',
+        '               -Wmissing-signatures',
+        '               -fhide-source-paths',
+        '               -Wunused-packages',
+        '               -Winvalid-haddock',
+        '  if os(windows)',
+        '    cpp-options: -D_WINDOWS',
+        '',
+        'common common-executable',
+        '  import: common-options',
+        '  ghc-options: -rtsopts -with-rtsopts=-A8m',
         '',
         'executable pandoc',
-        '  import: common-options',
+        '  import: common-executable',
         '  main-is: pandoc.hs',
         '  hs-source-dirs: src',
         '  buildable: True',
         '  build-depends: pandoc == 3.9.0.2, text',
         '  other-modules: PandocCLI.Lua, PandocCLI.Server',
+        '  if arch(wasm32)',
+        '    hs-source-dirs: wasm',
+        '  else',
+        '    ghc-options: -threaded',
+        '  if flag(nightly)',
+        '    cpp-options: -DNIGHTLY',
+        '  if flag(server)',
+        '    hs-source-dirs: server',
+        '  else',
+        '    cpp-options: -DNO_SERVER',
+        '  if flag(lua)',
+        '    hs-source-dirs: lua',
+        '  else',
+        '    cpp-options: -DNO_LUA',
+        '  if flag(repl)',
+        '    hs-source-dirs: repl',
     ]);
 };
 
@@ -808,6 +842,43 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::expectedServerLibrarySourceDirectories(), $audit['serverLibraryClosure']['presentSourceDirectories']);
         $t->same(UpstreamRunnerDependencyAudit::expectedServerLibraryDefaultLanguage(), $audit['serverLibraryClosure']['presentDefaultLanguage']);
         $t->same(null, $audit['serverLibraryClosure']['mismatchedDefaultLanguage']);
+        $t->same(false, $audit['cliExecutableClosure']['missingExecutable']);
+        $t->same('pandoc.hs', $audit['cliExecutableClosure']['presentMainIs']);
+        $t->same(true, $audit['cliExecutableClosure']['presentBuildable']);
+        $t->same([], $audit['cliExecutableClosure']['mismatchedEntryPoint']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDependencies(), $audit['cliExecutableClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDependencies(), $audit['cliExecutableClosure']['presentDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDependencyConstraints(), $audit['cliExecutableClosure']['expectedDependencyConstraints']);
+        $t->same('>= 4.18 && < 5', $audit['cliExecutableClosure']['dependencyConstraints']['base']);
+        $t->same('== 3.9.0.2', $audit['cliExecutableClosure']['dependencyConstraints']['pandoc']);
+        $t->same([], $audit['cliExecutableClosure']['missingDependencies']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedDependencies']);
+        $t->same([], $audit['cliExecutableClosure']['mismatchedDependencyConstraints']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableOptions(), $audit['cliExecutableClosure']['presentExecutableOptions']);
+        $t->same([], $audit['cliExecutableClosure']['missingExecutableOptions']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedExecutableOptions']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDefaultLanguage(), $audit['cliExecutableClosure']['presentDefaultLanguage']);
+        $t->same(null, $audit['cliExecutableClosure']['mismatchedDefaultLanguage']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableCommonImports(), $audit['cliExecutableClosure']['presentCommonImports']);
+        $t->same([], $audit['cliExecutableClosure']['missingCommonImports']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedCommonImports']);
+        $t->same([], $audit['cliExecutableClosure']['unresolvedCommonImports']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableSourceDirectories(), $audit['cliExecutableClosure']['presentSourceDirectories']);
+        $t->same([], $audit['cliExecutableClosure']['missingSourceDirectories']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedSourceDirectories']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableOtherExtensions(), $audit['cliExecutableClosure']['presentOtherExtensions']);
+        $t->same([], $audit['cliExecutableClosure']['missingOtherExtensions']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedOtherExtensions']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableOtherModules(), $audit['cliExecutableClosure']['presentOtherModules']);
+        $t->same([], $audit['cliExecutableClosure']['missingOtherModules']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedOtherModules']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableConditionalBranches(), $audit['cliExecutableClosure']['presentConditionalBranches']);
+        $t->same([], $audit['cliExecutableClosure']['missingConditionalBranches']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedConditionalBranches']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedDefaultExtensions']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedCppOptions']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedBuildTools']);
+        $t->same([], $audit['cliExecutableClosure']['unexpectedNativeSystemFields']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc']['type']);
         $t->same('exitcode-stdio-1.0', $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['type']);
         $t->same(['test'], $audit['runnerDependencyClosure']['present']['test:test-pandoc-lua-engine']['sourceDirectories']);
@@ -890,6 +961,7 @@ return [
         $t->contains('library source artifact hashes', $audit['nonMutatingPlan'][2]);
         $t->contains('Haskell2010 library default-language', $audit['nonMutatingPlan'][2]);
         $t->contains('pandoc-server library direct dependency', $audit['nonMutatingPlan'][2]);
+        $t->contains('pandoc-cli executable entry point', $audit['nonMutatingPlan'][2]);
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
@@ -2593,6 +2665,117 @@ return [
         $t->contains('unexpected pandoc-server library hs-source-dirs: server-src, generated-src', $blocked);
         $t->contains('mismatched pandoc-server library default-language: expected Haskell2010, found Haskell98', $blocked);
         $t->contains('exact pandoc-server library dependency/exposed-module/source-directory/default-language closure', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks pandoc cli executable drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $cliCabal): void {
+        $cliPackage = str_replace(
+            [
+                '  default-language: Haskell2010',
+                '  other-extensions: OverloadedStrings',
+                '  build-depends: base >= 4.18 && < 5',
+                '  ghc-options: -rtsopts -with-rtsopts=-A8m',
+                '  main-is: pandoc.hs',
+                '  hs-source-dirs: src',
+                '  build-depends: pandoc == 3.9.0.2, text',
+                '  other-modules: PandocCLI.Lua, PandocCLI.Server',
+            ],
+            [
+                '  default-language: Haskell98',
+                '  other-extensions: OverloadedLabels',
+                '  build-depends: base >= 4.17 && < 5, pandoc-cli-common',
+                '  ghc-options: -rtsopts -eventlog',
+                '  main-is: pandoc-runner.hs',
+                '  hs-source-dirs: generated-cli',
+                '  build-depends: pandoc == 3.8.0.0, pandoc-cli-audit >= 0.1 && < 0.2',
+                '  other-modules: PandocCLI.Generated',
+            ],
+            $cliCabal()
+        );
+        $cliPackage .= "\n  if flag(profile)\n    ghc-options: -prof";
+
+        $root = $makeTree($requiredFiles(
+            $pinnedProject(),
+            null,
+            null,
+            true,
+            null,
+            $cliPackage
+        ));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same(false, $audit['cliExecutableClosure']['missingExecutable']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDependencies(), $audit['cliExecutableClosure']['expectedDependencies']);
+        $t->same(UpstreamRunnerDependencyAudit::expectedCliExecutableDependencyConstraints(), $audit['cliExecutableClosure']['expectedDependencyConstraints']);
+        $t->same([
+            'main-is expected pandoc.hs, found pandoc-runner.hs',
+        ], $audit['cliExecutableClosure']['mismatchedEntryPoint']);
+        $t->same([
+            'text',
+        ], $audit['cliExecutableClosure']['missingDependencies']);
+        $t->same([
+            'pandoc-cli-audit >= 0.1 && < 0.2',
+            'pandoc-cli-common',
+        ], $audit['cliExecutableClosure']['unexpectedDependencies']);
+        $t->same([
+            'base' => [
+                'expected' => '>= 4.18 && < 5',
+                'actual' => '>= 4.17 && < 5',
+            ],
+            'pandoc' => [
+                'expected' => '== 3.9.0.2',
+                'actual' => '== 3.8.0.0',
+            ],
+        ], $audit['cliExecutableClosure']['mismatchedDependencyConstraints']);
+        $t->same([
+            '-with-rtsopts=-A8m',
+        ], $audit['cliExecutableClosure']['missingExecutableOptions']);
+        $t->same([
+            '-eventlog',
+        ], $audit['cliExecutableClosure']['unexpectedExecutableOptions']);
+        $t->same([
+            'expected' => 'Haskell2010',
+            'actual' => 'Haskell98',
+        ], $audit['cliExecutableClosure']['mismatchedDefaultLanguage']);
+        $t->same(['src'], $audit['cliExecutableClosure']['missingSourceDirectories']);
+        $t->same(['generated-cli'], $audit['cliExecutableClosure']['unexpectedSourceDirectories']);
+        $t->same(['OverloadedStrings'], $audit['cliExecutableClosure']['missingOtherExtensions']);
+        $t->same(['OverloadedLabels'], $audit['cliExecutableClosure']['unexpectedOtherExtensions']);
+        $t->same([
+            'PandocCLI.Lua',
+            'PandocCLI.Server',
+        ], $audit['cliExecutableClosure']['missingOtherModules']);
+        $t->same([
+            'PandocCLI.Generated',
+        ], $audit['cliExecutableClosure']['unexpectedOtherModules']);
+        $t->same([], $audit['cliExecutableClosure']['missingConditionalBranches']);
+        $t->same([
+            'executable pandoc: if flag(profile)',
+        ], $audit['cliExecutableClosure']['unexpectedConditionalBranches']);
+
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('mismatched pandoc-cli executable entry point: main-is expected pandoc.hs, found pandoc-runner.hs', $blocked);
+        $t->contains('missing pandoc-cli executable build-depends: text', $blocked);
+        $t->contains('unexpected pandoc-cli executable build-depends: pandoc-cli-audit >= 0.1 && < 0.2, pandoc-cli-common', $blocked);
+        $t->contains('mismatched pandoc-cli executable build-depends constraints: base expected >= 4.18 && < 5, found >= 4.17 && < 5, pandoc expected == 3.9.0.2, found == 3.8.0.0', $blocked);
+        $t->contains('missing pandoc-cli executable options: -with-rtsopts=-A8m', $blocked);
+        $t->contains('unexpected pandoc-cli executable options: -eventlog', $blocked);
+        $t->contains('mismatched pandoc-cli executable default-language: expected Haskell2010, found Haskell98', $blocked);
+        $t->contains('missing pandoc-cli executable hs-source-dirs: src', $blocked);
+        $t->contains('unexpected pandoc-cli executable hs-source-dirs: generated-cli', $blocked);
+        $t->contains('missing pandoc-cli executable other-extensions: OverloadedStrings', $blocked);
+        $t->contains('unexpected pandoc-cli executable other-extensions: OverloadedLabels', $blocked);
+        $t->contains('missing pandoc-cli executable other-modules: PandocCLI.Lua, PandocCLI.Server', $blocked);
+        $t->contains('unexpected pandoc-cli executable other-modules: PandocCLI.Generated', $blocked);
+        $t->contains('unexpected pandoc-cli executable conditional branches: executable pandoc: if flag(profile)', $blocked);
+        $t->contains('exact pandoc-cli executable entry point, common import, direct dependency, option, source-directory, extension, other-module, and known conditional-branch closure', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks lua engine library exposed-module drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles, $luaCabal): void {

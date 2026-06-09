@@ -122,6 +122,24 @@ $padTo = static function (string $bytes, int $size): string {
 
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
+$unallocatedDirectoryEntry = static function () use ($u32): string {
+    return str_repeat("\0", 68)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . str_repeat("\0", 48);
+};
+$padDirectoryEntries = static function (string $directory, int $sectorSize) use ($unallocatedDirectoryEntry): string {
+    if ((strlen($directory) % 128) !== 0) {
+        throw new RuntimeException('CFB fixture directory entries must be 128-byte aligned');
+    }
+
+    while ((strlen($directory) % $sectorSize) !== 0) {
+        $directory .= $unallocatedDirectoryEntry();
+    }
+
+    return $directory;
+};
 $directoryNameSortUnits = static function (string $name) use ($utf16le): array {
     $upper = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
     $bytes = $utf16le($upper);
@@ -1617,7 +1635,7 @@ foreach ($nodes as $nodeIndex => $node) {
         $nodeColors[$nodeIndex] ?? 1
     );
 }
-$directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
+$directoryChunks = str_split($padDirectoryEntries($directory, $sectorSize), $sectorSize);
 $previousDirectorySector = 1;
 foreach ($directoryChunks as $index => $chunk) {
     if ($index === 0) {
@@ -2705,7 +2723,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test missing FIB preflight flags');
     }
 
-    $buildVersionFourCfb = static function () use ($u16, $u32, $makeDirectoryEntry, $padTo, $free, $end, $fatSector): string {
+    $buildVersionFourCfb = static function () use ($u16, $u32, $makeDirectoryEntry, $padDirectoryEntries, $free, $end, $fatSector): string {
         $v4SectorSize = 4096;
         $wordDocumentBytes = str_repeat('V', $v4SectorSize);
         $directory = $makeDirectoryEntry('Root Entry', 5, $end, 0, $free, $free, 1)
@@ -2733,7 +2751,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
         return str_pad($header, $v4SectorSize, "\0")
             . substr($fatBytes, 0, $v4SectorSize)
-            . $padTo($directory, $v4SectorSize)
+            . $padDirectoryEntries($directory, $v4SectorSize)
             . $wordDocumentBytes;
     };
     $versionFourDocBytes = $buildVersionFourCfb();
@@ -2875,11 +2893,16 @@ if (($argv[1] ?? '') === '--self-test') {
         . str_repeat($u32($free), 108);
     $smallRegularStreamWithoutMiniFat = str_pad($smallRegularHeader, 512, "\0")
         . $smallRegularFat
-        . $padTo($smallRegularDirectory, $sectorSize)
+        . $padDirectoryEntries($smallRegularDirectory, $sectorSize)
         . $padTo($smallRegularWordDocument, $sectorSize);
     $unusedPhysicalSectorId = intdiv(strlen($docBytes) - $sectorSize, $sectorSize);
     $docBytesWithUnusedPhysicalSector = $docBytes . str_repeat("\0", $sectorSize);
     $unownedFatMarkerEntryOffset = 512 + ($unusedPhysicalSectorId * 4);
+    $unusedDirectoryEntryId = count($nodes);
+    if (($unusedDirectoryEntryId * 128) >= (count($directoryChunks) * $sectorSize)) {
+        throw new RuntimeException('Legacy DOC handoff fixture did not preserve an unused CFB directory entry');
+    }
+    $dirtyUnallocatedDirectoryEntry = substr_replace($docBytes, "X\0", $directoryFieldOffset($unusedDirectoryEntryId, 0), 2);
     foreach ([
         'unsupported CFB major version' => substr_replace($docBytes, $u16(5), 26, 2),
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
@@ -2918,6 +2941,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'CFB active directory name must not be empty' => $emptyActiveDirectoryName,
         'CFB active directory name contains embedded null' => $embeddedNullActiveDirectoryName,
         'CFB active directory name invalid UTF-16LE' => $malformedUtf16ActiveDirectoryName,
+        'dirty CFB unallocated directory entry' => $dirtyUnallocatedDirectoryEntry,
         'small CFB stream without MiniFAT metadata' => $smallRegularStreamWithoutMiniFat,
         'invalid CFB root storage name' => substr_replace($docBytes, "X\0", $directoryFieldOffset(0, 0), 2),
         'complex DOC missing CLX piece table' => substr_replace($docBytes, $u32(0), $wordDocumentStreamOffset + 0x01a6, 4),

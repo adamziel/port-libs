@@ -1369,7 +1369,7 @@ return [
     'decodes bounded euc kr korean source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320c7d1b1db0a0ac7d1b1db204555432d4b5220c5d7bdbac6ae2c20bcadbfef2e');
         $decoded = UnicodeText::decodeBytes($bytes, 'ks_c_5601-1987');
-        $document = (new MarkdownReader())->readBytes($bytes, 'windows-949');
+        $document = (new MarkdownReader())->readBytes($bytes, 'euc-kr');
         $blocks = (new WordPressBlockWriter())->write($document);
         $malformedLead = UnicodeText::decodeBytes("\xC7\"A", 'euc-kr');
         $unmappedPair = UnicodeText::decodeBytes("\x81\x41A", 'cseuckr');
@@ -1390,6 +1390,30 @@ return [
         $t->same(1, $unmappedPair['repairs']);
         $t->same("\u{FFFD}", $truncatedLead['text']);
         $t->same(1, $truncatedLead['repairs']);
+    },
+    'decodes bounded windows 949 uhc korean extension bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# UHC\n\nWindows-949 UHC \x81\x41\x81\x42\x81\x43 \x81\x51\x81\x52 \x81\xA1\x81\xA2.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp949');
+        $document = (new MarkdownReader())->readBytes($bytes, 'windows-949');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $eucKrRepairsExtension = UnicodeText::decodeBytes("\x81\x41A", 'euc-kr');
+        $malformedTrail = UnicodeText::decodeBytes("\x81\x30A", 'uhc');
+
+        $t->same('windows-949', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# UHC\n\nWindows-949 UHC 갂갃갅 갦갧 걾걿.", $decoded['text']);
+        $t->same(['encoding' => 'windows-949', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('UHC', $document->children[0]->attr('text'));
+        $t->same('Windows-949 UHC 갂갃갅 갦갧 걾걿.', $document->children[1]->attr('text'));
+        $t->same(33, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="uhc">UHC</h1>', $blocks);
+        $t->contains('<p>Windows-949 UHC 갂갃갅 갦갧 걾걿.</p>', $blocks);
+        $t->same('euc-kr', $eucKrRepairsExtension['encoding']);
+        $t->same("\u{FFFD}A", $eucKrRepairsExtension['text']);
+        $t->same(1, $eucKrRepairsExtension['repairs']);
+        $t->same('windows-949', $malformedTrail['encoding']);
+        $t->same("\u{FFFD}0A", $malformedTrail['text']);
+        $t->same(1, $malformedTrail['repairs']);
     },
     'decodes bounded hz gb 2312 escape states into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# ~{<rLe~}\n\n~{VPND~} HZ ~{2bJT#,11>)!#~}\nEscaped ~~ tilde and line~\njoin.";

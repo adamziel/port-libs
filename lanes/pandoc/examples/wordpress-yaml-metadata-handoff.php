@@ -111,6 +111,12 @@ explicit-empty: ""
 flow-empty-review: {migration-ticket:, quoted-empty: ""}
 typed-flow-review: {priority: !!int "4", elapsed: !!int 0:01:05, enabled: !!bool "false", ticket: !!str 009}
 boolean-synonym-flow-review: {published: y, archived: n, enabled: ON, disabled: OFF, quoted: "off"}
+schema-number-review:
+  duration: 1:20:30
+  fractional-duration: 1:20:30.5
+  explicit-duration: !!int 1:20:30
+  explicit-fractional-duration: !!float 1:20:30.5
+schema-number-flow-review: {elapsed: 0:01:05, explicit-elapsed: !!int 0:01:05}
 tag-directive-review:
   owner: !wpd!reviewer Directive Desk
   ticket: !yaml!str 010
@@ -1206,6 +1212,46 @@ if (($argv[1] ?? '') === '--self-test') {
     ] as $yaml12LegacyBoolPath) {
         if (array_key_exists($yaml12LegacyBoolPath, $yamlTypedScalarProvenance)) {
             throw new RuntimeException('YAML metadata self-test recorded YAML 1.2 legacy boolean word as a typed scalar');
+        }
+    }
+    if (($meta['schema-number-review']['duration'] ?? '') !== '1:20:30') {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 implicit sexagesimal duration');
+    }
+    if (($meta['schema-number-review']['fractional-duration'] ?? '') !== '1:20:30.5') {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 implicit sexagesimal float duration');
+    }
+    if (($meta['schema-number-flow-review']['elapsed'] ?? '') !== '0:01:05') {
+        throw new RuntimeException('YAML metadata self-test coerced YAML 1.2 implicit flow sexagesimal duration');
+    }
+    if (($meta['schema-number-review']['explicit-duration'] ?? null) !== 4830) {
+        throw new RuntimeException('YAML metadata self-test missed explicit YAML 1.2 sexagesimal integer');
+    }
+    if (($meta['schema-number-review']['explicit-fractional-duration'] ?? null) !== 4830.5) {
+        throw new RuntimeException('YAML metadata self-test missed explicit YAML 1.2 sexagesimal float');
+    }
+    if (($meta['schema-number-flow-review']['explicit-elapsed'] ?? null) !== 65) {
+        throw new RuntimeException('YAML metadata self-test missed explicit YAML 1.2 flow sexagesimal integer');
+    }
+    foreach ([
+        '/schema-number-review/duration',
+        '/schema-number-review/fractional-duration',
+        '/schema-number-flow-review/elapsed',
+    ] as $yaml12LegacyNumberPath) {
+        if (array_key_exists($yaml12LegacyNumberPath, $yamlTypedScalarProvenance)) {
+            throw new RuntimeException('YAML metadata self-test recorded YAML 1.2 implicit sexagesimal scalar as typed ' . $yaml12LegacyNumberPath);
+        }
+    }
+    foreach ([
+        '/schema-number-review/explicit-duration' => ['number', 'int', '1:20:30'],
+        '/schema-number-review/explicit-fractional-duration' => ['number', 'float', '1:20:30.5'],
+        '/schema-number-flow-review/explicit-elapsed' => ['number', 'int', '0:01:05'],
+    ] as $expectedPath => [$expectedType, $expectedTag, $expectedSource]) {
+        $entry = $yamlTypedScalarProvenance[$expectedPath] ?? null;
+        if ($entry === null) {
+            throw new RuntimeException('YAML metadata self-test missing explicit YAML 1.2 sexagesimal provenance ' . $expectedPath);
+        }
+        if (($entry['scalarType'] ?? '') !== $expectedType || ($entry['explicitTag'] ?? '') !== $expectedTag || ($entry['source'] ?? '') !== $expectedSource) {
+            throw new RuntimeException('YAML metadata self-test has wrong explicit YAML 1.2 sexagesimal provenance ' . $expectedPath);
         }
     }
     if (array_key_exists('/typed-block-review/invalid-priority', $yamlTypedScalarProvenance)) {

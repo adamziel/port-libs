@@ -1166,6 +1166,76 @@ return [
         $t->same('yaml-1-2-bool-body', $yaml12->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-1-2-bool-body">YAML 1.2 bool body</h1>', $blocks);
     },
+    'maps pandoc yaml 1.2 numeric schema without implicit sexagesimal scalars' => static function (TestRunner $t): void {
+        $yaml12 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.2',
+            '---',
+            'title: YAML 1.2 numeric **Packet**',
+            'review:',
+            '  duration: 1:20:30',
+            '  fractional-duration: 1:20:30.5',
+            '  decimal-priority: 42',
+            '  explicit-duration: !!int 1:20:30',
+            '  explicit-fractional-duration: !!float 1:20:30.5',
+            'flow-review: {elapsed: 0:01:05, explicit-elapsed: !!int 0:01:05, decimal: 7}',
+            '...',
+            '',
+            '# YAML 1.2 numeric body',
+        ]));
+        $yaml11 = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            '%YAML 1.1',
+            '---',
+            'title: YAML 1.1 numeric **Packet**',
+            'review: {duration: 1:20:30, fractional-duration: 1:20:30.5, decimal-priority: 42}',
+            '...',
+            '',
+            '# YAML 1.1 numeric body',
+        ]));
+        $yaml12Meta = $yaml12->attr('meta');
+        $yaml11Meta = $yaml11->attr('meta');
+        $yaml12Typed = [];
+        foreach ($yaml12->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml12Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $yaml11Typed = [];
+        foreach ($yaml11->attr('yamlMetadataScalarProvenance', []) as $entry) {
+            if (($entry['type'] ?? '') === 'yaml-typed-scalar') {
+                $yaml11Typed[$entry['path'] ?? ''] = $entry;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($yaml12);
+
+        $t->same('1:20:30', $yaml12Meta['review']['duration']);
+        $t->same('1:20:30.5', $yaml12Meta['review']['fractional-duration']);
+        $t->same(42, $yaml12Meta['review']['decimal-priority']);
+        $t->same(4830, $yaml12Meta['review']['explicit-duration']);
+        $t->same(4830.5, $yaml12Meta['review']['explicit-fractional-duration']);
+        $t->same('0:01:05', $yaml12Meta['flow-review']['elapsed']);
+        $t->same(65, $yaml12Meta['flow-review']['explicit-elapsed']);
+        $t->same(7, $yaml12Meta['flow-review']['decimal']);
+        $t->same(false, array_key_exists('/review/duration', $yaml12Typed));
+        $t->same(false, array_key_exists('/review/fractional-duration', $yaml12Typed));
+        $t->same(false, array_key_exists('/flow-review/elapsed', $yaml12Typed));
+        $t->same('number', $yaml12Typed['/review/decimal-priority']['scalarType'] ?? null);
+        $t->same('int', $yaml12Typed['/review/explicit-duration']['explicitTag'] ?? null);
+        $t->same('1:20:30', $yaml12Typed['/review/explicit-duration']['source'] ?? null);
+        $t->same('float', $yaml12Typed['/review/explicit-fractional-duration']['explicitTag'] ?? null);
+        $t->same('1:20:30.5', $yaml12Typed['/review/explicit-fractional-duration']['source'] ?? null);
+        $t->same('int', $yaml12Typed['/flow-review/explicit-elapsed']['explicitTag'] ?? null);
+        $t->same('number', $yaml12Typed['/flow-review/decimal']['scalarType'] ?? null);
+        $t->same(4830, $yaml11Meta['review']['duration']);
+        $t->same(4830.5, $yaml11Meta['review']['fractional-duration']);
+        $t->same(42, $yaml11Meta['review']['decimal-priority']);
+        $t->same('number', $yaml11Typed['/review/duration']['scalarType'] ?? null);
+        $t->same('number', $yaml11Typed['/review/fractional-duration']['scalarType'] ?? null);
+        $t->same('number', $yaml11Typed['/review/decimal-priority']['scalarType'] ?? null);
+        $t->same('yaml-1-2-numeric-body', $yaml12->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-1-2-numeric-body">YAML 1.2 numeric body</h1>', $blocks);
+    },
     'records pandoc yaml invalid tag directive diagnostics before metadata document' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

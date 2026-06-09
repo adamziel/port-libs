@@ -3691,6 +3691,17 @@ final class UnicodeText
         0xc7d1 => 0xd55c,
     ];
 
+    /** @var array<int, int> */
+    private const WINDOWS_949_EXTENSION_PAIRS = [
+        0x8141 => 0xac02,
+        0x8142 => 0xac03,
+        0x8143 => 0xac05,
+        0x8151 => 0xac26,
+        0x8152 => 0xac27,
+        0x81a1 => 0xac7e,
+        0x81a2 => 0xac7f,
+    ];
+
     /** @var list<int> */
     private const EAST_ASIAN_AMBIGUOUS_SINGLE_CODEPOINTS = [
         0x00a1, 0x00a4, 0x00aa, 0x00c6, 0x00d0, 0x00d7, 0x00d8, 0x00e6,
@@ -3828,6 +3839,7 @@ final class UnicodeText
             || $normalized === 'gbk'
             || $normalized === 'gb18030'
             || $normalized === 'euc-kr'
+            || $normalized === 'windows-949'
             || $normalized === 'hz-gb-2312'
         ) {
             [$text, $repairs] = match ($normalized) {
@@ -3838,6 +3850,7 @@ final class UnicodeText
                 'gbk' => self::decodeGbk($bytes),
                 'gb18030' => self::decodeGb18030($bytes),
                 'euc-kr' => self::decodeEucKr($bytes),
+                'windows-949' => self::decodeEucKr($bytes, true),
                 default => self::decodeHzGb2312($bytes),
             };
 
@@ -4456,7 +4469,8 @@ final class UnicodeText
             'gbk', 'gb2312', 'gb2312:1980', 'csgb2312', 'csiso58gb231280',
             'cp936', 'ms936', 'windows936', 'xgbk', 'xcp936', 'euccn' => 'gbk',
             'euckr', 'cseuckr', 'csksc56011987', 'korean', 'isoir149', 'ksc5601', 'ksc56011987',
-            'ksc56011989', 'windows949', 'cp949', 'ms949', 'uhc' => 'euc-kr',
+            'ksc56011989' => 'euc-kr',
+            'windows949', 'cp949', 'ms949', 'uhc' => 'windows-949',
             'hzgb2312', 'hz' => 'hz-gb-2312',
             default => 'utf-8',
         };
@@ -5843,7 +5857,7 @@ final class UnicodeText
     /**
      * @return array{0:string, 1:int}
      */
-    private static function decodeEucKr(string $bytes): array
+    private static function decodeEucKr(string $bytes, bool $allowWindows949Extensions = false): array
     {
         $out = '';
         $repairs = 0;
@@ -5872,14 +5886,17 @@ final class UnicodeText
             }
 
             $pair = ($byte << 8) | $trail;
-            if (!isset(self::EUC_KR_PAIRS[$pair])) {
+            $codepoint = self::EUC_KR_PAIRS[$pair] ?? (
+                $allowWindows949Extensions ? (self::WINDOWS_949_EXTENSION_PAIRS[$pair] ?? null) : null
+            );
+            if ($codepoint === null) {
                 $out .= self::REPLACEMENT;
                 $repairs++;
                 $offset++;
                 continue;
             }
 
-            $out .= self::fromCodepoint(self::EUC_KR_PAIRS[$pair]);
+            $out .= self::fromCodepoint($codepoint);
             $offset++;
         }
 

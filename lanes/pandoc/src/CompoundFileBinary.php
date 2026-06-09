@@ -667,6 +667,7 @@ final class CompoundFileBinary
             $entryBytes = substr($directoryBytes, $offset, 128);
             $type = ord($entryBytes[66]);
             if ($type === 0) {
+                self::validateUnallocatedDirectoryEntry($entryBytes);
                 $rawEntries[$directoryId] = null;
                 continue;
             }
@@ -760,6 +761,17 @@ final class CompoundFileBinary
         }
 
         return [$entries, $byName];
+    }
+
+    private static function validateUnallocatedDirectoryEntry(string $entryBytes): void
+    {
+        $expected = str_repeat("\0", 128);
+        $expected = substr_replace($expected, pack('V', self::FREESECT), 68, 4);
+        $expected = substr_replace($expected, pack('V', self::FREESECT), 72, 4);
+        $expected = substr_replace($expected, pack('V', self::FREESECT), 76, 4);
+        if ($entryBytes !== $expected) {
+            throw new \RuntimeException('CFB unallocated directory entry must be zeroed except NOSTREAM sibling pointers');
+        }
     }
 
     /**

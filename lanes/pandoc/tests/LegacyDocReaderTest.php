@@ -121,6 +121,24 @@ $padTo = static function (string $bytes, int $size): string {
 
     return $remainder === 0 ? $bytes : $bytes . str_repeat("\0", $size - $remainder);
 };
+$unallocatedDirectoryEntry = static function () use ($u32): string {
+    return str_repeat("\0", 68)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . str_repeat("\0", 48);
+};
+$padDirectoryEntries = static function (string $directory, int $sectorSize) use ($unallocatedDirectoryEntry): string {
+    if ((strlen($directory) % 128) !== 0) {
+        throw new RuntimeException('CFB test directory entries must be 128-byte aligned');
+    }
+
+    while ((strlen($directory) % $sectorSize) !== 0) {
+        $directory .= $unallocatedDirectoryEntry();
+    }
+
+    return $directory;
+};
 $directoryNameSortUnits = static function (string $name) use ($utf16le): array {
     $upper = function_exists('mb_strtoupper') ? mb_strtoupper($name, 'UTF-8') : strtoupper($name);
     $bytes = $utf16le($upper);
@@ -184,7 +202,7 @@ $directoryEntry = static function (
         . $u64($size);
 };
 
-$buildCfb = static function (array $streams, bool $useMiniStreams = true, array $directoryMetadata = [], array $options = []) use ($u16, $u32, $directoryEntry, $padTo, $compareCfbDirectoryNames): string {
+$buildCfb = static function (array $streams, bool $useMiniStreams = true, array $directoryMetadata = [], array $options = []) use ($u16, $u32, $directoryEntry, $padTo, $padDirectoryEntries, $compareCfbDirectoryNames): string {
     $majorVersion = (int) ($options['majorVersion'] ?? 3);
     $sectorSize = $majorVersion === 4 ? 4096 : 512;
     $sectorShift = $majorVersion === 4 ? 12 : 9;
@@ -425,7 +443,7 @@ $buildCfb = static function (array $streams, bool $useMiniStreams = true, array 
             $nodeColors[$nodeIndex] ?? 1
         );
     }
-    $directoryChunks = str_split($padTo($directory, $sectorSize), $sectorSize);
+    $directoryChunks = str_split($padDirectoryEntries($directory, $sectorSize), $sectorSize);
     $previousDirectorySector = $directorySector;
     foreach ($directoryChunks as $index => $chunk) {
         if ($index === 0) {
@@ -2080,6 +2098,25 @@ return [
             'dirty stream name padding' => substr_replace($bytes, "\x01", $streamNamePaddingOffset, 1),
         ] as $corruptDocBytes) {
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
+    'rejects dirty unallocated CFB directory entries before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u16, $u32): void {
+        $wordDocument = $buildSimpleWordDocument("Unallocated directory guard packet\r");
+        $bytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+        ]);
+        $result = (new LegacyDocReader())->readBytes($bytes);
+        $t->same('Unallocated directory guard packet', $result['document']->children[0]->children[0]->attr('text'));
+
+        $directorySectorOffset = 512 + 512;
+        $unusedDirectoryEntryOffset = $directorySectorOffset + (2 * 128);
+        foreach ([
+            'dirty unallocated name bytes' => substr_replace($bytes, "X\0", $unusedDirectoryEntryOffset, 2),
+            'dirty unallocated name length' => substr_replace($bytes, $u16(2), $unusedDirectoryEntryOffset + 64, 2),
+            'zeroed unallocated left sibling pointer' => substr_replace($bytes, $u32(0), $unusedDirectoryEntryOffset + 68, 4),
+            'dirty unallocated start sector' => substr_replace($bytes, $u32(2), $unusedDirectoryEntryOffset + 116, 4),
+        ] as $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($corruptDocBytes));
         }
     },
     'rejects unsupported CFB minor versions before stream lookup' => static function (TestRunner $t) use ($buildCfb, $u16): void {

@@ -4614,6 +4614,10 @@ final class MarkdownReader
             return null;
         }
 
+        if ($this->yamlMetadataSchemaVersion === '1.2' && str_contains($trimmed, ':')) {
+            return null;
+        }
+
         $integer = $this->parseYamlExplicitIntegerScalar($trimmed);
         if (is_int($integer)) {
             return $integer;
