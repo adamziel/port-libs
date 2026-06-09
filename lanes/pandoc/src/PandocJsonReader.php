@@ -195,7 +195,7 @@ final class PandocJsonReader
             'MetaInlines' => ['type' => 'inlines', 'children' => $this->readInlines($this->listContent($content, 'MetaInlines'))],
             'MetaBlocks' => ['type' => 'blocks', 'children' => $this->readBlocks($this->listContent($content, 'MetaBlocks'))],
             'MetaList' => ['type' => 'list', 'items' => array_map(fn (mixed $item): mixed => $this->readMetaValue($item), $this->listContent($content, 'MetaList'))],
-            'MetaMap' => ['type' => 'map', 'items' => $this->readMetaMap($this->objectContent($content, 'MetaMap'))],
+            'MetaMap' => ['type' => 'map', 'items' => $this->readMetaMap($this->metaMapContent($content))],
             default => throw new \InvalidArgumentException("Unsupported Pandoc meta constructor: {$tag}"),
         };
     }
@@ -238,6 +238,24 @@ final class PandocJsonReader
         }
 
         throw new \InvalidArgumentException('Pandoc meta value must be a tagged object or JSON-compatible scalar, list, or object');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaMapContent(mixed $content): array
+    {
+        $map = $this->objectContent($content, 'MetaMap');
+        if (count($map) !== 1 || !array_key_exists('unMeta', $map) || $this->isTaggedObject($map['unMeta'])) {
+            return $map;
+        }
+
+        $unMeta = $map['unMeta'];
+        if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+            throw new \InvalidArgumentException('MetaMap legacy unMeta content must be an object');
+        }
+
+        return $unMeta;
     }
 
     /**

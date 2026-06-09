@@ -448,6 +448,67 @@ return [
         $t->same('MetadataStatus', $roundTripMeta['reviewRecord']['items']['t']);
         $t->same('literal-content-field', $roundTripMeta['filterRecord']['items']['c']);
     },
+    'reads legacy nested pandoc json MetaMap unMeta wrappers as compatible maps' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 17, 0, 4],
+            'meta' => [
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'unMeta' => [
+                        'queue' => ['t' => 'MetaString', 'c' => 'legacy-json-filter'],
+                        'flags' => ['t' => 'MetaList', 'c' => [
+                            ['t' => 'MetaString', 'c' => 'needs-review'],
+                            ['t' => 'MetaBool', 'c' => true],
+                        ]],
+                        'nested' => ['t' => 'MetaMap', 'c' => [
+                            'unMeta' => [
+                                'owner' => ['t' => 'MetaInlines', 'c' => [
+                                    ['t' => 'Str', 'c' => 'WordPress'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => 'review'],
+                                ]],
+                                'blocked' => ['t' => 'MetaBool', 'c' => false],
+                            ],
+                        ]],
+                    ],
+                ]],
+            ],
+            'blocks' => [],
+        ]);
+
+        $meta = $document->attr('meta');
+        $review = $meta['review'];
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded)->attr('meta')['review'];
+        $legacyTaggedPacket = $writer->toArray(new AstNode('document', [
+            'meta' => [
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'unMeta' => [
+                        'queue' => ['t' => 'MetaString', 'c' => 'writer-legacy-packet'],
+                    ],
+                ]],
+            ],
+        ]));
+
+        $t->same([1, 17, 0, 4], $document->attr('pandocApiVersion'));
+        $t->same('map', $review['type']);
+        $t->same('legacy-json-filter', $review['items']['queue']);
+        $t->same(['needs-review', true], $review['items']['flags']['items']);
+        $t->same('map', $review['items']['nested']['type']);
+        $t->same('inlines', $review['items']['nested']['items']['owner']['type']);
+        $t->same('review', $review['items']['nested']['items']['owner']['children'][2]->attr('text'));
+        $t->same(false, $review['items']['nested']['items']['blocked']);
+        $t->same('MetaMap', $encoded['meta']['review']['t']);
+        $t->true(!array_key_exists('unMeta', $encoded['meta']['review']['c']), 'Nested legacy MetaMap wrappers should re-emit as canonical map content');
+        $t->same('MetaString', $encoded['meta']['review']['c']['queue']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['c']['nested']['t']);
+        $t->true(!array_key_exists('unMeta', $encoded['meta']['review']['c']['nested']['c']), 'Nested MetaMap wrapper should be canonicalized');
+        $t->same('legacy-json-filter', $roundTrip['items']['queue']);
+        $t->same('MetaMap', $legacyTaggedPacket['meta']['review']['t']);
+        $t->true(!array_key_exists('unMeta', $legacyTaggedPacket['meta']['review']['c']), 'Pre-tagged writer metadata should canonicalize legacy MetaMap wrappers');
+        $t->same('writer-legacy-packet', $legacyTaggedPacket['meta']['review']['c']['queue']['c']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
