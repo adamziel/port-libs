@@ -7742,6 +7742,131 @@ return [
         $t->same('{"source":"deflate-provenance","target":"wordpress"}', $rawInspection['archive']->read('/packet/manifest.json'));
     },
 
+    'preflights deflate wrapper integrity before package handoff' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"deflate-wrapper-policy","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Deflate wrapper policy\n\nReady for metadata-only review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $zipBytes = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Deflate wrapper policy</w:p></w:body></w:document>',
+            ],
+        ])->bytes();
+        $zlibTar = DeflateStream::build($tarBytes, [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+        $rawTar = DeflateStream::build($tarBytes, [
+            'format' => DeflateStream::FORMAT_RAW,
+            'compressionLevel' => 9,
+        ]);
+        $zlibZip = DeflateStream::build($zipBytes, [
+            'format' => DeflateStream::FORMAT_ZLIB,
+            'compressionLevel' => 9,
+        ]);
+
+        $zlibPolicy = ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+            $zlibTar,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            strlen($tarBytes)
+        );
+        $rawPolicy = ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+            $rawTar,
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+            strlen($tarBytes)
+        );
+        $zlibZipPolicy = ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+            $zlibZip,
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('archive-deflate-wrapper-policy', $zlibPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_TAR, $zlibPolicy['format']);
+        $t->same('zlib', $zlibPolicy['wrapperKind']);
+        $t->same(strlen($zlibTar), $zlibPolicy['compressedSize']);
+        $t->same(strlen($zlibTar) - 6, $zlibPolicy['compressedPayloadSize']);
+        $t->same(strlen($tarBytes), $zlibPolicy['uncompressedSize']);
+        $t->same(1, $zlibPolicy['memberCount']);
+        $t->same(2, $zlibPolicy['headerSize']);
+        $t->same(2, $zlibPolicy['compressedPayloadOffset']);
+        $t->same(strlen($zlibTar) - 4, $zlibPolicy['trailerOffset']);
+        $t->same(4, $zlibPolicy['trailerSize']);
+        $t->same(strlen($zlibTar), $zlibPolicy['consumedBytes']);
+        $t->same(true, $zlibPolicy['checksumPresent']);
+        $t->same('adler32', $zlibPolicy['checksumAlgorithm']);
+        $t->same(intval(hash('adler32', $tarBytes), 16), $zlibPolicy['adler32']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $tarBytes), 16)), $zlibPolicy['adler32Hex']);
+        $t->same(32768, $zlibPolicy['windowSize']);
+        $t->same(8, $zlibPolicy['compressionMethod']);
+        $t->same('maximum', $zlibPolicy['compressionLevelHint']);
+        $t->same('within-thresholds', $zlibPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $zlibPolicy['extractionPolicy']);
+        $t->same([], $zlibPolicy['diagnostics']);
+        $t->same('zlib-deflate', $zlibPolicy['stream']['type']);
+        $t->same(false, isset($zlibPolicy['stream']['data']));
+        $t->same(false, array_key_exists('tarBytes', $zlibPolicy));
+        $t->same(false, array_key_exists('archive', $zlibPolicy));
+        $t->same(false, array_key_exists('package', $zlibPolicy));
+
+        $t->same('archive-deflate-wrapper-policy', $rawPolicy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR, $rawPolicy['format']);
+        $t->same('raw-deflate', $rawPolicy['wrapperKind']);
+        $t->same(strlen($rawTar), $rawPolicy['compressedSize']);
+        $t->same(strlen($rawTar), $rawPolicy['compressedPayloadSize']);
+        $t->same(strlen($tarBytes), $rawPolicy['uncompressedSize']);
+        $t->same(1, $rawPolicy['memberCount']);
+        $t->same(0, $rawPolicy['headerSize']);
+        $t->same(0, $rawPolicy['compressedPayloadOffset']);
+        $t->same(null, $rawPolicy['trailerOffset']);
+        $t->same(0, $rawPolicy['trailerSize']);
+        $t->same(strlen($rawTar), $rawPolicy['consumedBytes']);
+        $t->same(false, $rawPolicy['checksumPresent']);
+        $t->same(null, $rawPolicy['checksumAlgorithm']);
+        $t->same(null, $rawPolicy['adler32']);
+        $t->same(null, $rawPolicy['adler32Hex']);
+        $t->same(null, $rawPolicy['windowSize']);
+        $t->same(null, $rawPolicy['compressionMethod']);
+        $t->same(null, $rawPolicy['compressionLevelHint']);
+        $t->same('review-before-conversion', $rawPolicy['handoffPolicy']);
+        $t->same('raw-deflate-wrapper-integrity-review', $rawPolicy['extractionPolicy']);
+        $t->same(['raw-deflate-wrapper-integrity-missing'], $rawPolicy['diagnostics']);
+        $t->same('raw-deflate', $rawPolicy['stream']['type']);
+        $t->same(false, isset($rawPolicy['stream']['data']));
+        $t->same(false, array_key_exists('tarBytes', $rawPolicy));
+        $t->same(false, array_key_exists('archive', $rawPolicy));
+        $t->same(false, array_key_exists('package', $rawPolicy));
+
+        $t->same(ArchiveCompressionStream::FORMAT_ZLIB_ZIP, $zlibZipPolicy['format']);
+        $t->same('zlib', $zlibZipPolicy['wrapperKind']);
+        $t->same(strlen($zipBytes), $zlibZipPolicy['uncompressedSize']);
+        $t->same(true, $zlibZipPolicy['checksumPresent']);
+        $t->same(sprintf('%08x', intval(hash('adler32', $zipBytes), 16)), $zlibZipPolicy['adler32Hex']);
+        $t->same('metadata-only-no-extraction', $zlibZipPolicy['extractionPolicy']);
+        $t->same(false, isset($zlibZipPolicy['zipBytes']));
+        $t->same(false, isset($zlibZipPolicy['package']));
+
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+                $zlibTar,
+                ArchiveCompressionStream::FORMAT_GZIP_TAR
+            )
+        );
+    },
+
     'rejects malformed deflate streams and bounded decode overflows' => static function (TestRunner $t): void {
         $zlib = DeflateStream::build('review packet', [
             'format' => DeflateStream::FORMAT_ZLIB,

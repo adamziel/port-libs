@@ -5,6 +5,7 @@ declare(strict_types=1);
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Pandoc\ArchiveCompressionStream;
+use PortLibs\Pandoc\DeflateStream;
 use PortLibs\Pandoc\GzipStream;
 use PortLibs\Pandoc\Lz4Frame;
 use PortLibs\Pandoc\TarArchive;
@@ -403,6 +404,24 @@ $textHintPolicyGzip = GzipStream::build($archive->bytes(), [
 $textHintPolicyInspection = ArchiveCompressionStream::inspectGzipTextHintPolicy(
     $textHintPolicyGzip,
     ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($archive->bytes())
+);
+$deflateWrapperZlibStream = DeflateStream::build($archive->bytes(), [
+    'format' => DeflateStream::FORMAT_ZLIB,
+    'compressionLevel' => 9,
+]);
+$deflateWrapperRawStream = DeflateStream::build($archive->bytes(), [
+    'format' => DeflateStream::FORMAT_RAW,
+    'compressionLevel' => 9,
+]);
+$deflateWrapperZlibInspection = ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+    $deflateWrapperZlibStream,
+    ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+    strlen($archive->bytes())
+);
+$deflateWrapperRawInspection = ArchiveCompressionStream::inspectDeflateWrapperPolicy(
+    $deflateWrapperRawStream,
+    ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
     strlen($archive->bytes())
 );
 $gzipTimestampPolicySplitOffset = 512;
@@ -1851,6 +1870,17 @@ if (in_array('--self-test', $argv, true)) {
         'gzipTextHintBinaryCount' => 1,
         'gzipTextHintFilename' => 'wordpress-text-hint-review.tar',
         'gzipTextHintDiagnostics' => ['gzip-text-hint-binary-payload'],
+        'deflateWrapperZlibType' => 'archive-deflate-wrapper-policy',
+        'deflateWrapperZlibPolicy' => 'within-thresholds',
+        'deflateWrapperZlibExtractionPolicy' => 'metadata-only-no-extraction',
+        'deflateWrapperZlibAdler32Hex' => sprintf('%08x', intval(hash('adler32', $archive->bytes()), 16)),
+        'deflateWrapperZlibTrailerSize' => 4,
+        'deflateWrapperRawType' => 'archive-deflate-wrapper-policy',
+        'deflateWrapperRawPolicy' => 'review-before-conversion',
+        'deflateWrapperRawExtractionPolicy' => 'raw-deflate-wrapper-integrity-review',
+        'deflateWrapperRawDiagnostics' => ['raw-deflate-wrapper-integrity-missing'],
+        'deflateWrapperRawTrailerSize' => 0,
+        'deflateWrapperRawChecksumPresent' => false,
         'gzipTimestampPolicyType' => 'archive-gzip-timestamp-policy',
         'gzipTimestampPolicy' => 'review-before-conversion',
         'gzipTimestampExtractionPolicy' => 'metadata-only-no-extraction',
@@ -2445,6 +2475,26 @@ if (in_array('--self-test', $argv, true)) {
         || ($textHintPolicyInspection['members'][0]['policy'] ?? null) !== 'review'
         || ($textHintPolicyInspection['members'][0]['diagnostics'][0] ?? null) !== 'gzip-text-hint-binary-payload'
         || isset($textHintPolicyInspection['members'][0]['data'])
+        || $deflateWrapperZlibInspection['type'] !== $expected['deflateWrapperZlibType']
+        || $deflateWrapperZlibInspection['wrapperKind'] !== 'zlib'
+        || $deflateWrapperZlibInspection['handoffPolicy'] !== $expected['deflateWrapperZlibPolicy']
+        || $deflateWrapperZlibInspection['extractionPolicy'] !== $expected['deflateWrapperZlibExtractionPolicy']
+        || $deflateWrapperZlibInspection['checksumAlgorithm'] !== 'adler32'
+        || $deflateWrapperZlibInspection['adler32Hex'] !== $expected['deflateWrapperZlibAdler32Hex']
+        || $deflateWrapperZlibInspection['trailerSize'] !== $expected['deflateWrapperZlibTrailerSize']
+        || isset($deflateWrapperZlibInspection['archive'])
+        || isset($deflateWrapperZlibInspection['tarBytes'])
+        || isset($deflateWrapperZlibInspection['stream']['data'])
+        || $deflateWrapperRawInspection['type'] !== $expected['deflateWrapperRawType']
+        || $deflateWrapperRawInspection['wrapperKind'] !== 'raw-deflate'
+        || $deflateWrapperRawInspection['handoffPolicy'] !== $expected['deflateWrapperRawPolicy']
+        || $deflateWrapperRawInspection['extractionPolicy'] !== $expected['deflateWrapperRawExtractionPolicy']
+        || $deflateWrapperRawInspection['checksumPresent'] !== $expected['deflateWrapperRawChecksumPresent']
+        || $deflateWrapperRawInspection['trailerSize'] !== $expected['deflateWrapperRawTrailerSize']
+        || $deflateWrapperRawInspection['diagnostics'] !== $expected['deflateWrapperRawDiagnostics']
+        || isset($deflateWrapperRawInspection['archive'])
+        || isset($deflateWrapperRawInspection['tarBytes'])
+        || isset($deflateWrapperRawInspection['stream']['data'])
         || $gzipTimestampPolicyInspection['type'] !== $expected['gzipTimestampPolicyType']
         || $gzipTimestampPolicyInspection['handoffPolicy'] !== $expected['gzipTimestampPolicy']
         || $gzipTimestampPolicyInspection['extractionPolicy'] !== $expected['gzipTimestampExtractionPolicy']
@@ -3245,6 +3295,10 @@ echo 'gzipTextHint.handoffPolicy=' . $textHintPolicyInspection['handoffPolicy'] 
 echo 'gzipTextHint.binaryTextHintMemberCount=' . $textHintPolicyInspection['binaryTextHintMemberCount'] . "\n";
 echo 'gzipTextHint.filename=' . $textHintPolicyInspection['members'][0]['filename'] . "\n";
 echo 'gzipTextHint.diagnostics=' . implode(',', $textHintPolicyInspection['diagnostics']) . "\n";
+echo 'deflateWrapper.zlibPolicy=' . $deflateWrapperZlibInspection['handoffPolicy'] . "\n";
+echo 'deflateWrapper.zlibAdler32=' . $deflateWrapperZlibInspection['adler32Hex'] . "\n";
+echo 'deflateWrapper.rawPolicy=' . $deflateWrapperRawInspection['handoffPolicy'] . "\n";
+echo 'deflateWrapper.rawDiagnostics=' . implode(',', $deflateWrapperRawInspection['diagnostics']) . "\n";
 echo 'gzipTimestamp.handoffPolicy=' . $gzipTimestampPolicyInspection['handoffPolicy'] . "\n";
 echo 'gzipTimestamp.timestampedMemberCount=' . $gzipTimestampPolicyInspection['timestampedMemberCount'] . "\n";
 echo 'gzipTimestamp.unknownModifiedAtMemberCount=' . $gzipTimestampPolicyInspection['unknownModifiedAtMemberCount'] . "\n";

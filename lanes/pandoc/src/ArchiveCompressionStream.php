@@ -2423,6 +2423,80 @@ final class ArchiveCompressionStream
      * @return array{
      *     type:string,
      *     format:string,
+     *     wrapperKind:string,
+     *     compressedSize:int,
+     *     compressedPayloadSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     headerSize:int,
+     *     compressedPayloadOffset:int,
+     *     trailerOffset:?int,
+     *     trailerSize:int,
+     *     consumedBytes:int,
+     *     checksumPresent:bool,
+     *     checksumAlgorithm:?string,
+     *     adler32:?int,
+     *     adler32Hex:?string,
+     *     windowSize:?int,
+     *     compressionMethod:?int,
+     *     compressionLevelHint:?string,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectDeflateWrapperPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'Maximum uncompressed byte count');
+
+        $isZlib = $format === self::FORMAT_ZLIB_TAR || $format === self::FORMAT_ZLIB_ZIP;
+        $isRaw = $format === self::FORMAT_RAW_DEFLATE_TAR || $format === self::FORMAT_RAW_DEFLATE_ZIP;
+        if (!$isZlib && !$isRaw) {
+            throw new \RuntimeException("DEFLATE wrapper policy requires a zlib or raw-deflate archive stream format: {$format}");
+        }
+
+        $stream = $isZlib
+            ? self::zlibStreamInspection($bytes, $maxUncompressedBytes)
+            : self::rawDeflateStreamInspection($bytes, $maxUncompressedBytes);
+        $diagnostics = $isRaw ? ['raw-deflate-wrapper-integrity-missing'] : [];
+
+        return [
+            'type' => 'archive-deflate-wrapper-policy',
+            'format' => $format,
+            'wrapperKind' => $isZlib ? 'zlib' : 'raw-deflate',
+            'compressedSize' => strlen($bytes),
+            'compressedPayloadSize' => (int) $stream['compressedPayloadSize'],
+            'uncompressedSize' => (int) $stream['uncompressedSize'],
+            'memberCount' => (int) $stream['memberCount'],
+            'headerSize' => (int) $stream['headerSize'],
+            'compressedPayloadOffset' => (int) $stream['compressedPayloadOffset'],
+            'trailerOffset' => $stream['trailerOffset'] === null ? null : (int) $stream['trailerOffset'],
+            'trailerSize' => (int) $stream['trailerSize'],
+            'consumedBytes' => (int) $stream['consumedBytes'],
+            'checksumPresent' => $isZlib,
+            'checksumAlgorithm' => $isZlib ? 'adler32' : null,
+            'adler32' => $isZlib ? (int) $stream['adler32'] : null,
+            'adler32Hex' => $isZlib ? (string) $stream['adler32Hex'] : null,
+            'windowSize' => $isZlib ? (int) $stream['windowSize'] : null,
+            'compressionMethod' => $isZlib ? (int) $stream['compressionMethod'] : null,
+            'compressionLevelHint' => $isZlib ? (string) $stream['compressionLevelHint'] : null,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === []
+                ? 'metadata-only-no-extraction'
+                : 'raw-deflate-wrapper-integrity-review',
+            'diagnostics' => $diagnostics,
+            'stream' => $stream,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     format:string,
      *     sourceName:?string,
      *     candidateKind:?string,
      *     candidateFormat:?string,
