@@ -205,6 +205,9 @@ final class LegacyDocReader
     /** @var array<int,array<string,mixed>> */
     private array $activeFormFieldDataReferences = [];
 
+    /** @var list<array<string,mixed>> */
+    private array $activeInlineTextFormattingApplications = [];
+
     /**
      * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, formFieldDataReferences:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
@@ -517,6 +520,11 @@ final class LegacyDocReader
             }
         }
         $fileCharacterRanges = $this->textFileCharacterRanges($textResult, $fib);
+        $inlineTextFormattingApplications = $this->inlineTextFormattingApplications($formattingRuns, $fileCharacterRanges);
+        if ($inlineTextFormattingApplications !== []) {
+            $metadata['inlineTextFormattingApplicationCount'] = count($inlineTextFormattingApplications);
+            $metadata['inlineTextFormattingPolicy'] = 'semantic-inline-native-review';
+        }
         $formFieldDataReferences = $this->formFieldDataReferenceReport($fields, $formattingRuns, $dataStream, $fileCharacterRanges);
         if ($formFieldDataReferences !== []) {
             $metadata['formFieldDataReferenceCount'] = count($formFieldDataReferences);
@@ -583,6 +591,7 @@ final class LegacyDocReader
             'fields' => $fields,
             'fieldStories' => $fieldStories,
             'formFieldDataReferences' => $formFieldDataReferences,
+            'inlineTextFormattingApplications' => $inlineTextFormattingApplications,
             'embeddedObjects' => $embeddedObjects,
             'embeddedObjectReferences' => $embeddedObjectReferences,
             'pictureReferences' => $pictureReferences,
@@ -602,11 +611,13 @@ final class LegacyDocReader
         $previousListFormats = $this->activeListFormats;
         $previousListOverrides = $this->activeListOverrides;
         $previousFormFieldDataReferences = $this->activeFormFieldDataReferences;
+        $previousInlineTextFormattingApplications = $this->activeInlineTextFormattingApplications;
         $this->activeAssociatedStrings = $associatedStrings;
         $this->activeExternalFileReferences = $externalFileReferences;
         $this->activeListFormats = $listFormats;
         $this->activeListOverrides = $listOverrides;
         $this->activeFormFieldDataReferences = $this->formFieldDataReferencesByBeginCp($formFieldDataReferences);
+        $this->activeInlineTextFormattingApplications = $inlineTextFormattingApplications;
         try {
             $documentChildren = $this->paragraphNodes(
                 $textResult['text'],
@@ -621,6 +632,7 @@ final class LegacyDocReader
             $this->activeListFormats = $previousListFormats;
             $this->activeListOverrides = $previousListOverrides;
             $this->activeFormFieldDataReferences = $previousFormFieldDataReferences;
+            $this->activeInlineTextFormattingApplications = $previousInlineTextFormattingApplications;
         }
 
         return [
@@ -1592,7 +1604,7 @@ final class LegacyDocReader
             return $this->fieldAwareInlineNodes($text, $segmentStartCp);
         }
 
-        return $this->plainInlineNodes($text);
+        return $this->plainInlineNodes($text, $segmentStartCp);
     }
 
     /**
@@ -1602,7 +1614,7 @@ final class LegacyDocReader
     {
         $parts = preg_split('/([\x13\x14\x15])/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if (!is_array($parts)) {
-            return $this->plainInlineNodes($text);
+            return $this->plainInlineNodes($text, $segmentStartCp);
         }
 
         $nodes = [];
@@ -1666,14 +1678,14 @@ final class LegacyDocReader
             }
 
             if ($fieldStack === []) {
-                array_push($nodes, ...$this->plainInlineNodes($part));
+                array_push($nodes, ...$this->plainInlineNodes($part, $segmentStartCp + $localCp));
                 $localCp += $this->textCharacterLength($part);
                 continue;
             }
 
             $fieldIndex = count($fieldStack) - 1;
             if ($fieldStack[$fieldIndex]['collectingResult'] === true) {
-                array_push($fieldStack[$fieldIndex]['resultNodes'], ...$this->plainInlineNodes($part));
+                array_push($fieldStack[$fieldIndex]['resultNodes'], ...$this->plainInlineNodes($part, $segmentStartCp + $localCp));
                 $fieldStack[$fieldIndex]['resultText'] .= $part;
             } else {
                 $fieldStack[$fieldIndex]['instruction'] .= $part;
@@ -3423,7 +3435,7 @@ final class LegacyDocReader
     /**
      * @return list<AstNode>
      */
-    private function plainInlineNodes(string $text): array
+    private function plainInlineNodes(string $text, int $segmentStartCp = 0): array
     {
         $parts = preg_split('/(\x0b|\x0c)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if (!is_array($parts)) {
@@ -3431,19 +3443,120 @@ final class LegacyDocReader
         }
 
         $nodes = [];
+        $localCp = 0;
         foreach ($parts as $part) {
             if ($part === '') {
                 continue;
             }
+            $partLength = $this->textCharacterLength($part);
             if ($part === "\v" || $part === "\f") {
                 $nodes[] = new AstNode('linebreak');
+                $localCp += $partLength;
                 continue;
             }
 
             $clean = preg_replace('/[\x00-\x08\x0e-\x1f]/u', '', $part);
             if ($clean !== null && $clean !== '') {
-                $nodes[] = new AstNode('text', ['text' => $clean]);
+                array_push($nodes, ...$this->formattedPlainTextNodes($clean, $segmentStartCp + $localCp));
             }
+            $localCp += $partLength;
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function formattedPlainTextNodes(string $text, int $segmentStartCp): array
+    {
+        if ($this->activeInlineTextFormattingApplications === []) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $characters = $this->unicodeCharacters($text);
+        $segmentLength = count($characters);
+        if ($segmentLength === 0) {
+            return [];
+        }
+
+        $segmentEndCp = $segmentStartCp + $segmentLength;
+        $candidates = [];
+        foreach ($this->activeInlineTextFormattingApplications as $application) {
+            $nodeTypes = $application['nodeTypes'] ?? [];
+            if (!is_array($nodeTypes) || $nodeTypes === []) {
+                continue;
+            }
+
+            $startCp = max((int) ($application['cpStart'] ?? 0), $segmentStartCp);
+            $endCp = min((int) ($application['cpEnd'] ?? 0), $segmentEndCp);
+            if ($endCp <= $startCp) {
+                continue;
+            }
+
+            $candidates[] = [
+                'start' => $startCp - $segmentStartCp,
+                'end' => $endCp - $segmentStartCp,
+                'nodeTypes' => array_values(array_filter(
+                    array_map(static fn (mixed $nodeType): string => (string) $nodeType, $nodeTypes),
+                    static fn (string $nodeType): bool => in_array($nodeType, ['strong', 'emph', 'underline', 'strikeout', 'small_caps'], true)
+                )),
+            ];
+        }
+        if ($candidates === []) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        usort(
+            $candidates,
+            static function (array $left, array $right): int {
+                $start = ((int) $left['start']) <=> ((int) $right['start']);
+                if ($start !== 0) {
+                    return $start;
+                }
+
+                return ((int) $left['end']) <=> ((int) $right['end']);
+            }
+        );
+
+        $nodes = [];
+        $cursor = 0;
+        foreach ($candidates as $candidate) {
+            $start = (int) $candidate['start'];
+            $end = (int) $candidate['end'];
+            $nodeTypes = $candidate['nodeTypes'];
+            if (!is_array($nodeTypes) || $nodeTypes === [] || $start < $cursor || $end > $segmentLength) {
+                continue;
+            }
+            if ($start > $cursor) {
+                $nodes[] = new AstNode('text', [
+                    'text' => $this->charactersToString(array_slice($characters, $cursor, $start - $cursor)),
+                ]);
+            }
+
+            $slice = $this->charactersToString(array_slice($characters, $start, $end - $start));
+            array_push($nodes, ...$this->wrapInlineFormattingNodes([new AstNode('text', ['text' => $slice])], $nodeTypes));
+            $cursor = $end;
+        }
+
+        if ($cursor < $segmentLength) {
+            $nodes[] = new AstNode('text', [
+                'text' => $this->charactersToString(array_slice($characters, $cursor)),
+            ]);
+        }
+
+        return $nodes === [] ? [new AstNode('text', ['text' => $text])] : $nodes;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param list<string> $nodeTypes
+     * @return list<AstNode>
+     */
+    private function wrapInlineFormattingNodes(array $nodes, array $nodeTypes): array
+    {
+        foreach (array_reverse($nodeTypes) as $nodeType) {
+            $nodes = [new AstNode($nodeType, [], $nodes)];
         }
 
         return $nodes;
@@ -4174,6 +4287,118 @@ final class LegacyDocReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $formattingRuns
+     * @param list<array<string,int>> $fileCharacterRanges
+     * @return list<array<string,mixed>>
+     */
+    private function inlineTextFormattingApplications(array $formattingRuns, array $fileCharacterRanges): array
+    {
+        $applications = [];
+        foreach ($formattingRuns as $run) {
+            if (($run['kind'] ?? null) !== 'character' || !is_array($run['textProperties'] ?? null)) {
+                continue;
+            }
+
+            $nodeTypes = is_array($run['inlineFormattingNodeTypes'] ?? null)
+                ? array_values(array_map(static fn (mixed $nodeType): string => (string) $nodeType, $run['inlineFormattingNodeTypes']))
+                : $this->inlineFormattingNodeTypes($run['textProperties']);
+            if ($nodeTypes === []) {
+                continue;
+            }
+
+            $cpRange = $this->characterRangeForFileOffsets(
+                (int) ($run['startFc'] ?? -1),
+                (int) ($run['endFc'] ?? -1),
+                $fileCharacterRanges
+            );
+            if ($cpRange === null || $cpRange['cpEnd'] <= $cpRange['cpStart']) {
+                continue;
+            }
+
+            $sourceSprms = [];
+            foreach ($run['textProperties'] as $property) {
+                if (!is_array($property) || $this->inlineFormattingPropertyNodeType($property) === null) {
+                    continue;
+                }
+                if (isset($property['sourceSprm'])) {
+                    $sourceSprms[] = (string) $property['sourceSprm'];
+                }
+            }
+
+            $applications[] = [
+                'source' => 'ChpxFkp',
+                'formattingRunIndex' => (int) ($run['index'] ?? 0),
+                'cpStart' => $cpRange['cpStart'],
+                'cpEnd' => $cpRange['cpEnd'],
+                'nodeTypes' => $nodeTypes,
+                'sourceSprms' => array_values(array_unique($sourceSprms)),
+                'policy' => 'semantic-inline-native-review',
+            ];
+        }
+
+        usort(
+            $applications,
+            static function (array $left, array $right): int {
+                $start = ((int) $left['cpStart']) <=> ((int) $right['cpStart']);
+                if ($start !== 0) {
+                    return $start;
+                }
+
+                return ((int) $left['cpEnd']) <=> ((int) $right['cpEnd']);
+            }
+        );
+
+        return $applications;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $textProperties
+     * @return list<string>
+     */
+    private function inlineFormattingNodeTypes(array $textProperties): array
+    {
+        $nodeTypes = [];
+        foreach ($textProperties as $property) {
+            if (!is_array($property)) {
+                continue;
+            }
+
+            $nodeType = $this->inlineFormattingPropertyNodeType($property);
+            if ($nodeType !== null) {
+                $nodeTypes[] = $nodeType;
+            }
+        }
+
+        $ordered = [];
+        foreach (['strong', 'emph', 'underline', 'strikeout', 'small_caps'] as $nodeType) {
+            if (in_array($nodeType, $nodeTypes, true)) {
+                $ordered[] = $nodeType;
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param array<string,mixed> $property
+     */
+    private function inlineFormattingPropertyNodeType(array $property): ?string
+    {
+        if (($property['enabled'] ?? false) !== true) {
+            return null;
+        }
+
+        return match ((string) ($property['name'] ?? '')) {
+            'bold' => 'strong',
+            'italic' => 'emph',
+            'underline' => 'underline',
+            'strikethrough' => 'strikeout',
+            'small-caps' => 'small_caps',
+            default => null,
+        };
     }
 
     /**
@@ -9469,6 +9694,12 @@ final class LegacyDocReader
                         $run['textProperties'] = $textProperties;
                         $run['textPropertyCount'] = count($textProperties);
                         $run['textPropertyExtractionPolicy'] = 'metadata-only-native-review';
+                        $inlineFormattingNodeTypes = $this->inlineFormattingNodeTypes($textProperties);
+                        if ($inlineFormattingNodeTypes !== []) {
+                            $run['canApplyFormatting'] = true;
+                            $run['inlineFormattingNodeTypes'] = $inlineFormattingNodeTypes;
+                            $run['inlineFormattingPolicy'] = 'semantic-inline-native-review';
+                        }
                     }
                     $revisionMarks = $this->parseChpxRevisionMarks($grpprl, $revisionAuthors);
                     if ($revisionMarks !== []) {

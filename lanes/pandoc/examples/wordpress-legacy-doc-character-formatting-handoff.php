@@ -192,8 +192,14 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Legacy DOC character-formatting smoke missing ' . $sourceSprm);
         }
     }
-    if (!str_contains($blocks, '<p>Formatted review plain import</p>')) {
-        throw new RuntimeException('Legacy DOC character-formatting smoke missing imported WordPress text');
+    if (($result['metadata']['inlineTextFormattingApplicationCount'] ?? null) !== 1) {
+        throw new RuntimeException('Legacy DOC character-formatting smoke missing inline formatting application count');
+    }
+    if (($result['formattingRuns'][0]['inlineFormattingPolicy'] ?? null) !== 'semantic-inline-native-review') {
+        throw new RuntimeException('Legacy DOC character-formatting smoke missing semantic inline policy');
+    }
+    if (!str_contains($blocks, '<p><strong><em><u>Formatted review</u></em></strong> plain import</p>')) {
+        throw new RuntimeException('Legacy DOC character-formatting smoke missing semantic WordPress formatting');
     }
     foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $hidden) {
         if (str_contains($blocks, $hidden)) {

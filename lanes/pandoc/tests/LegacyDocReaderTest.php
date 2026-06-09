@@ -5742,7 +5742,7 @@ return [
         $t->contains('<p>Styled first</p>', $blocks);
         $t->contains('<p>Plain second</p>', $blocks);
     },
-    'preserves legacy DOC CHPX direct text formatting as metadata-only review state' => static function (TestRunner $t) use ($buildCfb, $buildDirectCharacterFormattingDocStreams): void {
+    'applies legacy DOC CHPX direct text formatting as semantic inline review nodes' => static function (TestRunner $t) use ($buildCfb, $buildDirectCharacterFormattingDocStreams): void {
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildDirectCharacterFormattingDocStreams()));
         $document = $result['document'];
         $runs = $result['formattingRuns'];
@@ -5763,6 +5763,9 @@ return [
         $t->same(768, $formatted['startFc']);
         $t->same(784, $formatted['endFc']);
         $t->same(16, $formatted['byteLength']);
+        $t->same(true, $formatted['canApplyFormatting']);
+        $t->same(['strong', 'emph', 'underline'], $formatted['inlineFormattingNodeTypes']);
+        $t->same('semantic-inline-native-review', $formatted['inlineFormattingPolicy']);
         $t->same(3, $formatted['textPropertyCount']);
         $t->same('metadata-only-native-review', $formatted['textPropertyExtractionPolicy']);
         $t->same([
@@ -5798,6 +5801,7 @@ return [
         $plain = $runs[1];
         $t->same(784, $plain['startFc']);
         $t->same(798, $plain['endFc']);
+        $t->same(false, $plain['canApplyFormatting']);
         $t->same(1, $plain['textPropertyCount']);
         $t->same([
             [
@@ -5811,8 +5815,15 @@ return [
             ],
         ], $plain['textProperties']);
 
-        $t->contains('<p>Formatted review plain import</p>', $blocks);
-        $t->contains('Formatted review plain import', $markdown);
+        $t->same(1, $metadata['inlineTextFormattingApplicationCount']);
+        $t->same('semantic-inline-native-review', $metadata['inlineTextFormattingPolicy']);
+        $t->same('strong', $document->children[0]->children[0]->type);
+        $t->same('emph', $document->children[0]->children[0]->children[0]->type);
+        $t->same('underline', $document->children[0]->children[0]->children[0]->children[0]->type);
+        $t->same('Formatted review', $document->children[0]->children[0]->children[0]->children[0]->children[0]->attr('text'));
+
+        $t->contains('<p><strong><em><u>Formatted review</u></em></strong> plain import</p>', $blocks);
+        $t->contains('***[Formatted review]{.underline}*** plain import', $markdown);
         foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
             $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
             $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');
