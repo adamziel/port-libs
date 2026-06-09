@@ -692,6 +692,26 @@ return [
         $t->contains('intent="row(left_double_bracket,x,right_double_bracket,plus,upper_left_corner,y,upper_right_corner)"', $accessibleMathml);
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\llbracket x \\right\\unknowncorner'));
     },
+    'converts bounded tex tortoise shell delimiters to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $plainMathml = $converter->texToMathMl('\\lbrbrak p_i \\rbrbrak + \\Lbrbrak q \\Rbrbrak', true);
+        $fencedMathml = $converter->texToMathMl('\\left\\lbrbrak p_i + m_i \\right\\rbrbrak + \\left\\Lbrbrak x/y \\right\\Rbrbrak');
+        $sizedMathml = $converter->texToMathMl('\\Bigl\\lbrbrak n \\Bigr\\rbrbrak + \\bigl\\Lbrbrak q \\bigr\\Rbrbrak');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\lbrbrak x \\rbrbrak + \\Lbrbrak y \\Rbrbrak');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $plainMathml);
+        $t->contains('<mo>〔</mo><msub><mi>p</mi><mi>i</mi></msub><mo>〕</mo><mo>+</mo><mo>〘</mo><mi>q</mi><mo>〙</mo>', $plainMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\lbrbrak p_i \\rbrbrak + \\Lbrbrak q \\Rbrbrak</annotation>', $plainMathml);
+        $t->true(!str_contains($plainMathml, '<mi>\\lbrbrak</mi>'));
+        $t->true(!str_contains($plainMathml, '<mi>\\Lbrbrak</mi>'));
+        $t->contains('<mo fence="true" stretchy="true">〔</mo><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">〕</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true">〘</mo><mi>x</mi><mo>/</mo><mi>y</mi><mo fence="true" stretchy="true">〙</mo>', $fencedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">〔</mo><mi>n</mi><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">〕</mo>', $sizedMathml);
+        $t->contains('<mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">〘</mo><mi>q</mi><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">〙</mo>', $sizedMathml);
+        $t->contains('alttext="left tortoise shell bracket x right tortoise shell bracket plus left white tortoise shell bracket y right white tortoise shell bracket"', $accessibleMathml);
+        $t->contains('intent="row(left_tortoise_shell_bracket,x,right_tortoise_shell_bracket,plus,left_white_tortoise_shell_bracket,y,right_white_tortoise_shell_bracket)"', $accessibleMathml);
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\left\\lbrbrak x \\right\\unknownbrbrak'));
+    },
     'converts bounded tex arrow group and moustache delimiters to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $arrowFenceMathml = $converter->texToMathMl('\\left\\uparrow x_i \\middle\\Updownarrow y_i \\right\\downarrow + \\Bigl\\Uparrow z \\Bigr\\Downarrow', true);

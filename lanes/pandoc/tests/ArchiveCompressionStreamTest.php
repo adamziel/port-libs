@@ -5408,6 +5408,125 @@ return [
         );
     },
 
+    'preflights zip local header metadata mismatches across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $documentXml = '<w:document><w:body><w:p>Local header metadata stream policy</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>Descriptor placeholder review</w:comment></w:comments>';
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+                'localCompressionMethod' => 0,
+                'localCrc32' => 0x12345678,
+                'localCompressedSize' => 1,
+                'localUncompressedSize' => 2,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'compressionMethod' => 8,
+                'descriptor' => true,
+                'localCrc32' => 1,
+            ],
+        ], 'local header metadata stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-local-header-metadata-mismatch.zip',
+                'comment' => 'ZIP local header metadata preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('local metadata mismatch reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(3, $inspection['totalEntryCount']);
+            $t->same(2, $inspection['mismatchedEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same([
+                'local-header-compression-method-mismatch',
+                'local-header-crc32-mismatch',
+                'local-header-compressed-size-mismatch',
+                'local-header-uncompressed-size-mismatch',
+                'local-header-data-descriptor-placeholders-not-zero',
+            ], $inspection['issues']);
+            $t->same([
+                'word/document.xml',
+                'word/comments.xml',
+            ], array_column($inspection['mismatchedEntries'], 'centralName'));
+            $t->same([
+                'local-header-compression-method-mismatch',
+                'local-header-crc32-mismatch',
+                'local-header-compressed-size-mismatch',
+                'local-header-uncompressed-size-mismatch',
+            ], $inspection['mismatchedEntries'][0]['issues']);
+            $t->same(8, $inspection['mismatchedEntries'][0]['centralCompressionMethod']);
+            $t->same(0, $inspection['mismatchedEntries'][0]['localCompressionMethod']);
+            $t->same((int) sprintf('%u', crc32($documentXml)), $inspection['mismatchedEntries'][0]['centralCrc32']);
+            $t->same(0x12345678, $inspection['mismatchedEntries'][0]['localCrc32']);
+            $t->same(strlen(gzdeflate($documentXml)), $inspection['mismatchedEntries'][0]['centralCompressedSize']);
+            $t->same(1, $inspection['mismatchedEntries'][0]['localCompressedSize']);
+            $t->same(strlen($documentXml), $inspection['mismatchedEntries'][0]['centralUncompressedSize']);
+            $t->same(2, $inspection['mismatchedEntries'][0]['localUncompressedSize']);
+            $t->same(true, $inspection['mismatchedEntries'][1]['usesDataDescriptor']);
+            $t->same(false, $inspection['mismatchedEntries'][1]['hasZeroLocalHeaderPlaceholders']);
+            $t->same(['local-header-data-descriptor-placeholders-not-zero'], $inspection['mismatchedEntries'][1]['issues']);
+            $t->same(1, $inspection['mismatchedEntries'][1]['localCrc32']);
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zipBytes));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-local-header-metadata-mismatch.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP local header metadata preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('local metadata mismatch reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
     'preflights encrypted zip package streams without exposing entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $utf8 = 0x0800;
         $winZipAesExtra = pack('vvv', 0x9901, 7, 2) . 'AE' . "\x03" . pack('v', 8);

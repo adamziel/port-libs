@@ -174,6 +174,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         $name = (string) $entry['name'];
         $data = (string) ($entry['data'] ?? '');
         $method = (int) ($entry['compressionMethod'] ?? 0);
+        $localMethod = (int) ($entry['localCompressionMethod'] ?? $method);
         $flags = (int) ($entry['flags'] ?? 0);
         $descriptor = (bool) ($entry['descriptor'] ?? false);
         if ($descriptor) {
@@ -198,7 +199,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             0x04034b50,
             20,
             $flags,
-            $method,
+            $localMethod,
             0,
             0,
             $localCrc32,
@@ -1146,6 +1147,47 @@ try {
 } catch (RuntimeException) {
     $localHeaderMismatchExtractionBlocked = true;
 }
+$localHeaderMetadataDocumentXml = '<w:document><w:body><w:p>Local header metadata archive stream review</w:p></w:body></w:document>';
+$localHeaderMetadataCommentsXml = '<w:comments><w:comment>Descriptor placeholder review</w:comment></w:comments>';
+$localHeaderMetadataZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => '[Content_Types].xml',
+        'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => 'word/document.xml',
+        'data' => $localHeaderMetadataDocumentXml,
+        'compressionMethod' => 8,
+        'localCompressionMethod' => 0,
+        'localCrc32' => 0x12345678,
+        'localCompressedSize' => 1,
+        'localUncompressedSize' => 2,
+    ],
+    [
+        'name' => 'word/comments.xml',
+        'data' => $localHeaderMetadataCommentsXml,
+        'compressionMethod' => 8,
+        'descriptor' => true,
+        'localCrc32' => 1,
+    ],
+], 'local header metadata stream review fixture');
+$localHeaderMetadataZipGzip = GzipStream::build($localHeaderMetadataZipBytes, [
+    'filename' => 'wordpress-local-header-metadata-mismatch.zip',
+    'comment' => 'ZIP local header metadata preflight fixture',
+    'headerCrc' => true,
+]);
+$localHeaderMetadataInspection = ArchiveCompressionStream::inspectZipLocalHeaderMetadataPolicy(
+    $localHeaderMetadataZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($localHeaderMetadataZipBytes)
+);
+$localHeaderMetadataExtractionBlocked = false;
+try {
+    ZipPackage::fromString($localHeaderMetadataZipBytes);
+} catch (RuntimeException) {
+    $localHeaderMetadataExtractionBlocked = true;
+}
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -1954,6 +1996,22 @@ if (in_array('--self-test', $argv, true)) {
         'zipLocalHeaderNameLocalFlags' => 0x0000,
         'zipLocalHeaderNameEncodings' => ['utf-8', 'cp437'],
         'zipLocalHeaderNameGzipFilename' => 'wordpress-local-header-name-mismatch.zip',
+        'zipLocalHeaderMetadataFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipLocalHeaderMetadataEntryCount' => 3,
+        'zipLocalHeaderMetadataMismatchCount' => 2,
+        'zipLocalHeaderMetadataSupportedByBoundedReader' => false,
+        'zipLocalHeaderMetadataIssues' => [
+            'local-header-compression-method-mismatch',
+            'local-header-crc32-mismatch',
+            'local-header-compressed-size-mismatch',
+            'local-header-uncompressed-size-mismatch',
+            'local-header-data-descriptor-placeholders-not-zero',
+        ],
+        'zipLocalHeaderMetadataNames' => ['word/document.xml', 'word/comments.xml'],
+        'zipLocalHeaderMetadataCentralMethod' => 8,
+        'zipLocalHeaderMetadataLocalMethod' => 0,
+        'zipLocalHeaderMetadataDescriptorPlaceholder' => false,
+        'zipLocalHeaderMetadataGzipFilename' => 'wordpress-local-header-metadata-mismatch.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -2592,6 +2650,21 @@ if (in_array('--self-test', $argv, true)) {
         || ($localHeaderMismatchInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderNameGzipFilename']
         || isset($localHeaderMismatchInspection['package'])
         || !$localHeaderMismatchExtractionBlocked
+        || $localHeaderMetadataInspection['format'] !== $expected['zipLocalHeaderMetadataFormat']
+        || $localHeaderMetadataInspection['zipBytes'] !== $localHeaderMetadataZipBytes
+        || $localHeaderMetadataInspection['packageByteSize'] !== strlen($localHeaderMetadataZipBytes)
+        || $localHeaderMetadataInspection['entryCount'] !== $expected['zipLocalHeaderMetadataEntryCount']
+        || $localHeaderMetadataInspection['totalEntryCount'] !== $expected['zipLocalHeaderMetadataEntryCount']
+        || $localHeaderMetadataInspection['mismatchedEntryCount'] !== $expected['zipLocalHeaderMetadataMismatchCount']
+        || $localHeaderMetadataInspection['isSupportedByBoundedReader'] !== $expected['zipLocalHeaderMetadataSupportedByBoundedReader']
+        || $localHeaderMetadataInspection['issues'] !== $expected['zipLocalHeaderMetadataIssues']
+        || array_column($localHeaderMetadataInspection['mismatchedEntries'], 'centralName') !== $expected['zipLocalHeaderMetadataNames']
+        || ($localHeaderMetadataInspection['mismatchedEntries'][0]['centralCompressionMethod'] ?? null) !== $expected['zipLocalHeaderMetadataCentralMethod']
+        || ($localHeaderMetadataInspection['mismatchedEntries'][0]['localCompressionMethod'] ?? null) !== $expected['zipLocalHeaderMetadataLocalMethod']
+        || ($localHeaderMetadataInspection['mismatchedEntries'][1]['hasZeroLocalHeaderPlaceholders'] ?? null) !== $expected['zipLocalHeaderMetadataDescriptorPlaceholder']
+        || ($localHeaderMetadataInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderMetadataGzipFilename']
+        || isset($localHeaderMetadataInspection['package'])
+        || !$localHeaderMetadataExtractionBlocked
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -3051,6 +3124,13 @@ echo 'zipLocalHeaderName.local=' . $localHeaderMismatchInspection['mismatchedEnt
 echo 'zipLocalHeaderName.issues=' . implode(',', $localHeaderMismatchInspection['issues']) . "\n";
 echo 'zipLocalHeaderName.gzipFilename=' . $localHeaderMismatchInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipLocalHeaderName.extractionBlocked=' . ($localHeaderMismatchExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipLocalHeaderMetadata.format=' . $localHeaderMetadataInspection['format'] . "\n";
+echo 'zipLocalHeaderMetadata.entryCount=' . $localHeaderMetadataInspection['entryCount'] . "\n";
+echo 'zipLocalHeaderMetadata.mismatchCount=' . $localHeaderMetadataInspection['mismatchedEntryCount'] . "\n";
+echo 'zipLocalHeaderMetadata.names=' . implode(',', array_column($localHeaderMetadataInspection['mismatchedEntries'], 'centralName')) . "\n";
+echo 'zipLocalHeaderMetadata.issues=' . implode(',', $localHeaderMetadataInspection['issues']) . "\n";
+echo 'zipLocalHeaderMetadata.gzipFilename=' . $localHeaderMetadataInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipLocalHeaderMetadata.extractionBlocked=' . ($localHeaderMetadataExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";
