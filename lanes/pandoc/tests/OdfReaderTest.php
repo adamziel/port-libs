@@ -4983,6 +4983,50 @@ XML;
         $t->contains('<span class="odf-field odf-field-creation-date" data-odf-field-type="creation-date" data-odf-field-date-value="2026-06-05" data-odf-field-metadata-source="meta.xml">2026-06-05</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-template-name" data-odf-field-type="template-name" data-odf-field-string-value="Templates/import-review.ott" data-odf-field-metadata-source="meta.xml">Templates/import-review.ott</span>', $blocksHtml);
     },
+    'maps empty ODT creation time fields from meta creation timestamps' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithEmptyCreationTimeField = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Created at <text:creation-time/> from package metadata.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $metaWithCreationTimestamp = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:creation-date>2026-06-05T09:30:15Z</meta:creation-date>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithEmptyCreationTimeField, null, null, $metaWithCreationTimestamp));
+        $paragraph = $result['document']->children[0];
+        $creationTime = $paragraph->children[1];
+
+        $t->same('Created at PT09H30M15S from package metadata.', $paragraph->attr('text'));
+        $t->same('creation-time', $creationTime->attr('fieldType'));
+        $t->same('PT09H30M15S', $creationTime->attr('fieldMetadata')['timeValue']);
+        $t->same('meta.xml', $creationTime->attr('fieldMetadata')['metadataSource']);
+        $t->same('PT09H30M15S', $creationTime->attr('attributes')['data-odf-field-time-value']);
+        $t->same('meta.xml', $creationTime->attr('attributes')['data-odf-field-metadata-source']);
+        $t->same('PT09H30M15S', $creationTime->children[0]->attr('text'));
+        $t->same('2026-06-05T09:30:15Z', $result['metadata']['created']);
+        $t->same('PT09H30M15S', $result['metadata']['creationTime']);
+        $t->same('PT09H30M15S', $result['importReport']['metadata']['creationTime']);
+        $t->same(1, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[PT09H30M15S]{.odf-field .odf-field-creation-time data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M15S" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M15S" data-odf-field-metadata-source="meta.xml">PT09H30M15S</span>', $blocksHtml);
+    },
     'maps ODT template and line number fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTemplateAndLineFields = <<<'XML'
 <office:document-content

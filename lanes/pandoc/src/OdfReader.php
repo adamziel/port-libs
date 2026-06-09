@@ -533,7 +533,12 @@ final class OdfReader
                 continue;
             }
             if ($child->localName === 'creation-date') {
-                $metadata['created'] = self::normalizedText($child);
+                $created = self::normalizedText($child);
+                $metadata['created'] = $created;
+                $creationTime = self::odfTimeDurationFromDateTime($created);
+                if ($creationTime !== null) {
+                    $metadata['creationTime'] = $creationTime;
+                }
                 continue;
             }
             if ($child->localName === 'editing-cycles') {
@@ -6061,6 +6066,7 @@ final class OdfReader
                 'author-name' => $this->fieldStringMetadata('creator'),
                 'initial-creator' => $this->fieldStringMetadata('initialCreator'),
                 'creation-date' => $this->fieldDateMetadata('created'),
+                'creation-time' => $this->fieldTimeMetadata('creationTime'),
                 'modification-date' => $this->fieldDateMetadata('modificationDate'),
                 'modification-time' => $this->fieldTimeMetadata('modificationTime'),
                 'printed-by' => $this->fieldStringMetadata('printedBy'),
@@ -9593,6 +9599,20 @@ final class OdfReader
             static fn (array $match): string => strtoupper($match[1]),
             $name
         ) ?? $name;
+    }
+
+    private static function odfTimeDurationFromDateTime(string $value): ?string
+    {
+        if (preg_match('/T(\d{2}):(\d{2})(?::(\d{2})(?:[.,]\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/', trim($value), $match) !== 1) {
+            return null;
+        }
+
+        return sprintf(
+            'PT%02dH%02dM%02dS',
+            (int) $match[1],
+            (int) $match[2],
+            isset($match[3]) && $match[3] !== '' ? (int) $match[3] : 0
+        );
     }
 
     private static function kebabCase(string $name): string

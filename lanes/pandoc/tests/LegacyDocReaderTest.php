@@ -2254,6 +2254,25 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects nonzero CFB transaction signatures before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
+        $wordDocument = $buildSimpleWordDocument("Transaction signature guard packet\r");
+        $bytes = $buildCfb([
+            'WordDocument' => $wordDocument,
+        ]);
+
+        $t->same($wordDocument, CompoundFileBinary::fromBytes($bytes)->readStream('WordDocument'));
+
+        $transactionalHeader = substr_replace($bytes, $u32(0x12345678), 52, 4);
+        try {
+            CompoundFileBinary::fromBytes($transactionalHeader);
+
+            throw new RuntimeException('Expected nonzero CFB transaction signature preflight to fail');
+        } catch (RuntimeException $exception) {
+            $t->contains('transaction signature number must be zero', $exception->getMessage());
+        }
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($transactionalHeader));
+    },
     'rejects CFB FAT entries beyond the physical file before stream lookup' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => $buildSimpleWordDocument("FAT EOF guard packet\r"),

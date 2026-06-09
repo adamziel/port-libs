@@ -2238,6 +2238,26 @@ $serializedRelationships->add(new OpcRelationship(
 ));
 $serializedRelationshipXml = $serializedRelationships->toXml();
 $serializedRelationshipRoundTrip = OpcRelationships::fromXml($serializedRelationshipXml, '/word/document.xml');
+$serializedInternalTargetRejections = [];
+foreach ([
+    'encodedSlash' => 'media%2Fhidden.png',
+    'encodedDotSegment' => 'media/%2E%2E/styles.xml',
+    'encodedBackslash' => 'media%5Chidden.png',
+    'rootFragment' => '#package-fragment',
+] as $label => $target) {
+    try {
+        $guardRelationships = new OpcRelationships($label === 'rootFragment' ? '/' : '/word/document.xml');
+        $guardRelationships->add(new OpcRelationship(
+            'rId' . ucfirst($label),
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            $target
+        ));
+        $guardRelationships->toXml();
+        $serializedInternalTargetRejections[$label] = false;
+    } catch (InvalidArgumentException) {
+        $serializedInternalTargetRejections[$label] = true;
+    }
+}
 $relationshipSerializationGuard = [
     'xmlContainsEscapedInternalTarget' => str_contains($serializedRelationshipXml, 'Target="media/review%20source%20%C3%A9preuve.png#crop"'),
     'xmlOmitsRawInternalSpace' => !str_contains($serializedRelationshipXml, 'Target="media/review source '),
@@ -2246,6 +2266,7 @@ $relationshipSerializationGuard = [
     'xmlKeepsExternalTargetMode' => str_contains($serializedRelationshipXml, 'TargetMode="External"'),
     'roundTripInternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedReview'),
     'roundTripExternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedExternal'),
+    'internalTargetRejections' => $serializedInternalTargetRejections,
 ];
 
 $summary = [
@@ -3169,6 +3190,12 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['integrity']['relationshipSerializationGuard']['xmlKeepsExternalTargetMode'] ?? null) !== true
         || ($summary['integrity']['relationshipSerializationGuard']['roundTripInternalTarget'] ?? null) !== "/word/media/review source \u{00E9}preuve.png#crop"
         || ($summary['integrity']['relationshipSerializationGuard']['roundTripExternalTarget'] ?? null) !== 'https://example.test/source.html?post=42&action=edit'
+        || ($summary['integrity']['relationshipSerializationGuard']['internalTargetRejections'] ?? null) !== [
+            'encodedSlash' => true,
+            'encodedDotSegment' => true,
+            'encodedBackslash' => true,
+            'rootFragment' => true,
+        ]
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
             '/word/_rels/review source.xml.rels',

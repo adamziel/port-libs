@@ -29,7 +29,7 @@ $contentXml = <<<'XML'
   xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
   <office:body>
     <office:text>
-      <text:p>Source metadata <text:title/> by <text:author-name/> tagged <text:keywords/> custom <text:user-defined text:name="wp-source-id"/> approved <text:user-defined text:name="approved"/>.</text:p>
+      <text:p>Source metadata <text:title/> by <text:author-name/> created at <text:creation-time/> tagged <text:keywords/> custom <text:user-defined text:name="wp-source-id"/> approved <text:user-defined text:name="approved"/>.</text:p>
     </office:text>
   </office:body>
 </office:document-content>
@@ -43,6 +43,7 @@ $metaXml = <<<'XML'
   <office:meta>
     <dc:title>WordPress ODT source packet</dc:title>
     <dc:creator>Migration Desk</dc:creator>
+    <meta:creation-date>2026-06-05T09:30:15Z</meta:creation-date>
     <meta:keyword>odt</meta:keyword>
     <meta:keyword>metadata</meta:keyword>
     <meta:user-defined meta:name="wp-source-id" meta:value-type="string">packet-42</meta:user-defined>
@@ -66,7 +67,10 @@ if (in_array('--self-test', $argv, true)) {
     if (($result['metadata']['title'] ?? '') !== 'WordPress ODT source packet') {
         throw new RuntimeException('Expected ODT meta.xml title to be parsed');
     }
-    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 5) {
+    if (($result['metadata']['creationTime'] ?? '') !== 'PT09H30M15S') {
+        throw new RuntimeException('Expected ODT meta.xml creation timestamp to feed creation-time fields');
+    }
+    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 6) {
         throw new RuntimeException('Expected empty ODT metadata fields to be counted after fallback');
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-title" data-odf-field-type="title" data-odf-field-string-value="WordPress ODT source packet" data-odf-field-metadata-source="meta.xml">WordPress ODT source packet</span>')) {
@@ -74,6 +78,9 @@ if (in_array('--self-test', $argv, true)) {
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-user-defined" data-odf-field-type="user-defined" data-odf-field-name="approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true" data-odf-field-metadata-source="meta.xml">true</span>')) {
         throw new RuntimeException('Expected typed user-defined metadata field to render from meta.xml');
+    }
+    if (!str_contains($blocks, '<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M15S" data-odf-field-metadata-source="meta.xml">PT09H30M15S</span>')) {
+        throw new RuntimeException('Expected empty creation-time field to render from meta.xml creation timestamp');
     }
 
     echo "odf metadata field handoff self-test ok\n";

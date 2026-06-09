@@ -9315,6 +9315,29 @@ XML;
         $bad->add(new OpcRelationship('rIdBadEscape', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 'media/source%ZZ.png'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $bad->toXml());
     },
+    'rejects non round trippable OPC internal relationship targets during XML serialization' => static function (TestRunner $t): void {
+        foreach ([
+            'rIdEncodedSlash' => 'media%2Fhidden.png',
+            'rIdEncodedDotSegment' => 'media/%2E%2E/styles.xml',
+            'rIdEncodedBackslash' => 'media%5Chidden.png',
+            'rIdEncodedNul' => 'media%00hidden.png',
+            'rIdTrailingDotSegment' => 'media/trailing./image.png',
+            'rIdTraversal' => '../../evil.xml',
+            'rIdAuthority' => '//cdn.example.test/review.png',
+        ] as $id => $target) {
+            $unsafe = new OpcRelationships('/word/document.xml');
+            $unsafe->add(new OpcRelationship($id, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $target));
+            $t->throws(\InvalidArgumentException::class, static fn (): string => $unsafe->toXml());
+        }
+
+        $rootFragment = new OpcRelationships('/');
+        $rootFragment->add(new OpcRelationship('rIdRootFragment', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', '#root-fragment'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $rootFragment->toXml());
+
+        $rootQuery = new OpcRelationships('/');
+        $rootQuery->add(new OpcRelationship('rIdRootQuery', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml', '?review=packet'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $rootQuery->toXml());
+    },
     'rejects malformed OPC relationships and unsafe internal targets' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml('<Relationships xmlns="urn:bad"/>'));
         $t->throws(\InvalidArgumentException::class, static fn (): OpcRelationships => OpcRelationships::fromXml('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rId1" Type="t" Target="a.xml"/><Relationship Id="rId1" Type="t" Target="b.xml"/></Relationships>'));

@@ -215,7 +215,7 @@ final class OpcRelationships
             $element = $dom->createElementNS(self::NAMESPACE_URI, 'Relationship');
             $element->setAttribute('Id', $relationship->id);
             $element->setAttribute('Type', $relationship->type);
-            $element->setAttribute('Target', self::targetForXmlAttribute($relationship));
+            $element->setAttribute('Target', self::targetForXmlAttribute($relationship, $this->sourcePartName));
             if ($relationship->targetMode !== OpcRelationship::TARGET_MODE_INTERNAL) {
                 $element->setAttribute('TargetMode', $relationship->targetMode);
             }
@@ -442,7 +442,7 @@ final class OpcRelationships
         }
     }
 
-    private static function targetForXmlAttribute(OpcRelationship $relationship): string
+    private static function targetForXmlAttribute(OpcRelationship $relationship, string $sourcePartName): string
     {
         if ($relationship->isExternal()) {
             return $relationship->target;
@@ -452,10 +452,15 @@ final class OpcRelationships
         $path = substr($relationship->target, 0, $split);
         $suffix = substr($relationship->target, $split);
         if ($path === '') {
+            self::assertSerializableInternalTarget($relationship->target, $sourcePartName);
+
             return $relationship->target;
         }
 
-        return self::encodeInternalTargetPath($path) . $suffix;
+        $target = self::encodeInternalTargetPath($path) . $suffix;
+        self::assertSerializableInternalTarget($target, $sourcePartName);
+
+        return $target;
     }
 
     private static function encodeInternalTargetPath(string $path): string
@@ -490,5 +495,19 @@ final class OpcRelationships
         }
 
         return $encoded;
+    }
+
+    private static function assertSerializableInternalTarget(string $target, string $sourcePartName): void
+    {
+        try {
+            OpcPackagePath::resolveInternalTarget($sourcePartName, $target);
+        } catch (\InvalidArgumentException $exception) {
+            throw new \InvalidArgumentException(
+                'OPC relationship target cannot be serialized as a valid internal URI reference: '
+                . $exception->getMessage(),
+                0,
+                $exception
+            );
+        }
     }
 }

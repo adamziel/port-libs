@@ -3184,6 +3184,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'version 3 CFB directory-sector count' => substr_replace($docBytes, $u32(1), 40, 4),
         'non-null CFB header CLSID' => substr_replace($docBytes, "\x01", 8, 1),
         'nonzero CFB header reserved bytes' => substr_replace($docBytes, "\x01\0\0\0\0\0", 34, 6),
+        'nonzero CFB transaction signature' => substr_replace($docBytes, $u32(0x12345678), 52, 4),
         'trailing CFB partial sector' => $docBytes . "\0",
         'invalid CFB mini stream cutoff' => substr_replace($docBytes, $u32(2048), 56, 4),
         'CFB MiniFAT start sector without MiniFAT count' => substr_replace($docBytes, $u32(0), 64, 4),

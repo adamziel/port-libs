@@ -105,6 +105,7 @@ final class CompoundFileBinary
         $directorySectorCount = self::u32($bytes, 40);
         $fatSectorCount = self::u32($bytes, 44);
         $firstDirectorySector = self::u32($bytes, 48);
+        $transactionSignature = self::u32($bytes, 52);
         $miniStreamCutoff = self::u32($bytes, 56);
         $firstMiniFatSector = self::u32($bytes, 60);
         $miniFatSectorCount = self::u32($bytes, 64);
@@ -112,6 +113,9 @@ final class CompoundFileBinary
         $difatSectorCount = self::u32($bytes, 72);
         if ($majorVersion === 3 && $directorySectorCount !== 0) {
             throw new \RuntimeException('CFB version 3 files must not declare directory sectors in the header');
+        }
+        if ($transactionSignature !== 0) {
+            throw new \RuntimeException('CFB transaction signature number must be zero');
         }
         if ($miniStreamCutoff !== 4096) {
             throw new \RuntimeException('CFB mini stream cutoff size must be 4096 bytes');
