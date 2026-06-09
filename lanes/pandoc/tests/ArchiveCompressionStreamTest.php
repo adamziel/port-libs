@@ -6514,6 +6514,107 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectPackageStreamAuto($zstandardZipUpload));
     },
 
+    'preflights unsupported compression source fingerprints without exposing payload bytes' => static function (TestRunner $t): void {
+        $xzZipUpload = "\xfd" . '7zXZ' . "\0" . "\0\x04" . "\0\0\0\0"
+            . 'compressed zip payload bytes stay fingerprinted but opaque';
+        $zstandardTarUpload = "\x28\xb5\x2f\xfd" . "\x20"
+            . 'compressed tar payload bytes stay fingerprinted but opaque';
+
+        $xzPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $xzZipUpload,
+            'wordpress-documents.zip.xz'
+        );
+        $mismatchPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            $zstandardTarUpload,
+            'wrong-extension.tar.xz'
+        );
+        $nameOnlyPolicy = ArchiveCompressionStream::inspectUnsupportedCompressionStreamPolicy(
+            '',
+            'offline-review-packet.tzst'
+        );
+
+        $outerTar = TarArchive::fromEntries([
+            [
+                'name' => 'packet/content.md',
+                'data' => "# Unsupported source fingerprint packet\n\nReady for WordPress review.\n",
+            ],
+            [
+                'name' => 'packet/nested/source.zip.xz',
+                'data' => $xzZipUpload,
+            ],
+        ]);
+        $upload = GzipStream::build($outerTar->bytes(), [
+            'filename' => 'wordpress-unsupported-source-fingerprint.tar',
+            'comment' => 'unsupported compression source fingerprint preflight',
+        ]);
+        $nestedPolicy = ArchiveCompressionStream::inspectNestedPackageStreamsAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            1
+        );
+        $nestedBombPolicy = ArchiveCompressionStream::inspectNestedArchiveBombPolicyAuto(
+            $upload,
+            strlen($outerTar->bytes()),
+            strlen($outerTar->bytes()),
+            1
+        );
+
+        $nestedEntry = $nestedPolicy['entries'][0];
+        $nestedBombEntry = $nestedBombPolicy['entries'][0];
+
+        $t->same('unsupported-archive-compression-stream', $xzPolicy['type']);
+        $t->same(true, $xzPolicy['sourceNameCandidate']);
+        $t->same('extension:unsupported-xz-zip', $xzPolicy['sourceNameReason']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $xzPolicy['sourceNameKind']);
+        $t->same('xz', $xzPolicy['sourceNameFormat']);
+        $t->same('xz-zip', $xzPolicy['sourceNameCandidateFormat']);
+        $t->same('xz', $xzPolicy['signatureFormat']);
+        $t->same(false, $xzPolicy['signatureSourceNameMismatch']);
+        $t->same(hash('sha256', $xzZipUpload), $xzPolicy['payloadSha256']);
+        $t->same(32, $xzPolicy['payloadPreviewBytes']);
+        $t->true(str_starts_with($xzPolicy['payloadPreview'], '\\xfd7zXZ\\x00\\x00\\x04'));
+        $t->same(false, isset($xzPolicy['data']));
+        $t->same(false, isset($xzPolicy['zipBytes']));
+
+        $t->same('zstandard', $mismatchPolicy['format']);
+        $t->same('zstandard-tar', $mismatchPolicy['candidateFormat']);
+        $t->same('extension:unsupported-xz-tar', $mismatchPolicy['sourceNameReason']);
+        $t->same('xz', $mismatchPolicy['sourceNameFormat']);
+        $t->same('xz-tar', $mismatchPolicy['sourceNameCandidateFormat']);
+        $t->same('zstandard', $mismatchPolicy['signatureFormat']);
+        $t->same(true, $mismatchPolicy['signatureSourceNameMismatch']);
+        $t->same('archive-compression-signature-source-name-mismatch', $mismatchPolicy['diagnostics'][4] ?? null);
+
+        $t->same(true, $nameOnlyPolicy['sourceNameCandidate']);
+        $t->same('extension:unsupported-zstandard-tar', $nameOnlyPolicy['sourceNameReason']);
+        $t->same('zstandard', $nameOnlyPolicy['sourceNameFormat']);
+        $t->same(null, $nameOnlyPolicy['signatureFormat']);
+        $t->same(false, $nameOnlyPolicy['signatureSourceNameMismatch']);
+        $t->same(hash('sha256', ''), $nameOnlyPolicy['payloadSha256']);
+        $t->same(0, $nameOnlyPolicy['payloadPreviewBytes']);
+        $t->same('', $nameOnlyPolicy['payloadPreview']);
+
+        $t->same(1, $nestedPolicy['unsupportedCompressionCount']);
+        $t->same('unsupported-compression', $nestedEntry['status']);
+        $t->same('packet/nested/source.zip.xz', $nestedEntry['path']);
+        $t->same(hash('sha256', $xzZipUpload), $nestedEntry['payloadSha256']);
+        $t->same('extension:unsupported-xz-zip', $nestedEntry['sourceNameReason']);
+        $t->same('xz-zip', $nestedEntry['sourceNameCandidateFormat']);
+        $t->same('xz', $nestedEntry['signatureFormat']);
+        $t->same(false, $nestedEntry['signatureSourceNameMismatch']);
+        $t->same(false, isset($nestedEntry['data']));
+        $t->same(false, isset($nestedEntry['package']));
+
+        $t->same(1, $nestedBombPolicy['nestedUnsupportedCompressionCount']);
+        $t->same('unsupported-compression', $nestedBombEntry['status']);
+        $t->same(hash('sha256', $xzZipUpload), $nestedBombEntry['payloadSha256']);
+        $t->same(32, $nestedBombEntry['payloadPreviewBytes']);
+        $t->same('extension:unsupported-xz-zip', $nestedBombEntry['sourceNameReason']);
+        $t->same(false, isset($nestedBombEntry['data']));
+        $t->same(false, isset($nestedBombEntry['package']));
+    },
+
     'auto-detects bounded zip package fixture compression streams' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             [

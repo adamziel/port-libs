@@ -2265,6 +2265,8 @@ if (in_array('--self-test', $argv, true)) {
         'nestedBrokenPath' => 'packet/nested/broken.zip',
         'nestedUnsupportedXzPath' => 'packet/nested/source.tar.xz',
         'nestedUnsupportedZstandardPath' => 'packet/nested/export.docx.zst',
+        'nestedUnsupportedXzSourceNameReason' => 'extension:unsupported-xz-tar',
+        'nestedUnsupportedXzPayloadSha256' => hash('sha256', $nestedUnsupportedXzTarBytes),
         'nestedDepthOneCandidateCount' => 5,
         'nestedDepthOnePackageCount' => 2,
         'nestedDepthOneUnsupportedCompressionCount' => 2,
@@ -2301,12 +2303,16 @@ if (in_array('--self-test', $argv, true)) {
         'unsupportedXzKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'unsupportedXzCandidateFormat' => 'xz-zip',
         'unsupportedXzFlags' => '0004',
+        'unsupportedXzSourceNameReason' => 'extension:unsupported-xz-zip',
+        'unsupportedXzPayloadSha256' => hash('sha256', $unsupportedXzUpload),
+        'unsupportedXzPreviewPrefix' => '\\xfd7zXZ\\x00\\x00\\x04',
         'unsupportedZstandardFormat' => 'zstandard',
         'unsupportedZstandardKind' => ArchiveCompressionStream::PACKAGE_KIND_TAR,
         'unsupportedZstandardCandidateFormat' => 'zstandard-tar',
         'unsupportedZstandardFlags' => '20',
         'unsupportedZstandardOdtKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
         'unsupportedZstandardOdtCandidateFormat' => 'zstandard-zip',
+        'unsupportedZstandardOdtSourceNameReason' => 'extension:unsupported-zstandard-zip-package',
         'unsupportedPolicy' => 'unsupported-compression-stream-blocked',
         'compressedDocxSourceNameReason' => 'extension:gzip-zip-package',
         'compressedDocxExpectedKind' => ArchiveCompressionStream::PACKAGE_KIND_ZIP,
@@ -3024,6 +3030,8 @@ if (in_array('--self-test', $argv, true)) {
         || ($nestedInspection['entries'][4]['status'] ?? null) !== 'unsupported-compression'
         || ($nestedInspection['entries'][4]['candidateFormat'] ?? null) !== 'xz-tar'
         || ($nestedInspection['entries'][4]['extractionPolicy'] ?? null) !== 'unsupported-compression-stream-blocked'
+        || ($nestedInspection['entries'][4]['sourceNameReason'] ?? null) !== $expected['nestedUnsupportedXzSourceNameReason']
+        || ($nestedInspection['entries'][4]['payloadSha256'] ?? null) !== $expected['nestedUnsupportedXzPayloadSha256']
         || ($nestedInspection['entries'][5]['path'] ?? null) !== $expected['nestedUnsupportedZstandardPath']
         || ($nestedInspection['entries'][5]['status'] ?? null) !== 'unsupported-compression'
         || ($nestedInspection['entries'][5]['candidateFormat'] ?? null) !== 'zstandard-zip'
@@ -3068,6 +3076,9 @@ if (in_array('--self-test', $argv, true)) {
         || $unsupportedXzInspection['candidateKind'] !== $expected['unsupportedXzKind']
         || $unsupportedXzInspection['candidateFormat'] !== $expected['unsupportedXzCandidateFormat']
         || $unsupportedXzInspection['streamFlagsHex'] !== $expected['unsupportedXzFlags']
+        || $unsupportedXzInspection['sourceNameReason'] !== $expected['unsupportedXzSourceNameReason']
+        || $unsupportedXzInspection['payloadSha256'] !== $expected['unsupportedXzPayloadSha256']
+        || !str_starts_with($unsupportedXzInspection['payloadPreview'], $expected['unsupportedXzPreviewPrefix'])
         || $unsupportedXzInspection['extractionPolicy'] !== $expected['unsupportedPolicy']
         || ($unsupportedXzInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-xz-not-decoded'
         || $unsupportedZstandardInspection['format'] !== $expected['unsupportedZstandardFormat']
@@ -3078,6 +3089,7 @@ if (in_array('--self-test', $argv, true)) {
         || ($unsupportedZstandardInspection['diagnostics'][1] ?? null) !== 'archive-compression-format-zstandard-not-decoded'
         || $unsupportedZstandardOdtNameInspection['candidateKind'] !== $expected['unsupportedZstandardOdtKind']
         || $unsupportedZstandardOdtNameInspection['candidateFormat'] !== $expected['unsupportedZstandardOdtCandidateFormat']
+        || $unsupportedZstandardOdtNameInspection['sourceNameReason'] !== $expected['unsupportedZstandardOdtSourceNameReason']
         || $unsupportedZstandardOdtNameInspection['signatureMatched'] !== false
         || ($unsupportedZstandardOdtNameInspection['diagnostics'][4] ?? null) !== 'archive-compression-signature-unverified'
         || $compressedDocxSourceNamePolicyInspection['sourceName'] !== 'WORDPRESS-REVIEW.DOCX.GZ'
@@ -3433,6 +3445,7 @@ echo 'nested.diagnosticCount=' . $nestedInspection['diagnosticCount'] . "\n";
 echo 'nested.depthLimitReachedCount=' . $nestedInspection['depthLimitReachedCount'] . "\n";
 echo 'nested.depthLimitedCandidateCount=' . $nestedInspection['depthLimitedCandidateCount'] . "\n";
 echo 'nested.paths=' . implode(',', array_map(static fn (array $entry): string => $entry['path'], $nestedInspection['entries'])) . "\n";
+echo 'nested.unsupportedXz.sha256=' . ($nestedInspection['entries'][4]['payloadSha256'] ?? 'none') . "\n";
 echo 'nestedDepthOne.candidateCount=' . $nestedDepthLimitInspection['candidateCount'] . "\n";
 echo 'nestedDepthOne.unsupportedCompressionCount=' . $nestedDepthLimitInspection['unsupportedCompressionCount'] . "\n";
 echo 'nestedDepthOne.diagnosticCount=' . $nestedDepthLimitInspection['diagnosticCount'] . "\n";
@@ -3458,6 +3471,8 @@ echo 'unsupportedBzip2.extractionPolicy=' . $unsupportedBzip2Inspection['extract
 echo 'unsupportedBzip2.diagnostics=' . implode(',', $unsupportedBzip2Inspection['diagnostics']) . "\n";
 echo 'unsupportedXz.format=' . $unsupportedXzInspection['format'] . "\n";
 echo 'unsupportedXz.candidateFormat=' . $unsupportedXzInspection['candidateFormat'] . "\n";
+echo 'unsupportedXz.sourceNameReason=' . $unsupportedXzInspection['sourceNameReason'] . "\n";
+echo 'unsupportedXz.sha256=' . $unsupportedXzInspection['payloadSha256'] . "\n";
 echo 'unsupportedXz.extractionPolicy=' . $unsupportedXzInspection['extractionPolicy'] . "\n";
 echo 'unsupportedXz.diagnostics=' . implode(',', $unsupportedXzInspection['diagnostics']) . "\n";
 echo 'unsupportedZstandard.format=' . $unsupportedZstandardInspection['format'] . "\n";

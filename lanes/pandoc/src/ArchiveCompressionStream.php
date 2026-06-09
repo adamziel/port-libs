@@ -2426,7 +2426,17 @@ final class ArchiveCompressionStream
      *     sourceName:?string,
      *     candidateKind:?string,
      *     candidateFormat:?string,
+     *     sourceNameCandidate:bool,
+     *     sourceNameReason:?string,
+     *     sourceNameKind:?string,
+     *     sourceNameFormat:?string,
+     *     sourceNameCandidateFormat:?string,
+     *     signatureFormat:?string,
+     *     signatureSourceNameMismatch:bool,
      *     compressedSize:int,
+     *     payloadSha256:string,
+     *     payloadPreviewBytes:int,
+     *     payloadPreview:string,
      *     signatureMatched:bool,
      *     signatureName:?string,
      *     signatureBytesHex:?string,
@@ -2456,10 +2466,19 @@ final class ArchiveCompressionStream
             'archive-package-bytes-not-exposed',
         ];
 
+        $signatureSourceNameMismatch = $signature !== null
+            && $nameCandidate !== null
+            && $nameCandidate['format'] !== $signature['format'];
+
         if ($signature === null) {
             $diagnostics[] = 'archive-compression-signature-unverified';
-        } elseif ($nameCandidate !== null && $nameCandidate['format'] !== $signature['format']) {
+        } elseif ($signatureSourceNameMismatch) {
             $diagnostics[] = 'archive-compression-signature-source-name-mismatch';
+        }
+
+        $sourceNameCandidateFormat = null;
+        if ($nameCandidate !== null && $nameCandidate['kind'] !== null) {
+            $sourceNameCandidateFormat = $nameCandidate['format'] . '-' . $nameCandidate['kind'];
         }
 
         return [
@@ -2468,7 +2487,17 @@ final class ArchiveCompressionStream
             'sourceName' => $sourceName,
             'candidateKind' => $candidateKind,
             'candidateFormat' => $candidateKind === null ? null : $format . '-' . $candidateKind,
+            'sourceNameCandidate' => $nameCandidate !== null,
+            'sourceNameReason' => $nameCandidate['reason'] ?? null,
+            'sourceNameKind' => $nameCandidate['kind'] ?? null,
+            'sourceNameFormat' => $nameCandidate['format'] ?? null,
+            'sourceNameCandidateFormat' => $sourceNameCandidateFormat,
+            'signatureFormat' => $signature['format'] ?? null,
+            'signatureSourceNameMismatch' => $signatureSourceNameMismatch,
             'compressedSize' => strlen($bytes),
+            'payloadSha256' => hash('sha256', $bytes),
+            'payloadPreviewBytes' => min(strlen($bytes), 32),
+            'payloadPreview' => self::boundedPrintablePreview($bytes, 32),
             'signatureMatched' => $signature !== null,
             'signatureName' => $signature['name'] ?? null,
             'signatureBytesHex' => $signature['signatureBytesHex'] ?? null,
@@ -5640,7 +5669,17 @@ final class ArchiveCompressionStream
             'format' => $policy['format'],
             'candidateFormat' => $policy['candidateFormat'],
             'sourceName' => $policy['sourceName'],
+            'sourceNameCandidate' => $policy['sourceNameCandidate'],
+            'sourceNameReason' => $policy['sourceNameReason'],
+            'sourceNameKind' => $policy['sourceNameKind'],
+            'sourceNameFormat' => $policy['sourceNameFormat'],
+            'sourceNameCandidateFormat' => $policy['sourceNameCandidateFormat'],
+            'signatureFormat' => $policy['signatureFormat'],
+            'signatureSourceNameMismatch' => $policy['signatureSourceNameMismatch'],
             'compressedSize' => $payload['size'],
+            'payloadSha256' => $policy['payloadSha256'],
+            'payloadPreviewBytes' => $policy['payloadPreviewBytes'],
+            'payloadPreview' => $policy['payloadPreview'],
             'decodedPackageSize' => null,
             'entryUncompressedSize' => null,
             'entryCount' => 0,
@@ -5771,10 +5810,20 @@ final class ArchiveCompressionStream
             'format' => $policy['format'],
             'candidateFormat' => $policy['candidateFormat'],
             'sourceName' => $policy['sourceName'],
+            'sourceNameCandidate' => $policy['sourceNameCandidate'],
+            'sourceNameReason' => $policy['sourceNameReason'],
+            'sourceNameKind' => $policy['sourceNameKind'],
+            'sourceNameFormat' => $policy['sourceNameFormat'],
+            'sourceNameCandidateFormat' => $policy['sourceNameCandidateFormat'],
+            'signatureFormat' => $policy['signatureFormat'],
+            'signatureSourceNameMismatch' => $policy['signatureSourceNameMismatch'],
             'entryCount' => 0,
             'entryNames' => [],
             'uncompressedSize' => null,
             'packageByteSize' => null,
+            'payloadSha256' => $policy['payloadSha256'],
+            'payloadPreviewBytes' => $policy['payloadPreviewBytes'],
+            'payloadPreview' => $policy['payloadPreview'],
             'signatureMatched' => $policy['signatureMatched'],
             'signatureName' => $policy['signatureName'],
             'signatureBytesHex' => $policy['signatureBytesHex'],
@@ -6340,7 +6389,7 @@ final class ArchiveCompressionStream
     }
 
     /**
-     * @return array{format:string, kind:?string}|null
+     * @return array{format:string, kind:?string, reason:string}|null
      */
     private static function unsupportedCompressionNameCandidate(string $sourceName): ?array
     {
@@ -6367,35 +6416,37 @@ final class ArchiveCompressionStream
                     return [
                         'format' => $format,
                         'kind' => self::PACKAGE_KIND_ZIP,
+                        'reason' => 'extension:unsupported-' . $format . '-zip-package',
                     ];
                 }
             }
         }
 
         $compressedSuffixes = [
-            '.tar.bz2' => ['bzip2', self::PACKAGE_KIND_TAR],
-            '.tbz2' => ['bzip2', self::PACKAGE_KIND_TAR],
-            '.tbz' => ['bzip2', self::PACKAGE_KIND_TAR],
-            '.zip.bz2' => ['bzip2', self::PACKAGE_KIND_ZIP],
-            '.tar.xz' => ['xz', self::PACKAGE_KIND_TAR],
-            '.txz' => ['xz', self::PACKAGE_KIND_TAR],
-            '.zip.xz' => ['xz', self::PACKAGE_KIND_ZIP],
-            '.tar.zst' => ['zstandard', self::PACKAGE_KIND_TAR],
-            '.tar.zstd' => ['zstandard', self::PACKAGE_KIND_TAR],
-            '.tzst' => ['zstandard', self::PACKAGE_KIND_TAR],
-            '.zip.zst' => ['zstandard', self::PACKAGE_KIND_ZIP],
-            '.zip.zstd' => ['zstandard', self::PACKAGE_KIND_ZIP],
-            '.bz2' => ['bzip2', null],
-            '.xz' => ['xz', null],
-            '.zst' => ['zstandard', null],
-            '.zstd' => ['zstandard', null],
+            '.tar.bz2' => ['bzip2', self::PACKAGE_KIND_TAR, 'extension:unsupported-bzip2-tar'],
+            '.tbz2' => ['bzip2', self::PACKAGE_KIND_TAR, 'extension:unsupported-bzip2-tar'],
+            '.tbz' => ['bzip2', self::PACKAGE_KIND_TAR, 'extension:unsupported-bzip2-tar'],
+            '.zip.bz2' => ['bzip2', self::PACKAGE_KIND_ZIP, 'extension:unsupported-bzip2-zip'],
+            '.tar.xz' => ['xz', self::PACKAGE_KIND_TAR, 'extension:unsupported-xz-tar'],
+            '.txz' => ['xz', self::PACKAGE_KIND_TAR, 'extension:unsupported-xz-tar'],
+            '.zip.xz' => ['xz', self::PACKAGE_KIND_ZIP, 'extension:unsupported-xz-zip'],
+            '.tar.zst' => ['zstandard', self::PACKAGE_KIND_TAR, 'extension:unsupported-zstandard-tar'],
+            '.tar.zstd' => ['zstandard', self::PACKAGE_KIND_TAR, 'extension:unsupported-zstandard-tar'],
+            '.tzst' => ['zstandard', self::PACKAGE_KIND_TAR, 'extension:unsupported-zstandard-tar'],
+            '.zip.zst' => ['zstandard', self::PACKAGE_KIND_ZIP, 'extension:unsupported-zstandard-zip'],
+            '.zip.zstd' => ['zstandard', self::PACKAGE_KIND_ZIP, 'extension:unsupported-zstandard-zip'],
+            '.bz2' => ['bzip2', null, 'extension:unsupported-bzip2'],
+            '.xz' => ['xz', null, 'extension:unsupported-xz'],
+            '.zst' => ['zstandard', null, 'extension:unsupported-zstandard'],
+            '.zstd' => ['zstandard', null, 'extension:unsupported-zstandard'],
         ];
 
-        foreach ($compressedSuffixes as $suffix => [$format, $kind]) {
+        foreach ($compressedSuffixes as $suffix => [$format, $kind, $reason]) {
             if (str_ends_with($lower, $suffix)) {
                 return [
                     'format' => $format,
                     'kind' => $kind,
+                    'reason' => $reason,
                 ];
             }
         }
