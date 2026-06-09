@@ -342,7 +342,9 @@ final class NativeWriter
     private function childrenAsBlocks(AstNode $node): array
     {
         if ($node->children === []) {
-            return [];
+            $text = trim((string) $node->attr('text', ''));
+
+            return $text === '' ? [] : [['t' => 'Plain', 'c' => $this->textInlines($text)]];
         }
 
         if ($this->allInlineNodes($node->children)) {

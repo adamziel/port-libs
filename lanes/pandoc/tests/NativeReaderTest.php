@@ -595,6 +595,85 @@ return [
         $t->same([0.3, null], $table->attr('widths'));
         $t->same('center', $table->children[1]->children[0]->children[1]->attr('align'));
     },
+    'writes shared ast table captions as native ast table constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('table', [
+                'id' => 'native-writer-table',
+                'classes' => ['wp-import-table'],
+                'attributes' => ['data-source' => 'shared-ast'],
+                'captionBlocks' => [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Shared']),
+                        new AstNode('space'),
+                        new AstNode('emph', [], [new AstNode('text', ['text' => 'caption'])]),
+                        new AstNode('space'),
+                        new AstNode('link', [
+                            'url' => 'https://example.test/native',
+                            'title' => 'Native review',
+                        ], [new AstNode('text', ['text' => 'handoff'])]),
+                    ]),
+                ],
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Review']),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'slice'])]),
+                ],
+                'alignments' => ['left', 'right'],
+                'widths' => [0.33, null],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Field'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'State'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', ['rowHeadColumns' => 1], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => 'Posts']),
+                        new AstNode('table_cell', ['align' => 'right', 'text' => 'Ready']),
+                    ]),
+                ]),
+                new AstNode('table_foot', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['colspan' => 2], [new AstNode('text', ['text' => 'Reviewed'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $tableBlock = $native['blocks'][0];
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $table = $roundTrip->children[0];
+        $blocks = (new WordPressBlockWriter())->write($roundTrip);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('Table', $tableBlock['t']);
+        $t->same(['native-writer-table', ['wp-import-table'], [['data-source', 'shared-ast']]], $tableBlock['c'][0]);
+        $t->same('Review', $tableBlock['c'][1][0][0]['c']);
+        $t->same('Strong', $tableBlock['c'][1][0][2]['t']);
+        $t->same('Shared', $tableBlock['c'][1][1][0]['c'][0]['c']);
+        $t->same('Emph', $tableBlock['c'][1][1][0]['c'][2]['t']);
+        $t->same('Link', $tableBlock['c'][1][1][0]['c'][4]['t']);
+        $t->same('AlignLeft', $tableBlock['c'][2][0][0]['t']);
+        $t->same('ColWidth', $tableBlock['c'][2][0][1]['t']);
+        $t->same(0.33, $tableBlock['c'][2][0][1]['c']);
+        $t->same('AlignRight', $tableBlock['c'][2][1][0]['t']);
+        $t->same('ColWidthDefault', $tableBlock['c'][2][1][1]['t']);
+        $t->same(1, $tableBlock['c'][4][0][1]);
+        $t->same('Ready', $tableBlock['c'][4][0][3][0][1][1][4][0]['c'][0]['c']);
+        $t->same('AlignRight', $tableBlock['c'][4][0][3][0][1][1][1]['t']);
+        $t->same(2, $tableBlock['c'][5][1][0][1][0][3]);
+        $t->same('Shared caption handoff', $table->attr('caption'));
+        $t->same('Review slice', $table->attr('shortCaption'));
+        $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn (AstNode $node): string => $node->type, $table->children));
+        $t->same('Ready', $table->children[1]->children[0]->children[1]->attr('text'));
+        $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Review slice">', $blocks);
+        $t->contains('<table id="native-writer-table" class="wp-import-table" data-source="shared-ast">', $blocks);
+        $t->contains('<figcaption class="wp-element-caption"><p>Shared <em>caption</em> <a href="https://example.test/native" title="Native review">handoff</a></p></figcaption>', $blocks);
+        $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+    },
     'writes shared table short caption blocks as pandoc native ast inlines' => static function (TestRunner $t): void {
         $sourceTable = new AstNode('table', [
             'captionBlocks' => [
