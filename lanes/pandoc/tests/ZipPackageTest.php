@@ -3783,7 +3783,36 @@ return [
     },
 
     'rejects duplicate zip local header offsets before package import preflight' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildDuplicateLocalOffsetPackage()));
+        $zip = $buildDuplicateLocalOffsetPackage();
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
+    'preflights duplicate zip local header offsets before raw strict import' => static function (TestRunner $t) use ($buildDuplicateLocalOffsetPackage): void {
+        $zip = $buildDuplicateLocalOffsetPackage();
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 100.0, 1024);
+        $group = $summary['duplicateLocalHeaderOffsetGroups'][0];
+
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(2, $summary['scannedEntryCount']);
+        $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(true, $summary['hasDuplicateLocalHeaderOffsets']);
+        $t->same(1, $summary['duplicateLocalHeaderOffsetGroupCount']);
+        $t->same(2, $summary['duplicateLocalHeaderOffsetEntryCount']);
+        $t->same(0, $group['localHeaderOffset']);
+        $t->same(2, $group['count']);
+        $t->same(['word/media/review-one.png', 'word/media/review-two.png'], $group['names']);
+        $t->same([0, 1], $group['centralDirectoryIndexes']);
+        $t->same(true, $group['centralDirectoryOffsets'][0] < $group['centralDirectoryOffsets'][1]);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['central-directory-duplicate-local-header-offsets'], $summary['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-directory-duplicate-local-header-offsets', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
     },
 
     'preflights zip central directory digital signatures before package import handoff' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {

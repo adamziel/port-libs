@@ -2350,6 +2350,121 @@ XML);
         $t->contains('<dt>WordPress Import Review Act 2025</dt><dd>WordPress Import Review Act. Oregon Legislature, 2025. Statute HB 42. Authority: Oregon Legislature. Jurisdiction: Oregon. Event date 2025-06-01.</dd>', $blocks);
         $t->contains('<dt>Import Queue v. Source Packet 2024</dt><dd>Import Queue v. Source Packet. 2024. Decision No. 24-100. Authority: Migration Review Court. Jurisdiction: 9th Cir. Event date 2025-01-02.</dd>', $blocks);
     },
+    'maps bounded biblatex patent type strings into csl review labels' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@patent{eu-patent-request,
+  author    = {Ng, Nia},
+  holder    = {{Review Lab}},
+  title     = {Block Pattern Patent Request},
+  number    = {EP-2026-42},
+  type      = {patreqeu},
+  date      = {2026},
+  eventdate = {2026-05-01},
+  url       = {https://example.test/patents/ep-2026-42}
+}
+
+@patent{us-import-patent,
+  author   = {Smith, Ada},
+  title    = {Import Matcher Patent},
+  number   = {US-777},
+  type     = {patentus},
+  location = {US},
+  date     = {2025},
+  status   = {granted}
+}
+
+@patent{custom-patent-type,
+  author = {Roe, Pat},
+  title  = {Custom Type Patent},
+  number = {CA-999},
+  type   = {utility model},
+  date   = {2024}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('patent', $items[0]['type'] ?? null);
+        $t->same('patreqeu', $items[0]['genre'] ?? null);
+        $t->same('patreqeu', $items[0]['patent-type'] ?? null);
+        $t->same('European patent request', $items[0]['patent-type-label'] ?? null);
+        $t->same('patentus', $items[1]['patent-type'] ?? null);
+        $t->same('U.S. patent', $items[1]['patent-type-label'] ?? null);
+        $t->same('utility model', $items[2]['patent-type'] ?? null);
+        $t->same('Utility model', $items[2]['patent-type-label'] ?? null);
+        $t->same('patreqeu', $items[0]['rawBibtex']['fields']['type'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $request = $processor->item('eu-patent-request');
+        $usPatent = $processor->item('us-import-patent');
+        $custom = $processor->item('custom-patent-type');
+        $t->same('patreqeu', $request['patentType'] ?? null);
+        $t->same('European patent request', $request['patentTypeLabel'] ?? null);
+        $t->same('Review Lab', $request['holders'][0]['literal'] ?? null);
+        $t->same([2026, 5, 1], $request['eventDate']['parts'] ?? null);
+        $t->same('patentus', $usPatent['patentType'] ?? null);
+        $t->same('U.S. patent', $usPatent['patentTypeLabel'] ?? null);
+        $t->same('US', $usPatent['jurisdiction'] ?? null);
+        $t->same('utility model', $custom['patentType'] ?? null);
+        $t->same('Utility model', $custom['patentTypeLabel'] ?? null);
+        $t->same('(Ng 2026; Smith 2025; Roe 2024)', $processor->renderCitationCluster([
+            $citation('eu-patent-request', '[@eu-patent-request]'),
+            $citation('us-import-patent', '[@us-import-patent]'),
+            $citation('custom-patent-type', '[@custom-patent-type]'),
+        ]));
+        $t->same('Ng, Nia. Block Pattern Patent Request. 2026. European patent request EP-2026-42. Holder: Review Lab. Event date 2026-05-01. https://example.test/patents/ep-2026-42.', $processor->renderBibliographyEntry('eu-patent-request'));
+        $t->same('Smith, Ada. Import Matcher Patent. 2025. U.S. patent US-777. Jurisdiction: US. Status: granted.', $processor->renderBibliographyEntry('us-import-patent'));
+        $t->same('Roe, Pat. Custom Type Patent. 2024. Utility model CA-999.', $processor->renderBibliographyEntry('custom-patent-type'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Patent Type Review</title>
+    <id>https://example.test/styles/bounded-patent-type-review</id>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="patent-type"/>
+        <text variable="patent-type-label"/>
+        <text variable="number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="genre"/>
+      <text variable="patent-type-label"/>
+      <text variable="number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[patreqeu | European patent request | EP-2026-42; patentus | U.S. patent | US-777; utility model | Utility model | CA-999]', $styled->renderCitationCluster([
+            $citation('eu-patent-request', '[@eu-patent-request]'),
+            $citation('us-import-patent', '[@us-import-patent]'),
+            $citation('custom-patent-type', '[@custom-patent-type]'),
+        ]));
+        $t->same('Block Pattern Patent Request :: patreqeu :: European patent request :: EP-2026-42', $styled->renderBibliographyEntry('eu-patent-request'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-patent-request',
+            'type' => 'patent',
+            'title' => 'Direct Patent Request',
+            'patent-type' => 'patrequs',
+            'number' => 'US-2026-9',
+        ]])->item('direct-patent-request');
+        $t->same('patrequs', $direct['patentType'] ?? null);
+        $t->same('U.S. patent request', $direct['patentTypeLabel'] ?? null);
+
+        $document = (new MarkdownReader())->read('Patent review [@eu-patent-request; @us-import-patent; @custom-patent-type] keeps localized patent type metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Patent Sources'));
+        $t->contains('<p>Patent review (Ng 2026; Smith 2025; Roe 2024) keeps localized patent type metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Block Pattern Patent Request. 2026. European patent request EP-2026-42. Holder: Review Lab. Event date 2026-05-01. https://example.test/patents/ep-2026-42.</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Import Matcher Patent. 2025. U.S. patent US-777. Jurisdiction: US. Status: granted.</dd>', $blocks);
+    },
     'maps bounded biblatex date ranges into csl date metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{range-manual,

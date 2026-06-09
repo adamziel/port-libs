@@ -702,6 +702,7 @@ final class BibtexCslParser
         $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
         $archivePlace = self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']);
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location']);
+        $patentType = self::patentType($type, $fields);
         $item = [
             'id' => $key,
             'type' => self::cslTypeForEntry($type, $fields),
@@ -772,6 +773,8 @@ final class BibtexCslParser
             'part' => self::firstField($fields, ['part']),
             'supplement' => self::firstField($fields, ['supplement']),
             'genre' => self::firstField($fields, ['type', 'entrysubtype']),
+            'patent-type' => $patentType,
+            'patent-type-label' => self::patentTypeLabel($patentType),
             'entry-subtype' => self::firstField($fields, ['entrysubtype', 'entry-subtype']),
             'gender' => self::firstField($fields, ['gender']),
             'authority' => self::firstField($fields, ['authority', 'court', 'institution', 'organization']),
@@ -1380,6 +1383,44 @@ final class BibtexCslParser
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private static function patentType(string $entryType, array $fields): string
+    {
+        if (strtolower($entryType) !== 'patent') {
+            return '';
+        }
+
+        return self::firstField($fields, ['type']);
+    }
+
+    private static function patentTypeLabel(string $type): string
+    {
+        $type = trim($type);
+        if ($type === '') {
+            return '';
+        }
+
+        $normalized = strtolower(str_replace(['_', ' '], '', $type));
+
+        return match ($normalized) {
+            'patent' => 'Patent',
+            'patentde' => 'German patent',
+            'patenteu' => 'European patent',
+            'patentfr' => 'French patent',
+            'patentuk', 'patentgb' => 'British patent',
+            'patentus' => 'U.S. patent',
+            'patreq' => 'Patent request',
+            'patreqde' => 'German patent request',
+            'patreqeu' => 'European patent request',
+            'patreqfr' => 'French patent request',
+            'patrequk', 'patreqgb' => 'British patent request',
+            'patrequs' => 'U.S. patent request',
+            default => strtoupper($type[0]) . substr($type, 1),
+        };
     }
 
     /**

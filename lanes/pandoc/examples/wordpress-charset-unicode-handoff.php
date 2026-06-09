@@ -159,6 +159,9 @@ $iso88596Text = (string) $iso88596Source->children[1]->attr('text');
 $windows1256Bytes = "# \xC7\xE1\xDA\xD1\xC8\xED\xC9\n\n\xE3\xCD\xD1\xD1 \x93\xDA\xD1\xC8\xED\xC9\x94 \x97 \x8020; \xDD\xC7\xD1\xD3\xED: \x81\x8D\x8E\x90 \x98\xBA \xC7\xD1\xCF\xE6: \x9A\x9F\xFF.";
 $windows1256Source = (new MarkdownReader())->readBytes($windows1256Bytes, 'cp1256');
 $windows1256Text = (string) $windows1256Source->children[1]->attr('text');
+$macArabicBytes = "# Mac Arabic\n\nLegacy \xD9\xD1\xC8\xEA\xC9 \x8C\xCE\xC8\xD1\x98 \xAD \xA520; Persian \xF3\xF5\xF7\xF8; digits \xB1\xB2\xB3; punctuation \xAC\xBB\xBF.";
+$macArabicSource = (new MarkdownReader())->readBytes($macArabicBytes, 'x-mac-arabic');
+$macArabicText = (string) $macArabicSource->children[1]->attr('text');
 $xUserDefinedBytes = "# Private Glyphs\n\nLegacy \x80\x81\xFE\xFF source.";
 $xUserDefinedSource = (new MarkdownReader())->readBytes($xUserDefinedBytes, 'x-user-defined');
 $xUserDefinedText = (string) $xUserDefinedSource->children[1]->attr('text');
@@ -846,6 +849,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($windows1256Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($windows1256Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Arabic source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macArabicText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macArabicSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macArabicText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'X-user-defined source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $xUserDefinedText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($xUserDefinedSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($xUserDefinedText) . '/' . UnicodeText::displayWidth($xUserDefinedText, 'wide')])]),
@@ -1436,6 +1444,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Windows-1256 source</td><td>محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.</td><td>windows-1256:45</td>')) {
         throw new RuntimeException('charset handoff self-test missing Windows-1256 Arabic decode audit row');
+    }
+    if (($macArabicSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-arabic') {
+        throw new RuntimeException('charset handoff self-test missing Mac Arabic source encoding');
+    }
+    if (!str_contains($blocks, '<td>Mac Arabic source</td><td>Legacy عربية «خبر» - ٪20; Persian پچڤگ; digits ١٢٣; punctuation ،؛؟.</td><td>mac-arabic:68</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Mac Arabic decode audit row');
     }
     if (($xUserDefinedSource->attr('sourceEncoding')['encoding'] ?? '') !== 'x-user-defined') {
         throw new RuntimeException('charset handoff self-test missing x-user-defined source encoding');

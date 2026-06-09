@@ -520,6 +520,84 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     failedMemberCount:int,
+     *     crcMismatchMemberCount:int,
+     *     isizeMismatchMemberCount:int,
+     *     firstFailedMemberIndex:?int,
+     *     trailingPaddingBytes:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectGzipTrailerIntegrityPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP trailer-integrity policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $policy = GzipStream::trailerIntegrityPreflight($bytes, $maxUncompressedBytes);
+        $diagnostics = [];
+        if ($policy['failedMemberCount'] > 0) {
+            $diagnostics[] = 'gzip-member-trailer-integrity-failed';
+        }
+
+        if ($policy['crcMismatchMemberCount'] > 0) {
+            $diagnostics[] = 'gzip-member-crc32-mismatch';
+        }
+
+        if ($policy['isizeMismatchMemberCount'] > 0) {
+            $diagnostics[] = 'gzip-member-isize-mismatch';
+        }
+
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'type' => 'archive-gzip-trailer-integrity-policy',
+            'format' => $format,
+            'compressedSize' => $policy['compressedSize'],
+            'uncompressedSize' => $policy['uncompressedSize'],
+            'memberCount' => $policy['memberCount'],
+            'failedMemberCount' => $policy['failedMemberCount'],
+            'crcMismatchMemberCount' => $policy['crcMismatchMemberCount'],
+            'isizeMismatchMemberCount' => $policy['isizeMismatchMemberCount'],
+            'firstFailedMemberIndex' => $policy['firstFailedMemberIndex'],
+            'trailingPaddingBytes' => $policy['trailingPaddingBytes'],
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'gzip-trailer-integrity-review',
+            'diagnostics' => $diagnostics,
+            'members' => $policy['members'],
+            'stream' => [
+                'type' => 'gzip',
+                'memberCount' => $policy['memberCount'],
+                'compressedSize' => $policy['compressedSize'],
+                'uncompressedSize' => $policy['uncompressedSize'],
+                'failedMemberCount' => $policy['failedMemberCount'],
+                'crcMismatchMemberCount' => $policy['crcMismatchMemberCount'],
+                'isizeMismatchMemberCount' => $policy['isizeMismatchMemberCount'],
+                'firstFailedMemberIndex' => $policy['firstFailedMemberIndex'],
+                'trailingPaddingBytes' => $policy['trailingPaddingBytes'],
+                'extractionPolicy' => $policy['extractionPolicy'],
+                'members' => $policy['members'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
      *     kind:string,
      *     format:string,
      *     decodedFormat:string,

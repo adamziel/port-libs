@@ -1054,6 +1054,27 @@ return [
         $t->contains('<h1 id="العربية">العربية</h1>', $blocks);
         $t->contains('<p>محرر “عربية” — €20; فارسي: پچژگ ک؛ اردو: ڑںے.</p>', $blocks);
     },
+    'decodes mac arabic source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Arabic\n\nLegacy \xD9\xD1\xC8\xEA\xC9 \x8C\xCE\xC8\xD1\x98 \xAD \xA520; Persian \xF3\xF5\xF7\xF8; digits \xB1\xB2\xB3; punctuation \xAC\xBB\xBF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-arabic');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macarabic');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x81\x8B\x8C\x93\x98\x9B\xA5\xAC\xB0\xB1\xB2\xB3\xBB\xBF\xC0\xC1\xD9\xEA\xEB\xF0\xF1\xF2\xF3\xF5\xF7\xF8\xFE\xFF", 'mac-arabic');
+        $body = "Legacy عربية «خبر» - ٪20; Persian پچڤگ; digits ١٢٣; punctuation ،؛؟.";
+
+        $t->same('mac-arabic', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Arabic\n\n{$body}", $decoded['text']);
+        $t->same("\u{00A0}ں«…»÷٪،٠١٢٣؛؟❊ءعي\u{064B}\u{0650}\u{0651}\u{0652}پچڤگژے", $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same(24, UnicodeText::displayWidth($specials['text']));
+        $t->same(['encoding' => 'mac-arabic', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Arabic', $document->children[0]->attr('text'));
+        $t->same($body, $document->children[1]->attr('text'));
+        $t->same(68, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="mac-arabic">Mac Arabic</h1>', $blocks);
+        $t->contains("<p>{$body}</p>", $blocks);
+    },
     'decodes windows 1258 vietnamese combining tone bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Ti\xEA\xECng Vi\xEA\xF2t\n\nGia \xFE 20; \xD0\xF4\xECng \xFDu ti\xEAn: \xD5\xD2, \xFD\xDE, a\xCC, e\xF2.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp1258');

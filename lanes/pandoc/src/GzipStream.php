@@ -350,6 +350,267 @@ final class GzipStream
     }
 
     /**
+     * @return array{
+     *     members:list<array{
+     *         memberIndex:int,
+     *         modifiedAt:int,
+     *         modifiedAtKnown:bool,
+     *         modifiedAtText:?string,
+     *         flags:int,
+     *         textHint:bool,
+     *         extraFlags:int,
+     *         extraFlagsMeaning:string,
+     *         operatingSystem:int,
+     *         operatingSystemName:string,
+     *         extraFieldData:?string,
+     *         extraFields:list<array{identifier:string,id1:int,id2:int,length:int,data:string}>,
+     *         filename:?string,
+     *         filenameText:?string,
+     *         filenameEncoding:?string,
+     *         comment:?string,
+     *         commentText:?string,
+     *         commentEncoding:?string,
+     *         headerCrcPresent:bool,
+     *         headerCrc16:?int,
+     *         headerCrc16Hex:?string,
+     *         headerCrcOffset:?int,
+     *         headerCrcCoverageSize:?int,
+     *         storedCrc32:int,
+     *         storedCrc32Hex:string,
+     *         computedCrc32:int,
+     *         computedCrc32Hex:string,
+     *         crc32Matches:bool,
+     *         isize:int,
+     *         decodedSize:int,
+     *         isizeMatches:bool,
+     *         compressedSize:int,
+     *         decodedDataOffset:int,
+     *         decodedDataEndOffset:int,
+     *         memberSize:int,
+     *         memberOffset:int,
+     *         headerSize:int,
+     *         compressedDataOffset:int,
+     *         trailerOffset:int,
+     *         nextMemberOffset:int,
+     *         policy:string,
+     *         diagnostics:list<string>
+     *     }>,
+     *     memberCount:int,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     failedMemberCount:int,
+     *     crcMismatchMemberCount:int,
+     *     isizeMismatchMemberCount:int,
+     *     firstFailedMemberIndex:?int,
+     *     trailingPaddingBytes:int,
+     *     extractionPolicy:string
+     * }
+     */
+    public static function trailerIntegrityPreflight(string $bytes, ?int $maxUncompressedBytes = null): array
+    {
+        if ($bytes === '') {
+            throw new \RuntimeException('GZIP stream is empty');
+        }
+
+        if ($maxUncompressedBytes !== null && $maxUncompressedBytes < 0) {
+            throw new \RuntimeException('GZIP max uncompressed byte limit must not be negative');
+        }
+
+        $members = [];
+        $cursor = 0;
+        $totalUncompressedBytes = 0;
+        $length = strlen($bytes);
+        $trailingPaddingBytes = 0;
+        $failedMemberCount = 0;
+        $crcMismatchMemberCount = 0;
+        $isizeMismatchMemberCount = 0;
+        $firstFailedMemberIndex = null;
+
+        while ($cursor < $length) {
+            $memberStart = $cursor;
+            if (!self::hasMemberHeaderAt($bytes, $cursor)) {
+                $padding = substr($bytes, $cursor);
+                if ($members !== [] && trim($padding, "\0") === '') {
+                    $trailingPaddingBytes = strlen($padding);
+                    $cursor = $length;
+                    break;
+                }
+
+                throw new \RuntimeException('Invalid GZIP member header signature');
+            }
+
+            self::assertRange($bytes, $cursor, 10, 'member header');
+
+            $method = ord($bytes[$cursor + 2]);
+            if ($method !== self::COMPRESSION_METHOD_DEFLATE) {
+                throw new \RuntimeException("Unsupported GZIP compression method {$method}");
+            }
+
+            $flags = ord($bytes[$cursor + 3]);
+            if (($flags & self::FLAG_RESERVED) !== 0) {
+                throw new \RuntimeException('GZIP member header uses reserved flag bits');
+            }
+
+            $modifiedAt = self::readUInt32($bytes, $cursor + 4);
+            $textHint = ($flags & self::FLAG_TEXT) !== 0;
+            $extraFlags = ord($bytes[$cursor + 8]);
+            $operatingSystem = ord($bytes[$cursor + 9]);
+            $cursor += 10;
+
+            $extraFieldData = null;
+            $extraFields = [];
+            if (($flags & self::FLAG_EXTRA) !== 0) {
+                self::assertRange($bytes, $cursor, 2, 'extra field length');
+                $extraLength = self::readUInt16($bytes, $cursor);
+                $cursor += 2;
+                self::assertRange($bytes, $cursor, $extraLength, 'extra field data');
+                $extraFieldData = substr($bytes, $cursor, $extraLength);
+                $extraFields = self::extraFieldsFromData($extraFieldData, 'member extra field data');
+                $cursor += $extraLength;
+            }
+
+            $filename = null;
+            $filenameText = null;
+            $filenameEncoding = null;
+            if (($flags & self::FLAG_FILENAME) !== 0) {
+                [$filename, $cursor] = self::readZeroTerminatedField($bytes, $cursor, 'filename');
+                $filenameText = self::latin1ToUtf8($filename);
+                $filenameEncoding = 'gzip-latin1';
+            }
+
+            $comment = null;
+            $commentText = null;
+            $commentEncoding = null;
+            if (($flags & self::FLAG_COMMENT) !== 0) {
+                [$comment, $cursor] = self::readZeroTerminatedField($bytes, $cursor, 'comment');
+                $commentText = self::latin1ToUtf8($comment);
+                $commentEncoding = 'gzip-latin1';
+            }
+
+            $headerCrc16 = null;
+            $headerCrc16Hex = null;
+            $headerCrcOffset = null;
+            $headerCrcCoverageSize = null;
+            if (($flags & self::FLAG_HEADER_CRC) !== 0) {
+                self::assertRange($bytes, $cursor, 2, 'header CRC16');
+                $headerCrcOffset = $cursor - $memberStart;
+                $headerCrcCoverageSize = $headerCrcOffset;
+                $headerCrc16 = self::readUInt16($bytes, $cursor);
+                $expectedHeaderCrc16 = self::unsignedCrc32(substr($bytes, $memberStart, $cursor - $memberStart)) & 0xffff;
+                if ($headerCrc16 !== $expectedHeaderCrc16) {
+                    throw new \RuntimeException('GZIP member header CRC16 does not match header bytes');
+                }
+                $headerCrc16Hex = sprintf('%04x', $headerCrc16);
+                $cursor += 2;
+            }
+
+            $compressedStart = $cursor;
+            $payload = self::inflateMemberPayload(substr($bytes, $compressedStart));
+            $compressedSize = $payload['compressedSize'];
+            $data = $payload['data'];
+            if ($compressedSize <= 0) {
+                throw new \RuntimeException('GZIP member contains no complete deflate payload');
+            }
+
+            $trailerOffset = $compressedStart + $compressedSize;
+            self::assertRange($bytes, $trailerOffset, 8, 'member trailer');
+            $storedCrc32 = self::readUInt32($bytes, $trailerOffset);
+            $isize = self::readUInt32($bytes, $trailerOffset + 4);
+            $computedCrc32 = self::unsignedCrc32($data);
+            $decodedSize = strlen($data);
+            $crc32Matches = $storedCrc32 === $computedCrc32;
+            $isizeMatches = $isize === ($decodedSize & 0xffffffff);
+
+            $diagnostics = [];
+            if (!$crc32Matches) {
+                $diagnostics[] = 'gzip-member-crc32-mismatch';
+                $crcMismatchMemberCount++;
+            }
+
+            if (!$isizeMatches) {
+                $diagnostics[] = 'gzip-member-isize-mismatch';
+                $isizeMismatchMemberCount++;
+            }
+
+            $memberIndex = count($members);
+            if ($diagnostics !== []) {
+                $failedMemberCount++;
+                if ($firstFailedMemberIndex === null) {
+                    $firstFailedMemberIndex = $memberIndex;
+                }
+            }
+
+            $decodedDataOffset = $totalUncompressedBytes;
+            $decodedDataEndOffset = $decodedDataOffset + $decodedSize;
+            $totalUncompressedBytes = $decodedDataEndOffset;
+            if ($maxUncompressedBytes !== null && $totalUncompressedBytes > $maxUncompressedBytes) {
+                throw new \RuntimeException('GZIP stream exceeds the configured uncompressed byte limit');
+            }
+
+            $cursor = $trailerOffset + 8;
+            $members[] = [
+                'memberIndex' => $memberIndex,
+                'modifiedAt' => $modifiedAt,
+                'modifiedAtKnown' => $modifiedAt !== 0,
+                'modifiedAtText' => self::modifiedAtText($modifiedAt),
+                'flags' => $flags,
+                'textHint' => $textHint,
+                'extraFlags' => $extraFlags,
+                'extraFlagsMeaning' => self::extraFlagsMeaning($extraFlags),
+                'operatingSystem' => $operatingSystem,
+                'operatingSystemName' => self::operatingSystemName($operatingSystem),
+                'extraFieldData' => $extraFieldData,
+                'extraFields' => $extraFields,
+                'filename' => $filename,
+                'filenameText' => $filenameText,
+                'filenameEncoding' => $filenameEncoding,
+                'comment' => $comment,
+                'commentText' => $commentText,
+                'commentEncoding' => $commentEncoding,
+                'headerCrcPresent' => $headerCrc16 !== null,
+                'headerCrc16' => $headerCrc16,
+                'headerCrc16Hex' => $headerCrc16Hex,
+                'headerCrcOffset' => $headerCrcOffset,
+                'headerCrcCoverageSize' => $headerCrcCoverageSize,
+                'storedCrc32' => $storedCrc32,
+                'storedCrc32Hex' => sprintf('%08x', $storedCrc32),
+                'computedCrc32' => $computedCrc32,
+                'computedCrc32Hex' => sprintf('%08x', $computedCrc32),
+                'crc32Matches' => $crc32Matches,
+                'isize' => $isize,
+                'decodedSize' => $decodedSize,
+                'isizeMatches' => $isizeMatches,
+                'compressedSize' => $compressedSize,
+                'decodedDataOffset' => $decodedDataOffset,
+                'decodedDataEndOffset' => $decodedDataEndOffset,
+                'memberSize' => $cursor - $memberStart,
+                'memberOffset' => $memberStart,
+                'headerSize' => $compressedStart - $memberStart,
+                'compressedDataOffset' => $compressedStart,
+                'trailerOffset' => $trailerOffset,
+                'nextMemberOffset' => $cursor,
+                'policy' => $diagnostics === [] ? 'metadata' : 'review-before-conversion',
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return [
+            'members' => $members,
+            'memberCount' => count($members),
+            'compressedSize' => $length,
+            'uncompressedSize' => $totalUncompressedBytes,
+            'failedMemberCount' => $failedMemberCount,
+            'crcMismatchMemberCount' => $crcMismatchMemberCount,
+            'isizeMismatchMemberCount' => $isizeMismatchMemberCount,
+            'firstFailedMemberIndex' => $firstFailedMemberIndex,
+            'trailingPaddingBytes' => $trailingPaddingBytes,
+            'extractionPolicy' => $failedMemberCount === 0
+                ? 'gzip-trailer-integrity-verified'
+                : 'gzip-trailer-integrity-review',
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function members(string $bytes, ?int $maxUncompressedBytes = null): array

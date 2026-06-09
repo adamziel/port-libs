@@ -3137,6 +3137,20 @@ $centralDirectoryTailRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
     100.0,
     4096
 );
+$centralDirectoryDuplicateOffsetBytes = $buildDuplicateLocalOffsetBackedPackage();
+$centralDirectoryDuplicateOffsetInventory = ZipPackage::centralDirectoryInventoryPreflight($centralDirectoryDuplicateOffsetBytes);
+$centralDirectoryDuplicateOffsetRawStrictPreflight = ZipPackage::rawStrictImportPreflight(
+    $centralDirectoryDuplicateOffsetBytes,
+    4096,
+    100.0,
+    4096
+);
+$centralDirectoryDuplicateOffsetRejected = false;
+try {
+    ZipPackage::fromString($centralDirectoryDuplicateOffsetBytes);
+} catch (RuntimeException $exception) {
+    $centralDirectoryDuplicateOffsetRejected = str_contains($exception->getMessage(), 'Duplicate ZIP local header offset');
+}
 $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
 $rawStrictTrailingEocdBytes = $strictImportPackage->bytes() . "detached reviewer bytes\n";
 $rawStrictTrailingEocdSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($rawStrictTrailingEocdBytes);
@@ -5071,6 +5085,28 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        !$centralDirectoryDuplicateOffsetRejected
+        || ($centralDirectoryDuplicateOffsetInventory['hasDuplicateLocalHeaderOffsets'] ?? null) !== true
+        || ($centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetGroupCount'] ?? null) !== 1
+        || ($centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetEntryCount'] ?? null) !== 2
+        || ($centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetGroups'][0]['localHeaderOffset'] ?? null) !== 0
+        || ($centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetGroups'][0]['names'] ?? null) !== [
+            'word/media/review-one.png',
+            'word/media/review-two.png',
+        ]
+        || ($centralDirectoryDuplicateOffsetInventory['issues'] ?? null) !== [
+            'central-directory-duplicate-local-header-offsets',
+        ]
+        || ($centralDirectoryDuplicateOffsetRawStrictPreflight['isValid'] ?? null) !== false
+        || ($centralDirectoryDuplicateOffsetRawStrictPreflight['canInstantiate'] ?? null) !== false
+        || ($centralDirectoryDuplicateOffsetRawStrictPreflight['centralDirectoryInventory'] ?? null) !== $centralDirectoryDuplicateOffsetInventory
+        || !in_array('central-directory-duplicate-local-header-offsets', $centralDirectoryDuplicateOffsetRawStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $centralDirectoryDuplicateOffsetRawStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory inventory to expose duplicate local header offsets before import');
+    }
+
+    if (
         ($rawStrictImportPreflight['isValid'] ?? null) !== true
         || ($rawStrictImportPreflight['canInstantiate'] ?? null) !== true
         || ($rawStrictImportPreflight['instantiationError'] ?? null) !== null
@@ -6832,12 +6868,16 @@ echo 'zipCentralDirectoryUnderstatedRepairPlannedEntries=' . $centralDirectoryUn
 echo 'zipCentralDirectoryUnderstatedRepairRecoveredBytes=' . $centralDirectoryUnderstatedRepairPlan['recoveredGapBytes'] . "\n";
 echo 'zipCentralDirectoryTailBytes=' . $centralDirectoryTailInventory['centralDirectoryTailBytes'] . "\n";
 echo 'zipCentralDirectoryTailSignature=' . ($centralDirectoryTailInventory['unexpectedRecordSignatureHex'] ?? 'none') . "\n";
+echo 'zipCentralDirectoryDuplicateOffsetGroups=' . $centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetGroupCount'] . "\n";
+echo 'zipCentralDirectoryDuplicateOffsetEntries=' . $centralDirectoryDuplicateOffsetInventory['duplicateLocalHeaderOffsetEntryCount'] . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
 echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictImportCanInstantiate=' . ($rawStrictImportPreflight['canInstantiate'] ? 'true' : 'false') . "\n";
 echo 'zipRawStrictImportDiagnostics=' . implode(',', $rawStrictImportPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictImportPreflightErrors=' . count($rawStrictImportPreflight['preflightErrors']) . "\n";
+echo 'zipRawStrictDuplicateOffsetPolicy=' . ($centralDirectoryDuplicateOffsetRawStrictPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictDuplicateOffsetDiagnostics=' . implode(',', $centralDirectoryDuplicateOffsetRawStrictPreflight['diagnostics']) . "\n";
 echo 'zipRawStrictTrailingEocdPolicy=' . ($rawStrictTrailingEocdPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictTrailingEocdBytes=' . $rawStrictTrailingEocdSummary['trailingByteCount'] . "\n";
 echo 'zipRawStrictTrailingEocdDiagnostics=' . implode(',', $rawStrictTrailingEocdPreflight['diagnostics']) . "\n";

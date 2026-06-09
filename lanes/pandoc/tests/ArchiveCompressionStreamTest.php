@@ -3622,6 +3622,129 @@ return [
         ));
     },
 
+    'preflights gzip trailer integrity before package handoff' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"gzip-trailer-integrity","target":"wordpress"}';
+        $contentBytes = "# GZIP trailer integrity\n\nReady for bounded stream review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $firstLength = 512;
+        $secondLength = 1024;
+        $thirdOffset = $firstLength + $secondLength;
+        $firstPayload = substr($tarBytes, 0, $firstLength);
+        $secondPayload = substr($tarBytes, $firstLength, $secondLength);
+        $thirdPayload = substr($tarBytes, $thirdOffset);
+        $firstMember = GzipStream::build($firstPayload, [
+            'filename' => 'trailer-integrity-part-1.tar',
+            'comment' => 'valid decoded package segment',
+        ]);
+        $secondMember = GzipStream::build($secondPayload, [
+            'filename' => 'trailer-integrity-part-2.tar',
+            'comment' => 'crc mismatch decoded package segment',
+        ]);
+        $thirdMember = GzipStream::build($thirdPayload, [
+            'filename' => 'trailer-integrity-part-3.tar',
+            'comment' => 'isize mismatch decoded package segment',
+        ]);
+        $secondCrc32 = (int) sprintf('%u', crc32($secondPayload));
+        $badSecondCrc32 = $secondCrc32 === 0 ? 1 : $secondCrc32 - 1;
+        $badSecondMember = substr_replace($secondMember, pack('V', $badSecondCrc32), -8, 4);
+        $badThirdIsize = strlen($thirdPayload) + 7;
+        $badThirdMember = substr_replace($thirdMember, pack('V', $badThirdIsize), -4, 4);
+        $gzip = $firstMember . $badSecondMember . $badThirdMember;
+        $cleanGzip = $firstMember . $secondMember . $thirdMember;
+
+        $policy = ArchiveCompressionStream::inspectGzipTrailerIntegrityPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $cleanPolicy = ArchiveCompressionStream::inspectGzipTrailerIntegrityPolicy(
+            $cleanGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-trailer-integrity-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(3, $policy['memberCount']);
+        $t->same(2, $policy['failedMemberCount']);
+        $t->same(1, $policy['crcMismatchMemberCount']);
+        $t->same(1, $policy['isizeMismatchMemberCount']);
+        $t->same(1, $policy['firstFailedMemberIndex']);
+        $t->same(0, $policy['trailingPaddingBytes']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('gzip-trailer-integrity-review', $policy['extractionPolicy']);
+        $t->same([
+            'gzip-member-trailer-integrity-failed',
+            'gzip-member-crc32-mismatch',
+            'gzip-member-isize-mismatch',
+        ], $policy['diagnostics']);
+        $t->same('gzip', $policy['stream']['type']);
+        $t->same('gzip-trailer-integrity-review', $policy['stream']['extractionPolicy']);
+        $t->same(2, $policy['stream']['failedMemberCount']);
+        $t->same([
+            'trailer-integrity-part-1.tar',
+            'trailer-integrity-part-2.tar',
+            'trailer-integrity-part-3.tar',
+        ], array_column($policy['members'], 'filename'));
+        $t->same([
+            'valid decoded package segment',
+            'crc mismatch decoded package segment',
+            'isize mismatch decoded package segment',
+        ], array_column($policy['members'], 'commentText'));
+        $t->same([0, $firstLength, $thirdOffset], array_column($policy['members'], 'decodedDataOffset'));
+        $t->same([$firstLength, $thirdOffset, strlen($tarBytes)], array_column($policy['members'], 'decodedDataEndOffset'));
+        $t->same([$firstLength, $secondLength, strlen($thirdPayload)], array_column($policy['members'], 'decodedSize'));
+        $t->same([true, false, true], array_column($policy['members'], 'crc32Matches'));
+        $t->same([true, true, false], array_column($policy['members'], 'isizeMatches'));
+        $t->same(['metadata', 'review-before-conversion', 'review-before-conversion'], array_column($policy['members'], 'policy'));
+        $t->same([[], ['gzip-member-crc32-mismatch'], ['gzip-member-isize-mismatch']], array_column($policy['members'], 'diagnostics'));
+        $t->same($badSecondCrc32, $policy['members'][1]['storedCrc32']);
+        $t->same($secondCrc32, $policy['members'][1]['computedCrc32']);
+        $t->same(sprintf('%08x', $badSecondCrc32), $policy['members'][1]['storedCrc32Hex']);
+        $t->same(sprintf('%08x', $secondCrc32), $policy['members'][1]['computedCrc32Hex']);
+        $t->same($badThirdIsize, $policy['members'][2]['isize']);
+        $t->same(strlen($thirdPayload), $policy['members'][2]['decodedSize']);
+        $t->same(false, isset($policy['members'][1]['data']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($policy['tarBytes']));
+
+        $t->same(0, $cleanPolicy['failedMemberCount']);
+        $t->same(0, $cleanPolicy['crcMismatchMemberCount']);
+        $t->same(0, $cleanPolicy['isizeMismatchMemberCount']);
+        $t->same(null, $cleanPolicy['firstFailedMemberIndex']);
+        $t->same('within-thresholds', $cleanPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanPolicy['extractionPolicy']);
+        $t->same([], $cleanPolicy['diagnostics']);
+        $t->same(['metadata', 'metadata', 'metadata'], array_column($cleanPolicy['members'], 'policy'));
+        $t->same($contentBytes, ArchiveCompressionStream::openTar(
+            $cleanGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        )->read('/packet/content.md'));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($gzip));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipTrailerIntegrityPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'preflights gzip member package boundaries before package handoff' => static function (TestRunner $t): void {
         $manifestBytes = '{"source":"gzip-member-boundary","target":"wordpress"}';
         $contentBytes = "# GZIP member boundary\n\nReady for split stream review.\n";

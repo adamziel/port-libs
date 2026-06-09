@@ -1043,10 +1043,20 @@ final class CitationCslProcessor
         $entrySetKeys = self::stringListFromFirstField($item, ['entrySet', 'entry-set', 'entryset']);
         $entrySetItems = self::relatedItemSummaries($item['entrySetItems'] ?? $item['entry-set-items'] ?? [], $id, 'entrySetItems');
         $missingEntrySetKeys = self::stringListFromFirstField($item, ['missingEntrySetKeys', 'missing-entry-set-keys', 'missing-entryset-keys']);
+        $itemType = self::stringField($item, 'type');
+        $genre = self::stringField($item, 'genre');
+        $patentType = self::firstStringField($item, ['patent-type', 'patentType', 'patenttype']);
+        if ($patentType === '' && $itemType === 'patent') {
+            $patentType = $genre;
+        }
+        $patentTypeLabel = self::firstStringField($item, ['patent-type-label', 'patentTypeLabel', 'patenttypelabel']);
+        if ($patentTypeLabel === '') {
+            $patentTypeLabel = self::patentTypeLabel($patentType);
+        }
 
         return [
             'id' => $id,
-            'type' => self::stringField($item, 'type'),
+            'type' => $itemType,
             'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle']),
             'citationAliases' => $citationAliases,
             'citationAliasSummary' => implode('; ', $citationAliases),
@@ -1120,7 +1130,9 @@ final class CitationCslProcessor
             'printingNumber' => self::firstStringField($item, ['printing-number', 'printingNumber', 'printingnumber']),
             'supplement' => self::stringField($item, 'supplement'),
             'supplementNumber' => self::firstStringField($item, ['supplement-number', 'supplementNumber', 'supplementnumber']) ?: self::stringField($item, 'supplement'),
-            'genre' => self::stringField($item, 'genre'),
+            'genre' => $genre,
+            'patentType' => $patentType,
+            'patentTypeLabel' => $patentTypeLabel,
             'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
             'gender' => $biblatexGender,
             'biblatexGender' => $biblatexGender,
@@ -1346,6 +1358,32 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    private static function patentTypeLabel(string $type): string
+    {
+        $type = trim($type);
+        if ($type === '') {
+            return '';
+        }
+
+        $normalized = strtolower(str_replace(['_', ' '], '', $type));
+
+        return match ($normalized) {
+            'patent' => 'Patent',
+            'patentde' => 'German patent',
+            'patenteu' => 'European patent',
+            'patentfr' => 'French patent',
+            'patentuk', 'patentgb' => 'British patent',
+            'patentus' => 'U.S. patent',
+            'patreq' => 'Patent request',
+            'patreqde' => 'German patent request',
+            'patreqeu' => 'European patent request',
+            'patreqfr' => 'French patent request',
+            'patrequk', 'patreqgb' => 'British patent request',
+            'patrequs' => 'U.S. patent request',
+            default => strtoupper($type[0]) . substr($type, 1),
+        };
     }
 
     /**
@@ -6240,7 +6278,7 @@ final class CitationCslProcessor
         $genre = (string) ($item['genre'] ?? '');
         $number = (string) ($item['number'] ?? '');
         if ($genre !== '' || $number !== '') {
-            $label = $genre !== '' ? ucfirst($genre) : ucfirst(str_replace('_', ' ', $type));
+            $label = $this->legalPatentTypeLabel($item, $type, $genre);
             $parts[] = trim($label . ' ' . $number) . '.';
         }
 
@@ -6270,6 +6308,21 @@ final class CitationCslProcessor
         }
 
         return $parts;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function legalPatentTypeLabel(array $item, string $type, string $genre): string
+    {
+        if ($type === 'patent') {
+            $label = (string) ($item['patentTypeLabel'] ?? '');
+            if ($label !== '') {
+                return $label;
+            }
+        }
+
+        return $genre !== '' ? ucfirst($genre) : ucfirst(str_replace('_', ' ', $type));
     }
 
     /**
@@ -8579,6 +8632,8 @@ final class CitationCslProcessor
             'supplement' => (string) ($item['supplement'] ?? ''),
             'supplement-number' => (string) ($item['supplementNumber'] ?? ''),
             'genre' => (string) $item['genre'],
+            'patent-type', 'patenttype' => (string) ($item['patentType'] ?? ''),
+            'patent-type-label', 'patenttypelabel' => (string) ($item['patentTypeLabel'] ?? ''),
             'entry-subtype', 'entrysubtype' => (string) $item['entrySubtype'],
             'gender', 'biblatex-gender', 'biblatexgender' => (string) ($item['biblatexGender'] ?? $item['gender'] ?? ''),
             'biblatex-gender-summary', 'biblatexgendersummary' => (string) ($item['biblatexGenderSummary'] ?? ''),

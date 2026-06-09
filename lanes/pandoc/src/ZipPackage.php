@@ -5452,8 +5452,12 @@ final class ZipPackage
      *     duplicateEntryNameEntryCount:int,
      *     duplicateEntryRawNameGroupCount:int,
      *     duplicateEntryRawNameEntryCount:int,
+     *     hasDuplicateLocalHeaderOffsets:bool,
+     *     duplicateLocalHeaderOffsetGroupCount:int,
+     *     duplicateLocalHeaderOffsetEntryCount:int,
      *     duplicateEntryNameGroups:list<array{name:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     duplicateEntryRawNameGroups:list<array{rawName:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
+     *     duplicateLocalHeaderOffsetGroups:list<array{localHeaderOffset:int,count:int,names:list<string>,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>}>,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
      *     isSupportedByBoundedReader:bool,
@@ -5583,15 +5587,21 @@ final class ZipPackage
         }
         $duplicateEntryNameGroups = self::centralDirectoryDuplicateEntryGroups($entries, 'name', 'name');
         $duplicateEntryRawNameGroups = self::centralDirectoryDuplicateEntryGroups($entries, 'rawName', 'rawName');
+        $duplicateLocalHeaderOffsetGroups = self::centralDirectoryLocalHeaderOffsetGroups($entries);
         $duplicateEntryNameEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateEntryNameGroups);
         $duplicateEntryRawNameEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateEntryRawNameGroups);
+        $duplicateLocalHeaderOffsetEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateLocalHeaderOffsetGroups);
         $hasDuplicateEntryNames = $duplicateEntryNameGroups !== [];
+        $hasDuplicateLocalHeaderOffsets = $duplicateLocalHeaderOffsetGroups !== [];
 
         if ($entryCountMismatch) {
             $issues[] = 'central-directory-entry-count-mismatch';
         }
         if ($duplicateEntryNameGroups !== []) {
             $issues[] = 'duplicate-central-directory-entry-names';
+        }
+        if ($duplicateLocalHeaderOffsetGroups !== []) {
+            $issues[] = 'central-directory-duplicate-local-header-offsets';
         }
         if (!$archive['isSingleDisk']) {
             $issues[] = 'split-archive-eocd';
@@ -5644,8 +5654,12 @@ final class ZipPackage
             'duplicateEntryNameEntryCount' => $duplicateEntryNameEntryCount,
             'duplicateEntryRawNameGroupCount' => count($duplicateEntryRawNameGroups),
             'duplicateEntryRawNameEntryCount' => $duplicateEntryRawNameEntryCount,
+            'hasDuplicateLocalHeaderOffsets' => $hasDuplicateLocalHeaderOffsets,
+            'duplicateLocalHeaderOffsetGroupCount' => count($duplicateLocalHeaderOffsetGroups),
+            'duplicateLocalHeaderOffsetEntryCount' => $duplicateLocalHeaderOffsetEntryCount,
             'duplicateEntryNameGroups' => $duplicateEntryNameGroups,
             'duplicateEntryRawNameGroups' => $duplicateEntryRawNameGroups,
+            'duplicateLocalHeaderOffsetGroups' => $duplicateLocalHeaderOffsetGroups,
             'hasCentralDirectorySignature' => $centralDirectorySignature !== null,
             'centralDirectorySignature' => $centralDirectorySignature,
             'isSupportedByBoundedReader' => $issues === [],
