@@ -1404,6 +1404,69 @@ HTML;
         json_encode($underPacket, JSON_THROW_ON_ERROR);
         json_encode($overPacket, JSON_THROW_ON_ERROR);
     },
+    'diagnoses malformed html colgroup span values while preserving normalized column geometry' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="malformed-column-span-grid" data-source="html-reader">
+<caption>Malformed column span review</caption>
+<colgroup span="0" style="width: 25%; text-align: right" data-origin="group-zero"></colgroup>
+<colgroup data-origin="colgroup-explicit">
+<col span="two" width="50%" align="center" data-origin="col-two" />
+<col span="-2" style="width: 25%; text-align: left" data-origin="col-negative" />
+</colgroup>
+<tbody>
+<tr><td>Posts</td><td>Ready</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0] ?? null;
+        $t->same('table', $table?->type ?? null);
+        $table = $table instanceof AstNode ? $table : new AstNode('table');
+        $diagnostics = TableGeometry::diagnostics($table);
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(['right', 'center', 'left'], $table->attr('alignments'));
+        $t->same([0.25, 0.5, 0.25], $table->attr('widths'));
+        $columnSources = is_array($table->attr('columnSources')) ? $table->attr('columnSources') : [];
+        $t->same(3, count($columnSources));
+        $t->same(['colgroup', 'col', 'col'], array_map(static fn (array $source): string => (string) ($source['kind'] ?? ''), $columnSources));
+        $t->same([1, 1, 1], array_map(static fn (array $source): int => (int) ($source['sourceSpan'] ?? 0), $columnSources));
+        $t->same('0', $columnSources[0]['colgroupAttributes']['htmlAttributes']['span'] ?? null);
+        $t->same('two', $columnSources[1]['colAttributes']['htmlAttributes']['span'] ?? null);
+        $t->same('-2', $columnSources[2]['colAttributes']['htmlAttributes']['span'] ?? null);
+
+        $t->same(3, count($diagnostics));
+        $t->same(['html-column-span-normalized'], array_values(array_unique(array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $diagnostics))));
+        $t->same(['colgroup', 'col', 'col'], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['sourceElement'] ?? ''), $diagnostics));
+        $t->same(['0', 'two', '-2'], array_map(static fn (array $diagnostic): mixed => $diagnostic['rawValue'] ?? null, $diagnostics));
+        $t->same([1, 1, 1], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['normalizedSpan'] ?? 0), $diagnostics));
+        $t->same([0, 1, 2], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['column'] ?? -1), $diagnostics));
+        $t->same([0, 1, 1], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['colgroupIndex'] ?? -1), $diagnostics));
+        $t->same([null, 0, 1], array_map(static fn (array $diagnostic): mixed => $diagnostic['colIndex'] ?? null, $diagnostics));
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(['html-column-span-normalized'], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(3, $packet['summary']['diagnosticCount'] ?? null);
+        $t->same(true, $packet['summary']['hasNormalizedColumnSpans'] ?? null);
+        $t->same(3, $packet['summary']['normalizedColumnSpanCount'] ?? null);
+        $t->same(['colgroup', 'col'], $packet['summary']['normalizedColumnSpanSourceElements'] ?? null);
+        $t->same(3, count($packet['columnGroups'] ?? []));
+        $t->same('0', $packet['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['span'] ?? null);
+        $t->same('two', $packet['columns'][1]['source']['colAttributes']['htmlAttributes']['span'] ?? null);
+        $t->same('-2', $packet['columns'][2]['source']['colAttributes']['htmlAttributes']['span'] ?? null);
+        $t->same($diagnostics, $packet['diagnostics'] ?? null);
+
+        $t->contains('<colgroup data-origin="group-zero"><col style="width:25%"/></colgroup><colgroup data-origin="colgroup-explicit"><col data-origin="col-two" style="width:50%"/><col data-origin="col-negative" style="width:25%"/></colgroup>', $blocks);
+        $t->contains('<tbody><tr><td style="text-align:right">Posts</td><td style="text-align:center">Ready</td><td style="text-align:left">Review</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, 'span="0"'), 'Malformed colgroup span must not leak into WordPress output');
+        $t->true(!str_contains($blocks, 'span="two"'), 'Malformed col span text must not leak into WordPress output');
+        $t->true(!str_contains($blocks, 'span="-2"'), 'Malformed negative col span must not leak into WordPress output');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'inherits html row group and row table alignment into geometry packets' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="inherited-alignment-grid" data-source="html-reader">

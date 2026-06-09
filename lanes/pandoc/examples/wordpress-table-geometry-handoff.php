@@ -184,6 +184,23 @@ $colgroupMismatchTables = array_values(array_filter(
     $colgroupMismatchDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$malformedColumnSpanDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="malformed-column-span-grid" data-source="html-reader">
+<caption>Malformed column span review</caption>
+<colgroup span="0" style="width: 25%; text-align: right" data-origin="group-zero"></colgroup>
+<colgroup data-origin="colgroup-explicit">
+<col span="two" width="50%" align="center" data-origin="col-two" />
+<col span="-2" style="width: 25%; text-align: left" data-origin="col-negative" />
+</colgroup>
+<tbody>
+<tr><td>Posts</td><td>Ready</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$malformedColumnSpanTables = array_values(array_filter(
+    $malformedColumnSpanDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $inheritedAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="inherited-alignment-grid" data-source="html-reader">
 <caption>Inherited alignment review</caption>
@@ -1653,6 +1670,7 @@ $document = new AstNode('document', [], [
     ...$decimalAlignmentTables,
     ...$cellDecimalAlignmentTables,
     ...$colgroupMismatchTables,
+    ...$malformedColumnSpanTables,
     ...$inheritedAlignmentTables,
     ...$verticalAlignmentTables,
     ...$legacyFrameTables,
@@ -3047,6 +3065,50 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing WordPress output for underdeclared colgroup metadata');
     }
     json_encode($colgroupMismatchPacket, JSON_THROW_ON_ERROR);
+
+    $malformedColumnSpanTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'malformed-column-span-grid') {
+            $malformedColumnSpanTable = $node;
+            break;
+        }
+    }
+    $malformedColumnSpanPacket = $malformedColumnSpanTable instanceof AstNode ? $malformedColumnSpanTable->attr('tableGeometry') : null;
+    if (
+        !$malformedColumnSpanTable instanceof AstNode
+        || $malformedColumnSpanTable->attr('alignments') !== ['right', 'center', 'left']
+        || $malformedColumnSpanTable->attr('widths') !== [0.25, 0.5, 0.25]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing malformed HTML column span normalized metadata');
+    }
+    if (
+        !is_array($malformedColumnSpanPacket)
+        || ($malformedColumnSpanPacket['summary']['diagnosticCodes'] ?? null) !== ['html-column-span-normalized']
+        || ($malformedColumnSpanPacket['summary']['normalizedColumnSpanCount'] ?? null) !== 3
+        || ($malformedColumnSpanPacket['summary']['normalizedColumnSpanSourceElements'] ?? null) !== ['colgroup', 'col']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing malformed HTML column span diagnostics');
+    }
+    if (
+        array_map(static fn (array $diagnostic): mixed => $diagnostic['rawValue'] ?? null, $malformedColumnSpanPacket['diagnostics'] ?? []) !== ['0', 'two', '-2']
+        || array_map(static fn (array $diagnostic): string => (string) ($diagnostic['sourceElement'] ?? ''), $malformedColumnSpanPacket['diagnostics'] ?? []) !== ['colgroup', 'col', 'col']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing malformed HTML column span raw values');
+    }
+    if (
+        ($malformedColumnSpanPacket['columnGroups'][0]['source']['colgroupAttributes']['htmlAttributes']['span'] ?? null) !== '0'
+        || ($malformedColumnSpanPacket['columns'][1]['source']['colAttributes']['htmlAttributes']['span'] ?? null) !== 'two'
+        || ($malformedColumnSpanPacket['columns'][2]['source']['colAttributes']['htmlAttributes']['span'] ?? null) !== '-2'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing malformed HTML column span provenance');
+    }
+    if (!str_contains($blocks, '<table id="malformed-column-span-grid" data-source="html-reader"><colgroup data-origin="group-zero"><col style="width:25%"/></colgroup><colgroup data-origin="colgroup-explicit"><col data-origin="col-two" style="width:50%"/><col data-origin="col-negative" style="width:25%"/></colgroup><tbody><tr><td style="text-align:right">Posts</td><td style="text-align:center">Ready</td><td style="text-align:left">Review</td></tr></tbody></table>')) {
+        throw new RuntimeException('Table geometry self-test missing normalized WordPress output for malformed HTML column spans');
+    }
+    if (str_contains($blocks, 'span="0"') || str_contains($blocks, 'span="two"') || str_contains($blocks, 'span="-2"')) {
+        throw new RuntimeException('Table geometry self-test leaked malformed HTML column spans into WordPress output');
+    }
+    json_encode($malformedColumnSpanPacket, JSON_THROW_ON_ERROR);
 
     $inheritedAlignmentTable = null;
     foreach ($document->children as $node) {

@@ -9726,6 +9726,7 @@ final class MarkdownReader
         $alignments = [];
         $verticalAlignments = [];
         $sources = [];
+        $diagnostics = [];
         $hasAlignment = false;
         $hasVerticalAlignment = false;
         $hasWidth = false;
@@ -9734,6 +9735,17 @@ final class MarkdownReader
             $cols = $this->childElements($colgroup, 'col');
             if ($cols === []) {
                 $span = $this->positiveHtmlSpan($colgroup->getAttribute('span'));
+                $spanDiagnostic = $this->htmlColumnSpanNormalizationDiagnostic(
+                    $colgroup,
+                    'colgroup',
+                    $colgroupIndex,
+                    null,
+                    count($alignments),
+                    $span
+                );
+                if ($spanDiagnostic !== []) {
+                    $diagnostics[] = $spanDiagnostic;
+                }
                 $alignment = $this->normalizeHtmlColumnAlignment($colgroup);
                 $verticalAlignment = $this->normalizeHtmlColumnVerticalAlignment($colgroup);
                 $width = $this->htmlColumnWidthPercent($colgroup);
@@ -9753,6 +9765,17 @@ final class MarkdownReader
 
             foreach ($cols as $colIndex => $col) {
                 $span = $this->positiveHtmlSpan($col->getAttribute('span'));
+                $spanDiagnostic = $this->htmlColumnSpanNormalizationDiagnostic(
+                    $col,
+                    'col',
+                    $colgroupIndex,
+                    $colIndex,
+                    count($alignments),
+                    $span
+                );
+                if ($spanDiagnostic !== []) {
+                    $diagnostics[] = $spanDiagnostic;
+                }
                 $alignment = $this->normalizeHtmlColumnAlignment($col, $colgroup);
                 $verticalAlignment = $this->normalizeHtmlColumnVerticalAlignment($col, $colgroup);
                 $width = $this->htmlColumnWidthPercent($col);
@@ -9775,9 +9798,10 @@ final class MarkdownReader
         }
 
         $sourceColumnCount = count($alignments);
-        $diagnostics = [];
+        $hasColumnCountMismatch = false;
         if ($maxColumns > 0 && $sourceColumnCount !== $maxColumns) {
             $diagnostics[] = $this->htmlColumnCountMismatchDiagnostic($sourceColumnCount, $maxColumns);
+            $hasColumnCountMismatch = true;
         }
 
         $targetColumnCount = $maxColumns > 0 ? max($maxColumns, $sourceColumnCount) : $sourceColumnCount;
@@ -9789,11 +9813,50 @@ final class MarkdownReader
 
         return [
             'alignments' => $hasAlignment ? $alignments : null,
-            'widths' => $hasWidth && ($hasCompleteWidths || $diagnostics !== []) ? array_values($widths) : null,
+            'widths' => $hasWidth && ($hasCompleteWidths || $hasColumnCountMismatch) ? array_values($widths) : null,
             'verticalAlignments' => $hasVerticalAlignment ? $verticalAlignments : null,
             'sources' => $sources,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlColumnSpanNormalizationDiagnostic(
+        \DOMElement $element,
+        string $sourceElement,
+        int $colgroupIndex,
+        ?int $colIndex,
+        int $column,
+        int $normalizedSpan
+    ): array {
+        if (!$element->hasAttribute('span')) {
+            return [];
+        }
+
+        $rawSpan = trim($element->getAttribute('span'));
+        if (preg_match('/^\d+$/', $rawSpan) === 1 && (int) $rawSpan >= 1) {
+            return [];
+        }
+
+        $diagnostic = [
+            'code' => 'html-column-span-normalized',
+            'source' => 'html-colgroup',
+            'sourceElement' => $sourceElement,
+            'attribute' => 'span',
+            'rawType' => 'string',
+            'rawValue' => $rawSpan,
+            'normalizedSpan' => $normalizedSpan,
+            'minimumValue' => 1,
+            'column' => $column,
+            'colgroupIndex' => $colgroupIndex,
+        ];
+        if ($colIndex !== null) {
+            $diagnostic['colIndex'] = $colIndex;
+        }
+
+        return $diagnostic;
     }
 
     /**

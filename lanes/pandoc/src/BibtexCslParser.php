@@ -2278,17 +2278,23 @@ final class BibtexCslParser
         $parts = self::splitTopLevel($name, ',');
         if (count($parts) >= 2) {
             [$particle, $family] = self::splitLeadingParticle(self::cleanBibtexText($parts[0]));
+            $given = self::cleanBibtexText($parts[1]);
+            $suffix = isset($parts[2]) ? self::cleanBibtexText($parts[2]) : '';
+            if ($suffix !== '' && self::isBibtexNameSuffix($given)) {
+                [$given, $suffix] = [$suffix, $given];
+            }
+
             $name = [
                 'family' => $family,
-                'given' => self::cleanBibtexText($parts[1]),
+                'given' => $given,
             ];
 
             if ($particle !== '') {
                 $name['non-dropping-particle'] = $particle;
             }
 
-            if (isset($parts[2]) && self::cleanBibtexText($parts[2]) !== '') {
-                $name['suffix'] = self::cleanBibtexText($parts[2]);
+            if ($suffix !== '') {
+                $name['suffix'] = $suffix;
                 $name['comma-suffix'] = true;
             }
 
@@ -2325,6 +2331,16 @@ final class BibtexCslParser
     private static function isEtAlNameSentinel(string $name): bool
     {
         return strtolower(self::cleanBibtexText($name)) === 'others';
+    }
+
+    private static function isBibtexNameSuffix(string $value): bool
+    {
+        $normalized = strtolower(trim(self::cleanBibtexText($value), ". \t\n\r\0\x0B"));
+        if (in_array($normalized, ['jr', 'junior', 'sr', 'senior'], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:[ivxlcdm]+|\d+(?:st|nd|rd|th))$/i', $normalized) === 1;
     }
 
     /**

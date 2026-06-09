@@ -262,6 +262,45 @@ BIB;
         $t->same('(Curator forthcoming)', $processor->renderCitationCluster([$citation('edited-manual', '[@edited-manual]')]));
         $t->same('Curator, Eli, III. Edited Migration Manual. Review Press, forthcoming.', $processor->renderBibliographyEntry('edited-manual'));
     },
+    'maps standard three part bibtex names into csl suffix metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{standard-suffix-review,
+  author    = {Smith, Jr., Ada and de la Cruz, III, Ana Maria},
+  editor    = {Doe, Sr., Jane},
+  title     = {Standard Name Packet},
+  publisher = {Review Press},
+  year      = {2026}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Smith', $items[0]['author'][0]['family'] ?? null);
+        $t->same('Ada', $items[0]['author'][0]['given'] ?? null);
+        $t->same('Jr.', $items[0]['author'][0]['suffix'] ?? null);
+        $t->same(true, $items[0]['author'][0]['comma-suffix'] ?? null);
+        $t->same('de la', $items[0]['author'][1]['non-dropping-particle'] ?? null);
+        $t->same('Cruz', $items[0]['author'][1]['family'] ?? null);
+        $t->same('Ana Maria', $items[0]['author'][1]['given'] ?? null);
+        $t->same('III', $items[0]['author'][1]['suffix'] ?? null);
+        $t->same('Jane', $items[0]['editor'][0]['given'] ?? null);
+        $t->same('Sr.', $items[0]['editor'][0]['suffix'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('standard-suffix-review');
+        $t->same('Ada', $item['authors'][0]['given'] ?? null);
+        $t->same('Jr.', $item['authors'][0]['suffix'] ?? null);
+        $t->same('Ana Maria', $item['authors'][1]['given'] ?? null);
+        $t->same('III', $item['authors'][1]['suffix'] ?? null);
+        $t->same('Jane', $item['editors'][0]['given'] ?? null);
+        $t->same('Sr.', $item['editors'][0]['suffix'] ?? null);
+        $t->same('(Smith and de la Cruz 2026)', $processor->renderCitationCluster([$citation('standard-suffix-review', '[@standard-suffix-review]')]));
+        $t->same('Smith, Ada, Jr.; de la Cruz, Ana Maria, III. Standard Name Packet. Review Press, 2026.', $processor->renderBibliographyEntry('standard-suffix-review'));
+
+        $document = (new MarkdownReader())->read('Standard suffix names [@standard-suffix-review] keep reviewer credit metadata attached.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Standard suffix names (Smith and de la Cruz 2026) keep reviewer credit metadata attached.</p>', $blocks);
+        $t->contains('<dt>Smith and de la Cruz 2026</dt><dd>Smith, Ada, Jr.; de la Cruz, Ana Maria, III. Standard Name Packet. Review Press, 2026.</dd>', $blocks);
+    },
     'decodes common tex accents and special letters in bibtex csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{accented-source,

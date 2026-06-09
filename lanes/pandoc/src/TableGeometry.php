@@ -6043,6 +6043,8 @@ final class TableGeometry
 
         $diagnosticCodes = [];
         $normalizedSpanCount = 0;
+        $normalizedColumnSpanCount = 0;
+        $normalizedColumnSpanSourceElements = [];
         $emptyTableSectionCount = 0;
         $emptyTableRowCount = 0;
         $invalidSourceScopeCount = 0;
@@ -6057,6 +6059,12 @@ final class TableGeometry
             }
             if ($code === 'cell-span-normalized') {
                 $normalizedSpanCount++;
+            } elseif ($code === 'html-column-span-normalized') {
+                $normalizedColumnSpanCount++;
+                $sourceElement = trim((string) ($diagnostic['sourceElement'] ?? ''));
+                if ($sourceElement !== '') {
+                    $normalizedColumnSpanSourceElements[] = $sourceElement;
+                }
             } elseif ($code === 'table-has-no-cells') {
                 $emptyTableSectionCount = max($emptyTableSectionCount, (int) ($diagnostic['sectionCount'] ?? 0));
                 $emptyTableRowCount = max($emptyTableRowCount, (int) ($diagnostic['rowCount'] ?? 0));
@@ -6164,6 +6172,9 @@ final class TableGeometry
             'diagnosticCodes' => array_values(array_unique($diagnosticCodes)),
             'hasNormalizedSpans' => $normalizedSpanCount > 0,
             'normalizedSpanCount' => $normalizedSpanCount,
+            'hasNormalizedColumnSpans' => $normalizedColumnSpanCount > 0,
+            'normalizedColumnSpanCount' => $normalizedColumnSpanCount,
+            'normalizedColumnSpanSourceElements' => array_values(array_unique($normalizedColumnSpanSourceElements)),
             'hasEmptyTable' => in_array('table-has-no-cells', $diagnosticCodes, true),
             'emptyTableSectionCount' => $emptyTableSectionCount,
             'emptyTableRowCount' => $emptyTableRowCount,
