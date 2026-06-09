@@ -550,6 +550,14 @@ final class PandocFormatRegistry
      *     nonExtensionInferredFormats:list<string>,
      *     unsupportedInputFormats:list<string>,
      *     unsupportedOutputFormats:list<string>,
+     *     unsupportedFormatSummary:array{
+     *         anyUnsupported:list<string>,
+     *         unsupportedBoth:list<string>,
+     *         unsupportedInputOnly:list<string>,
+     *         unsupportedOutputOnly:list<string>,
+     *         noNativeReader:list<string>,
+     *         noNativeWriter:list<string>
+     *     },
      *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string}>
      * }
      */
@@ -598,6 +606,7 @@ final class PandocFormatRegistry
             'nonExtensionInferredFormats' => self::wikiFormatsWithoutExtensionInference(),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'unsupportedFormatSummary' => self::wikiUnsupportedFormatSummary(),
             'formats' => $formats,
         ];
     }
@@ -624,6 +633,52 @@ final class PandocFormatRegistry
     public static function wikiOutputOnlyFormats(): array
     {
         return self::wikiFormatsWithDirection('output-only');
+    }
+
+    /**
+     * @return array{
+     *     anyUnsupported:list<string>,
+     *     unsupportedBoth:list<string>,
+     *     unsupportedInputOnly:list<string>,
+     *     unsupportedOutputOnly:list<string>,
+     *     noNativeReader:list<string>,
+     *     noNativeWriter:list<string>
+     * }
+     */
+    public static function wikiUnsupportedFormatSummary(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $anyUnsupported = [];
+        $unsupportedBoth = [];
+        $unsupportedInputOnly = [];
+        $unsupportedOutputOnly = [];
+
+        foreach ($directions as $format => $direction) {
+            $inputUnsupported = $direction['inputStatus'] === 'unsupported';
+            $outputUnsupported = $direction['outputStatus'] === 'unsupported';
+
+            if ($inputUnsupported || $outputUnsupported) {
+                $anyUnsupported[] = $format;
+            }
+            if ($inputUnsupported && $outputUnsupported) {
+                $unsupportedBoth[] = $format;
+            }
+            if ($direction['direction'] === 'input-only' && $inputUnsupported) {
+                $unsupportedInputOnly[] = $format;
+            }
+            if ($direction['direction'] === 'output-only' && $outputUnsupported) {
+                $unsupportedOutputOnly[] = $format;
+            }
+        }
+
+        return [
+            'anyUnsupported' => $anyUnsupported,
+            'unsupportedBoth' => $unsupportedBoth,
+            'unsupportedInputOnly' => $unsupportedInputOnly,
+            'unsupportedOutputOnly' => $unsupportedOutputOnly,
+            'noNativeReader' => self::unsupportedWikiInputFormats(),
+            'noNativeWriter' => self::unsupportedWikiOutputFormats(),
+        ];
     }
 
     /**
@@ -1152,6 +1207,22 @@ final class PandocFormatRegistry
     public static function unsupportedOutputFormats(): array
     {
         return self::formatsWithStatus(self::phpOutputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedWikiInputFormats(): array
+    {
+        return self::formatsWithStatus(self::wikiInputSupport(), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedWikiOutputFormats(): array
+    {
+        return self::formatsWithStatus(self::wikiOutputSupport(), 'unsupported');
     }
 
     /**

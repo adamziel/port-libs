@@ -774,4 +774,59 @@ return [
             $t->same('', $review['outputImplementation'], "Wiki review packet {$format} must not register an output implementation");
         }
     },
+    'summarizes wiki unsupported format surfaces without converter claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::wikiUnsupportedFormatSummary();
+        $packet = PandocFormatRegistry::wikiFormatReviewPacket();
+        $directions = PandocFormatRegistry::wikiFormatDirections();
+
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], $summary['anyUnsupported']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $summary['unsupportedBoth']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $summary['unsupportedInputOnly']);
+        $t->same(['xwiki', 'zimwiki'], $summary['unsupportedOutputOnly']);
+        $t->same(PandocFormatRegistry::unsupportedWikiInputFormats(), $summary['noNativeReader']);
+        $t->same(PandocFormatRegistry::unsupportedWikiOutputFormats(), $summary['noNativeWriter']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $summary['noNativeReader']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $summary['noNativeWriter']);
+
+        foreach ($summary['anyUnsupported'] as $format) {
+            $direction = $directions[$format];
+            $t->same(true, $direction['inputStatus'] === 'unsupported' || $direction['outputStatus'] === 'unsupported', "Wiki {$format} should have an unsupported surface");
+        }
+
+        foreach ($summary['unsupportedBoth'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('input-output', $review['direction'], "Wiki {$format} should remain bidirectional in upstream accounting");
+            $t->same('unsupported', $review['inputStatus'], "Wiki {$format} should not claim native reader parity");
+            $t->same('unsupported', $review['outputStatus'], "Wiki {$format} should not claim native writer parity");
+            $t->same('', $review['inputImplementation']);
+            $t->same('', $review['outputImplementation']);
+        }
+
+        foreach ($summary['unsupportedInputOnly'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('input-only', $review['direction'], "Wiki {$format} should remain input-only");
+            $t->same('unsupported', $review['inputStatus'], "Wiki {$format} should keep unsupported input accounting");
+            $t->same('not-applicable', $review['outputStatus'], "Wiki {$format} should not appear as an output token");
+            $t->same('', $review['inputImplementation']);
+        }
+
+        foreach ($summary['unsupportedOutputOnly'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('output-only', $review['direction'], "Wiki {$format} should remain output-only");
+            $t->same('not-applicable', $review['inputStatus'], "Wiki {$format} should not appear as an input token");
+            $t->same('unsupported', $review['outputStatus'], "Wiki {$format} should keep unsupported output accounting");
+            $t->same('', $review['outputImplementation']);
+        }
+    },
 ];
