@@ -405,10 +405,16 @@ final class BibtexCslProcessor
             $item['container-title'] = $containerTitle;
         }
 
+        $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
+        if ($originalTitle !== null && $originalTitle !== '') {
+            $item['original-title'] = $originalTitle;
+        }
+
         $stringFields = [
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'edition' => ['edition'],
             'volume' => ['volume'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
@@ -417,12 +423,22 @@ final class BibtexCslProcessor
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
             'publisher' => ['publisher', 'institution', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
+            'collection-title' => ['series', 'collection-title'],
+            'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short'],
+            'collection-number' => ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number'],
+            'version' => ['version'],
+            'status' => ['status', 'pubstate'],
+            'medium' => ['howpublished', 'medium'],
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location'],
             'language' => ['language', 'langid', 'hyphenation'],
+            'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
+            'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
+            'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
+            'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'abstract' => ['abstract', 'annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
@@ -465,6 +481,11 @@ final class BibtexCslProcessor
         $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
         if ($accessed !== null) {
             $item['accessed'] = ['date-parts' => [$accessed]];
+        }
+
+        $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
+        if ($originalDate !== null) {
+            $item['original-date'] = ['date-parts' => [$originalDate]];
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword']));

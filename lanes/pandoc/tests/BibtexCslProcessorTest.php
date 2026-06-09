@@ -179,6 +179,50 @@ BIB;
         $t->same('Series', $item['collection-editor'][0]['family']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
     },
+    'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{translated-manual,
+  author            = {Garcia, Gia},
+  title             = {Migration Manual},
+  origtitle         = {Manual de Migracion},
+  origsubtitle      = {Archivo Appendix},
+  origtitleaddon    = {facsimile source},
+  origdate          = {2020-05},
+  origpublisher     = {Archivo Press},
+  origlocation      = {Madrid},
+  origlanguage      = {spanish},
+  publisher         = {Review Press},
+  edition           = {2},
+  series            = {Review Sources},
+  shortseries       = {RS},
+  seriesnumber      = {7},
+  version           = {2.1.0},
+  pubstate          = {revised},
+  howpublished      = {print-on-demand packet},
+  date              = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['translated-manual'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('book', $item['type']);
+        $t->same('Migration Manual', $item['title']);
+        $t->same('Manual de Migracion: Archivo Appendix', $item['original-title']);
+        $t->same('facsimile source', $item['original-title-addon']);
+        $t->same([2020, 5], $item['original-date']['date-parts'][0]);
+        $t->same('Archivo Press', $item['original-publisher']);
+        $t->same('Madrid', $item['original-publisher-place']);
+        $t->same('spanish', $item['original-language']);
+        $t->same('2', $item['edition']);
+        $t->same('Review Sources', $item['collection-title']);
+        $t->same('RS', $item['collection-title-short']);
+        $t->same('7', $item['collection-number']);
+        $t->same('2.1.0', $item['version']);
+        $t->same('revised', $item['status']);
+        $t->same('print-on-demand packet', $item['medium']);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
