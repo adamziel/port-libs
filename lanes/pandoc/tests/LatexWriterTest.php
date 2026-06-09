@@ -239,6 +239,52 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders latex anchor commands for block and inline identifiers' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('heading', ['level' => 2, 'id' => 'review-section'], [
+                $text('Anchored'),
+                $space(),
+                $text('Review'),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Jump'),
+                $space(),
+                new AstNode('link', ['url' => '#review-section'], [$text('back to heading')]),
+                $space(),
+                $text('and'),
+                $space(),
+                new AstNode('span', ['id' => 'source span/1'], [
+                    $text('inline'),
+                    $space(),
+                    new AstNode('strong', [], [$text('anchor')]),
+                ]),
+            ]),
+            new AstNode('div', ['attributes' => ['id' => 'packet:42']], [
+                new AstNode('paragraph', [], [
+                    $text('Inside anchored div with'),
+                    $space(),
+                    new AstNode('link', ['url' => '#packet:42'], [$text('self link')]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\hypertarget{review-section}{%',
+                '\subsection{Anchored Review}\label{review-section}',
+                '}',
+            ]),
+            'Jump \hyperlink{review-section}{back to heading} and \protect\hypertarget{source-span-1}{inline \textbf{anchor}}',
+            implode("\n", [
+                '\hypertarget{packet:42}{%',
+                'Inside anchored div with \hyperlink{packet:42}{self link}',
+                '}',
+            ]),
+        ]), (new LatexWriter())->write($document));
+    },
     'renders unsupported raw and native commands as latex review text' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $space = static fn (): AstNode => new AstNode('space');

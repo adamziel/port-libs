@@ -32,7 +32,7 @@ final class LatexWriter
      */
     private function renderBlock(AstNode $node, int $listDepth = 0): array
     {
-        return match ($node->type) {
+        $lines = match ($node->type) {
             'paragraph', 'plain' => [$this->renderInlines($node->children)],
             'heading' => $this->renderHeading($node),
             'figure' => $this->renderFigure($node),
@@ -53,6 +53,8 @@ final class LatexWriter
             'raw_html', 'raw_markdown', 'native_block', 'unsupported_command' => $this->renderUnsupportedCommandBlock($node),
             default => [],
         };
+
+        return $this->withBlockAnchor($node, $lines);
     }
 
     /**
@@ -92,7 +94,12 @@ final class LatexWriter
         ];
         $level = max(1, min(6, (int) $node->attr('level', 1)));
 
-        return ['\\' . $commands[$level] . '{' . $this->renderInlines($node->children) . '}'];
+        $anchor = $this->nodeAnchorName($node);
+
+        return [
+            '\\' . $commands[$level] . '{' . $this->renderInlines($node->children) . '}'
+                . ($anchor === '' ? '' : '\label{' . $anchor . '}'),
+        ];
     }
 
     /**
@@ -567,7 +574,7 @@ final class LatexWriter
                 'subscript' => $this->renderCommand('textsubscript', $this->renderInlines($node->children)),
                 'small_caps' => $this->renderCommand('textsc', $this->renderInlines($node->children)),
                 'underline' => $this->renderCommand('underline', $this->renderInlines($node->children)),
-                'span' => $this->renderInlines($node->children),
+                'span' => $this->renderSpan($node),
                 'quoted' => $this->renderQuoted($node),
                 'code' => $this->renderCommand('texttt', $this->escapeText((string) $node->attr('text', ''))),
                 'link' => $this->renderLink($node),
@@ -600,12 +607,30 @@ final class LatexWriter
             : '``' . $text . '\'\'';
     }
 
+    private function renderSpan(AstNode $node): string
+    {
+        $text = $this->renderInlines($node->children);
+        $anchor = $this->nodeAnchorName($node);
+        if ($anchor === '') {
+            return $text;
+        }
+
+        return '\protect\hypertarget{' . $anchor . '}{' . $text . '}';
+    }
+
     private function renderLink(AstNode $node): string
     {
         $label = $this->renderInlines($node->children);
         $url = (string) $node->attr('url', '');
         if ($url === '') {
             return $label;
+        }
+
+        if ($url[0] === '#') {
+            $target = $this->latexAnchorName(substr($url, 1));
+            if ($target !== '') {
+                return '\hyperlink{' . $target . '}{' . ($label === '' ? $this->escapeText($url) : $label) . '}';
+            }
         }
 
         return '\href{' . $this->escapeText($url) . '}{' . ($label === '' ? $this->escapeText($url) : $label) . '}';
@@ -751,6 +776,24 @@ final class LatexWriter
         return $children === '' ? $label : $label . ' ' . $children;
     }
 
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function withBlockAnchor(AstNode $node, array $lines): array
+    {
+        $anchor = $this->nodeAnchorName($node);
+        if ($anchor === '' || $lines === []) {
+            return $lines;
+        }
+
+        return [
+            '\hypertarget{' . $anchor . '}{%',
+            ...$lines,
+            '}',
+        ];
+    }
+
     private function unsupportedCommandLabel(AstNode $node, string $scope): string
     {
         $label = '[unsupported ' . $scope . ' command: ' . $this->unsupportedCommandName($node);
@@ -802,6 +845,40 @@ final class LatexWriter
         }
 
         return substr($summary, 0, 157) . '...';
+    }
+
+    private function nodeAnchorName(AstNode $node): string
+    {
+        foreach (['id', 'identifier'] as $name) {
+            $value = $node->attr($name, null);
+            if (is_scalar($value)) {
+                $anchor = $this->latexAnchorName((string) $value);
+                if ($anchor !== '') {
+                    return $anchor;
+                }
+            }
+        }
+
+        foreach (['attributes', 'htmlAttributes'] as $name) {
+            $attributes = $node->attr($name, []);
+            if (!is_array($attributes) || !array_key_exists('id', $attributes) || !is_scalar($attributes['id'])) {
+                continue;
+            }
+
+            $anchor = $this->latexAnchorName((string) $attributes['id']);
+            if ($anchor !== '') {
+                return $anchor;
+            }
+        }
+
+        return '';
+    }
+
+    private function latexAnchorName(string $identifier): string
+    {
+        $anchor = preg_replace('/[^A-Za-z0-9:._-]+/', '-', trim($identifier)) ?? '';
+
+        return trim($anchor, '-');
     }
 
     private function mathConverter(): MathTexConverter
