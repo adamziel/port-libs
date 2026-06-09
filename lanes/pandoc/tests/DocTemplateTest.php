@@ -4730,6 +4730,46 @@ HTML,
         $t->same('<section>Bundled body</section>', $bundled);
     },
 
+    'prefers pandoc user-data default template resources before bundled defaults' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $userHtmlDefault = $renderer->renderResource('templates/default', [
+            'wp-data/templates/default.html5' => '<article class="user-default">$body$ ${ styles.html() }</article>',
+            'wp-data/templates/styles.html' => '/* user default styles */',
+        ], [
+            'body' => 'User data body',
+        ], 'wp-data', 'html');
+        $t->same('<article class="user-default">User data body /* user default styles */</article>', $userHtmlDefault);
+
+        $extensionQualified = $renderer->renderResource('templates/default', [
+            'wp-data/templates/default.html5' => '<article class="extension-user-default">$body$</article>',
+        ], [
+            'body' => 'Extension user body',
+        ], 'wp-data', 'html+smart');
+        $t->same('<article class="extension-user-default">Extension user body</article>', $extensionQualified);
+
+        $explicitExtension = $renderer->renderResource('templates/default.markdown', [
+            'wp-data/templates/default.markdown' => 'user markdown: $body$',
+        ], [
+            'body' => 'Markdown body',
+        ], 'wp-data');
+        $t->same('user markdown: Markdown body', $explicitExtension);
+
+        $mainTemplateDirectory = $renderer->renderResource('templates/default', [
+            'templates/default.html5' => '<article class="main-default">$body$</article>',
+            'wp-data/templates/default.html5' => '<article class="user-default">$body$</article>',
+        ], [
+            'body' => 'Main body',
+        ], 'wp-data', 'html');
+        $t->same('<article class="main-default">Main body</article>', $mainTemplateDirectory);
+
+        $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->renderResource('/templates/default.html5', [
+            'wp-data/templates/default.html5' => '<article>$body$</article>',
+        ], [
+            'body' => 'Absolute body',
+        ], 'wp-data'));
+    },
+
     'renders pandoc default template resources by basename outside templates directory' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

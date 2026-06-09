@@ -106,7 +106,7 @@ final class DocTemplate
     {
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
-        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
+        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format, $userDataDirectory);
         $resources = $this->withDefaultTemplateResource($templatePath, $resources);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
@@ -137,7 +137,7 @@ final class DocTemplate
         $this->validateLineLength($lineLength);
         $templatePath = $this->normalizeTemplateResourcePath($templatePath);
         $resources = $this->normalizeTemplateResourceMap($resources);
-        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format);
+        $templatePath = $this->resolveTemplateResourcePath($templatePath, $resources, $format, $userDataDirectory);
         $resources = $this->withDefaultTemplateResource($templatePath, $resources);
         if (!array_key_exists($templatePath, $resources)) {
             throw new \UnexpectedValueException("Missing doctemplate resource {$templatePath}");
@@ -339,35 +339,85 @@ final class DocTemplate
     /**
      * @param array<string, string> $resources
      */
-    private function resolveTemplateResourcePath(string $templatePath, array $resources, ?string $format): string
+    private function resolveTemplateResourcePath(string $templatePath, array $resources, ?string $format, ?string $userDataDirectory): string
     {
         if (array_key_exists($templatePath, $resources)) {
             return $templatePath;
         }
 
         if ($format === null || $format === '' || $this->templateResourceExtension($this->templateResourceBasename($templatePath)) !== '') {
+            $userDataTemplatePath = $this->userDataDefaultTemplateResourcePath($templatePath, $resources, $userDataDirectory);
+            if ($userDataTemplatePath !== null) {
+                return $userDataTemplatePath;
+            }
+
             return $templatePath;
         }
 
         $formatBase = $this->normalizeTemplateOutputFormat($format);
         $candidate = $templatePath . '.' . $format;
-        if (array_key_exists($candidate, $resources) || $this->defaultTemplateResource($candidate) !== null) {
+        if (array_key_exists($candidate, $resources)) {
+            return $candidate;
+        }
+        $userDataTemplatePath = $this->userDataDefaultTemplateResourcePath($candidate, $resources, $userDataDirectory);
+        if ($userDataTemplatePath !== null) {
+            return $userDataTemplatePath;
+        }
+        if ($this->defaultTemplateResource($candidate) !== null) {
             return $candidate;
         }
 
         if ($formatBase !== $format) {
             $baseCandidate = $templatePath . '.' . $formatBase;
-            if (array_key_exists($baseCandidate, $resources) || $this->defaultTemplateResource($baseCandidate) !== null) {
+            if (array_key_exists($baseCandidate, $resources)) {
+                return $baseCandidate;
+            }
+            $userDataTemplatePath = $this->userDataDefaultTemplateResourcePath($baseCandidate, $resources, $userDataDirectory);
+            if ($userDataTemplatePath !== null) {
+                return $userDataTemplatePath;
+            }
+            if ($this->defaultTemplateResource($baseCandidate) !== null) {
                 return $baseCandidate;
             }
         }
 
         $defaultCandidate = $this->defaultTemplateResourcePathFor($templatePath, $formatBase);
-        if ($defaultCandidate !== null && (array_key_exists($defaultCandidate, $resources) || $this->defaultTemplateResource($defaultCandidate) !== null)) {
-            return $defaultCandidate;
+        if ($defaultCandidate !== null) {
+            if (array_key_exists($defaultCandidate, $resources)) {
+                return $defaultCandidate;
+            }
+            $userDataTemplatePath = $this->userDataDefaultTemplateResourcePath($defaultCandidate, $resources, $userDataDirectory);
+            if ($userDataTemplatePath !== null) {
+                return $userDataTemplatePath;
+            }
+            if ($this->defaultTemplateResource($defaultCandidate) !== null) {
+                return $defaultCandidate;
+            }
         }
 
         return $templatePath;
+    }
+
+    /**
+     * @param array<string, string> $resources
+     */
+    private function userDataDefaultTemplateResourcePath(string $candidate, array $resources, ?string $userDataDirectory): ?string
+    {
+        if ($userDataDirectory === null || $this->isAbsoluteTemplateResourcePath($candidate)) {
+            return null;
+        }
+
+        $basename = $this->templateResourceBasename($candidate);
+        if ($this->defaultTemplateResourceForBasename($basename) === null) {
+            return null;
+        }
+
+        $path = $this->joinTemplateResourcePath(
+            $this->joinTemplateResourcePath($this->normalizeTemplateResourcePath($userDataDirectory), 'templates'),
+            $basename,
+        );
+
+        return array_key_exists($path, $resources) ? $path : null;
     }
 
     private function normalizeTemplateOutputFormat(string $format): string

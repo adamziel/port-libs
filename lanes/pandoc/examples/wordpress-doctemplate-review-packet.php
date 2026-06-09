@@ -244,6 +244,29 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $userDataDefaultPacket = $renderer->renderResource('templates/default', [
+        'wp-data/templates/default.html5' => '<article class="wp-user-default"><h2>$title$</h2><section>${ default.plain() }</section></article>',
+        'wp-data/templates/default.plain' => 'Body: $body$',
+    ], [
+        'title' => 'User Default Review',
+        'body' => 'Imported reviewer packet',
+    ], 'wp-data', 'html+smart');
+    if ($userDataDefaultPacket !== '<article class="wp-user-default"><h2>User Default Review</h2><section>Body: Imported reviewer packet</section></article>') {
+        fwrite(STDERR, "Unexpected doctemplate user-data default template output\n");
+        exit(1);
+    }
+
+    $mainDefaultPacket = $renderer->renderResource('templates/default', [
+        'templates/default.html5' => '<article class="wp-main-default">$body$</article>',
+        'wp-data/templates/default.html5' => '<article class="wp-user-default">$body$</article>',
+    ], [
+        'body' => 'Main reviewer packet',
+    ], 'wp-data', 'html');
+    if ($mainDefaultPacket !== '<article class="wp-main-default">Main reviewer packet</article>') {
+        fwrite(STDERR, "Unexpected doctemplate main default template precedence output\n");
+        exit(1);
+    }
+
     $crOnlyNestingPacket = (new DocTemplate())->render(
         "<section class=\"legacy-cr-review\">\r  " . '$body$' . "\r</section>",
         [
