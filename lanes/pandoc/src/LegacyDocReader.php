@@ -2239,7 +2239,44 @@ final class LegacyDocReader
             'DOCPROPERTY' => 'document-property',
             'INFO' => 'document-info',
         ];
-        if (!isset($fieldTypes[$fieldName])) {
+        $builtInFieldNames = [
+            'AUTHOR' => 'Author',
+            'TITLE' => 'Title',
+            'SUBJECT' => 'Subject',
+            'KEYWORDS' => 'Keywords',
+            'COMMENTS' => 'Comments',
+            'LASTSAVEDBY' => 'Last Saved By',
+            'REVNUM' => 'Revision Number',
+            'NUMWORDS' => 'Word Count',
+            'NUMCHARS' => 'Character Count',
+            'EDITTIME' => 'Edit Time',
+        ];
+        $builtInFieldTypes = [
+            'AUTHOR' => 'document-info',
+            'TITLE' => 'document-info',
+            'SUBJECT' => 'document-info',
+            'KEYWORDS' => 'document-info',
+            'COMMENTS' => 'document-info',
+            'LASTSAVEDBY' => 'document-info',
+            'REVNUM' => 'document-statistic',
+            'NUMWORDS' => 'document-statistic',
+            'NUMCHARS' => 'document-statistic',
+            'EDITTIME' => 'document-statistic',
+        ];
+        $builtInResultKinds = [
+            'AUTHOR' => 'text',
+            'TITLE' => 'text',
+            'SUBJECT' => 'text',
+            'KEYWORDS' => 'text',
+            'COMMENTS' => 'text',
+            'LASTSAVEDBY' => 'text',
+            'REVNUM' => 'revision-number',
+            'NUMWORDS' => 'word-count',
+            'NUMCHARS' => 'character-count',
+            'EDITTIME' => 'editing-minutes',
+        ];
+        $isBuiltInField = isset($builtInFieldNames[$fieldName]);
+        if (!isset($fieldTypes[$fieldName]) && !$isBuiltInField) {
             return null;
         }
 
@@ -2279,6 +2316,9 @@ final class LegacyDocReader
 
             $dataFieldName ??= $token;
         }
+        if (($dataFieldName === null || $dataFieldName === '') && $isBuiltInField) {
+            $dataFieldName = $builtInFieldNames[$fieldName];
+        }
         if ($dataFieldName === null || $dataFieldName === '') {
             return null;
         }
@@ -2287,9 +2327,14 @@ final class LegacyDocReader
         $attributes = [
             'data-legacy-doc-field' => $fieldKey,
             'data-legacy-doc-field-instruction' => $this->normalizeFieldInstruction($instruction),
-            'data-legacy-doc-data-field-type' => $fieldTypes[$fieldName],
+            'data-legacy-doc-data-field-type' => $isBuiltInField ? $builtInFieldTypes[$fieldName] : $fieldTypes[$fieldName],
             'data-legacy-doc-data-field-name' => $dataFieldName,
         ];
+        if ($isBuiltInField) {
+            $attributes['data-legacy-doc-data-field-built-in'] = 'true';
+            $attributes['data-legacy-doc-data-field-policy'] = 'cached-result-native-review';
+            $attributes['data-legacy-doc-data-field-result-kind'] = $builtInResultKinds[$fieldName];
+        }
 
         $format = $this->fieldFormatSwitchValue($tokens);
         if ($format !== null && $format !== '') {

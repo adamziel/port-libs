@@ -6595,6 +6595,78 @@ return [
             $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC document-information field instructions should not render as visible text');
         }
     },
+    'preserves legacy DOC built-in document information fields around cached results' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument): void {
+        $fieldBegin = "\x13";
+        $fieldSeparator = "\x14";
+        $fieldEnd = "\x15";
+        $fieldSpecs = [
+            ['field' => 'AUTHOR', 'instruction' => 'AUTHOR \* Upper', 'key' => 'author', 'type' => 'document-info', 'name' => 'Author', 'kind' => 'text', 'result' => 'MIGRATION DESK', 'format' => 'Upper'],
+            ['field' => 'TITLE', 'instruction' => 'TITLE', 'key' => 'title', 'type' => 'document-info', 'name' => 'Title', 'kind' => 'text', 'result' => 'Legacy Import Packet'],
+            ['field' => 'SUBJECT', 'instruction' => 'SUBJECT', 'key' => 'subject', 'type' => 'document-info', 'name' => 'Subject', 'kind' => 'text', 'result' => 'WordPress review'],
+            ['field' => 'KEYWORDS', 'instruction' => 'KEYWORDS', 'key' => 'keywords', 'type' => 'document-info', 'name' => 'Keywords', 'kind' => 'text', 'result' => 'legacy, wordpress'],
+            ['field' => 'COMMENTS', 'instruction' => 'COMMENTS', 'key' => 'comments', 'type' => 'document-info', 'name' => 'Comments', 'kind' => 'text', 'result' => 'Ready for import'],
+            ['field' => 'LASTSAVEDBY', 'instruction' => 'LASTSAVEDBY', 'key' => 'lastsavedby', 'type' => 'document-info', 'name' => 'Last Saved By', 'kind' => 'text', 'result' => 'Review Editor'],
+            ['field' => 'REVNUM', 'instruction' => 'REVNUM', 'key' => 'revnum', 'type' => 'document-statistic', 'name' => 'Revision Number', 'kind' => 'revision-number', 'result' => '12'],
+            ['field' => 'NUMWORDS', 'instruction' => 'NUMWORDS', 'key' => 'numwords', 'type' => 'document-statistic', 'name' => 'Word Count', 'kind' => 'word-count', 'result' => '1042'],
+            ['field' => 'NUMCHARS', 'instruction' => 'NUMCHARS', 'key' => 'numchars', 'type' => 'document-statistic', 'name' => 'Character Count', 'kind' => 'character-count', 'result' => '8120'],
+            ['field' => 'EDITTIME', 'instruction' => 'EDITTIME', 'key' => 'edittime', 'type' => 'document-statistic', 'name' => 'Edit Time', 'kind' => 'editing-minutes', 'result' => '34'],
+        ];
+        $fieldText = [];
+        foreach ($fieldSpecs as $spec) {
+            $fieldText[] = $fieldBegin . $spec['instruction'] . $fieldSeparator . $spec['result'] . $fieldEnd;
+        }
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildExtendedFibWordDocument('Built-ins ' . implode(' | ', $fieldText) . ".\r"),
+        ]);
+
+        $document = (new LegacyDocReader())->readBytes($docBytes)['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paragraph = $document->children[0];
+        $spansByField = [];
+        foreach ($paragraph->children as $child) {
+            if ($child->type !== 'span') {
+                continue;
+            }
+            $attrs = $child->attr('attributes');
+            if (!is_array($attrs) || ($attrs['data-legacy-doc-data-field-built-in'] ?? '') !== 'true') {
+                continue;
+            }
+            $spansByField[(string) $attrs['data-legacy-doc-field']] = $child;
+        }
+
+        $t->same(count($fieldSpecs), count($spansByField), 'all built-in document information fields should become review spans');
+        foreach ($fieldSpecs as $spec) {
+            $key = (string) $spec['key'];
+            $t->true(isset($spansByField[$key]), 'expected built-in field span for ' . $key);
+            $span = $spansByField[$key];
+            $attrs = $span->attr('attributes');
+            $t->same(['legacy-doc-field', 'legacy-doc-data-field', 'legacy-doc-field-' . $key], $span->attr('classes'));
+            $t->same($key, $attrs['data-legacy-doc-field']);
+            $t->same($spec['instruction'], $attrs['data-legacy-doc-field-instruction']);
+            $t->same($spec['type'], $attrs['data-legacy-doc-data-field-type']);
+            $t->same($spec['name'], $attrs['data-legacy-doc-data-field-name']);
+            $t->same('true', $attrs['data-legacy-doc-data-field-built-in']);
+            $t->same('cached-result-native-review', $attrs['data-legacy-doc-data-field-policy']);
+            $t->same($spec['kind'], $attrs['data-legacy-doc-data-field-result-kind']);
+            if (isset($spec['format'])) {
+                $t->same($spec['format'], $attrs['data-legacy-doc-field-format']);
+            } else {
+                $t->true(!isset($attrs['data-legacy-doc-field-format']), 'unexpected format switch for ' . $key);
+            }
+            $t->same($spec['result'], $span->children[0]->attr('text'));
+        }
+
+        $t->contains('[MIGRATION DESK]{.legacy-doc-field .legacy-doc-data-field .legacy-doc-field-author data-legacy-doc-field="author"', $markdown);
+        $t->contains('data-legacy-doc-data-field-name="Revision Number"', $markdown);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-author" data-legacy-doc-field="author" data-legacy-doc-field-instruction="AUTHOR \* Upper" data-legacy-doc-data-field-type="document-info" data-legacy-doc-data-field-name="Author" data-legacy-doc-data-field-built-in="true" data-legacy-doc-data-field-policy="cached-result-native-review" data-legacy-doc-data-field-result-kind="text" data-legacy-doc-field-format="Upper">MIGRATION DESK</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-data-field legacy-doc-field-revnum" data-legacy-doc-field="revnum" data-legacy-doc-field-instruction="REVNUM" data-legacy-doc-data-field-type="document-statistic" data-legacy-doc-data-field-name="Revision Number" data-legacy-doc-data-field-built-in="true" data-legacy-doc-data-field-policy="cached-result-native-review" data-legacy-doc-data-field-result-kind="revision-number">12</span>', $blocks);
+
+        $visibleText = strip_tags($blocks);
+        foreach (array_column($fieldSpecs, 'field') as $instruction) {
+            $t->true(!str_contains($visibleText, (string) $instruction), 'Legacy DOC built-in field instruction should not render as visible text');
+        }
+    },
     'preserves legacy DOC source-location fields and include aliases around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildExtendedFibWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
         $fieldSeparator = "\x14";

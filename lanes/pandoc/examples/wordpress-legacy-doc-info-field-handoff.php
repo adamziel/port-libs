@@ -47,6 +47,13 @@ $directoryEntry = static function (
         . $u32($startSector)
         . $u64($size);
 };
+$unallocatedDirectoryEntry = static function () use ($u32): string {
+    return str_repeat("\0", 68)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . $u32(0xffffffff)
+        . str_repeat("\0", 48);
+};
 $wordDocument = static function (string $text) use ($u16, $u32, $padTo): string {
     $textBytes = iconv('UTF-8', 'Windows-1252//TRANSLIT', $text);
     if (!is_string($textBytes)) {
@@ -61,7 +68,7 @@ $wordDocument = static function (string $text) use ($u16, $u32, $padTo): string 
 
     return $padTo($fib . $textBytes, 4096);
 };
-$buildCfb = static function (string $wordDocument) use ($u16, $u32, $directoryEntry, $padTo): string {
+$buildCfb = static function (string $wordDocument) use ($u16, $u32, $directoryEntry, $unallocatedDirectoryEntry, $padTo): string {
     $sectorSize = 512;
     $free = 0xffffffff;
     $end = 0xfffffffe;
@@ -84,6 +91,9 @@ $buildCfb = static function (string $wordDocument) use ($u16, $u32, $directoryEn
 
     $directory = $directoryEntry('Root Entry', 5, $end, 0, $free, $free, 1)
         . $directoryEntry('WordDocument', 2, $wordDocumentStartSector, strlen($wordDocument), $free, $free, $free);
+    while (strlen($directory) < $sectorSize) {
+        $directory .= $unallocatedDirectoryEntry();
+    }
 
     $header = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
         . str_repeat("\0", 16)
@@ -119,6 +129,10 @@ $docBytes = $buildCfb($wordDocument(
     . $fieldBegin . ' DOCPROPERTY "Source System" \* MERGEFORMAT ' . $fieldSeparator . 'legacy-cms' . $fieldEnd
     . ' by '
     . $fieldBegin . ' INFO "Author" \* Upper ' . $fieldSeparator . 'MIGRATION DESK' . $fieldEnd
+    . ' title '
+    . $fieldBegin . ' TITLE ' . $fieldSeparator . 'Legacy Import Packet' . $fieldEnd
+    . ' words '
+    . $fieldBegin . ' NUMWORDS ' . $fieldSeparator . '1042' . $fieldEnd
     . ".\r"
 ));
 $result = (new LegacyDocReader())->readBytes($docBytes);
@@ -136,15 +150,25 @@ if (($argv[1] ?? '') === '--self-test') {
         'data-legacy-doc-field="info"',
         'data-legacy-doc-data-field-type="document-info"',
         'data-legacy-doc-data-field-name="Author"',
+        'data-legacy-doc-field="title"',
+        'data-legacy-doc-data-field-name="Title"',
+        'data-legacy-doc-data-field-built-in="true"',
+        'data-legacy-doc-data-field-policy="cached-result-native-review"',
+        'data-legacy-doc-field="numwords"',
+        'data-legacy-doc-data-field-type="document-statistic"',
+        'data-legacy-doc-data-field-name="Word Count"',
+        'data-legacy-doc-data-field-result-kind="word-count"',
         '>legacy-cms</span>',
         '>MIGRATION DESK</span>',
+        '>Legacy Import Packet</span>',
+        '>1042</span>',
     ] as $needle) {
         if (!str_contains($blocks, $needle)) {
             throw new RuntimeException('Legacy DOC info-field smoke missing expected WordPress handoff: ' . $needle);
         }
     }
 
-    foreach (['DOCPROPERTY', 'INFO', 'Source System', 'Author'] as $hidden) {
+    foreach (['DOCPROPERTY', 'INFO', 'TITLE', 'NUMWORDS', 'Source System', 'Author', 'Word Count'] as $hidden) {
         if (str_contains(strip_tags($blocks), $hidden)) {
             throw new RuntimeException('Legacy DOC info-field smoke rendered hidden instruction text: ' . $hidden);
         }
