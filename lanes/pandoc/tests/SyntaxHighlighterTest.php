@@ -1847,6 +1847,42 @@ return [
         $t->contains('<span class="fu">#assert.eq</span><span class="op">(</span><span class="va">title</span><span class="op">,</span> <span class="st">&quot;Review&quot;</span><span class="op">)</span>', $highlighted['html']);
         $t->contains('<span class="fu">#counter</span><span class="op">(</span><span class="dt">heading</span><span class="op">).</span><span class="fu">at</span><span class="op">(</span><span class="fu">here</span><span class="op">())</span>', $highlighted['html']);
     },
+    'highlights typst import aliases labels references and raw spans' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            '/* WordPress Typst package review */',
+            '#import "@preview/cetz:0.3.1": canvas as draw',
+            '#include "partials/header.typ"',
+            '= #title <review-heading>',
+            'See @review-heading and `raw shortcode`.',
+        ]);
+
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'typst');
+
+        $t->same('typst', $highlighted['language']);
+        $t->contains('<span class="co">/* WordPress Typst package review */</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#import</span> <span class="st">&quot;@preview/cetz:0.3.1&quot;</span><span class="op">:</span> <span class="va">canvas</span> <span class="kw">as</span> <span class="va">draw</span>', $highlighted['html']);
+        $t->contains('<span class="kw">#include</span> <span class="st">&quot;partials/header.typ&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="re">=</span> <span class="va">#title</span> <span class="ot">&lt;review-heading&gt;</span>', $highlighted['html']);
+        $t->contains('<span class="va">See</span> <span class="ot">@review-heading</span> <span class="va">and</span> <span class="st">`raw shortcode`</span><span class="op">.</span>', $highlighted['html']);
+    },
+    'hands typst import review packets to wordpress blocks' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'typst-import-review',
+            'classes' => ['typ', 'numberLines'],
+            'attributes' => ['startFrom' => '720'],
+            'text' => "#import \"template.typ\": render as review\n#review([Body]) <review-block>\nSee @review-block",
+        ]);
+
+        $block = (new SyntaxHighlighter())->wordpressHtmlBlock($codeBlock, 'haddock');
+
+        $t->contains('<!-- wp:html -->', $block);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $block);
+        $t->contains('<pre class="sourceCode numberSource typ numberLines"><code class="sourceCode typst" style="counter-reset: source-line 719;">', $block);
+        $t->contains('<span id="typst-import-review-720"><a href="#typst-import-review-720"></a><span class="kw">#import</span> <span class="st">&quot;template.typ&quot;</span><span class="op">:</span> <span class="va">render</span> <span class="kw">as</span> <span class="va">review</span></span>', $block);
+        $t->contains('<span class="fu">#review</span><span class="op">([</span><span class="va">Body</span><span class="op">])</span> <span class="ot">&lt;review-block&gt;</span>', $block);
+        $t->contains('<span class="va">See</span> <span class="ot">@review-block</span>', $block);
+        $t->contains('<!-- /wp:html -->', $block);
+    },
     'highlights kotlin android review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {
