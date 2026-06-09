@@ -11274,6 +11274,142 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfDocumentSecurityStore']);
     },
 
+    'fake runner summarizes pdf dss vri reference consistency policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['outputPath' => 'packets/dss-vri-policy.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $signatureHex = strtoupper(bin2hex($signatureBytes));
+        $signatureDigestName = strtoupper(hash('sha256', $signatureBytes));
+        $certBytes = "reviewer certificate bytes\n";
+        $ocspBytes = "reviewer ocsp response bytes\n";
+        $crlBytes = "reviewer issuer crl bytes\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-2.0',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 7 0 R /DSS 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.signature) /V 9 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Fields [4 0 R] /SigFlags 3 >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /DSS /Certs [10 0 R] /OCSPs [11 0 R] /CRLs [12 0 R] /VRI << /' . $signatureDigestName . ' << /Type /VRI /Cert [10 0 R] /OCSP [11 0 R] /CRL [12 0 R] /TU (D:20260608173000Z) >> /ZZZZUNMATCHED << /Type /VRI /Cert [42 0 R] /OCSP [11 0 R] /CRL [43 0 R] >> >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /ByteRange [0 120 180 60] /Contents <' . $signatureHex . '> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Length ' . strlen($certBytes) . ' >>',
+            'stream',
+            $certBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Length ' . strlen($ocspBytes) . ' >>',
+            'stream',
+            $ocspBytes,
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Length ' . strlen($crlBytes) . ' >>',
+            'stream',
+            $crlBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            'startxref',
+            '2048',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/dss-vri-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/dss-vri-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'object' => '8 0 R',
+            'reviewStatus' => 'review',
+            'certStoreCount' => 1,
+            'ocspStoreCount' => 1,
+            'crlStoreCount' => 1,
+            'vriCount' => 2,
+            'signatureDigestCount' => 1,
+            'matchedVriCount' => 1,
+            'certObjects' => ['10 0 R'],
+            'ocspObjects' => ['11 0 R'],
+            'crlObjects' => ['12 0 R'],
+            'issues' => [
+                'vri-cert-not-in-dss-certs',
+                'vri-crl-not-in-dss-crls',
+                'vri-name-not-matched-to-signature-contents',
+            ],
+            'vri' => [
+                [
+                    'name' => $signatureDigestName,
+                    'matchedSignatureObject' => '9 0 R',
+                    'matchedFieldName' => 'review.signature',
+                    'certs' => ['10 0 R'],
+                    'ocsp' => ['11 0 R'],
+                    'crls' => ['12 0 R'],
+                    'missingCerts' => [],
+                    'missingOcsp' => [],
+                    'missingCrls' => [],
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'name' => 'ZZZZUNMATCHED',
+                    'matchedSignatureObject' => null,
+                    'matchedFieldName' => null,
+                    'certs' => ['42 0 R'],
+                    'ocsp' => ['11 0 R'],
+                    'crls' => ['43 0 R'],
+                    'missingCerts' => ['42 0 R'],
+                    'missingOcsp' => [],
+                    'missingCrls' => ['43 0 R'],
+                    'reviewStatus' => 'review',
+                    'issues' => [
+                        'vri-name-not-matched-to-signature-contents',
+                        'vri-cert-not-in-dss-certs',
+                        'vri-crl-not-in-dss-crls',
+                    ],
+                ],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfDocumentSecurityStorePolicy']);
+        $t->contains('pdf-byte-dss-policy:review', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-vri:2', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-vri-matched:1', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-vri-status:ok:1', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-vri-status:review:1', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-issue:vri-name-not-matched-to-signature-contents:1', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-issue:vri-cert-not-in-dss-certs:1', $diagnostics);
+        $t->contains('pdf-byte-dss-policy-issue:vri-crl-not-in-dss-crls:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfDocumentSecurityStorePolicy']);
+    },
+
     'fake runner summarizes pdfa and pdfua conformance review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['outputPath' => 'packets/claimed-conformance.pdf']);
