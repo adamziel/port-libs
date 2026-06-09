@@ -435,4 +435,27 @@ return [
         ], $extracted['diagnostics']);
         $t->same(2, count(array_unique(array_column($extracted['entries'], 'path'))));
     },
+
+    'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $badDataUri = 'data:image/png;base64,not valid base64 %%';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $badDataUri,
+                    'title' => 'Broken inline image',
+                ], [new AstNode('text', ['text' => 'Broken inline image'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, []);
+        $placeholder = $filled['document']->children[0]->children[0];
+
+        $t->same(['media-resource-invalid:data-uri'], $filled['diagnostics']);
+        $t->same([], $bag->directory());
+        $t->same('span', $placeholder->type);
+        $t->same(['image', 'placeholder'], $placeholder->attr('classes'));
+        $t->same($badDataUri, $placeholder->attr('attributes')['original-image-src']);
+        $t->same('Broken inline image', $placeholder->attr('attributes')['original-image-title']);
+    },
 ];

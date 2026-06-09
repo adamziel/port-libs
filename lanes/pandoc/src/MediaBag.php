@@ -149,7 +149,14 @@ final class MediaBag
             }
 
             if (str_starts_with($source, 'data:')) {
-                $this->insertDataUri($source);
+                try {
+                    $this->insertDataUri($source);
+                } catch (\InvalidArgumentException) {
+                    $diagnostics[] = 'media-resource-invalid:data-uri';
+
+                    return $this->placeholderFor($image);
+                }
+
                 $diagnostics[] = 'media-resource-loaded:data-uri';
 
                 return $image;
