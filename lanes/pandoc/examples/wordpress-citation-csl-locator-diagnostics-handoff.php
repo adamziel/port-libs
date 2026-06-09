@@ -98,6 +98,19 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Citation locator diagnostics handoff did not preserve explicit defaulted page locator metadata');
     }
 
+    $labelWithoutValue = new AstNode('citation', [
+        'id' => 'locator-diagnostics-source',
+        'text' => '[@locator-diagnostics-source, fig.]',
+        'locatorLabel' => 'fig.',
+    ]);
+    $labelOnlyDiagnostics = $processor->citationLocatorDiagnostics($labelWithoutValue);
+    if (($labelOnlyDiagnostics[0]['reason'] ?? null) !== 'citation-locator-label-without-value') {
+        throw new RuntimeException('Citation locator diagnostics handoff did not flag explicit labels without locator values');
+    }
+    if (($labelOnlyDiagnostics[0]['locatorLabel'] ?? null) !== 'figure' || ($labelOnlyDiagnostics[0]['locatorValue'] ?? null) !== '') {
+        throw new RuntimeException('Citation locator diagnostics handoff did not preserve label-only locator metadata');
+    }
+
     foreach ([
         '<p>Review locators (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5) before publishing.</p>',
         '<dt>Vale 2026</dt><dd>Vale, Rae. WordPress Locator Diagnostics Packet.</dd>',

@@ -14103,6 +14103,58 @@ XML
         $t->same('citation-locator-explicit-value-defaulted-page', $processor->normalizeCitation($citation)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
         $t->same('(Vale, p. appendix A)', $processor->renderCitationCluster([$citation]));
     },
+    'applies bounded citation locator diagnostics when explicit labels omit values' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-label-only-source',
+                'type' => 'report',
+                'title' => 'Label Only Locator Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Explicit Locator Label Diagnostics Review Style</title>
+    <id>https://example.test/styles/bounded-explicit-locator-label-diagnostics-review</id>
+    <updated>2026-06-09T22:28:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+
+        $citation = new AstNode('citation', [
+            'id' => 'locator-label-only-source',
+            'text' => '[@locator-label-only-source, fig.]',
+            'locatorLabel' => 'fig.',
+        ]);
+        $diagnostics = $processor->citationLocatorDiagnostics($citation);
+        $t->same(1, count($diagnostics));
+        $t->same('locator-label-only-source', $diagnostics[0]['id'] ?? null);
+        $t->same('[@locator-label-only-source, fig.]', $diagnostics[0]['source'] ?? null);
+        $t->same('', $diagnostics[0]['rawLocator'] ?? null);
+        $t->same('figure', $diagnostics[0]['locatorLabel'] ?? null);
+        $t->same('', $diagnostics[0]['locatorValue'] ?? null);
+        $t->same('citation-locator-label-without-value', $diagnostics[0]['reason'] ?? null);
+        $t->same('warning', $diagnostics[0]['severity'] ?? null);
+        $t->same('citation-locator-label-without-value', $processor->normalizeCitation($citation)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+        $t->same('(Vale)', $processor->renderCitationCluster([$citation]));
+    },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

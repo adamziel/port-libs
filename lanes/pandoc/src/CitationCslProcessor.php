@@ -3921,14 +3921,26 @@ final class CitationCslProcessor
      */
     private function citationLocatorDiagnosticsForCitation(AstNode $citation): array
     {
-        $parts = $this->citationLocatorParts($citation);
-        if ($parts['value'] === '') {
-            return [];
-        }
-
         $rawLocator = $this->inlineValue($citation->attr('locator', ''));
         $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
         $rawLabel = trim((string) $citation->attr('locatorLabel', ''));
+        $parts = $this->citationLocatorParts($citation);
+        if ($parts['value'] === '') {
+            if ($rawLabel === '') {
+                return [];
+            }
+
+            return [[
+                'id' => (string) $citation->attr('id', ''),
+                'source' => $this->sourceCitationText($citation),
+                'rawLocator' => $rawLocator,
+                'locatorLabel' => $this->normalizedLocatorLabel($rawLabel),
+                'locatorValue' => '',
+                'reason' => 'citation-locator-label-without-value',
+                'severity' => 'warning',
+            ]];
+        }
+
         $base = [
             'id' => (string) $citation->attr('id', ''),
             'source' => $this->sourceCitationText($citation),
