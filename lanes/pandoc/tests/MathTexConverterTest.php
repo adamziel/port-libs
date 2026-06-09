@@ -137,6 +137,18 @@ return [
         $t->contains('intent="row(x,approximately_equal_or_equal_to,y,plus,a,not_approximately_equal_to,b,plus,c,not_congruent_to,d)"', $accessibleMathml);
         $t->true(!str_contains($relationMathml, '<mi>\\approxeq</mi>') && !str_contains($relationMathml, '<mi>\\napprox</mi>') && !str_contains($relationMathml, '<mi>\\ncong</mi>'));
     },
+    'converts bounded texmath comparison relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $relationMathml = $converter->texToMathMl('x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $relationMathml);
+        $t->contains('<mi>x</mi><mo>≮</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>≯</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⋚</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⋛</mo><mi>f</mi>', $relationMathml);
+        $t->contains('<annotation encoding="application/x-tex">x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f</annotation>', $relationMathml);
+        $t->contains('alttext="x not less than y plus a not greater than b plus c less equal greater d plus e greater equal less f"', $accessibleMathml);
+        $t->contains('intent="row(x,not_less_than,y,plus,a,not_greater_than,b,plus,c,less_equal_greater,d,plus,e,greater_equal_less,f)"', $accessibleMathml);
+        $t->true(!str_contains($relationMathml, '<mi>\\nless</mi>') && !str_contains($relationMathml, '<mi>\\ngtr</mi>') && !str_contains($relationMathml, '<mi>\\leqgtr</mi>') && !str_contains($relationMathml, '<mi>\\geqless</mi>'));
+    },
     'unwraps bounded tex hyperref wrappers for mathml handoff' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $mathml = $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}', true);

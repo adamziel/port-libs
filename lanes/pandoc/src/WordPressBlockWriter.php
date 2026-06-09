@@ -871,6 +871,7 @@ final class WordPressBlockWriter
             if ($backgroundColor !== '') {
                 $styles[] = 'background-color:' . $backgroundColor;
             }
+            array_push($styles, ...$this->sourceColumnBorderStyles($source));
             $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
             $html .= '<col' . $attrs . '/>';
         }
@@ -892,6 +893,93 @@ final class WordPressBlockWriter
         $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
 
         return $this->sourceAttributeBackgroundColor($colgroupAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return list<string>
+     */
+    private function sourceColumnBorderStyles(array $source): array
+    {
+        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        $styles = $this->sourceAttributeBorderStyles($colAttributes);
+        if ($styles !== []) {
+            return $styles;
+        }
+
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+
+        return $this->sourceAttributeBorderStyles($colgroupAttributes);
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return list<string>
+     */
+    private function sourceAttributeBorderStyles(array $sourceAttributes): array
+    {
+        $attributes = $this->sourceAttributeSummaryMap($sourceAttributes);
+        $style = (string) ($attributes['style'] ?? '');
+        if ($style === '') {
+            return [];
+        }
+
+        $declarations = [];
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name === '' || $value === '') {
+                continue;
+            }
+
+            if ($name === 'border-color') {
+                $color = $this->legacyTableBackgroundColorValue($value);
+                if ($color !== '') {
+                    $declarations[$name] = $name . ':' . $color;
+                }
+                continue;
+            }
+
+            if ($name === 'border-style') {
+                $borderStyle = $this->legacyTableBorderStyleValue($value);
+                if ($borderStyle !== '') {
+                    $declarations[$name] = $name . ':' . $borderStyle;
+                }
+                continue;
+            }
+
+            if ($name === 'border-width') {
+                $width = $this->legacyTableBorderWidthValue($value);
+                if ($width !== '') {
+                    $declarations[$name] = $name . ':' . $width;
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)$/', $name) === 1) {
+                $border = $this->legacyTableBorderShorthandValue($value);
+                if ($border !== '') {
+                    $declarations[$name] = $name . ':' . $border;
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(top|right|bottom|left)-(color|style|width)$/', $name, $match) !== 1) {
+                continue;
+            }
+
+            $normalized = match ($match[2]) {
+                'color' => $this->legacyTableBackgroundColorValue($value),
+                'style' => $this->legacyTableBorderStyleValue($value),
+                'width' => $this->legacyTableBorderSingleWidthValue($value),
+            };
+            if ($normalized !== '') {
+                $declarations[$name] = $name . ':' . $normalized;
+            }
+        }
+
+        return array_values($declarations);
     }
 
     /**
@@ -1913,6 +2001,94 @@ final class WordPressBlockWriter
         }
 
         return implode(' ', $normalized);
+    }
+
+    private function legacyTableBorderSingleWidthValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/\\s/', $value) === 1) {
+            return '';
+        }
+
+        return $this->legacyTableBorderWidthValue($value);
+    }
+
+    private function legacyTableBorderShorthandValue(string $value): string
+    {
+        $tokens = $this->cssValueTokens($value);
+        if ($tokens === []) {
+            return '';
+        }
+
+        $parts = [
+            'width' => '',
+            'style' => '',
+            'color' => '',
+        ];
+        foreach ($tokens as $token) {
+            $width = $this->legacyTableBorderSingleWidthValue($token);
+            if ($width !== '' && $parts['width'] === '') {
+                $parts['width'] = $width;
+                continue;
+            }
+
+            $style = $this->legacyTableBorderStyleValue($token);
+            if ($style !== '' && $parts['style'] === '') {
+                $parts['style'] = $style;
+                continue;
+            }
+
+            $color = $this->legacyTableBackgroundColorValue($token);
+            if ($color !== '' && $parts['color'] === '') {
+                $parts['color'] = $color;
+                continue;
+            }
+
+            return '';
+        }
+
+        return implode(' ', array_values(array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cssValueTokens(string $value): array
+    {
+        $tokens = [];
+        $token = '';
+        $depth = 0;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '(') {
+                $depth++;
+                $token .= $char;
+                continue;
+            }
+
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                $token .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && ctype_space($char)) {
+                if ($token !== '') {
+                    $tokens[] = $token;
+                    $token = '';
+                }
+                continue;
+            }
+
+            $token .= $char;
+        }
+
+        if ($token !== '') {
+            $tokens[] = $token;
+        }
+
+        return $tokens;
     }
 
     private function legacyTableBackgroundColorValue(string $value): string

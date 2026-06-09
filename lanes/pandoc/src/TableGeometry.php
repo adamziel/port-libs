@@ -1843,6 +1843,7 @@ final class TableGeometry
      *     columnGroups:list<array<string, mixed>>,
      *     columnDecimalAlignments:list<array<string, mixed>>,
      *     columnBackgrounds:list<array<string, mixed>>,
+     *     columnBorderPresentations:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
      *     directionality:array<string, mixed>,
      *     tableLayout?:array<string, mixed>,
@@ -1882,6 +1883,7 @@ final class TableGeometry
         $columnGroups = self::columnGroups($table, $columnCount);
         $columnDecimalAlignments = self::columnDecimalAlignments($columnGroups);
         $columnBackgrounds = self::columnBackgrounds($columnGroups);
+        $columnBorderPresentations = self::columnBorderPresentations($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
         $sectionBackgrounds = self::sectionBackgrounds($sections);
@@ -1928,6 +1930,7 @@ final class TableGeometry
             'columnGroups' => $columnGroups,
             'columnDecimalAlignments' => $columnDecimalAlignments,
             'columnBackgrounds' => $columnBackgrounds,
+            'columnBorderPresentations' => $columnBorderPresentations,
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
             'sectionBackgrounds' => $sectionBackgrounds,
@@ -1959,6 +1962,7 @@ final class TableGeometry
                 $columnGroups,
                 $columnDecimalAlignments,
                 $columnBackgrounds,
+                $columnBorderPresentations,
                 $cellDecimalAlignments,
                 $cellNoWraps,
                 $sectionBackgrounds,
@@ -5159,6 +5163,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $columnGroups
      * @param list<array<string, mixed>> $columnDecimalAlignments
      * @param list<array<string, mixed>> $columnBackgrounds
+     * @param list<array<string, mixed>> $columnBorderPresentations
      * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $cellNoWraps
      * @param list<array<string, mixed>> $sectionBackgrounds
@@ -5191,6 +5196,7 @@ final class TableGeometry
         array $columnGroups,
         array $columnDecimalAlignments,
         array $columnBackgrounds,
+        array $columnBorderPresentations,
         array $cellDecimalAlignments,
         array $cellNoWraps,
         array $sectionBackgrounds,
@@ -5547,6 +5553,19 @@ final class TableGeometry
             'columnBackgroundColors' => self::columnBackgroundStringValues($columnBackgrounds, 'backgroundColor'),
             'columnBackgroundSources' => self::columnBackgroundStringValues($columnBackgrounds, 'backgroundColorSource'),
             'columnBackgroundSourceElements' => self::columnBackgroundStringValues($columnBackgrounds, 'sourceElement'),
+            'columnBorderPresentationCount' => count($columnBorderPresentations),
+            'hasColumnBorderPresentations' => $columnBorderPresentations !== [],
+            'columnBorderPresentationColumns' => self::columnBorderPresentationColumns($columnBorderPresentations),
+            'columnBorderPresentationColors' => self::columnBorderPresentationStringValues($columnBorderPresentations, 'borderColor'),
+            'columnBorderPresentationStyles' => self::columnBorderPresentationStringValues($columnBorderPresentations, 'borderStyle'),
+            'columnBorderPresentationWidths' => self::columnBorderPresentationStringValues($columnBorderPresentations, 'borderWidth'),
+            'columnBorderPresentationSourceElements' => self::columnBorderPresentationStringValues($columnBorderPresentations, 'sourceElement'),
+            'columnBorderPresentationEdgeCount' => self::columnBorderPresentationEdgeCount($columnBorderPresentations),
+            'hasColumnBorderPresentationEdges' => self::columnBorderPresentationEdgeCount($columnBorderPresentations) > 0,
+            'columnBorderPresentationEdges' => self::columnBorderPresentationEdgeStringValues($columnBorderPresentations, 'edge'),
+            'columnBorderPresentationEdgeColors' => self::columnBorderPresentationEdgeStringValues($columnBorderPresentations, 'borderColor'),
+            'columnBorderPresentationEdgeStyles' => self::columnBorderPresentationEdgeStringValues($columnBorderPresentations, 'borderStyle'),
+            'columnBorderPresentationEdgeWidths' => self::columnBorderPresentationEdgeStringValues($columnBorderPresentations, 'borderWidth'),
             'cellDecimalAlignmentCount' => count($cellDecimalAlignments),
             'hasCellDecimalAlignments' => $cellDecimalAlignments !== [],
             'cellDecimalAlignmentColumns' => self::cellDecimalAlignmentColumns($cellDecimalAlignments),
@@ -6007,6 +6026,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -6097,6 +6117,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -6203,6 +6224,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnGroupWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::columnBackgroundWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
@@ -7042,6 +7064,290 @@ final class TableGeometry
             'backgroundColorSources' => self::columnBackgroundStringValues($records, 'backgroundColorSource'),
             'sourceElements' => self::columnBackgroundStringValues($records, 'sourceElement'),
             'backgrounds' => $records,
+        ]];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columnGroups
+     * @return list<array<string, mixed>>
+     */
+    private static function columnBorderPresentations(array $columnGroups): array
+    {
+        $records = [];
+        foreach ($columnGroups as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+
+            $source = is_array($group['source'] ?? null) ? $group['source'] : [];
+            $border = self::columnBorderPresentationFromSource($source);
+            if ($border === []) {
+                continue;
+            }
+
+            $columns = self::intList($group['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $record = [
+                'source' => 'html-table-column-border-presentation',
+                'kind' => (string) ($group['kind'] ?? ''),
+                'startColumn' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'span' => count($columns),
+                'columns' => $columns,
+                'sourceElement' => (string) ($border['sourceElement'] ?? ''),
+            ];
+
+            foreach (['colgroupIndex', 'colIndex', 'sourceSpan'] as $key) {
+                if (isset($group[$key]) && is_numeric($group[$key])) {
+                    $record[$key] = (int) $group[$key];
+                }
+            }
+
+            $spanOffsets = self::intList($group['spanOffsets'] ?? []);
+            if ($spanOffsets !== []) {
+                $record['spanOffsets'] = $spanOffsets;
+            }
+
+            foreach (['borderColor', 'borderStyle', 'borderWidth'] as $key) {
+                $value = trim((string) ($border[$key] ?? ''));
+                if ($value !== '') {
+                    $record[$key] = $value;
+                }
+            }
+
+            foreach (['attributes', 'sourceAttributes'] as $key) {
+                $attributes = is_array($border[$key] ?? null) ? $border[$key] : [];
+                if ($attributes !== []) {
+                    $record[$key] = $attributes;
+                }
+            }
+
+            $borderEdges = is_array($border['borderEdges'] ?? null) ? $border['borderEdges'] : [];
+            if ($borderEdges !== []) {
+                $record['borderEdges'] = $borderEdges;
+            }
+
+            $records[] = $record;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private static function columnBorderPresentationFromSource(array $source): array
+    {
+        $colAttributes = is_array($source['colAttributes'] ?? null) ? $source['colAttributes'] : [];
+        $border = self::columnBorderPresentationFromSourceAttributes($colAttributes, 'col');
+        if ($border !== []) {
+            return $border;
+        }
+
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+
+        return self::columnBorderPresentationFromSourceAttributes($colgroupAttributes, 'colgroup');
+    }
+
+    /**
+     * @param array<string, mixed> $sourceAttributes
+     * @return array<string, mixed>
+     */
+    private static function columnBorderPresentationFromSourceAttributes(array $sourceAttributes, string $sourceElement): array
+    {
+        $htmlAttributes = self::stringAttributeMap($sourceAttributes['htmlAttributes'] ?? [], true);
+        foreach (self::stringAttributeMap($sourceAttributes['attributes'] ?? [], false) as $name => $value) {
+            if (!array_key_exists($name, $htmlAttributes)) {
+                $htmlAttributes[$name] = $value;
+            }
+        }
+
+        $style = trim((string) ($htmlAttributes['style'] ?? ''));
+        if ($style === '') {
+            return [];
+        }
+
+        $attributes = [];
+        $borderColor = self::normalizeTableBorderColorStyleAttribute($style);
+        if ($borderColor !== '') {
+            $attributes['border-color'] = $borderColor;
+        }
+
+        $borderStyle = self::normalizeTableBorderStyleStyleAttribute($style);
+        if ($borderStyle !== '') {
+            $attributes['border-style'] = $borderStyle;
+        }
+
+        $borderWidth = self::normalizeTableBorderWidthStyleAttribute($style);
+        if ($borderWidth !== '') {
+            $attributes['border-width'] = $borderWidth;
+        }
+
+        $borderEdges = self::normalizeTableBorderSideStyleAttributes($style);
+        foreach ($borderEdges as $edgeRecord) {
+            $edgeAttributes = is_array($edgeRecord['attributes'] ?? null) ? $edgeRecord['attributes'] : [];
+            foreach ($edgeAttributes as $name => $value) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        if ($attributes === []) {
+            return [];
+        }
+
+        ksort($attributes);
+        $record = [
+            'source' => 'html-table-column-border-presentation',
+            'sourceElement' => $sourceElement,
+            'attributes' => $attributes,
+            'sourceAttributes' => $sourceAttributes,
+        ];
+        if ($borderColor !== '') {
+            $record['borderColor'] = $borderColor;
+        }
+        if ($borderStyle !== '') {
+            $record['borderStyle'] = $borderStyle;
+        }
+        if ($borderWidth !== '') {
+            $record['borderWidth'] = $borderWidth;
+        }
+        if ($borderEdges !== []) {
+            $record['borderEdges'] = $borderEdges;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function columnBorderPresentationColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function columnBorderPresentationStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function columnBorderPresentationEdgeCount(array $records): int
+    {
+        $count = 0;
+        foreach ($records as $record) {
+            if (!is_array($record) || !is_array($record['borderEdges'] ?? null)) {
+                continue;
+            }
+
+            $count += count($record['borderEdges']);
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function columnBorderPresentationEdgeStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record) || !is_array($record['borderEdges'] ?? null)) {
+                continue;
+            }
+
+            foreach ($record['borderEdges'] as $edge) {
+                if (!is_array($edge)) {
+                    continue;
+                }
+
+                $value = trim((string) ($edge[$key] ?? ''));
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function columnBorderPresentationWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-column-border-presentation-require-raw-html', 'raw-html-column-border-presentation'],
+            'asciidoc' => ['asciidoc-column-border-presentation-review-required', 'column-border-presentation-review'],
+            'latex' => ['latex-column-border-presentation-review-required', 'table-column-border-presentation-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::columnBorderPresentations(self::columnGroups($table, self::columnCount($table)));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'column-border-presentation',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-column-border-presentation',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'columnBorderPresentationCount' => count($records),
+            'columns' => self::columnBorderPresentationColumns($records),
+            'colors' => self::columnBorderPresentationStringValues($records, 'borderColor'),
+            'styles' => self::columnBorderPresentationStringValues($records, 'borderStyle'),
+            'widths' => self::columnBorderPresentationStringValues($records, 'borderWidth'),
+            'sourceElements' => self::columnBorderPresentationStringValues($records, 'sourceElement'),
+            'edgeCount' => self::columnBorderPresentationEdgeCount($records),
+            'edges' => self::columnBorderPresentationEdgeStringValues($records, 'edge'),
+            'edgeColors' => self::columnBorderPresentationEdgeStringValues($records, 'borderColor'),
+            'edgeStyles' => self::columnBorderPresentationEdgeStringValues($records, 'borderStyle'),
+            'edgeWidths' => self::columnBorderPresentationEdgeStringValues($records, 'borderWidth'),
+            'records' => $records,
         ]];
     }
 

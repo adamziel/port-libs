@@ -784,6 +784,79 @@ HTML;
         $t->true(!str_contains($blocks, 'javascript:'), 'Unsafe column background URLs must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'normalizes html column border presentation for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="column-border-grid" data-source="html-reader">
+<caption>Column border review</caption>
+<colgroup data-source="legacy-doc" style="border-color: #336699; border-style: dashed; border-width: 2px; border-image:url(javascript:alert(1))">
+<col span="2" width="25%" data-origin="metric-columns" />
+<col width="50%" style="border-right: thick double green; border-bottom-width: 3px; border-bottom-style: dotted; border-bottom-color: #123; border-image:url(javascript:alert(1))" data-origin="state-column" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $borders = is_array($packet['columnBorderPresentations'] ?? null) ? $packet['columnBorderPresentations'] : [];
+        $t->same(2, count($borders));
+        $t->same(true, $packet['summary']['hasColumnBorderPresentations'] ?? null);
+        $t->same(2, $packet['summary']['columnBorderPresentationCount'] ?? null);
+        $t->same([0, 1, 2], $packet['summary']['columnBorderPresentationColumns'] ?? null);
+        $t->same(['#336699'], $packet['summary']['columnBorderPresentationColors'] ?? null);
+        $t->same(['dashed'], $packet['summary']['columnBorderPresentationStyles'] ?? null);
+        $t->same(['2px'], $packet['summary']['columnBorderPresentationWidths'] ?? null);
+        $t->same(['colgroup', 'col'], $packet['summary']['columnBorderPresentationSourceElements'] ?? null);
+        $t->same(2, $packet['summary']['columnBorderPresentationEdgeCount'] ?? null);
+        $t->same(['right', 'bottom'], $packet['summary']['columnBorderPresentationEdges'] ?? null);
+        $t->same(['green', '#112233'], $packet['summary']['columnBorderPresentationEdgeColors'] ?? null);
+        $t->same(['double', 'dotted'], $packet['summary']['columnBorderPresentationEdgeStyles'] ?? null);
+        $t->same(['thick', '3px'], $packet['summary']['columnBorderPresentationEdgeWidths'] ?? null);
+
+        $t->same([0, 1], $borders[0]['columns'] ?? null);
+        $t->same('colgroup', $borders[0]['sourceElement'] ?? null);
+        $t->same('#336699', $borders[0]['borderColor'] ?? null);
+        $t->same('dashed', $borders[0]['borderStyle'] ?? null);
+        $t->same('2px', $borders[0]['borderWidth'] ?? null);
+        $t->same(['border-color' => '#336699', 'border-style' => 'dashed', 'border-width' => '2px'], $borders[0]['attributes'] ?? null);
+        $t->same('border-color: #336699; border-style: dashed; border-width: 2px; border-image:url(javascript:alert(1))', $borders[0]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same([2], $borders[1]['columns'] ?? null);
+        $t->same('col', $borders[1]['sourceElement'] ?? null);
+        $t->same(1, $borders[1]['colIndex'] ?? null);
+        $t->same(2, count($borders[1]['borderEdges'] ?? []));
+        $t->same('right', $borders[1]['borderEdges'][0]['edge'] ?? null);
+        $t->same('thick double green', $borders[1]['borderEdges'][0]['value'] ?? null);
+        $t->same('bottom', $borders[1]['borderEdges'][1]['edge'] ?? null);
+        $t->same('#112233', $borders[1]['borderEdges'][1]['borderColor'] ?? null);
+        $t->same('state-column', $borders[1]['sourceAttributes']['htmlAttributes']['data-origin'] ?? null);
+
+        $markdownDiagnostics = array_values(array_filter(
+            $packet['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'column-border-presentation'
+        ));
+        $t->same(1, count($markdownDiagnostics));
+        $t->same('markdown-column-border-presentation-require-raw-html', $markdownDiagnostics[0]['code'] ?? null);
+        $t->same('raw-html-column-border-presentation', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(2, $markdownDiagnostics[0]['columnBorderPresentationCount'] ?? null);
+        $t->same([0, 1, 2], $markdownDiagnostics[0]['columns'] ?? null);
+        $t->same(['colgroup', 'col'], $markdownDiagnostics[0]['sourceElements'] ?? null);
+        $t->same(['right', 'bottom'], $markdownDiagnostics[0]['edges'] ?? null);
+
+        $t->contains('<colgroup data-source="legacy-doc"><col data-origin="metric-columns" style="width:25%; border-color:#336699; border-style:dashed; border-width:2px"/><col data-origin="metric-columns" style="width:25%; border-color:#336699; border-style:dashed; border-width:2px"/><col data-origin="state-column" style="width:50%; border-right:thick double green; border-bottom-width:3px; border-bottom-style:dotted; border-bottom-color:#112233"/></colgroup>', $blocks);
+        $t->true(!str_contains($blocks, 'javascript:'), 'Unsafe column border URLs must not render');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'carries html column decimal alignment provenance into geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="decimal-alignment-grid" data-source="html-reader">

@@ -61,6 +61,8 @@ Extended relation alias audit $\beth + \gimel + \daleth + a \leqq b + c \geqq d 
 
 Negative approximate relation alias audit $x \approxeq y + a \napprox b + c \ncong d$ stays semantic.
 
+Comparison relation alias audit $x \nless y + a \ngtr b + c \leqgtr d + e \geqless f$ stays semantic.
+
 Unicode symbol-map alias audit $\AC + \twoheadleftarrow + \hookleftarrow + A \nleftarrow B + C \nrightarrow D + E \nleftrightarrow F + P \nsubset Q + R \nsupset S$ stays semantic.
 
 Variant Greek and underbar audit $\varGamma + \varDelta + \varrho_i + \varsigma + \upUpsilon + \overbar{x_i + y_i} + \underbar{\operatorname{draft}}$ stays semantic.
@@ -283,6 +285,7 @@ $summary = [
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'extendedRelationAliasMathml' => $converter->texToMathMl('\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v'),
     'negativeApproxRelationAliasMathml' => $converter->texToMathMl('x \\approxeq y + a \\napprox b + c \\ncong d'),
+    'comparisonRelationAliasMathml' => $converter->texToMathMl('x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f'),
     'unicodeSymbolMapAliasMathml' => $converter->texToMathMl('\\AC + \\twoheadleftarrow + \\hookleftarrow + A \\nleftarrow B + C \\nrightarrow D + E \\nleftrightarrow F + P \\nsubset Q + R \\nsupset S'),
     'variantGreekUnderbarAliasMathml' => $converter->texToMathMl('\\varGamma + \\varDelta + \\varrho_i + \\varsigma + \\upUpsilon + \\overbar{x_i + y_i} + \\underbar{\\operatorname{draft}}'),
     'plainRootMathml' => $converter->texToMathMl('\\root 3 \\of{x_i + y_i} + \\root n+1 \\of{\\frac{a}{b}}'),
@@ -719,6 +722,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['negativeApproxRelationAliasMathml'], '<annotation encoding="application/x-tex">x \\approxeq y + a \\napprox b + c \\ncong d</annotation>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map negative approximate relation aliases');
+    }
+
+    if (
+        str_contains($summary['comparisonRelationAliasMathml'], '<mi>\\nless</mi>')
+        || str_contains($summary['comparisonRelationAliasMathml'], '<mi>\\ngtr</mi>')
+        || str_contains($summary['comparisonRelationAliasMathml'], '<mi>\\leqgtr</mi>')
+        || str_contains($summary['comparisonRelationAliasMathml'], '<mi>\\geqless</mi>')
+        || !str_contains($summary['comparisonRelationAliasMathml'], '<mi>x</mi><mo>≮</mo><mi>y</mi><mo>+</mo><mi>a</mi><mo>≯</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⋚</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⋛</mo><mi>f</mi>')
+        || !str_contains($summary['comparisonRelationAliasMathml'], '<annotation encoding="application/x-tex">x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f</annotation>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map comparison relation aliases');
     }
 
     if (

@@ -112,6 +112,25 @@ $columnBackgroundTables = array_values(array_filter(
     $columnBackgroundDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$columnBorderPresentationDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="column-border-grid" data-source="html-reader">
+<caption>Column border review</caption>
+<colgroup data-source="legacy-doc" style="border-color: #336699; border-style: dashed; border-width: 2px; border-image:url(javascript:alert(1))">
+<col span="2" width="25%" data-origin="metric-columns" />
+<col width="50%" style="border-right: thick double green; border-bottom-width: 3px; border-bottom-style: dotted; border-bottom-color: #123; border-image:url(javascript:alert(1))" data-origin="state-column" />
+</colgroup>
+<thead>
+<tr><th>Scope</th><th>Items</th><th>State</th></tr>
+</thead>
+<tbody>
+<tr><td>Posts</td><td>42</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$columnBorderPresentationTables = array_values(array_filter(
+    $columnBorderPresentationDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $decimalAlignmentDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="decimal-alignment-grid" data-source="html-reader">
 <caption>Decimal alignment review</caption>
@@ -1584,6 +1603,7 @@ $document = new AstNode('document', [], [
     ...$rowspanZeroTables,
     ...$colgroupAlignmentTables,
     ...$columnBackgroundTables,
+    ...$columnBorderPresentationTables,
     ...$decimalAlignmentTables,
     ...$cellDecimalAlignmentTables,
     ...$colgroupMismatchTables,
@@ -2721,6 +2741,64 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($columnBackgroundPacket, JSON_THROW_ON_ERROR);
     json_encode($columnBackgroundWriterPacket, JSON_THROW_ON_ERROR);
+
+    $columnBorderPresentationTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'column-border-grid') {
+            $columnBorderPresentationTable = $node;
+            break;
+        }
+    }
+    $columnBorderPresentationPacket = $columnBorderPresentationTable instanceof AstNode ? $columnBorderPresentationTable->attr('tableGeometry') : null;
+    $columnBorderPresentations = is_array($columnBorderPresentationPacket) && is_array($columnBorderPresentationPacket['columnBorderPresentations'] ?? null)
+        ? $columnBorderPresentationPacket['columnBorderPresentations']
+        : [];
+    if (
+        !$columnBorderPresentationTable instanceof AstNode
+        || count($columnBorderPresentations) !== 2
+        || ($columnBorderPresentationPacket['summary']['hasColumnBorderPresentations'] ?? null) !== true
+        || ($columnBorderPresentationPacket['summary']['columnBorderPresentationColumns'] ?? null) !== [0, 1, 2]
+        || ($columnBorderPresentationPacket['summary']['columnBorderPresentationColors'] ?? null) !== ['#336699']
+        || ($columnBorderPresentationPacket['summary']['columnBorderPresentationEdgeCount'] ?? null) !== 2
+        || ($columnBorderPresentationPacket['summary']['columnBorderPresentationEdges'] ?? null) !== ['right', 'bottom']
+        || ($columnBorderPresentations[0]['sourceElement'] ?? null) !== 'colgroup'
+        || ($columnBorderPresentations[0]['columns'] ?? null) !== [0, 1]
+        || ($columnBorderPresentations[0]['borderWidth'] ?? null) !== '2px'
+        || ($columnBorderPresentations[1]['sourceElement'] ?? null) !== 'col'
+        || ($columnBorderPresentations[1]['borderEdges'][0]['value'] ?? null) !== 'thick double green'
+        || ($columnBorderPresentations[1]['borderEdges'][1]['borderColor'] ?? null) !== '#112233'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing column border presentation handoff metadata');
+    }
+    $columnBorderWriterPacket = TableGeometry::reviewPacket($columnBorderPresentationTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+    ]);
+    $columnBorderDiagnostics = array_values(array_filter(
+        $columnBorderWriterPacket['writerDowngrades']['markdown'] ?? [],
+        static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'column-border-presentation'
+    ));
+    if (
+        count($columnBorderDiagnostics) !== 1
+        || ($columnBorderDiagnostics[0]['code'] ?? null) !== 'markdown-column-border-presentation-require-raw-html'
+        || ($columnBorderDiagnostics[0]['requiredFeature'] ?? null) !== 'raw-html-column-border-presentation'
+        || ($columnBorderDiagnostics[0]['columns'] ?? null) !== [0, 1, 2]
+        || ($columnBorderDiagnostics[0]['edges'] ?? null) !== ['right', 'bottom']
+        || ($columnBorderWriterPacket['writerDowngrades']['asciidoc'][1]['requiredFeature'] ?? null) !== 'column-border-presentation-review'
+        || ($columnBorderWriterPacket['writerDowngrades']['latex'][1]['requiredFeature'] ?? null) !== 'table-column-border-presentation-comments'
+        || ($columnBorderWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing column border presentation writer diagnostics');
+    }
+    $columnBorderBlocks = (new WordPressBlockWriter())->write($columnBorderPresentationDocument);
+    if (!str_contains($columnBorderBlocks, '<colgroup data-source="legacy-doc"><col data-origin="metric-columns" style="width:25%; border-color:#336699; border-style:dashed; border-width:2px"/><col data-origin="metric-columns" style="width:25%; border-color:#336699; border-style:dashed; border-width:2px"/><col data-origin="state-column" style="width:50%; border-right:thick double green; border-bottom-width:3px; border-bottom-style:dotted; border-bottom-color:#112233"/></colgroup>')) {
+        throw new RuntimeException('Table geometry self-test missing WordPress output for column border presentation metadata');
+    }
+    if (str_contains($columnBorderBlocks, 'javascript:')) {
+        throw new RuntimeException('Table geometry self-test rendered unsafe column border style');
+    }
+    json_encode($columnBorderPresentationPacket, JSON_THROW_ON_ERROR);
+    json_encode($columnBorderWriterPacket, JSON_THROW_ON_ERROR);
 
     $decimalAlignmentTable = null;
     foreach ($document->children as $node) {
