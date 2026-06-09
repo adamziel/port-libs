@@ -26,6 +26,7 @@ final class PdfEngineHandoff
     private const MAX_TRANSCRIPT_BYTES = 1048576;
     private const XMP_PDF_A_ID_NAMESPACE = 'http://www.aiim.org/pdfa/ns/id/';
     private const XMP_PDF_UA_ID_NAMESPACE = 'http://www.aiim.org/pdfua/ns/id/';
+    private const XMP_PDF_X_ID_NAMESPACE = 'http://www.npes.org/pdfx/ns/id/';
     private const XMP_PDF_A_EXTENSION_NAMESPACE = 'http://www.aiim.org/pdfa/ns/extension/';
     private const XMP_PDF_A_SCHEMA_NAMESPACE = 'http://www.aiim.org/pdfa/ns/schema#';
     private const XMP_PDF_A_PROPERTY_NAMESPACE = 'http://www.aiim.org/pdfa/ns/property#';
@@ -1599,6 +1600,17 @@ final class PdfEngineHandoff
                                 : '';
                             if ($corrigendum !== '') {
                                 $diagnostics[] = 'pdf-byte-pdfua-corrigendum:' . $corrigendum;
+                            }
+                        }
+                        if (isset($pdfXmpMetadata['pdfxIdentification']) && is_array($pdfXmpMetadata['pdfxIdentification'])) {
+                            $version = is_string($pdfXmpMetadata['pdfxIdentification']['version'] ?? null)
+                                ? $pdfXmpMetadata['pdfxIdentification']['version']
+                                : '';
+                            $conformance = is_string($pdfXmpMetadata['pdfxIdentification']['conformance'] ?? null)
+                                ? $pdfXmpMetadata['pdfxIdentification']['conformance']
+                                : '';
+                            if ($version !== '' || $conformance !== '') {
+                                $diagnostics[] = 'pdf-byte-pdfx:' . $version . ':' . $conformance;
                             }
                         }
                         if (isset($pdfXmpMetadata['pdfaExtensionSchemas']) && is_array($pdfXmpMetadata['pdfaExtensionSchemas'])) {
@@ -5980,6 +5992,15 @@ final class PdfEngineHandoff
                 'part' => $pdfuaPart,
                 'amendment' => $pdfuaAmendment,
                 'corrigendum' => $pdfuaCorrigendum,
+            ];
+        }
+
+        $pdfxVersion = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_X_ID_NAMESPACE, 'GTS_PDFXVersion', ['pdfxid']);
+        $pdfxConformance = $this->xmpNamespaceScalarText($xml, self::XMP_PDF_X_ID_NAMESPACE, 'GTS_PDFXConformance', ['pdfxid']);
+        if ($pdfxVersion !== null || $pdfxConformance !== null) {
+            $metadata['pdfxIdentification'] = [
+                'version' => $pdfxVersion,
+                'conformance' => $pdfxConformance,
             ];
         }
 

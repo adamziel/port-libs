@@ -17782,6 +17782,116 @@ XML);
         $latePos = strpos($blocks, '<dt>Zed 2026</dt>');
         $t->true(is_int($earlyPos) && is_int($middlePos) && is_int($latePos) && $earlyPos < $middlePos && $middlePos < $latePos, 'WordPress bibliography entries should follow CSL source sort order');
     },
+    'applies bounded csl date variable sort keys to citation and bibliography order' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'late-access',
+                'type' => 'report',
+                'title' => 'Late Access Packet',
+                'accessed' => ['date-parts' => [[2026, 6, 10]]],
+                'event-date' => ['date-parts' => [[2026, 6, 2]]],
+                'original-date' => ['date-parts' => [[2019]]],
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zoe'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'early-early-event',
+                'type' => 'report',
+                'title' => 'Early Event Packet',
+                'accessed' => ['date-parts' => [[2026, 6, 1]]],
+                'event-date' => ['date-parts' => [[2026, 6, 3]]],
+                'original-date' => ['date-parts' => [[2018]]],
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'early-late-event',
+                'type' => 'report',
+                'title' => 'Late Event Packet',
+                'accessed' => ['date-parts' => [[2026, 6, 1]]],
+                'event-date' => ['date-parts' => [[2026, 6, 9]]],
+                'original-date' => ['date-parts' => [[2021]]],
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Date Sort Review</title>
+    <id>https://example.test/styles/bounded-date-sort-review</id>
+    <updated>2026-06-08T23:51:50+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="accessed"/>
+      <key variable="event-date" sort="descending"/>
+      <key variable="original-date"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <number variable="citation-number"/>
+        <text variable="title"/>
+        <date variable="accessed"/>
+        <date variable="event-date"/>
+        <date variable="original-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="accessed"/>
+      <key variable="event-date" sort="descending"/>
+      <key variable="original-date"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <number variable="citation-number"/>
+      <text variable="title"/>
+      <date variable="accessed"/>
+      <date variable="event-date"/>
+      <date variable="original-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('accessed', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('event-date', $summary['citationSort'][1]['variable'] ?? null);
+        $t->same('descending', $summary['citationSort'][1]['sort'] ?? null);
+        $t->same('original-date', $summary['bibliographySort'][2]['variable'] ?? null);
+
+        $cluster = $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'late-access', 'text' => '[@late-access]']),
+            new AstNode('citation', ['id' => 'early-early-event', 'text' => '[@early-early-event]']),
+            new AstNode('citation', ['id' => 'early-late-event', 'text' => '[@early-late-event]']),
+        ]);
+        $t->same('[1 | Late Event Packet | 2026-06-01 | 2026-06-09 | 2021; 2 | Early Event Packet | 2026-06-01 | 2026-06-03 | 2018; 3 | Late Access Packet | 2026-06-10 | 2026-06-02 | 2019]', $cluster);
+
+        $document = (new MarkdownReader())->read('Date sorted review [@late-access; @early-early-event; @early-late-event] keeps audit timestamps stable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $lateEvent = strpos($markdown, 'Late Event Packet :: 2026-06-01 :: 2026-06-09 :: 2021');
+        $earlyEvent = strpos($markdown, 'Early Event Packet :: 2026-06-01 :: 2026-06-03 :: 2018');
+        $lateAccess = strpos($markdown, 'Late Access Packet :: 2026-06-10 :: 2026-06-02 :: 2019');
+        $t->true(is_int($lateEvent) && is_int($earlyEvent) && is_int($lateAccess) && $lateEvent < $earlyEvent && $earlyEvent < $lateAccess, 'Date sort should order bibliography entries by accessed, descending event-date, and original-date');
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Date sorted review [1 | Late Event Packet | 2026-06-01 | 2026-06-09 | 2021; 2 | Early Event Packet | 2026-06-01 | 2026-06-03 | 2018; 3 | Late Access Packet | 2026-06-10 | 2026-06-02 | 2019] keeps audit timestamps stable.</p>', $blocks);
+        $t->contains('<dt>Adams 2025</dt><dd>1 :: Late Event Packet :: 2026-06-01 :: 2026-06-09 :: 2021</dd>', $blocks);
+        $t->contains('<dt>Ng 2024</dt><dd>2 :: Early Event Packet :: 2026-06-01 :: 2026-06-03 :: 2018</dd>', $blocks);
+        $t->contains('<dt>Zed 2026</dt><dd>3 :: Late Access Packet :: 2026-06-10 :: 2026-06-02 :: 2019</dd>', $blocks);
+        $lateEventPos = strpos($blocks, '<dt>Adams 2025</dt>');
+        $earlyEventPos = strpos($blocks, '<dt>Ng 2024</dt>');
+        $lateAccessPos = strpos($blocks, '<dt>Zed 2026</dt>');
+        $t->true(is_int($lateEventPos) && is_int($earlyEventPos) && is_int($lateAccessPos) && $lateEventPos < $earlyEventPos && $earlyEventPos < $lateAccessPos, 'WordPress bibliography entries should follow CSL date sort order');
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

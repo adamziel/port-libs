@@ -484,6 +484,18 @@ if (!$fennelCodeBlock instanceof PortLibs\Pandoc\AstNode || $fennelCodeBlock->ty
 }
 $fennel = $highlighter->highlightCodeBlock($fennelCodeBlock, 'zenburn');
 $fennelWordpressBlock = $highlighter->wordpressHtmlBlock($fennelCodeBlock, 'zenburn');
+$mesonCodeBlock = $document->children[77] ?? null;
+if (!$mesonCodeBlock instanceof PortLibs\Pandoc\AstNode || $mesonCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Meson build review code block');
+}
+$meson = $highlighter->highlightCodeBlock($mesonCodeBlock, 'monochrome');
+$mesonWordpressBlock = $highlighter->wordpressHtmlBlock($mesonCodeBlock, 'monochrome');
+$justCodeBlock = $document->children[78] ?? null;
+if (!$justCodeBlock instanceof PortLibs\Pandoc\AstNode || $justCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Justfile review code block');
+}
+$just = $highlighter->highlightCodeBlock($justCodeBlock, 'haddock');
+$justWordpressBlock = $highlighter->wordpressHtmlBlock($justCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2111,6 +2123,48 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($fennelWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected Fennel WordPress style metadata');
     }
+    if (($meson['language'] ?? '') !== 'meson') {
+        throw new RuntimeException('Expected Meson fixture to normalize to meson highlighting');
+    }
+    if (($meson['requestedLanguage'] ?? '') !== 'meson') {
+        throw new RuntimeException('Expected Meson requested-language metadata');
+    }
+    if (($meson['lineNumbering']['start'] ?? null) !== 1200) {
+        throw new RuntimeException('Expected Meson line-number start handoff');
+    }
+    if (!str_contains($meson['html'], '<span class="fu">project</span><span class="op">(</span><span class="st">&#039;wp-import-review&#039;</span>')) {
+        throw new RuntimeException('Expected Meson project call token handoff');
+    }
+    if (!str_contains($meson['html'], '<span class="va">wp_cli</span> <span class="op">=</span> <span class="fu">find_program</span>')) {
+        throw new RuntimeException('Expected Meson find_program token handoff');
+    }
+    if (!str_contains($meson['html'], '<span class="ot">dependencies</span><span class="op">:</span> <span class="fu">dependency</span>')) {
+        throw new RuntimeException('Expected Meson keyword-argument token handoff');
+    }
+    if (!str_contains($mesonWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Meson WordPress style metadata');
+    }
+    if (($just['language'] ?? '') !== 'just') {
+        throw new RuntimeException('Expected Justfile fixture to normalize to just highlighting');
+    }
+    if (($just['requestedLanguage'] ?? '') !== 'Justfile') {
+        throw new RuntimeException('Expected Justfile requested-language metadata');
+    }
+    if (($just['lineNumbering']['start'] ?? null) !== 1220) {
+        throw new RuntimeException('Expected Justfile line-number start handoff');
+    }
+    if (!str_contains($just['html'], '<span class="kw">set</span> <span class="ot">shell</span> <span class="op">:=</span>')) {
+        throw new RuntimeException('Expected Justfile setting token handoff');
+    }
+    if (!str_contains($just['html'], '<span class="re">review source_id</span><span class="op">:</span>')) {
+        throw new RuntimeException('Expected Justfile recipe-header token handoff');
+    }
+    if (!str_contains($just['html'], '<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span>')) {
+        throw new RuntimeException('Expected Justfile wp command token handoff');
+    }
+    if (!str_contains($justWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected Justfile WordPress style metadata');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2207,6 +2261,8 @@ echo "erlangHighlightedHtml:\n" . $erlang['html'] . "\n";
 echo "objectiveCHighlightedHtml:\n" . $objectiveC['html'] . "\n";
 echo "rakuHighlightedHtml:\n" . $raku['html'] . "\n";
 echo "fennelHighlightedHtml:\n" . $fennel['html'] . "\n";
+echo "mesonHighlightedHtml:\n" . $meson['html'] . "\n";
+echo "justHighlightedHtml:\n" . $just['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2274,4 +2330,6 @@ echo "erlangWordpressBlock:\n" . $erlangWordpressBlock . "\n";
 echo "objectiveCWordpressBlock:\n" . $objectiveCWordpressBlock . "\n";
 echo "rakuWordpressBlock:\n" . $rakuWordpressBlock . "\n";
 echo "fennelWordpressBlock:\n" . $fennelWordpressBlock . "\n";
+echo "mesonWordpressBlock:\n" . $mesonWordpressBlock . "\n";
+echo "justWordpressBlock:\n" . $justWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

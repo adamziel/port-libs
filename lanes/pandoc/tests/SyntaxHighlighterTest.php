@@ -3740,6 +3740,76 @@ return [
         $t->contains('<span class="op">(</span><span class="kw">fn</span> <span class="fu">review</span> <span class="op">[</span><span class="va">packet</span><span class="op">]</span>', $directFennel['html']);
         $t->contains('<span class="fu">print</span> <span class="op">(</span><span class="kw">or</span> <span class="va">packet.title</span> <span class="st">&quot;Untitled&quot;</span><span class="op">)))</span>', $directFennel['html']);
     },
+    'highlights meson and justfile build review snippets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $mesonCodeBlock = $document->children[77] ?? null;
+        if (!$mesonCodeBlock instanceof AstNode || $mesonCodeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Meson build review code block');
+        }
+        $justCodeBlock = $document->children[78] ?? null;
+        if (!$justCodeBlock instanceof AstNode || $justCodeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Justfile review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $meson = $highlighter->highlightCodeBlock($mesonCodeBlock, 'monochrome');
+        $mesonWordpressBlock = $highlighter->wordpressHtmlBlock($mesonCodeBlock, 'monochrome');
+        $just = $highlighter->highlightCodeBlock($justCodeBlock, 'haddock');
+        $justWordpressBlock = $highlighter->wordpressHtmlBlock($justCodeBlock, 'haddock');
+        $directMeson = $highlighter->highlight('project("wp-import-review", "c", version: "1.0")', 'meson.build');
+        $directJust = $highlighter->highlight('default source_id="legacy-42": @just review {{source_id}}', 'justfile');
+
+        $t->same('meson', SyntaxHighlighter::languageFromCodeBlock($mesonCodeBlock));
+        $t->same('meson', SyntaxHighlighter::normalizeLanguage('meson'));
+        $t->same('meson', SyntaxHighlighter::normalizeLanguage('meson.build'));
+        $t->same('meson', $meson['language']);
+        $t->same('meson', $meson['requestedLanguage']);
+        $t->same('monochrome', $meson['style']);
+        $t->same([], $meson['diagnostics']);
+        $t->same(1200, $meson['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource meson numberLines"><code class="sourceCode meson" style="counter-reset: source-line 1199;">', $meson['html']);
+        $t->contains('<span id="meson-review-1200"><a href="#meson-review-1200"></a><span class="co"># Meson WordPress native helper review</span></span>', $meson['html']);
+        $t->contains('<span class="fu">project</span><span class="op">(</span><span class="st">&#039;wp-import-review&#039;</span><span class="op">,</span> <span class="st">&#039;c&#039;</span><span class="op">,</span> <span class="ot">version</span><span class="op">:</span> <span class="st">&#039;1.0&#039;</span><span class="op">)</span>', $meson['html']);
+        $t->contains('<span class="va">review_sources</span> <span class="op">=</span> <span class="fu">files</span><span class="op">(</span><span class="st">&#039;review.c&#039;</span><span class="op">,</span> <span class="st">&#039;audit.c&#039;</span><span class="op">)</span>', $meson['html']);
+        $t->contains('<span class="va">wp_cli</span> <span class="op">=</span> <span class="fu">find_program</span><span class="op">(</span><span class="st">&#039;wp&#039;</span><span class="op">,</span> <span class="ot">required</span><span class="op">:</span> <span class="cn">false</span><span class="op">)</span>', $meson['html']);
+        $t->contains('<span class="va">config</span><span class="op">.</span><span class="fu">set</span><span class="op">(</span><span class="st">&#039;PLUGIN_SLUG&#039;</span><span class="op">,</span> <span class="va">plugin_slug</span><span class="op">)</span>', $meson['html']);
+        $t->contains('<span class="ot">c_args</span><span class="op">:</span> <span class="op">[</span><span class="st">&#039;-DWP_IMPORT_REVIEW=1&#039;</span><span class="op">],</span>', $meson['html']);
+        $t->contains('<span class="kw">if</span> <span class="fu">get_option</span><span class="op">(</span><span class="st">&#039;review_tools&#039;</span><span class="op">)</span>', $meson['html']);
+        $t->contains('<span class="fu">executable</span><span class="op">(</span><span class="st">&#039;wp-import-review&#039;</span><span class="op">,</span> <span class="st">&#039;review.c&#039;</span><span class="op">,</span> <span class="ot">dependencies</span><span class="op">:</span> <span class="fu">dependency</span><span class="op">(</span><span class="st">&#039;json-c&#039;</span>', $meson['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $mesonWordpressBlock);
+        $t->contains('<span class="fu">configuration_data</span><span class="op">()</span>', $mesonWordpressBlock);
+        $t->same('meson', $directMeson['language']);
+        $t->same('meson.build', $directMeson['requestedLanguage']);
+        $t->contains('<span class="fu">project</span><span class="op">(</span><span class="st">&quot;wp-import-review&quot;</span><span class="op">,</span> <span class="st">&quot;c&quot;</span><span class="op">,</span> <span class="ot">version</span><span class="op">:</span> <span class="st">&quot;1.0&quot;</span><span class="op">)</span>', $directMeson['html']);
+
+        $t->same('Justfile', SyntaxHighlighter::languageFromCodeBlock($justCodeBlock));
+        $t->same('just', SyntaxHighlighter::normalizeLanguage('just'));
+        $t->same('just', SyntaxHighlighter::normalizeLanguage('Justfile'));
+        $t->same('just', SyntaxHighlighter::normalizeLanguage('language-just-file'));
+        $t->same('just', $just['language']);
+        $t->same('Justfile', $just['requestedLanguage']);
+        $t->same('haddock', $just['style']);
+        $t->same([], $just['diagnostics']);
+        $t->same(1220, $just['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource Justfile numberLines"><code class="sourceCode just" style="counter-reset: source-line 1219;">', $just['html']);
+        $t->contains('<span id="just-review-1220"><a href="#just-review-1220"></a><span class="co"># Justfile WordPress import review tasks</span></span>', $just['html']);
+        $t->contains('<span class="kw">set</span> <span class="ot">shell</span> <span class="op">:=</span> <span class="op">[</span><span class="st">&quot;bash&quot;</span><span class="op">,</span> <span class="st">&quot;-uc&quot;</span><span class="op">]</span>', $just['html']);
+        $t->contains('<span class="kw">export</span> <span class="ot">WP_IMPORT_SOURCE</span> <span class="op">:=</span> <span class="st">&quot;legacy-42&quot;</span>', $just['html']);
+        $t->contains('<span class="re">default source_id=&quot;legacy-42&quot;</span><span class="op">:</span>', $just['html']);
+        $t->contains('<span class="op">@</span><span class="fu">just</span> <span class="va">review</span> <span class="va">{{source_id}}</span>', $just['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="op">--</span><span class="ot">meta_key</span><span class="op">=</span><span class="va">source_id</span> <span class="op">--</span><span class="ot">meta_value</span><span class="op">=</span><span class="va">{{source_id}}</span>', $just['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">[</span> <span class="st">&quot;{{dry_run}}&quot;</span> <span class="op">=</span> <span class="st">&quot;true&quot;</span> <span class="op">];</span> <span class="kw">then</span> <span class="fu">echo</span> <span class="st">&quot;dry run&quot;</span>', $just['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $justWordpressBlock);
+        $t->contains('<span class="re">publish source_id dry_run=&quot;true&quot;</span><span class="op">:</span>', $justWordpressBlock);
+        $t->same('just', $directJust['language']);
+        $t->same('justfile', $directJust['requestedLanguage']);
+        $t->contains('<span class="re">default source_id=&quot;legacy-42&quot;</span><span class="op">:</span> <span class="op">@</span><span class="fu">just</span> <span class="va">review</span> <span class="va">{{source_id}}</span>', $directJust['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

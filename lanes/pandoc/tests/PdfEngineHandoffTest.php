@@ -2756,6 +2756,76 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
 
+    'fake runner extracts bounded pdfx xmp identification from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfx-xmp.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:pdfxid="http://www.npes.org/pdfx/ns/id/">',
+            '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">PDF/X Review Packet</rdf:li></rdf:Alt></dc:title>',
+            '<pdfxid:GTS_PDFXVersion>PDF/X-4</pdfxid:GTS_PDFXVersion>',
+            '<pdfxid:GTS_PDFXConformance>PDF/X-4p</pdfxid:GTS_PDFXConformance>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/pdfx-xmp.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/pdfx-xmp.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'title' => 'PDF/X Review Packet',
+            'pdfxIdentification' => [
+                'version' => 'PDF/X-4',
+                'conformance' => 'PDF/X-4p',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXmpMetadata']);
+        $t->contains('pdf-byte-xmp-metadata:4', $diagnostics);
+        $t->contains('pdf-byte-pdfx:PDF/X-4:PDF/X-4p', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXmpMetadata']);
+    },
+
     'fake runner decodes bounded flatedecode pdf xmp metadata streams without executing engines' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/compressed-xmp.pdf']);

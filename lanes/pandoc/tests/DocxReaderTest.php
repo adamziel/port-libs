@@ -190,6 +190,47 @@ $drawingHyperlinkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$pictureNonVisualRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPictureNv" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/nonvisual-picture.png"/>
+</Relationships>
+XML;
+
+$pictureNonVisualDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="31" name=""/>
+            <a:graphic>
+              <a:graphicData>
+                <pic:pic>
+                  <pic:nvPicPr>
+                    <pic:cNvPr id="501" name="Picture source metadata" descr="Picture-level alt text" title="Picture-level title" hidden="1"/>
+                    <pic:cNvPicPr preferRelativeResize="0">
+                      <a:picLocks noChangeAspect="1" noCrop="true" noMove="0" noResize="1" noSelect="false"/>
+                    </pic:cNvPicPr>
+                  </pic:nvPicPr>
+                  <pic:blipFill>
+                    <a:blip r:embed="rIdPictureNv"/>
+                  </pic:blipFill>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $captionedDrawingContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3433,6 +3474,21 @@ $buildDrawingHyperlinkPackage = static function () use (
     ]);
 };
 
+$buildPictureNonVisualPackage = static function () use (
+    $drawingHyperlinkContentTypesXml,
+    $packageRelationshipsXml,
+    $pictureNonVisualRelationshipsXml,
+    $pictureNonVisualDocumentXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $drawingHyperlinkContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $pictureNonVisualDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $pictureNonVisualRelationshipsXml],
+        ['name' => 'word/media/nonvisual-picture.png', 'data' => 'PICTURENV'],
+    ]);
+};
+
 $buildCaptionedDrawingPackage = static function () use (
     $captionedDrawingContentTypesXml,
     $packageRelationshipsXml,
@@ -4581,6 +4637,65 @@ return [
         $t->same(1, $media['items'][1]['usedCount']);
         $t->same(['Unsafe click alt'], $media['items'][1]['altTexts']);
         $t->same(['Unsafe drawing title'], $media['items'][1]['titles']);
+    },
+    'preserves DOCX DrawingML picture nonvisual metadata and locks for review' => static function (TestRunner $t) use ($buildPictureNonVisualPackage): void {
+        $result = (new DocxReader())->readPackage($buildPictureNonVisualPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(1, count($paragraph->children));
+
+        $image = $paragraph->children[0];
+        $t->same('image', $image->type);
+        $t->same('word/media/nonvisual-picture.png', $image->attr('url'));
+        $t->same('/word/media/nonvisual-picture.png', $image->attr('sourcePart'));
+        $t->same('rIdPictureNv', $image->attr('relationshipId'));
+        $t->same(false, $image->attr('external'));
+        $t->same('Picture-level alt text', $image->attr('alt'));
+        $t->same('Picture-level title', $image->attr('title'));
+        $t->same(9, $image->attr('bytes'));
+        $t->same([
+            'docx-picture-nonvisual',
+            'docx-picture-hidden',
+            'docx-picture-locks',
+            'docx-picture-lock-no-change-aspect',
+            'docx-picture-lock-no-crop',
+            'docx-picture-lock-no-resize',
+        ], $image->attr('classes'));
+
+        $attrs = $image->attr('attributes');
+        $t->same('501', $attrs['data-docx-picture-nv-id']);
+        $t->same('Picture source metadata', $attrs['data-docx-picture-nv-name']);
+        $t->same('Picture-level alt text', $attrs['data-docx-picture-nv-description']);
+        $t->same('Picture-level title', $attrs['data-docx-picture-nv-title']);
+        $t->same('true', $attrs['data-docx-picture-nv-hidden']);
+        $t->same('false', $attrs['data-docx-picture-prefer-relative-resize']);
+        $t->same('true', $attrs['data-docx-picture-lock-no-change-aspect']);
+        $t->same('true', $attrs['data-docx-picture-lock-no-crop']);
+        $t->same('false', $attrs['data-docx-picture-lock-no-move']);
+        $t->same('true', $attrs['data-docx-picture-lock-no-resize']);
+        $t->same('false', $attrs['data-docx-picture-lock-no-select']);
+
+        $t->contains('![Picture-level alt text](word/media/nonvisual-picture.png "Picture-level title"){.docx-picture-nonvisual .docx-picture-hidden .docx-picture-locks .docx-picture-lock-no-change-aspect .docx-picture-lock-no-crop .docx-picture-lock-no-resize', $markdown);
+        $t->contains('data-docx-picture-nv-name="Picture source metadata"', $markdown);
+        $t->contains('data-docx-picture-prefer-relative-resize="false"', $markdown);
+        $t->contains('data-docx-picture-lock-no-select="false"', $markdown);
+
+        $t->contains('<img src="word/media/nonvisual-picture.png" alt="Picture-level alt text" title="Picture-level title" class="docx-picture-nonvisual docx-picture-hidden docx-picture-locks docx-picture-lock-no-change-aspect docx-picture-lock-no-crop docx-picture-lock-no-resize"', $blocks);
+        $t->contains('data-docx-picture-nv-id="501"', $blocks);
+        $t->contains('data-docx-picture-lock-no-resize="true"', $blocks);
+        $t->contains('data-docx-picture-lock-no-move="false"', $blocks);
+
+        $media = $result['importReport']['media'];
+        $t->same(1, $media['count']);
+        $t->same(1, $media['embeddedCount']);
+        $t->same(0, $media['missingCount']);
+        $t->same(1, $media['items'][0]['usedCount']);
+        $t->same(['Picture-level alt text'], $media['items'][0]['altTexts']);
+        $t->same(['Picture-level title'], $media['items'][0]['titles']);
     },
     'groups DOCX image drawings followed by Caption-style paragraphs as figures' => static function (TestRunner $t) use ($buildCaptionedDrawingPackage): void {
         $reader = new DocxReader();

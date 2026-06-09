@@ -2684,6 +2684,67 @@ XML;
         $t->contains('<li id="fn-1"><p>Configured footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>Configured endnote body.</p>', $blocksHtml);
     },
+    'maps ODT footnote separator metadata into note configuration review data' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithFootnoteSeparator = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:body>
+    <office:text>
+      <text:notes-configuration
+        text:note-class="footnote"
+        text:citation-style-name="Footnote_20_Symbol"
+        text:default-style-name="Footnote"
+        text:start-value="3"
+        style:num-format="1"
+        text:footnotes-position="page"
+        text:start-numbering-at="document">
+        <style:footnote-sep
+          style:width="0.018cm"
+          style:distance-before-sep="0.10cm"
+          style:distance-after-sep="0.12cm"
+          style:line-style="solid"
+          style:adjustment="left"
+          style:rel-width="25%"
+          style:color="#808080"/>
+      </text:notes-configuration>
+      <text:p>Separated note<text:note text:id="ftn-separator" text:note-class="footnote"><text:note-citation>3</text:note-citation><text:note-body><text:p>Separator footnote body.</text:p></text:note-body></text:note></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithFootnoteSeparator));
+        $document = $result['document'];
+        $declarations = $result['contentDeclarations'];
+        $documentDeclarations = $document->attr('contentDeclarations');
+        $paragraph = $document->children[0];
+        $footnote = $paragraph->children[1];
+        $footnoteConfiguration = $footnote->attr('noteConfiguration');
+        $separator = $declarations['noteConfigurationsByClass']['footnote']['footnoteSeparator'];
+
+        $t->same(1, $declarations['noteConfigurationCount']);
+        $t->same(1, $declarations['noteConfigurationSeparatorCount']);
+        $t->same('0.018cm', $separator['width']);
+        $t->same('0.10cm', $separator['distanceBeforeSep']);
+        $t->same('0.12cm', $separator['distanceAfterSep']);
+        $t->same('solid', $separator['lineStyle']);
+        $t->same('left', $separator['adjustment']);
+        $t->same('25%', $separator['relWidth']);
+        $t->same('#808080', $separator['color']);
+        $t->same(1, $documentDeclarations['noteConfigurationSeparatorCount']);
+        $t->same(1, $result['importReport']['content']['noteConfigurationSeparatorCount']);
+        $t->same(1, $result['importReport']['contentDeclarations']['noteConfigurationSeparatorCount']);
+        $t->same('25%', $result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnoteSeparator']['relWidth']);
+        $t->same('0.018cm', $footnoteConfiguration['footnoteSeparator']['width']);
+        $t->same('25%', $footnoteConfiguration['footnoteSeparator']['relWidth']);
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocksHtml = (new WordPressBlockWriter())->write($document);
+        $t->contains('[^1]: Separator footnote body.', $markdown);
+        $t->contains('<li id="fn-1"><p>Separator footnote body.</p>', $blocksHtml);
+    },
     'preserves ODT link metadata for Markdown and WordPress review output' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkMetadata = <<<'XML'
 <office:document-content

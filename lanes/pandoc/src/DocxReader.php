@@ -7435,8 +7435,18 @@ final class DocxReader
                 }
 
                 $docPr = $this->drawingPropertiesForBlip($blip, $drawing);
+                $picture = $this->drawingPictureForBlip($blip, $drawing);
+                $pictureProperties = $picture instanceof \DOMElement
+                    ? $this->drawingPictureNonVisualDrawingProperties($picture)
+                    : null;
                 $alt = $docPr instanceof \DOMElement ? (string) ($docPr->getAttribute('descr') ?: $docPr->getAttribute('name')) : '';
+                if ($alt === '' && $pictureProperties instanceof \DOMElement) {
+                    $alt = (string) ($pictureProperties->getAttribute('descr') ?: $pictureProperties->getAttribute('name'));
+                }
                 $title = $docPr instanceof \DOMElement ? $docPr->getAttribute('title') : '';
+                if ($title === '' && $pictureProperties instanceof \DOMElement) {
+                    $title = $pictureProperties->getAttribute('title');
+                }
                 $image = $this->relationshipImageNode(
                     $relationshipId,
                     $relationship,
@@ -8066,6 +8076,12 @@ final class DocxReader
         $classes = [];
         $attributes = [];
 
+        $nonVisual = $this->drawingPictureNonVisualMetadataAttrs($picture);
+        if ($nonVisual !== []) {
+            array_push($classes, ...($nonVisual['classes'] ?? []));
+            $attributes += $nonVisual['attributes'] ?? [];
+        }
+
         $blipFill = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'blipFill');
         $sourceRectangle = $blipFill instanceof \DOMElement
             ? $this->firstChildElement($blipFill, self::DRAWINGML_MAIN_NS, 'srcRect')
@@ -8163,6 +8179,99 @@ final class DocxReader
             'classes' => array_values(array_unique($classes)),
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}
+     */
+    private function drawingPictureNonVisualMetadataAttrs(\DOMElement $picture): array
+    {
+        $classes = [];
+        $attributes = [];
+
+        $properties = $this->drawingPictureNonVisualDrawingProperties($picture);
+        if ($properties instanceof \DOMElement) {
+            foreach ([
+                'id' => 'data-docx-picture-nv-id',
+                'name' => 'data-docx-picture-nv-name',
+                'descr' => 'data-docx-picture-nv-description',
+                'title' => 'data-docx-picture-nv-title',
+            ] as $source => $target) {
+                $value = trim($properties->getAttribute($source));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+
+            $hidden = $this->normalizedOnOffAttribute($properties, 'hidden');
+            if ($hidden !== null) {
+                $attributes['data-docx-picture-nv-hidden'] = $hidden;
+                if ($hidden === 'true') {
+                    $classes[] = 'docx-picture-hidden';
+                }
+            }
+        }
+
+        $pictureProperties = $this->drawingPictureNonVisualPictureProperties($picture);
+        if ($pictureProperties instanceof \DOMElement) {
+            $preferRelativeResize = $this->normalizedOnOffAttribute($pictureProperties, 'preferRelativeResize');
+            if ($preferRelativeResize !== null) {
+                $attributes['data-docx-picture-prefer-relative-resize'] = $preferRelativeResize;
+            }
+
+            $locks = $this->firstChildElement($pictureProperties, self::DRAWINGML_MAIN_NS, 'picLocks');
+            if ($locks instanceof \DOMElement) {
+                $classes[] = 'docx-picture-locks';
+                foreach ([
+                    'noChangeAspect' => 'no-change-aspect',
+                    'noCrop' => 'no-crop',
+                    'noMove' => 'no-move',
+                    'noResize' => 'no-resize',
+                    'noSelect' => 'no-select',
+                ] as $source => $suffix) {
+                    $value = $this->normalizedOnOffAttribute($locks, $source);
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    $attributes['data-docx-picture-lock-' . $suffix] = $value;
+                    if ($value === 'true') {
+                        $classes[] = 'docx-picture-lock-' . $suffix;
+                    }
+                }
+            }
+        }
+
+        if ($classes !== [] || $attributes !== []) {
+            array_unshift($classes, 'docx-picture-nonvisual');
+        }
+
+        if ($classes === [] && $attributes === []) {
+            return [];
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function drawingPictureNonVisualDrawingProperties(\DOMElement $picture): ?\DOMElement
+    {
+        $nonVisual = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'nvPicPr');
+
+        return $nonVisual instanceof \DOMElement
+            ? $this->firstChildElement($nonVisual, self::DRAWINGML_PICTURE_NS, 'cNvPr')
+            : null;
+    }
+
+    private function drawingPictureNonVisualPictureProperties(\DOMElement $picture): ?\DOMElement
+    {
+        $nonVisual = $this->firstChildElement($picture, self::DRAWINGML_PICTURE_NS, 'nvPicPr');
+
+        return $nonVisual instanceof \DOMElement
+            ? $this->firstChildElement($nonVisual, self::DRAWINGML_PICTURE_NS, 'cNvPicPr')
+            : null;
     }
 
     private function drawingPictureForBlip(\DOMElement $blip, \DOMElement $drawing): ?\DOMElement

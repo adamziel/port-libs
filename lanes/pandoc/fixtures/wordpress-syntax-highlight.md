@@ -1448,3 +1448,41 @@ say normalize-title(ReviewPacket.new(source-id => 42, title => " Legacy "));
 
 (print (normalize-title {:title " Legacy " :source_id 42}))
 ```
+
+``` {.meson #meson-review .numberLines startFrom=1200}
+# Meson WordPress native helper review
+project('wp-import-review', 'c', version: '1.0')
+
+plugin_slug = 'legacy-import'
+review_sources = files('review.c', 'audit.c')
+wp_cli = find_program('wp', required: false)
+config = configuration_data()
+config.set('PLUGIN_SLUG', plugin_slug)
+
+library(
+  'wp_import_review',
+  review_sources,
+  c_args: ['-DWP_IMPORT_REVIEW=1'],
+  install: true,
+)
+
+if get_option('review_tools')
+  executable('wp-import-review', 'review.c', dependencies: dependency('json-c', required: false))
+endif
+```
+
+``` {.Justfile #just-review .numberLines startFrom=1220}
+# Justfile WordPress import review tasks
+set shell := ["bash", "-uc"]
+export WP_IMPORT_SOURCE := "legacy-42"
+
+default source_id="legacy-42":
+    @just review {{source_id}}
+
+review source_id:
+    wp post list --meta_key=source_id --meta_value={{source_id}} --format=json
+    php tools/render-review.php {{source_id}}
+
+publish source_id dry_run="true":
+    if [ "{{dry_run}}" = "true" ]; then echo "dry run"; else wp post update {{source_id}} --post_status=publish; fi
+```

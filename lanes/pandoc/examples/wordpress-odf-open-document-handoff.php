@@ -141,7 +141,16 @@ $contentXml = <<<'XML'
         text:start-value="1"
         style:num-format="1"
         text:footnotes-position="page"
-        text:start-numbering-at="document"/>
+        text:start-numbering-at="document">
+        <style:footnote-sep
+          style:width="0.018cm"
+          style:distance-before-sep="0.08cm"
+          style:distance-after-sep="0.10cm"
+          style:line-style="solid"
+          style:adjustment="left"
+          style:rel-width="25%"
+          style:color="#808080"/>
+      </text:notes-configuration>
       <text:notes-configuration
         text:note-class="endnote"
         text:citation-style-name="Endnote_20_Symbol"
@@ -897,6 +906,10 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnotesPosition'] ?? '') !== 'page'
         || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['endnote']['masterPageName'] ?? '') !== 'Endnotes') {
         throw new RuntimeException('Expected ODT notes-configuration metadata to be preserved for WordPress review');
+    }
+    if (($result['importReport']['content']['noteConfigurationSeparatorCount'] ?? 0) !== 1
+        || ($result['importReport']['contentDeclarations']['noteConfigurationsByClass']['footnote']['footnoteSeparator']['relWidth'] ?? '') !== '25%') {
+        throw new RuntimeException('Expected ODT footnote separator metadata to be preserved for WordPress review');
     }
     if (($result['importReport']['trackedChanges']['count'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT tracked changes to be reported');

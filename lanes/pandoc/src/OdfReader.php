@@ -248,6 +248,7 @@ final class OdfReader
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
+                    'noteConfigurationSeparatorCount' => (int) ($content['contentDeclarations']['noteConfigurationSeparatorCount'] ?? 0),
                     'contentValidationCount' => (int) ($content['contentDeclarations']['contentValidationCount'] ?? 0),
                     'contentValidationConditionCount' => (int) ($content['contentDeclarations']['contentValidationConditionCount'] ?? 0),
                     'contentValidationMessageCount' => (int) ($content['contentDeclarations']['contentValidationMessageCount'] ?? 0),
@@ -3267,6 +3268,7 @@ final class OdfReader
     {
         $noteConfigurations = [];
         $noteConfigurationsByClass = [];
+        $noteConfigurationSeparatorCount = 0;
         foreach (self::childElements($text, 'notes-configuration', self::TEXT_NS) as $configuration) {
             $entry = $this->noteConfigurationDefinition($configuration);
             $noteClass = (string) ($entry['noteClass'] ?? '');
@@ -3276,6 +3278,9 @@ final class OdfReader
 
             $noteConfigurations[] = $entry;
             $noteConfigurationsByClass[$noteClass] = $entry;
+            if (is_array($entry['footnoteSeparator'] ?? null)) {
+                $noteConfigurationSeparatorCount++;
+            }
         }
 
         $sequenceDeclarations = [];
@@ -3465,6 +3470,7 @@ final class OdfReader
 
         return [
             'noteConfigurationCount' => count($noteConfigurations),
+            'noteConfigurationSeparatorCount' => $noteConfigurationSeparatorCount,
             'noteConfigurations' => $noteConfigurations,
             'noteConfigurationsByClass' => $noteConfigurationsByClass,
             'sequenceDeclarationCount' => count($sequenceDeclarations),
@@ -4385,6 +4391,7 @@ final class OdfReader
         if ($noteClass === '') {
             $noteClass = 'footnote';
         }
+        $footnoteSeparator = self::firstChildElement($configuration, 'footnote-sep', self::STYLE_NS);
 
         return self::withoutEmpty([
             'noteClass' => $noteClass,
@@ -4401,6 +4408,23 @@ final class OdfReader
             'startNumberingAt' => self::nullable(self::attr($configuration, self::TEXT_NS, 'start-numbering-at')),
             'noteContinuationNoticeForward' => self::nullable(self::attr($configuration, self::TEXT_NS, 'note-continuation-notice-forward')),
             'noteContinuationNoticeBackward' => self::nullable(self::attr($configuration, self::TEXT_NS, 'note-continuation-notice-backward')),
+            'footnoteSeparator' => $footnoteSeparator instanceof \DOMElement ? $this->footnoteSeparatorDefinition($footnoteSeparator) : null,
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function footnoteSeparatorDefinition(\DOMElement $separator): array
+    {
+        return self::withoutEmpty([
+            'width' => self::nullable(self::attr($separator, self::STYLE_NS, 'width')),
+            'distanceBeforeSep' => self::nullable(self::attr($separator, self::STYLE_NS, 'distance-before-sep')),
+            'distanceAfterSep' => self::nullable(self::attr($separator, self::STYLE_NS, 'distance-after-sep')),
+            'lineStyle' => self::nullable(self::attr($separator, self::STYLE_NS, 'line-style')),
+            'adjustment' => self::nullable(self::attr($separator, self::STYLE_NS, 'adjustment')),
+            'relWidth' => self::nullable(self::attr($separator, self::STYLE_NS, 'rel-width')),
+            'color' => self::nullable(self::attr($separator, self::STYLE_NS, 'color')),
         ]);
     }
 

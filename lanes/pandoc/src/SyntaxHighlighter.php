@@ -155,6 +155,9 @@ final class SyntaxHighlighter
         'json-with-comments' => 'jsonc',
         'json5' => 'jsonc',
         'jsonc' => 'jsonc',
+        'just' => 'just',
+        'just-file' => 'just',
+        'justfile' => 'just',
         'jl' => 'julia',
         'julia' => 'julia',
         'julia-repl' => 'julia',
@@ -196,6 +199,8 @@ final class SyntaxHighlighter
         'mawk' => 'awk',
         'md' => 'markdown',
         'm-file' => 'matlab',
+        'meson' => 'meson',
+        'meson-build' => 'meson',
         'mmd' => 'markdown',
         'multimarkdown' => 'markdown',
         'mustache' => 'mustache',
@@ -779,6 +784,7 @@ final class SyntaxHighlighter
             'jsx' => $this->tokenizeJsx($code),
             'json' => $this->tokenizeJson($code),
             'jsonc' => $this->tokenizeJsonWithComments($code),
+            'just' => $this->tokenizeJustfile($code),
             'julia' => $this->tokenizeJulia($code),
             'kotlin' => $this->tokenizeKotlin($code),
             'less' => $this->tokenizeLess($code),
@@ -787,6 +793,7 @@ final class SyntaxHighlighter
             'makefile' => $this->tokenizeMakefile($code),
             'markdown' => $this->tokenizeMarkdown($code),
             'matlab' => $this->tokenizeMatlab($code),
+            'meson' => $this->tokenizeMeson($code),
             'mermaid' => $this->tokenizeMermaid($code),
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
@@ -3622,6 +3629,53 @@ final class SyntaxHighlighter
             ['number', '/^\\b\\d+(?:\\.\\d+)*\\b/'],
             ['function', '/^\\b(?:cat|cd|chmod|chown|composer|cp|curl|echo|find|grep|make|mkdir|mv|npm|php|rm|sed|set|sh|tar|test|wp)(?=\\s|$)/'],
             ['variable', '/^(?:\\.[A-Za-z0-9_.\\/-]+|\\b[A-Za-z_][A-Za-z0-9_.\\/-]*\\b)/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeMeson(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', "/^'''[\\s\\S]*?'''/"],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['keyword', '/^\\b(?:and|break|continue|elif|else|endforeach|endif|foreach|if|in|not|or)\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['function', '/^\\b(?:add_global_arguments|add_project_arguments|both_libraries|configuration_data|custom_target|declare_dependency|dependency|disabler|environment|executable|files|find_library|find_program|generator|get_option|import|include_directories|install_data|install_headers|install_subdir|join_paths|library|message|option|project|run_command|shared_library|static_library|subdir|summary|warning)\\b(?=\\s*\\()/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f]+|\\d+(?:\\.\\d+)?)\\b/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|==|!=|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:|-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeJustfile(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['attribute', '/^\\[[A-Za-z_][A-Za-z0-9_-]*(?:\\([^\\]\\n]*\\))?\\]/'],
+            ['string', '/^`(?:\\\\.|[^`\\\\])*`/s'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['variable', "/^\\{\\{[A-Za-z_][A-Za-z0-9_-]*(?:\\s*\\|\\|\\s*(?:\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'))?\\}\\}/"],
+            ['keyword', '/^\\b(?:alias|else|export|if|import|include|set|then)\\b/'],
+            ['constant', '/^\\b(?:false|true)\\b/'],
+            ['function', '/^\\b(?:arch|env|env_var|env_var_or_default|error|invocation_directory|just_executable|justfile|justfile_directory|num_cpus|os|os_family|quote|shell|uuid)\\b(?=\\s*\\()/'],
+            ['number', '/^-?\\b\\d+(?:\\.\\d+)?\\b/'],
+            ['region', '/^[A-Za-z_][A-Za-z0-9_-]*(?:\\s+[A-Za-z_][A-Za-z0-9_-]*(?:=(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[^\\s:]+))?)*\\s*(?=:(?!=))/'],
+            ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*(?::=|=|\\+=))/'],
+            ['function', '/^\\b(?:bash|cat|cd|chmod|cp|echo|find|grep|just|mkdir|mv|php|rm|sed|sh|test|wp)\\b(?=\\s|[;|&]|$)/'],
+            ['variable', '/^\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
+            ['operator', '/^(?::=|\\+=|&&|\\|\\||==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:|&@\\\\-])/'],
         ]);
     }
 
