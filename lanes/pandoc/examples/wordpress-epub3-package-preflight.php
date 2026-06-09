@@ -45,6 +45,14 @@ $opfXml = <<<'XML'
     <reference type="text" title="Start reading" href="chapters/intro.xhtml"/>
     <reference type="cover" title="Cover" href="media/cover.png"/>
   </guide>
+  <collection id="series" role="series" xml:lang="en">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Import packet series</dc:title>
+      <meta property="group-position">1</meta>
+    </metadata>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json"/>
+    <link id="remote-review" rel="alternate" href="https://example.invalid/epub/series.json" media-type="application/json"/>
+  </collection>
   <bindings>
     <mediaType media-type="application/x-wordpress-review-widget" handler="review-widget-handler"/>
     <mediaType media-type="application/x-missing-widget" handler="missing-widget-handler"/>
@@ -84,6 +92,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'EPUB/chapters/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review checklist</h1></body></html>'],
     ['name' => 'EPUB/media/cover.png', 'data' => 'PNG'],
     ['name' => 'EPUB/styles/import.css', 'data' => 'body { line-height: 1.5; }'],
+    ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"Import packet series"}'],
     ['name' => 'EPUB/widgets/review-widget.bin', 'data' => 'WIDGET'],
     ['name' => 'EPUB/widgets/review-widget.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review widget fallback</h1></body></html>'],
 ]);
@@ -104,6 +113,9 @@ if (($argv[1] ?? '') === '--self-test') {
         'WordPress EPUB Import Packet',
         'Data Liberation Team',
         'urn:uuid:wordpress-import-epub',
+        ['Import packet series'],
+        ['/EPUB/meta/series.json', 'https://example.invalid/epub/series.json'],
+        'external-collection-link-target',
         'application/x-wordpress-review-widget',
         '/EPUB/widgets/review-widget.xhtml',
         'missing-binding-handler-manifest-item',
@@ -120,6 +132,9 @@ if (($argv[1] ?? '') === '--self-test') {
         $summary['wordpressImport']['metadataDetails']['sortTitle'],
         $summary['wordpressImport']['metadataDetails']['creatorsByRole']['aut'][0]['text'] ?? null,
         $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value'] ?? null,
+        $summary['wordpressImport']['collectionTitles'],
+        $summary['wordpressImport']['collectionLinkTargets'],
+        $summary['wordpressImport']['collectionDiagnostics'][0]['type'] ?? null,
         $summary['wordpressImport']['mediaTypeBindings'][0]['mediaType'] ?? null,
         $summary['wordpressImport']['mediaTypeBindings'][0]['handlerPartName'] ?? null,
         $summary['wordpressImport']['mediaTypeBindingDiagnostics'][0]['type'] ?? null,

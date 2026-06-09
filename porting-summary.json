@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 04:09:16 UTC",
-    "sourceCommit": "54b71729b8d40becc1edeb6277486a1666cc32b9",
-    "sourceCommitShort": "54b71729b8d4",
+    "generated": "2026-06-09 04:13:03 UTC",
+    "sourceCommit": "62e9eaec3f082b012a61e602d9a7179fe5930ba6",
+    "sourceCommitShort": "62e9eaec3f08",
     "sourceBranch": "unknown",
-    "dashboardCommit": "54b71729b8d40becc1edeb6277486a1666cc32b9",
-    "dashboardCommitShort": "54b71729b8d4",
+    "dashboardCommit": "62e9eaec3f082b012a61e602d9a7179fe5930ba6",
+    "dashboardCommitShort": "62e9eaec3f08",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "2,682 / 2,276 (117.8%)",
             "mapPercent": "117.8%",
             "unmapped": "0",
-            "php": "2,280 pass / 0 fail",
+            "php": "2,281 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC XML/HTML5 DOM current-base source-line slice on base 4...",
+            "audit": "2026-06-09 UTC EPUB3 package current-base OPF collection preflight sl...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For XML/HTML5 DOM follow-up, choose a non-overlapping bounded...",
+            "nextTarget": "For EPUB3 follow-up, target a non-overlapping package gap suc...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },

@@ -24,6 +24,7 @@ final class EpubPackage
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestItems
      * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}> $spine
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
+     * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
@@ -37,6 +38,7 @@ final class EpubPackage
         private readonly array $manifestItems,
         private readonly array $spine,
         private readonly array $guideReferences,
+        private readonly array $collections,
         private readonly array $bindings,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
@@ -85,6 +87,7 @@ final class EpubPackage
             $opf['manifestItems'],
             $opf['spine'],
             $opf['guideReferences'],
+            $opf['collections'],
             $opf['bindings'],
             $navigation['navigation'],
             $navigation['sections'],
@@ -155,6 +158,14 @@ final class EpubPackage
     public function guideReferences(): array
     {
         return $this->guideReferences;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function collections(): array
+    {
+        return $this->collections;
     }
 
     /**
@@ -252,6 +263,7 @@ final class EpubPackage
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
             'guide' => $this->guideReferences,
+            'collections' => $this->collections,
             'bindings' => $this->bindings,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
@@ -279,6 +291,10 @@ final class EpubPackage
                     $navigationEntries,
                 )),
                 'guideReferences' => $this->guideReferences,
+                'collections' => $this->collections,
+                'collectionTitles' => self::collectionTitles($this->collections),
+                'collectionLinkTargets' => self::collectionLinkTargets($this->collections),
+                'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
                 'mediaTypeBindings' => $this->bindings['items'],
                 'mediaTypeBindingDiagnostics' => $this->bindings['diagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
@@ -355,6 +371,7 @@ final class EpubPackage
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
+     *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
      *     spineTocId:?string
      * }
@@ -379,6 +396,7 @@ final class EpubPackage
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
         $spine = self::parseSpine($spineElement, $manifestById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
+        $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
 
         return [
@@ -387,6 +405,7 @@ final class EpubPackage
             'manifestItems' => $manifestItems,
             'spine' => $spine,
             'guideReferences' => $guideReferences,
+            'collections' => $collections,
             'bindings' => $bindings,
             'spineTocId' => $spineElement->hasAttribute('toc') ? $spineElement->getAttribute('toc') : null,
         ];
@@ -1113,6 +1132,292 @@ final class EpubPackage
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     *
+     * @return array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>
+     */
+    private static function manifestByPart(array $manifestById): array
+    {
+        $byPart = [];
+        foreach ($manifestById as $item) {
+            $byPart[$item['partName']] = $item;
+        }
+
+        return $byPart;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function parseCollections(
+        \DOMElement $packageElement,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestById
+    ): array {
+        $manifestByPart = self::manifestByPart($manifestById);
+        $collections = [];
+        foreach (self::childElements($packageElement, 'collection', self::OPF_NAMESPACE) as $index => $collectionElement) {
+            $collections[] = self::parseCollection($collectionElement, $index, $opfPartName, $package, $manifestByPart);
+        }
+
+        return $collections;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseCollection(
+        \DOMElement $collectionElement,
+        int $index,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $links = [];
+        foreach (self::childElements($collectionElement, 'link', self::OPF_NAMESPACE) as $linkIndex => $linkElement) {
+            $links[] = self::parseCollectionLink($linkElement, $linkIndex, $opfPartName, $package, $manifestByPart);
+        }
+
+        $children = [];
+        foreach (self::childElements($collectionElement, 'collection', self::OPF_NAMESPACE) as $childIndex => $childElement) {
+            $children[] = self::parseCollection($childElement, $childIndex, $opfPartName, $package, $manifestByPart);
+        }
+
+        $metadataElement = self::firstChildElement($collectionElement, 'metadata', self::OPF_NAMESPACE);
+        $metadata = $metadataElement instanceof \DOMElement
+            ? self::parseMetadata($metadataElement, $collectionElement)
+            : [];
+        $role = self::emptyToNull($collectionElement->getAttribute('role'));
+        $roleTokens = self::splitTokens($role ?? '');
+        $report = self::collectionLinkReport($links);
+
+        return [
+            'index' => $index,
+            'id' => self::emptyToNull($collectionElement->getAttribute('id')),
+            'role' => $role,
+            'roleTokens' => $roleTokens,
+            'primaryRole' => $roleTokens[0] ?? null,
+            'language' => self::metadataElementLanguage($collectionElement),
+            'direction' => self::metadataElementDirection($collectionElement),
+            'metadata' => $metadata,
+            'links' => $links,
+            'linkCount' => $report['count'],
+            'localLinkCount' => $report['localCount'],
+            'externalLinkCount' => $report['externalCount'],
+            'missingLinkCount' => $report['missingCount'],
+            'linkRelTokens' => $report['relTokens'],
+            'linkRelCounts' => $report['relCounts'],
+            'linksByRel' => $report['linksByRel'],
+            'diagnosticCount' => count($report['diagnostics']),
+            'diagnostics' => $report['diagnostics'],
+            'children' => $children,
+        ];
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseCollectionLink(
+        \DOMElement $linkElement,
+        int $index,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $href = self::emptyToNull($linkElement->getAttribute('href'));
+        $target = null;
+        $partName = null;
+        $external = false;
+        $exists = false;
+        $entry = null;
+        $manifestItem = null;
+        $diagnostics = [];
+
+        if ($href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-collection-link-href',
+                'message' => 'EPUB OPF collection link is missing href',
+            ];
+        } else {
+            try {
+                $target = self::resolvePackageHref($opfPartName, $href);
+                $external = self::isAbsoluteUri($target);
+                if ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-collection-link-target',
+                        'href' => $href,
+                        'message' => 'EPUB OPF collection link points outside the package and was not fetched',
+                    ];
+                } else {
+                    $partName = OpcPackagePath::stripQueryAndFragment($target);
+                    $exists = $package->has($partName);
+                    $entry = $exists ? $package->entry($partName) : null;
+                    $manifestItem = $manifestByPart[$partName] ?? null;
+                    if (!$exists) {
+                        $diagnostics[] = [
+                            'type' => 'missing-collection-link-target',
+                            'href' => $href,
+                            'partName' => $partName,
+                            'message' => 'EPUB OPF collection link target is missing from the package',
+                        ];
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-collection-link-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'id' => self::emptyToNull($linkElement->getAttribute('id')),
+            'rel' => self::splitTokens($linkElement->getAttribute('rel')),
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
+            'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'title' => self::emptyToNull($linkElement->getAttribute('title')),
+            'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, mixed>
+     */
+    private static function collectionLinkReport(array $links): array
+    {
+        $relCounts = [];
+        $linksByRel = [];
+        $diagnostics = [];
+        $localCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+
+        foreach ($links as $linkIndex => $link) {
+            if (($link['external'] ?? false) === true) {
+                ++$externalCount;
+            } elseif (is_string($link['partName'] ?? null)) {
+                ++$localCount;
+            }
+
+            if (($link['external'] ?? false) !== true && ($link['exists'] ?? false) !== true) {
+                ++$missingCount;
+            }
+
+            foreach (is_array($link['rel'] ?? null) ? $link['rel'] : [] as $rel) {
+                $rel = (string) $rel;
+                $relCounts[$rel] = ($relCounts[$rel] ?? 0) + 1;
+                $linksByRel[$rel][] = $link;
+            }
+
+            foreach (is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [] as $diagnostic) {
+                $diagnostics[] = ['index' => $linkIndex, 'id' => $link['id'] ?? null] + $diagnostic;
+            }
+        }
+
+        return [
+            'count' => count($links),
+            'localCount' => $localCount,
+            'externalCount' => $externalCount,
+            'missingCount' => $missingCount,
+            'relTokens' => array_keys($relCounts),
+            'relCounts' => $relCounts,
+            'linksByRel' => $linksByRel,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return list<string>
+     */
+    private static function collectionTitles(array $collections): array
+    {
+        $titles = [];
+        foreach ($collections as $collection) {
+            $title = $collection['metadata']['title'] ?? null;
+            if (is_string($title) && $title !== '') {
+                $titles[] = $title;
+            }
+
+            array_push($titles, ...self::collectionTitles(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+            ));
+        }
+
+        return $titles;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return list<string>
+     */
+    private static function collectionLinkTargets(array $collections): array
+    {
+        $targets = [];
+        foreach ($collections as $collection) {
+            foreach (is_array($collection['links'] ?? null) ? $collection['links'] : [] as $link) {
+                $target = $link['target'] ?? null;
+                if (is_string($target) && $target !== '') {
+                    $targets[] = $target;
+                }
+            }
+
+            array_push($targets, ...self::collectionLinkTargets(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+            ));
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $collections
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function collectionDiagnostics(array $collections): array
+    {
+        $diagnostics = [];
+        foreach ($collections as $collectionIndex => $collection) {
+            foreach (is_array($collection['diagnostics'] ?? null) ? $collection['diagnostics'] : [] as $diagnostic) {
+                $diagnostics[] = [
+                    'collectionIndex' => $collectionIndex,
+                    'collectionId' => $collection['id'] ?? null,
+                ] + $diagnostic;
+            }
+
+            array_push($diagnostics, ...self::collectionDiagnostics(
+                is_array($collection['children'] ?? null) ? $collection['children'] : [],
+            ));
+        }
+
+        return $diagnostics;
     }
 
     /**

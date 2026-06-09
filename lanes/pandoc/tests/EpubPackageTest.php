@@ -367,6 +367,83 @@ return [
         $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
     },
 
+    'preserves OPF collections and collection links for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollections = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series" xml:lang="en" dir="ltr">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration packets</dc:title>
+      <meta property="group-position">2</meta>
+    </metadata>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json" properties="review"/>
+    <link id="start" rel="first" href="text/chapter1.xhtml#install" media-type="application/xhtml+xml"/>
+    <link id="remote-record" rel="record alternate" href="https://example.invalid/series.json" media-type="application/json"/>
+    <link id="missing-review" rel="review" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
+    <collection id="samples" role="preview">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Review samples</dc:title>
+      </metadata>
+      <link rel="sample" href="text/chapter2.xhtml#checklist" media-type="application/xhtml+xml"/>
+    </collection>
+  </collection>',
+            $epub3OpfXml
+        );
+
+        $seriesRecord = '{"kind":"series","source":"wordpress-epub"}';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollections],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="checklist">Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/series.json', 'data' => $seriesRecord],
+        ]));
+
+        $collections = $epub->collections();
+        $summary = $epub->summary();
+
+        $t->same(1, count($collections));
+        $series = $collections[0];
+        $t->same('series', $series['id']);
+        $t->same('series', $series['role']);
+        $t->same(['series'], $series['roleTokens']);
+        $t->same('en', $series['language']);
+        $t->same('ltr', $series['direction']);
+        $t->same('Migration packets', $series['metadata']['title']);
+        $t->same('2', $series['metadata']['properties']['group-position'][0]);
+        $t->same(4, $series['linkCount']);
+        $t->same(3, $series['localLinkCount']);
+        $t->same(1, $series['externalLinkCount']);
+        $t->same(1, $series['missingLinkCount']);
+        $t->same(['record', 'first', 'alternate', 'review'], $series['linkRelTokens']);
+        $t->same(['record' => 2, 'first' => 1, 'alternate' => 1, 'review' => 1], $series['linkRelCounts']);
+        $t->same('/EPUB/meta/series.json', $series['links'][0]['target']);
+        $t->same('/EPUB/meta/series.json', $series['links'][0]['partName']);
+        $t->same(true, $series['links'][0]['exists']);
+        $t->same(strlen($seriesRecord), $series['links'][0]['byteLength']);
+        $t->same('series-record', $series['linksByRel']['record'][0]['id']);
+        $t->same('/EPUB/text/chapter1.xhtml#install', $series['linksByRel']['first'][0]['target']);
+        $t->same('remote-record', $series['linksByRel']['record'][1]['id']);
+        $t->same(true, $series['linksByRel']['record'][1]['external']);
+        $t->same('missing-collection-link-target', $series['linksByRel']['review'][0]['diagnostics'][0]['type']);
+        $t->same(2, $series['diagnosticCount']);
+        $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $series['diagnostics']));
+        $t->same(1, count($series['children']));
+        $t->same('samples', $series['children'][0]['id']);
+        $t->same('Review samples', $series['children'][0]['metadata']['title']);
+        $t->same('/EPUB/text/chapter2.xhtml#checklist', $series['children'][0]['links'][0]['target']);
+
+        $t->same($collections, $summary['collections']);
+        $t->same($collections, $summary['wordpressImport']['collections']);
+        $t->same(['Migration packets', 'Review samples'], $summary['wordpressImport']['collectionTitles']);
+        $t->same(['/EPUB/meta/series.json', '/EPUB/text/chapter1.xhtml#install', 'https://example.invalid/series.json', '/EPUB/text/missing.xhtml', '/EPUB/text/chapter2.xhtml#checklist'], $summary['wordpressImport']['collectionLinkTargets']);
+        $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
