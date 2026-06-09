@@ -15606,6 +15606,160 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $stop, $blocks);
         $t->true(!str_contains($blocks, '&lt;stop'), 'Standalone SVG stop should not be escaped into reviewer text');
     },
+    'maps upstream html reader svg animate fragments as raw review markup' => static function (TestRunner $t): void {
+        $animate = '<animate attributeName="opacity" from="0" to="1" data-source="batch-60"></animate>';
+        $document = (new MarkdownReader())->read($animate . "\n\nAfter the animate.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($animate, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the animate.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $animate, $blocks);
+        $t->true(!str_contains($blocks, '&lt;animate'), 'Standalone SVG animate should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg animateMotion fragments as raw review markup' => static function (TestRunner $t): void {
+        $motion = '<animateMotion path="M0 0L10 10" data-source="batch-60"></animateMotion>';
+        $document = (new MarkdownReader())->read($motion . "\n\nAfter the motion.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($motion, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the motion.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $motion, $blocks);
+        $t->true(!str_contains($blocks, '&lt;animateMotion'), 'Standalone SVG animateMotion should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg animateTransform fragments as raw review markup' => static function (TestRunner $t): void {
+        $transform = '<animateTransform attributeName="transform" type="rotate" data-source="batch-60"></animateTransform>';
+        $document = (new MarkdownReader())->read($transform . "\n\nAfter the transform.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($transform, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the transform.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $transform, $blocks);
+        $t->true(!str_contains($blocks, '&lt;animateTransform'), 'Standalone SVG animateTransform should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg clipPath fragments as raw review markup' => static function (TestRunner $t): void {
+        $clipPath = '<clipPath id="review-clip" data-source="batch-60"><rect width="10" height="10"></rect></clipPath>';
+        $document = (new MarkdownReader())->read($clipPath . "\n\nAfter the clip path.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($clipPath, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the clip path.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $clipPath, $blocks);
+        $t->true(!str_contains($blocks, '&lt;clipPath'), 'Standalone SVG clipPath should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg filter fragments as raw review markup' => static function (TestRunner $t): void {
+        $filter = '<filter id="review-shadow" data-source="batch-60"><feBlend mode="multiply"></feBlend></filter>';
+        $document = (new MarkdownReader())->read($filter . "\n\nAfter the filter.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($filter, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the filter.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $filter, $blocks);
+        $t->true(!str_contains($blocks, '&lt;filter'), 'Standalone SVG filter should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg foreignObject fragments as raw review markup' => static function (TestRunner $t): void {
+        $foreignObject = '<foreignObject width="10" height="10" data-source="batch-60"><div>Review</div></foreignObject>';
+        $document = (new MarkdownReader())->read($foreignObject . "\n\nAfter the foreign object.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($foreignObject, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the foreign object.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $foreignObject, $blocks);
+        $t->true(!str_contains($blocks, '&lt;foreignObject'), 'Standalone SVG foreignObject should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg image fragments as raw review markup' => static function (TestRunner $t): void {
+        $image = '<image href="media.png" width="10" height="10" data-source="batch-60"></image>';
+        $document = (new MarkdownReader())->read($image . "\n\nAfter the image.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($image, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the image.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $image, $blocks);
+        $t->true(!str_contains($blocks, '&lt;image'), 'Standalone SVG image should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg marker fragments as raw review markup' => static function (TestRunner $t): void {
+        $marker = '<marker id="review-arrow" data-source="batch-60"><path d="M0 0L5 5"></path></marker>';
+        $document = (new MarkdownReader())->read($marker . "\n\nAfter the marker.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($marker, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the marker.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $marker, $blocks);
+        $t->true(!str_contains($blocks, '&lt;marker'), 'Standalone SVG marker should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg mask fragments as raw review markup' => static function (TestRunner $t): void {
+        $mask = '<mask id="review-mask" data-source="batch-60"><rect width="10" height="10"></rect></mask>';
+        $document = (new MarkdownReader())->read($mask . "\n\nAfter the mask.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mask, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the mask.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mask, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mask'), 'Standalone SVG mask should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg pattern fragments as raw review markup' => static function (TestRunner $t): void {
+        $pattern = '<pattern id="review-tile" data-source="batch-60"><rect width="2" height="2"></rect></pattern>';
+        $document = (new MarkdownReader())->read($pattern . "\n\nAfter the pattern.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($pattern, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the pattern.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $pattern, $blocks);
+        $t->true(!str_contains($blocks, '&lt;pattern'), 'Standalone SVG pattern should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg radialGradient fragments as raw review markup' => static function (TestRunner $t): void {
+        $gradient = '<radialGradient id="review-radial" data-source="batch-60"><stop offset="0%"></stop></radialGradient>';
+        $document = (new MarkdownReader())->read($gradient . "\n\nAfter the radial gradient.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($gradient, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the radial gradient.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $gradient, $blocks);
+        $t->true(!str_contains($blocks, '&lt;radialGradient'), 'Standalone SVG radialGradient should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(abbr|address|article|aside|audio|bdi|bdo|button|canvas|circle|cite|data|datalist|defs|details|dfn|dialog|ellipse|fieldset|figcaption|figure|footer|form|g|header|hgroup|iframe|label|legend|line|linearGradient|main|map|mark|math|menu|meter|nav|object|optgroup|option|output|path|picture|polygon|polyline|progress|rect|rp|rt|ruby|script|search|section|slot|small|stop|style|select|summary|svg|symbol|template|text|textarea|time|use|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(abbr|address|animate|animateMotion|animateTransform|article|aside|audio|bdi|bdo|button|canvas|circle|cite|clipPath|data|datalist|defs|details|dfn|dialog|ellipse|fieldset|figcaption|figure|filter|footer|foreignObject|form|g|header|hgroup|iframe|image|label|legend|line|linearGradient|main|map|marker|mark|mask|math|menu|meter|nav|object|optgroup|option|output|path|pattern|picture|polygon|polyline|progress|radialGradient|rect|rp|rt|ruby|script|search|section|slot|small|stop|style|select|summary|svg|symbol|template|text|textarea|time|use|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['abbr', 'address', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'circle', 'cite', 'data', 'datalist', 'defs', 'details', 'dfn', 'dialog', 'ellipse', 'embed', 'fieldset', 'form', 'g', 'hgroup', 'iframe', 'input', 'label', 'legend', 'line', 'lineargradient', 'link', 'map', 'mark', 'math', 'menu', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'path', 'picture', 'polygon', 'polyline', 'progress', 'rect', 'rp', 'rt', 'ruby', 'search', 'select', 'slot', 'small', 'source', 'stop', 'summary', 'svg', 'symbol', 'template', 'text', 'textarea', 'time', 'track', 'use', 'var', 'video', 'wbr'], true)) {
+        if (in_array($name, ['abbr', 'address', 'animate', 'animatemotion', 'animatetransform', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'circle', 'cite', 'clippath', 'data', 'datalist', 'defs', 'details', 'dfn', 'dialog', 'ellipse', 'embed', 'fieldset', 'filter', 'foreignobject', 'form', 'g', 'hgroup', 'iframe', 'image', 'input', 'label', 'legend', 'line', 'lineargradient', 'link', 'map', 'marker', 'mark', 'mask', 'math', 'menu', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'path', 'pattern', 'picture', 'polygon', 'polyline', 'progress', 'radialgradient', 'rect', 'rp', 'rt', 'ruby', 'search', 'select', 'slot', 'small', 'source', 'stop', 'summary', 'svg', 'symbol', 'template', 'text', 'textarea', 'time', 'track', 'use', 'var', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 
