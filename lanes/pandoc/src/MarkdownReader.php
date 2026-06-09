@@ -15646,11 +15646,8 @@ final class MarkdownReader
             return null;
         }
 
-        $emoji = match ($m[1]) {
-            'smile' => "\u{1F604}",
-            '+1' => "\u{1F44D}",
-            default => null,
-        };
+        $alias = $m[1];
+        $emoji = MarkdownEmojiAliases::glyphForAlias($alias);
         if ($emoji === null) {
             return null;
         }
@@ -15658,7 +15655,7 @@ final class MarkdownReader
         return [
             'node' => new AstNode(
                 'span',
-                $this->markdownAttributeAstAttrs(null, ['emoji'], ['data-emoji' => $m[1]]),
+                $this->markdownAttributeAstAttrs(null, ['emoji'], ['data-emoji' => $alias]),
                 [new AstNode('text', ['text' => $emoji])]
             ),
             'next' => $offset + strlen($m[0]),

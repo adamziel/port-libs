@@ -12673,6 +12673,38 @@ HTML;
         $t->same('Unknown :not-a-pandoc-test-emoji: stays literal.', $unknownDocument->children[0]->children[0]->attr('text'));
         $t->contains('<p><span class="emoji" data-emoji="smile">' . $smileGlyph . '</span> and <span class="emoji" data-emoji="+1">' . $thumbGlyph . '</span></p>', $blocks);
     },
+    'maps pandoc markdown emoji aliases through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = 'Status :heart: :warning: :rocket: :white_check_mark: :-1: :unknown-import-emoji:.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $heart = $paragraph->children[1];
+        $warning = $paragraph->children[3];
+        $rocket = $paragraph->children[5];
+        $check = $paragraph->children[7];
+        $thumbsDown = $paragraph->children[9];
+        $unknown = $paragraph->children[10];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['text', 'span', 'text', 'span', 'text', 'span', 'text', 'span', 'text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['emoji'], $heart->attr('classes'));
+        $t->same(['data-emoji' => 'heart'], $heart->attr('attributes'));
+        $t->same("\u{2764}\u{FE0F}", $heart->children[0]->attr('text'));
+        $t->same(['data-emoji' => 'warning'], $warning->attr('attributes'));
+        $t->same("\u{26A0}\u{FE0F}", $warning->children[0]->attr('text'));
+        $t->same(['data-emoji' => 'rocket'], $rocket->attr('attributes'));
+        $t->same("\u{1F680}", $rocket->children[0]->attr('text'));
+        $t->same(['data-emoji' => 'white_check_mark'], $check->attr('attributes'));
+        $t->same("\u{2705}", $check->children[0]->attr('text'));
+        $t->same(['data-emoji' => '-1'], $thumbsDown->attr('attributes'));
+        $t->same("\u{1F44E}", $thumbsDown->children[0]->attr('text'));
+        $t->same(' :unknown-import-emoji:.', $unknown->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains('<span class="emoji" data-emoji="heart">' . "\u{2764}\u{FE0F}" . '</span>', $blocks);
+        $t->contains('<span class="emoji" data-emoji="warning">' . "\u{26A0}\u{FE0F}" . '</span>', $blocks);
+        $t->contains('<span class="emoji" data-emoji="white_check_mark">' . "\u{2705}" . '</span>', $blocks);
+        $t->contains('<span class="emoji" data-emoji="-1">' . "\u{1F44E}" . '</span>', $blocks);
+        $t->contains(':unknown-import-emoji:.', $blocks);
+    },
     'maps upstream markdown github wiki link extension cases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '[[https://example.org]]',

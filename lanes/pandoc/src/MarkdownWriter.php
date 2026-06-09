@@ -1800,6 +1800,11 @@ final class MarkdownWriter
     private function renderSpan(AstNode $node): string
     {
         $content = $this->renderInlines($node->children);
+        $emojiAlias = $this->markdownEmojiAlias($node, $content);
+        if ($emojiAlias !== null) {
+            return ':' . $emojiAlias . ':';
+        }
+
         if ($this->isMarkdownMarkSpan($node, $content)) {
             return '==' . $content . '==';
         }
@@ -1836,6 +1841,29 @@ final class MarkdownWriter
         array_unshift($attrs['classes'], 'underline');
 
         return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+    }
+
+    private function markdownEmojiAlias(AstNode $node, string $content): ?string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if (
+            $attrs['id'] !== ''
+            || $attrs['classes'] !== ['emoji']
+            || count($attrs['attributes']) !== 1
+            || !isset($attrs['attributes']['data-emoji'])
+        ) {
+            return null;
+        }
+
+        $alias = (string) $attrs['attributes']['data-emoji'];
+        if (
+            preg_match('/\A[A-Za-z0-9_+-]+\z/', $alias) !== 1
+            || !MarkdownEmojiAliases::aliasMatchesGlyph($alias, $content)
+        ) {
+            return null;
+        }
+
+        return $content === '' ? null : $alias;
     }
 
     private function renderQuoted(AstNode $node): string
