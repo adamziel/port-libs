@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 10:57:59 UTC",
-    "sourceCommit": "5b6319a6544779a137fb13ea92c9c81bb916b816",
-    "sourceCommitShort": "5b6319a65447",
+    "generated": "2026-06-09 11:02:31 UTC",
+    "sourceCommit": "f1bae4d2cc04b99b8444f3087783e8f5e47e0832",
+    "sourceCommitShort": "f1bae4d2cc04",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5b6319a6544779a137fb13ea92c9c81bb916b816",
-    "dashboardCommitShort": "5b6319a65447",
+    "dashboardCommit": "f1bae4d2cc04b99b8444f3087783e8f5e47e0832",
+    "dashboardCommitShort": "f1bae4d2cc04",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,688 pass / 0 fail",
-            "phase": "native PHP Pandoc EPUB3/OPF package metadata handoff; OPF dc:date eve...",
-            "audit": "2026-06-09 UTC rebased pandoc-epub-opf-date-events slice on accepted...",
-            "currentWork": "Pandoc EPUB3 package preflight now preserves OPF dc:date event metadata and date summ...",
-            "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
+            "php": "2,689 pass / 0 fail",
+            "phase": "native PHP Pandoc DOCX/OpenXML table look handoff; w:tblLook gating n...",
+            "audit": "2026-06-09 UTC rebased pandoc-docx-table-look slice on accepted base...",
+            "currentWork": "Pandoc DOCX table handoff now preserves table-look flags and uses them to suppress di...",
+            "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
             "remainingGate": "No external converter is needed.",
             "commit": "pending fast ba..."
         },

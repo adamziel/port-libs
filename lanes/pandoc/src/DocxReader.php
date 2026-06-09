@@ -11506,6 +11506,7 @@ final class DocxReader
         $this->appendTableAlignmentAttrs($properties, $classes, $attributes);
         $this->appendTableIndentAttrs($properties, $classes, $attributes, $styles);
         $this->appendTableLayoutAttrs($properties, $classes, $attributes);
+        $this->appendTableLookAttrs($properties, $classes, $attributes);
 
         if ($classes === [] && $attributes === [] && $styles === []) {
             return null;
@@ -11576,7 +11577,100 @@ final class DocxReader
 
         $seen = [];
 
-        return $this->resolveStyleTableConditionalRegions($this->tableStyleId($properties), $styles, $seen);
+        return $this->filterTableConditionalRegionsByLook(
+            $this->resolveStyleTableConditionalRegions($this->tableStyleId($properties), $styles, $seen),
+            $this->tableLookFlags($properties)
+        );
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $regions
+     * @param array{firstRow?:bool, lastRow?:bool, firstColumn?:bool, lastColumn?:bool, noHBand?:bool, noVBand?:bool} $look
+     * @return array<string, array<string, mixed>>
+     */
+    private function filterTableConditionalRegionsByLook(array $regions, array $look): array
+    {
+        if ($look === []) {
+            return $regions;
+        }
+
+        $filtered = $regions;
+        $remove = static function (string ...$types) use (&$filtered): void {
+            foreach ($types as $type) {
+                unset($filtered[$type]);
+            }
+        };
+
+        if (($look['firstRow'] ?? true) === false) {
+            $remove('firstRow', 'nwCell', 'neCell');
+        }
+        if (($look['lastRow'] ?? true) === false) {
+            $remove('lastRow', 'swCell', 'seCell');
+        }
+        if (($look['firstColumn'] ?? true) === false) {
+            $remove('firstCol', 'nwCell', 'swCell');
+        }
+        if (($look['lastColumn'] ?? true) === false) {
+            $remove('lastCol', 'neCell', 'seCell');
+        }
+        if (($look['noHBand'] ?? false) === true) {
+            $remove('band1Horz', 'band2Horz');
+        }
+        if (($look['noVBand'] ?? false) === true) {
+            $remove('band1Vert', 'band2Vert');
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @return array{firstRow?:bool, lastRow?:bool, firstColumn?:bool, lastColumn?:bool, noHBand?:bool, noVBand?:bool}
+     */
+    private function tableLookFlags(\DOMElement $properties): array
+    {
+        $look = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblLook');
+        if (!$look instanceof \DOMElement) {
+            return [];
+        }
+
+        $flags = $this->tableLookFlagsFromValue($this->wordAttr($look, 'val'));
+        foreach ([
+            'firstRow',
+            'lastRow',
+            'firstColumn',
+            'lastColumn',
+            'noHBand',
+            'noVBand',
+        ] as $attributeName) {
+            $value = $this->onOffStringValue($this->wordAttr($look, $attributeName));
+            if ($value !== null) {
+                $flags[$attributeName] = $value;
+            }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @return array{firstRow?:bool, lastRow?:bool, firstColumn?:bool, lastColumn?:bool, noHBand?:bool, noVBand?:bool}
+     */
+    private function tableLookFlagsFromValue(?string $value): array
+    {
+        $value = trim((string) $value);
+        if ($value === '' || preg_match('/^[0-9A-Fa-f]+$/D', $value) !== 1) {
+            return [];
+        }
+
+        $bits = hexdec($value);
+
+        return [
+            'firstRow' => ($bits & 0x0020) !== 0,
+            'lastRow' => ($bits & 0x0040) !== 0,
+            'firstColumn' => ($bits & 0x0080) !== 0,
+            'lastColumn' => ($bits & 0x0100) !== 0,
+            'noHBand' => ($bits & 0x0200) !== 0,
+            'noVBand' => ($bits & 0x0400) !== 0,
+        ];
     }
 
     /**
@@ -12191,6 +12285,44 @@ final class DocxReader
         $classes[] = 'docx-table-layout';
         $classes[] = 'docx-table-layout-' . $suffix;
         $attributes['data-docx-table-layout'] = $value;
+    }
+
+    /**
+     * @param list<string> $classes
+     * @param array<string, string> $attributes
+     */
+    private function appendTableLookAttrs(\DOMElement $properties, array &$classes, array &$attributes): void
+    {
+        $look = $this->firstChildElement($properties, self::WORDPROCESSINGML_NS, 'tblLook');
+        if (!$look instanceof \DOMElement) {
+            return;
+        }
+
+        $lookFlags = $this->tableLookFlags($properties);
+        $rawValue = trim((string) ($this->wordAttr($look, 'val') ?? ''));
+        if ($lookFlags === [] && $rawValue === '') {
+            return;
+        }
+
+        $classes[] = 'docx-table-look';
+        if ($rawValue !== '') {
+            $attributes['data-docx-table-look-val'] = $rawValue;
+        }
+
+        foreach ([
+            'firstRow' => 'first-row',
+            'lastRow' => 'last-row',
+            'firstColumn' => 'first-column',
+            'lastColumn' => 'last-column',
+            'noHBand' => 'no-horizontal-band',
+            'noVBand' => 'no-vertical-band',
+        ] as $flagName => $attributeSuffix) {
+            if (!array_key_exists($flagName, $lookFlags)) {
+                continue;
+            }
+
+            $attributes['data-docx-table-look-' . $attributeSuffix] = $lookFlags[$flagName] ? 'true' : 'false';
+        }
     }
 
     /**

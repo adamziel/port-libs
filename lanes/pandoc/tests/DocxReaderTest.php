@@ -1787,6 +1787,63 @@ $tableConditionalColumnStyleDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableLookConditionalStyleStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="table" w:styleId="LookGatedReviewTable">
+    <w:name w:val="Look Gated Review Table"/>
+    <w:tblStylePr w:type="firstRow">
+      <w:trPr><w:tblHeader/></w:trPr>
+      <w:tcPr><w:shd w:val="clear" w:fill="DDEBF7"/></w:tcPr>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:rPr><w:b/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="band1Horz">
+      <w:tcPr><w:shd w:val="clear" w:fill="E2F0D9"/></w:tcPr>
+      <w:rPr><w:highlight w:val="green"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="firstCol">
+      <w:tcPr><w:shd w:val="clear" w:fill="D9EAD3"/></w:tcPr>
+      <w:pPr><w:jc w:val="start"/></w:pPr>
+      <w:rPr><w:color w:val="38761D"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="lastCol">
+      <w:tcPr><w:shd w:val="clear" w:fill="FCE5CD"/></w:tcPr>
+      <w:pPr><w:jc w:val="end"/></w:pPr>
+      <w:rPr><w:i/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="neCell">
+      <w:tcPr><w:shd w:val="clear" w:fill="F9CB9C"/></w:tcPr>
+      <w:rPr><w:smallCaps/></w:rPr>
+    </w:tblStylePr>
+  </w:style>
+</w:styles>
+XML;
+
+$tableLookConditionalStyleDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="LookGatedReviewTable"/>
+        <w:tblLook w:val="0100" w:firstRow="0" w:firstColumn="0" w:lastColumn="1" w:noHBand="1" w:noVBand="0"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Header left</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Header right</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Body left</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Body right</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Footer left</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Footer right</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4693,6 +4750,22 @@ $buildTableConditionalColumnStylePackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $tableConditionalColumnStyleDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
         ['name' => 'word/styles.xml', 'data' => $tableConditionalColumnStyleStylesXml],
+    ]);
+};
+
+$buildTableLookConditionalStylePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $tableLookConditionalStyleDocumentXml,
+    $tableLookConditionalStyleStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableLookConditionalStyleDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $tableLookConditionalStyleStylesXml],
     ]);
 };
 
@@ -7725,6 +7798,86 @@ return [
         $t->contains('data-docx-table-style-cell-region="seCell"', $blocks);
         $t->contains('colspan="2"', $blocks);
         $t->contains('<em><del>Bottom right</del></em>', $blocks);
+    },
+    'honors DOCX table look flags when applying conditional table style regions' => static function (TestRunner $t) use ($buildTableLookConditionalStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildTableLookConditionalStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $nodeTypes = null;
+        $nodeTypes = static function (AstNode $node) use (&$nodeTypes): array {
+            $types = [$node->type];
+            foreach ($node->children as $child) {
+                if ($child instanceof AstNode) {
+                    array_push($types, ...$nodeTypes($child));
+                }
+            }
+
+            return $types;
+        };
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $classes = $table->attr('classes');
+        $t->true(in_array('docx-table-look', $classes, true), 'Expected table-look metadata class');
+        $attrs = $table->attr('attributes');
+        $t->same('LookGatedReviewTable', $attrs['data-docx-table-style']);
+        $t->same('Look Gated Review Table', $attrs['data-docx-table-style-name']);
+        $t->same('5', $attrs['data-docx-table-style-region-count']);
+        $t->same('firstRow band1Horz firstCol lastCol neCell', $attrs['data-docx-table-style-region-types']);
+        $t->same('0100', $attrs['data-docx-table-look-val']);
+        $t->same('false', $attrs['data-docx-table-look-first-row']);
+        $t->same('false', $attrs['data-docx-table-look-last-row']);
+        $t->same('false', $attrs['data-docx-table-look-first-column']);
+        $t->same('true', $attrs['data-docx-table-look-last-column']);
+        $t->same('true', $attrs['data-docx-table-look-no-horizontal-band']);
+        $t->same('false', $attrs['data-docx-table-look-no-vertical-band']);
+
+        $body = $table->children[0];
+        $headerRow = $body->children[0];
+        $bodyRow = $body->children[1];
+        $footerRow = $body->children[2];
+        $t->same([], $headerRow->attr('attributes', []));
+        $t->same([], $bodyRow->attr('attributes', []));
+        $t->same([], $footerRow->attr('attributes', []));
+
+        $headerLeft = $headerRow->children[0];
+        $headerRight = $headerRow->children[1];
+        $bodyLeft = $bodyRow->children[0];
+        $bodyRight = $bodyRow->children[1];
+        $footerLeft = $footerRow->children[0];
+        $footerRight = $footerRow->children[1];
+
+        $t->same(null, $headerLeft->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null);
+        $t->same(null, $bodyLeft->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null);
+        $t->same(null, $footerLeft->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null);
+        $t->same(null, $bodyLeft->attr('attributes', [])['data-docx-cell-shading-fill'] ?? null);
+
+        foreach ([$headerRight, $bodyRight, $footerRight] as $rightCell) {
+            $cellAttrs = $rightCell->attr('attributes');
+            $t->same('lastCol', $cellAttrs['data-docx-table-style-cell-region'] ?? null);
+            $t->same('FCE5CD', $cellAttrs['data-docx-cell-shading-fill'] ?? null);
+
+            $paragraphSpan = $rightCell->children[0]->children[0];
+            $t->same('end', $paragraphSpan->attr('attributes')['data-docx-paragraph-align'] ?? null);
+            $t->same('lastCol', $paragraphSpan->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+            $runSpan = $paragraphSpan->children[0];
+            $t->same('lastCol', $runSpan->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+            $t->true(in_array('emph', $nodeTypes($runSpan), true), 'Expected enabled last-column region to italicize right-column text');
+            $t->true(!in_array('small_caps', $nodeTypes($runSpan), true), 'Disabled first-row look should suppress the neCell corner region');
+        }
+
+        $t->contains('data-docx-table-style-run-region="lastCol"', $markdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-run-region="firstRow"'), 'Disabled firstRow look should not reach Markdown run metadata');
+        $t->true(!str_contains($markdown, 'data-docx-table-style-run-region="band1Horz"'), 'Disabled horizontal banding should not reach Markdown run metadata');
+        $t->true(!str_contains($markdown, 'data-docx-color="38761D"'), 'Disabled firstColumn look should not reach Markdown run metadata');
+
+        $t->contains('data-docx-table-look-val="0100"', $blocks);
+        $t->contains('data-docx-table-look-first-row="false"', $blocks);
+        $t->contains('data-docx-table-look-no-horizontal-band="true"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="lastCol"', $blocks);
+        $t->contains('<em>Header right</em>', $blocks);
+        $t->contains('<em>Body right</em>', $blocks);
+        $t->contains('<em>Footer right</em>', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());
