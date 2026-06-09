@@ -15577,14 +15577,17 @@ final class MarkdownReader
             return null;
         }
 
-        $attrs = ['url' => $target['url']];
-        if ($target['title'] !== '') {
-            $attrs['title'] = $target['title'];
-        }
+        [$node, $next] = $this->buildLinkNodeWithTrailingAttributes(
+            $text,
+            $label['text'],
+            $target['url'],
+            $target['title'],
+            $target['next']
+        );
 
         return [
-            'node' => new AstNode('link', $attrs, $this->parseLinkLabelInlines($label['text'])),
-            'next' => $target['next'],
+            'node' => $node,
+            'next' => $next,
         ];
     }
 
@@ -15615,15 +15618,42 @@ final class MarkdownReader
             return null;
         }
 
-        $attrs = ['url' => $target['url']];
-        if ($target['title'] !== '') {
-            $attrs['title'] = $target['title'];
-        }
+        [$node, $next] = $this->buildLinkNodeWithTrailingAttributes(
+            $text,
+            $label['text'],
+            $target['url'],
+            $target['title'],
+            $next
+        );
 
         return [
-            'node' => new AstNode('link', $attrs, $this->parseLinkLabelInlines($label['text'])),
+            'node' => $node,
             'next' => $next,
         ];
+    }
+
+    /**
+     * @return array{0: AstNode, 1: int}
+     */
+    private function buildLinkNodeWithTrailingAttributes(
+        string $source,
+        string $label,
+        string $url,
+        string $title,
+        int $offset
+    ): array {
+        $attrs = ['url' => $url];
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $attribute = $this->tryParseInlineAttributeSpec($source, $offset);
+        if ($attribute !== null) {
+            $attrs = array_replace($attrs, $attribute['attrs']);
+            $offset = $attribute['next'];
+        }
+
+        return [new AstNode('link', $attrs, $this->parseLinkLabelInlines($label)), $offset];
     }
 
     /**

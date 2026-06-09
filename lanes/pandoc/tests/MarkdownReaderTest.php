@@ -865,6 +865,42 @@ return [
         $t->contains('<a href="/bar%20and%20baz">foo</a>', $blocks);
         $t->contains('<a href="/foo/zee%20zob" title="title">bork</a>', $blocks);
     },
+    'maps pandoc markdown link attribute extension through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            'Inline [review **source**](/review "Review title"){#review-link .source-link data-source="batch-77" onclick="alert(1)"} and reference [packet][packet-ref]{.review-packet data-ticket="P-9"}.',
+            '',
+            '[packet-ref]: https://example.test/packet "Packet title"',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $inline = $paragraph->children[1] ?? new AstNode('missing');
+        $reference = $paragraph->children[3] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $inline->type);
+        $t->same('/review', $inline->attr('url'));
+        $t->same('Review title', $inline->attr('title'));
+        $t->same('review-link', $inline->attr('id'));
+        $t->same(['source-link'], $inline->attr('classes'));
+        $t->same(['data-source' => 'batch-77', 'onclick' => 'alert(1)'], $inline->attr('attributes'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $inline->children));
+        $t->same('review ', $inline->children[0]->attr('text'));
+        $t->same('source', $inline->children[1]->children[0]->attr('text'));
+
+        $t->same('link', $reference->type);
+        $t->same('https://example.test/packet', $reference->attr('url'));
+        $t->same('Packet title', $reference->attr('title'));
+        $t->same(['review-packet'], $reference->attr('classes'));
+        $t->same(['data-ticket' => 'P-9'], $reference->attr('attributes'));
+        $t->same('packet', $reference->children[0]->attr('text'));
+        $t->same(
+            'Inline [review **source**](/review "Review title"){#review-link .source-link data-source="batch-77" onclick="alert(1)"} and reference [packet](https://example.test/packet "Packet title"){.review-packet data-ticket="P-9"}.',
+            (new MarkdownWriter())->write($document)
+        );
+        $t->contains('<a href="/review" title="Review title" id="review-link" class="source-link" data-source="batch-77">review <strong>source</strong></a>', $blocks);
+        $t->contains('<a href="https://example.test/packet" title="Packet title" class="review-packet" data-ticket="P-9">packet</a>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe link event attributes should not survive WordPress handoff');
+    },
     'maps upstream markdown reader more title block metadata' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '% Title',
