@@ -27,6 +27,7 @@ final class PlainWriter
      *     columns:int,
      *     blockCount:int,
      *     wrappedBlockCount:int,
+     *     softWrapBreakCount:int,
      *     outputLineCount:int,
      *     maxOutputDisplayWidth:int,
      *     overColumnLineCount:int,
@@ -56,6 +57,7 @@ final class PlainWriter
      *       overColumnLineCount:int,
      *       maxOverColumnDisplayWidth:int,
      *       wrapped:bool,
+     *       softWrapBreakCount:int,
      *       lineFeedBreakCount:int,
      *       lineSeparatorBreakCount:int,
      *       paragraphSeparatorBreakCount:int,
@@ -85,6 +87,7 @@ final class PlainWriter
         $blocks = [];
         $blockDiagnostics = [];
         $wrappedBlockCount = 0;
+        $softWrapBreakCount = 0;
         $outputLineCount = 0;
         $maxOutputDisplayWidth = 0;
         $overColumnLineCount = 0;
@@ -127,6 +130,8 @@ final class PlainWriter
             if ($wrapped) {
                 ++$wrappedBlockCount;
             }
+            $blockSoftWrapBreakCount = $this->softWrapBreakCount($source, $wrappedLineCount, $columns, $wrapMode);
+            $softWrapBreakCount += $blockSoftWrapBreakCount;
 
             $sourceMax = $this->maxDisplayWidth($sourceLines, $ambiguousWidth);
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
@@ -164,6 +169,7 @@ final class PlainWriter
                 'overColumnLineCount' => $overColumn['count'],
                 'maxOverColumnDisplayWidth' => $overColumn['maxDisplayWidth'],
                 'wrapped' => $wrapped,
+                'softWrapBreakCount' => $blockSoftWrapBreakCount,
                 'lineFeedBreakCount' => $typeCounts['lineFeed'],
                 'lineSeparatorBreakCount' => $typeCounts['lineSeparator'],
                 'paragraphSeparatorBreakCount' => $typeCounts['paragraphSeparator'],
@@ -188,6 +194,7 @@ final class PlainWriter
                 'columns' => $columns,
                 'blockCount' => count($blocks),
                 'wrappedBlockCount' => $wrappedBlockCount,
+                'softWrapBreakCount' => $softWrapBreakCount,
                 'outputLineCount' => $outputLineCount,
                 'maxOutputDisplayWidth' => $maxOutputDisplayWidth,
                 'overColumnLineCount' => $overColumnLineCount,
@@ -499,6 +506,25 @@ final class PlainWriter
         }
 
         return ['count' => $count, 'maxDisplayWidth' => $max];
+    }
+
+    private function softWrapBreakCount(string $source, int $wrappedLineCount, int $columns, string $wrapMode): int
+    {
+        if ($wrapMode !== 'auto' || $columns <= 0) {
+            return 0;
+        }
+
+        return max(0, $wrappedLineCount - $this->physicalLineCount($source));
+    }
+
+    private function physicalLineCount(string $source): int
+    {
+        $lines = preg_split('/\R/u', $source);
+        if ($lines === false) {
+            $lines = explode("\n", $source);
+        }
+
+        return max(1, count($lines));
     }
 
     /**

@@ -36,6 +36,7 @@ return [
         $t->same(24, $result['diagnostics']['columns']);
         $t->same(2, $result['diagnostics']['blockCount']);
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(2, $result['diagnostics']['softWrapBreakCount']);
         $t->same(5, $result['diagnostics']['outputLineCount']);
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
@@ -60,6 +61,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 2,
             'lineFeedBreakCount' => 0,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -88,6 +90,7 @@ return [
         $t->same(12, $result['diagnostics']['columns']);
         $t->same(1, $result['diagnostics']['blockCount']);
         $t->same(0, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(0, $result['diagnostics']['softWrapBreakCount']);
         $t->same(3, $result['diagnostics']['outputLineCount']);
         $t->same(33, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(2, $result['diagnostics']['overColumnLineCount']);
@@ -104,6 +107,7 @@ return [
             'overColumnLineCount' => 2,
             'maxOverColumnDisplayWidth' => 33,
             'wrapped' => false,
+            'softWrapBreakCount' => 0,
             'lineFeedBreakCount' => 2,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -129,6 +133,7 @@ return [
         $t->same("A Beta\nreviewer\nTail\nPlain row", $result['text']);
         $t->same(1, $result['diagnostics']['blockCount']);
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(2, $result['diagnostics']['softWrapBreakCount']);
         $t->same(4, $result['diagnostics']['outputLineCount']);
         $t->same(9, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
@@ -149,6 +154,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 2,
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -191,6 +197,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 1,
             'lineFeedBreakCount' => 0,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -231,6 +238,7 @@ return [
         $t->same("Alpha beta\nLocked\u{00A0}phrase\ntail", $result['text']);
         $t->same(1, $result['diagnostics']['blockCount']);
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(1, $result['diagnostics']['softWrapBreakCount']);
         $t->same(3, $result['diagnostics']['outputLineCount']);
         $t->same(13, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
@@ -253,6 +261,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 1,
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -284,6 +293,7 @@ return [
             'mark',
         ]), $result['text']);
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(5, $result['diagnostics']['softWrapBreakCount']);
         $t->same(6, $result['diagnostics']['outputLineCount']);
         $t->same(8, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(5, $result['diagnostics']['softBreakOpportunityCount']);
@@ -303,6 +313,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 5,
             'lineFeedBreakCount' => 0,
             'lineSeparatorBreakCount' => 0,
             'paragraphSeparatorBreakCount' => 0,
@@ -318,6 +329,32 @@ return [
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
     },
+    'reports inserted soft wrap breaks in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha beta gamma\nWide tail piece"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 10]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Alpha beta',
+            'gamma',
+            'Wide tail',
+            'piece',
+        ]), $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(2, $result['diagnostics']['softWrapBreakCount']);
+        $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(1, $result['diagnostics']['hardBreakCount']);
+        $t->same(1, $result['diagnostics']['lineFeedBreakCount']);
+        $t->same(4, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(2, $result['diagnostics']['blocks'][0]['sourceLineCount']);
+        $t->same(4, $result['diagnostics']['blocks'][0]['outputLineCount']);
+        $t->same(true, $result['diagnostics']['blocks'][0]['wrapped']);
+        $t->same(2, $result['diagnostics']['blocks'][0]['softWrapBreakCount']);
+        $t->same(1, $result['diagnostics']['blocks'][0]['lineFeedBreakCount']);
+    },
     'reports unicode hard separator counts in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha\u{2028}Beta Gamma\u{2029}Delta\r\nEpsilon"]),
@@ -328,6 +365,7 @@ return [
         $t->same("Alpha\nBeta Gamma\nDelta\nEpsilon", $result['text']);
         $t->same(1, $result['diagnostics']['blockCount']);
         $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(0, $result['diagnostics']['softWrapBreakCount']);
         $t->same(4, $result['diagnostics']['outputLineCount']);
         $t->same(10, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(3, $result['diagnostics']['hardBreakCount']);
@@ -349,6 +387,7 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'softWrapBreakCount' => 0,
             'lineFeedBreakCount' => 1,
             'lineSeparatorBreakCount' => 1,
             'paragraphSeparatorBreakCount' => 1,
