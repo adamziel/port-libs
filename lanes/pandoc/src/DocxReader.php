@@ -8,6 +8,27 @@ final class DocxReader
 {
     private const STYLE_DOC_DEFAULTS_KEY = "\0docDefaults";
 
+    /**
+     * WordprocessingML conditional table-style region names from w:tblStylePr.
+     *
+     * @var array<string, string>
+     */
+    private const TABLE_STYLE_CONDITIONAL_REGION_SUFFIXES = [
+        'wholeTable' => 'whole-table',
+        'firstRow' => 'first-row',
+        'lastRow' => 'last-row',
+        'firstCol' => 'first-col',
+        'lastCol' => 'last-col',
+        'band1Vert' => 'band-1-vert',
+        'band2Vert' => 'band-2-vert',
+        'band1Horz' => 'band-1-horz',
+        'band2Horz' => 'band-2-horz',
+        'neCell' => 'ne-cell',
+        'nwCell' => 'nw-cell',
+        'seCell' => 'se-cell',
+        'swCell' => 'sw-cell',
+    ];
+
     public const WORDPROCESSINGML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     public const WORDPROCESSINGML_2010_NS = 'http://schemas.microsoft.com/office/word/2010/wordml';
     public const WORDPROCESSINGML_2012_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
@@ -11976,23 +11997,7 @@ final class DocxReader
             return [];
         }
 
-        $sourceValues = [];
-        foreach ([
-            'val' => 'val',
-            'fill' => 'fill',
-            'color' => 'color',
-            'themeFill' => 'theme-fill',
-            'themeFillTint' => 'theme-fill-tint',
-            'themeFillShade' => 'theme-fill-shade',
-            'themeColor' => 'theme-color',
-            'themeTint' => 'theme-tint',
-            'themeShade' => 'theme-shade',
-        ] as $source => $target) {
-            $value = trim((string) ($this->wordAttr($shading, $source) ?? ''));
-            if ($value !== '') {
-                $sourceValues[$target] = $value;
-            }
-        }
+        $sourceValues = $this->tableCellShadingSourceValues($shading);
 
         $shadingValue = strtolower($sourceValues['val'] ?? '');
         if ($shadingValue === 'nil' || $sourceValues === []) {
@@ -12029,6 +12034,32 @@ final class DocxReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableCellShadingSourceValues(\DOMElement $shading): array
+    {
+        $sourceValues = [];
+        foreach ([
+            'val' => 'val',
+            'fill' => 'fill',
+            'color' => 'color',
+            'themeFill' => 'theme-fill',
+            'themeFillTint' => 'theme-fill-tint',
+            'themeFillShade' => 'theme-fill-shade',
+            'themeColor' => 'theme-color',
+            'themeTint' => 'theme-tint',
+            'themeShade' => 'theme-shade',
+        ] as $source => $target) {
+            $value = trim((string) ($this->wordAttr($shading, $source) ?? ''));
+            if ($value !== '') {
+                $sourceValues[$target] = $value;
+            }
+        }
+
+        return $sourceValues;
     }
 
     private function formatOpenXmlCssNumber(float $value): string
@@ -12681,7 +12712,7 @@ final class DocxReader
                 'numPr' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->numberingProperties($properties) : null,
                 'paragraphMetadata' => $type === 'paragraph' && $properties instanceof \DOMElement ? $this->paragraphPropertiesMetadataAttrs($properties) : null,
                 'runProperties' => $runProperties instanceof \DOMElement ? $this->runPropertiesFromElement($runProperties) : null,
-                'tableMetadata' => $type === 'table' ? $this->styleTableMetadataAttrs($tableProperties, $name, $basedOn) : null,
+                'tableMetadata' => $type === 'table' ? $this->styleTableMetadataAttrs($tableProperties, $name, $basedOn, $styleElement) : null,
             ];
         }
 
@@ -12691,7 +12722,7 @@ final class DocxReader
     /**
      * @return array{classes?:list<string>, attributes?:array<string, string>, htmlAttributes?:array<string, string>}|null
      */
-    private function styleTableMetadataAttrs(?\DOMElement $properties, ?string $name, ?string $basedOn): ?array
+    private function styleTableMetadataAttrs(?\DOMElement $properties, ?string $name, ?string $basedOn, ?\DOMElement $styleElement = null): ?array
     {
         $attrs = $properties instanceof \DOMElement ? $this->tablePropertiesMetadataAttrs($properties) : null;
 
@@ -12710,7 +12741,239 @@ final class DocxReader
             ];
         }
 
-        return $this->mergeTableAttrs($attrs, $styleAttrs);
+        $conditionalAttrs = $styleElement instanceof \DOMElement
+            ? $this->styleTableConditionalRegionMetadataAttrs($styleElement)
+            : null;
+
+        return $this->mergeTableAttrs($this->mergeTableAttrs($attrs, $styleAttrs), $conditionalAttrs);
+    }
+
+    /**
+     * @return array{classes?:list<string>, attributes?:array<string, string>}|null
+     */
+    private function styleTableConditionalRegionMetadataAttrs(\DOMElement $styleElement): ?array
+    {
+        $classes = [];
+        $attributes = [];
+        $types = [];
+        $index = 0;
+
+        foreach ($styleElement->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::WORDPROCESSINGML_NS || $child->localName !== 'tblStylePr') {
+                continue;
+            }
+
+            $type = trim((string) ($this->wordAttr($child, 'type') ?? ''));
+            if ($type === '') {
+                continue;
+            }
+
+            $suffix = $this->tableStyleConditionalRegionClassSuffix($type);
+            if ($suffix === null) {
+                continue;
+            }
+
+            $index++;
+            $types[] = $type;
+            $classes[] = 'docx-table-style-conditional';
+            $classes[] = 'docx-table-style-conditional-' . $suffix;
+            $prefix = 'data-docx-table-style-region-' . $index;
+            $attributes[$prefix . '-type'] = $type;
+            $attributes[$prefix . '-type-label'] = $suffix;
+            foreach ($this->tableStyleConditionalRegionAttributes($child) as $name => $value) {
+                $attributes[$prefix . '-' . $name] = $value;
+            }
+        }
+
+        if ($index === 0) {
+            return null;
+        }
+
+        $attributes['data-docx-table-style-region-count'] = (string) $index;
+        $attributes['data-docx-table-style-region-types'] = implode(' ', $types);
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    private function tableStyleConditionalRegionClassSuffix(string $type): ?string
+    {
+        return self::TABLE_STYLE_CONDITIONAL_REGION_SUFFIXES[$type] ?? null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function tableStyleConditionalRegionAttributes(\DOMElement $region): array
+    {
+        $attributes = [];
+
+        $tableProperties = $this->firstChildElement($region, self::WORDPROCESSINGML_NS, 'tblPr');
+        if ($tableProperties instanceof \DOMElement) {
+            foreach ($this->prefixedTableStyleRegionTableAttributes($tableProperties) as $name => $value) {
+                $attributes[$name] = $value;
+            }
+        }
+
+        $rowProperties = $this->firstChildElement($region, self::WORDPROCESSINGML_NS, 'trPr');
+        if ($rowProperties instanceof \DOMElement) {
+            foreach ([
+                'tblHeader' => 'row-repeat-header',
+                'cantSplit' => 'row-cant-split',
+            ] as $localName => $target) {
+                $property = $this->firstChildElement($rowProperties, self::WORDPROCESSINGML_NS, $localName);
+                if ($property instanceof \DOMElement) {
+                    $attributes[$target] = $this->onOffWordAttr($property, 'val', true) ? 'true' : 'false';
+                }
+            }
+        }
+
+        $cellProperties = $this->firstChildElement($region, self::WORDPROCESSINGML_NS, 'tcPr');
+        if ($cellProperties instanceof \DOMElement) {
+            $this->appendTableStyleRegionCellWidthAttributes($cellProperties, $attributes);
+            $this->appendTableStyleRegionCellShadingAttributes($cellProperties, $attributes);
+            $this->appendTableStyleRegionCellVerticalAlignAttributes($cellProperties, $attributes);
+        }
+
+        $paragraphProperties = $this->firstChildElement($region, self::WORDPROCESSINGML_NS, 'pPr');
+        if ($paragraphProperties instanceof \DOMElement) {
+            $justification = $this->firstChildElement($paragraphProperties, self::WORDPROCESSINGML_NS, 'jc');
+            if ($justification instanceof \DOMElement) {
+                $value = strtolower(trim((string) ($this->wordAttr($justification, 'val') ?? '')));
+                if ($value !== '') {
+                    $attributes['paragraph-align'] = $value;
+                }
+            }
+        }
+
+        $runProperties = $this->firstChildElement($region, self::WORDPROCESSINGML_NS, 'rPr');
+        if ($runProperties instanceof \DOMElement) {
+            foreach ([
+                'b' => 'run-bold',
+                'i' => 'run-italic',
+                'smallCaps' => 'run-small-caps',
+                'strike' => 'run-strike',
+            ] as $localName => $target) {
+                $property = $this->firstChildElement($runProperties, self::WORDPROCESSINGML_NS, $localName);
+                if ($property instanceof \DOMElement) {
+                    $attributes[$target] = $this->onOffWordAttr($property, 'val', true) ? 'true' : 'false';
+                }
+            }
+
+            foreach ([
+                'highlight' => 'run-highlight',
+                'color' => 'run-color',
+                'u' => 'run-underline',
+            ] as $localName => $target) {
+                $property = $this->firstChildElement($runProperties, self::WORDPROCESSINGML_NS, $localName);
+                if (!$property instanceof \DOMElement) {
+                    continue;
+                }
+
+                $value = trim((string) ($this->wordAttr($property, 'val') ?? ''));
+                if ($value !== '') {
+                    $attributes[$target] = $value;
+                }
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function prefixedTableStyleRegionTableAttributes(\DOMElement $tableProperties): array
+    {
+        $metadata = $this->tablePropertiesMetadataAttrs($tableProperties);
+        if ($metadata === null) {
+            return [];
+        }
+
+        $attributes = [];
+        $metadataAttributes = is_array($metadata['attributes'] ?? null) ? $metadata['attributes'] : [];
+        foreach ($metadataAttributes as $name => $value) {
+            if (!str_starts_with($name, 'data-docx-table-')) {
+                continue;
+            }
+
+            $attributes['table-' . substr($name, strlen('data-docx-table-'))] = $value;
+        }
+
+        $htmlAttributes = is_array($metadata['htmlAttributes'] ?? null) ? $metadata['htmlAttributes'] : [];
+        $style = trim((string) ($htmlAttributes['style'] ?? ''));
+        if ($style !== '') {
+            $attributes['table-css-style'] = $style;
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendTableStyleRegionCellWidthAttributes(\DOMElement $cellProperties, array &$attributes): void
+    {
+        $width = $this->firstChildElement($cellProperties, self::WORDPROCESSINGML_NS, 'tcW');
+        if (!$width instanceof \DOMElement) {
+            return;
+        }
+
+        $type = strtolower(trim((string) ($this->wordAttr($width, 'type') ?? '')));
+        if (!in_array($type, ['dxa', 'pct', 'auto'], true)) {
+            return;
+        }
+
+        $attributes['cell-width-type'] = $type;
+        $value = trim((string) ($this->wordAttr($width, 'w') ?? ''));
+        if ($value === '') {
+            return;
+        }
+
+        $attributes['cell-width-value'] = $value;
+        if (preg_match('/^\d+(?:\.\d+)?$/D', $value) !== 1) {
+            return;
+        }
+
+        $numericValue = (float) $value;
+        if ($numericValue > 0.0 && $type === 'dxa') {
+            $attributes['cell-width-points'] = $this->formatOpenXmlCssNumber($numericValue / 20.0);
+        } elseif ($numericValue > 0.0 && $type === 'pct') {
+            $attributes['cell-width-percent'] = $this->formatOpenXmlCssNumber($numericValue / 50.0);
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendTableStyleRegionCellShadingAttributes(\DOMElement $cellProperties, array &$attributes): void
+    {
+        $shading = $this->firstChildElement($cellProperties, self::WORDPROCESSINGML_NS, 'shd');
+        if (!$shading instanceof \DOMElement) {
+            return;
+        }
+
+        foreach ($this->tableCellShadingSourceValues($shading) as $name => $value) {
+            $attributes['cell-shading-' . $name] = $value;
+        }
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendTableStyleRegionCellVerticalAlignAttributes(\DOMElement $cellProperties, array &$attributes): void
+    {
+        $alignment = $this->firstChildElement($cellProperties, self::WORDPROCESSINGML_NS, 'vAlign');
+        if (!$alignment instanceof \DOMElement) {
+            return;
+        }
+
+        $value = strtolower(trim((string) ($this->wordAttr($alignment, 'val') ?? '')));
+        if (in_array($value, ['top', 'center', 'bottom'], true)) {
+            $attributes['cell-vertical-align'] = $value;
+        }
     }
 
     /**

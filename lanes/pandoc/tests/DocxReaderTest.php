@@ -1621,6 +1621,61 @@ $tableStyleInheritanceDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableConditionalStyleStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="table" w:styleId="ConditionalReviewTable">
+    <w:name w:val="Conditional Review Table"/>
+    <w:tblPr>
+      <w:tblW w:type="pct" w:w="5000"/>
+      <w:jc w:val="center"/>
+    </w:tblPr>
+    <w:tblStylePr w:type="firstRow">
+      <w:trPr><w:tblHeader/></w:trPr>
+      <w:tcPr>
+        <w:tcW w:type="pct" w:w="2500"/>
+        <w:shd w:val="clear" w:fill="CFE2F3" w:color="auto"/>
+        <w:vAlign w:val="center"/>
+      </w:tcPr>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:rPr><w:b/><w:color w:val="1F4E79"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="band1Horz">
+      <w:tcPr><w:shd w:val="clear" w:fill="F3F6FA" w:themeFill="accent1" w:themeFillTint="33"/></w:tcPr>
+      <w:rPr><w:i w:val="0"/><w:highlight w:val="yellow"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="lastRow">
+      <w:trPr><w:cantSplit w:val="1"/></w:trPr>
+      <w:tcPr><w:shd w:val="clear" w:fill="EADCF8"/></w:tcPr>
+      <w:rPr><w:smallCaps/></w:rPr>
+    </w:tblStylePr>
+  </w:style>
+</w:styles>
+XML;
+
+$tableConditionalStyleDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="ConditionalReviewTable"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Styled header</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Reviewer status</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Media packet</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Needs alt text</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Final owner</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Import desk</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4468,6 +4523,22 @@ $buildTableStyleInheritancePackage = static function () use (
     ]);
 };
 
+$buildTableConditionalStylePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $tableConditionalStyleDocumentXml,
+    $tableConditionalStyleStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableConditionalStyleDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $tableConditionalStyleStylesXml],
+    ]);
+};
+
 $buildTableCellVerticalAlignmentPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $tableCellVerticalAlignmentDocumentXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -7114,6 +7185,85 @@ return [
         $t->contains('data-docx-table-width-type="dxa"', $blocks);
         $t->contains('data-docx-table-width-points="180"', $blocks);
         $t->contains('data-docx-table-align="start"', $blocks);
+    },
+    'preserves DOCX conditional table style region metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableConditionalStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildTableConditionalStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $classes = $table->attr('classes');
+        $t->true(in_array('docx-table-style-definition', $classes, true), 'Expected style definition metadata class');
+        $t->true(in_array('docx-table-style-conditional', $classes, true), 'Expected conditional style metadata class');
+        $t->true(in_array('docx-table-style-conditional-first-row', $classes, true), 'Expected firstRow conditional metadata class');
+        $t->true(in_array('docx-table-style-conditional-band-1-horz', $classes, true), 'Expected band1Horz conditional metadata class');
+        $t->true(in_array('docx-table-style-conditional-last-row', $classes, true), 'Expected lastRow conditional metadata class');
+        $t->true(in_array('docx-table-style-conditionalreviewtable', $classes, true), 'Expected applied table style class');
+
+        $attrs = $table->attr('attributes');
+        $t->same('ConditionalReviewTable', $attrs['data-docx-table-style']);
+        $t->same('Conditional Review Table', $attrs['data-docx-table-style-name']);
+        $t->same('3', $attrs['data-docx-table-style-region-count']);
+        $t->same('firstRow band1Horz lastRow', $attrs['data-docx-table-style-region-types']);
+
+        $t->same('firstRow', $attrs['data-docx-table-style-region-1-type']);
+        $t->same('first-row', $attrs['data-docx-table-style-region-1-type-label']);
+        $t->same('true', $attrs['data-docx-table-style-region-1-row-repeat-header']);
+        $t->same('pct', $attrs['data-docx-table-style-region-1-cell-width-type']);
+        $t->same('2500', $attrs['data-docx-table-style-region-1-cell-width-value']);
+        $t->same('50', $attrs['data-docx-table-style-region-1-cell-width-percent']);
+        $t->same('clear', $attrs['data-docx-table-style-region-1-cell-shading-val']);
+        $t->same('CFE2F3', $attrs['data-docx-table-style-region-1-cell-shading-fill']);
+        $t->same('auto', $attrs['data-docx-table-style-region-1-cell-shading-color']);
+        $t->same('center', $attrs['data-docx-table-style-region-1-cell-vertical-align']);
+        $t->same('center', $attrs['data-docx-table-style-region-1-paragraph-align']);
+        $t->same('true', $attrs['data-docx-table-style-region-1-run-bold']);
+        $t->same('1F4E79', $attrs['data-docx-table-style-region-1-run-color']);
+
+        $t->same('band1Horz', $attrs['data-docx-table-style-region-2-type']);
+        $t->same('band-1-horz', $attrs['data-docx-table-style-region-2-type-label']);
+        $t->same('F3F6FA', $attrs['data-docx-table-style-region-2-cell-shading-fill']);
+        $t->same('accent1', $attrs['data-docx-table-style-region-2-cell-shading-theme-fill']);
+        $t->same('33', $attrs['data-docx-table-style-region-2-cell-shading-theme-fill-tint']);
+        $t->same('false', $attrs['data-docx-table-style-region-2-run-italic']);
+        $t->same('yellow', $attrs['data-docx-table-style-region-2-run-highlight']);
+
+        $t->same('lastRow', $attrs['data-docx-table-style-region-3-type']);
+        $t->same('last-row', $attrs['data-docx-table-style-region-3-type-label']);
+        $t->same('true', $attrs['data-docx-table-style-region-3-row-cant-split']);
+        $t->same('EADCF8', $attrs['data-docx-table-style-region-3-cell-shading-fill']);
+        $t->same('true', $attrs['data-docx-table-style-region-3-run-small-caps']);
+
+        $t->same('pct', $attrs['data-docx-table-width-type']);
+        $t->same('5000', $attrs['data-docx-table-width-value']);
+        $t->same('100', $attrs['data-docx-table-width-percent']);
+        $t->same('center', $attrs['data-docx-table-align']);
+        $t->same('width:100%', $table->attr('htmlAttributes')['style']);
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $sourceAttributes = $geometry['sourceAttributes']['attributes'] ?? [];
+        $t->same('3', $sourceAttributes['data-docx-table-style-region-count'] ?? null);
+        $t->same('firstRow band1Horz lastRow', $sourceAttributes['data-docx-table-style-region-types'] ?? null);
+        $t->same('CFE2F3', $sourceAttributes['data-docx-table-style-region-1-cell-shading-fill'] ?? null);
+        $t->same('F3F6FA', $sourceAttributes['data-docx-table-style-region-2-cell-shading-fill'] ?? null);
+        $t->same('EADCF8', $sourceAttributes['data-docx-table-style-region-3-cell-shading-fill'] ?? null);
+
+        $normalizedMarkdown = preg_replace('/[ ]+/', ' ', $markdown) ?? $markdown;
+        $t->contains('| Styled header | Reviewer status |', $normalizedMarkdown);
+        $t->contains('| Final owner | Import desk |', $normalizedMarkdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-region'), 'Pipe-table Markdown handoff should not leak conditional DOCX table style metadata');
+
+        $t->contains('class="docx-table-width docx-table-width-pct docx-table-align docx-table-align-center docx-table-style-definition docx-table-style-conditional docx-table-style-conditional-first-row docx-table-style-conditional-band-1-horz docx-table-style-conditional-last-row docx-table-style docx-table-style-conditionalreviewtable"', $blocks);
+        $t->contains('data-docx-table-style-region-count="3"', $blocks);
+        $t->contains('data-docx-table-style-region-types="firstRow band1Horz lastRow"', $blocks);
+        $t->contains('data-docx-table-style-region-1-row-repeat-header="true"', $blocks);
+        $t->contains('data-docx-table-style-region-1-cell-shading-fill="CFE2F3"', $blocks);
+        $t->contains('data-docx-table-style-region-2-cell-shading-theme-fill="accent1"', $blocks);
+        $t->contains('data-docx-table-style-region-2-run-italic="false"', $blocks);
+        $t->contains('data-docx-table-style-region-3-row-cant-split="true"', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());

@@ -224,6 +224,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         $centralCompressedSize = (int) ($entry['centralCompressedSize'] ?? strlen($payload));
         $centralUncompressedSize = (int) ($entry['centralUncompressedSize'] ?? strlen($data));
         $centralLocalHeaderOffset = (int) ($entry['centralLocalHeaderOffset'] ?? $localHeaderOffset);
+        $versionMadeBy = (int) ($entry['versionMadeBy'] ?? 0x0314);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -268,7 +269,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
-            0x0314,
+            $versionMadeBy,
             $centralVersionNeededToExtract,
             $flags,
             $centralMethod,
@@ -6347,6 +6348,144 @@ return [
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip creator host and external attributes across archive streams' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/unknown-host.xml',
+                'data' => '<w:document><w:p>unknown creator host metadata</w:p></w:document>',
+                'compressionMethod' => 8,
+                'versionMadeBy' => 0x3f14,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/link.png',
+                'data' => '../embeddings/oleObject1.bin',
+                'compressionMethod' => 0,
+                'externalAttributes' => 0xa1ff0000,
+            ],
+            [
+                'name' => 'word/media/reviewer-folder',
+                'data' => '',
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x81a40010,
+            ],
+        ], 'creator host external attribute stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip-creator-external.zip',
+                'comment' => 'ZIP creator host external attribute preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('creator host attribute reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $creator = ArchiveCompressionStream::inspectZipCreatorHostSystemPolicy($bytes, $format, strlen($zipBytes));
+            $external = ArchiveCompressionStream::inspectZipExternalAttributePolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($zipBytes, $creator['zipBytes']);
+            $t->same($zipBytes, $external['zipBytes']);
+            $t->same($format, $creator['format']);
+            $t->same($format, $external['format']);
+            $t->same(strlen($zipBytes), $creator['packageByteSize']);
+            $t->same(strlen($zipBytes), $external['packageByteSize']);
+
+            $t->same(3, $creator['entryCount']);
+            $t->same(2, $creator['knownHostSystemEntryCount']);
+            $t->same(1, $creator['unknownHostSystemEntryCount']);
+            $t->same(1, $creator['blockedEntryCount']);
+            $t->same(false, $creator['isSupportedByBoundedReader']);
+            $t->same(['unknown-creator-host-systems'], $creator['issues']);
+            $t->same([63, 3], array_column($creator['hostSystems'], 'id'));
+            $t->same(['unknown', 'unix'], array_column($creator['hostSystems'], 'name'));
+            $t->same('word/unknown-host.xml', $creator['unknownEntries'][0]['name']);
+            $t->same(63, $creator['unknownEntries'][0]['madeByHostSystem']);
+            $t->same('unknown', $creator['unknownEntries'][0]['madeByHostSystemName']);
+            $t->same(20, $creator['unknownEntries'][0]['madeByVersion']);
+            $t->same(0x3f14, $creator['unknownEntries'][0]['versionMadeBy']);
+            $t->same('blocked', $creator['unknownEntries'][0]['policy']);
+            $t->same(['zip-unknown-creator-host-system'], $creator['unknownEntries'][0]['diagnostics']);
+            $t->same(false, array_key_exists('package', $creator));
+
+            $t->same(3, $external['entryCount']);
+            $t->same(2, $external['issueEntryCount']);
+            $t->same(1, $external['symlinkEntryCount']);
+            $t->same(0, $external['unixSpecialFileEntryCount']);
+            $t->same(1, $external['directoryAttributeMismatchEntryCount']);
+            $t->same(0, $external['unixFileTypeMismatchEntryCount']);
+            $t->same(false, $external['isSupportedByBoundedReader']);
+            $t->same(['symlink-zip-entries', 'directory-attribute-mismatch'], $external['issues']);
+            $t->same([
+                'word/media/link.png',
+                'word/media/reviewer-folder',
+            ], array_column($external['issueEntries'], 'name'));
+            $t->same('word/media/link.png', $external['symlinkEntries'][0]['name']);
+            $t->same(0xa000, $external['symlinkEntries'][0]['unixFileType']);
+            $t->same('symlink', $external['symlinkEntries'][0]['unixFileTypeName']);
+            $t->same(true, $external['symlinkEntries'][0]['isUnixSymlink']);
+            $t->same('blocked', $external['symlinkEntries'][0]['policy']);
+            $t->same(['zip-unix-symlink-entry'], $external['symlinkEntries'][0]['diagnostics']);
+            $t->same(['symlink-zip-entry'], $external['symlinkEntries'][0]['issues']);
+            $t->same('word/media/reviewer-folder', $external['directoryAttributeMismatchEntries'][0]['name']);
+            $t->same(0x10, $external['directoryAttributeMismatchEntries'][0]['dosAttributes']);
+            $t->same(['directory'], $external['directoryAttributeMismatchEntries'][0]['dosAttributeNames']);
+            $t->same(true, $external['directoryAttributeMismatchEntries'][0]['hasDosDirectoryAttribute']);
+            $t->same(false, $external['directoryAttributeMismatchEntries'][0]['isDirectory']);
+            $t->same(true, $external['directoryAttributeMismatchEntries'][0]['hasDirectoryAttributeMismatch']);
+            $t->same(['zip-dos-directory-attribute-name-mismatch'], $external['directoryAttributeMismatchEntries'][0]['diagnostics']);
+            $t->same(false, array_key_exists('package', $external));
+        }
+
+        $gzipCreator = ArchiveCompressionStream::inspectZipCreatorHostSystemPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4External = ArchiveCompressionStream::inspectZipExternalAttributePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipCreator['stream']['type']);
+        $t->same('wordpress-zip-creator-external.zip', $gzipCreator['stream']['members'][0]['filename']);
+        $t->same('ZIP creator host external attribute preflight fixture', $gzipCreator['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4External['stream']['type']);
+        $t->same(2, $lz4External['stream']['frameCount']);
+        $t->same('creator host attribute reviewer metadata', $lz4External['stream']['frames'][0]['data']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectZipStream($zipBytes, ArchiveCompressionStream::FORMAT_ZIP));
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipCreatorHostSystemPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipExternalAttributePolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+                strlen($zipBytes) - 1
             )
         );
     },

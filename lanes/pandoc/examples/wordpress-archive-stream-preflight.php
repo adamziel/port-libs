@@ -195,6 +195,8 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         $centralCompressedSize = (int) ($entry['centralCompressedSize'] ?? strlen($payload));
         $centralUncompressedSize = (int) ($entry['centralUncompressedSize'] ?? strlen($data));
         $centralLocalHeaderOffset = (int) ($entry['centralLocalHeaderOffset'] ?? $localHeaderOffset);
+        $versionMadeBy = (int) ($entry['versionMadeBy'] ?? 0x0314);
+        $externalAttributes = (int) ($entry['externalAttributes'] ?? 0);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -226,7 +228,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
-            0x0314,
+            $versionMadeBy,
             20,
             $flags,
             $method,
@@ -240,7 +242,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             strlen($comment),
             $diskStart,
             0,
-            0,
+            $externalAttributes,
             $centralLocalHeaderOffset
         ) . $name . $centralExtra . $comment;
         $centralRecords[] = [
@@ -1401,6 +1403,42 @@ $generalPurposeZipInspection = ArchiveCompressionStream::inspectZipGeneralPurpos
     ArchiveCompressionStream::FORMAT_GZIP_ZIP,
     strlen($generalPurposeZipBytes)
 );
+$creatorExternalZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => 'word/unknown-host.xml',
+        'data' => '<w:document><w:p>Unknown creator host metadata</w:p></w:document>',
+        'compressionMethod' => 8,
+        'versionMadeBy' => 0x3f14,
+        'externalAttributes' => 0x81a40000,
+    ],
+    [
+        'name' => 'word/media/link.png',
+        'data' => '../embeddings/oleObject1.bin',
+        'compressionMethod' => 0,
+        'externalAttributes' => 0xa1ff0000,
+    ],
+    [
+        'name' => 'word/media/reviewer-folder',
+        'data' => '',
+        'compressionMethod' => 0,
+        'externalAttributes' => 0x81a40010,
+    ],
+], 'creator host external attribute stream review fixture');
+$creatorExternalZipGzip = GzipStream::build($creatorExternalZipBytes, [
+    'filename' => 'wordpress-zip-creator-external.zip',
+    'comment' => 'ZIP creator host external attribute preflight fixture',
+    'headerCrc' => true,
+]);
+$creatorHostZipInspection = ArchiveCompressionStream::inspectZipCreatorHostSystemPolicy(
+    $creatorExternalZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($creatorExternalZipBytes)
+);
+$externalAttributeZipInspection = ArchiveCompressionStream::inspectZipExternalAttributePolicy(
+    $creatorExternalZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($creatorExternalZipBytes)
+);
 $lz4DictionaryId = 0x1a2b3c4d;
 $lz4DictionaryDescriptor = chr(0x40 | 0x20 | 0x08 | 0x04 | 0x01)
     . chr(0x40)
@@ -2266,6 +2304,24 @@ if (in_array('--self-test', $argv, true)) {
         'zipGeneralPurposeStrictFlagNames' => ['deflate-super-fast', 'data-descriptor', 'utf-8-names'],
         'zipGeneralPurposeStrictIssues' => ['data-descriptor-entry', 'deflate-option-flags'],
         'zipGeneralPurposeGzipFilename' => 'wordpress-general-purpose-flags.zip',
+        'zipCreatorHostFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipCreatorHostEntryCount' => 3,
+        'zipCreatorHostKnownCount' => 2,
+        'zipCreatorHostUnknownCount' => 1,
+        'zipCreatorHostIssues' => ['unknown-creator-host-systems'],
+        'zipCreatorHostUnknownEntry' => 'word/unknown-host.xml',
+        'zipCreatorHostUnknownSystem' => 63,
+        'zipCreatorHostUnknownName' => 'unknown',
+        'zipCreatorHostGzipFilename' => 'wordpress-zip-creator-external.zip',
+        'zipExternalAttributeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipExternalAttributeEntryCount' => 3,
+        'zipExternalAttributeIssueCount' => 2,
+        'zipExternalAttributeSymlinkCount' => 1,
+        'zipExternalAttributeDirectoryMismatchCount' => 1,
+        'zipExternalAttributeIssues' => ['symlink-zip-entries', 'directory-attribute-mismatch'],
+        'zipExternalAttributeSymlinkEntry' => 'word/media/link.png',
+        'zipExternalAttributeDirectoryMismatchEntry' => 'word/media/reviewer-folder',
+        'zipExternalAttributeGzipFilename' => 'wordpress-zip-creator-external.zip',
         'lz4DictionaryFormat' => 'lz4',
         'lz4DictionaryPolicyType' => 'lz4-dictionary-policy',
         'lz4DictionaryExtractionPolicy' => 'dictionary-frames-blocked',
@@ -3027,6 +3083,36 @@ if (in_array('--self-test', $argv, true)) {
         || ($generalPurposeZipInspection['entries'][2]['usesUtf8Names'] ?? null) !== false
         || ($generalPurposeZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipGeneralPurposeGzipFilename']
         || isset($generalPurposeZipInspection['package'])
+        || $creatorHostZipInspection['format'] !== $expected['zipCreatorHostFormat']
+        || $creatorHostZipInspection['zipBytes'] !== $creatorExternalZipBytes
+        || $creatorHostZipInspection['packageByteSize'] !== strlen($creatorExternalZipBytes)
+        || $creatorHostZipInspection['entryCount'] !== $expected['zipCreatorHostEntryCount']
+        || $creatorHostZipInspection['knownHostSystemEntryCount'] !== $expected['zipCreatorHostKnownCount']
+        || $creatorHostZipInspection['unknownHostSystemEntryCount'] !== $expected['zipCreatorHostUnknownCount']
+        || $creatorHostZipInspection['blockedEntryCount'] !== 1
+        || $creatorHostZipInspection['isSupportedByBoundedReader'] !== false
+        || $creatorHostZipInspection['issues'] !== $expected['zipCreatorHostIssues']
+        || array_column($creatorHostZipInspection['unknownEntries'], 'name') !== [$expected['zipCreatorHostUnknownEntry']]
+        || ($creatorHostZipInspection['unknownEntries'][0]['madeByHostSystem'] ?? null) !== $expected['zipCreatorHostUnknownSystem']
+        || ($creatorHostZipInspection['unknownEntries'][0]['madeByHostSystemName'] ?? null) !== $expected['zipCreatorHostUnknownName']
+        || ($creatorHostZipInspection['unknownEntries'][0]['diagnostics'] ?? []) !== ['zip-unknown-creator-host-system']
+        || ($creatorHostZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipCreatorHostGzipFilename']
+        || isset($creatorHostZipInspection['package'])
+        || $externalAttributeZipInspection['format'] !== $expected['zipExternalAttributeFormat']
+        || $externalAttributeZipInspection['zipBytes'] !== $creatorExternalZipBytes
+        || $externalAttributeZipInspection['packageByteSize'] !== strlen($creatorExternalZipBytes)
+        || $externalAttributeZipInspection['entryCount'] !== $expected['zipExternalAttributeEntryCount']
+        || $externalAttributeZipInspection['issueEntryCount'] !== $expected['zipExternalAttributeIssueCount']
+        || $externalAttributeZipInspection['symlinkEntryCount'] !== $expected['zipExternalAttributeSymlinkCount']
+        || $externalAttributeZipInspection['directoryAttributeMismatchEntryCount'] !== $expected['zipExternalAttributeDirectoryMismatchCount']
+        || $externalAttributeZipInspection['isSupportedByBoundedReader'] !== false
+        || $externalAttributeZipInspection['issues'] !== $expected['zipExternalAttributeIssues']
+        || array_column($externalAttributeZipInspection['symlinkEntries'], 'name') !== [$expected['zipExternalAttributeSymlinkEntry']]
+        || array_column($externalAttributeZipInspection['directoryAttributeMismatchEntries'], 'name') !== [$expected['zipExternalAttributeDirectoryMismatchEntry']]
+        || ($externalAttributeZipInspection['symlinkEntries'][0]['diagnostics'] ?? []) !== ['zip-unix-symlink-entry']
+        || ($externalAttributeZipInspection['directoryAttributeMismatchEntries'][0]['diagnostics'] ?? []) !== ['zip-dos-directory-attribute-name-mismatch']
+        || ($externalAttributeZipInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipExternalAttributeGzipFilename']
+        || isset($externalAttributeZipInspection['package'])
         || $lz4DictionaryInspection['format'] !== $expected['lz4DictionaryFormat']
         || $lz4DictionaryInspection['type'] !== $expected['lz4DictionaryPolicyType']
         || $lz4DictionaryInspection['extractionPolicy'] !== $expected['lz4DictionaryExtractionPolicy']
@@ -3521,6 +3607,16 @@ echo 'zipGeneralPurpose.strictNames=' . implode(',', array_column($generalPurpos
 echo 'zipGeneralPurpose.strictFlags=' . $generalPurposeZipInspection['strictReviewEntries'][0]['generalPurposeFlags'] . "\n";
 echo 'zipGeneralPurpose.strictIssues=' . implode(',', $generalPurposeZipInspection['strictReviewEntries'][0]['issues']) . "\n";
 echo 'zipGeneralPurpose.gzipFilename=' . $generalPurposeZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipCreatorHost.format=' . $creatorHostZipInspection['format'] . "\n";
+echo 'zipCreatorHost.unknownCount=' . $creatorHostZipInspection['unknownHostSystemEntryCount'] . "\n";
+echo 'zipCreatorHost.unknownEntry=' . $creatorHostZipInspection['unknownEntries'][0]['name'] . "\n";
+echo 'zipCreatorHost.issues=' . implode(',', $creatorHostZipInspection['issues']) . "\n";
+echo 'zipCreatorHost.gzipFilename=' . $creatorHostZipInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zipExternalAttribute.format=' . $externalAttributeZipInspection['format'] . "\n";
+echo 'zipExternalAttribute.issueCount=' . $externalAttributeZipInspection['issueEntryCount'] . "\n";
+echo 'zipExternalAttribute.symlinkEntry=' . $externalAttributeZipInspection['symlinkEntries'][0]['name'] . "\n";
+echo 'zipExternalAttribute.directoryMismatchEntry=' . $externalAttributeZipInspection['directoryAttributeMismatchEntries'][0]['name'] . "\n";
+echo 'zipExternalAttribute.issues=' . implode(',', $externalAttributeZipInspection['issues']) . "\n";
 echo 'lz4Dictionary.format=' . $lz4DictionaryInspection['format'] . "\n";
 echo 'lz4Dictionary.extractionPolicy=' . $lz4DictionaryInspection['extractionPolicy'] . "\n";
 echo 'lz4Dictionary.dictionaryFrameCount=' . $lz4DictionaryInspection['dictionaryFrameCount'] . "\n";
