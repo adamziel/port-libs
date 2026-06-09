@@ -8177,7 +8177,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, '?>');
         }
 
-        if (preg_match('/^ {0,3}<![A-Z]/', $line) === 1) {
+        if (preg_match('/^ {0,3}<![A-Za-z]/', $line) === 1) {
             return $this->readRawHtmlUntilMarker($lines, $index, '>');
         }
 

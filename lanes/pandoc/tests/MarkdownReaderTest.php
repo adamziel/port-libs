@@ -12753,6 +12753,31 @@ HTML;
         $t->contains('<!-- wp:html -->' . "\n" . '<![CDATA[' . "\n" . 'Raw <source> & **markdown** stays raw.', $blocks);
         $t->contains('<h2 id="parsed-after-raw-boundary">Parsed after raw boundary</h2>', $blocks);
     },
+    'maps commonmark lowercase declaration raw html boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<!doctype html>',
+            '',
+            '<!review',
+            'data-source="batch-59">',
+            '',
+            'After **lowercase** declarations.',
+        ]));
+        $doctype = $document->children[0];
+        $reviewDeclaration = $document->children[1];
+        $paragraph = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('raw_html', $doctype->type);
+        $t->same('<!doctype html>', $doctype->attr('html'));
+        $t->same('raw_html', $reviewDeclaration->type);
+        $t->same("<!review\ndata-source=\"batch-59\">", $reviewDeclaration->attr('html'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<!-- wp:html -->' . "\n" . '<!doctype html>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<!review' . "\n" . 'data-source="batch-59">', $blocks);
+        $t->contains('<p>After <strong>lowercase</strong> declarations.</p>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
