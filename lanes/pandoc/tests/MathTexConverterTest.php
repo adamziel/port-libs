@@ -1572,6 +1572,36 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\ref{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqref{###}'));
     },
+    'converts bounded tex href and url commands to linked mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $hrefMathml = $converter->texToMathMl('\\href{https://example.test/review}{p_i + m_i}', true);
+        $anchorMathml = $converter->texToMathMl('\\href{#eq:review-flow}{\\eqref{eq:review-flow}}', false, [], [
+            'eq:review-flow' => [
+                'reference' => 'WP-2',
+            ],
+        ]);
+        $urlMathml = $converter->texToMathMl('\\url{mailto:reviewer@example.test} + \\url{/wp-content/uploads/math-note}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\href{https://example.test/review}{x+y} + \\url{https://example.test/source}');
+
+        $t->contains('<mrow href="https://example.test/review"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mrow>', $hrefMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\href{https://example.test/review}{p_i + m_i}</annotation>', $hrefMathml);
+        $t->true(!str_contains($hrefMathml, '<mi>\\href</mi>'), 'Expected \\href to be parsed as a link wrapper');
+        $t->contains('<mrow href="#eq:review-flow"><mrow><mo>(</mo><mtext href="#eq:review-flow">WP-2</mtext><mo>)</mo></mrow></mrow>', $anchorMathml);
+        $t->contains('<mtext href="mailto:reviewer@example.test">mailto:reviewer@example.test</mtext>', $urlMathml);
+        $t->contains('<mtext href="/wp-content/uploads/math-note">/wp-content/uploads/math-note</mtext>', $urlMathml);
+        $t->true(!str_contains($urlMathml, '<mi>\\url</mi>'), 'Expected \\url to be parsed as linked text');
+        $t->contains('alttext="x plus y plus https://example.test/source"', $accessibleMathml);
+        $t->contains('intent="row(row(x,plus,y),plus,https_example_test_source)"', $accessibleMathml);
+
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\href{}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\href{javascript:alert(1)}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\href{//example.test/review}{x}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\href{https://example.test/review}{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\href{https://example.test/review}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\url{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\url{javascript:alert(1)}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\url{https://example.test/bad path}'));
+    },
     'resolves bounded tex equation references through a document label map' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $document = new AstNode('document', [], [

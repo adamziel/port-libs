@@ -230,6 +230,8 @@ Resolved equation reference audit $\eqref{eq:review-flow} + \eqref{eq:row-review
 
 Hyperref wrapper audit $\hyperref[eq:review-flow]{p_i + m_i} + \hyperref{q_i}$ stays semantic.
 
+Math href/url audit $\href{https://example.test/review}{p_i + m_i} + \url{mailto:reviewer@example.test}$ stays linked.
+
 Automatic numbering audit:
 $$p_i + m_i \label{eq:auto-one}$$
 
@@ -379,6 +381,7 @@ $summary = [
     'equationReferenceLabels' => $equationReferenceLabels,
     'resolvedEquationReferenceMathml' => $converter->texToMathMl('\\eqref{eq:review-flow} + \\eqref{eq:row-review}', false, [], $equationReferenceLabels),
     'hyperrefMathml' => $converter->texToMathMl('\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}'),
+    'hrefUrlMathml' => $converter->texToMathMl('\\href{https://example.test/review}{p_i + m_i} + \\url{mailto:reviewer@example.test}'),
     'automaticNumberReferenceMathml' => $converter->texToMathMl('\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}', false, [], $equationReferenceLabels),
     'accessibleMathml' => $converter->texToAccessibleMathMl('\\frac{a_1}{\\sqrt{b^2}} + \\alpha', true),
 ];
@@ -509,6 +512,15 @@ if (($argv[1] ?? '') === '--self-test') {
 
     if (str_contains($summary['hyperrefMathml'], '<mi>\\hyperref</mi>') || str_contains($summary['hyperrefMathml'], '<mo>[</mo><mi>e</mi><mi>q</mi>')) {
         throw new RuntimeException('Math TeX handoff self-test emitted hyperref target syntax as rendered MathML');
+    }
+
+    if (
+        str_contains($summary['hrefUrlMathml'], '<mi>\\href</mi>')
+        || str_contains($summary['hrefUrlMathml'], '<mi>\\url</mi>')
+        || !str_contains($summary['hrefUrlMathml'], '<mrow href="https://example.test/review"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mrow>')
+        || !str_contains($summary['hrefUrlMathml'], '<mtext href="mailto:reviewer@example.test">mailto:reviewer@example.test</mtext>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map href/url commands to linked MathML');
     }
 
     if (str_contains($summary['mathChoiceMathml'], '<mi>\\mathchoice</mi>') || !str_contains($summary['mathChoiceMathml'], '<mtext>text branch</mtext>')) {
@@ -987,6 +999,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math display">\\[\\begin{align}x_i &amp;= y_i \\label{eq:auto-row} \\\\ u_i &amp;= v_i \\tag{manual}\\end{align}\\]</span>',
         '<span class="math inline">\\(\\eqref{eq:auto-one} + \\eqref{eq:auto-row} + \\eqref{eq:plain}\\)</span>',
         '<span class="math inline">\\(\\hyperref[eq:review-flow]{p_i + m_i} + \\hyperref{q_i}\\)</span>',
+        '<span class="math inline">\\(\\href{https://example.test/review}{p_i + m_i} + \\url{mailto:reviewer@example.test}\\)</span>',
         '<span class="math inline">\\(\\frac{a_1}{\\sqrt{b^2}} + \\alpha\\)</span>',
         '<mtable columnalign="right left" rowspacing=".5em" data-tex-rowspacing="after-row-1:.5em"><mtr><mtd><msub><mi>a</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>b</mi><mi>i</mi></msub></mtd></mtr>',
         '<annotation encoding="application/x-tex">\\begin{aligned}a_i &amp;= b_i \\\\[.5em] c_i &amp;= d_i\\end{aligned}</annotation>',
@@ -1136,6 +1149,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mtable columnalign="right left"><mlabeledtr><mtd><mtext>(WP-1)</mtext></mtd><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mlabeledtr><mlabeledtr id="eq:row-review"><mtd><mtext>review</mtext></mtd><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mlabeledtr></mtable>',
         '<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>x</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>y</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>u</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>v</mi><mi>i</mi></msub></mtd></mtr></mtable>',
         '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\notag \\\\ x_i &amp;= y_i \\nonumber \\\\ u_i &amp;= v_i\\end{align}</annotation>',
+        '<mrow href="https://example.test/review"><mrow><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mrow></mrow><mo>+</mo><mtext href="mailto:reviewer@example.test">mailto:reviewer@example.test</mtext>',
+        '<annotation encoding="application/x-tex">\\href{https://example.test/review}{p_i + m_i} + \\url{mailto:reviewer@example.test}</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mspace width="0.1667em"></mspace><msub><mi>m</mi><mi>i</mi></msub><mspace width="0.2778em"></mspace><msub><mi>n</mi><mi>i</mi></msub><mspace width="-0.1667em"></mspace><msub><mi>q</mi><mi>i</mi></msub>',
         '<mi>a</mi><mspace width="1em"></mspace><mi>b</mi><mspace width="2em"></mspace><mi>c</mi>',
         '<mi>post</mi><mspace width="0.1667em"></mspace><mi>media</mi><mspace width="-0.1667em"></mspace><mi>review</mi>',

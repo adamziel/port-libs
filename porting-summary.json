@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:48:17 UTC",
-    "sourceCommit": "5090e89c3db6a76daeca1eabfc7fda36c40dfe86",
-    "sourceCommitShort": "5090e89c3db6",
+    "generated": "2026-06-09 07:49:16 UTC",
+    "sourceCommit": "2159d21f7a9c31d4804cb3ff55ed7d979945bc85",
+    "sourceCommitShort": "2159d21f7a9c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "5090e89c3db6a76daeca1eabfc7fda36c40dfe86",
-    "dashboardCommitShort": "5090e89c3db6",
+    "dashboardCommit": "2159d21f7a9c31d4804cb3ff55ed7d979945bc85",
+    "dashboardCommitShort": "2159d21f7a9c",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2888",
-            "coverage": "2,888 / 2,276 (126.9%)",
+            "mapped": "2889",
+            "coverage": "2,889 / 2,276 (126.9%)",
             "mapPercent": "126.9%",
             "unmapped": "0",
-            "php": "2,516 pass / 0 fail",
+            "php": "2,517 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC archive compression current-base zlib Adler-32 integri...",
+            "audit": "2026-06-09 UTC Math/TeX current-base href/url slice on base df259aa2e...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For archive compression follow-up, choose a non-overlapping n...",
-            "remainingGate": "No new native support component is needed for this archive compressio...",
+            "nextTarget": "For Math/TeX follow-up, choose a non-overlapping native gap s...",
+            "remainingGate": "No new native support component is needed for this Math/TeX slice.",
             "commit": "pending fast ba..."
         },
         {

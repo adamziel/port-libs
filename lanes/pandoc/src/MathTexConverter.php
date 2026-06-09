@@ -3069,6 +3069,14 @@ final class MathTexConverter
             return $this->parseHyperrefCommand($source, $offset);
         }
 
+        if ($command === 'href') {
+            return $this->parseHrefCommand($source, $offset);
+        }
+
+        if ($command === 'url') {
+            return $this->parseUrlCommand($source, $offset);
+        }
+
         if (in_array($command, ['num', 'numrange', 'numlist', 'si', 'unit', 'SI', 'qty', 'SIrange', 'qtyrange', 'ang'], true)) {
             return $this->parseSiunitxCommand($source, $offset, $command);
         }
@@ -4932,6 +4940,64 @@ final class MathTexConverter
         }
 
         return $this->parseRequiredNonEmptyGroup($source, $offset, 'hyperref content');
+    }
+
+    private function parseHrefCommand(string $source, int &$offset): string
+    {
+        $href = $this->readSafeMathHrefTarget($source, $offset, 'href target');
+        $content = $this->parseRequiredNonEmptyGroup($source, $offset, 'href content');
+
+        return '<mrow href="' . $this->esc($href) . '">' . $content . '</mrow>';
+    }
+
+    private function parseUrlCommand(string $source, int &$offset): string
+    {
+        $href = $this->readSafeMathHrefTarget($source, $offset, 'url target');
+
+        return '<mtext href="' . $this->esc($href) . '">' . $this->esc($href) . '</mtext>';
+    }
+
+    private function readSafeMathHrefTarget(string $source, int &$offset, string $label): string
+    {
+        $target = $this->normalizeMathHrefTarget($this->readRequiredGroupText($source, $offset));
+        if ($target === '') {
+            throw new \InvalidArgumentException('Expected TeX ' . $label . ' at offset ' . $offset);
+        }
+
+        if (preg_match('/[\x00-\x20\x7F]/', $target) === 1) {
+            throw new \InvalidArgumentException('Unsupported TeX ' . $label . ' with whitespace or control characters at offset ' . $offset);
+        }
+
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $target, $matches) === 1) {
+            $scheme = strtolower($matches[1]);
+            if (!in_array($scheme, ['http', 'https', 'mailto'], true)) {
+                throw new \InvalidArgumentException('Unsupported TeX ' . $label . ' scheme "' . $scheme . '" at offset ' . $offset);
+            }
+
+            return $target;
+        }
+
+        if (str_starts_with($target, '//')) {
+            throw new \InvalidArgumentException('Unsupported TeX ' . $label . ' protocol-relative URL at offset ' . $offset);
+        }
+
+        if (
+            $target[0] === '#'
+            || $target[0] === '/'
+            || str_starts_with($target, './')
+            || str_starts_with($target, '../')
+        ) {
+            return $target;
+        }
+
+        throw new \InvalidArgumentException('Unsupported TeX ' . $label . ' target at offset ' . $offset);
+    }
+
+    private function normalizeMathHrefTarget(string $target): string
+    {
+        $target = trim($target);
+
+        return (string) preg_replace('/\\\\([#$%&_{}])/', '$1', $target);
     }
 
     private function parseSiunitxCommand(string $source, int &$offset, string $command): string
