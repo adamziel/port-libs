@@ -3185,4 +3185,75 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'reports duplicate html source ids beyond header-only collisions for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="duplicate-source-id-grid" data-source="html-reader">
+<caption>Duplicate source id review</caption>
+<thead id="duplicate-source-section">
+<tr id="duplicate-source-row"><th id="source-scope">Scope</th><th id="source-state">State</th></tr>
+</thead>
+<tbody id="duplicate-source-section">
+<tr id="duplicate-source-row"><td id="duplicate-source-cell">Posts</td><td id="duplicate-source-cell">Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+        ]);
+        $markdownDiagnostics = array_values(array_filter(
+            $downgradePacket['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'duplicate-source-ids'
+        ));
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $duplicateIds = is_array($packet['duplicateSourceIds'] ?? null) ? $packet['duplicateSourceIds'] : [];
+        $diagnostics = is_array($packet['diagnostics'] ?? null) ? $packet['diagnostics'] : [];
+
+        $t->same(true, $packet['summary']['hasDuplicateSourceIds'] ?? null);
+        $t->same(3, $packet['summary']['duplicateSourceIdCount'] ?? null);
+        $t->same(6, $packet['summary']['duplicateSourceIdLocationCount'] ?? null);
+        $t->same(['duplicate-source-section', 'duplicate-source-row', 'duplicate-source-cell'], $packet['summary']['duplicateSourceIds'] ?? null);
+        $t->same(['cell', 'row', 'section'], $packet['summary']['duplicateSourceIdScopes'] ?? null);
+        $t->same(['table-source-id-duplicated'], $packet['summary']['diagnosticCodes'] ?? null);
+
+        $t->same(3, count($duplicateIds));
+        $t->same('duplicate-source-section', $duplicateIds[0]['id'] ?? null);
+        $t->same(['section', 'section'], array_map(static fn (array $location): string => (string) ($location['scope'] ?? ''), $duplicateIds[0]['locations'] ?? []));
+        $t->same(['head', 'body'], array_map(static fn (array $location): string => (string) ($location['section'] ?? ''), $duplicateIds[0]['locations'] ?? []));
+        $t->same('duplicate-source-row', $duplicateIds[1]['id'] ?? null);
+        $t->same(['row', 'row'], array_map(static fn (array $location): string => (string) ($location['scope'] ?? ''), $duplicateIds[1]['locations'] ?? []));
+        $t->same([0, 0], array_map(static fn (array $location): int => (int) ($location['row'] ?? -1), $duplicateIds[1]['locations'] ?? []));
+        $t->same('duplicate-source-cell', $duplicateIds[2]['id'] ?? null);
+        $t->same(['cell', 'cell'], array_map(static fn (array $location): string => (string) ($location['scope'] ?? ''), $duplicateIds[2]['locations'] ?? []));
+        $t->same([0, 1], array_map(static fn (array $location): int => (int) ($location['sourceCell'] ?? -1), $duplicateIds[2]['locations'] ?? []));
+        $t->same(['Posts', 'Ready'], array_map(static fn (array $location): string => (string) ($location['text'] ?? ''), $duplicateIds[2]['locations'] ?? []));
+        $t->same([false, false], array_map(static fn (array $location): bool => (bool) ($location['headerCell'] ?? true), $duplicateIds[2]['locations'] ?? []));
+
+        $t->same(1, count($diagnostics));
+        $t->same('table-source-id-duplicated', $diagnostics[0]['code'] ?? null);
+        $t->same(3, $diagnostics[0]['duplicateIdCount'] ?? null);
+        $t->same(6, $diagnostics[0]['duplicateLocationCount'] ?? null);
+        $t->same(['duplicate-source-section', 'duplicate-source-row', 'duplicate-source-cell'], $diagnostics[0]['duplicateIds'] ?? null);
+        $t->same($duplicateIds, $diagnostics[0]['duplicates'] ?? null);
+
+        $t->same(1, count($markdownDiagnostics));
+        $t->same('markdown-source-ids-duplicated', $markdownDiagnostics[0]['code'] ?? null);
+        $t->same('raw-html-table-source-ids', $markdownDiagnostics[0]['requiredFeature'] ?? null);
+        $t->same(3, $markdownDiagnostics[0]['duplicateIdCount'] ?? null);
+        $t->same(['duplicate-source-section', 'duplicate-source-row', 'duplicate-source-cell'], $markdownDiagnostics[0]['duplicateIds'] ?? null);
+        $t->same([], $downgradePacket['writerDowngrades']['wordpress'] ?? null);
+
+        $t->contains('<thead id="duplicate-source-section"><tr id="duplicate-source-row"><th id="source-scope">Scope</th><th id="source-state">State</th></tr></thead>', $blocks);
+        $t->contains('<tbody id="duplicate-source-section"><tr id="duplicate-source-row"><td id="duplicate-source-cell">Posts</td><td id="duplicate-source-cell">Ready</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

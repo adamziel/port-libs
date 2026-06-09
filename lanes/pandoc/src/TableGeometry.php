@@ -776,6 +776,7 @@ final class TableGeometry
         array_push($diagnostics, ...self::widthDiagnostics($table, $diagnostics !== []));
         array_push($diagnostics, ...self::spanNormalizationDiagnostics($table));
         array_push($diagnostics, ...self::duplicateHeaderIdDiagnostics($table));
+        array_push($diagnostics, ...self::duplicateSourceIdDiagnostics($table));
         array_push($diagnostics, ...self::duplicateSourceHeaderTokenDiagnostics($table));
         array_push($diagnostics, ...self::invalidSourceScopeDiagnostics($table));
         $declaredColumnCount = self::declaredColumnCount($table);
@@ -877,6 +878,28 @@ final class TableGeometry
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateSourceIdDiagnostics(AstNode $table): array
+    {
+        $duplicates = self::duplicateSourceIdRecords(self::sourceIdRecords($table, self::cellCoverage($table)));
+        if ($duplicates === []) {
+            return [];
+        }
+
+        return [[
+            'code' => 'table-source-id-duplicated',
+            'source' => 'html-table-source-ids',
+            'caption' => (string) $table->attr('caption', ''),
+            'duplicateIdCount' => count($duplicates),
+            'duplicateLocationCount' => self::duplicateSourceIdLocationCount($duplicates),
+            'duplicateIds' => self::duplicateSourceIdStrings($duplicates),
+            'duplicateScopes' => self::duplicateSourceIdScopes($duplicates),
+            'duplicates' => $duplicates,
+        ]];
     }
 
     /**
@@ -1897,6 +1920,8 @@ final class TableGeometry
         $cellBorderPresentations = self::cellBorderPresentations($coverageRecords);
         $rowGroups = self::rowGroups($table, $columnCount);
         $sourceSummary = self::sourceSummaryRecord($table);
+        $sourceIds = self::sourceIdRecords($table, $coverageRecords);
+        $duplicateSourceIds = self::duplicateSourceIdRecords($sourceIds);
         $tableLayout = self::tableLayoutMetadata($table);
         $tableAlignment = self::tableAlignmentMetadata($table);
         $tableFrame = self::tableFrameMetadata($table);
@@ -1949,6 +1974,8 @@ final class TableGeometry
             'rowGroups' => $rowGroups,
             'coverage' => $coverage,
             'sourceCoordinateShifts' => $sourceCoordinateShifts,
+            'sourceIds' => $sourceIds,
+            'duplicateSourceIds' => $duplicateSourceIds,
             'diagnostics' => $diagnostics,
             'writerDowngrades' => $writerDowngrades,
             'accessibility' => $accessibility,
@@ -1976,6 +2003,7 @@ final class TableGeometry
                 $rowBorderPresentations,
                 $cellBackgrounds,
                 $cellBorderPresentations,
+                $duplicateSourceIds,
                 $rowGroups,
                 $headerAssociations,
                 $rowHeaderMap,
@@ -5155,6 +5183,211 @@ final class TableGeometry
     }
 
     /**
+     * @param list<array<string, mixed>> $coverage
+     * @return list<array<string, mixed>>
+     */
+    private static function sourceIdRecords(AstNode $table, array $coverage): array
+    {
+        $records = [];
+        self::appendSourceIdRecord($records, 'table', $table);
+
+        foreach (self::sectionRowGroups($table, self::columnCount($table)) as $group) {
+            $section = (string) ($group['section'] ?? '');
+            $node = $group['node'] ?? null;
+            if ($node instanceof AstNode) {
+                self::appendSourceIdRecord($records, 'section', $node, [
+                    'section' => $section,
+                    'rowRole' => str_starts_with($section, 'body') ? 'body' : $section,
+                ]);
+            }
+
+            foreach ($group['rowEntries'] as $rowIndex => $entry) {
+                $row = $entry['row'] ?? null;
+                if (!$row instanceof AstNode) {
+                    continue;
+                }
+
+                self::appendSourceIdRecord($records, 'row', $row, [
+                    'section' => $section,
+                    'row' => (int) $rowIndex,
+                    'rowRole' => (string) ($entry['rowRole'] ?? ''),
+                    'headerRow' => ($entry['header'] ?? false) === true,
+                    'rowHeadColumns' => max(0, (int) ($entry['rowHeadColumns'] ?? 0)),
+                ]);
+            }
+        }
+
+        foreach ($coverage as $record) {
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            self::appendSourceIdRecord($records, 'cell', $node, [
+                'section' => (string) ($record['section'] ?? ''),
+                'row' => (int) ($record['row'] ?? 0),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'column' => (int) ($record['column'] ?? 0),
+                'endColumn' => (int) ($record['endColumn'] ?? 0),
+                'columns' => self::intList($record['columns'] ?? []),
+                'sourceCell' => (int) ($record['sourceCell'] ?? 0),
+                'sourceColumn' => (int) ($record['sourceColumn'] ?? 0),
+                'sourceEndColumn' => (int) ($record['sourceEndColumn'] ?? 0),
+                'sourceColumns' => self::intList($record['sourceColumns'] ?? []),
+                'colspan' => max(1, (int) ($record['colspan'] ?? 1)),
+                'rowspan' => max(1, (int) ($record['rowspan'] ?? 1)),
+                'headerCell' => ($record['headerCell'] ?? false) === true,
+                'headerRow' => ($record['headerRow'] ?? false) === true,
+                'rowHeadColumns' => max(0, (int) ($record['rowHeadColumns'] ?? 0)),
+                'text' => self::plainText($node),
+            ]);
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @param array<string, mixed> $context
+     */
+    private static function appendSourceIdRecord(array &$records, string $scope, AstNode $node, array $context = []): void
+    {
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        $id = trim((string) ($sourceAttributes['id'] ?? ''));
+        if ($id === '') {
+            return;
+        }
+
+        $record = array_replace([
+            'id' => $id,
+            'scope' => $scope,
+        ], $context);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        $records[] = $record;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sourceIds
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateSourceIdRecords(array $sourceIds): array
+    {
+        $groups = [];
+        foreach ($sourceIds as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $id = trim((string) ($record['id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+
+            $groups[$id][] = $record;
+        }
+
+        $duplicates = [];
+        foreach ($groups as $id => $locations) {
+            if (count($locations) < 2 || self::allSourceIdLocationsAreHeaderCells($locations)) {
+                continue;
+            }
+
+            $duplicates[] = [
+                'id' => $id,
+                'locationCount' => count($locations),
+                'scopes' => self::sourceIdLocationScopes($locations),
+                'locations' => array_values($locations),
+            ];
+        }
+
+        return $duplicates;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $locations
+     */
+    private static function allSourceIdLocationsAreHeaderCells(array $locations): bool
+    {
+        if ($locations === []) {
+            return false;
+        }
+
+        foreach ($locations as $location) {
+            if (($location['scope'] ?? '') !== 'cell' || ($location['headerCell'] ?? false) !== true) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $locations
+     * @return list<string>
+     */
+    private static function sourceIdLocationScopes(array $locations): array
+    {
+        $scopes = [];
+        foreach ($locations as $location) {
+            $scope = trim((string) ($location['scope'] ?? ''));
+            if ($scope !== '') {
+                $scopes[] = $scope;
+            }
+        }
+
+        return array_values(array_unique($scopes));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $duplicates
+     * @return list<string>
+     */
+    private static function duplicateSourceIdStrings(array $duplicates): array
+    {
+        $ids = [];
+        foreach ($duplicates as $duplicate) {
+            $id = trim((string) ($duplicate['id'] ?? ''));
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $duplicates
+     * @return list<string>
+     */
+    private static function duplicateSourceIdScopes(array $duplicates): array
+    {
+        $scopes = [];
+        foreach ($duplicates as $duplicate) {
+            array_push($scopes, ...self::stringList($duplicate['scopes'] ?? []));
+        }
+        $scopes = array_values(array_unique($scopes));
+        sort($scopes);
+
+        return $scopes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $duplicates
+     */
+    private static function duplicateSourceIdLocationCount(array $duplicates): int
+    {
+        $count = 0;
+        foreach ($duplicates as $duplicate) {
+            $count += max(0, (int) ($duplicate['locationCount'] ?? 0));
+        }
+
+        return $count;
+    }
+
+    /**
      * @param list<array{
      *     section:string,
      *     columnCount:int,
@@ -5178,6 +5411,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $rowBorderPresentations
      * @param list<array<string, mixed>> $cellBackgrounds
      * @param list<array<string, mixed>> $cellBorderPresentations
+     * @param list<array<string, mixed>> $duplicateSourceIds
      * @param list<array<string, mixed>> $rowGroups
      * @param array<string, mixed> $headerAssociations
      * @param array<string, mixed> $rowHeaderMap
@@ -5212,6 +5446,7 @@ final class TableGeometry
         array $rowBorderPresentations,
         array $cellBackgrounds,
         array $cellBorderPresentations,
+        array $duplicateSourceIds,
         array $rowGroups,
         array $headerAssociations,
         array $rowHeaderMap,
@@ -5413,6 +5648,8 @@ final class TableGeometry
         $globalRowIndexes = array_keys($globalRows);
         sort($globalRowIndexes, SORT_NUMERIC);
         $columnRollup = self::columnSummaryRollup($columnSummaries);
+        $duplicateSourceIdCount = count($duplicateSourceIds);
+        $duplicateSourceIdLocationCount = self::duplicateSourceIdLocationCount($duplicateSourceIds);
 
         return [
             'sectionCount' => count($sections),
@@ -5461,6 +5698,11 @@ final class TableGeometry
             'duplicateSourceHeaderTokenCount' => $duplicateSourceHeaderTokenCount,
             'duplicateSourceHeaderTokenCellCount' => $duplicateSourceHeaderTokenCellCount,
             'duplicateSourceHeaderTokens' => array_values(array_unique($duplicateSourceHeaderTokens)),
+            'hasDuplicateSourceIds' => $duplicateSourceIdCount > 0,
+            'duplicateSourceIdCount' => $duplicateSourceIdCount,
+            'duplicateSourceIdLocationCount' => $duplicateSourceIdLocationCount,
+            'duplicateSourceIds' => self::duplicateSourceIdStrings($duplicateSourceIds),
+            'duplicateSourceIdScopes' => self::duplicateSourceIdScopes($duplicateSourceIds),
             'hasCaption' => (string) ($captions['long']['text'] ?? '') !== '',
             'hasShortCaption' => (string) ($captions['short']['text'] ?? '') !== '',
             'captionInlineTypes' => array_values(array_map(
@@ -6052,6 +6294,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::duplicateSourceIdWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
@@ -6144,6 +6387,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+                    array_push($diagnostics, ...self::duplicateSourceIdWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
@@ -6252,6 +6496,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::cellBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sourceAttributeWriterDiagnostics($table, $writer, $coverage));
+            array_push($diagnostics, ...self::duplicateSourceIdWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableSummaryWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableLayoutWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::tableAlignmentWriterDiagnostics($table, $writer));
@@ -9713,6 +9958,43 @@ final class TableGeometry
             'attributeCount' => $attributeCount,
             'scopes' => array_values(array_unique($scopes)),
             'locations' => $locations,
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateSourceIdWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $duplicates = self::duplicateSourceIdRecords(self::sourceIdRecords($table, self::cellCoverage($table)));
+        if ($duplicates === []) {
+            return [];
+        }
+
+        $requirements = [
+            'markdown' => ['markdown-source-ids-duplicated', 'raw-html-table-source-ids'],
+            'asciidoc' => ['asciidoc-source-ids-duplicated-review-required', 'source-id-review'],
+            'latex' => ['latex-source-ids-duplicated-review-required', 'source-id-review-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'duplicate-source-ids',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-source-ids',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'duplicateIdCount' => count($duplicates),
+            'duplicateLocationCount' => self::duplicateSourceIdLocationCount($duplicates),
+            'duplicateIds' => self::duplicateSourceIdStrings($duplicates),
+            'duplicateScopes' => self::duplicateSourceIdScopes($duplicates),
+            'duplicates' => $duplicates,
         ]];
     }
 

@@ -4328,7 +4328,28 @@ final class Html5DomFragment
     private static function reviewableHtmlLinkRelations(array $relations): array
     {
         $reviewable = [];
-        foreach (['canonical', 'alternate', 'shortlink', 'author', 'license', 'help', 'bookmark'] as $relation) {
+        foreach ([
+            'canonical',
+            'alternate',
+            'shortlink',
+            'author',
+            'license',
+            'help',
+            'bookmark',
+            'prev',
+            'previous',
+            'next',
+            'contents',
+            'index',
+            'search',
+            'up',
+            'start',
+            'chapter',
+            'section',
+            'subsection',
+            'appendix',
+            'glossary',
+        ] as $relation) {
             if (in_array($relation, $relations, true)) {
                 $reviewable[] = $relation;
             }
@@ -4392,6 +4413,18 @@ final class Html5DomFragment
             'license' => 'License source',
             'help' => 'Help source',
             'bookmark' => 'Bookmark source',
+            'prev', 'previous' => 'Previous source',
+            'next' => 'Next source',
+            'contents' => 'Contents source',
+            'index' => 'Index source',
+            'search' => 'Search source',
+            'up' => 'Parent source',
+            'start' => 'Start source',
+            'chapter' => 'Chapter source',
+            'section' => 'Section source',
+            'subsection' => 'Subsection source',
+            'appendix' => 'Appendix source',
+            'glossary' => 'Glossary source',
             default => 'Linked source',
         };
     }

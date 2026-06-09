@@ -4584,6 +4584,70 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe passive link target to be stripped');
         $t->true(!str_contains($html, 'Bad license'), 'Expected unsafe passive link title to remain hidden');
     },
+    'converts navigational passive link relations into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/chapter-02.html">'
+            . '<link rel="prev" href="./chapter-01.html">'
+            . '<link rel="next" href="./chapter-03.html" title="Next chapter">'
+            . '<link rel="contents index" href="../toc.html">'
+            . '<link rel="search" type="application/opensearchdescription+xml" href="./search.xml">'
+            . '<link rel="up preload" href="../book.html" title="Dropped parent preload">'
+            . '<link rel="previous" href="java&#10;script:alert(1)" title="Bad previous">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/navigation-link-relation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/chapter-01.html" data-pandoc-link-rel="prev">Previous source</a>'
+            . '<a href="https://source.example.test/import/posts/chapter-03.html" data-pandoc-link-rel="next" title="Next chapter">Next chapter</a>'
+            . '<a href="https://source.example.test/import/toc.html" data-pandoc-link-rel="contents index">Contents source</a>'
+            . '<a href="https://source.example.test/import/posts/search.xml" data-pandoc-link-rel="search" type="application/opensearchdescription+xml">Search source</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/chapter-02.html', $fragment->baseUrl());
+        $t->same('Previous sourceNext chapterContents sourceSearch sourceafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'link'], $summary['blockedTags']);
+        $t->same(['href'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url'], $policyDiagnostics);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/chapter-01.html',
+            'data-pandoc-link-rel' => 'prev',
+        ], $nodes[0]['attrs']);
+        $t->same('Previous source', $nodes[0]['children'][0]['text']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/chapter-03.html',
+            'data-pandoc-link-rel' => 'next',
+            'title' => 'Next chapter',
+        ], $nodes[1]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/toc.html',
+            'data-pandoc-link-rel' => 'contents index',
+        ], $nodes[2]['attrs']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/search.xml',
+            'data-pandoc-link-rel' => 'search',
+            'type' => 'application/opensearchdescription+xml',
+        ], $nodes[3]['attrs']);
+        $t->same('/migration/navigation-link-relation-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/chapter-02.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<link'), 'Expected navigation link elements to be stripped from sanitized output');
+        $t->true(!str_contains($html, 'Dropped parent preload'), 'Expected mixed active up/preload relation to be dropped');
+        $t->true(!str_contains($html, 'book.html'), 'Expected active preload relation target to be dropped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe navigation relation URL to be stripped');
+        $t->true(!str_contains($html, 'Bad previous'), 'Expected unsafe navigation relation title to remain hidden');
+    },
     'filters active navigation target download and opener rel side effects before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

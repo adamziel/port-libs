@@ -377,6 +377,21 @@ $cellSideBorderPresentationTables = array_values(array_filter(
     $cellSideBorderPresentationDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$duplicateSourceIdDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="duplicate-source-id-grid" data-source="html-reader">
+<caption>Duplicate source id review</caption>
+<thead id="duplicate-source-section">
+<tr id="duplicate-source-row"><th id="source-scope">Scope</th><th id="source-state">State</th></tr>
+</thead>
+<tbody id="duplicate-source-section">
+<tr id="duplicate-source-row"><td id="duplicate-source-cell">Posts</td><td id="duplicate-source-cell">Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$duplicateSourceIdTables = array_values(array_filter(
+    $duplicateSourceIdDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $backgroundColorDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="background-color-grid" data-source="html-reader" bgcolor="#FFF4CC" style="background-color: #e6ffed; background-image:url(javascript:alert(1))">
 <caption>Background color review</caption>
@@ -1634,6 +1649,7 @@ $document = new AstNode('document', [], [
     ...$cellBackgroundTables,
     ...$cellBorderPresentationTables,
     ...$cellSideBorderPresentationTables,
+    ...$duplicateSourceIdTables,
     ...$backgroundColorTables,
     ...$layoutWidthTables,
     ...$layoutHeightTables,
@@ -2411,6 +2427,43 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test leaked duplicate source headers tokens into WordPress output');
     }
     json_encode($duplicateHeaderTokenPacket, JSON_THROW_ON_ERROR);
+
+    $duplicateSourceIdTable = $duplicateSourceIdTables[0] ?? null;
+    $duplicateSourceIdPacket = $duplicateSourceIdTable instanceof AstNode
+        ? TableGeometry::reviewPacket($duplicateSourceIdTable, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+        ])
+        : null;
+    if (
+        !is_array($duplicateSourceIdPacket)
+        || ($duplicateSourceIdPacket['summary']['diagnosticCodes'] ?? null) !== ['table-source-id-duplicated']
+        || ($duplicateSourceIdPacket['summary']['duplicateSourceIdCount'] ?? null) !== 3
+        || ($duplicateSourceIdPacket['summary']['duplicateSourceIdLocationCount'] ?? null) !== 6
+        || ($duplicateSourceIdPacket['summary']['duplicateSourceIds'] ?? null) !== ['duplicate-source-section', 'duplicate-source-row', 'duplicate-source-cell']
+        || ($duplicateSourceIdPacket['summary']['duplicateSourceIdScopes'] ?? null) !== ['cell', 'row', 'section']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source id audit summary');
+    }
+    if (
+        ($duplicateSourceIdPacket['duplicateSourceIds'][0]['scopes'] ?? null) !== ['section']
+        || ($duplicateSourceIdPacket['duplicateSourceIds'][1]['scopes'] ?? null) !== ['row']
+        || ($duplicateSourceIdPacket['duplicateSourceIds'][2]['scopes'] ?? null) !== ['cell']
+        || array_map(static fn (array $location): string => (string) ($location['text'] ?? ''), $duplicateSourceIdPacket['duplicateSourceIds'][2]['locations'] ?? []) !== ['Posts', 'Ready']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source id location metadata');
+    }
+    if (
+        ($duplicateSourceIdPacket['writerDowngrades']['markdown'][1]['code'] ?? null) !== 'markdown-source-ids-duplicated'
+        || ($duplicateSourceIdPacket['writerDowngrades']['markdown'][1]['requiredFeature'] ?? null) !== 'raw-html-table-source-ids'
+        || ($duplicateSourceIdPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source id writer diagnostics');
+    }
+    if (!str_contains($blocks, '<tbody id="duplicate-source-section"><tr id="duplicate-source-row"><td id="duplicate-source-cell">Posts</td><td id="duplicate-source-cell">Ready</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing duplicate source id WordPress output');
+    }
+    json_encode($duplicateSourceIdPacket, JSON_THROW_ON_ERROR);
 
     $nestedPacket = TableGeometry::reviewPacket($document->children[8], ['idPrefix' => 'Nested Packet']);
     if (($nestedPacket['summary']['nestedTableCount'] ?? null) !== 1 || ($nestedPacket['summary']['nestedTableCellCount'] ?? null) !== 1) {
