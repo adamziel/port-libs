@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2624,7 +2624,7 @@ final class Html5DomFragment
     ): array {
         $srcdoc = trim($srcdoc);
         if ($srcdoc === '') {
-            return [];
+            return self::htmlIframeSrcdocReviewNodes($element, [], self::normalizeCallerBaseUrl($baseUrl), $diagnostics);
         }
 
         try {
@@ -2660,8 +2660,51 @@ final class Html5DomFragment
         }
 
         $srcdocBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
+        $children = self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $srcdocBaseUrl);
 
-        return self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $srcdocBaseUrl);
+        return self::htmlIframeSrcdocReviewNodes($element, $children, $srcdocBaseUrl, $diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlIframeSrcdocReviewNodes(
+        \DOMElement $element,
+        array $children,
+        ?string $srcdocBaseUrl,
+        array &$diagnostics
+    ): array {
+        $attrs = [
+            'data-pandoc-iframe-srcdoc' => 'true',
+        ];
+
+        $title = $element->hasAttribute('title')
+            ? self::cleanHtmlMetadataAttribute($element->getAttribute('title'))
+            : '';
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+        if ($srcdocBaseUrl !== null) {
+            $attrs['data-pandoc-iframe-srcdoc-base-url'] = $srcdocBaseUrl;
+        }
+
+        self::addIframePolicyReviewAttributes($element, $attrs, $diagnostics);
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'iframe-srcdoc-review',
+            'tag' => 'iframe',
+            'attribute' => 'srcdoc',
+            'metadataAttribute' => 'data-pandoc-iframe-srcdoc',
+            'reason' => 'iframe-srcdoc-preserved-as-review-container',
+        ], $element);
+
+        return [self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'div',
+            'attrs' => $attrs,
+            'children' => $children,
+        ], $element)];
     }
 
     /**

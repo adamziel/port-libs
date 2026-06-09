@@ -1047,7 +1047,7 @@ return [
         $t->true(!str_contains($html, 'Bad object'), 'Expected unsafe object title to stay hidden with its source');
         $t->true(!str_contains($html, 'Bad embed'), 'Expected unsafe embed title to stay hidden with its source');
     },
-    'unwraps iframe srcdoc content through sanitizer before WordPress handoff' => static function (TestRunner $t): void {
+    'wraps iframe srcdoc content in inert reviewer provenance before WordPress handoff' => static function (TestRunner $t): void {
         $srcdoc = htmlspecialchars(
             '<base href="./frames/"><article><h2>Embedded packet</h2><a href="note.html">note</a><img src="cover.png" alt="Cover"><a href="javascript:alert(1)">bad</a><script>drop()</script></article>',
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
@@ -1055,7 +1055,7 @@ return [
         );
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'
-            . '<iframe srcdoc="' . $srcdoc . '"></iframe><p>after</p>'
+            . '<iframe srcdoc="' . $srcdoc . '" title="Embedded srcdoc frame" sandbox="allow-scripts allow-same-origin" allow="fullscreen; clipboard-write" referrerpolicy="strict-origin" allowfullscreen></iframe><p>after</p>'
         );
         $summary = $fragment->summary();
         $nodes = $fragment->nodes();
@@ -1065,7 +1065,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article><h2>Embedded packet</h2><a href="https://source.example.test/import/posts/frames/note.html">note</a><img src="https://source.example.test/import/posts/frames/cover.png" alt="Cover"><a>bad</a></article><p>after</p>';
+        $expected = '<div data-pandoc-iframe-srcdoc="true" title="Embedded srcdoc frame" data-pandoc-iframe-srcdoc-base-url="https://source.example.test/import/posts/frames/" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin" data-pandoc-iframe-allow="fullscreen; clipboard-write" data-pandoc-iframe-referrerpolicy="strict-origin" data-pandoc-iframe-allowfullscreen="true"><article><h2>Embedded packet</h2><a href="https://source.example.test/import/posts/frames/note.html">note</a><img src="https://source.example.test/import/posts/frames/cover.png" alt="Cover"><a>bad</a></article></div><p>after</p>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
@@ -1075,22 +1075,88 @@ return [
         $t->contains($expected, $blocks);
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
         $t->same('Embedded packetnotebadafter', $fragment->textContent());
-        $t->same(['a', 'article', 'h2', 'img', 'p'], $summary['elementNames']);
+        $t->same(['a', 'article', 'div', 'h2', 'img', 'p'], $summary['elementNames']);
         $t->same(['base', 'iframe', 'script'], $summary['blockedTags']);
-        $t->same(['href'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag'], $policyDiagnostics);
-        $t->same('article', $nodes[0]['name']);
-        $t->same('https://source.example.test/import/posts/frames/note.html', $nodes[0]['children'][1]['attrs']['href']);
-        $t->same('https://source.example.test/import/posts/frames/cover.png', $nodes[0]['children'][2]['attrs']['src']);
-        $t->same([], $nodes[0]['children'][3]['attrs']);
+        $t->same(['href', 'srcdoc'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-url', 'blocked-tag', 'iframe-srcdoc-review'], $policyDiagnostics);
+        $t->same('div', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-iframe-srcdoc' => 'true',
+            'title' => 'Embedded srcdoc frame',
+            'data-pandoc-iframe-srcdoc-base-url' => 'https://source.example.test/import/posts/frames/',
+            'data-pandoc-iframe-sandbox' => 'allow-scripts allow-same-origin',
+            'data-pandoc-iframe-allow' => 'fullscreen; clipboard-write',
+            'data-pandoc-iframe-referrerpolicy' => 'strict-origin',
+            'data-pandoc-iframe-allowfullscreen' => 'true',
+        ], $nodes[0]['attrs']);
+        $t->same('article', $nodes[0]['children'][0]['name']);
+        $t->same('https://source.example.test/import/posts/frames/note.html', $nodes[0]['children'][0]['children'][1]['attrs']['href']);
+        $t->same('https://source.example.test/import/posts/frames/cover.png', $nodes[0]['children'][0]['children'][2]['attrs']['src']);
+        $t->same([], $nodes[0]['children'][0]['children'][3]['attrs']);
         $t->same('p', $nodes[1]['name']);
         $t->same('/migration/iframe-srcdoc-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         $t->true(!str_contains($html, '<iframe'), 'Expected iframe wrapper to be stripped');
-        $t->true(!str_contains($html, 'srcdoc='), 'Expected iframe srcdoc attribute to be stripped');
+        $t->true(!str_contains($html, '<iframe srcdoc'), 'Expected live iframe srcdoc attribute to be stripped');
         $t->true(!str_contains($html, '<base'), 'Expected nested srcdoc base element to be stripped');
         $t->true(!str_contains($html, '<script'), 'Expected nested srcdoc script to be dropped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected nested unsafe srcdoc URL to be stripped');
+    },
+    'keeps valid empty iframe srcdoc provenance instead of falling back to iframe src' => static function (TestRunner $t): void {
+        $srcdoc = htmlspecialchars(
+            '<base href="./empty-frame/"><script>drop()</script>',
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
+            'UTF-8'
+        );
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<iframe srcdoc="' . $srcdoc . '" src="./frames/fallback.html" title="Empty srcdoc" sandbox="allow-forms bad-token" referrerpolicy="bad-policy"><p>fallback child</p></iframe><p>after</p>'
+            . '<iframe srcdoc="" src="./frames/literal-fallback.html" title="Literal empty srcdoc" sandbox="allow-popups"><p>literal fallback child</p></iframe>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-empty-srcdoc-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<div data-pandoc-iframe-srcdoc="true" title="Empty srcdoc" data-pandoc-iframe-srcdoc-base-url="https://source.example.test/import/posts/empty-frame/" data-pandoc-iframe-sandbox="allow-forms"></div><p>after</p><div data-pandoc-iframe-srcdoc="true" title="Literal empty srcdoc" data-pandoc-iframe-srcdoc-base-url="https://source.example.test/import/posts/post.html" data-pandoc-iframe-sandbox="allow-popups"></div>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('after', $fragment->textContent());
+        $t->same(['div', 'p'], $summary['elementNames']);
+        $t->same(['base', 'iframe', 'script'], $summary['blockedTags']);
+        $t->same(['referrerpolicy', 'sandbox', 'srcdoc'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'blocked-tag', 'blocked-tag', 'unsafe-attribute', 'unsafe-attribute', 'iframe-srcdoc-review', 'blocked-tag', 'iframe-srcdoc-review'], $policyDiagnostics);
+        $t->same('div', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-iframe-srcdoc' => 'true',
+            'title' => 'Empty srcdoc',
+            'data-pandoc-iframe-srcdoc-base-url' => 'https://source.example.test/import/posts/empty-frame/',
+            'data-pandoc-iframe-sandbox' => 'allow-forms',
+        ], $nodes[0]['attrs']);
+        $t->same([], $nodes[0]['children']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('div', $nodes[2]['name']);
+        $t->same([
+            'data-pandoc-iframe-srcdoc' => 'true',
+            'title' => 'Literal empty srcdoc',
+            'data-pandoc-iframe-srcdoc-base-url' => 'https://source.example.test/import/posts/post.html',
+            'data-pandoc-iframe-sandbox' => 'allow-popups',
+        ], $nodes[2]['attrs']);
+        $t->same([], $nodes[2]['children']);
+        $t->same('/migration/iframe-empty-srcdoc-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach (['<iframe', '<script', '<base', 'fallback.html', 'literal-fallback.html', 'fallback child', 'literal fallback child', 'bad-policy', 'bad-token', 'data-pandoc-iframe-src='] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected valid iframe srcdoc to suppress fallback or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to suppress fallback or unsafe source content: ' . $blocked);
+        }
     },
     'converts safe iframe sources into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(

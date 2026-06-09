@@ -5163,6 +5163,77 @@ XML;
         $t->same($declarations, $result['document']->attr('contentDeclarations'));
         $t->same('Pivot field policy stays metadata-only.', $result['document']->children[0]->attr('text'));
     },
+    'maps ODT data pilot grouping metadata into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDataPilotGroups = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:data-pilot-tables>
+        <table:data-pilot-table table:name="GroupedPivot" table:target-range-address="Pivot.A1:Pivot.E12">
+          <table:source-cell-range table:cell-range-address="Review.A1:Review.E42"/>
+          <table:data-pilot-field table:source-field-name="status" table:orientation="row"/>
+          <table:data-pilot-groups table:source-field-name="created_at" table:grouped-by="month" table:date-start="2026-01-01" table:date-end="2026-03-31" table:step="3">
+            <table:data-pilot-group table:name="Quarter 1">
+              <table:data-pilot-group-member table:name="January" table:display="true"/>
+              <table:data-pilot-group-member table:name="February" table:display="false"/>
+            </table:data-pilot-group>
+          </table:data-pilot-groups>
+          <table:data-pilot-groups table:source-field-name="status">
+            <table:data-pilot-group table:name="Ready states">
+              <table:data-pilot-group-member table:name="ready"/>
+            </table:data-pilot-group>
+          </table:data-pilot-groups>
+        </table:data-pilot-table>
+      </table:data-pilot-tables>
+      <text:p>Data pilot grouping policy stays metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDataPilotGroups));
+        $declarations = $result['contentDeclarations'];
+        $tablesByName = is_array($declarations['dataPilotTablesByName'] ?? null) ? $declarations['dataPilotTablesByName'] : [];
+        $pivot = is_array($tablesByName['GroupedPivot'] ?? null) ? $tablesByName['GroupedPivot'] : [];
+        $groups = is_array($pivot['groups'] ?? null) ? $pivot['groups'] : [];
+        $quarter = is_array($groups[0] ?? null) ? $groups[0] : [];
+        $ready = is_array($groups[1] ?? null) ? $groups[1] : [];
+        $quarterMembers = is_array($quarter['members'] ?? null) ? $quarter['members'] : [];
+
+        $t->same(1, $declarations['dataPilotTableCount'] ?? null);
+        $t->same(2, $declarations['dataPilotGroupCount'] ?? null);
+        $t->same(3, $declarations['dataPilotGroupMemberCount'] ?? null);
+        $t->same(2, $pivot['groupCount'] ?? null);
+        $t->same('data-pilot-group', $quarter['element'] ?? null);
+        $t->same('Quarter 1', $quarter['name'] ?? null);
+        $t->same('created_at', $quarter['sourceFieldName'] ?? null);
+        $t->same('month', $quarter['groupedBy'] ?? null);
+        $t->same('2026-01-01', $quarter['dateStart'] ?? null);
+        $t->same('2026-03-31', $quarter['dateEnd'] ?? null);
+        $t->same(3, $quarter['step'] ?? null);
+        $t->same(2, $quarter['memberCount'] ?? null);
+        $t->same('data-pilot-group-member', $quarterMembers[0]['element'] ?? null);
+        $t->same('January', $quarterMembers[0]['name'] ?? null);
+        $t->same(true, $quarterMembers[0]['display'] ?? null);
+        $t->same('February', $quarterMembers[1]['name'] ?? null);
+        $t->same(false, $quarterMembers[1]['display'] ?? null);
+        $t->same('Ready states', $ready['name'] ?? null);
+        $t->same(1, $ready['memberCount'] ?? null);
+        $t->same($declarations, $result['document']->attr('contentDeclarations'));
+        $t->same(2, $result['importReport']['contentDeclarations']['dataPilotGroupCount'] ?? null);
+        $t->same(3, $result['importReport']['contentDeclarations']['dataPilotGroupMemberCount'] ?? null);
+        $t->same(2, $result['importReport']['content']['dataPilotGroupCount'] ?? null);
+        $t->same(3, $result['importReport']['content']['dataPilotGroupMemberCount'] ?? null);
+        $t->same('Data pilot grouping policy stays metadata-only.', $result['document']->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Data pilot grouping policy stays metadata-only.', $markdown);
+        $t->contains('<p>Data pilot grouping policy stays metadata-only.</p>', $blocksHtml);
+    },
     'maps ODT named ranges and expressions into content declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithNamedExpressions = <<<'XML'
 <office:document-content

@@ -1259,6 +1259,65 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
     },
 
+    'summarizes OPF package rendition metadata for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithRenditionMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta id="fixed-layout" property="rendition:layout" xml:lang="en" dir="ltr">pre-paginated</meta>
+    <meta property="rendition:layout">reflowable</meta>
+    <meta property="rendition:orientation" content="landscape"/>
+    <meta property="rendition:spread">diagonal</meta>
+    <meta property="rendition:spread">none</meta>
+    <meta property="rendition:viewport">width=1024, height=768</meta>
+    <meta id="bad-viewport" property="rendition:viewport">width=cover,height=0,scale=1</meta>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithRenditionMetadata],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $rendition = $epub->metadata()['renditionLayout'];
+        $summary = $epub->summary();
+
+        $t->same(true, $rendition['present']);
+        $t->same(true, $rendition['fixedLayout']);
+        $t->same('pre-paginated', $rendition['layout']);
+        $t->same('pre-paginated', $rendition['layoutRaw']);
+        $t->same('fixed-layout', $rendition['layoutProperty']['selected']['id']);
+        $t->same('en', $rendition['layoutProperty']['selected']['language']);
+        $t->same('ltr', $rendition['layoutProperty']['selected']['direction']);
+        $t->same(false, $rendition['layoutProperty']['valid']);
+        $t->same(['pre-paginated', 'reflowable'], $rendition['layoutProperty']['diagnostics'][0]['values']);
+        $t->same('landscape', $rendition['orientation']);
+        $t->same('none', $rendition['spread']);
+        $t->same(1, $rendition['spreadProperty']['invalidCount']);
+        $t->same('invalid-rendition-spread-value', $rendition['spreadProperty']['diagnostics'][0]['type']);
+
+        $t->same('width=1024, height=768', $rendition['viewportRaw']);
+        $t->same(1024, $rendition['viewportWidth']);
+        $t->same(768, $rendition['viewportHeight']);
+        $t->same(2, $rendition['viewportCount']);
+        $t->same(1, $rendition['validViewportCount']);
+        $t->same(1, $rendition['invalidViewportCount']);
+        $t->same(['width' => '1024', 'height' => '768'], $rendition['viewport']['parameters']);
+        $t->same('bad-viewport', $rendition['viewports'][1]['id']);
+        $t->same(false, $rendition['viewports'][1]['valid']);
+        $t->same(['width' => 'cover', 'height' => '0', 'scale' => '1'], $rendition['viewports'][1]['parameters']);
+        $t->same(['conflicting-rendition-layout-values', 'invalid-rendition-spread-value', 'invalid-rendition-viewport-width', 'invalid-rendition-viewport-height', 'unknown-rendition-viewport-parameter'], array_column($rendition['diagnostics'], 'type'));
+
+        $t->same($rendition, $summary['renditionLayout']);
+        $t->same($rendition, $summary['metadata']['renditionLayout']);
+        $t->same($rendition, $summary['wordpressImport']['metadataDetails']['renditionLayout']);
+    },
+
     'summarizes OCF encrypted resource exposure for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithEncryptedResources = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

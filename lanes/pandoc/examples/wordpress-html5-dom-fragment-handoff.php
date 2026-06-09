@@ -176,7 +176,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<aside data-pandoc-hidden-state="until-found" data-pandoc-inert-state="true"><p>Search reveal import note</p></aside>',
         '<aside id="popover-note" data-pandoc-popover-state="manual"><p>Popover migration note <a href="https://source.example.test/import/posts/popover/source.html">popover source</a><a>bad popover</a></p></aside>',
         '<a href="https://source.example.test/import/posts/popover/control.html">Popover control source</a>',
-        '<article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article>',
+        '<div data-pandoc-iframe-srcdoc="true" data-pandoc-iframe-srcdoc-base-url="https://source.example.test/import/posts/embedded/"><article><h2>Embedded srcdoc packet</h2><a href="https://source.example.test/import/posts/embedded/note.html">frame note</a><img src="https://source.example.test/import/posts/embedded/frame.png" alt="Frame"></article></div>',
         '<a href="https://source.example.test/import/posts/frames/source.html?review=1" data-pandoc-iframe-src="true" title="Embedded frame source" data-pandoc-iframe-sandbox="allow-scripts allow-same-origin" data-pandoc-iframe-allow="fullscreen; clipboard-write" data-pandoc-iframe-referrerpolicy="strict-origin-when-cross-origin" data-pandoc-iframe-allowfullscreen="true">Embedded frame source</a>',
         '<a href="https://source.example.test/import/posts/docs/source.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a>',
         '<span data-pandoc-object-param-name="movie" data-pandoc-object-param-valuetype="ref" data-pandoc-object-param-type="application/x-shockwave-flash" data-pandoc-object-param-value="https://source.example.test/import/posts/media/player.swf">Object parameter: movie=https://source.example.test/import/posts/media/player.swf</span>',
@@ -267,6 +267,18 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ($referrerPolicyDiagnostics as $diagnostic) {
         if (($diagnostic['line'] ?? 0) <= 0) {
             throw new RuntimeException('Expected referrer policy diagnostics to include source line metadata');
+        }
+    }
+    $srcdocDiagnostics = array_values(array_filter(
+        $fragment->diagnostics(),
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'iframe-srcdoc-review'
+    ));
+    if ($srcdocDiagnostics === []) {
+        throw new RuntimeException('Expected iframe srcdoc review diagnostics');
+    }
+    foreach ($srcdocDiagnostics as $diagnostic) {
+        if (($diagnostic['line'] ?? 0) <= 0) {
+            throw new RuntimeException('Expected iframe srcdoc diagnostics to include source line metadata');
         }
     }
     $embeddedSourceDiagnostics = array_values(array_filter(
@@ -372,7 +384,7 @@ if (($argv[1] ?? '') === '--self-test') {
             throw new RuntimeException('Expected global HTML metadata diagnostics to include source line metadata');
         }
     }
-    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<object', '<param', '<embed', '<portal', '<map', '<area', '<template', '<slot', '<legacy-', '<datalist', '<select', '<option', 'srcdoc=', '<script', '<input', ' style=', 'background-image', 'background:url', 'calc(50vw + url', 'calc(100vw + url', ' target=', 'download=', 'rel="opener"', ' referrerpolicy=', ' loading=', ' decoding=', ' fetchpriority=', ' crossorigin=', ' autoplay', ' controls', ' loop', ' muted', ' playsinline', ' preload=', ' controlslist=', ' width=', ' height=', ' popover=', 'popovertarget=', 'popovertargetaction=', ' contenteditable=', ' spellcheck=', ' draggable=', ' tabindex=', ' accesskey=', ' autofocus', ' translate=', ' lang=', ' xml:lang=', ' dir=', ' role=', ' aria-label=', ' aria-describedby=', ' aria-expanded=', ' aria-current=', ' aria-busy=', ' is=', ' part=', ' exportparts=', ' align=', ' cite=', ' datetime=', ' value=', ' min=', ' max=', ' low=', ' high=', ' optimum=', ' for=', ' method=', ' action=', ' autocomplete=', ' shadowrootmode=', ' shadowrootdelegatesfocus', ' shadowrootclonable', ' shadowrootserializable', ' selected', ' size=', ' required', ' disabled name=', ' name=" import-settings "', ' name="publish-status"', ' name="total-score"', ' name="comment-form"', ' form="legacy-form"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'Bad object', 'Bad embed', 'preload-cover.png', 'orphan-source.avif', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'draft-token', 'private-token', 'Bad frame', 'Bad map region', 'bad-role', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
+    foreach (['<html', '<body', '<base', '<title', '<link', '<meta', '<iframe', '<object', '<param', '<embed', '<portal', '<map', '<area', '<template', '<slot', '<legacy-', '<datalist', '<select', '<option', '<iframe srcdoc', '<script', '<input', ' style=', 'background-image', 'background:url', 'calc(50vw + url', 'calc(100vw + url', ' target=', 'download=', 'rel="opener"', ' referrerpolicy=', ' loading=', ' decoding=', ' fetchpriority=', ' crossorigin=', ' autoplay', ' controls', ' loop', ' muted', ' playsinline', ' preload=', ' controlslist=', ' width=', ' height=', ' popover=', 'popovertarget=', 'popovertargetaction=', ' contenteditable=', ' spellcheck=', ' draggable=', ' tabindex=', ' accesskey=', ' autofocus', ' translate=', ' lang=', ' xml:lang=', ' dir=', ' role=', ' aria-label=', ' aria-describedby=', ' aria-expanded=', ' aria-current=', ' aria-busy=', ' is=', ' part=', ' exportparts=', ' align=', ' cite=', ' datetime=', ' value=', ' min=', ' max=', ' low=', ' high=', ' optimum=', ' for=', ' method=', ' action=', ' autocomplete=', ' shadowrootmode=', ' shadowrootdelegatesfocus', ' shadowrootclonable', ' shadowrootserializable', ' selected', ' size=', ' required', ' disabled name=', ' name=" import-settings "', ' name="publish-status"', ' name="total-score"', ' name="comment-form"', ' form="legacy-form"', 'javascript:', 'ja/**/vascript', 'report-uri', 'tracker.example.test', 'bad policy', 'inactive.example', 'legacy.css', 'active-author.html', 'Active author', 'Bad license', 'Bad object', 'Bad embed', 'preload-cover.png', 'orphan-source.avif', 'mailto:bad@example.test', 'data:text/html', 'data:image/svg+xml', '(max-width: 47em)', '<![CDATA[', '--->', 'Hidden draft', 'draft-token', 'private-token', 'Bad frame', 'Bad map region', 'bad-role', 'source-spoof', ' hidden=', ' inert', 'http://www.w3.org/1999/xhtml', ' itemscope', ' itemtype=', ' itemid=', ' itemref=', ' itemprop=', ' property=', ' typeof=', ' about=', ' resource=', ' vocab=', ' prefix='] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM fragment self-test retained blocked content: ' . $blocked);
         }

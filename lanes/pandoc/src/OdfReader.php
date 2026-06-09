@@ -322,6 +322,8 @@ final class OdfReader
                     'dataPilotSortInfoCount' => (int) ($content['contentDeclarations']['dataPilotSortInfoCount'] ?? 0),
                     'dataPilotLayoutInfoCount' => (int) ($content['contentDeclarations']['dataPilotLayoutInfoCount'] ?? 0),
                     'dataPilotFieldReferenceCount' => (int) ($content['contentDeclarations']['dataPilotFieldReferenceCount'] ?? 0),
+                    'dataPilotGroupCount' => (int) ($content['contentDeclarations']['dataPilotGroupCount'] ?? 0),
+                    'dataPilotGroupMemberCount' => (int) ($content['contentDeclarations']['dataPilotGroupMemberCount'] ?? 0),
                     'tableTrackedChangeCount' => (int) ($content['contentDeclarations']['tableTrackedChangeCount'] ?? 0),
                     'ddeConnectionDeclarationCount' => (int) ($content['contentDeclarations']['ddeConnectionDeclarationCount'] ?? 0),
                     'drawLayerCount' => (int) ($content['contentDeclarations']['drawLayerCount'] ?? 0),
@@ -3996,10 +3998,27 @@ final class OdfReader
         $dataPilotSortInfoCount = 0;
         $dataPilotLayoutInfoCount = 0;
         $dataPilotFieldReferenceCount = 0;
+        $dataPilotGroupCount = 0;
+        $dataPilotGroupMemberCount = 0;
         foreach ($dataPilotTables as $table) {
             $name = (string) ($table['name'] ?? '');
             if ($name !== '') {
                 $dataPilotTablesByName[$name] = $table;
+            }
+
+            $groups = $table['groups'] ?? [];
+            if (is_array($groups)) {
+                $dataPilotGroupCount += count($groups);
+                foreach ($groups as $group) {
+                    if (!is_array($group)) {
+                        continue;
+                    }
+
+                    $members = $group['members'] ?? [];
+                    if (is_array($members)) {
+                        $dataPilotGroupMemberCount += count($members);
+                    }
+                }
             }
 
             $fields = $table['fields'] ?? [];
@@ -4118,6 +4137,8 @@ final class OdfReader
             'dataPilotSortInfoCount' => $dataPilotSortInfoCount,
             'dataPilotLayoutInfoCount' => $dataPilotLayoutInfoCount,
             'dataPilotFieldReferenceCount' => $dataPilotFieldReferenceCount,
+            'dataPilotGroupCount' => $dataPilotGroupCount,
+            'dataPilotGroupMemberCount' => $dataPilotGroupMemberCount,
             'dataPilotTables' => $dataPilotTables,
             'dataPilotTablesByName' => $dataPilotTablesByName,
             'tableTrackedChangeCount' => count($tableTrackedChanges),
@@ -4851,6 +4872,7 @@ final class OdfReader
                 $fields[] = $definition;
             }
         }
+        $groups = $this->dataPilotGroupsFromContainer($table);
 
         $definition = self::withoutEmpty([
             'name' => $name,
@@ -4865,6 +4887,8 @@ final class OdfReader
             'source' => $this->dataPilotSourceDefinition($table),
             'fields' => $fields,
             'fieldCount' => $fields === [] ? null : count($fields),
+            'groups' => $groups,
+            'groupCount' => $groups === [] ? null : count($groups),
         ]);
 
         return $definition;
@@ -5110,6 +5134,78 @@ final class OdfReader
             'display' => self::nullableBool(self::attr($member, self::TABLE_NS, 'display')),
             'showDetails' => self::nullableBool(self::attr($member, self::TABLE_NS, 'show-details')),
         ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function dataPilotGroupsFromContainer(\DOMElement $container): array
+    {
+        $groups = [];
+        foreach (self::childElements($container) as $child) {
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-groups')) {
+                $groupSet = $this->dataPilotGroupSetDefinition($child);
+                foreach (self::childElements($child, 'data-pilot-group', self::TABLE_NS) as $group) {
+                    $definition = $this->dataPilotGroupDefinition($group, $groupSet);
+                    if ($definition !== []) {
+                        $groups[] = $definition;
+                    }
+                }
+                continue;
+            }
+
+            if ($this->isElement($child, self::TABLE_NS, 'data-pilot-group')) {
+                $definition = $this->dataPilotGroupDefinition($child);
+                if ($definition !== []) {
+                    $groups[] = $definition;
+                }
+            }
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotGroupSetDefinition(\DOMElement $groupSet): array
+    {
+        return self::withoutEmpty(array_merge([
+            'element' => 'data-pilot-groups',
+        ], $this->odfElementMetadataAttributes($groupSet, [self::TABLE_NS])));
+    }
+
+    /**
+     * @param array<string, mixed> $groupSet
+     * @return array<string, mixed>
+     */
+    private function dataPilotGroupDefinition(\DOMElement $group, array $groupSet = []): array
+    {
+        $members = [];
+        foreach (self::childElements($group, 'data-pilot-group-member', self::TABLE_NS) as $member) {
+            $definition = $this->dataPilotGroupMemberDefinition($member);
+            if ($definition !== []) {
+                $members[] = $definition;
+            }
+        }
+
+        return self::withoutEmpty(array_merge($groupSet, [
+            'element' => 'data-pilot-group',
+        ], $this->odfElementMetadataAttributes($group, [self::TABLE_NS]), [
+            'groupSet' => $groupSet === [] ? null : $groupSet,
+            'members' => $members,
+            'memberCount' => $members === [] ? null : count($members),
+        ]));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dataPilotGroupMemberDefinition(\DOMElement $member): array
+    {
+        return self::withoutEmpty(array_merge([
+            'element' => 'data-pilot-group-member',
+        ], $this->odfElementMetadataAttributes($member, [self::TABLE_NS])));
     }
 
     /**
