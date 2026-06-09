@@ -85,6 +85,19 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Citation locator diagnostics handoff did not flag unsupported explicit labels');
     }
 
+    $defaultedPage = new AstNode('citation', [
+        'id' => 'locator-diagnostics-source',
+        'text' => '[@locator-diagnostics-source, appendix A]',
+        'locatorValue' => 'appendix A',
+    ]);
+    $defaultedDiagnostics = $processor->citationLocatorDiagnostics($defaultedPage);
+    if (($defaultedDiagnostics[0]['reason'] ?? null) !== 'citation-locator-explicit-value-defaulted-page') {
+        throw new RuntimeException('Citation locator diagnostics handoff did not flag explicit values defaulting to page locators');
+    }
+    if (($defaultedDiagnostics[0]['locatorLabel'] ?? null) !== 'page' || ($defaultedDiagnostics[0]['locatorValue'] ?? null) !== 'appendix A') {
+        throw new RuntimeException('Citation locator diagnostics handoff did not preserve explicit defaulted page locator metadata');
+    }
+
     foreach ([
         '<p>Review locators (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5) before publishing.</p>',
         '<dt>Vale 2026</dt><dd>Vale, Rae. WordPress Locator Diagnostics Packet.</dd>',
