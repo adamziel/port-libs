@@ -2754,6 +2754,54 @@ $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): st
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildUnsafeLocalHeaderNameBackedPackage = static function () use ($crc32): string {
+    $centralName = 'word/media/review.png';
+    $localName = 'word/../media/review.png';
+    $data = "Unsafe local header media path should stay blocked\n";
+    $crc = $crc32($data);
+
+    $body = pack(
+        'VvvvvvVVVvv',
+        0x04034b50,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($localName),
+        0
+    );
+    $body .= $localName . $data;
+
+    $central = pack(
+        'VvvvvvvVVVvvvvvVV',
+        0x02014b50,
+        0x0314,
+        20,
+        0x0800,
+        0,
+        0,
+        0,
+        $crc,
+        strlen($data),
+        strlen($data),
+        strlen($centralName),
+        0,
+        0,
+        0,
+        0,
+        0x81a40000,
+        0
+    );
+    $central .= $centralName;
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
+};
 $buildRawPlatformMetadataLocalHeaderMismatchBackedPackage = static function () use ($crc32): string {
     $entries = [
         [
@@ -3938,6 +3986,7 @@ $rawStrictZip64MalformedLocatorPreflight = ZipPackage::rawStrictImportPreflight(
 $rawStrictZip64EocdMismatchPreflight = ZipPackage::rawStrictImportPreflight($zip64EocdMismatchBytes, 4096, 100.0, 4096);
 $rawStrictZip64SmallRecordPreflight = ZipPackage::rawStrictImportPreflight($zip64SmallRecordBytes, 4096, 100.0, 4096);
 $rawStrictLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildLocalHeaderNameMismatchBackedPackage(), 4096, 100.0, 4096);
+$rawStrictUnsafeLocalHeaderNamePreflight = ZipPackage::rawStrictImportPreflight($buildUnsafeLocalHeaderNameBackedPackage(), 4096, 100.0, 4096);
 $rawStrictLocalHeaderSpanPreflight = ZipPackage::rawStrictImportPreflight($buildUnclaimedLocalHeaderBackedPackage(), 4096, 100.0, 4096);
 $rawStrictLocalHeaderOffsetPreflight = ZipPackage::rawStrictImportPreflight(
     $rewriteFirstCentralLocalHeaderOffset($package->bytes(), $package->centralDirectoryOffset()),
@@ -4731,6 +4780,12 @@ try {
     ZipPackage::fromString($buildLocalHeaderNameMismatchBackedPackage());
 } catch (RuntimeException $exception) {
     $localHeaderNameMismatchRejected = str_contains($exception->getMessage(), 'local header name');
+}
+$unsafeLocalHeaderNameRejected = false;
+try {
+    ZipPackage::fromString($buildUnsafeLocalHeaderNameBackedPackage());
+} catch (RuntimeException $exception) {
+    $unsafeLocalHeaderNameRejected = str_contains($exception->getMessage(), 'local header name');
 }
 $localEntrySlackRejected = false;
 try {
@@ -6713,6 +6768,10 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP local header name mismatches to be rejected before media import');
     }
 
+    if (!$unsafeLocalHeaderNameRejected) {
+        throw new RuntimeException('Expected unsafe ZIP local header names to be rejected before media import');
+    }
+
     if (
         ($rawStrictLocalHeaderNamePreflight['isValid'] ?? null) !== false
         || ($rawStrictLocalHeaderNamePreflight['canInstantiate'] ?? null) !== false
@@ -6723,6 +6782,19 @@ if (in_array('--self-test', $argv, true)) {
         || !in_array('zip-package-instantiation-failed', $rawStrictLocalHeaderNamePreflight['diagnostics'] ?? [], true)
     ) {
         throw new RuntimeException('Expected raw strict ZIP preflight to report local header name mismatches');
+    }
+
+    if (
+        ($rawStrictUnsafeLocalHeaderNamePreflight['isValid'] ?? null) !== false
+        || ($rawStrictUnsafeLocalHeaderNamePreflight['canInstantiate'] ?? null) !== false
+        || ($rawStrictUnsafeLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? null) !== 1
+        || ($rawStrictUnsafeLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntries'][0]['centralName'] ?? null) !== 'word/media/review.png'
+        || ($rawStrictUnsafeLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntries'][0]['localRawNameSafetyIssues'] ?? null) !== ['parent-directory-segment']
+        || !in_array('local-header-unsafe-raw-name', $rawStrictUnsafeLocalHeaderNamePreflight['diagnostics'] ?? [], true)
+        || !in_array('local-header-raw-name-parent-directory-segment', $rawStrictUnsafeLocalHeaderNamePreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictUnsafeLocalHeaderNamePreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP preflight to report unsafe local header names');
     }
 
     if (
@@ -7013,6 +7085,8 @@ echo 'zipEmptyRawStrictImportDiagnostics=' . implode(',', $emptyRawStrictImportP
 echo 'zipRawStrictLocalHeaderNamePolicy=' . ($rawStrictLocalHeaderNamePreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderNameIssues=' . implode(',', $rawStrictLocalHeaderNamePreflight['localHeaderNames']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePreflight['localHeaderNames']['mismatchedEntryCount'] ?? 0) . "\n";
+echo 'zipRawStrictUnsafeLocalHeaderNamePolicy=' . ($rawStrictUnsafeLocalHeaderNamePreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawStrictUnsafeLocalHeaderNameIssues=' . implode(',', $rawStrictUnsafeLocalHeaderNamePreflight['localHeaderNames']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderSpanPolicy=' . ($rawStrictLocalHeaderSpanPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderSpanIssues=' . implode(',', $rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytes'] ?? 0) . "\n";
@@ -7224,6 +7298,7 @@ echo 'zipUnderstatedVersionNeededPolicy=' . ($understatedVersionNeededRejected ?
 echo 'zipUnderstatedVersionNeededEntries=' . $understatedVersionNeededPreflight['understatedVersionEntryCount'] . "\n";
 echo 'zipUnderstatedVersionNeededMinimum=' . ($understatedVersionNeededPreflight['understatedVersionEntries'][0]['minimumVersionNeededToExtract'] ?? 'none') . "\n";
 echo 'zipLocalHeaderNameMismatchPolicy=' . ($localHeaderNameMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zipUnsafeLocalHeaderNamePolicy=' . ($unsafeLocalHeaderNameRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipLocalEntrySlackPolicy=' . ($localEntrySlackRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateUnicodeExtraPolicy=' . ($duplicateUnicodeExtraRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipMalformedExtendedTimestampPolicy=' . ($malformedExtendedTimestampRejected ? 'rejected' : 'not-rejected') . "\n";

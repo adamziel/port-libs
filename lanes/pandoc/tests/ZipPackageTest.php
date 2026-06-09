@@ -1043,6 +1043,55 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
     },
 
+    'preflights unsafe zip local header names before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/review.png',
+                'localName' => 'word/../media/review.png',
+                'data' => "safe central name hides an unsafe local header path\n",
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::localHeaderNamePreflight($zip);
+        $entry = $summary['mismatchedEntries'][0];
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
+
+        $t->same(1, $summary['entryCount']);
+        $t->same(1, $summary['mismatchedEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'local-header-unsafe-raw-name',
+            'local-header-raw-name-parent-directory-segment',
+            'local-header-unsafe-decoded-name',
+            'local-header-decoded-name-parent-directory-segment',
+            'local-header-name-mismatch',
+            'local-header-decoded-name-mismatch',
+        ], $summary['issues']);
+        $t->same('word/media/review.png', $entry['centralName']);
+        $t->same('word/../media/review.png', $entry['localName']);
+        $t->same('word/../media/review.png', $entry['localRawName']);
+        $t->same(false, $entry['localRawNameIsSafe']);
+        $t->same(['parent-directory-segment'], $entry['localRawNameSafetyIssues']);
+        $t->same(false, $entry['localDecodedNameIsSafe']);
+        $t->same(['parent-directory-segment'], $entry['localDecodedNameSafetyIssues']);
+        $t->same(false, $entry['rawNameMatchesCentral']);
+        $t->same(false, $entry['decodedNameMatchesCentral']);
+        $t->same(true, $entry['generalPurposeFlagsMatchCentral']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(1, $rawStrict['entryCount']);
+        $t->same($summary, $rawStrict['localHeaderNames']);
+        $t->same(1, $rawStrict['localHeaderMetadata']['mismatchedEntryCount']);
+        $t->same([], $rawStrict['preflightErrors']);
+        $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-unsafe-raw-name', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-raw-name-parent-directory-segment', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights zip local header metadata mismatches before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $safeDocumentXml = '<w:document><w:p>safe local metadata</w:p></w:document>';
         $safeCommentsXml = '<w:comments><w:comment>safe descriptor metadata</w:comment></w:comments>';

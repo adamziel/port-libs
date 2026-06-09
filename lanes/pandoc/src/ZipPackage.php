@@ -842,13 +842,26 @@ final class ZipPackage
             $localHeader = self::readLocalHeaderNameMetadata(
                 $bytes,
                 $localHeaderOffset,
-                $index
+                $index,
+                false
             );
 
             $rawNameMatchesCentral = $localHeader['rawName'] === $rawName;
             $decodedNameMatchesCentral = $localHeader['name'] === $decodedName['text'];
             $flagsMatchCentral = $localHeader['generalPurposeFlags'] === $flags;
             $issues = [];
+            if (!$localHeader['rawNameIsSafe']) {
+                $issues[] = 'local-header-unsafe-raw-name';
+                foreach ($localHeader['rawNameSafetyIssues'] as $issue) {
+                    $issues[] = 'local-header-raw-name-' . $issue;
+                }
+            }
+            if (!$localHeader['decodedNameIsSafe']) {
+                $issues[] = 'local-header-unsafe-decoded-name';
+                foreach ($localHeader['decodedNameSafetyIssues'] as $issue) {
+                    $issues[] = 'local-header-decoded-name-' . $issue;
+                }
+            }
             if (!$rawNameMatchesCentral) {
                 $issues[] = 'local-header-name-mismatch';
             }
@@ -881,6 +894,10 @@ final class ZipPackage
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'localHeaderLength' => $localHeader['localHeaderLength'],
                 'localGeneralPurposeFlags' => $localHeader['generalPurposeFlags'],
+                'localRawNameIsSafe' => $localHeader['rawNameIsSafe'],
+                'localRawNameSafetyIssues' => $localHeader['rawNameSafetyIssues'],
+                'localDecodedNameIsSafe' => $localHeader['decodedNameIsSafe'],
+                'localDecodedNameSafetyIssues' => $localHeader['decodedNameSafetyIssues'],
                 'rawNameMatchesCentral' => $rawNameMatchesCentral,
                 'decodedNameMatchesCentral' => $decodedNameMatchesCentral,
                 'generalPurposeFlagsMatchCentral' => $flagsMatchCentral,
@@ -987,10 +1004,24 @@ final class ZipPackage
             );
             self::assertSafePartName($decodedName['text']);
 
-            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index);
+            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index, false);
             $usesDataDescriptor = ($flags & 0x0008) !== 0;
             $hasZeroLocalHeaderPlaceholders = null;
             $issues = [];
+
+            if (!$localHeader['rawNameIsSafe']) {
+                $issues[] = 'local-header-unsafe-raw-name';
+                foreach ($localHeader['rawNameSafetyIssues'] as $issue) {
+                    $issues[] = 'local-header-raw-name-' . $issue;
+                }
+            }
+
+            if (!$localHeader['decodedNameIsSafe']) {
+                $issues[] = 'local-header-unsafe-decoded-name';
+                foreach ($localHeader['decodedNameSafetyIssues'] as $issue) {
+                    $issues[] = 'local-header-decoded-name-' . $issue;
+                }
+            }
 
             if ($localHeader['versionNeededToExtract'] !== $versionNeededToExtract) {
                 $issues[] = 'local-header-version-needed-mismatch';
@@ -1048,6 +1079,10 @@ final class ZipPackage
                 'localRawName' => $localHeader['rawName'],
                 'centralNameEncoding' => $decodedName['encoding'],
                 'localNameEncoding' => $localHeader['nameEncoding'],
+                'localRawNameIsSafe' => $localHeader['rawNameIsSafe'],
+                'localRawNameSafetyIssues' => $localHeader['rawNameSafetyIssues'],
+                'localDecodedNameIsSafe' => $localHeader['decodedNameIsSafe'],
+                'localDecodedNameSafetyIssues' => $localHeader['decodedNameSafetyIssues'],
                 'centralVersionNeededToExtract' => $versionNeededToExtract,
                 'localVersionNeededToExtract' => $localHeader['versionNeededToExtract'],
                 'centralGeneralPurposeFlags' => $flags,
@@ -1266,7 +1301,8 @@ final class ZipPackage
             $localHeader = self::readLocalHeaderNameMetadata(
                 $bytes,
                 $centralEntry['localHeaderOffset'],
-                $centralEntry['centralDirectoryIndex']
+                $centralEntry['centralDirectoryIndex'],
+                false
             );
             $dataStart = $centralEntry['localHeaderOffset'] + $localHeader['localHeaderLength'];
             $compressedDataEnd = $dataStart + $centralEntry['compressedSize'];
@@ -4794,7 +4830,7 @@ final class ZipPackage
 
             $rawName = substr($bytes, $variableStart, $nameLength);
             $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
-            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index);
+            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index, false);
 
             if ($method === 0) {
                 $storedEntryCount++;
@@ -6279,6 +6315,8 @@ final class ZipPackage
             $localRawName = null;
             $localName = null;
             $localNameEncoding = null;
+            $localRawNameSafetyIssues = [];
+            $localDecodedNameSafetyIssues = [];
             $localHeaderFlags = null;
             $localHeaderMethod = null;
             $localRawNameMatchesCentral = null;
@@ -6300,7 +6338,7 @@ final class ZipPackage
                 $localVariableStart = $actualLocalHeaderOffset + 30;
                 self::assertRange($bytes, $localVariableStart, $localNameLength + $localExtraLength, "local file header variable fields for {$name}");
                 $localRawName = substr($bytes, $localVariableStart, $localNameLength);
-                self::assertSafePartName($localRawName);
+                $localRawNameSafetyIssues = self::partNameSafetyIssues($localRawName);
                 if (($localHeaderFlags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0 && preg_match('//u', $localRawName) === 1) {
                     $localName = $localRawName;
                     $localNameEncoding = 'utf-8';
@@ -6308,7 +6346,7 @@ final class ZipPackage
                     $localName = self::decodeCp437($localRawName);
                     $localNameEncoding = 'cp437';
                 }
-                self::assertSafePartName($localName);
+                $localDecodedNameSafetyIssues = self::partNameSafetyIssues($localName);
                 $localExtraFieldData = substr($bytes, $localVariableStart + $localNameLength, $localExtraLength);
                 $localExtraFields = ZipPackageEntry::extraFieldsFromData(
                     $localExtraFieldData,
@@ -6361,6 +6399,12 @@ final class ZipPackage
                 $issues[] = 'zip64-size-or-offset-sentinel';
             }
             if (($hasZip64ExtraField || $requiresZip64) && $actualLocalHeaderOffset !== null) {
+                if ($localRawNameSafetyIssues !== []) {
+                    $issues[] = 'zip64-local-header-unsafe-raw-name';
+                }
+                if ($localDecodedNameSafetyIssues !== []) {
+                    $issues[] = 'zip64-local-header-unsafe-decoded-name';
+                }
                 if ($localRawNameMatchesCentral === false) {
                     $issues[] = 'zip64-local-header-name-mismatch';
                 }
@@ -6395,6 +6439,10 @@ final class ZipPackage
                 'localRawName' => $localRawName,
                 'localName' => $localName,
                 'localNameEncoding' => $localNameEncoding,
+                'localRawNameIsSafe' => $localRawNameSafetyIssues === [],
+                'localRawNameSafetyIssues' => $localRawNameSafetyIssues,
+                'localDecodedNameIsSafe' => $localDecodedNameSafetyIssues === [],
+                'localDecodedNameSafetyIssues' => $localDecodedNameSafetyIssues,
                 'localGeneralPurposeFlags' => $localHeaderFlags,
                 'localCompressionMethod' => $localHeaderMethod,
                 'localHeaderCompressedSize' => $localHeaderCompressedSize,
@@ -6759,7 +6807,8 @@ final class ZipPackage
             $localHeader = self::readLocalHeaderNameMetadata(
                 $bytes,
                 $centralEntry['localHeaderOffset'],
-                $centralEntry['centralDirectoryIndex']
+                $centralEntry['centralDirectoryIndex'],
+                false
             );
             $usesDataDescriptor = ($centralEntry['generalPurposeFlags'] & 0x0008) !== 0;
             $summary = [
@@ -9478,9 +9527,14 @@ final class ZipPackage
     }
 
     /**
-     * @return array{name:string, rawName:string, nameEncoding:string, nameLength:int, extraFieldLength:int, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int, crc32:int, compressedSize:int, uncompressedSize:int}
+     * @return array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, nameLength:int, extraFieldLength:int, localHeaderLength:int, versionNeededToExtract:int, generalPurposeFlags:int, compressionMethod:int, modifiedDosTime:int, modifiedDosDate:int, crc32:int, compressedSize:int, uncompressedSize:int}
      */
-    private static function readLocalHeaderNameMetadata(string $bytes, int $localHeaderOffset, int $centralDirectoryIndex): array
+    private static function readLocalHeaderNameMetadata(
+        string $bytes,
+        int $localHeaderOffset,
+        int $centralDirectoryIndex,
+        bool $validatePartNames = true
+    ): array
     {
         self::assertRange($bytes, $localHeaderOffset, 30, 'local file header');
         if (substr($bytes, $localHeaderOffset, 4) !== self::LOCAL_FILE_SIGNATURE) {
@@ -9502,7 +9556,10 @@ final class ZipPackage
 
         $rawName = substr($bytes, $nameStart, $nameLength);
         $extraFieldData = substr($bytes, $nameStart + $nameLength, $extraLength);
-        self::assertSafePartName($rawName);
+        $rawNameSafetyIssues = self::partNameSafetyIssues($rawName);
+        if ($validatePartNames && $rawNameSafetyIssues !== []) {
+            self::throwUnsafePartName($rawName, $rawNameSafetyIssues);
+        }
         ZipPackageEntry::validateExtraFieldData(
             $extraFieldData,
             "local extra fields for central directory entry {$centralDirectoryIndex}"
@@ -9515,12 +9572,19 @@ final class ZipPackage
             'info-zip-unicode-path',
             "local file header entry {$centralDirectoryIndex} name"
         );
-        self::assertSafePartName($decodedName['text']);
+        $decodedNameSafetyIssues = self::partNameSafetyIssues($decodedName['text']);
+        if ($validatePartNames && $decodedNameSafetyIssues !== []) {
+            self::throwUnsafePartName($decodedName['text'], $decodedNameSafetyIssues);
+        }
 
         return [
             'name' => $decodedName['text'],
             'rawName' => $rawName,
             'nameEncoding' => $decodedName['encoding'],
+            'rawNameIsSafe' => $rawNameSafetyIssues === [],
+            'rawNameSafetyIssues' => $rawNameSafetyIssues,
+            'decodedNameIsSafe' => $decodedNameSafetyIssues === [],
+            'decodedNameSafetyIssues' => $decodedNameSafetyIssues,
             'nameLength' => $nameLength,
             'extraFieldLength' => $extraLength,
             'localHeaderLength' => 30 + $nameLength + $extraLength,
@@ -10177,7 +10241,9 @@ final class ZipPackage
      *     compressionMethod:int,
      *     rawName:string,
      *     extraFieldData:string,
-     *     dataOffset:int
+     *     dataOffset:int,
+     *     rawNameIsSafe:bool,
+     *     rawNameSafetyIssues:list<string>
      * }
      */
     private static function localHeaderMetadataForPolicy(string $bytes, int $offset, int $centralDirectoryIndex): array
@@ -10194,7 +10260,7 @@ final class ZipPackage
         $variableStart = $offset + 30;
         self::assertRange($bytes, $variableStart, $nameLength + $extraLength, 'local file header variable fields');
         $rawName = substr($bytes, $variableStart, $nameLength);
-        self::assertSafePartName($rawName);
+        $rawNameSafetyIssues = self::partNameSafetyIssues($rawName);
 
         return [
             'generalPurposeFlags' => $flags,
@@ -10202,6 +10268,8 @@ final class ZipPackage
             'rawName' => $rawName,
             'extraFieldData' => substr($bytes, $variableStart + $nameLength, $extraLength),
             'dataOffset' => $variableStart + $nameLength + $extraLength,
+            'rawNameIsSafe' => $rawNameSafetyIssues === [],
+            'rawNameSafetyIssues' => $rawNameSafetyIssues,
         ];
     }
 
@@ -11044,23 +11112,41 @@ final class ZipPackage
 
     private static function assertSafePartName(string $name): void
     {
-        if ($name === '') {
-            throw new \RuntimeException('ZIP package entry names must not be empty');
+        $issues = self::partNameSafetyIssues($name);
+        if ($issues === []) {
+            return;
         }
 
+        self::throwUnsafePartName($name, $issues);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function partNameSafetyIssues(string $name): array
+    {
+        if ($name === '') {
+            return ['empty-name'];
+        }
+
+        $issues = [];
         if (
             preg_match('/[\x00-\x1f\x7f]/', $name) === 1
             || (preg_match('//u', $name) === 1 && preg_match('/\p{Cc}/u', $name) === 1)
         ) {
-            throw new \RuntimeException('Unsafe ZIP package entry name contains control characters');
+            $issues[] = 'control-characters';
         }
 
-        if (
-            str_starts_with($name, '/')
-            || str_contains($name, '\\')
-            || preg_match('/^[A-Za-z]:/', $name) === 1
-        ) {
-            throw new \RuntimeException("Unsafe ZIP package entry name: {$name}");
+        if (str_starts_with($name, '/')) {
+            $issues[] = 'absolute-path';
+        }
+
+        if (str_contains($name, '\\')) {
+            $issues[] = 'backslash';
+        }
+
+        if (preg_match('/^[A-Za-z]:/', $name) === 1) {
+            $issues[] = 'drive-letter';
         }
 
         $segments = explode('/', $name);
@@ -11070,10 +11156,32 @@ final class ZipPackage
                 continue;
             }
 
-            if ($segment === '' || $segment === '.' || $segment === '..') {
-                throw new \RuntimeException("Unsafe ZIP package entry name: {$name}");
+            if ($segment === '') {
+                $issues[] = 'empty-segment';
+            } elseif ($segment === '.') {
+                $issues[] = 'dot-segment';
+            } elseif ($segment === '..') {
+                $issues[] = 'parent-directory-segment';
             }
         }
+
+        return array_values(array_unique($issues));
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private static function throwUnsafePartName(string $name, array $issues): void
+    {
+        if (in_array('empty-name', $issues, true)) {
+            throw new \RuntimeException('ZIP package entry names must not be empty');
+        }
+
+        if (in_array('control-characters', $issues, true)) {
+            throw new \RuntimeException('Unsafe ZIP package entry name contains control characters');
+        }
+
+        throw new \RuntimeException("Unsafe ZIP package entry name: {$name}");
     }
 
     private static function assertUtf8(string $text, string $label): void
