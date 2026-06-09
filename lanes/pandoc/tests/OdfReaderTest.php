@@ -4403,6 +4403,62 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
     },
+    'enriches typed ODT sequence references from sequence declarations' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTypedSequenceReferences = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:sequence-decls>
+        <text:sequence-decl text:name="Illustration" text:display-outline-level="0" text:separation-character="."/>
+        <text:sequence-decl text:name="Table" text:display-outline-level="1" text:separation-character=":"/>
+      </text:sequence-decls>
+      <text:p>Caption reference <text:sequence-ref text:name="Illustration" text:ref-name="fig-hero" text:reference-format="category-and-value">Figure 1</text:sequence-ref> and unresolved <text:sequence-ref text:name="Unknown" text:ref-name="unknown-1" text:reference-format="text"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTypedSequenceReferences));
+        $paragraph = $result['document']->children[0];
+        $typedReference = $paragraph->children[1];
+        $unresolvedReference = $paragraph->children[3];
+
+        $t->same('Caption reference Figure 1 and unresolved unknown-1.', $paragraph->attr('text'));
+        $t->same(['odf-field', 'odf-field-sequence-ref'], $typedReference->attr('classes'));
+        $t->same('sequence-ref', $typedReference->attr('fieldType'));
+        $t->same('Illustration', $typedReference->attr('fieldName'));
+        $t->same('Illustration', $typedReference->attr('fieldMetadata')['name']);
+        $t->same('fig-hero', $typedReference->attr('fieldMetadata')['refName']);
+        $t->same('category-and-value', $typedReference->attr('fieldMetadata')['referenceFormat']);
+        $t->same(0, $typedReference->attr('fieldMetadata')['sequenceDisplayOutlineLevel']);
+        $t->same('.', $typedReference->attr('fieldMetadata')['sequenceSeparationCharacter']);
+        $t->same(true, $typedReference->attr('fieldMetadata')['declared']);
+        $t->same('Illustration', $typedReference->attr('attributes')['data-odf-field-name']);
+        $t->same('fig-hero', $typedReference->attr('attributes')['data-odf-field-ref-name']);
+        $t->same('category-and-value', $typedReference->attr('attributes')['data-odf-field-reference-format']);
+        $t->same('0', $typedReference->attr('attributes')['data-odf-field-sequence-display-outline-level']);
+        $t->same('.', $typedReference->attr('attributes')['data-odf-field-sequence-separation-character']);
+        $t->same('true', $typedReference->attr('attributes')['data-odf-field-declared']);
+
+        $t->same(['odf-field', 'odf-field-sequence-ref'], $unresolvedReference->attr('classes'));
+        $t->same('sequence-ref', $unresolvedReference->attr('fieldType'));
+        $t->same('Unknown', $unresolvedReference->attr('fieldName'));
+        $t->same('unknown-1', $unresolvedReference->children[0]->attr('text'));
+        $t->same('text', $unresolvedReference->attr('fieldMetadata')['referenceFormat']);
+        $t->same(false, isset($unresolvedReference->attr('fieldMetadata')['declared']));
+        $t->same(false, isset($unresolvedReference->attr('attributes')['data-odf-field-declared']));
+        $t->same(2, $result['contentDeclarations']['sequenceDeclarationCount']);
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Figure 1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-name="Illustration" data-odf-field-ref-name="fig-hero" data-odf-field-reference-format="category-and-value" data-odf-field-sequence-display-outline-level="0" data-odf-field-sequence-separation-character="." data-odf-field-declared="true"}', $markdown);
+        $t->contains('[unknown-1]{.odf-field .odf-field-sequence-ref data-odf-field-type="sequence-ref" data-odf-field-name="Unknown" data-odf-field-ref-name="unknown-1" data-odf-field-reference-format="text"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-name="Illustration" data-odf-field-ref-name="fig-hero" data-odf-field-reference-format="category-and-value" data-odf-field-sequence-display-outline-level="0" data-odf-field-sequence-separation-character="." data-odf-field-declared="true">Figure 1</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-sequence-ref" data-odf-field-type="sequence-ref" data-odf-field-name="Unknown" data-odf-field-ref-name="unknown-1" data-odf-field-reference-format="text">unknown-1</span>', $blocksHtml);
+    },
     'resolves ODT variable-get fallbacks from current variable state' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithVariableState = <<<'XML'
 <office:document-content

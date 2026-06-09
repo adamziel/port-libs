@@ -6320,7 +6320,8 @@ final class OdfReader
     {
         $children = $this->coalesceTextNodes($this->inlineNodes($field, $catalog, $package));
         $metadata = $this->fieldMetadata($field);
-        if ($this->isElement($field, self::TEXT_NS, 'dde-connection')) {
+        if ($this->isElement($field, self::TEXT_NS, 'dde-connection')
+            || $this->isElement($field, self::TEXT_NS, 'sequence-ref')) {
             $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
         }
         $this->rememberVariableFieldValue($field, $metadata);
@@ -6738,6 +6739,10 @@ final class OdfReader
             return $this->fieldMetadataWithDdeDeclaration($metadata);
         }
 
+        if ($this->isElement($field, self::TEXT_NS, 'sequence-ref')) {
+            return $this->fieldMetadataWithSequenceDeclaration($metadata);
+        }
+
         if ($this->isElement($field, self::TEXT_NS, 'variable-set')
             || $this->isElement($field, self::TEXT_NS, 'variable-get')
             || $this->isElement($field, self::TEXT_NS, 'variable-input')) {
@@ -6771,6 +6776,42 @@ final class OdfReader
             if (!array_key_exists($key, $metadata) || $metadata[$key] === null || $metadata[$key] === '') {
                 $metadata[$key] = $declaration[$key];
             }
+        }
+        $metadata['declared'] = true;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function fieldMetadataWithSequenceDeclaration(array $metadata): array
+    {
+        $name = (string) ($metadata['name'] ?? '');
+        if ($name === '') {
+            return $metadata;
+        }
+
+        $sequenceDeclarations = $this->contentDeclarations['sequenceDeclarations'] ?? [];
+        if (!is_array($sequenceDeclarations)) {
+            return $metadata;
+        }
+
+        $declaration = $sequenceDeclarations[$name] ?? null;
+        if (!is_array($declaration)) {
+            return $metadata;
+        }
+
+        if (array_key_exists('displayOutlineLevel', $declaration)
+            && $declaration['displayOutlineLevel'] !== null
+            && $declaration['displayOutlineLevel'] !== '') {
+            $metadata['sequenceDisplayOutlineLevel'] = $declaration['displayOutlineLevel'];
+        }
+        if (array_key_exists('separationCharacter', $declaration)
+            && $declaration['separationCharacter'] !== null
+            && $declaration['separationCharacter'] !== '') {
+            $metadata['sequenceSeparationCharacter'] = $declaration['separationCharacter'];
         }
         $metadata['declared'] = true;
 
