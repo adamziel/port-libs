@@ -517,6 +517,36 @@ TPL;
         ]), $output);
     },
 
+    'does not indent empty lines from nested pandoc doctemplate values' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $automatic = $renderer->render(<<<'TPL'
+<section class="wp-import-body">
+  $body$
+</section>
+TPL, [
+            'body' => "<!-- wp:paragraph --><p>First block.</p><!-- /wp:paragraph -->\n\n<!-- wp:paragraph --><p>Second block.</p><!-- /wp:paragraph -->",
+        ]);
+
+        $t->same(implode("\n", [
+            '<section class="wp-import-body">',
+            '  <!-- wp:paragraph --><p>First block.</p><!-- /wp:paragraph -->',
+            '',
+            '  <!-- wp:paragraph --><p>Second block.</p><!-- /wp:paragraph -->',
+            '</section>',
+        ]), $automatic);
+
+        $explicit = $renderer->render('<p>$^$Note: $note$</p>', [
+            'note' => "First review line\n\nSecond review line",
+        ]);
+
+        $t->same(implode("\n", [
+            '<p>Note: First review line',
+            '',
+            '   Second review line</p>',
+        ]), $explicit);
+    },
+
     'automatically nests CR-only pandoc doctemplate variable and partial lines' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
         $template = "<section class=\"wp-import-body\">\r  " . '$body$' . "\r  " . '${ review-note() }' . "\r</section>";

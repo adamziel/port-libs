@@ -17998,6 +17998,92 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Section Range Review :: secs. third-fifth</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Section Notice :: sec. metro review</dd>', $blocks);
     },
+    'pluralizes bounded csl contextual labels for semicolon locator lists' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-list',
+                'type' => 'report',
+                'title' => 'Locator List Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'multi-section',
+                'type' => 'report',
+                'title' => 'Multi Section Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'section' => 'front matter; migration notes',
+            ],
+            [
+                'id' => 'single-section',
+                'type' => 'article-newspaper',
+                'title' => 'Single Section Notice',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'section' => 'metro review',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Contextual Label List Review</title>
+    <id>https://example.test/styles/bounded-contextual-label-list-review</id>
+    <updated>2026-06-09T01:32:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+        <group delimiter=" ">
+          <label variable="locator" form="short" plural="contextual"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="section" form="short" plural="contextual"/>
+        <text variable="section"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationLocatorLabel = $summary['citationRendering'][0]['children'][2]['children'][0] ?? [];
+        $bibliographySectionLabel = $summary['bibliographyRendering'][1]['children'][0] ?? [];
+        $t->same('Bounded Contextual Label List Review', $summary['title'] ?? null);
+        $t->same('contextual', $citationLocatorLabel['plural'] ?? null);
+        $t->same('contextual', $bibliographySectionLabel['plural'] ?? null);
+
+        $t->same('(Smith 2024 s.vv. migration; media; Smith 2024 s.v. migration; Smith 2024 pp. 3; 4)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'locator-list', 'text' => '[@locator-list]', 'locatorLabel' => 'sub-verbo', 'locatorValue' => 'migration; media']),
+            new AstNode('citation', ['id' => 'locator-list', 'text' => '[@locator-list]', 'locatorLabel' => 'sub-verbo', 'locatorValue' => 'migration']),
+            new AstNode('citation', ['id' => 'locator-list', 'text' => '[@locator-list]', 'locatorLabel' => 'page', 'locatorValue' => '3; 4']),
+        ]));
+        $t->same('Multi Section Packet :: secs. front matter; migration notes', $processor->renderBibliographyEntry('multi-section'));
+        $t->same('Single Section Notice :: sec. metro review', $processor->renderBibliographyEntry('single-section'));
+
+        $document = (new MarkdownReader())->read('Section labels [@multi-section; @single-section] stay contextual.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Section labels (Ng 2026; Roe 2025) stay contextual.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Multi Section Packet :: secs. front matter; migration notes</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Single Section Notice :: sec. metro review</dd>', $blocks);
+    },
     'renders bounded csl source variables for bibliography provenance' => static function (TestRunner $t): void {
         $items = [
             [

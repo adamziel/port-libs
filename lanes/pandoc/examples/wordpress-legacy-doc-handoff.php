@@ -728,6 +728,33 @@ $chpxFkpPage = $appendFkp($wordDocument, 3);
 $revisionMarkGrpprl = $u16(0x0801) . "\x01"
     . $u16(0x4804) . $u16(1)
     . $u16(0x6805) . $u32($dttm(2024, 4, 7, 8, 9, 0));
+$paragraphRevisionGrpprl = $u16(0xc66f) . chr(7) . chr(1)
+    . $u16(1)
+    . $u32($dttm(2024, 4, 6, 7, 8, 0));
+$paragraphPapxPayload = $u16(0) . $paragraphRevisionGrpprl;
+$papxRevisionOffset = $papxFkpPage * 512;
+$papxRevisionRecordOffset = 480;
+$papxBxOffset = (2 + 1) * 4;
+$wordDocument = substr_replace(
+    $wordDocument,
+    $u32($firstPieceStart)
+        . $u32($mainTextByteEnd)
+        . $u32($mainTextByteEnd + 2),
+    $papxRevisionOffset,
+    12
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    chr(intdiv($papxRevisionRecordOffset, 2)),
+    $papxRevisionOffset + $papxBxOffset,
+    1
+);
+$wordDocument = substr_replace(
+    $wordDocument,
+    "\0" . chr(intdiv(strlen($paragraphPapxPayload), 2)) . $paragraphPapxPayload,
+    $papxRevisionOffset + $papxRevisionRecordOffset,
+    2 + strlen($paragraphPapxPayload)
+);
 $chpxRevisionOffset = $chpxFkpPage * 512;
 $chpxRevisionRecordOffset = 80;
 $wordDocument = substr_replace(
@@ -2098,8 +2125,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['formattingRuns'][0]['canApplyFormatting'] ?? null) !== false) {
         throw new RuntimeException('Legacy DOC handoff self-test should keep full SPRM formatting expansion disabled');
     }
-    if (($summary['metadata']['revisionMarkedFormattingRunCount'] ?? null) !== 1 || ($summary['metadata']['formattingRevisionPolicy'] ?? '') !== 'metadata-only-native-review') {
-        throw new RuntimeException('Legacy DOC handoff self-test missing CHPX revision-mark formatting metadata');
+    if (($summary['metadata']['revisionMarkedFormattingRunCount'] ?? null) !== 2 || ($summary['metadata']['formattingRevisionPolicy'] ?? '') !== 'metadata-only-native-review') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing revision-mark formatting metadata');
+    }
+    $paragraphRevisionMark = $summary['formattingRuns'][0]['revisionMarks'][0] ?? [];
+    if (($paragraphRevisionMark['type'] ?? '') !== 'paragraph-property' || ($paragraphRevisionMark['source'] ?? '') !== 'PapxFkp') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing PAPX paragraph property revision metadata');
+    }
+    if (($paragraphRevisionMark['authorName'] ?? '') !== 'Migration Lead' || ($paragraphRevisionMark['authorSourceTable'] ?? '') !== 'SttbfRMark') {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SttbfRMark-linked PAPX revision author');
+    }
+    if (($paragraphRevisionMark['timestamp'] ?? '') !== '2024-04-06T07:08:00' || ($paragraphRevisionMark['canApplyRevision'] ?? null) !== false) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing metadata-only PAPX revision timestamp');
     }
     $formattingRevisionMark = $summary['formattingRuns'][1]['revisionMarks'][0] ?? [];
     if (($formattingRevisionMark['type'] ?? '') !== 'inserted' || ($formattingRevisionMark['authorName'] ?? '') !== 'Migration Lead') {
@@ -2110,6 +2147,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (str_contains($summary['wordpressBlocks'], '2024-04-07T08:09:00')) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered CHPX revision metadata into blocks');
+    }
+    if (str_contains($summary['wordpressBlocks'], '2024-04-06T07:08:00')) {
+        throw new RuntimeException('Legacy DOC handoff self-test rendered PAPX revision metadata into blocks');
     }
     if (($summary['metadata']['listFormatCount'] ?? null) !== 2 || ($summary['metadata']['listLevelCount'] ?? null) !== 2) {
         throw new RuntimeException('Legacy DOC handoff self-test missing list format/level counts');

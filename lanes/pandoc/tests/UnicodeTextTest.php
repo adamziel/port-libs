@@ -933,6 +933,7 @@ return [
     },
     'detects unicode byte order marks before declared charset labels' => static function (TestRunner $t) use ($utf32le): void {
         $utf8 = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=windows-1252><p>x</p>", 'text/html; charset=windows-1252');
+        $utf8Matched = UnicodeText::declaredCharset("\xEF\xBB\xBF<meta charset=utf-8><p>x</p>", 'text/html; charset=UTF-8');
         $utf16 = UnicodeText::declaredCharset("\xFE\xFF\x00<\x00?\x00x\x00m\x00l encoding=\"windows-1252\"?>");
         $utf32 = UnicodeText::declaredCharset("\xFF\xFE\x00\x00" . $utf32le([0x003c, 0x006d, 0x0065, 0x0074, 0x0061]));
         $decoded = UnicodeText::decodeBytes("\xEF\xBB\xBF# Bom\n\nSource", $utf8['encoding']);
@@ -941,7 +942,15 @@ return [
         $t->same('utf-8', $utf8['label']);
         $t->same('utf-8', $utf8['encoding']);
         $t->same(0, $utf8['offset']);
-        $t->same([], $utf8['diagnostics']);
+        $t->same([
+            'ignored-content-type-charset:windows-1252',
+            'ignored-html-meta-charset:windows-1252',
+        ], $utf8['diagnostics']);
+        $t->same('byte-order-mark', $utf8Matched['source']);
+        $t->same('utf-8', $utf8Matched['encoding']);
+        $t->same('utf-8', $utf8Matched['label']);
+        $t->same(0, $utf8Matched['offset']);
+        $t->same([], $utf8Matched['diagnostics']);
         $t->same('byte-order-mark', $utf16['source']);
         $t->same('utf-16be', $utf16['encoding']);
         $t->same('utf-16be', $utf16['label']);

@@ -180,13 +180,18 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             $flags |= 0x0008;
         }
         $diskStart = (int) ($entry['diskStart'] ?? 0);
+        $centralExtra = (string) ($entry['centralExtra'] ?? $entry['extra'] ?? '');
+        $localExtra = (string) ($entry['localExtra'] ?? $entry['extra'] ?? '');
 
         $payload = $method === 8 ? gzdeflate($data) : $data;
         $crc32 = (int) sprintf('%u', crc32($data));
         $localHeaderOffset = strlen($body);
-        $localCrc32 = $descriptor ? 0 : $crc32;
-        $localCompressedSize = $descriptor ? 0 : strlen($payload);
-        $localUncompressedSize = $descriptor ? 0 : strlen($data);
+        $localCrc32 = (int) ($entry['localCrc32'] ?? ($descriptor ? 0 : $crc32));
+        $localCompressedSize = (int) ($entry['localCompressedSize'] ?? ($descriptor ? 0 : strlen($payload)));
+        $localUncompressedSize = (int) ($entry['localUncompressedSize'] ?? ($descriptor ? 0 : strlen($data)));
+        $centralCompressedSize = (int) ($entry['centralCompressedSize'] ?? strlen($payload));
+        $centralUncompressedSize = (int) ($entry['centralUncompressedSize'] ?? strlen($data));
+        $centralLocalHeaderOffset = (int) ($entry['centralLocalHeaderOffset'] ?? $localHeaderOffset);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -200,8 +205,8 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             $localCompressedSize,
             $localUncompressedSize,
             strlen($name),
-            0
-        ) . $name . $payload;
+            strlen($localExtra)
+        ) . $name . $localExtra . $payload;
 
         if ($descriptor) {
             if ((bool) ($entry['descriptorSignature'] ?? true)) {
@@ -224,16 +229,16 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             0,
             0,
             $crc32,
-            strlen($payload),
-            strlen($data),
+            $centralCompressedSize,
+            $centralUncompressedSize,
             strlen($name),
-            0,
+            strlen($centralExtra),
             0,
             $diskStart,
             0,
             0,
-            $localHeaderOffset
-        ) . $name;
+            $centralLocalHeaderOffset
+        ) . $name . $centralExtra;
     }
 
     return $body
@@ -919,6 +924,41 @@ try {
     ZipPackage::fromString($zip64EocdZipBytes);
 } catch (RuntimeException) {
     $zip64EocdExtractionBlocked = true;
+}
+$zip64ExtraFieldDocumentXml = '<w:document><w:body><w:p>ZIP64 extra field archive stream review</w:p></w:body></w:document>';
+$zip64ExtraFieldDocumentCompressed = gzdeflate($zip64ExtraFieldDocumentXml);
+$zip64ExtraFieldCentralValues = $packZip64UInt64(strlen($zip64ExtraFieldDocumentXml))
+    . $packZip64UInt64(strlen($zip64ExtraFieldDocumentCompressed))
+    . $packZip64UInt64(0)
+    . pack('V', 0);
+$zip64ExtraFieldCentralExtra = pack('vv', 0x0001, strlen($zip64ExtraFieldCentralValues)) . $zip64ExtraFieldCentralValues;
+$zip64ExtraFieldZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => 'word/document.xml',
+        'data' => $zip64ExtraFieldDocumentXml,
+        'compressionMethod' => 8,
+        'centralCompressedSize' => 0xffffffff,
+        'centralUncompressedSize' => 0xffffffff,
+        'centralLocalHeaderOffset' => 0xffffffff,
+        'diskStart' => 0xffff,
+        'centralExtra' => $zip64ExtraFieldCentralExtra,
+    ],
+], 'zip64 extra field review fixture');
+$zip64ExtraFieldZipGzip = GzipStream::build($zip64ExtraFieldZipBytes, [
+    'filename' => 'wordpress-zip64-extra-package.zip',
+    'comment' => 'ZIP64 extra field preflight fixture',
+    'headerCrc' => true,
+]);
+$zip64ExtraFieldInspection = ArchiveCompressionStream::inspectZip64ExtraFieldPolicy(
+    $zip64ExtraFieldZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($zip64ExtraFieldZipBytes)
+);
+$zip64ExtraFieldExtractionBlocked = false;
+try {
+    ZipPackage::fromString($zip64ExtraFieldZipBytes);
+} catch (RuntimeException) {
+    $zip64ExtraFieldExtractionBlocked = true;
 }
 $splitZipBytes = $zipDescriptorFixtureBytes([
     [
@@ -1723,6 +1763,22 @@ if (in_array('--self-test', $argv, true)) {
         'zip64EocdEocdCentralDirectorySize' => 0xffffffff,
         'zip64EocdEocdCentralDirectoryOffset' => 0xffffffff,
         'zip64EocdGzipFilename' => 'wordpress-zip64-eocd-package.zip',
+        'zip64ExtraFieldFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zip64ExtraFieldEntryCount' => 1,
+        'zip64ExtraFieldZip64Count' => 1,
+        'zip64ExtraFieldCentralCount' => 1,
+        'zip64ExtraFieldLocalCount' => 0,
+        'zip64ExtraFieldRequiresZip64Count' => 1,
+        'zip64ExtraFieldSupportedByBoundedReader' => false,
+        'zip64ExtraFieldIssues' => ['zip64-extra-field', 'zip64-size-or-offset-sentinel'],
+        'zip64ExtraFieldNames' => ['word/document.xml'],
+        'zip64ExtraFieldRequiredFields' => [
+            'uncompressedSize',
+            'compressedSize',
+            'localHeaderOffset',
+            'diskStart',
+        ],
+        'zip64ExtraFieldGzipFilename' => 'wordpress-zip64-extra-package.zip',
         'zipSplitFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipSplitEntryCount' => 3,
         'zipSplitDiskNumber' => 1,
@@ -2248,6 +2304,32 @@ if (in_array('--self-test', $argv, true)) {
         || $zip64EocdInspection['eocdCentralDirectoryOffset'] !== $expected['zip64EocdEocdCentralDirectoryOffset']
         || ($zip64EocdInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64EocdGzipFilename']
         || !$zip64EocdExtractionBlocked
+        || $zip64ExtraFieldInspection['format'] !== $expected['zip64ExtraFieldFormat']
+        || $zip64ExtraFieldInspection['zipBytes'] !== $zip64ExtraFieldZipBytes
+        || $zip64ExtraFieldInspection['packageByteSize'] !== strlen($zip64ExtraFieldZipBytes)
+        || $zip64ExtraFieldInspection['entryCount'] !== $expected['zip64ExtraFieldEntryCount']
+        || $zip64ExtraFieldInspection['zip64ExtraFieldEntryCount'] !== $expected['zip64ExtraFieldZip64Count']
+        || $zip64ExtraFieldInspection['centralZip64ExtraFieldEntryCount'] !== $expected['zip64ExtraFieldCentralCount']
+        || $zip64ExtraFieldInspection['localZip64ExtraFieldEntryCount'] !== $expected['zip64ExtraFieldLocalCount']
+        || $zip64ExtraFieldInspection['requiresZip64EntryCount'] !== $expected['zip64ExtraFieldRequiresZip64Count']
+        || $zip64ExtraFieldInspection['mismatchedLocalHeaderEntryCount'] !== 0
+        || $zip64ExtraFieldInspection['isSupportedByBoundedReader'] !== $expected['zip64ExtraFieldSupportedByBoundedReader']
+        || $zip64ExtraFieldInspection['issues'] !== $expected['zip64ExtraFieldIssues']
+        || array_column($zip64ExtraFieldInspection['entries'], 'name') !== $expected['zip64ExtraFieldNames']
+        || array_column($zip64ExtraFieldInspection['zip64Entries'], 'name') !== $expected['zip64ExtraFieldNames']
+        || ($zip64ExtraFieldInspection['entries'][0]['centralZip64RequiredFields'] ?? []) !== $expected['zip64ExtraFieldRequiredFields']
+        || ($zip64ExtraFieldInspection['entries'][0]['centralZip64Values']['uncompressedSize'] ?? null) !== strlen($zip64ExtraFieldDocumentXml)
+        || ($zip64ExtraFieldInspection['entries'][0]['centralZip64Values']['compressedSize'] ?? null) !== strlen($zip64ExtraFieldDocumentCompressed)
+        || ($zip64ExtraFieldInspection['entries'][0]['centralZip64Values']['localHeaderOffset'] ?? null) !== 0
+        || ($zip64ExtraFieldInspection['entries'][0]['centralZip64Values']['diskStart'] ?? null) !== 0
+        || ($zip64ExtraFieldInspection['entries'][0]['localHeaderOffsetSource'] ?? null) !== 'zip64-extra-field'
+        || ($zip64ExtraFieldInspection['entries'][0]['centralCompressedSize'] ?? null) !== 0xffffffff
+        || ($zip64ExtraFieldInspection['entries'][0]['centralUncompressedSize'] ?? null) !== 0xffffffff
+        || ($zip64ExtraFieldInspection['entries'][0]['centralLocalHeaderOffset'] ?? null) !== 0xffffffff
+        || ($zip64ExtraFieldInspection['entries'][0]['centralDiskStart'] ?? null) !== 0xffff
+        || ($zip64ExtraFieldInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zip64ExtraFieldGzipFilename']
+        || isset($zip64ExtraFieldInspection['package'])
+        || !$zip64ExtraFieldExtractionBlocked
         || $splitZipInspection['format'] !== $expected['zipSplitFormat']
         || $splitZipInspection['zipBytes'] !== $splitZipBytes
         || $splitZipInspection['packageByteSize'] !== strlen($splitZipBytes)
@@ -2697,6 +2779,14 @@ echo 'zip64Eocd.entryCount=' . $zip64EocdInspection['totalEntryCount'] . "\n";
 echo 'zip64Eocd.eocdSentinels=' . $zip64EocdInspection['eocdTotalEntryCount'] . ':' . $zip64EocdInspection['eocdCentralDirectorySize'] . ':' . $zip64EocdInspection['eocdCentralDirectoryOffset'] . "\n";
 echo 'zip64Eocd.gzipFilename=' . $zip64EocdInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zip64Eocd.extractionBlocked=' . ($zip64EocdExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zip64ExtraField.format=' . $zip64ExtraFieldInspection['format'] . "\n";
+echo 'zip64ExtraField.entryCount=' . $zip64ExtraFieldInspection['entryCount'] . "\n";
+echo 'zip64ExtraField.zip64Count=' . $zip64ExtraFieldInspection['zip64ExtraFieldEntryCount'] . "\n";
+echo 'zip64ExtraField.requiresZip64Count=' . $zip64ExtraFieldInspection['requiresZip64EntryCount'] . "\n";
+echo 'zip64ExtraField.issues=' . implode(',', $zip64ExtraFieldInspection['issues']) . "\n";
+echo 'zip64ExtraField.requiredFields=' . implode(',', $zip64ExtraFieldInspection['entries'][0]['centralZip64RequiredFields']) . "\n";
+echo 'zip64ExtraField.gzipFilename=' . $zip64ExtraFieldInspection['stream']['members'][0]['filename'] . "\n";
+echo 'zip64ExtraField.extractionBlocked=' . ($zip64ExtraFieldExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'zipSplit.format=' . $splitZipInspection['format'] . "\n";
 echo 'zipSplit.entryCount=' . $splitZipInspection['entryCount'] . "\n";
 echo 'zipSplit.issues=' . implode(',', $splitZipInspection['issues']) . "\n";

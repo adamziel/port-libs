@@ -84,6 +84,7 @@ final class LegacyDocReader
     private const SPRM_CDTTM_RMARK = 0x6805;
     private const SPRM_CIBST_RMARK_DEL = 0x4863;
     private const SPRM_CDTTM_RMARK_DEL = 0x6864;
+    private const SPRM_P_PROP_RMARK = 0xc66f;
     private const FIB_RGLW97_CB_MAC = 0x0040;
     private const FIB_RGLW97_RESERVED3 = 0x0058;
     private const FIB_RGLW97_CCP_FIELDS = [
@@ -8364,6 +8365,22 @@ final class LegacyDocReader
                         $run['pictureDataExtractionPolicy'] = 'metadata-only-native-review';
                     }
                 }
+            } elseif ($kind === 'paragraph') {
+                $papx = $this->papxGrpprlForRun(
+                    $wordDocument,
+                    $fkpByteOffset,
+                    $fcs[$index],
+                    $fcs[$index + 1]
+                );
+                if ($papx !== null) {
+                    $run['paragraphStyleIndex'] = $papx['styleIndex'];
+                    $revisionMarks = $this->parsePapxPropertyRevisionMarks($papx['grpprl'], $revisionAuthors);
+                    if ($revisionMarks !== []) {
+                        $run['revisionMarks'] = $revisionMarks;
+                        $run['revisionMarkCount'] = count($revisionMarks);
+                        $run['revisionExtractionPolicy'] = 'metadata-only-native-review';
+                    }
+                }
             }
 
             $runs[] = $run;
@@ -8416,6 +8433,69 @@ final class LegacyDocReader
             }
 
             return substr($page, $chpxByteOffset + 1, $grpprlLength);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{styleIndex:int,grpprl:string}|null
+     */
+    private function papxGrpprlForRun(
+        string $wordDocument,
+        int $fkpByteOffset,
+        int $startFc,
+        int $endFc
+    ): ?array {
+        $page = substr($wordDocument, $fkpByteOffset, 512);
+        $runCount = ord($page[511]);
+        if ($runCount === 0) {
+            return null;
+        }
+        if ($runCount > 0x1d) {
+            throw new \RuntimeException('Legacy DOC PapxFkp formatting metadata has too many runs');
+        }
+
+        $bxOffset = ($runCount + 1) * 4;
+        $bxByteCount = $runCount * 13;
+        if ($bxOffset + $bxByteCount > 511) {
+            throw new \RuntimeException('Legacy DOC PapxFkp formatting metadata has an invalid BX offset');
+        }
+
+        for ($index = 0; $index < $runCount; $index++) {
+            $fkpStartFc = self::u32($page, $index * 4);
+            $fkpEndFc = self::u32($page, ($index + 1) * 4);
+            if ($fkpStartFc !== $startFc || $fkpEndFc !== $endFc) {
+                continue;
+            }
+
+            $papxByteOffset = ord($page[$bxOffset + ($index * 13)]) * 2;
+            if ($papxByteOffset === 0) {
+                return null;
+            }
+            if ($papxByteOffset < $bxOffset + $bxByteCount || $papxByteOffset >= 511) {
+                throw new \RuntimeException('Legacy DOC PapxFkp formatting metadata points outside its PAPX area');
+            }
+
+            $cb = ord($page[$papxByteOffset]);
+            if ($cb === 0) {
+                if ($papxByteOffset + 2 > 511) {
+                    throw new \RuntimeException('Legacy DOC PapxFkp formatting metadata PAPX has a truncated extended size');
+                }
+                $payloadStart = $papxByteOffset + 2;
+                $payloadByteCount = ord($page[$papxByteOffset + 1]) * 2;
+            } else {
+                $payloadStart = $papxByteOffset + 1;
+                $payloadByteCount = ($cb * 2) - 1;
+            }
+            if ($payloadByteCount < 2 || $payloadStart + $payloadByteCount > 511) {
+                throw new \RuntimeException('Legacy DOC PapxFkp formatting metadata PAPX points outside the FKP page');
+            }
+
+            return [
+                'styleIndex' => self::u16($page, $payloadStart),
+                'grpprl' => substr($page, $payloadStart + 2, $payloadByteCount - 2),
+            ];
         }
 
         return null;
@@ -8521,6 +8601,76 @@ final class LegacyDocReader
             }
             if (array_key_exists('timestamp', $state)) {
                 $record['timestamp'] = $state['timestamp'];
+            }
+
+            $marks[] = $record;
+        }
+
+        return $marks;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $revisionAuthors
+     * @return list<array<string,mixed>>
+     */
+    private function parsePapxPropertyRevisionMarks(string $grpprl, array $revisionAuthors): array
+    {
+        $length = strlen($grpprl);
+        $cursor = 0;
+        $marks = [];
+
+        while ($cursor < $length) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC PAPX revision metadata contains a truncated SPRM');
+            }
+
+            $sprm = self::u16($grpprl, $cursor);
+            $cursor += 2;
+            $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
+            if ($cursor + $operandByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC PAPX revision metadata contains a truncated SPRM operand');
+            }
+
+            $operandOffset = $cursor;
+            $cursor += $operandByteCount;
+            if ($sprm !== self::SPRM_P_PROP_RMARK) {
+                continue;
+            }
+            if ($operandByteCount !== 8 || ord($grpprl[$operandOffset]) !== 7) {
+                throw new \RuntimeException('Legacy DOC PAPX property revision mark operand must be 7 bytes');
+            }
+
+            $active = ord($grpprl[$operandOffset + 1]);
+            if ($active !== 0 && $active !== 1) {
+                throw new \RuntimeException('Legacy DOC PAPX property revision mark active flag is invalid');
+            }
+            if ($active === 0) {
+                continue;
+            }
+
+            $authorIndex = self::signed16(self::u16($grpprl, $operandOffset + 2));
+            if ($authorIndex < 0) {
+                throw new \RuntimeException('Legacy DOC PAPX property revision mark contains a negative author index');
+            }
+
+            $record = [
+                'type' => 'paragraph-property',
+                'source' => 'PapxFkp',
+                'sourceSprms' => ['sprmPPropRMark'],
+                'authorIndex' => $authorIndex,
+                'timestamp' => $this->readDttmFromValue(
+                    self::u32($grpprl, $operandOffset + 4),
+                    'Legacy DOC PAPX property revision mark contains an invalid DTTM timestamp'
+                ),
+                'canApplyRevision' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ];
+            if ($revisionAuthors !== []) {
+                if (!isset($revisionAuthors[$authorIndex]) || !isset($revisionAuthors[$authorIndex]['name'])) {
+                    throw new \RuntimeException('Legacy DOC PAPX property revision mark author index is outside SttbfRMark');
+                }
+                $record['authorName'] = (string) $revisionAuthors[$authorIndex]['name'];
+                $record['authorSourceTable'] = 'SttbfRMark';
             }
 
             $marks[] = $record;

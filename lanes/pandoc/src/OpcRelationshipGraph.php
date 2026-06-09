@@ -4050,7 +4050,7 @@ final class OpcRelationshipGraph
                 continue;
             }
 
-            if ($child->localName === 'RelationshipGroupReference') {
+            if ($child->localName === 'RelationshipsGroupReference') {
                 $selectorRelationshipGroupReferenceCount++;
                 $issues = array_merge($issues, self::relationshipTransformSelectorShapeIssues($child, ['SourceType']));
                 $sourceType = $child->getAttribute('SourceType');

@@ -3831,7 +3831,12 @@ final class UnicodeText
     {
         $bomInfo = self::byteOrderMarkEncoding($bytes);
         if ($bomInfo !== null) {
-            return self::declaredCharsetResult($bomInfo['encoding'], 'byte-order-mark', 0);
+            return self::declaredCharsetResult(
+                $bomInfo['encoding'],
+                'byte-order-mark',
+                0,
+                self::ignoredBomCharsetDiagnostics($bytes, $contentType, $bomInfo['encoding'], $bomInfo['length'])
+            );
         }
 
         if ($contentType !== null) {
@@ -3841,38 +3846,9 @@ final class UnicodeText
             }
         }
 
-        $probe = substr($bytes, 0, 4096);
-        if (preg_match('/<\?xml\b[^>]{0,512}\bencoding\s*=\s*(?:"([^"]+)"|\'([^\']+)\')/i', $probe, $matches, PREG_OFFSET_CAPTURE) === 1) {
-            $label = $matches[1][1] >= 0 ? $matches[1][0] : $matches[2][0];
-            $offset = $matches[1][1] >= 0 ? $matches[1][1] : $matches[2][1];
-
-            return self::declaredCharsetResult($label, 'xml-declaration', $offset);
-        }
-
-        if (preg_match_all('/<meta\b[^>]{0,1024}>/i', $probe, $metaMatches, PREG_OFFSET_CAPTURE) > 0) {
-            foreach ($metaMatches[0] as [$tag, $tagOffset]) {
-                $attribute = self::htmlAttributeValue($tag, 'charset');
-                if ($attribute !== null) {
-                    return self::declaredCharsetResult($attribute['value'], 'html-meta-charset', $tagOffset + $attribute['offset']);
-                }
-            }
-
-            foreach ($metaMatches[0] as [$tag, $tagOffset]) {
-                $httpEquiv = self::htmlAttributeValue($tag, 'http-equiv');
-                if ($httpEquiv === null || strtolower(trim($httpEquiv['value'])) !== 'content-type') {
-                    continue;
-                }
-
-                $content = self::htmlAttributeValue($tag, 'content');
-                if ($content === null) {
-                    continue;
-                }
-
-                $candidate = self::contentTypeCharsetCandidate($content['value']);
-                if ($candidate !== null) {
-                    return self::declaredCharsetResult($candidate['label'], 'html-meta-http-equiv', $tagOffset + $content['offset'] + $candidate['offset']);
-                }
-            }
+        $candidate = self::inDocumentCharsetCandidate($bytes);
+        if ($candidate !== null) {
+            return self::declaredCharsetResult($candidate['label'], $candidate['source'], $candidate['offset']);
         }
 
         return [
@@ -4483,6 +4459,89 @@ final class UnicodeText
     }
 
     /**
+     * @return list<string>
+     */
+    private static function ignoredBomCharsetDiagnostics(string $bytes, ?string $contentType, string $bomEncoding, int $bomLength): array
+    {
+        $diagnostics = [];
+        if ($contentType !== null) {
+            $candidate = self::contentTypeCharsetCandidate($contentType);
+            if ($candidate !== null && self::isIgnoredBomCharsetLabel($candidate['label'], $bomEncoding)) {
+                $diagnostics[] = 'ignored-content-type-charset:' . $candidate['label'];
+            }
+        }
+
+        if ($bomEncoding === 'utf-8') {
+            $candidate = self::inDocumentCharsetCandidate($bytes, $bomLength);
+            if ($candidate !== null && self::isIgnoredBomCharsetLabel($candidate['label'], $bomEncoding)) {
+                $diagnostics[] = 'ignored-' . $candidate['source'] . ':' . $candidate['label'];
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    private static function isIgnoredBomCharsetLabel(string $label, string $bomEncoding): bool
+    {
+        $encoding = self::normalizeEncoding($label);
+
+        return $encoding !== $bomEncoding
+            || ($encoding === 'utf-8' && !self::isExplicitUtf8EncodingLabel($label));
+    }
+
+    /**
+     * @return array{label:string, source:string, offset:int}|null
+     */
+    private static function inDocumentCharsetCandidate(string $bytes, int $baseOffset = 0): ?array
+    {
+        $probe = substr($bytes, $baseOffset, 4096);
+        if (preg_match('/<\?xml\b[^>]{0,512}\bencoding\s*=\s*(?:"([^"]+)"|\'([^\']+)\')/i', $probe, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            $label = $matches[1][1] >= 0 ? $matches[1][0] : $matches[2][0];
+            $offset = $matches[1][1] >= 0 ? $matches[1][1] : $matches[2][1];
+
+            return ['label' => $label, 'source' => 'xml-declaration', 'offset' => $baseOffset + $offset];
+        }
+
+        if (preg_match_all('/<meta\b[^>]{0,1024}>/i', $probe, $metaMatches, PREG_OFFSET_CAPTURE) <= 0) {
+            return null;
+        }
+
+        foreach ($metaMatches[0] as [$tag, $tagOffset]) {
+            $attribute = self::htmlAttributeValue($tag, 'charset');
+            if ($attribute !== null) {
+                return [
+                    'label' => $attribute['value'],
+                    'source' => 'html-meta-charset',
+                    'offset' => $baseOffset + $tagOffset + $attribute['offset'],
+                ];
+            }
+        }
+
+        foreach ($metaMatches[0] as [$tag, $tagOffset]) {
+            $httpEquiv = self::htmlAttributeValue($tag, 'http-equiv');
+            if ($httpEquiv === null || strtolower(trim($httpEquiv['value'])) !== 'content-type') {
+                continue;
+            }
+
+            $content = self::htmlAttributeValue($tag, 'content');
+            if ($content === null) {
+                continue;
+            }
+
+            $candidate = self::contentTypeCharsetCandidate($content['value']);
+            if ($candidate !== null) {
+                return [
+                    'label' => $candidate['label'],
+                    'source' => 'html-meta-http-equiv',
+                    'offset' => $baseOffset + $tagOffset + $content['offset'] + $candidate['offset'],
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{value:string, offset:int}|null
      */
     private static function htmlAttributeValue(string $tag, string $name): ?array
@@ -4552,11 +4611,10 @@ final class UnicodeText
     /**
      * @return array{encoding:string|null, label:string|null, source:string|null, offset:int|null, diagnostics:list<string>}
      */
-    private static function declaredCharsetResult(string $label, string $source, int $offset): array
+    private static function declaredCharsetResult(string $label, string $source, int $offset, array $diagnostics = []): array
     {
         $label = trim($label);
         $encoding = self::normalizeEncoding($label);
-        $diagnostics = [];
         if ($encoding === 'utf-8' && !self::isExplicitUtf8EncodingLabel($label)) {
             $diagnostics[] = 'unknown-charset-label-defaulted-to-utf-8';
         }

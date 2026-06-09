@@ -221,6 +221,9 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         $localCompressedSize = (int) ($entry['localCompressedSize'] ?? ($descriptor ? 0 : strlen($payload)));
         $localUncompressedSize = (int) ($entry['localUncompressedSize'] ?? ($descriptor ? 0 : strlen($data)));
         $localHeaderOffset = strlen($body);
+        $centralCompressedSize = (int) ($entry['centralCompressedSize'] ?? strlen($payload));
+        $centralUncompressedSize = (int) ($entry['centralUncompressedSize'] ?? strlen($data));
+        $centralLocalHeaderOffset = (int) ($entry['centralLocalHeaderOffset'] ?? $localHeaderOffset);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -271,15 +274,15 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
             0,
             0,
             $crc32,
-            strlen($payload),
-            strlen($data),
+            $centralCompressedSize,
+            $centralUncompressedSize,
             strlen($name),
             strlen($centralExtra),
             strlen($comment),
             $diskStart,
             0,
             (int) ($entry['externalAttributes'] ?? 0),
-            $localHeaderOffset
+            $centralLocalHeaderOffset
         ) . $name . $centralExtra . $comment;
     }
 
@@ -4595,6 +4598,159 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZip64EndOfCentralDirectoryPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip64 extra fields across compressed archive streams before package exposure' => static function (TestRunner $t) use ($zipFixtureBytes, $packZip64UInt64): void {
+        $documentXml = '<w:document><w:body><w:p>ZIP64 extra field archive stream</w:p></w:body></w:document>';
+        $documentDeflated = gzdeflate($documentXml);
+        $centralZip64Values = $packZip64UInt64(strlen($documentXml))
+            . $packZip64UInt64(strlen($documentDeflated))
+            . $packZip64UInt64(0)
+            . pack('V', 0);
+        $centralZip64Extra = pack('vv', 0x0001, strlen($centralZip64Values)) . $centralZip64Values;
+        $localData = "local ZIP64 stream wrapper metadata\n";
+        $localZip64Values = $packZip64UInt64(strlen($localData)) . $packZip64UInt64(strlen($localData));
+        $localZip64Extra = pack('vv', 0x0001, strlen($localZip64Values)) . $localZip64Values;
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 8,
+                'centralVersionNeededToExtract' => 45,
+                'centralCompressedSize' => 0xffffffff,
+                'centralUncompressedSize' => 0xffffffff,
+                'centralLocalHeaderOffset' => 0xffffffff,
+                'diskStart' => 0xffff,
+                'centralExtra' => $centralZip64Extra,
+            ],
+            [
+                'name' => 'word/media/local-size.bin',
+                'data' => $localData,
+                'compressionMethod' => 0,
+                'localVersionNeededToExtract' => 45,
+                'localCompressedSize' => 0xffffffff,
+                'localUncompressedSize' => 0xffffffff,
+                'localExtra' => $localZip64Extra,
+                'centralExtra' => '',
+            ],
+        ], 'zip64 extra field stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-zip64-extra-package.zip',
+                'comment' => 'zip64 extra field preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('zip64 extra reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        $zip64ExtractionBlocked = false;
+        try {
+            ZipPackage::fromString($zipBytes);
+        } catch (\RuntimeException) {
+            $zip64ExtractionBlocked = true;
+        }
+
+        $t->same(true, $zip64ExtractionBlocked);
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZip64ExtraFieldPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(2, $inspection['entryCount']);
+            $t->same(2, $inspection['zip64ExtraFieldEntryCount']);
+            $t->same(1, $inspection['centralZip64ExtraFieldEntryCount']);
+            $t->same(1, $inspection['localZip64ExtraFieldEntryCount']);
+            $t->same(2, $inspection['requiresZip64EntryCount']);
+            $t->same(0, $inspection['mismatchedLocalHeaderEntryCount']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(['zip64-extra-field', 'zip64-size-or-offset-sentinel'], $inspection['issues']);
+            $t->same(['word/document.xml', 'word/media/local-size.bin'], array_column($inspection['entries'], 'name'));
+            $t->same(['word/document.xml', 'word/media/local-size.bin'], array_column($inspection['zip64Entries'], 'name'));
+            $t->same(false, array_key_exists('package', $inspection));
+
+            $centralEntry = $inspection['entries'][0];
+            $t->same(true, $centralEntry['centralZip64ExtraFieldPresent']);
+            $t->same(false, $centralEntry['localZip64ExtraFieldPresent']);
+            $t->same([
+                'uncompressedSize',
+                'compressedSize',
+                'localHeaderOffset',
+                'diskStart',
+            ], $centralEntry['centralZip64RequiredFields']);
+            $t->same([
+                'uncompressedSize' => strlen($documentXml),
+                'compressedSize' => strlen($documentDeflated),
+                'localHeaderOffset' => 0,
+                'diskStart' => 0,
+            ], $centralEntry['centralZip64Values']);
+            $t->same(0xffffffff, $centralEntry['centralCompressedSize']);
+            $t->same(0xffffffff, $centralEntry['centralUncompressedSize']);
+            $t->same(0xffffffff, $centralEntry['centralLocalHeaderOffset']);
+            $t->same(0xffff, $centralEntry['centralDiskStart']);
+            $t->same('zip64-extra-field', $centralEntry['localHeaderOffsetSource']);
+            $t->same(0, $centralEntry['localHeaderOffset']);
+            $t->same(0, $centralEntry['centralZip64ExtraBytes']);
+            $t->same(['zip64-extra-field', 'zip64-size-or-offset-sentinel'], $centralEntry['issues']);
+
+            $localEntry = $inspection['entries'][1];
+            $t->same(false, $localEntry['centralZip64ExtraFieldPresent']);
+            $t->same(true, $localEntry['localZip64ExtraFieldPresent']);
+            $t->same([], $localEntry['centralZip64RequiredFields']);
+            $t->same([
+                'uncompressedSize',
+                'compressedSize',
+            ], $localEntry['localZip64RequiredFields']);
+            $t->same([
+                'uncompressedSize' => strlen($localData),
+                'compressedSize' => strlen($localData),
+            ], $localEntry['localZip64Values']);
+            $t->same(0xffffffff, $localEntry['localHeaderCompressedSize']);
+            $t->same(0xffffffff, $localEntry['localHeaderUncompressedSize']);
+            $t->same(0, $localEntry['localZip64ExtraBytes']);
+            $t->same(['zip64-extra-field', 'zip64-size-or-offset-sentinel'], $localEntry['issues']);
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZip64ExtraFieldPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZip64ExtraFieldPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-zip64-extra-package.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('zip64 extra field preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('zip64 extra reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZip64ExtraFieldPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)

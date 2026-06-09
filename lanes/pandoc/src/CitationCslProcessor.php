@@ -7605,7 +7605,11 @@ final class CitationCslProcessor
             return false;
         }
 
-        if (preg_match('/\d\s*(?:[-\x{2010}-\x{2015}]|&|,|and)\s*\d/iu', $value) === 1) {
+        if (preg_match('/\d\s*(?:[-\x{2010}-\x{2015}]|&|,|;|and)\s*\d/iu', $value) === 1) {
+            return true;
+        }
+
+        if (preg_match('/\S\s*;\s*\S/u', $value) === 1) {
             return true;
         }
 

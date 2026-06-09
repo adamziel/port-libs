@@ -864,6 +864,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($declaredUtf8Bom['encoding'] ?? '') . ' / ' . ($declaredUtf16Bom['encoding'] ?? '')])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($declaredUtf8Bom['source'] ?? '') . ':' . ($declaredUtf8Bom['offset'] ?? '')])]),
         ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'BOM stale labels'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(', ', $declaredUtf8Bom['diagnostics'] ?? [])])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => (string) count($declaredUtf8Bom['diagnostics'] ?? [])])]),
+        ]),
     ]),
 ]);
 $document = new AstNode('document', $source->attrs, [...$source->children, $table]);
@@ -1360,6 +1365,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Declared BOM</td><td>utf-8 / utf-16be</td><td>byte-order-mark:0</td>')) {
         throw new RuntimeException('charset handoff self-test missing declared BOM audit row');
+    }
+    if (!str_contains($blocks, '<td>BOM stale labels</td><td>ignored-content-type-charset:windows-1252, ignored-html-meta-charset:windows-1252</td><td>2</td>')) {
+        throw new RuntimeException('charset handoff self-test missing stale BOM label diagnostics audit row');
     }
 
     echo "charset unicode handoff self-test ok\n";

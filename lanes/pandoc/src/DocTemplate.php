@@ -6562,7 +6562,31 @@ CSS;
             return $value;
         }
 
-        return preg_replace('/(\r\n|\n|\r)(?!$)/', '$1' . $indent, $value) ?? $value;
+        $output = '';
+        $offset = 0;
+        $length = strlen($value);
+
+        while ($offset < $length) {
+            if (preg_match('/\r\n|\n|\r/', $value, $matches, PREG_OFFSET_CAPTURE, $offset) !== 1) {
+                $output .= substr($value, $offset);
+                break;
+            }
+
+            $lineEnding = $matches[0][0];
+            $lineEndingStart = $matches[0][1];
+            $afterLineEnding = $lineEndingStart + strlen($lineEnding);
+            $output .= substr($value, $offset, $afterLineEnding - $offset);
+
+            if ($afterLineEnding >= $length || $value[$afterLineEnding] === "\n" || $value[$afterLineEnding] === "\r") {
+                $offset = $afterLineEnding;
+                continue;
+            }
+
+            $output .= $indent;
+            $offset = $afterLineEnding;
+        }
+
+        return $output;
     }
 
     /**

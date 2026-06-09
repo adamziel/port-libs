@@ -1606,6 +1606,53 @@ $buildRevisionMarkedFormattingDocStreams = static function (int $insertedAuthorI
     ];
 };
 
+$buildParagraphRevisionMarkedFormattingDocStreams = static function (int $authorIndex = 1) use ($buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32, $dttm): array {
+    $text = "Paragraph property revision\rPlain paragraph\r";
+    $wordDocument = $buildExtendedFibWordDocument($text);
+    $textStartFc = 768;
+    $textEndFc = $textStartFc + strlen($text);
+
+    $papxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $papxFkpOffset = $papxFkpPage * 512;
+    $propertyRevisionGrpprl = $u16(0xc66f) . chr(7) . chr(1)
+        . $u16($authorIndex)
+        . $u32($dttm(2024, 6, 8, 9, 10, 6));
+    $papxPayload = $u16(0) . $propertyRevisionGrpprl;
+    $papxOffset = 480;
+    $papxFkp = str_repeat("\0", 512);
+    $papxFkp = substr_replace(
+        $papxFkp,
+        $u32($textStartFc) . $u32($textEndFc),
+        0,
+        8
+    );
+    $papxFkp = substr_replace($papxFkp, chr(intdiv($papxOffset, 2)), 8, 1);
+    $papxFkp = substr_replace(
+        $papxFkp,
+        "\0" . chr(intdiv(strlen($papxPayload), 2)) . $papxPayload,
+        $papxOffset,
+        2 + strlen($papxPayload)
+    );
+    $papxFkp = substr_replace($papxFkp, chr(1), 511, 1);
+    $wordDocument = str_pad($wordDocument, $papxFkpOffset, "\0") . $papxFkp;
+
+    $plcBtePapx = $u32($textStartFc)
+        . $u32($textEndFc)
+        . $u32($papxFkpPage);
+    $revisionAuthorTable = $sttbUnicode(['Unknown', 'Migration Lead']);
+    $tableStream = $plcBtePapx . $revisionAuthorTable;
+
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x0102, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBtePapx)), 0x0106, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBtePapx)), 0x0232, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($revisionAuthorTable)), 0x0236, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+    ];
+};
+
 $buildPictureDataFormattingDocStreams = static function (int $picLocation = 8) use ($buildSimpleWordDocument, $u16, $u32): array {
     $text = "Inline picture \x01 keeps Data stream provenance\r";
     $pictureCp = strpos($text, "\x01");
@@ -5004,6 +5051,52 @@ return [
         $t->true(!str_contains($markdown, 'Review Editor'), 'Revision authors must stay metadata-only in Markdown');
 
         $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildRevisionMarkedFormattingDocStreams(9))));
+    },
+    'links legacy DOC PAPX paragraph property revision marks to SttbfRMark authors for review' => static function (TestRunner $t) use ($buildCfb, $buildParagraphRevisionMarkedFormattingDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildParagraphRevisionMarkedFormattingDocStreams()));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same($runs, $document->attr('formattingRuns'));
+        $t->same($runs, $metadata['formattingRuns']);
+        $t->same(1, $metadata['formattingRunCount']);
+        $t->same(1, $metadata['paragraphFormattingRunCount']);
+        $t->same(0, $metadata['characterFormattingRunCount']);
+        $t->same(1, $metadata['revisionMarkedFormattingRunCount']);
+        $t->same('metadata-only-native-review', $metadata['formattingRevisionPolicy']);
+        $t->same(2, $metadata['revisionAuthorCount']);
+
+        $t->same('paragraph', $runs[0]['kind']);
+        $t->same('PlcBtePapx', $runs[0]['table']);
+        $t->same(768, $runs[0]['startFc']);
+        $t->same(812, $runs[0]['endFc']);
+        $t->same(1, $runs[0]['fkpRunCount']);
+        $t->same(0, $runs[0]['paragraphStyleIndex']);
+        $t->same(1, $runs[0]['revisionMarkCount']);
+        $t->same('metadata-only-native-review', $runs[0]['revisionExtractionPolicy']);
+
+        $mark = $runs[0]['revisionMarks'][0];
+        $t->same('paragraph-property', $mark['type']);
+        $t->same('PapxFkp', $mark['source']);
+        $t->same(['sprmPPropRMark'], $mark['sourceSprms']);
+        $t->same(1, $mark['authorIndex']);
+        $t->same('Migration Lead', $mark['authorName']);
+        $t->same('SttbfRMark', $mark['authorSourceTable']);
+        $t->same('2024-06-08T09:10:00', $mark['timestamp']);
+        $t->same(false, $mark['canApplyRevision']);
+        $t->same('metadata-only-native-review', $mark['extractionPolicy']);
+
+        $t->contains('<p>Paragraph property revision</p>', $blocks);
+        $t->contains('<p>Plain paragraph</p>', $blocks);
+        $t->contains('Paragraph property revision', $markdown);
+        $t->true(!str_contains($blocks, 'Migration Lead'), 'PAPX revision authors must stay metadata-only in WordPress blocks');
+        $t->true(!str_contains($blocks, '2024-06-08T09:10:00'), 'PAPX revision timestamps must stay metadata-only in WordPress blocks');
+        $t->true(!str_contains($markdown, 'Migration Lead'), 'PAPX revision authors must stay metadata-only in Markdown');
+
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb($buildParagraphRevisionMarkedFormattingDocStreams(9))));
     },
     'rejects malformed legacy DOC formatting table BTE ranges before exposing metadata' => static function (TestRunner $t) use ($buildCfb, $buildFormattingTableDocStreams, $u32): void {
         $reader = new LegacyDocReader();

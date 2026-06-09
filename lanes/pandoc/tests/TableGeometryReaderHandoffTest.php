@@ -2194,4 +2194,96 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table cell background metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="cell-background-grid" data-source="html-reader">
+<caption>Cell background review</caption>
+<thead>
+<tr><th bgcolor="#FFF4CC">Source</th><th>Status</th></tr>
+</thead>
+<tbody>
+<tr><td style="background-color: #e6ffed">Posts</td><td bgcolor="yellow" style="background-color: rgb(230, 255, 237)">Ready</td></tr>
+<tr><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $backgroundDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-background'
+            ));
+            $backgroundDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $backgrounds = is_array($packet['cellBackgrounds'] ?? null) ? $packet['cellBackgrounds'] : [];
+        $t->same(3, count($backgrounds));
+        $t->same(true, $packet['summary']['hasCellBackgrounds'] ?? null);
+        $t->same(3, $packet['summary']['cellBackgroundCount'] ?? null);
+        $t->same([0, 1], $packet['summary']['cellBackgroundColumns'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['cellBackgroundSections'] ?? null);
+        $t->same(['#fff4cc', '#e6ffed', 'rgb(230, 255, 237)'], $packet['summary']['cellBackgroundColors'] ?? null);
+        $t->same(['bgcolor', 'style'], $packet['summary']['cellBackgroundSources'] ?? null);
+
+        $t->same('Source', $backgrounds[0]['text'] ?? null);
+        $t->same(true, $backgrounds[0]['headerCell'] ?? null);
+        $t->same(0, $backgrounds[0]['column'] ?? null);
+        $t->same('#fff4cc', $backgrounds[0]['backgroundColor'] ?? null);
+        $t->same('bgcolor', $backgrounds[0]['backgroundColorSource'] ?? null);
+        $t->same(['bgcolor' => '#fff4cc'], $backgrounds[0]['attributes'] ?? null);
+        $t->same('#FFF4CC', $backgrounds[0]['sourceAttributes']['htmlAttributes']['bgcolor'] ?? null);
+
+        $t->same('Posts', $backgrounds[1]['text'] ?? null);
+        $t->same(0, $backgrounds[1]['column'] ?? null);
+        $t->same('#e6ffed', $backgrounds[1]['backgroundColor'] ?? null);
+        $t->same('style', $backgrounds[1]['backgroundColorSource'] ?? null);
+        $t->same(['background-color' => '#e6ffed'], $backgrounds[1]['attributes'] ?? null);
+        $t->same('background-color: #e6ffed', $backgrounds[1]['sourceAttributes']['htmlAttributes']['style'] ?? null);
+
+        $t->same('Ready', $backgrounds[2]['text'] ?? null);
+        $t->same(1, $backgrounds[2]['column'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[2]['backgroundColor'] ?? null);
+        $t->same('style', $backgrounds[2]['backgroundColorSource'] ?? null);
+        $t->same('yellow', $backgrounds[2]['legacyBackgroundColor'] ?? null);
+        $t->same('rgb(230, 255, 237)', $backgrounds[2]['cssBackgroundColor'] ?? null);
+        $t->same([
+            'background-color' => 'rgb(230, 255, 237)',
+            'bgcolor' => 'yellow',
+        ], $backgrounds[2]['attributes'] ?? null);
+
+        $t->same([
+            'markdown-cell-background-require-raw-html',
+            'asciidoc-cell-background-review-required',
+            'latex-cell-background-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $backgroundDiagnostics['markdown'],
+            $backgroundDiagnostics['asciidoc'],
+            $backgroundDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-cell-background', $backgroundDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-cell-background', $backgroundDiagnostics['markdown']['source'] ?? null);
+        $t->same(3, $backgroundDiagnostics['markdown']['cellCount'] ?? null);
+        $t->same([0, 1], $backgroundDiagnostics['markdown']['columns'] ?? null);
+        $t->same(['head', 'body'], $backgroundDiagnostics['markdown']['sections'] ?? null);
+        $t->same(['#fff4cc', '#e6ffed', 'rgb(230, 255, 237)'], $backgroundDiagnostics['markdown']['colors'] ?? null);
+        $t->same(['bgcolor', 'style'], $backgroundDiagnostics['markdown']['backgroundColorSources'] ?? null);
+
+        $t->contains('<th bgcolor="#FFF4CC">Source</th><th>Status</th>', $blocks);
+        $t->contains('<td style="background-color: #e6ffed">Posts</td><td bgcolor="yellow" style="background-color: rgb(230, 255, 237)">Ready</td>', $blocks);
+        $t->contains('<td>Media</td><td>Review</td>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
 ];

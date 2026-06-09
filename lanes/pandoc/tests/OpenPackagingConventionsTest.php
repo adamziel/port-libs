@@ -2388,7 +2388,7 @@ XML;
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero"/>
-          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
@@ -3655,7 +3655,7 @@ XML;
     <ds:Reference URI="/word/_rels/document.xml.rels">
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
-          <mdssi:RelationshipGroupReference SourceType="officeDocument/relationships/image"/>
+          <mdssi:RelationshipsGroupReference SourceType="officeDocument/relationships/image"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
@@ -3925,7 +3925,7 @@ XML;
         $t->same('https://example.test/source', $roundTrip->resolveTarget('rIdExternalSource'));
         $t->true($roundTrip->byId('rIdExternalSource')?->isExternal() ?? false);
     },
-    'accepts singular OPC relationship group reference selectors in signature transforms' => static function (TestRunner $t): void {
+    'accepts OPC relationships group reference selectors in signature transforms' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -3955,7 +3955,7 @@ XML;
     <ds:Reference URI="/word/_rels/document.xml.rels">
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
-          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/2006/12/xml-c14n11"/>
       </ds:Transforms>
@@ -4114,7 +4114,7 @@ XML;
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero" mdssi:review="bad"><mdssi:Trace/></mdssi:RelationshipReference>
-          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Extra="bad">text</mdssi:RelationshipGroupReference>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Extra="bad">text</mdssi:RelationshipsGroupReference>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
@@ -4155,7 +4155,7 @@ XML;
         $t->contains('Id="rIdHero"', $transforms[0]['relationshipXml']);
         $t->contains('Id="rIdReviewer"', $transforms[0]['relationshipXml']);
     },
-    'rejects plural OPC relationship group reference aliases in signature transforms' => static function (TestRunner $t): void {
+    'rejects singular OPC relationship group reference aliases in signature transforms' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -4163,7 +4163,7 @@ XML;
   <Default Extension="png" ContentType="image/png"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/embeddings/source-workbook.xlsx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
-  <Override PartName="/_xmlsignatures/sig-plural-group-reference.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+  <Override PartName="/_xmlsignatures/sig-singular-group-reference.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
 </Types>
 XML;
 
@@ -4188,8 +4188,8 @@ XML;
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero"/>
-          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
-          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"/>
           selector text
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
@@ -4206,10 +4206,10 @@ XML;
             ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
             ['name' => 'word/media/hero.png', 'data' => 'PNG'],
             ['name' => 'word/embeddings/source-workbook.xlsx', 'data' => 'PK' . "\x03\x04"],
-            ['name' => '_xmlsignatures/sig-plural-group-reference.xml', 'data' => $signatureXml],
+            ['name' => '_xmlsignatures/sig-singular-group-reference.xml', 'data' => $signatureXml],
         ]));
 
-        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-plural-group-reference.xml');
+        $transforms = $graph->preflightSignatureRelationshipTransforms('/_xmlsignatures/sig-singular-group-reference.xml');
 
         $t->same(1, count($transforms));
         $t->same('/word/document.xml', $transforms[0]['source']);
@@ -4267,7 +4267,7 @@ XML;
       <ds:Transforms>
         <ds:Transform Algorithm="http://schemas.openxmlformats.org/package/2006/RelationshipTransform">
           <mdssi:RelationshipReference SourceId="rIdHero"/>
-          <mdssi:RelationshipGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
+          <mdssi:RelationshipsGroupReference SourceType="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"/>
         </ds:Transform>
         <ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
       </ds:Transforms>
@@ -4393,11 +4393,11 @@ XML;
         $t->same(['rIdMissing'], $invalidTransforms[1]['sourceIds']);
         $t->same(2, $invalidTransforms[1]['selectorChildCount']);
         $t->same(1, $invalidTransforms[1]['selectorRelationshipReferenceCount']);
-        $t->same(0, $invalidTransforms[1]['selectorRelationshipGroupReferenceCount']);
-        $t->same(1, $invalidTransforms[1]['selectorUnsupportedChildCount']);
+        $t->same(1, $invalidTransforms[1]['selectorRelationshipGroupReferenceCount']);
+        $t->same(0, $invalidTransforms[1]['selectorUnsupportedChildCount']);
         $t->same(0, $invalidTransforms[1]['selectorUnsupportedContentCount']);
         $t->same([
-            'unsupported-relationship-transform-child',
+            'missing-source-type',
             'unmatched-source-id',
             'multiple-relationship-transforms-for-part',
         ], $invalidTransforms[1]['issues']);

@@ -246,6 +246,19 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $emptyLineNestingPacket = (new DocTemplate())->render(
+        "<section class=\"blank-line-review\">\n  " . '$body$' . "\n</section>\n<p>" . '$^$' . "Note: " . '$note$' . "</p>",
+        [
+            'body' => "<!-- wp:paragraph --><p>First review block.</p><!-- /wp:paragraph -->\n\n"
+                . '<!-- wp:paragraph --><p>Second review block.</p><!-- /wp:paragraph -->',
+            'note' => "First reviewer note\n\nSecond reviewer note",
+        ],
+    );
+    if ($emptyLineNestingPacket !== "<section class=\"blank-line-review\">\n  <!-- wp:paragraph --><p>First review block.</p><!-- /wp:paragraph -->\n\n  <!-- wp:paragraph --><p>Second review block.</p><!-- /wp:paragraph -->\n</section>\n<p>Note: First reviewer note\n\n   Second reviewer note</p>") {
+        fwrite(STDERR, "Unexpected doctemplate empty-line nesting output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);
