@@ -598,17 +598,18 @@
     "language": "PHP",
     "shellOutsAllowedForProgress": false,
     "currentSlice": "pandoc-rich-package-unsupported-extension-registry",
-    "latestSlice": "pandoc-format-registry-wiki-evidence maps one bounded PandocFormatRegistry case for pinned wiki template resources plus reader/writer fixture source evidence. Focused PandocFormatRegistryTest.php coverage adds 43 focused assertions and 1 PHP PASS case; full Pandoc PHP verification passes 42 files / 58475 assertions / 0 failures without running Pandoc, wiki renderers, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
-    "status": "PandocFormatRegistry now exposes wiki upstream evidence packets while keeping direct wiki reader and writer parity unsupported."
+    "latestSlice": "pandoc-epub-reader-nav-entry-label-diagnostics maps one bounded EpubReader case for non-primary targeted nav entries without visible labels while preserving primary item-label diagnostics. Focused EpubPackageTest.php plus EpubReaderTest.php coverage adds 20 full-suite assertions and 1 PHP PASS case; full Pandoc PHP verification passes 42 files / 58522 assertions / 0 failures without running Pandoc, EPUBCheck, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "EpubReader import reports now flag non-primary targeted nav entries without visible labels while preserving primary nav item-label diagnostics and compact package validation behavior."
   },
-  "wordpressScenario": "Pandoc wiki format registry evidence links wiki direction/status accounting to pinned upstream template resources and reader/writer fixture sources while keeping direct wiki reader/writer parity unsupported, and existing Markdown/HTML/DOCX/ODT/RTF/EPUB/media-bag/JSON handoff paths remain native PHP and external-tool free.",
+  "wordpressScenario": "EPUB reader nav entry diagnostics now flag non-primary targeted navigation entries without visible labels in native import reports while compact package validation and primary nav item-label reports remain external-tool free.",
   "nextTask": "Choose another non-overlapping bounded Markdown, reader, package, charset, format-registry, syntax-highlighting, EPUB, native-AST, plain-writer, JSON, DOCX, HTML, ODF/OpenDocument, or LaTeX writer slice that adds PHP PASS cases without executing Pandoc, Cabal/Haskell runners, Typst, Word, LibreOffice, TeX/PDF engines, EPUBCheck, external converters, online services, live provider tests, or live-service provider tests.",
-  "status": "PandocFormatRegistry wiki evidence packets expose audited template resources and reader/writer fixture sources while keeping processing native PHP and external-tool free.",
+  "status": "EpubReader import reports now flag non-primary targeted nav entries without visible labels while preserving primary nav item-label diagnostics and compact package validation behavior.",
   "mapping": {
-    "latestSlice": "pandoc-format-registry-wiki-evidence adds one mapped format-registry case. Mapped denominator is now 3097, mappedPandocFormatRegistryWikiEvidenceCases is 1, pandocFormatRegistryWikiEvidenceAssertions is 43, focused PandocFormatRegistryTest.php verification is 1 test file / 799 assertions / 0 failures, and full Pandoc PHP verification is 42 files / 58475 assertions / 0 failures."
+    "latestSlice": "pandoc-epub-reader-nav-entry-label-diagnostics maps one bounded EpubReader case for non-primary targeted nav entries without visible labels while preserving primary item-label diagnostics. Focused EpubPackageTest.php plus EpubReaderTest.php coverage adds 20 full-suite assertions and 1 PHP PASS case; full Pandoc PHP verification passes 42 files / 58522 assertions / 0 failures without running Pandoc, EPUBCheck, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "EpubReader import reports now flag non-primary targeted nav entries without visible labels while preserving primary nav item-label diagnostics and compact package validation behavior."
   },
   "audit": "2026-06-10 UTC wiki format registry evidence slice: PandocFormatRegistry now derives wiki template resources from audited pandoc.cabal data-files and reader/writer fixture sources from audited extra-source file globs, then exposes them through wikiFormatEvidencePacket without registering any wiki reader or writer implementation. Focused PandocFormatRegistryTest.php passed with 1 file, 799 assertions, 0 failures after php -l checks for PandocFormatRegistry.php and PandocFormatRegistryTest.php. Full post-rebase php tools/run-tests.php lanes/pandoc/tests passed with 42 files, 58475 assertions, 0 failures. No Pandoc, wiki renderer, Cabal solver/build/test command, Haskell runner, browser renderer, external validator, online service, live provider test, or live-service provider test was executed.",
-  "latestSlice": "pandoc-markdown-abbreviation-definitions maps one bounded Markdown reader/writer case for abbreviation definitions, abbr title metadata, Markdown definition round-trip output, and WordPress span handoff. Focused MarkdownReaderTest.php coverage adds 16 focused assertions and 1 PHP PASS case; full Pandoc PHP verification passes 42 files / 58491 assertions / 0 failures without running Pandoc, Cabal, Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+  "latestSlice": "pandoc-epub-reader-nav-entry-label-diagnostics maps one bounded EpubReader case for non-primary targeted nav entries without visible labels while preserving primary item-label diagnostics. Focused EpubPackageTest.php plus EpubReaderTest.php coverage adds 20 full-suite assertions and 1 PHP PASS case; full Pandoc PHP verification passes 42 files / 58522 assertions / 0 failures without running Pandoc, EPUBCheck, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
   "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
   "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
   "mappedBibtexCslProcessorCases": 6,
@@ -618,8 +619,8 @@
   "pandocFormatRegistryWikiAssertions": 66,
   "mappedEpubManifestDiagnosticsCases": 1,
   "epubManifestDiagnosticsAssertions": 55,
-  "mappedEpubNavDocumentDiagnosticsCases": 6,
-  "epubNavDocumentDiagnosticsAssertions": 114,
+  "mappedEpubNavDocumentDiagnosticsCases": 7,
+  "epubNavDocumentDiagnosticsAssertions": 134,
   "mappedUpstreamRunnerRoffManualFormatRegistryCases": 1,
   "upstreamRunnerRoffManualFormatRegistryAssertions": 24,
   "mappedMarkdownRawAttributeCases": 1,

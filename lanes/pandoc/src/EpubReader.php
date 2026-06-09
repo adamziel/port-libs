@@ -9000,6 +9000,7 @@ final class EpubReader
         $missingHeadingSectionCount = 0;
         $missingPrimaryItemLabelCount = 0;
         $missingOrderedListSectionCount = 0;
+        $missingEntryLabelCount = 0;
         $untypedSectionCount = 0;
 
         if ($encrypted) {
@@ -9088,6 +9089,7 @@ final class EpubReader
                     }
 
                     ++$missingPrimaryItemLabelCount;
+                    ++$missingEntryLabelCount;
                     $diagnostics[] = [
                         'type' => 'missing-primary-nav-item-label',
                         'part' => $part,
@@ -9103,6 +9105,30 @@ final class EpubReader
                         'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
                         'depth' => (int) ($flat['depth'] ?? 0),
                         'message' => 'EPUB primary navigation item has no text label for review handoff',
+                    ];
+                }
+            } else {
+                foreach ($flatItems as $flatIndex => $flat) {
+                    $entry = is_array($flat['item'] ?? null) ? $flat['item'] : [];
+                    $label = is_string($entry['title'] ?? null) ? trim($entry['title']) : '';
+                    $href = is_string($entry['href'] ?? null) ? trim($entry['href']) : '';
+                    $target = is_string($entry['target'] ?? null) ? trim($entry['target']) : '';
+                    if ($label !== '' || ($href === '' && $target === '')) {
+                        continue;
+                    }
+
+                    ++$missingEntryLabelCount;
+                    $diagnostics[] = [
+                        'type' => 'missing-nav-entry-label',
+                        'part' => $part,
+                        'sectionIndex' => $sectionIndex,
+                        'sectionId' => $sectionId,
+                        'sectionTypes' => $sectionTypes,
+                        'entryIndex' => $flatIndex,
+                        'href' => $href === '' ? null : $href,
+                        'target' => $target === '' ? null : $target,
+                        'depth' => is_int($flat['depth'] ?? null) ? $flat['depth'] : null,
+                        'message' => 'EPUB navigation entry has a target but no visible label for review handoff',
                     ];
                 }
             }
@@ -9175,6 +9201,7 @@ final class EpubReader
             'missingHeadingSectionCount' => $missingHeadingSectionCount,
             'missingPrimaryItemLabelCount' => $missingPrimaryItemLabelCount,
             'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
+            'missingEntryLabelCount' => $missingEntryLabelCount,
             'untypedSectionCount' => $untypedSectionCount,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,

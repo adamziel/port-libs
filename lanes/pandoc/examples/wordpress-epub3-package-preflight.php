@@ -165,7 +165,7 @@ if (($argv[1] ?? '') === '--self-test') {
         ['mathml', 'svg', 'remote-resources'],
         ['scripted', 'switch'],
         [true, 5, 8, 0, 0],
-        [true, '3.0', 0, 1, 1, 10, 2, 4, 0],
+        [false, '3.0', 3, 1, 1, 10, 2, 4, 3],
     ];
     $actual = [
         $summary['wordpressImport']['title'],
