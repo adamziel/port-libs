@@ -14458,6 +14458,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $mark = $this->tryParseMark($text, $offset);
+            if ($mark !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $mark['node'];
+                $offset = $mark['next'];
+                continue;
+            }
+
             $script = $this->tryParseScript($text, $offset);
             if ($script !== null) {
                 $this->flushText($buffer, $nodes);
@@ -16545,6 +16553,54 @@ final class MarkdownReader
             'node' => new AstNode('strikeout', [], $this->parseInlines($inner)),
             'next' => $end + 2,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseMark(string $text, int $offset): ?array
+    {
+        if (
+            substr($text, $offset, 2) !== '=='
+            || ($text[$offset + 2] ?? '') === '='
+            || ctype_space($text[$offset + 2] ?? '')
+            || $this->isEscapedInlinePosition($text, $offset)
+        ) {
+            return null;
+        }
+
+        $end = $this->findClosingMarkDelimiter($text, $offset + 2);
+        if ($end === null || $end === $offset + 2) {
+            return null;
+        }
+
+        $inner = trim(substr($text, $offset + 2, $end - $offset - 2));
+        if ($inner === '') {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                'span',
+                ['classes' => ['mark']],
+                $this->parseInlines($inner)
+            ),
+            'next' => $end + 2,
+        ];
+    }
+
+    private function findClosingMarkDelimiter(string $text, int $offset): ?int
+    {
+        $position = strpos($text, '==', $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, '==', $position + 2);
+        }
+
+        return null;
     }
 
     /**

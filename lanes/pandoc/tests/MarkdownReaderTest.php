@@ -30,6 +30,43 @@ return [
         $t->same('https://example.test/source', $paragraph->children[5]->attr('url'));
         $t->same('code', $paragraph->children[7]->type);
     },
+    'maps upstream markdown mark extension reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('Review ==highlighted **source**== before publishing.');
+        $paragraph = $document->children[0];
+        $mark = $paragraph->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('span', $mark->type);
+        $t->same(['mark'], $mark->attr('classes'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $mark->children));
+        $t->same('highlighted ', $mark->children[0]->attr('text'));
+        $t->same('source', $mark->children[1]->children[0]->attr('text'));
+        $t->contains('<span class="mark">highlighted <strong>source</strong></span>', $blocks);
+
+        $writerDocument = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Review ']),
+                new AstNode('span', ['classes' => ['mark']], [
+                    new AstNode('text', ['text' => 'highlighted ']),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'source'])]),
+                ]),
+                new AstNode('text', ['text' => ' before publishing.']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('span', [
+                    'id' => 'review-highlight',
+                    'classes' => ['mark'],
+                ], [new AstNode('text', ['text' => 'attributed highlight'])]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            'Review ==highlighted **source**== before publishing.',
+            '[attributed highlight]{#review-highlight .mark}',
+        ]), (new MarkdownWriter())->write($writerDocument));
+        $t->same('Triple === stays literal.', (new MarkdownReader())->read('Triple === stays literal.')->children[0]->attr('text'));
+        $t->same('Escaped ==source== stays literal.', (new MarkdownReader())->read('Escaped \==source== stays literal.')->children[0]->attr('text'));
+    },
     'maps upstream testsuite underscore emphasis strong and nested strong emphasis' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'This is *emphasized*, and so _is this_.',

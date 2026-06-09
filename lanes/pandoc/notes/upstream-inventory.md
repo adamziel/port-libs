@@ -1738,3 +1738,39 @@ degradation slice. It reuses the existing lane-local table AST, Markdown inline
 renderer, pipe-table width/alignment logic, caption renderer, and table-cell
 escaping; no DOCX/OpenXML, PDF, EPUB/ODT, CFB, citation, Unicode/charset,
 metadata, archive, or compression component is activated.
+
+## 2026-06-09 Markdown mark extension parity slice
+
+The current-base pass maps Pandoc's Markdown mark extension shorthand. Upstream
+`Text.Pandoc.Readers.Markdown` dispatches `==...==` through the `mark` parser
+when `Ext_mark` is enabled, producing a `Span` with class `mark`; upstream
+`Text.Pandoc.Writers.Markdown.Inline` emits a simple `Span ("",["mark"],[])`
+as `==...==`. Both branches were inspected at upstream commit
+`0640c4c9859aa5a3ede082c190fcd5883c24ac83`.
+
+The native PHP reader now parses unescaped `==highlighted **source**==` into a
+simple span with class `mark`, preserving nested inline content. The native
+Markdown writer emits simple `.mark` spans as `==...==` and keeps attributed
+mark spans on the existing bracketed span fallback, so source attributes remain
+visible instead of being hidden by shorthand output.
+
+WordPress handoff evidence covers the same reader path: the block writer emits
+`<span class="mark">highlighted <strong>source</strong></span>` for highlighted
+review content without invoking Pandoc, Cabal/Haskell runners, browser
+renderers, online services, or external validators.
+
+Focused local verification on 2026-06-09 after the Markdown mark extension
+slice: `php -l` passed for `MarkdownReader.php`, `MarkdownWriter.php`, and
+`MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 6,120
+assertions, and 0 failures.
+
+Root verification on 2026-06-09 after the Markdown mark extension slice:
+`php tools/run-tests.php lanes/pandoc/tests` passed 38 test files, 56,318
+assertions, and 0 failures.
+
+Dependency closure: no new support component is needed for this mark extension
+slice. It reuses the existing Markdown inline parser/renderer, span attribute
+helpers, WordPress inline renderer, and AST node shape; no DOCX/OpenXML, PDF,
+EPUB/ODT, CFB, citation, Unicode/charset, metadata, archive, compression,
+syntax-highlighting, or external conversion component is activated.

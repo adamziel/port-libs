@@ -1800,9 +1800,26 @@ final class MarkdownWriter
     private function renderSpan(AstNode $node): string
     {
         $content = $this->renderInlines($node->children);
+        if ($this->isMarkdownMarkSpan($node, $content)) {
+            return '==' . $content . '==';
+        }
+
         $attrs = $this->renderLinkAttributes($node);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
+    }
+
+    private function isMarkdownMarkSpan(AstNode $node, string $content): bool
+    {
+        if ($content === '' || str_contains($content, '==')) {
+            return false;
+        }
+
+        $attrs = $this->linkAttrTuple($node);
+
+        return $attrs['id'] === ''
+            && $attrs['classes'] === ['mark']
+            && $attrs['attributes'] === [];
     }
 
     private function renderSmallCaps(AstNode $node): string
