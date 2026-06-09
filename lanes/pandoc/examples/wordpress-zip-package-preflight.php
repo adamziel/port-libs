@@ -2249,6 +2249,105 @@ $buildRawExtraFieldPolicyBackedPackage = static function () use ($crc32): string
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), 0);
 };
+$buildRawNameCollisionPolicyBackedPackage = static function () use ($crc32, $buildUnicodeExtra): string {
+    $rawName = 'word/media/review-image.bin';
+    $firstName = 'word/media/review-one.png';
+    $secondName = 'word/media/review-two.png';
+    $entries = [
+        [
+            'name' => 'word/document.xml',
+            'data' => '<w:document><w:body><w:p>Raw central-directory collision review</w:p></w:body></w:document>',
+            'flags' => 0x0801,
+            'localExtra' => '',
+            'centralExtra' => '',
+        ],
+        [
+            'name' => 'word/media/Review.PNG',
+            'data' => "case collision first media bytes\n",
+            'flags' => 0x0801,
+            'localExtra' => '',
+            'centralExtra' => '',
+        ],
+        [
+            'name' => 'word/media/review.png',
+            'data' => "case collision second media bytes\n",
+            'flags' => 0x0801,
+            'localExtra' => '',
+            'centralExtra' => '',
+        ],
+        [
+            'name' => $rawName,
+            'localName' => $rawName,
+            'data' => "raw collision first media bytes\n",
+            'flags' => 0x0001,
+            'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+            'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+        ],
+        [
+            'name' => $rawName,
+            'localName' => $rawName,
+            'data' => "raw collision second media bytes\n",
+            'flags' => 0x0001,
+            'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+            'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+        ],
+    ];
+    $body = '';
+    $central = '';
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $localName = $entry['localName'] ?? $name;
+        $data = $entry['data'];
+        $flags = $entry['flags'];
+        $localExtra = $entry['localExtra'];
+        $centralExtra = $entry['centralExtra'];
+        $crc = $crc32($data);
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($localName),
+            strlen($localExtra)
+        );
+        $body .= $localName . $localExtra . $data;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            strlen($centralExtra),
+            0,
+            0,
+            0,
+            0x81a40000,
+            $localHeaderOffset
+        );
+        $central .= $name . $centralExtra;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), 0);
+};
 $buildUnixOwnerBackedPackage = static function () use ($crc32, $buildUnixOwnerExtra): string {
     $name = 'word/media/unix-owner-review.txt';
     $data = "Unix UID/GID owner metadata should stay reviewable\n";
@@ -3726,6 +3825,9 @@ try {
 } catch (RuntimeException $exception) {
     $unicodeNameCollisionStrictRejected = str_contains($exception->getMessage(), 'case-insensitive-name-collisions');
 }
+$rawNameCollisionPolicyBytes = $buildRawNameCollisionPolicyBackedPackage();
+$rawNameCollisionPolicyPreflight = ZipPackage::centralDirectoryNameCollisionPreflight($rawNameCollisionPolicyBytes);
+$rawNameCollisionStrictPreflight = ZipPackage::rawStrictImportPreflight($rawNameCollisionPolicyBytes, 4096, 100.0, 4096);
 $deflateOptionFlagsRejected = false;
 try {
     ZipPackage::fromString($buildStoredDeflateOptionFlagBackedPackage());
@@ -5657,6 +5759,23 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected exact Unicode ZIP media path to remain readable before normalized handoff rejection');
     }
 
+    if (
+        ($rawNameCollisionPolicyPreflight['isSupportedByBoundedReader'] ?? null) !== false
+        || ($rawNameCollisionPolicyPreflight['caseInsensitiveNameCollisionEntryCount'] ?? null) !== 2
+        || ($rawNameCollisionPolicyPreflight['rawNameCollisionEntryCount'] ?? null) !== 2
+        || ($rawNameCollisionPolicyPreflight['caseInsensitiveNameCollisionGroups'][0]['caseFoldKey'] ?? null) !== 'word/media/review.png'
+        || ($rawNameCollisionPolicyPreflight['rawNameCollisionGroups'][0]['rawName'] ?? null) !== 'word/media/review-image.bin'
+        || ($rawNameCollisionStrictPreflight['canInstantiate'] ?? null) !== false
+        || ($rawNameCollisionStrictPreflight['centralDirectoryNameCollisions'] ?? null) !== $rawNameCollisionPolicyPreflight
+        || !in_array('central-directory-name-collision-issues', $rawNameCollisionStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('case-insensitive-name-collisions', $rawNameCollisionStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('raw-name-collisions', $rawNameCollisionStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('encrypted-zip-entries', $rawNameCollisionStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawNameCollisionStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw ZIP central-directory name collisions to survive package instantiation failure');
+    }
+
     if (!$zipControlNameRejected) {
         throw new RuntimeException('Expected ZIP entry names with control bytes to be rejected before media import');
     }
@@ -7087,6 +7206,10 @@ echo 'zipUnicodeNameCollisionPolicy=' . ($unicodeNameCollisionRejected ? 'reject
 echo 'zipUnicodeNameCollisionStrictPolicy=' . ($unicodeNameCollisionStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUnicodeNameCollisionEntry=' . ($unicodeNameCollisionPreflight['collisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipUnicodeNameCollisionKey=' . ($unicodeNameCollisionPreflight['collisionGroups'][0]['caseFoldKey'] ?? 'none') . "\n";
+echo 'zipRawCentralNameCollisionPolicy=' . ($rawNameCollisionPolicyPreflight['isSupportedByBoundedReader'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipRawCentralNameCollisionIssues=' . implode(',', $rawNameCollisionPolicyPreflight['issues']) . "\n";
+echo 'zipRawCentralNameCollisionCaseEntry=' . ($rawNameCollisionPolicyPreflight['caseInsensitiveNameCollisionEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipRawCentralNameCollisionRawEntry=' . ($rawNameCollisionPolicyPreflight['rawNameCollisionEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipDeflateOptionFlagPolicy=' . ($deflateOptionFlagsRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipGeneralPurposeFlagReviewPolicy=' . ($strictGeneralPurposeFlagReviewRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipGeneralPurposeFlagStrictPolicy=' . ($strictGeneralPurposeFlagImportRejected ? 'rejected' : 'not-rejected') . "\n";

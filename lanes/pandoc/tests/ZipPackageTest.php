@@ -7350,6 +7350,88 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
     },
 
+    'preflights raw central directory name collisions before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $firstName = 'word/media/review-one.png';
+        $secondName = 'word/media/review-two.png';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw name collision review</w:p></w:document>',
+                'method' => 8,
+                'flags' => 0x0801,
+            ],
+            [
+                'name' => 'word/media/Review.PNG',
+                'data' => "case collision first attachment bytes\n",
+                'method' => 0,
+                'flags' => 0x0801,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "case collision second attachment bytes\n",
+                'method' => 0,
+                'flags' => 0x0801,
+            ],
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "raw collision first attachment bytes\n",
+                'method' => 0,
+                'flags' => 0x0001,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+            ],
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "raw collision second attachment bytes\n",
+                'method' => 0,
+                'flags' => 0x0001,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+            ],
+        ]);
+
+        $summary = ZipPackage::centralDirectoryNameCollisionPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 20.0, 2048);
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['case-insensitive-name-collisions', 'raw-name-collisions'], $summary['issues']);
+        $t->same(1, $summary['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $summary['caseInsensitiveNameCollisionEntryCount']);
+        $t->same('word/media/review.png', $summary['caseInsensitiveNameCollisionGroups'][0]['caseFoldKey']);
+        $t->same(['word/media/Review.PNG', 'word/media/review.png'], $summary['caseInsensitiveNameCollisionGroups'][0]['entryNames']);
+        $t->same('word/media/Review.PNG', $summary['caseInsensitiveNameCollisionEntries'][0]['name']);
+        $t->same(['case-insensitive-name-collision'], $summary['caseInsensitiveNameCollisionEntries'][0]['issues']);
+        $t->same('word/media/review.png', $summary['caseInsensitiveNameCollisionEntries'][1]['name']);
+
+        $t->same(1, $summary['rawNameCollisionGroupCount']);
+        $t->same(2, $summary['rawNameCollisionEntryCount']);
+        $t->same($rawName, $summary['rawNameCollisionGroups'][0]['rawName']);
+        $t->same(bin2hex($rawName), $summary['rawNameCollisionGroups'][0]['rawNameHex']);
+        $t->same([$firstName, $secondName], $summary['rawNameCollisionGroups'][0]['entryNames']);
+        $t->same($firstName, $summary['rawNameCollisionEntries'][0]['name']);
+        $t->same($rawName, $summary['rawNameCollisionEntries'][0]['rawName']);
+        $t->same('info-zip-unicode-path', $summary['rawNameCollisionEntries'][0]['nameEncoding']);
+        $t->same(['raw-name-collision'], $summary['rawNameCollisionEntries'][0]['issues']);
+        $t->same($secondName, $summary['rawNameCollisionEntries'][1]['name']);
+
+        $t->same($summary, $rawStrict['centralDirectoryNameCollisions']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same(5, $rawStrict['entryCount']);
+        $t->same(5, $rawStrict['encryption']['encryptedEntryCount']);
+        $t->contains('central-directory-name-collision-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('case-insensitive-name-collisions', implode(',', $rawStrict['diagnostics']));
+        $t->contains('raw-name-collisions', implode(',', $rawStrict['diagnostics']));
+        $t->contains('encrypted-zip-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights malformed zip extra field structure before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
         $centralTruncatedPayload = pack('vv', 0xcafe, 4) . 'A';
         $localTruncatedHeader = "\xbe\xef";

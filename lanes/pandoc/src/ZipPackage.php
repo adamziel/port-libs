@@ -3494,6 +3494,133 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory names for collision policies before package
+     * construction. This keeps attachment handoff review metadata available
+     * even when unsupported flags or another local-header issue prevents
+     * `fromString()` from instantiating the package.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     caseInsensitiveNameCollisionGroupCount:int,
+     *     caseInsensitiveNameCollisionEntryCount:int,
+     *     rawNameCollisionGroupCount:int,
+     *     rawNameCollisionEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     caseInsensitiveNameCollisionGroups:list<array{caseFoldKey:string, entryNames:list<string>}>,
+     *     caseInsensitiveNameCollisionEntries:list<array<string, mixed>>,
+     *     rawNameCollisionGroups:list<array{rawName:string, rawNameHex:string, entryNames:list<string>}>,
+     *     rawNameCollisionEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>,
+     *     inventory:array<string, mixed>
+     * }
+     */
+    public static function centralDirectoryNameCollisionPreflight(string $bytes): array
+    {
+        $inventory = self::centralDirectoryInventoryPreflight($bytes);
+        $entries = $inventory['entries'];
+        $entryNamesByCaseFoldKey = [];
+        $entryNamesByRawNameHex = [];
+        $rawNamesByHex = [];
+
+        foreach ($entries as $entry) {
+            $entryNamesByCaseFoldKey[self::caseFoldZipEntryName($entry['name'])][] = $entry['name'];
+            $rawNameHex = bin2hex($entry['rawName']);
+            $entryNamesByRawNameHex[$rawNameHex][] = $entry['name'];
+            $rawNamesByHex[$rawNameHex] = $entry['rawName'];
+        }
+
+        $caseInsensitiveNameCollisionGroups = [];
+        foreach ($entryNamesByCaseFoldKey as $caseFoldKey => $entryNames) {
+            if (count($entryNames) > 1) {
+                $caseInsensitiveNameCollisionGroups[] = [
+                    'caseFoldKey' => $caseFoldKey,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
+
+        $rawNameCollisionGroups = [];
+        foreach ($entryNamesByRawNameHex as $rawNameHex => $entryNames) {
+            if (count($entryNames) > 1) {
+                $rawNameCollisionGroups[] = [
+                    'rawName' => $rawNamesByHex[$rawNameHex],
+                    'rawNameHex' => $rawNameHex,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
+
+        $entrySummaries = [];
+        $caseInsensitiveNameCollisionEntries = [];
+        $rawNameCollisionEntries = [];
+        foreach ($entries as $entry) {
+            $caseFoldKey = self::caseFoldZipEntryName($entry['name']);
+            $caseInsensitiveEquivalentEntryNames = $entryNamesByCaseFoldKey[$caseFoldKey] ?? [];
+            $hasCaseInsensitiveNameCollision = count($caseInsensitiveEquivalentEntryNames) > 1;
+            $rawNameHex = bin2hex($entry['rawName']);
+            $rawEquivalentEntryNames = $entryNamesByRawNameHex[$rawNameHex] ?? [];
+            $hasRawNameCollision = count($rawEquivalentEntryNames) > 1;
+            $issues = [];
+
+            if ($hasCaseInsensitiveNameCollision) {
+                $issues[] = 'case-insensitive-name-collision';
+            }
+            if ($hasRawNameCollision) {
+                $issues[] = 'raw-name-collision';
+            }
+
+            $summary = [
+                'name' => $entry['name'],
+                'rawName' => $entry['rawName'],
+                'nameEncoding' => $entry['nameEncoding'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'centralDirectoryOffset' => $entry['offset'],
+                'localHeaderOffset' => $entry['localHeaderOffset'],
+                'caseFoldKey' => $caseFoldKey,
+                'equivalentCaseInsensitiveEntryNames' => $caseInsensitiveEquivalentEntryNames,
+                'rawNameHex' => $rawNameHex,
+                'equivalentRawNameEntryNames' => $rawEquivalentEntryNames,
+                'hasCaseInsensitiveNameCollision' => $hasCaseInsensitiveNameCollision,
+                'hasRawNameCollision' => $hasRawNameCollision,
+                'issues' => $issues,
+            ];
+            $entrySummaries[] = $summary;
+
+            if ($hasCaseInsensitiveNameCollision) {
+                $caseInsensitiveNameCollisionEntries[] = $summary;
+            }
+            if ($hasRawNameCollision) {
+                $rawNameCollisionEntries[] = $summary;
+            }
+        }
+
+        $issues = [];
+        if ($caseInsensitiveNameCollisionEntries !== []) {
+            $issues[] = 'case-insensitive-name-collisions';
+        }
+        if ($rawNameCollisionEntries !== []) {
+            $issues[] = 'raw-name-collisions';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'caseInsensitiveNameCollisionGroupCount' => count($caseInsensitiveNameCollisionGroups),
+            'caseInsensitiveNameCollisionEntryCount' => count($caseInsensitiveNameCollisionEntries),
+            'rawNameCollisionGroupCount' => count($rawNameCollisionGroups),
+            'rawNameCollisionEntryCount' => count($rawNameCollisionEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
+            'rawNameCollisionGroups' => $rawNameCollisionGroups,
+            'rawNameCollisionEntries' => $rawNameCollisionEntries,
+            'entries' => $entrySummaries,
+            'inventory' => $inventory,
+        ];
+    }
+
+    /**
      * Classify platform metadata entries that should not be imported as
      * document content or package assets.
      *
@@ -6880,6 +7007,7 @@ final class ZipPackage
      *     compressionMethods:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
+     *     centralDirectoryNameCollisions:?array<string, mixed>,
      *     platformMetadata:?array<string, mixed>,
      *     extraFieldStructure:?array<string, mixed>,
      *     extraFields:?array<string, mixed>,
@@ -6988,6 +7116,7 @@ final class ZipPackage
                 'compressionMethods' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
+                'centralDirectoryNameCollisions' => null,
                 'platformMetadata' => null,
                 'extraFieldStructure' => null,
                 'extraFields' => null,
@@ -7019,6 +7148,7 @@ final class ZipPackage
         $compressionMethods = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
+        $centralDirectoryNameCollisions = null;
         $platformMetadata = null;
         $extraFieldStructure = null;
         $extraFields = null;
@@ -7130,6 +7260,18 @@ final class ZipPackage
                 $addDiagnostics($externalAttributes['issues']);
             }
 
+            $centralDirectoryNameCollisions = $runPreflight(
+                'central-directory-name-collision-policy',
+                static fn (): array => self::centralDirectoryNameCollisionPreflight($bytes)
+            );
+            if (
+                $centralDirectoryNameCollisions !== null
+                && !$centralDirectoryNameCollisions['isSupportedByBoundedReader']
+            ) {
+                $addDiagnostic('central-directory-name-collision-issues');
+                $addDiagnostics($centralDirectoryNameCollisions['issues']);
+            }
+
             $platformMetadata = $runPreflight(
                 'platform-metadata-policy',
                 static fn (): array => self::platformMetadataPolicyPreflight($bytes)
@@ -7226,6 +7368,7 @@ final class ZipPackage
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
+            ?? $centralDirectoryNameCollisions['entryCount']
             ?? $platformMetadata['entryCount']
             ?? $extraFieldStructure['entryCount']
             ?? $extraFields['entryCount']
@@ -7265,6 +7408,7 @@ final class ZipPackage
             'compressionMethods' => $compressionMethods,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
+            'centralDirectoryNameCollisions' => $centralDirectoryNameCollisions,
             'platformMetadata' => $platformMetadata,
             'extraFieldStructure' => $extraFieldStructure,
             'extraFields' => $extraFields,
