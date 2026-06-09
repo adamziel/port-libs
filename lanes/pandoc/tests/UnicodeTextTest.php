@@ -2615,6 +2615,67 @@ return [
             $t->true(UnicodeText::displayWidth($line) <= 10, 'Unicode separator wrapped line exceeds requested width');
         }
     },
+    'reports unicode line break opportunity metadata for width audits' => static function (TestRunner $t): void {
+        $describe = static fn (array $row): string => implode(':', [
+            $row['type'],
+            $row['codepoint'],
+            $row['break'],
+            (string) $row['column'],
+            (string) $row['columnAfter'],
+            str_replace(["\n"], ['\\n'], $row['emitted'] ?? ''),
+        ]);
+
+        $softAudit = UnicodeText::lineBreakOpportunities("A\u{200B}B C\u{00AD}D");
+        $t->same(3, $softAudit['opportunityCount']);
+        $t->same(3, $softAudit['softBreakCount']);
+        $t->same(0, $softAudit['hardBreakCount']);
+        $t->same(0, $softAudit['protectedSeparatorCount']);
+        $t->same([
+            'zero-width-space:U+200B:soft:1:1:',
+            'space:U+0020:soft:2:3: ',
+            'soft-hyphen:U+00AD:soft:4:4:-',
+        ], array_map($describe, $softAudit['opportunities']));
+
+        $hardAudit = UnicodeText::lineBreakOpportunities("A\u{0F0B}B\u{2028}C\u{2029}D");
+        $t->same(3, $hardAudit['opportunityCount']);
+        $t->same(1, $hardAudit['softBreakCount']);
+        $t->same(2, $hardAudit['hardBreakCount']);
+        $t->same([
+            'visible-break-after:U+0F0B:soft-after:1:2:་',
+            'line-separator:U+2028:hard:3:3:\\n',
+            'paragraph-separator:U+2029:hard:1:1:\\n\\n',
+        ], array_map($describe, $hardAudit['opportunities']));
+
+        $protectedAudit = UnicodeText::lineBreakOpportunities("A\u{00A0}B\u{202F}C\u{2007}D\u{2060}E");
+        $t->same(0, $protectedAudit['opportunityCount']);
+        $t->same(4, $protectedAudit['protectedSeparatorCount']);
+        $t->same([
+            'no-break-space:U+00A0:1:2',
+            'narrow-no-break-space:U+202F:3:4',
+            'figure-space:U+2007:5:6',
+            'word-joiner:U+2060:7:7',
+        ], array_map(
+            static fn (array $row): string => $row['type'] . ':' . $row['codepoint'] . ':' . $row['column'] . ':' . $row['columnAfter'],
+            $protectedAudit['protectedSeparators']
+        ));
+
+        $lineEndingAudit = UnicodeText::lineBreakOpportunities("A\r\nB\rC");
+        $t->same(['normalized' => true, 'crlf' => 1, 'cr' => 1, 'conversions' => 2], $lineEndingAudit['lineEndings']);
+        $t->same(2, $lineEndingAudit['opportunityCount']);
+        $t->same(2, $lineEndingAudit['hardBreakCount']);
+        $t->same([
+            'line-feed:U+000A:hard:1:1:\\n',
+            'line-feed:U+000A:hard:1:1:\\n',
+        ], array_map($describe, $lineEndingAudit['opportunities']));
+
+        $narrow = UnicodeText::lineBreakOpportunities("\u{00B7} \u{03A9}");
+        $wide = UnicodeText::lineBreakOpportunities("\u{00B7} \u{03A9}", 'wide');
+        $t->same(1, $narrow['opportunities'][0]['column']);
+        $t->same(2, $wide['opportunities'][0]['column']);
+        $t->same(3, $wide['opportunities'][0]['columnAfter']);
+        $t->same(["A\u{0F0B}", '  B'], UnicodeText::wrapByDisplayWidth("A\u{0F0B}B", 2, '  '));
+        $t->same(['keep', "  A\u{00A0}B"], UnicodeText::wrapByDisplayWidth("keep A\u{00A0}B", 7, '  '));
+    },
     'keeps line and paragraph separators zero width in display accounting' => static function (TestRunner $t): void {
         $lineSeparator = "\u{2028}";
         $paragraphSeparator = "\u{2029}";

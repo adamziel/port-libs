@@ -346,6 +346,23 @@ $formatControlWrap = UnicodeText::wrapByDisplayWidth("Audit \u{0600}رقم tail"
 $formatControlSlices = UnicodeText::splitByDisplayBreakpoints("A\u{0600}رق\u{110BD}ka", [1, 2, 3, 4]);
 $tabStopText = "A\tB\t\u{9B5A}";
 $tabStopSlices = UnicodeText::splitByDisplayBreakpoints($tabStopText, [4, 8]);
+$lineBreakAudit = UnicodeText::lineBreakOpportunities("A\u{200B}B C\u{00AD}D\u{3000}wide A\u{00A0}B \u{0F0B}\u{0F56}\u{2028}Next\u{2029}End");
+$lineBreakOpportunityTypes = implode(',', array_map(
+    static fn (array $row): string => $row['type'],
+    $lineBreakAudit['opportunities']
+));
+$lineBreakOpportunityColumns = implode(',', array_map(
+    static fn (array $row): string => $row['codepoint'] . '@' . $row['column'] . '-' . $row['columnAfter'],
+    $lineBreakAudit['opportunities']
+));
+$lineBreakProtectedTypes = implode(',', array_map(
+    static fn (array $row): string => $row['type'],
+    $lineBreakAudit['protectedSeparators']
+));
+$lineBreakProtectedColumns = implode(',', array_map(
+    static fn (array $row): string => $row['codepoint'] . '@' . $row['column'] . '-' . $row['columnAfter'],
+    $lineBreakAudit['protectedSeparators']
+));
 $lineEndingConversions = $source->attr('sourceLineEndings')['conversions'] ?? 0;
 $normalizedSource = (new MarkdownReader())->readBytes("# Cafe\xCC\x81 Review\n\nLegacy \xE2\x84\xAB source", 'utf-8', 'nfc');
 $compatibilityNormalization = UnicodeText::normalize("\u{2460} \u{FB01} Cafe\u{0301} \u{212B}", 'nfkc');
@@ -597,6 +614,16 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Tab stops'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => implode(' / ', $tabStopSlices)])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => UnicodeText::displayWidth($tabStopText) . ' / ' . implode(',', array_map(UnicodeText::displayWidth(...), $tabStopSlices))])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Break opportunities'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $lineBreakOpportunityTypes])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $lineBreakAudit['softBreakCount'] . '/' . $lineBreakAudit['hardBreakCount'] . '/' . $lineBreakAudit['protectedSeparatorCount'] . ':' . $lineBreakOpportunityColumns])]),
+        ]),
+        new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Protected separators'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $lineBreakProtectedTypes])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $lineBreakProtectedColumns])]),
         ]),
         new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Latin-9 source'])]),
@@ -1117,6 +1144,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Tab stops</td><td>' . implode(' / ', $tabStopSlices) . '</td><td>10 / 4,4,2</td>')) {
         throw new RuntimeException('charset handoff self-test missing tab-stop display-width audit');
+    }
+    if (!str_contains($blocks, '<td>Break opportunities</td><td>' . $lineBreakOpportunityTypes . '</td><td>' . $lineBreakAudit['softBreakCount'] . '/' . $lineBreakAudit['hardBreakCount'] . '/' . $lineBreakAudit['protectedSeparatorCount'] . ':' . $lineBreakOpportunityColumns . '</td>')) {
+        throw new RuntimeException('charset handoff self-test missing Unicode line-break opportunity audit');
+    }
+    if (!str_contains($blocks, '<td>Protected separators</td><td>' . $lineBreakProtectedTypes . '</td><td>' . $lineBreakProtectedColumns . '</td>')) {
+        throw new RuntimeException('charset handoff self-test missing protected Unicode separator audit');
     }
     if (($latin9Source->attr('sourceEncoding')['encoding'] ?? '') !== 'iso-8859-15') {
         throw new RuntimeException('charset handoff self-test missing Latin-9 source encoding');

@@ -4961,6 +4961,17 @@ final class UnicodeText
         return $width;
     }
 
+    private static function displayWidthFromColumn(string $text, int $ambiguousColumns, int $column): int
+    {
+        $width = 0;
+        foreach (self::graphemes($text) as $cluster) {
+            $clusterWidth = self::graphemeDisplayWidthAtColumn($cluster, $ambiguousColumns, $column + $width);
+            $width += $clusterWidth;
+        }
+
+        return $width;
+    }
+
     /**
      * @return array{0:string, 1:string}
      */
@@ -5040,6 +5051,98 @@ final class UnicodeText
         }
 
         return $wrapped;
+    }
+
+    /**
+     * Report bounded Unicode line-break opportunities using the same
+     * display-width and separator rules as wrapByDisplayWidth().
+     *
+     * @return array{
+     *   opportunityCount:int,
+     *   softBreakCount:int,
+     *   hardBreakCount:int,
+     *   protectedSeparatorCount:int,
+     *   lineEndings:array{normalized:bool, crlf:int, cr:int, conversions:int},
+     *   opportunities:list<array{type:string, break:string, codepoint:string, text:string, byteOffset:int, column:int, columnAfter:int, emitted:string}>,
+     *   protectedSeparators:list<array{type:string, codepoint:string, text:string, byteOffset:int, column:int, columnAfter:int}>
+     * }
+     */
+    public static function lineBreakOpportunities(string $text, string $ambiguousWidth = 'narrow'): array
+    {
+        $ambiguousColumns = self::ambiguousWidthColumns($ambiguousWidth);
+        [$text, $lineEndings] = self::normalizeLineEndings(self::repair($text));
+
+        $opportunities = [];
+        $protectedSeparators = [];
+        $softBreaks = 0;
+        $hardBreaks = 0;
+        $column = 0;
+        $byteOffset = 0;
+        $buffer = '';
+        $flushBuffer = static function () use (&$buffer, &$column, $ambiguousColumns): void {
+            if ($buffer === '') {
+                return;
+            }
+
+            $column += self::displayWidthFromColumn($buffer, $ambiguousColumns, $column);
+            $buffer = '';
+        };
+
+        foreach (self::characters($text) as $char) {
+            $codepoint = self::codepoint($char);
+            $break = self::lineBreakOpportunityForCodepoint($codepoint, $char);
+            $protectedType = $break === null ? self::protectedLineBreakSeparatorType($codepoint) : null;
+
+            if ($break === null && $protectedType === null) {
+                $buffer .= $char;
+                $byteOffset += strlen($char);
+                continue;
+            }
+
+            $flushBuffer();
+            $columnAfter = $column + self::graphemeDisplayWidthAtColumn($char, $ambiguousColumns, $column);
+            if ($break !== null) {
+                $opportunities[] = [
+                    'type' => $break['type'],
+                    'break' => $break['break'],
+                    'codepoint' => self::codepointLabel($codepoint),
+                    'text' => $char,
+                    'byteOffset' => $byteOffset,
+                    'column' => $column,
+                    'columnAfter' => $columnAfter,
+                    'emitted' => $break['emitted'],
+                ];
+                if ($break['break'] === 'hard') {
+                    ++$hardBreaks;
+                    $column = 0;
+                } else {
+                    ++$softBreaks;
+                    $column = $columnAfter;
+                }
+            } else {
+                $protectedSeparators[] = [
+                    'type' => $protectedType,
+                    'codepoint' => self::codepointLabel($codepoint),
+                    'text' => $char,
+                    'byteOffset' => $byteOffset,
+                    'column' => $column,
+                    'columnAfter' => $columnAfter,
+                ];
+                $column = $columnAfter;
+            }
+
+            $byteOffset += strlen($char);
+        }
+
+        return [
+            'opportunityCount' => count($opportunities),
+            'softBreakCount' => $softBreaks,
+            'hardBreakCount' => $hardBreaks,
+            'protectedSeparatorCount' => count($protectedSeparators),
+            'lineEndings' => $lineEndings,
+            'opportunities' => $opportunities,
+            'protectedSeparators' => $protectedSeparators,
+        ];
     }
 
     public static function padDisplay(string $text, int $width, string $alignment = 'left', string $ambiguousWidth = 'narrow'): string
@@ -5217,6 +5320,73 @@ final class UnicodeText
     private static function wrapWhitespaceSeparatorText(int $codepoint, string $char): string
     {
         return $codepoint <= 0x20 ? ' ' : $char;
+    }
+
+    /**
+     * @return array{type:string, break:string, emitted:string}|null
+     */
+    private static function lineBreakOpportunityForCodepoint(int $codepoint, string $char): ?array
+    {
+        if ($codepoint === 0x000a) {
+            return ['type' => 'line-feed', 'break' => 'hard', 'emitted' => "\n"];
+        }
+        if ($codepoint === 0x2028) {
+            return ['type' => 'line-separator', 'break' => 'hard', 'emitted' => "\n"];
+        }
+        if ($codepoint === 0x2029) {
+            return ['type' => 'paragraph-separator', 'break' => 'hard', 'emitted' => "\n\n"];
+        }
+        if (self::isWrapWhitespace($codepoint)) {
+            return [
+                'type' => self::lineBreakWhitespaceType($codepoint),
+                'break' => 'soft',
+                'emitted' => self::wrapWhitespaceSeparatorText($codepoint, $char),
+            ];
+        }
+        if ($codepoint === 0x200b) {
+            return ['type' => 'zero-width-space', 'break' => 'soft', 'emitted' => ''];
+        }
+        if ($codepoint === 0x00ad) {
+            return ['type' => 'soft-hyphen', 'break' => 'soft', 'emitted' => '-'];
+        }
+        if (self::isVisibleBreakAfterSeparator($codepoint)) {
+            return ['type' => 'visible-break-after', 'break' => 'soft-after', 'emitted' => $char];
+        }
+
+        return null;
+    }
+
+    private static function lineBreakWhitespaceType(int $codepoint): string
+    {
+        return match ($codepoint) {
+            0x0009 => 'tab',
+            0x0020 => 'space',
+            0x1680 => 'ogham-space-mark',
+            0x2000 => 'en-quad',
+            0x2001 => 'em-quad',
+            0x2002 => 'en-space',
+            0x2003 => 'em-space',
+            0x2004 => 'three-per-em-space',
+            0x2005 => 'four-per-em-space',
+            0x2006 => 'six-per-em-space',
+            0x2008 => 'punctuation-space',
+            0x2009 => 'thin-space',
+            0x200a => 'hair-space',
+            0x205f => 'medium-mathematical-space',
+            0x3000 => 'ideographic-space',
+            default => 'unicode-space',
+        };
+    }
+
+    private static function protectedLineBreakSeparatorType(int $codepoint): ?string
+    {
+        return match ($codepoint) {
+            0x00a0 => 'no-break-space',
+            0x2007 => 'figure-space',
+            0x202f => 'narrow-no-break-space',
+            0x2060 => 'word-joiner',
+            default => null,
+        };
     }
 
     private static function isVisibleBreakAfterSeparator(int $codepoint): bool
@@ -7369,6 +7539,11 @@ final class UnicodeText
         }
 
         return 0xfffd;
+    }
+
+    private static function codepointLabel(int $codepoint): string
+    {
+        return sprintf('U+%04X', $codepoint);
     }
 
     private static function ambiguousWidthColumns(string $ambiguousWidth): int
