@@ -157,6 +157,54 @@ return [
         ]);
         $t->same('literal-key', $modernUnMetaKey->attr('meta')['unMeta']);
     },
+    'reads top-level pandoc json MetaMap metadata envelopes without losing literal unMeta keys' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Envelope'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                ]],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'queue' => ['t' => 'MetaString', 'c' => 'json-import'],
+                    'flags' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'compat'],
+                        ['t' => 'MetaBool', 'c' => true],
+                    ]],
+                ]],
+            ]],
+            'blocks' => [],
+        ]);
+
+        $meta = $document->attr('meta');
+        $encoded = $writer->toArray($document);
+        $literalUnMeta = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'unMeta' => [
+                    'queue' => 'literal-modern-key',
+                    'blocked' => false,
+                ],
+            ],
+            'blocks' => [],
+        ])->attr('meta');
+
+        $t->same('inlines', $meta['title']['type']);
+        $t->same('Envelope', $meta['title']['children'][0]->attr('text'));
+        $t->same('Metadata', $meta['title']['children'][2]->attr('text'));
+        $t->same('map', $meta['review']['type']);
+        $t->same('json-import', $meta['review']['items']['queue']);
+        $t->same(['compat', true], $meta['review']['items']['flags']['items']);
+        $t->same('MetaInlines', $encoded['meta']['title']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['t']);
+        $t->same('MetaList', $encoded['meta']['review']['c']['flags']['t']);
+        $t->same('map', $literalUnMeta['unMeta']['type']);
+        $t->same('literal-modern-key', $literalUnMeta['unMeta']['items']['queue']);
+        $t->same(false, $literalUnMeta['unMeta']['items']['blocked']);
+    },
     'reads simplified pandoc json metadata values as compatible meta constructors' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();

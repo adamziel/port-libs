@@ -35,6 +35,7 @@ final class PandocJsonReader
      */
     public function readPacket(array $packet): AstNode
     {
+        $legacyTuplePacket = array_is_list($packet);
         $packet = $this->normalizePacket($packet);
         $blocks = $packet['blocks'] ?? null;
         if (!is_array($blocks) || !array_is_list($blocks)) {
@@ -42,11 +43,13 @@ final class PandocJsonReader
         }
 
         $attrs = [];
+        $apiVersion = null;
         if (isset($packet['pandoc-api-version'])) {
-            $attrs['pandocApiVersion'] = $this->readApiVersion($packet['pandoc-api-version']);
+            $apiVersion = $this->readApiVersion($packet['pandoc-api-version']);
+            $attrs['pandocApiVersion'] = $apiVersion;
         }
 
-        $meta = $this->normalizeMeta($packet['meta'] ?? []);
+        $meta = $this->normalizeMeta($packet['meta'] ?? [], $apiVersion, $legacyTuplePacket);
         if ($meta !== []) {
             $attrs['meta'] = $this->readMetaMap($meta);
         }
@@ -75,10 +78,20 @@ final class PandocJsonReader
     }
 
     /**
+     * @param list<int>|null $apiVersion
      * @return array<string, mixed>
      */
-    private function normalizeMeta(mixed $meta): array
+    private function normalizeMeta(mixed $meta, ?array $apiVersion, bool $legacyTuplePacket): array
     {
+        if ($this->looksLikeMetaConstructor($meta)) {
+            [$tag, $content] = $this->tagged($meta, 'meta');
+            if ($tag !== 'MetaMap') {
+                throw new \InvalidArgumentException('Pandoc JSON meta constructor must be MetaMap');
+            }
+
+            return $this->objectContent($content, 'MetaMap');
+        }
+
         if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
             throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
         }
@@ -87,7 +100,12 @@ final class PandocJsonReader
             return $this->objectContent($meta['c'] ?? null, 'Pandoc JSON meta MetaMap');
         }
 
-        if (count($meta) === 1 && array_key_exists('unMeta', $meta) && !$this->isTaggedObject($meta['unMeta'])) {
+        if (
+            count($meta) === 1
+            && array_key_exists('unMeta', $meta)
+            && !$this->isTaggedObject($meta['unMeta'])
+            && $this->shouldUnwrapLegacyMetaEnvelope($apiVersion, $legacyTuplePacket)
+        ) {
             $unMeta = $meta['unMeta'];
             if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
                 throw new \InvalidArgumentException('Pandoc JSON meta.unMeta must be an object');
@@ -103,6 +121,18 @@ final class PandocJsonReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @param list<int>|null $apiVersion
+     */
+    private function shouldUnwrapLegacyMetaEnvelope(?array $apiVersion, bool $legacyTuplePacket): bool
+    {
+        if ($legacyTuplePacket || $apiVersion === null) {
+            return true;
+        }
+
+        return ($apiVersion[0] ?? 0) === 1 && ($apiVersion[1] ?? 0) <= 17;
     }
 
     private function isTaggedObject(mixed $value): bool
