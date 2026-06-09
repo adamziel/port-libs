@@ -906,6 +906,55 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const KOI8_T_REPLACEMENTS = [
+        0x80 => 0x049b,
+        0x81 => 0x0493,
+        0x82 => 0x201a,
+        0x83 => 0x0492,
+        0x84 => 0x201e,
+        0x85 => 0x2026,
+        0x86 => 0x2020,
+        0x87 => 0x2021,
+        0x89 => 0x2030,
+        0x8a => 0x04b3,
+        0x8b => 0x2039,
+        0x8c => 0x04b2,
+        0x8d => 0x04b7,
+        0x8e => 0x04b6,
+        0x90 => 0x049a,
+        0x91 => 0x2018,
+        0x92 => 0x2019,
+        0x93 => 0x201c,
+        0x94 => 0x201d,
+        0x95 => 0x2022,
+        0x96 => 0x2013,
+        0x97 => 0x2014,
+        0x99 => 0x2122,
+        0x9b => 0x203a,
+        0xa1 => 0x04ef,
+        0xa2 => 0x04ee,
+        0xa3 => 0x0451,
+        0xa4 => 0x00a4,
+        0xa5 => 0x04e3,
+        0xa6 => 0x00a6,
+        0xa7 => 0x00a7,
+        0xab => 0x00ab,
+        0xac => 0x00ac,
+        0xad => 0x00ad,
+        0xae => 0x00ae,
+        0xb0 => 0x00b0,
+        0xb1 => 0x00b1,
+        0xb2 => 0x00b2,
+        0xb3 => 0x0401,
+        0xb5 => 0x04e2,
+        0xb6 => 0x00b6,
+        0xb7 => 0x00b7,
+        0xb9 => 0x2116,
+        0xbb => 0x00bb,
+        0xbf => 0x00a9,
+    ];
+
+    /** @var array<int, int> */
     private const IBM437_REPLACEMENTS = [
         0x80 => 0x00c7,
         0x81 => 0x00fc,
@@ -4453,6 +4502,7 @@ final class UnicodeText
             || $normalized === 'windows-874'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
+            || $normalized === 'koi8-t'
             || $normalized === 'ibm437'
             || $normalized === 'ibm737'
             || $normalized === 'ibm775'
@@ -5085,6 +5135,7 @@ final class UnicodeText
             'windows874', 'cp874', 'microsoftcp874', 'ms874', 'xcp874', 'dos874' => 'windows-874',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
+            'koi8t', 'cskoi8t', 'koi8tajik' => 'koi8-t',
             '437', 'cp437', 'ibm437', 'dos437', 'xcp437', 'oem437', 'cspc8codepage437', 'csibm437' => 'ibm437',
             '737', 'cp737', 'ibm737', 'dos737', 'xcp737', 'oem737', 'csibm737' => 'ibm737',
             '775', 'cp775', 'ibm775', 'dos775', 'xcp775', 'oem775', 'csibm775' => 'ibm775',
@@ -5832,6 +5883,20 @@ final class UnicodeText
                 }
 
                 $out .= self::fromCodepoint(self::TIS_620_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'koi8-t' && $byte >= 0x80) {
+                if (isset(self::KOI8_T_REPLACEMENTS[$byte])) {
+                    $out .= self::fromCodepoint(self::KOI8_T_REPLACEMENTS[$byte]);
+                    continue;
+                }
+                if ($byte >= 0xc0) {
+                    $out .= self::fromCodepoint(self::KOI8_R_REPLACEMENTS[$byte]);
+                    continue;
+                }
+
+                $out .= self::REPLACEMENT;
+                $repairs++;
                 continue;
             }
             if (($encoding === 'koi8-r' || $encoding === 'koi8-u') && $byte >= 0x80) {

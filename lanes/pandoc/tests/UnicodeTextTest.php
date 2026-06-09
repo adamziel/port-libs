@@ -388,6 +388,29 @@ return [
         $t->contains('<h1 id="україна">Україна</h1>', $blocks);
         $t->contains('<p>Редактор Київ; їжак і ґанок; ЄІЇҐ.</p>', $blocks);
     },
+    'decodes koi8 t tajik source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xF4\xCF\x8D\xC9\xCB\xC9\xD3\xD4\xCF\xCE\n\n\xED\xC1\xD4\xCE \x93\xD4\xCF\x8D\xC9\xCB\xA5\x94 \x97 \xB9 7; \x83\xC1\xC6\xD5\xD2; \x90\xA1\x80\xCF\xCE; \xA2\x8C\x8E\x8D.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'koi8-tajik');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cskoi8t');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x81\x83\x8A\x8C\x8D\x8E\x90\xA1\xA2\xA5\xB5", 'koi8-t');
+        $undefined = UnicodeText::decodeBytes("A\x88B\x8FC\x9AD\xA0E\xB4F\xBEG", 'koi8-t');
+
+        $t->same('koi8-t', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Тоҷикистон\n\nМатн “тоҷикӣ” — № 7; Ғафур; Қӯқон; ӮҲҶҷ.", $decoded['text']);
+        $t->same('қғҒҳҲҷҶҚӯӮӣӢ', $specials['text']);
+        $t->same(0, $specials['repairs']);
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F\u{FFFD}G", $undefined['text']);
+        $t->same(6, $undefined['repairs']);
+        $t->same(['encoding' => 'koi8-t', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Тоҷикистон', $document->children[0]->attr('text'));
+        $t->same('Матн “тоҷикӣ” — № 7; Ғафур; Қӯқон; ӮҲҶҷ.', $document->children[1]->attr('text'));
+        $t->same(40, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(58, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="тоҷикистон">Тоҷикистон</h1>', $blocks);
+        $t->contains('<p>Матн “тоҷикӣ” — № 7; Ғафур; Қӯқон; ӮҲҶҷ.</p>', $blocks);
+    },
     'decodes mac cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xEC\xEF\xEE\xF0\xF2\n\n\x90\xE5\xE4\xE0\xEA\xF2\xEE\xF0 \xD2\xEF\xF0\xE8\xE2\xE5\xF2\xD3 \xD1 \xFF20; \xDD\xEB\xEA\xE0 \xDC 7; \xBA\xBB\xB8\xB9.";
         $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-cyrillic');
