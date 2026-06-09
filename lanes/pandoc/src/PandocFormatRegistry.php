@@ -692,6 +692,62 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     partialInputFormats:list<string>,
+     *     partialOutputFormats:list<string>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, outputImplementation:string}>
+     * }
+     */
+    public static function richPackageFormatReviewPacket(): array
+    {
+        $directions = self::richPackageFormatDirections();
+        $inputSupport = self::richPackageInputSupport();
+        $outputSupport = self::richPackageOutputSupport();
+        $formats = [];
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::RICH_PACKAGE_INPUT_FORMATS,
+            'outputFormats' => self::RICH_PACKAGE_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::richPackageBidirectionalFormats(),
+                'inputOnly' => self::richPackageInputOnlyFormats(),
+                'outputOnly' => self::richPackageOutputOnlyFormats(),
+            ],
+            'partialInputFormats' => self::formatsWithStatus($inputSupport, 'partial'),
+            'partialOutputFormats' => self::formatsWithStatus($outputSupport, 'partial'),
+            'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
+            'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function richPackageBidirectionalFormats(): array

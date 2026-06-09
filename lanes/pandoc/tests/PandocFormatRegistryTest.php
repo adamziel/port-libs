@@ -263,6 +263,76 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Rich package format {$format} output status mismatch");
         }
     },
+    'builds rich package review packets without direct converter parity claims' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::richPackageFormatReviewPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::richPackageInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::richPackageOutputFormats(), $packet['outputFormats']);
+        $t->same([
+            'inputOutput' => ['docx', 'epub', 'ipynb', 'odt', 'pptx'],
+            'inputOnly' => ['xlsx'],
+            'outputOnly' => ['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'],
+        ], $packet['directionBuckets']);
+        $t->same(['docx', 'epub', 'ipynb', 'odt', 'pptx'], PandocFormatRegistry::richPackageBidirectionalFormats());
+        $t->same(['xlsx'], PandocFormatRegistry::richPackageInputOnlyFormats());
+        $t->same(['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'], PandocFormatRegistry::richPackageOutputOnlyFormats());
+        $t->same(['docx', 'epub', 'odt'], $packet['partialInputFormats']);
+        $t->same([], $packet['partialOutputFormats']);
+        $t->same(['ipynb', 'pptx', 'xlsx'], $packet['unsupportedInputFormats']);
+        $t->same([
+            'chunkedhtml',
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'icml',
+            'ipynb',
+            'odt',
+            'opendocument',
+            'pdf',
+            'pptx',
+        ], $packet['unsupportedOutputFormats']);
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+            'xlsx',
+            'chunkedhtml',
+            'epub2',
+            'epub3',
+            'icml',
+            'opendocument',
+            'pdf',
+        ], array_keys($packet['formats']));
+
+        $t->same([
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'partial',
+            'outputStatus' => 'unsupported',
+            'inputImplementation' => DocxReader::class,
+            'outputImplementation' => '',
+        ], $packet['formats']['docx']);
+        $t->same('partial', $packet['formats']['epub']['inputStatus']);
+        $t->same(EpubReader::class, $packet['formats']['epub']['inputImplementation']);
+        $t->same('partial', $packet['formats']['odt']['inputStatus']);
+        $t->same(OdtReader::class, $packet['formats']['odt']['inputImplementation']);
+        $t->same('unsupported', $packet['formats']['ipynb']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['ipynb']['outputStatus']);
+        $t->same('', $packet['formats']['ipynb']['inputImplementation']);
+        $t->same('', $packet['formats']['ipynb']['outputImplementation']);
+        $t->same('input-only', $packet['formats']['xlsx']['direction']);
+        $t->same('not-applicable', $packet['formats']['xlsx']['outputStatus']);
+        $t->same('output-only', $packet['formats']['pdf']['direction']);
+        $t->same('not-applicable', $packet['formats']['pdf']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['pdf']['outputStatus']);
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();
