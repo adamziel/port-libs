@@ -4773,6 +4773,96 @@ XML;
         $t->contains('<span class="odf-field odf-field-author-name" data-odf-field-type="author-name" data-odf-field-fixed="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-creation-time" data-odf-field-type="creation-time" data-odf-field-time-value="PT09H30M00S">09:30</span>', $blocksHtml);
     },
+    'maps empty ODT source metadata fields from meta xml into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithEmptyMetadataFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Metadata <text:title/> by <text:author-name/> subject <text:subject/> keywords <text:keywords/> created <text:creation-date/> modified <text:modification-date/> printed <text:printed-by/> custom <text:user-defined text:name="wp-source-id"/> approved <text:user-defined text:name="approved"/> template <text:template-name/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $metaWithFallbackMetadata = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:meta>
+    <dc:title>Source Packet</dc:title>
+    <dc:creator>Migration Desk</dc:creator>
+    <dc:subject>Review packet</dc:subject>
+    <meta:keyword>odt</meta:keyword>
+    <meta:keyword>review</meta:keyword>
+    <meta:creation-date>2026-06-05</meta:creation-date>
+    <meta:modification-date>2026-06-06</meta:modification-date>
+    <meta:printed-by>Migration Printer</meta:printed-by>
+    <meta:template xlink:href="Templates/import-review.ott" xlink:title="Import Review Template"/>
+    <meta:user-defined meta:name="wp-source-id" meta:value-type="string">packet-42</meta:user-defined>
+    <meta:user-defined meta:name="approved" meta:value-type="boolean" meta:boolean-value="true"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithEmptyMetadataFields, null, null, $metaWithFallbackMetadata));
+        $paragraph = $result['document']->children[0];
+        $title = $paragraph->children[1];
+        $author = $paragraph->children[3];
+        $subject = $paragraph->children[5];
+        $keywords = $paragraph->children[7];
+        $created = $paragraph->children[9];
+        $modified = $paragraph->children[11];
+        $printedBy = $paragraph->children[13];
+        $sourceId = $paragraph->children[15];
+        $approved = $paragraph->children[17];
+        $template = $paragraph->children[19];
+
+        $t->same('Metadata Source Packet by Migration Desk subject Review packet keywords odt, review created 2026-06-05 modified 2026-06-06 printed Migration Printer custom packet-42 approved true template Templates/import-review.ott.', $paragraph->attr('text'));
+        $t->same('title', $title->attr('fieldType'));
+        $t->same('Source Packet', $title->attr('fieldMetadata')['stringValue']);
+        $t->same('meta.xml', $title->attr('fieldMetadata')['metadataSource']);
+        $t->same('Source Packet', $title->children[0]->attr('text'));
+        $t->same('Source Packet', $title->attr('attributes')['data-odf-field-string-value']);
+        $t->same('meta.xml', $title->attr('attributes')['data-odf-field-metadata-source']);
+
+        $t->same('author-name', $author->attr('fieldType'));
+        $t->same('Migration Desk', $author->attr('fieldMetadata')['stringValue']);
+        $t->same('subject', $subject->attr('fieldType'));
+        $t->same('Review packet', $subject->attr('fieldMetadata')['stringValue']);
+        $t->same('keywords', $keywords->attr('fieldType'));
+        $t->same('odt, review', $keywords->attr('fieldMetadata')['stringValue']);
+        $t->same('creation-date', $created->attr('fieldType'));
+        $t->same('2026-06-05', $created->attr('fieldMetadata')['dateValue']);
+        $t->same('modification-date', $modified->attr('fieldType'));
+        $t->same('2026-06-06', $modified->attr('fieldMetadata')['dateValue']);
+        $t->same('printed-by', $printedBy->attr('fieldType'));
+        $t->same('Migration Printer', $printedBy->attr('fieldMetadata')['stringValue']);
+
+        $t->same('user-defined', $sourceId->attr('fieldType'));
+        $t->same('wp-source-id', $sourceId->attr('fieldName'));
+        $t->same('string', $sourceId->attr('fieldMetadata')['valueType']);
+        $t->same('packet-42', $sourceId->attr('fieldMetadata')['stringValue']);
+        $t->same('packet-42', $sourceId->children[0]->attr('text'));
+        $t->same('true', $approved->attr('attributes')['data-odf-field-boolean-value']);
+        $t->same(true, $approved->attr('fieldMetadata')['booleanValue']);
+        $t->same('true', $approved->children[0]->attr('text'));
+        $t->same('template-name', $template->attr('fieldType'));
+        $t->same('Templates/import-review.ott', $template->attr('fieldMetadata')['stringValue']);
+        $t->same(10, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Source Packet]{.odf-field .odf-field-title data-odf-field-type="title" data-odf-field-string-value="Source Packet" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('[packet-42]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="wp-source-id" data-odf-field-value-type="string" data-odf-field-string-value="packet-42" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('[true]{.odf-field .odf-field-user-defined data-odf-field-type="user-defined" data-odf-field-name="approved" data-odf-field-value-type="boolean" data-odf-field-boolean-value="true" data-odf-field-metadata-source="meta.xml"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-title" data-odf-field-type="title" data-odf-field-string-value="Source Packet" data-odf-field-metadata-source="meta.xml">Source Packet</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-creation-date" data-odf-field-type="creation-date" data-odf-field-date-value="2026-06-05" data-odf-field-metadata-source="meta.xml">2026-06-05</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-template-name" data-odf-field-type="template-name" data-odf-field-string-value="Templates/import-review.ott" data-odf-field-metadata-source="meta.xml">Templates/import-review.ott</span>', $blocksHtml);
+    },
     'maps ODT template and line number fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTemplateAndLineFields = <<<'XML'
 <office:document-content

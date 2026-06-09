@@ -21,6 +21,8 @@ $sourceHtml = <<<'HTML'
   <form action="/submit" onsubmit="alert(1)"><p>Reviewer choice <input name="status" value="draft"><button formaction="javascript:alert(1)">Keep visible label</button></p><p><select><optgroup label="Publication status"><option label="Draft"></option><option>Final</option></optgroup><option label="Needs copyedit">Submission value</option></select></p><textarea>Visible reviewer note</textarea></form>
   <iframe src="javascript:alert(1)">Iframe fallback <b>caption</b><script>drop()</script></iframe>
   <object data="javascript:alert(1)" type="application/x-shockwave-flash"><param name="movie" value="legacy.swf"><p>Object fallback <a href="/review">review</a></p></object>
+  <object data="/wp-content/uploads/review.pdf" title="Embedded PDF source"><p>PDF fallback</p></object>
+  <embed src="/wp-content/uploads/demo.mp4" title="Embedded media source">
   <applet code="Legacy.class"><span>Applet fallback</span></applet>
   <noscript><p>Script-disabled fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p><script>drop()</script></noscript>
   <template data-source="legacy-hidden"><p>Template fallback <a href="/review">review</a><a href="javascript:alert(1)">bad</a></p><img src="/uploads/template.png" alt="Template"><script>drop()</script></template>
@@ -62,6 +64,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Reviewer choice Keep visible label</p><p>Publication statusDraftFinalNeeds copyedit</p>Visible reviewer note',
         'Iframe fallback <b>caption</b>',
         '<p>Object fallback <a href="/review">review</a></p>',
+        '<a href="/wp-content/uploads/review.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a><p>PDF fallback</p>',
+        '<a href="/wp-content/uploads/demo.mp4" data-pandoc-embed-src="true" title="Embedded media source">Embedded media source</a>',
         '<span>Applet fallback</span>',
         '<p>Script-disabled fallback <a href="/review">review</a><a>bad</a></p>',
         '<p>Template fallback <a href="/review">review</a><a>bad</a></p><img src="/uploads/template.png" alt="Template">',
@@ -81,7 +85,7 @@ if (($argv[1] ?? '') === '--self-test') {
         }
     }
 
-    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'lowsrc="mailto:', 'poster="tel:', 'href="mailto:cover@example.test"', 'href="tel:+15550100"', 'usemap="https://tracker.example.test/review-map"', '<form', '<input', '<button', '<select', '<optgroup', '<option', '<textarea', '<iframe', '<object', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'Submission value', 'open="open"', 'controls=""', 'viewBox="html attr"', 'viewBox="title html"', 'viewBox="math text"', '<textPath>Title fallback</textPath>', '<textPath>HTML text</textPath>', '<textPath>Math token HTML</textPath>'] as $blocked) {
+    foreach (['onclick=', 'ping=', 'formaction=', 'background="mailto:', 'javascript:', 'src="mailto:', 'lowsrc="mailto:', 'poster="tel:', 'href="mailto:cover@example.test"', 'href="tel:+15550100"', 'usemap="https://tracker.example.test/review-map"', '<form', '<input', '<button', '<select', '<optgroup', '<option', '<textarea', '<iframe', '<object', '<embed', '<applet', '<noscript', '<template', '<param', '<xmp', '<plaintext', '<script>', '<p>suppressed tail</p>', 'Submission value', 'open="open"', 'controls=""', 'viewBox="html attr"', 'viewBox="title html"', 'viewBox="math text"', '<textPath>Title fallback</textPath>', '<textPath>HTML text</textPath>', '<textPath>Math token HTML</textPath>'] as $blocked) {
         if (str_contains($blocks, $blocked)) {
             throw new RuntimeException('HTML5 DOM handoff self-test retained blocked content: ' . $blocked);
         }
@@ -112,7 +116,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('HTML5 DOM handoff self-test did not reject unsafe control-separated base URL metadata');
     }
 
-    if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
+    if ($fragment->summary()['blockedTags'] !== ['applet', 'area', 'button', 'embed', 'form', 'iframe', 'input', 'map', 'noscript', 'object', 'optgroup', 'option', 'param', 'plaintext', 'script', 'select', 'template', 'textarea', 'xmp']) {
         throw new RuntimeException('HTML5 DOM handoff self-test did not report blocked form/embed/noscript/template/script/plaintext tags');
     }
     if (!in_array('srcset', $fragment->summary()['filteredAttributes'], true)) {

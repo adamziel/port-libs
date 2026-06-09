@@ -672,6 +672,62 @@ return [
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<applet'), 'Expected WordPress blocks to omit applet wrapper');
     },
+    'converts safe object and embed sources into reviewer links before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<object data="./docs/source.pdf" title="Embedded PDF source"><p>PDF fallback <a href="./docs/fallback.html">details</a></p></object>'
+            . '<embed src=" h&#9;ttps://cdn.example.test/media/demo.mp4 " title="Embedded media source">'
+            . '<embed src="javascript:alert(1)" title="Bad embed">'
+            . '<p>after</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/embed-source-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<a href="https://source.example.test/import/posts/docs/source.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a>'
+            . '<p>PDF fallback <a href="https://source.example.test/import/posts/docs/fallback.html">details</a></p>'
+            . '<a href="https://cdn.example.test/media/demo.mp4" data-pandoc-embed-src="true" title="Embedded media source">Embedded media source</a>'
+            . '<p>after</p>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Embedded PDF sourcePDF fallback detailsEmbedded media sourceafter', $fragment->textContent());
+        $t->same(['a', 'p'], $summary['elementNames']);
+        $t->same(['base', 'embed', 'object'], $summary['blockedTags']);
+        $t->same(['data', 'src'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'blocked-tag', 'embedded-source-review', 'blocked-tag', 'blocked-tag', 'normalized-url', 'embedded-source-review'], $policyDiagnostics);
+        $t->same('a', $nodes[0]['name']);
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/docs/source.pdf',
+            'data-pandoc-object-data' => 'true',
+            'title' => 'Embedded PDF source',
+        ], $nodes[0]['attrs']);
+        $t->same('p', $nodes[1]['name']);
+        $t->same('https://source.example.test/import/posts/docs/fallback.html', $nodes[1]['children'][1]['attrs']['href']);
+        $t->same('a', $nodes[2]['name']);
+        $t->same([
+            'href' => 'https://cdn.example.test/media/demo.mp4',
+            'data-pandoc-embed-src' => 'true',
+            'title' => 'Embedded media source',
+        ], $nodes[2]['attrs']);
+        $t->same('/migration/embed-source-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, '<object'), 'Expected object wrapper to be stripped');
+        $t->true(!str_contains($html, '<embed'), 'Expected embed wrapper to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe embed source URL to stay hidden');
+        $t->true(!str_contains($html, 'Bad embed'), 'Expected unsafe embed title to stay hidden with its source');
+        $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
+        $t->true(!str_contains($blocks, '<embed'), 'Expected WordPress blocks to omit embed wrapper');
+    },
     'unwraps iframe srcdoc content through sanitizer before WordPress handoff' => static function (TestRunner $t): void {
         $srcdoc = htmlspecialchars(
             '<base href="./frames/"><article><h2>Embedded packet</h2><a href="note.html">note</a><img src="cover.png" alt="Cover"><a href="javascript:alert(1)">bad</a><script>drop()</script></article>',

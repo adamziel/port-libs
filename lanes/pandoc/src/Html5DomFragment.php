@@ -245,7 +245,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'portal-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -462,6 +462,20 @@ final class Html5DomFragment
                 return $iframeSource === null ? [] : [$iframeSource];
             }
 
+            if ($name === 'object') {
+                $objectSource = self::normalizeHtmlEmbeddedSourceElement(
+                    $node,
+                    'object',
+                    'data',
+                    'data-pandoc-object-data',
+                    'Embedded object source',
+                    $diagnostics,
+                    $baseUrl
+                );
+
+                return $objectSource === null ? $children : [$objectSource, ...$children];
+            }
+
             if ($name === 'form') {
                 $formMetadata = self::htmlFormReviewMetadataNode($node, $diagnostics, $baseUrl);
                 if ($formMetadata !== null) {
@@ -511,6 +525,32 @@ final class Html5DomFragment
 
         if ($mode === 'html' && $elementForeignContext === null && $name === 'portal') {
             return self::normalizeHtmlPortalElement($node, $diagnostics, $elementForeignContext, $baseUrl);
+        }
+
+        if ($mode === 'html' && $elementForeignContext === null && $name === 'embed') {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'blocked-tag',
+                'tag' => $name,
+            ], $node);
+
+            $children = self::normalizeChildren(
+                $node,
+                $mode,
+                $diagnostics,
+                self::childForeignContext($node, $rawName, $elementForeignContext),
+                $baseUrl
+            );
+            $embedSource = self::normalizeHtmlEmbeddedSourceElement(
+                $node,
+                'embed',
+                'src',
+                'data-pandoc-embed-src',
+                'Embedded media source',
+                $diagnostics,
+                $baseUrl
+            );
+
+            return $embedSource === null ? ($children === [] ? null : $children) : [$embedSource, ...$children];
         }
 
         if ($mode === 'html' && self::isBlockedElement($name)) {
@@ -2095,6 +2135,70 @@ final class Html5DomFragment
                 'text' => $title !== '' ? $title : 'Embedded frame source',
             ]],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function normalizeHtmlEmbeddedSourceElement(
+        \DOMElement $element,
+        string $tagName,
+        string $sourceAttribute,
+        string $metadataAttribute,
+        string $fallbackLabel,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?array {
+        if (!$element->hasAttribute($sourceAttribute)) {
+            return null;
+        }
+
+        $target = $element->getAttribute($sourceAttribute);
+        $normalizedTarget = self::normalizeUrlAttributeValue($target);
+        if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
+            return null;
+        }
+
+        if ($normalizedTarget !== $target) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'normalized-url',
+                'tag' => $tagName,
+                'attribute' => $sourceAttribute,
+            ], $element);
+        }
+
+        $href = $baseUrl !== null
+            ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
+            : $normalizedTarget;
+        $title = $element->hasAttribute('title')
+            ? self::cleanHtmlMetadataAttribute($element->getAttribute('title'))
+            : '';
+        $attrs = [
+            'href' => $href,
+            $metadataAttribute => 'true',
+        ];
+        if ($title !== '') {
+            $attrs['title'] = $title;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'embedded-source-review',
+            'tag' => $tagName,
+            'attribute' => $sourceAttribute,
+            'metadataAttribute' => $metadataAttribute,
+            'reason' => 'embedded-source-preserved-as-review-link',
+        ], $element);
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'a',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $title !== '' ? $title : $fallbackLabel,
+            ]],
+        ], $element);
     }
 
     /**

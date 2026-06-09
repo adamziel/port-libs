@@ -526,6 +526,27 @@ $packageRootExternalTargetPackage = ZipPackage::fromParts([
     ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
 ]);
 
+$externalTargetPercentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+$externalTargetPercentDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGoodEncodedSpace" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html" TargetMode="External"/>
+  <Relationship Id="rIdBadPercentEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%ZZpacket.html" TargetMode="External"/>
+  <Relationship Id="rIdEncodedNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%00packet.html" TargetMode="External"/>
+</Relationships>
+XML;
+
+$externalTargetPercentPackage = ZipPackage::fromParts([
+    ['name' => '[Content_Types].xml', 'data' => $packageRootExternalTargetContentTypesXml],
+    ['name' => '_rels/.rels', 'data' => $externalTargetPercentRelationshipsXml],
+    ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+    ['name' => 'word/_rels/document.xml.rels', 'data' => $externalTargetPercentDocumentRelationshipsXml],
+]);
+
 $relationshipRecordShapeContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1233,6 +1254,24 @@ foreach ($packageRootExternalTargetGraph->preflightTargetsForSource('/') as $tar
         'requiresBaseUri' => $target['externalTargetRequiresBaseUri'],
         'rewriteBasePart' => $target['externalTargetRewriteBasePart'],
         'rewriteReason' => $target['externalTargetRewriteReason'],
+        'valid' => $target['valid'],
+        'issues' => $target['issues'],
+    ];
+}
+
+$externalTargetPercentGraph = OpcRelationshipGraph::fromPackage($externalTargetPercentPackage);
+$externalTargetPercentGuards = [];
+foreach ($externalTargetPercentGraph->preflightTargetsForSource('/word/document.xml') as $target) {
+    if (!$target['external']) {
+        continue;
+    }
+
+    $externalTargetPercentGuards[$target['id']] = [
+        'id' => $target['id'],
+        'target' => $target['target'],
+        'kind' => $target['externalTargetKind'],
+        'scheme' => $target['externalTargetScheme'],
+        'allowed' => $target['externalTargetAllowed'],
         'valid' => $target['valid'],
         'issues' => $target['issues'],
     ];
@@ -2272,6 +2311,7 @@ $summary = [
     'relationshipTargetModeGuards' => $relationshipTargetModeGuards,
     'nestedRelationshipPayloadSegmentGuard' => $nestedRelationshipPayloadSegmentGuard,
     'packageRootExternalTargetGuards' => $packageRootExternalTargetGuards,
+    'externalTargetPercentGuards' => $externalTargetPercentGuards,
     'relationshipRecordShapeGuards' => $relationshipRecordShapeGuards,
     'fixedContentTypesItemGuard' => $fixedContentTypesItemGuard,
     'reservedRelationshipContentTypeGuard' => $reservedRelationshipContentTypeGuard,
@@ -2353,6 +2393,7 @@ $summary = [
             ],
             array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === true)
         )),
+        'externalTargetPercentGuards' => array_values($externalTargetPercentGuards),
         'digitalSignatureParts' => $digitalSignatureParts,
         'digitalSignatureRoleIssues' => array_values(array_filter(
             $digitalSignatureRelationshipRoles['roles'],
@@ -3116,6 +3157,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['rewriteReason'] ?? null) !== 'external-target-fragment-reference'
         || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['valid'] ?? null) !== false
         || ($summary['packageRootExternalTargetGuards']['rIdPackageFragment']['issues'] ?? null) !== ['external-target-package-root-base-uri']
+        || ($summary['externalTargetPercentGuards']['rIdGoodEncodedSpace']['allowed'] ?? null) !== true
+        || ($summary['externalTargetPercentGuards']['rIdGoodEncodedSpace']['valid'] ?? null) !== true
+        || ($summary['externalTargetPercentGuards']['rIdGoodEncodedSpace']['issues'] ?? null) !== []
+        || ($summary['externalTargetPercentGuards']['rIdBadPercentEscape']['allowed'] ?? null) !== false
+        || ($summary['externalTargetPercentGuards']['rIdBadPercentEscape']['valid'] ?? null) !== false
+        || ($summary['externalTargetPercentGuards']['rIdBadPercentEscape']['issues'] ?? null) !== ['external-target-malformed-percent-escape']
+        || ($summary['externalTargetPercentGuards']['rIdEncodedNul']['allowed'] ?? null) !== false
+        || ($summary['externalTargetPercentGuards']['rIdEncodedNul']['valid'] ?? null) !== false
+        || ($summary['externalTargetPercentGuards']['rIdEncodedNul']['issues'] ?? null) !== ['external-target-unsafe-percent-encoded-byte']
+        || ($summary['wordpressImport']['externalTargetPercentGuards'][1]['id'] ?? null) !== 'rIdBadPercentEscape'
+        || ($summary['wordpressImport']['externalTargetPercentGuards'][1]['issues'] ?? null) !== ['external-target-malformed-percent-escape']
+        || ($summary['wordpressImport']['externalTargetPercentGuards'][2]['id'] ?? null) !== 'rIdEncodedNul'
+        || ($summary['wordpressImport']['externalTargetPercentGuards'][2]['issues'] ?? null) !== ['external-target-unsafe-percent-encoded-byte']
         || array_keys($summary['relationshipRecordShapeGuards'] ?? []) !== [
             '/word/_rels/missing-id.xml.rels',
             '/word/_rels/missing-type.xml.rels',

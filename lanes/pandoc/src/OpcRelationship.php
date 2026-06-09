@@ -102,6 +102,12 @@ final class OpcRelationship
             $issues[] = 'external-target-control-character';
         }
 
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $this->target) === 1) {
+            $issues[] = 'external-target-malformed-percent-escape';
+        } elseif (self::externalTargetContainsPercentEncodedControlByte($this->target)) {
+            $issues[] = 'external-target-unsafe-percent-encoded-byte';
+        }
+
         if ($scheme !== null && in_array($scheme, self::UNSAFE_EXTERNAL_SCHEMES, true)) {
             $issues[] = 'external-target-unsafe-scheme';
         }
@@ -119,5 +125,21 @@ final class OpcRelationship
         if (preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $id) !== 1) {
             throw new \InvalidArgumentException('OPC relationship Id must be an XML NCName-style identifier');
         }
+    }
+
+    private static function externalTargetContainsPercentEncodedControlByte(string $target): bool
+    {
+        if (preg_match_all('/%([0-9A-Fa-f]{2})/', $target, $matches) === 0) {
+            return false;
+        }
+
+        foreach ($matches[1] as $hex) {
+            $byte = hexdec($hex);
+            if ($byte < 0x20 || $byte === 0x7F) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

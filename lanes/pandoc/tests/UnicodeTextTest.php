@@ -569,6 +569,27 @@ return [
         $t->same(37, UnicodeText::displayWidth((string) $document->children[0]->attr('text'), 'wide'));
         $t->contains("<p>✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎</p>", $blocks);
     },
+    'decodes mac symbol source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "A B G W a b g w \xB3 \xB9\xBA\xBB \xD5\xD6\xE5 \xF2 \xF0.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'symbol');
+        $document = (new MarkdownReader())->readBytes($bytes, 'x-mac-symbol');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $undefined = UnicodeText::decodeBytes("A\x80B\xA0C\xFFD", 'mac-symbol');
+
+        $t->same('mac-symbol', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("Α Β Γ Ω α β γ ω ≥ ≠≡≈ ∏√∑ ∫ \u{F8FF}.", $decoded['text']);
+        $t->same("Α\u{FFFD}Β\u{FFFD}Χ\u{FFFD}Δ", $undefined['text']);
+        $t->same('mac-symbol', $undefined['encoding']);
+        $t->same(3, $undefined['repairs']);
+        $t->same(['encoding' => 'mac-symbol', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same("Α Β Γ Ω α β γ ω ≥ ≠≡≈ ∏√∑ ∫ \u{F8FF}.", $document->children[0]->attr('text'));
+        $t->same(30, UnicodeText::displayWidth((string) $document->children[0]->attr('text')));
+        $t->same(47, UnicodeText::displayWidth((string) $document->children[0]->attr('text'), 'wide'));
+        $t->contains("<p>Α Β Γ Ω α β γ ω ≥ ≠≡≈ ∏√∑ ∫ \u{F8FF}.</p>", $blocks);
+    },
     'decodes mac thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Mac Thai\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3; \x80\x81 \x8Dtext\x8E \xDD \xDF20; \xDB\xDC.";
         $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-thai');

@@ -99,6 +99,9 @@ $macCroatianText = (string) $macCroatianSource->children[1]->attr('text');
 $macDingbatsBytes = "\x21\x22\x23 \x33\x34 \x48 \xA8\xAA\xAB \xAC\xB6\xBF \xD5\xD6\xD7 \xE0\xEF \x80.";
 $macDingbatsSource = (new MarkdownReader())->readBytes($macDingbatsBytes, 'x-mac-dingbats');
 $macDingbatsText = (string) $macDingbatsSource->children[0]->attr('text');
+$macSymbolBytes = "A B G W a b g w \xB3 \xB9\xBA\xBB \xD5\xD6\xE5 \xF2 \xF0.";
+$macSymbolSource = (new MarkdownReader())->readBytes($macSymbolBytes, 'x-mac-symbol');
+$macSymbolText = (string) $macSymbolSource->children[0]->attr('text');
 $ibm855Bytes = "# DOS 855\n\n\xE2\xA8\xA6\xA0\xC6\xE5\xD6\xE1 \xD8\xE1\xB7\xEB\xA8\xE5; \x85\xD0\xC6\xA0; \x91\x90 \x93\x92; box \xB3\xC4\xDA; \xEF\xFD.";
 $ibm855Source = (new MarkdownReader())->readBytes($ibm855Bytes, 'cp855');
 $ibm855Text = (string) $ibm855Source->children[1]->attr('text');
@@ -677,6 +680,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macDingbatsSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macDingbatsText) . '/' . UnicodeText::displayWidth($macDingbatsText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Symbol source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macSymbolText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macSymbolSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macSymbolText) . '/' . UnicodeText::displayWidth($macSymbolText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM855 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm855Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm855Text) . '/' . UnicodeText::displayWidth($ibm855Text, 'wide')])]),
@@ -1176,6 +1184,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>Mac Dingbats source</td><td>✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎</td><td>mac-dingbats:26/37</td>")) {
         throw new RuntimeException('charset handoff self-test missing Mac Dingbats decode audit row');
+    }
+    if (($macSymbolSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-symbol') {
+        throw new RuntimeException('charset handoff self-test missing Mac Symbol source encoding');
+    }
+    if (!str_contains($blocks, "<td>Mac Symbol source</td><td>Α Β Γ Ω α β γ ω ≥ ≠≡≈ ∏√∑ ∫ \u{F8FF}.</td><td>mac-symbol:30/47</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Mac Symbol decode audit row');
     }
     if (($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm855') {
         throw new RuntimeException('charset handoff self-test missing IBM855 source encoding');

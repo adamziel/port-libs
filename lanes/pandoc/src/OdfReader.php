@@ -56,6 +56,9 @@ final class OdfReader
     /** @var array<string, array<string, mixed>> */
     private array $variableFieldValuesByName = [];
 
+    /** @var array<string, mixed> */
+    private array $packageMetadata = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -81,10 +84,10 @@ final class OdfReader
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
         $styleCatalog = $this->readStyles($package);
-        $content = $this->readContent($package, $styleCatalog);
+        $metadata = $this->readMeta($package);
+        $content = $this->readContent($package, $styleCatalog, $metadata);
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
-        $metadata = $this->readMeta($package);
         $settings = $this->readSettings($package);
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
@@ -432,7 +435,7 @@ final class OdfReader
      * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
      * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
-    private function readContent(ZipPackage $package, array $styleCatalog): array
+    private function readContent(ZipPackage $package, array $styleCatalog, array $metadata): array
     {
         if (!$package->has('content.xml')) {
             throw new \RuntimeException('ODT package is missing content.xml');
@@ -461,6 +464,7 @@ final class OdfReader
         $this->currentListLevel = 0;
         $this->headingAnchorUses = [];
         $this->variableFieldValuesByName = [];
+        $this->packageMetadata = $metadata;
 
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
@@ -5762,6 +5766,7 @@ final class OdfReader
         $this->rememberVariableFieldValue($field, $metadata);
         if ($children === []) {
             $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
+            $metadata = $this->fieldMetadataWithPackageMetadata($field, $metadata);
             $this->rememberVariableFieldValue($field, $metadata);
             $text = $this->fieldFallbackText($field, $metadata);
             if ($text === '') {
@@ -5879,6 +5884,171 @@ final class OdfReader
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function fieldMetadataWithPackageMetadata(\DOMElement $field, array $metadata): array
+    {
+        if ($this->packageMetadata === []) {
+            return $metadata;
+        }
+
+        $source = match ($field->localName) {
+            'title' => $this->fieldStringMetadata('title'),
+            'subject' => $this->fieldStringMetadata('subject'),
+            'description' => $this->fieldStringMetadata('description'),
+            'keywords' => $this->fieldKeywordsMetadata(),
+            'author-name' => $this->fieldStringMetadata('creator'),
+            'initial-creator' => $this->fieldStringMetadata('initialCreator'),
+            'creation-date' => $this->fieldDateMetadata('created'),
+            'modification-date' => $this->fieldDateMetadata('modificationDate'),
+            'modification-time' => $this->fieldTimeMetadata('modificationTime'),
+            'printed-by' => $this->fieldStringMetadata('printedBy'),
+            'print-date' => $this->fieldDateMetadata('printDate'),
+            'print-time' => $this->fieldTimeMetadata('printTime'),
+            'editing-cycles' => $this->fieldStringMetadata('editingCycles'),
+            'editing-duration' => $this->fieldStringMetadata('editingDuration'),
+            'template-name' => $this->fieldTemplateMetadata(),
+            'user-defined' => $this->fieldUserDefinedPackageMetadata((string) ($metadata['name'] ?? '')),
+            default => [],
+        };
+
+        if ($source === []) {
+            return $metadata;
+        }
+
+        $metadata = $this->fillMissingFieldMetadata($metadata, $source);
+        if (isset($source['stringValue']) && (!isset($metadata['stringValue']) || $metadata['stringValue'] === '')) {
+            $metadata['stringValue'] = $source['stringValue'];
+        }
+        if (!isset($metadata['metadataSource'])) {
+            $metadata['metadataSource'] = 'meta.xml';
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldStringMetadata(string $name): array
+    {
+        $value = $this->packageMetadata[$name] ?? null;
+        if (!is_scalar($value) || (string) $value === '') {
+            return [];
+        }
+
+        return ['stringValue' => (string) $value];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldKeywordsMetadata(): array
+    {
+        $keywords = $this->packageMetadata['keywords'] ?? null;
+        if (!is_array($keywords)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($keywords as $keyword) {
+            if (is_scalar($keyword) && (string) $keyword !== '') {
+                $values[] = (string) $keyword;
+            }
+        }
+
+        return $values === [] ? [] : ['stringValue' => implode(', ', $values)];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldDateMetadata(string $name): array
+    {
+        $value = $this->packageMetadata[$name] ?? null;
+        if (!is_scalar($value) || (string) $value === '') {
+            return [];
+        }
+
+        return ['dateValue' => (string) $value];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldTimeMetadata(string $name): array
+    {
+        $value = $this->packageMetadata[$name] ?? null;
+        if (!is_scalar($value) || (string) $value === '') {
+            return [];
+        }
+
+        return ['timeValue' => (string) $value];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function fieldTemplateMetadata(): array
+    {
+        $template = $this->packageMetadata['template'] ?? null;
+        if (!is_array($template)) {
+            return [];
+        }
+
+        foreach (['href', 'title'] as $name) {
+            $value = $template[$name] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                return ['stringValue' => (string) $value];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fieldUserDefinedPackageMetadata(string $name): array
+    {
+        if ($name === '') {
+            return [];
+        }
+
+        $details = $this->packageMetadata['userDefinedDetails'][$name] ?? null;
+        if (is_array($details)) {
+            $metadata = [];
+            foreach (['valueType', 'value', 'currency', 'booleanValue', 'stringValue', 'dateValue', 'timeValue'] as $key) {
+                if (array_key_exists($key, $details)) {
+                    $metadata[$key] = $details[$key];
+                }
+            }
+
+            $displayValue = $details['displayValue'] ?? null;
+            $hasConcreteValue = false;
+            foreach (['value', 'booleanValue', 'dateValue', 'timeValue'] as $key) {
+                if (array_key_exists($key, $metadata)) {
+                    $hasConcreteValue = true;
+                    break;
+                }
+            }
+            if (!$hasConcreteValue && !isset($metadata['stringValue']) && is_scalar($displayValue) && (string) $displayValue !== '') {
+                $metadata['stringValue'] = (string) $displayValue;
+            }
+
+            return self::withoutEmpty($metadata);
+        }
+
+        $value = $this->packageMetadata['userDefined'][$name] ?? null;
+        if (!is_scalar($value) || (string) $value === '') {
+            return [];
+        }
+
+        return ['stringValue' => (string) $value];
     }
 
     /**

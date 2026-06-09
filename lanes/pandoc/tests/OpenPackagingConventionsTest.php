@@ -1732,6 +1732,77 @@ XML;
         $t->same(true, $preflight['rIdEncodedSpaceExternal']['valid']);
         $t->same([], $preflight['rIdEncodedSpaceExternal']['issues']);
     },
+    'preflights malformed percent escapes in external OPC relationship target URI references' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $badEscape = new OpcRelationship(
+            'rIdBadExternalEscape',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'https://example.test/source%ZZpacket.html',
+            OpcRelationship::TARGET_MODE_EXTERNAL,
+        );
+        $encodedNul = new OpcRelationship(
+            'rIdEncodedNulExternal',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'https://example.test/source%00packet.html',
+            OpcRelationship::TARGET_MODE_EXTERNAL,
+        );
+
+        $t->same([
+            'kind' => 'absolute-uri',
+            'scheme' => 'https',
+            'allowed' => false,
+            'issues' => ['external-target-malformed-percent-escape'],
+        ], $badEscape->externalTargetPreflight());
+        $t->same([
+            'kind' => 'absolute-uri',
+            'scheme' => 'https',
+            'allowed' => false,
+            'issues' => ['external-target-unsafe-percent-encoded-byte'],
+        ], $encodedNul->externalTargetPreflight());
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGoodEncodedSpaceExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%20packet.html" TargetMode="External"/>
+  <Relationship Id="rIdBadExternalEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%ZZpacket.html" TargetMode="External"/>
+  <Relationship Id="rIdEncodedNulExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/source%00packet.html" TargetMode="External"/>
+  <Relationship Id="rIdUnsafeEncodedExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert%00(1)" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same(true, $preflight['rIdGoodEncodedSpaceExternal']['externalTargetAllowed']);
+        $t->same(true, $preflight['rIdGoodEncodedSpaceExternal']['valid']);
+        $t->same([], $preflight['rIdGoodEncodedSpaceExternal']['issues']);
+        $t->same(false, $preflight['rIdBadExternalEscape']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdBadExternalEscape']['valid']);
+        $t->same(['external-target-malformed-percent-escape'], $preflight['rIdBadExternalEscape']['issues']);
+        $t->same(false, $preflight['rIdEncodedNulExternal']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdEncodedNulExternal']['valid']);
+        $t->same(['external-target-unsafe-percent-encoded-byte'], $preflight['rIdEncodedNulExternal']['issues']);
+        $t->same(false, $preflight['rIdUnsafeEncodedExternal']['externalTargetAllowed']);
+        $t->same(false, $preflight['rIdUnsafeEncodedExternal']['valid']);
+        $t->same(['external-target-unsafe-percent-encoded-byte', 'external-target-unsafe-scheme'], $preflight['rIdUnsafeEncodedExternal']['issues']);
+
+        $closureById = [];
+        foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
+            $closureById[$target['id']] = $target;
+        }
+
+        $t->same(['external-target-malformed-percent-escape'], $closureById['rIdBadExternalEscape']['issues']);
+        $t->same(['external-target-unsafe-percent-encoded-byte'], $closureById['rIdEncodedNulExternal']['issues']);
+        $t->same(['external-target-unsafe-percent-encoded-byte', 'external-target-unsafe-scheme'], $closureById['rIdUnsafeEncodedExternal']['issues']);
+    },
     'surfaces OPC external relative target rewrite context' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
