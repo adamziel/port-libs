@@ -13715,6 +13715,31 @@ XML;
         $t->contains('<pre class="wp-block-code"><code class="language-tex">\begin{tabular}{|l|l|}\hline', $blocks);
         $t->contains('Field &amp; Value \\\\ \hline', $blocks);
     },
+    'maps pandoc markdown tex math single backslash extension' => static function (TestRunner $t): void {
+        $markdown = "\\newcommand{\\pair}[1]{\\langle #1 \\rangle}\n\n"
+            . 'Review \(x \in y\) and display \[\pair{post_id,media_id}\] before export.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[1];
+        $inlineMath = $paragraph->children[1] ?? new AstNode('missing');
+        $displayMath = $paragraph->children[3] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_tex', $document->children[0]->type);
+        $t->same('math', $inlineMath->type);
+        $t->same(false, $inlineMath->attr('display'));
+        $t->same('x \in y', $inlineMath->attr('text'));
+        $t->same('math', $displayMath->type);
+        $t->same(true, $displayMath->attr('display'));
+        $t->same('\langle post_id,media_id \rangle', $displayMath->attr('text'));
+        $t->same(
+            "\\newcommand{\\pair}[1]{\\langle #1 \\rangle}\n\n"
+                . 'Review $x \in y$ and display $$\langle post_id,media_id \rangle$$ before export.',
+            (new MarkdownWriter())->write($document)
+        );
+        $t->contains('<span class="math inline">\(x \in y\)</span>', $blocks);
+        $t->contains('<span class="math display">\[\langle post_id,media_id \rangle\]</span>', $blocks);
+        $t->same('Escaped \(literal\) stays text.', (new MarkdownReader())->read('Escaped \\\\(literal\\\\) stays text.')->children[0]->attr('text'));
+    },
     'writes wordpress entity decoded text without double escaping import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));

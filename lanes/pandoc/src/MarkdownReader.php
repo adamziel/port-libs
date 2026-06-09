@@ -16185,6 +16185,11 @@ final class MarkdownReader
      */
     private function tryParseMath(string $text, int $offset): ?array
     {
+        $singleBackslashMath = $this->tryParseSingleBackslashMath($text, $offset);
+        if ($singleBackslashMath !== null) {
+            return $singleBackslashMath;
+        }
+
         if (($text[$offset] ?? '') !== '$' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
         }
@@ -16221,6 +16226,54 @@ final class MarkdownReader
             ]),
             'next' => $end + 1,
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseSingleBackslashMath(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $opener = $text[$offset + 1] ?? '';
+        $closer = match ($opener) {
+            '(' => ')',
+            '[' => ']',
+            default => null,
+        };
+        if ($closer === null) {
+            return null;
+        }
+
+        $end = $this->findClosingSingleBackslashMath($text, $offset + 2, $closer);
+        if ($end === null || $end === $offset + 2) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode('math', [
+                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 2, $end - $offset - 2))),
+                'display' => $opener === '[',
+            ]),
+            'next' => $end + 2,
+        ];
+    }
+
+    private function findClosingSingleBackslashMath(string $text, int $offset, string $closer): ?int
+    {
+        $needle = '\\' . $closer;
+        $position = strpos($text, $needle, $offset);
+        while ($position !== false) {
+            if (!$this->isEscapedInlinePosition($text, $position)) {
+                return $position;
+            }
+
+            $position = strpos($text, $needle, $position + 2);
+        }
+
+        return null;
     }
 
     private function findClosingDisplayMath(string $text, int $offset): ?int
