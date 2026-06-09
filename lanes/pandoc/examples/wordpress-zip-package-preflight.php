@@ -3808,6 +3808,7 @@ $zip64MalformedLocatorBytes = substr_replace(
     8
 );
 $zip64MalformedLocatorPreflight = ZipPackage::endOfCentralDirectoryPreflight($zip64MalformedLocatorBytes);
+$zip64MalformedLocatorAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip64MalformedLocatorBytes);
 $zip64MalformedLocatorRejected = false;
 try {
     ZipPackage::fromString($zip64MalformedLocatorBytes);
@@ -5825,6 +5826,9 @@ if (in_array('--self-test', $argv, true)) {
         ($zip64MalformedLocatorPreflight['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
         || ($zip64MalformedLocatorPreflight['hasZip64EndOfCentralDirectory'] ?? null) !== false
         || !in_array('zip64-end-of-central-directory-record-missing', $zip64MalformedLocatorPreflight['zip64Issues'] ?? [], true)
+        || ($zip64MalformedLocatorAccounting['recordSignature'] ?? null) !== 'local-file-header'
+        || ($zip64MalformedLocatorAccounting['recordSignatureHex'] ?? null) !== '504b0304'
+        || !in_array('zip64-end-of-central-directory-locator-target-not-record', $zip64MalformedLocatorAccounting['issues'] ?? [], true)
         || !$zip64MalformedLocatorRejected
     ) {
         throw new RuntimeException('Expected malformed ZIP64 locator metadata to be reported and rejected before import');
@@ -5835,8 +5839,10 @@ if (in_array('--self-test', $argv, true)) {
         || ($rawStrictZip64MalformedLocatorPreflight['canInstantiate'] ?? null) !== false
         || ($rawStrictZip64MalformedLocatorPreflight['zip64EndOfCentralDirectory']['hasZip64EndOfCentralDirectoryLocator'] ?? null) !== true
         || ($rawStrictZip64MalformedLocatorPreflight['zip64EndOfCentralDirectory']['hasZip64EndOfCentralDirectory'] ?? null) !== false
+        || ($rawStrictZip64MalformedLocatorPreflight['zip64EndOfCentralDirectory']['recordSignature'] ?? null) !== 'local-file-header'
         || ($rawStrictZip64MalformedLocatorPreflight['centralDirectoryInventory'] ?? null) !== null
         || !in_array('zip64-end-of-central-directory-record-missing', $rawStrictZip64MalformedLocatorPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip64-end-of-central-directory-locator-target-not-record', $rawStrictZip64MalformedLocatorPreflight['diagnostics'] ?? [], true)
         || !in_array('zip-package-instantiation-failed', $rawStrictZip64MalformedLocatorPreflight['diagnostics'] ?? [], true)
     ) {
         throw new RuntimeException('Expected raw strict ZIP import preflight to reject malformed ZIP64 locator bytes');
@@ -6987,6 +6993,8 @@ echo 'zip64LocatorRecordSize=' . ($zip64LocatorPreflight['zip64EndOfCentralDirec
 echo 'zipRawStrictZip64LocatorPolicy=' . ($rawStrictZip64LocatorPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictZip64LocatorDiagnostics=' . implode(',', $rawStrictZip64LocatorPreflight['diagnostics']) . "\n";
 echo 'zip64MalformedLocatorPolicy=' . ($zip64MalformedLocatorRejected ? 'rejected' : 'not-rejected') . "\n";
+echo 'zip64MalformedLocatorTargetSignature=' . ($zip64MalformedLocatorAccounting['recordSignature'] ?? 'none') . "\n";
+echo 'zip64MalformedLocatorTargetSignatureHex=' . ($zip64MalformedLocatorAccounting['recordSignatureHex'] ?? 'none') . "\n";
 echo 'zipRawStrictZip64MalformedLocatorDiagnostics=' . implode(',', $rawStrictZip64MalformedLocatorPreflight['diagnostics']) . "\n";
 echo 'zip64EocdMismatchFields=' . implode(',', $zip64EocdMismatchAccounting['eocdZip64MismatchedFields']) . "\n";
 echo 'zipRawStrictZip64EocdMismatchDiagnostics=' . implode(',', $rawStrictZip64EocdMismatchPreflight['diagnostics']) . "\n";

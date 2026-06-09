@@ -4641,6 +4641,54 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'preflights zip64 end of central directory locator target signatures before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage, $packUInt64): void {
+        $zip = $buildZip64EndOfCentralDirectoryPackage();
+        $validAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip);
+        $validArchive = ZipPackage::endOfCentralDirectoryPreflight($zip);
+
+        $t->same(true, $validAccounting['recordOffsetAvailable']);
+        $t->same('zip64-end-of-central-directory', $validAccounting['recordSignature']);
+        $t->same('504b0606', $validAccounting['recordSignatureHex']);
+        $t->same(true, $validArchive['zip64EndOfCentralDirectoryRecordOffsetAvailable']);
+        $t->same('zip64-end-of-central-directory', $validArchive['zip64EndOfCentralDirectoryRecordSignature']);
+        $t->same('504b0606', $validArchive['zip64EndOfCentralDirectoryRecordSignatureHex']);
+
+        $locatorOffset = $validAccounting['locatorOffset'];
+        if ($locatorOffset === null) {
+            throw new \RuntimeException('Expected ZIP64 locator offset in fixture');
+        }
+
+        $localHeaderTargetZip = substr_replace($zip, $packUInt64(0), $locatorOffset + 8, 8);
+        $localHeaderAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($localHeaderTargetZip);
+        $localHeaderArchive = ZipPackage::endOfCentralDirectoryPreflight($localHeaderTargetZip);
+        $localHeaderRaw = ZipPackage::rawStrictImportPreflight($localHeaderTargetZip, 512, 20.0, 512);
+
+        $t->same(true, $localHeaderAccounting['recordOffsetAvailable']);
+        $t->same('local-file-header', $localHeaderAccounting['recordSignature']);
+        $t->same('504b0304', $localHeaderAccounting['recordSignatureHex']);
+        $t->contains('zip64-end-of-central-directory-locator-target-not-record', implode(',', $localHeaderAccounting['issues']));
+        $t->same(true, $localHeaderArchive['zip64EndOfCentralDirectoryRecordOffsetAvailable']);
+        $t->same('local-file-header', $localHeaderArchive['zip64EndOfCentralDirectoryRecordSignature']);
+        $t->same('504b0304', $localHeaderArchive['zip64EndOfCentralDirectoryRecordSignatureHex']);
+        $t->same($localHeaderAccounting, $localHeaderRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-end-of-central-directory-locator-target-not-record', implode(',', $localHeaderRaw['diagnostics']));
+
+        $outOfRangeZip = substr_replace($zip, $packUInt64(strlen($zip) + 128), $locatorOffset + 8, 8);
+        $outOfRangeAccounting = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($outOfRangeZip);
+        $outOfRangeArchive = ZipPackage::endOfCentralDirectoryPreflight($outOfRangeZip);
+        $outOfRangeRaw = ZipPackage::rawStrictImportPreflight($outOfRangeZip, 512, 20.0, 512);
+
+        $t->same(false, $outOfRangeAccounting['recordOffsetAvailable']);
+        $t->same(null, $outOfRangeAccounting['recordSignature']);
+        $t->same(null, $outOfRangeAccounting['recordSignatureHex']);
+        $t->contains('zip64-end-of-central-directory-locator-target-unavailable', implode(',', $outOfRangeAccounting['issues']));
+        $t->same(false, $outOfRangeArchive['zip64EndOfCentralDirectoryRecordOffsetAvailable']);
+        $t->same(null, $outOfRangeArchive['zip64EndOfCentralDirectoryRecordSignature']);
+        $t->same(null, $outOfRangeArchive['zip64EndOfCentralDirectoryRecordSignatureHex']);
+        $t->same($outOfRangeAccounting, $outOfRangeRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-end-of-central-directory-locator-target-unavailable', implode(',', $outOfRangeRaw['diagnostics']));
+    },
+
     'preflights zip64 end of central directory accounting before package import' => static function (TestRunner $t) use ($buildZip64EndOfCentralDirectoryPackage, $buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZip64EndOfCentralDirectoryPackage();
         $summary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($zip);
@@ -4812,11 +4860,18 @@ return [
         $t->same(true, $summary['hasZip64EndOfCentralDirectoryLocator']);
         $t->same(false, $summary['hasZip64EndOfCentralDirectory']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
-        $t->same(['zip64-end-of-central-directory', 'zip64-end-of-central-directory-record-missing'], $summary['issues']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-end-of-central-directory-record-missing',
+            'zip64-end-of-central-directory-locator-target-not-record',
+        ], $summary['issues']);
         $t->same($validSummary['eocdOffset'], $summary['eocdOffset']);
         $t->same($locatorOffset, $summary['locatorOffset']);
         $t->same(0, $summary['locatorRecordOffset']);
         $t->same(0, $summary['recordOffset']);
+        $t->same(true, $summary['recordOffsetAvailable']);
+        $t->same('local-file-header', $summary['recordSignature']);
+        $t->same('504b0304', $summary['recordSignatureHex']);
         $t->same(null, $summary['recordSize']);
         $t->same(null, $summary['recordPayloadSize']);
         $t->same(0, $summary['locatorDiskWithEndOfCentralDirectory']);
@@ -4824,7 +4879,13 @@ return [
         $t->same(true, $archive['requiresZip64']);
         $t->same(true, $archive['hasZip64EndOfCentralDirectoryLocator']);
         $t->same(false, $archive['hasZip64EndOfCentralDirectory']);
-        $t->same(['zip64-end-of-central-directory', 'zip64-end-of-central-directory-record-missing'], $archive['zip64Issues']);
+        $t->same('local-file-header', $archive['zip64EndOfCentralDirectoryRecordSignature']);
+        $t->same('504b0304', $archive['zip64EndOfCentralDirectoryRecordSignatureHex']);
+        $t->same([
+            'zip64-end-of-central-directory',
+            'zip64-end-of-central-directory-record-missing',
+            'zip64-end-of-central-directory-locator-target-not-record',
+        ], $archive['zip64Issues']);
 
         $t->same(false, $rawStrict['isValid']);
         $t->same(false, $rawStrict['canInstantiate']);
@@ -4835,6 +4896,7 @@ return [
         $t->same(null, $rawStrict['centralDirectoryInventory']);
         $t->contains('unsupported-archive-layout', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip64-end-of-central-directory-record-missing', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip64-end-of-central-directory-locator-target-not-record', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($malformedZip));
     },

@@ -2618,6 +2618,108 @@ return [
         $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarStreamAuto($tamperedHeaderCrc, strlen($tarBytes)));
     },
 
+    'preflights gzip header crc mismatches before package handoff' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-header-crc-preflight","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP header CRC preflight\n\nReady for bounded WordPress archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $firstLength = 512;
+        $firstMember = GzipStream::build(substr($tarBytes, 0, $firstLength), [
+            'filename' => 'wordpress-header-crc-part-1.tar',
+            'comment' => 'signed gzip member metadata',
+            'headerCrc' => true,
+        ]);
+        $secondMember = GzipStream::build(substr($tarBytes, $firstLength), [
+            'filename' => 'wordpress-header-crc-part-2.tar',
+            'comment' => 'unsigned gzip member metadata',
+        ]);
+        $validStream = $firstMember . $secondMember;
+        $firstMemberMetadata = GzipStream::members($firstMember)[0];
+        $headerCrcOffset = $firstMemberMetadata['headerCrcOffset'];
+        $tamperedStream = substr_replace(
+            $firstMember,
+            chr(ord($firstMember[$headerCrcOffset]) ^ 0x01),
+            $headerCrcOffset,
+            1
+        ) . $secondMember;
+
+        $validPolicy = ArchiveCompressionStream::inspectGzipHeaderCrcPolicy(
+            $validStream,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $policy = ArchiveCompressionStream::inspectGzipHeaderCrcPolicy(
+            $tamperedStream,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-header-crc-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($tamperedStream), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(2, $policy['memberCount']);
+        $t->same(1, $policy['headerCrcMemberCount']);
+        $t->same(1, $policy['missingHeaderCrcMemberCount']);
+        $t->same(1, $policy['mismatchedHeaderCrcMemberCount']);
+        $t->same(0, $policy['firstMismatchedMemberIndex']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('gzip-header-crc-review', $policy['extractionPolicy']);
+        $t->same(['gzip-member-header-crc-mismatch'], $policy['diagnostics']);
+        $t->same('within-thresholds', $validPolicy['handoffPolicy']);
+        $t->same(0, $validPolicy['mismatchedHeaderCrcMemberCount']);
+        $t->same([], $validPolicy['diagnostics']);
+
+        $first = $policy['members'][0];
+        $second = $policy['members'][1];
+        $t->same('wordpress-header-crc-part-1.tar', $first['filenameText']);
+        $t->same('signed gzip member metadata', $first['commentText']);
+        $t->true($first['headerCrcPresent']);
+        $t->same(false, $first['headerCrcMatches']);
+        $t->same($firstMemberMetadata['headerCrc16'] ^ 0x01, $first['headerCrc16']);
+        $t->same(sprintf('%04x', $firstMemberMetadata['headerCrc16'] ^ 0x01), $first['headerCrc16Hex']);
+        $t->same($firstMemberMetadata['headerCrc16'], $first['expectedHeaderCrc16']);
+        $t->same($firstMemberMetadata['headerCrc16Hex'], $first['expectedHeaderCrc16Hex']);
+        $t->same($firstMemberMetadata['headerCrcOffset'], $first['headerCrcOffset']);
+        $t->same($firstMemberMetadata['headerCrcCoverageSize'], $first['headerCrcCoverageSize']);
+        $t->same(0, $first['decodedDataOffset']);
+        $t->same($firstLength, $first['decodedDataEndOffset']);
+        $t->same('review-before-conversion', $first['policy']);
+        $t->same(['gzip-member-header-crc-mismatch'], $first['diagnostics']);
+
+        $t->same('wordpress-header-crc-part-2.tar', $second['filenameText']);
+        $t->same(false, $second['headerCrcPresent']);
+        $t->same(null, $second['headerCrcMatches']);
+        $t->same(null, $second['headerCrc16']);
+        $t->same(null, $second['expectedHeaderCrc16']);
+        $t->same($firstLength, $second['decodedDataOffset']);
+        $t->same(strlen($tarBytes), $second['decodedDataEndOffset']);
+        $t->same('metadata', $second['policy']);
+        $t->same([], $second['diagnostics']);
+        $t->same('gzip', $policy['stream']['type']);
+        $t->same(1, $policy['stream']['mismatchedHeaderCrcMemberCount']);
+        $t->true(!array_key_exists('archive', $policy));
+        $t->true(!array_key_exists('data', $policy['members'][0]));
+        $t->same($tarBytes, GzipStream::decode($validStream, strlen($tarBytes)));
+        $t->throws(\RuntimeException::class, static fn (): string => GzipStream::decode($tamperedStream));
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => ArchiveCompressionStream::openTar(
+            $tamperedStream,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipHeaderCrcPolicy(
+            $tamperedStream,
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR
+        ));
+    },
+
     'decodes gzip latin1 filename and comment text for review packet provenance' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

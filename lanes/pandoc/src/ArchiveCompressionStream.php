@@ -598,6 +598,74 @@ final class ArchiveCompressionStream
     /**
      * @return array{
      *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
+     *     headerCrcMemberCount:int,
+     *     missingHeaderCrcMemberCount:int,
+     *     mismatchedHeaderCrcMemberCount:int,
+     *     firstMismatchedMemberIndex:?int,
+     *     trailingPaddingBytes:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectGzipHeaderCrcPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP header-CRC policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $policy = GzipStream::headerCrcPolicyPreflight($bytes, $maxUncompressedBytes);
+        $diagnostics = $policy['mismatchedHeaderCrcMemberCount'] > 0
+            ? ['gzip-member-header-crc-mismatch']
+            : [];
+        $handoffPolicy = $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion';
+
+        return [
+            'type' => 'archive-gzip-header-crc-policy',
+            'format' => $format,
+            'compressedSize' => $policy['compressedSize'],
+            'uncompressedSize' => $policy['uncompressedSize'],
+            'memberCount' => $policy['memberCount'],
+            'headerCrcMemberCount' => $policy['headerCrcMemberCount'],
+            'missingHeaderCrcMemberCount' => $policy['missingHeaderCrcMemberCount'],
+            'mismatchedHeaderCrcMemberCount' => $policy['mismatchedHeaderCrcMemberCount'],
+            'firstMismatchedMemberIndex' => $policy['firstMismatchedMemberIndex'],
+            'trailingPaddingBytes' => $policy['trailingPaddingBytes'],
+            'handoffPolicy' => $handoffPolicy,
+            'extractionPolicy' => $handoffPolicy === 'within-thresholds'
+                ? 'metadata-only-no-extraction'
+                : 'gzip-header-crc-review',
+            'diagnostics' => $diagnostics,
+            'members' => $policy['members'],
+            'stream' => [
+                'type' => 'gzip',
+                'memberCount' => $policy['memberCount'],
+                'compressedSize' => $policy['compressedSize'],
+                'uncompressedSize' => $policy['uncompressedSize'],
+                'headerCrcMemberCount' => $policy['headerCrcMemberCount'],
+                'missingHeaderCrcMemberCount' => $policy['missingHeaderCrcMemberCount'],
+                'mismatchedHeaderCrcMemberCount' => $policy['mismatchedHeaderCrcMemberCount'],
+                'firstMismatchedMemberIndex' => $policy['firstMismatchedMemberIndex'],
+                'trailingPaddingBytes' => $policy['trailingPaddingBytes'],
+                'extractionPolicy' => $policy['extractionPolicy'],
+                'members' => $policy['members'],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
      *     kind:string,
      *     format:string,
      *     decodedFormat:string,

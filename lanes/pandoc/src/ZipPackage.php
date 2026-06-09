@@ -3799,6 +3799,9 @@ final class ZipPackage
      *     hasZip64EndOfCentralDirectory:bool,
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectoryRecordOffsetAvailable:?bool,
+     *     zip64EndOfCentralDirectoryRecordSignature:?string,
+     *     zip64EndOfCentralDirectoryRecordSignatureHex:?string,
      *     zip64EndOfCentralDirectorySize:?int,
      *     zip64EndOfCentralDirectoryPayloadSize:?int,
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
@@ -3857,6 +3860,9 @@ final class ZipPackage
             'hasZip64EndOfCentralDirectory' => $zip64['hasZip64EndOfCentralDirectory'],
             'zip64EndOfCentralDirectoryLocatorOffset' => $zip64['zip64EndOfCentralDirectoryLocatorOffset'],
             'zip64EndOfCentralDirectoryOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
+            'zip64EndOfCentralDirectoryRecordOffsetAvailable' => $zip64['zip64EndOfCentralDirectoryRecordOffsetAvailable'],
+            'zip64EndOfCentralDirectoryRecordSignature' => $zip64['zip64EndOfCentralDirectoryRecordSignature'],
+            'zip64EndOfCentralDirectoryRecordSignatureHex' => $zip64['zip64EndOfCentralDirectoryRecordSignatureHex'],
             'zip64EndOfCentralDirectorySize' => $zip64['zip64EndOfCentralDirectorySize'],
             'zip64EndOfCentralDirectoryPayloadSize' => $zip64['zip64EndOfCentralDirectoryPayloadSize'],
             'zip64EndOfCentralDirectoryRecordEnd' => $zip64['zip64EndOfCentralDirectoryRecordEnd'],
@@ -4140,6 +4146,9 @@ final class ZipPackage
      *     locatorRecordOffset:?int,
      *     locatorTotalDisks:?int,
      *     recordOffset:?int,
+     *     recordOffsetAvailable:?bool,
+     *     recordSignature:?string,
+     *     recordSignatureHex:?string,
      *     recordSize:?int,
      *     recordPayloadSize:?int,
      *     recordEnd:?int,
@@ -4219,6 +4228,9 @@ final class ZipPackage
             'locatorRecordOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
             'locatorTotalDisks' => $zip64['zip64TotalDisks'],
             'recordOffset' => $zip64['zip64EndOfCentralDirectoryOffset'],
+            'recordOffsetAvailable' => $zip64['zip64EndOfCentralDirectoryRecordOffsetAvailable'],
+            'recordSignature' => $zip64['zip64EndOfCentralDirectoryRecordSignature'],
+            'recordSignatureHex' => $zip64['zip64EndOfCentralDirectoryRecordSignatureHex'],
             'recordSize' => $zip64['zip64EndOfCentralDirectorySize'],
             'recordPayloadSize' => $zip64['zip64EndOfCentralDirectoryPayloadSize'],
             'recordEnd' => $zip64['zip64EndOfCentralDirectoryRecordEnd'],
@@ -5379,6 +5391,9 @@ final class ZipPackage
      *     hasZip64EndOfCentralDirectory:bool,
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectoryRecordOffsetAvailable:?bool,
+     *     zip64EndOfCentralDirectoryRecordSignature:?string,
+     *     zip64EndOfCentralDirectoryRecordSignatureHex:?string,
      *     zip64EndOfCentralDirectorySize:?int,
      *     zip64EndOfCentralDirectoryPayloadSize:?int,
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
@@ -8719,6 +8734,9 @@ final class ZipPackage
      *     hasZip64EndOfCentralDirectory:bool,
      *     zip64EndOfCentralDirectoryLocatorOffset:?int,
      *     zip64EndOfCentralDirectoryOffset:?int,
+     *     zip64EndOfCentralDirectoryRecordOffsetAvailable:?bool,
+     *     zip64EndOfCentralDirectoryRecordSignature:?string,
+     *     zip64EndOfCentralDirectoryRecordSignatureHex:?string,
      *     zip64EndOfCentralDirectorySize:?int,
      *     zip64EndOfCentralDirectoryPayloadSize:?int,
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
@@ -8747,6 +8765,9 @@ final class ZipPackage
             'hasZip64EndOfCentralDirectory' => false,
             'zip64EndOfCentralDirectoryLocatorOffset' => null,
             'zip64EndOfCentralDirectoryOffset' => null,
+            'zip64EndOfCentralDirectoryRecordOffsetAvailable' => null,
+            'zip64EndOfCentralDirectoryRecordSignature' => null,
+            'zip64EndOfCentralDirectoryRecordSignatureHex' => null,
             'zip64EndOfCentralDirectorySize' => null,
             'zip64EndOfCentralDirectoryPayloadSize' => null,
             'zip64EndOfCentralDirectoryRecordEnd' => null,
@@ -8777,15 +8798,33 @@ final class ZipPackage
         $locatorDiskWithEndOfCentralDirectory = self::readUInt32($bytes, $locatorOffset + 4);
         $recordOffset = self::readUInt64($bytes, $locatorOffset + 8);
         $totalDisks = self::readUInt32($bytes, $locatorOffset + 16);
+        $recordOffsetAvailable = self::isRangeAvailable($bytes, $recordOffset, 4);
+        $recordSignature = $recordOffsetAvailable
+            ? self::zipRecordSignatureNameAt($bytes, $recordOffset)
+            : null;
+        $recordSignatureHex = $recordOffsetAvailable
+            ? bin2hex(substr($bytes, $recordOffset, 4))
+            : null;
         if (
-            !self::isRangeAvailable($bytes, $recordOffset, 4)
+            !$recordOffsetAvailable
             || substr($bytes, $recordOffset, 4) !== self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE
         ) {
+            $recordIssues = [
+                'zip64-end-of-central-directory',
+                'zip64-end-of-central-directory-record-missing',
+                $recordOffsetAvailable
+                    ? 'zip64-end-of-central-directory-locator-target-not-record'
+                    : 'zip64-end-of-central-directory-locator-target-unavailable',
+            ];
+
             return [
                 'hasZip64EndOfCentralDirectoryLocator' => true,
                 'hasZip64EndOfCentralDirectory' => false,
                 'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
                 'zip64EndOfCentralDirectoryOffset' => $recordOffset,
+                'zip64EndOfCentralDirectoryRecordOffsetAvailable' => $recordOffsetAvailable,
+                'zip64EndOfCentralDirectoryRecordSignature' => $recordSignature,
+                'zip64EndOfCentralDirectoryRecordSignatureHex' => $recordSignatureHex,
                 'zip64EndOfCentralDirectorySize' => null,
                 'zip64EndOfCentralDirectoryPayloadSize' => null,
                 'zip64EndOfCentralDirectoryRecordEnd' => null,
@@ -8804,10 +8843,7 @@ final class ZipPackage
                 'zip64CentralDirectoryEnd' => null,
                 'zip64IsSingleDisk' => null,
                 'zip64CentralDirectoryEndMatchesRecordOffset' => null,
-                'zip64Issues' => [
-                    'zip64-end-of-central-directory',
-                    'zip64-end-of-central-directory-record-missing',
-                ],
+                'zip64Issues' => $recordIssues,
             ];
         }
 
@@ -8845,6 +8881,9 @@ final class ZipPackage
                 'hasZip64EndOfCentralDirectory' => true,
                 'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
                 'zip64EndOfCentralDirectoryOffset' => $recordOffset,
+                'zip64EndOfCentralDirectoryRecordOffsetAvailable' => $recordOffsetAvailable,
+                'zip64EndOfCentralDirectoryRecordSignature' => $recordSignature,
+                'zip64EndOfCentralDirectoryRecordSignatureHex' => $recordSignatureHex,
                 'zip64EndOfCentralDirectorySize' => $recordSize,
                 'zip64EndOfCentralDirectoryPayloadSize' => $declaredRecordPayloadSize,
                 'zip64EndOfCentralDirectoryRecordEnd' => $recordEnd,
@@ -8911,6 +8950,9 @@ final class ZipPackage
             'hasZip64EndOfCentralDirectory' => true,
             'zip64EndOfCentralDirectoryLocatorOffset' => $locatorOffset,
             'zip64EndOfCentralDirectoryOffset' => $recordOffset,
+            'zip64EndOfCentralDirectoryRecordOffsetAvailable' => $recordOffsetAvailable,
+            'zip64EndOfCentralDirectoryRecordSignature' => $recordSignature,
+            'zip64EndOfCentralDirectoryRecordSignatureHex' => $recordSignatureHex,
             'zip64EndOfCentralDirectorySize' => $recordSize,
             'zip64EndOfCentralDirectoryPayloadSize' => $declaredRecordPayloadSize,
             'zip64EndOfCentralDirectoryRecordEnd' => $recordEnd,
