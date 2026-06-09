@@ -17352,6 +17352,36 @@ MD;
         $t->contains('<!-- wp:separator -->', $blocks);
         $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
     },
+    'writes wordpress html writer attributes for separators' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('horizontal_rule', [
+                'id' => 'separator-attrs',
+                'classes' => ['review-separator'],
+                'attributes' => [
+                    'data-pandoc-block' => 'horizontal-rule',
+                    'aria-label' => 'Source separator',
+                    'xml:lang' => 'en',
+                    'onclick' => 'alert(1)',
+                    'style' => 'border-color:red',
+                ],
+            ]),
+            new AstNode('div', [], [
+                new AstNode('horizontal_rule', [
+                    'id' => 'nested-separator',
+                    'classes' => ['nested-review'],
+                    'attributes' => [
+                        'data-pandoc-block' => 'nested-horizontal-rule',
+                    ],
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity review-separator" id="separator-attrs" data-pandoc-block="horizontal-rule" aria-label="Source separator" xml:lang="en"/>', $blocks);
+        $t->contains('<div><hr class="wp-block-separator has-alpha-channel-opacity nested-review" id="nested-separator" data-pandoc-block="nested-horizontal-rule"/></div>', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe separator event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe separator style attributes should not survive HTML writer attribute handoff');
+    },
     'writes wordpress html writer attributes for headings and code blocks' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('heading', [

@@ -78,7 +78,7 @@ final class WordPressBlockWriter
             } elseif ($node->type === 'div') {
                 $blocks[] = $this->renderDivBlock($node);
             } elseif ($node->type === 'horizontal_rule') {
-                $blocks[] = $this->renderHorizontalRule();
+                $blocks[] = $this->renderHorizontalRule($node);
             } elseif ($node->type === 'list_item') {
                 $pendingList[] = '<li>' . $this->renderInlines($node) . '</li>';
             }
@@ -2517,11 +2517,39 @@ final class WordPressBlockWriter
             . "\n" . '<!-- /wp:html -->';
     }
 
-    private function renderHorizontalRule(): string
+    private function renderHorizontalRule(AstNode $node): string
     {
         return '<!-- wp:separator -->'
-            . "\n" . '<hr class="wp-block-separator has-alpha-channel-opacity"/>'
+            . "\n" . '<hr' . $this->renderHorizontalRuleAttrs($node) . '/>'
             . "\n" . '<!-- /wp:separator -->';
+    }
+
+    private function renderHorizontalRuleAttrs(AstNode $node): string
+    {
+        $htmlAttributes = $this->inlineHtmlAttributes($node);
+        $classes = ['wp-block-separator', 'has-alpha-channel-opacity'];
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            foreach (preg_split('/\s+/', trim((string) $htmlAttributes['class']), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $class) {
+                $classes[] = $class;
+            }
+        }
+
+        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'class' || !$this->isAllowedHtmlWriterAttr($name) || !is_scalar($value)) {
+                continue;
+            }
+
+            $value = (string) $value;
+            if ($value === '') {
+                continue;
+            }
+
+            $attrs .= ' ' . $name . '="' . $this->esc($value) . '"';
+        }
+
+        return $attrs;
     }
 
     private function sanitizeCodeClass(string $class): string
@@ -2629,7 +2657,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'horizontal_rule') {
-                $html .= '<hr/>';
+                $html .= '<hr' . $this->renderHorizontalRuleAttrs($block) . '/>';
                 continue;
             }
             if ($block->type === 'raw_html') {
