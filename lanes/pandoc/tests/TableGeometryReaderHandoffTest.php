@@ -2509,6 +2509,93 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes html table cell dimensions for geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="cell-dimension-grid" data-source="html-reader">
+<caption>Cell dimension review</caption>
+<thead>
+<tr><th width="120">Source</th><th style="width:40%; height:35%">Status</th><th>Wrap</th></tr>
+</thead>
+<tbody>
+<tr><td height="32">Posts</td><td width="50%" height="44">Ready</td><td width="0">Ignored</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($table, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $dimensionDiagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-dimensions'
+            ));
+            $dimensionDiagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $dimensions = is_array($packet['cellDimensions'] ?? null) ? $packet['cellDimensions'] : [];
+        $t->same(4, count($dimensions));
+        $t->same(true, $packet['summary']['hasCellDimensions'] ?? null);
+        $t->same(4, $packet['summary']['cellDimensionCount'] ?? null);
+        $t->same([0, 1], $packet['summary']['cellDimensionColumns'] ?? null);
+        $t->same(['head', 'body'], $packet['summary']['cellDimensionSections'] ?? null);
+        $t->same(['pixels', 'percent'], $packet['summary']['cellDimensionWidthTypes'] ?? null);
+        $t->same(['percent', 'pixels'], $packet['summary']['cellDimensionHeightTypes'] ?? null);
+        $t->same(['width', 'style'], $packet['summary']['cellDimensionWidthSources'] ?? null);
+        $t->same(['style', 'height'], $packet['summary']['cellDimensionHeightSources'] ?? null);
+        $t->same('Source', $dimensions[0]['text'] ?? null);
+        $t->same(true, $dimensions[0]['headerCell'] ?? null);
+        $t->same('120', $dimensions[0]['width'] ?? null);
+        $t->same('pixels', $dimensions[0]['widthType'] ?? null);
+        $t->same(120.0, $dimensions[0]['widthValue'] ?? null);
+        $t->same('width', $dimensions[0]['widthSource'] ?? null);
+        $t->same(['width' => '120'], $dimensions[0]['attributes'] ?? null);
+        $t->same('Status', $dimensions[1]['text'] ?? null);
+        $t->same('40%', $dimensions[1]['width'] ?? null);
+        $t->same('35%', $dimensions[1]['height'] ?? null);
+        $t->same('style', $dimensions[1]['widthSource'] ?? null);
+        $t->same('style', $dimensions[1]['heightSource'] ?? null);
+        $t->same(['height' => '35%', 'width' => '40%'], $dimensions[1]['attributes'] ?? null);
+        $t->same('Posts', $dimensions[2]['text'] ?? null);
+        $t->same('32', $dimensions[2]['height'] ?? null);
+        $t->same('height', $dimensions[2]['heightSource'] ?? null);
+        $t->same('Ready', $dimensions[3]['text'] ?? null);
+        $t->same('50%', $dimensions[3]['width'] ?? null);
+        $t->same('44', $dimensions[3]['height'] ?? null);
+        $t->same(['height' => '44', 'width' => '50%'], $dimensions[3]['attributes'] ?? null);
+
+        $t->same([
+            'markdown-cell-dimensions-require-raw-html',
+            'asciidoc-cell-dimensions-review-required',
+            'latex-cell-dimensions-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $dimensionDiagnostics['markdown'],
+            $dimensionDiagnostics['asciidoc'],
+            $dimensionDiagnostics['latex'],
+        ]));
+        $t->same('raw-html-cell-dimensions', $dimensionDiagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-cell-dimensions', $dimensionDiagnostics['markdown']['source'] ?? null);
+        $t->same(4, $dimensionDiagnostics['markdown']['cellCount'] ?? null);
+        $t->same([0, 1], $dimensionDiagnostics['markdown']['columns'] ?? null);
+        $t->same(['head', 'body'], $dimensionDiagnostics['markdown']['sections'] ?? null);
+        $t->same(['pixels', 'percent'], $dimensionDiagnostics['markdown']['widthTypes'] ?? null);
+        $t->same(['percent', 'pixels'], $dimensionDiagnostics['markdown']['heightTypes'] ?? null);
+
+        $t->contains('<th width="120">Source</th><th style="width:40%; height:35%">Status</th><th>Wrap</th>', $blocks);
+        $t->contains('<td height="32">Posts</td><td width="50%" height="44">Ready</td><td>Ignored</td>', $blocks);
+        $t->true(!str_contains($blocks, 'width="0"'));
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes html table cell background metadata for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="cell-background-grid" data-source="html-reader">

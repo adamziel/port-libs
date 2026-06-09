@@ -264,6 +264,21 @@ $cellNoWrapTables = array_values(array_filter(
     $cellNoWrapDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$cellDimensionDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="cell-dimension-grid" data-source="html-reader">
+<caption>Cell dimension review</caption>
+<thead>
+<tr><th width="120">Source</th><th style="width:40%; height:35%">Status</th><th>Wrap</th></tr>
+</thead>
+<tbody>
+<tr><td height="32">Posts</td><td width="50%" height="44">Ready</td><td width="0">Ignored</td></tr>
+</tbody>
+</table>
+HTML);
+$cellDimensionTables = array_values(array_filter(
+    $cellDimensionDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $rowBackgroundDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="row-background-grid" data-source="html-reader">
 <caption>Row background review</caption>
@@ -1612,6 +1627,7 @@ $document = new AstNode('document', [], [
     ...$legacyFrameTables,
     ...$legacySpacingTables,
     ...$cellNoWrapTables,
+    ...$cellDimensionTables,
     ...$rowBackgroundTables,
     ...$rowBorderPresentationTables,
     ...$sectionPresentationTables,
@@ -3172,6 +3188,55 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     json_encode($cellNoWrapPacket, JSON_THROW_ON_ERROR);
     json_encode($cellNoWrapDowngrades, JSON_THROW_ON_ERROR);
+
+    $cellDimensionTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('id') === 'cell-dimension-grid') {
+            $cellDimensionTable = $node;
+            break;
+        }
+    }
+    $cellDimensionPacket = $cellDimensionTable instanceof AstNode ? $cellDimensionTable->attr('tableGeometry') : null;
+    $cellDimensionDowngrades = $cellDimensionTable instanceof AstNode ? TableGeometry::reviewPacket($cellDimensionTable, [
+        'accessibility' => false,
+        'writers' => ['markdown', 'asciidoc', 'latex'],
+    ]) : [];
+    $cellDimensionDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $cellDimensionDowngrades['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'cell-dimensions'
+        ));
+        $cellDimensionDiagnostics[$writer] = $matches[0] ?? [];
+    }
+    if (
+        !$cellDimensionTable instanceof AstNode
+        || !is_array($cellDimensionPacket)
+        || ($cellDimensionPacket['summary']['hasCellDimensions'] ?? null) !== true
+        || ($cellDimensionPacket['summary']['cellDimensionCount'] ?? null) !== 4
+        || ($cellDimensionPacket['summary']['cellDimensionColumns'] ?? null) !== [0, 1]
+        || ($cellDimensionPacket['summary']['cellDimensionSections'] ?? null) !== ['head', 'body']
+        || ($cellDimensionPacket['summary']['cellDimensionWidthTypes'] ?? null) !== ['pixels', 'percent']
+        || ($cellDimensionPacket['summary']['cellDimensionHeightTypes'] ?? null) !== ['percent', 'pixels']
+        || ($cellDimensionPacket['cellDimensions'][0]['attributes'] ?? null) !== ['width' => '120']
+        || ($cellDimensionPacket['cellDimensions'][1]['attributes'] ?? null) !== ['height' => '35%', 'width' => '40%']
+        || ($cellDimensionPacket['cellDimensions'][2]['attributes'] ?? null) !== ['height' => '32']
+        || ($cellDimensionPacket['cellDimensions'][3]['attributes'] ?? null) !== ['height' => '44', 'width' => '50%']
+        || ($cellDimensionDiagnostics['markdown']['code'] ?? null) !== 'markdown-cell-dimensions-require-raw-html'
+        || ($cellDimensionDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-cell-dimensions-review-required'
+        || ($cellDimensionDiagnostics['latex']['code'] ?? null) !== 'latex-cell-dimensions-review-required'
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML cell dimension metadata');
+    }
+    if (
+        !str_contains($blocks, '<th width="120">Source</th><th style="width:40%; height:35%">Status</th><th>Wrap</th>')
+        || !str_contains($blocks, '<td height="32">Posts</td><td width="50%" height="44">Ready</td><td>Ignored</td>')
+        || str_contains($blocks, 'width="0"')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing sanitized WordPress cell dimension output');
+    }
+    json_encode($cellDimensionPacket, JSON_THROW_ON_ERROR);
+    json_encode($cellDimensionDowngrades, JSON_THROW_ON_ERROR);
 
     $rowBackgroundTable = null;
     foreach ($document->children as $node) {

@@ -1845,6 +1845,8 @@ final class TableGeometry
      *     columnBackgrounds:list<array<string, mixed>>,
      *     columnBorderPresentations:list<array<string, mixed>>,
      *     cellDecimalAlignments:list<array<string, mixed>>,
+     *     cellNoWraps:list<array<string, mixed>>,
+     *     cellDimensions:list<array<string, mixed>>,
      *     directionality:array<string, mixed>,
      *     tableLayout?:array<string, mixed>,
      *     tableSpacing?:array<string, mixed>,
@@ -1886,6 +1888,7 @@ final class TableGeometry
         $columnBorderPresentations = self::columnBorderPresentations($columnGroups);
         $cellDecimalAlignments = self::cellDecimalAlignments($coverageRecords);
         $cellNoWraps = self::cellNoWraps($coverageRecords);
+        $cellDimensions = self::cellDimensions($coverageRecords);
         $sectionBackgrounds = self::sectionBackgrounds($sections);
         $sectionBorderPresentations = self::sectionBorderPresentations($sections);
         $rowBackgrounds = self::rowBackgrounds($sections);
@@ -1933,6 +1936,7 @@ final class TableGeometry
             'columnBorderPresentations' => $columnBorderPresentations,
             'cellDecimalAlignments' => $cellDecimalAlignments,
             'cellNoWraps' => $cellNoWraps,
+            'cellDimensions' => $cellDimensions,
             'sectionBackgrounds' => $sectionBackgrounds,
             'sectionBorderPresentations' => $sectionBorderPresentations,
             'rowBackgrounds' => $rowBackgrounds,
@@ -1965,6 +1969,7 @@ final class TableGeometry
                 $columnBorderPresentations,
                 $cellDecimalAlignments,
                 $cellNoWraps,
+                $cellDimensions,
                 $sectionBackgrounds,
                 $sectionBorderPresentations,
                 $rowBackgrounds,
@@ -5166,6 +5171,7 @@ final class TableGeometry
      * @param list<array<string, mixed>> $columnBorderPresentations
      * @param list<array<string, mixed>> $cellDecimalAlignments
      * @param list<array<string, mixed>> $cellNoWraps
+     * @param list<array<string, mixed>> $cellDimensions
      * @param list<array<string, mixed>> $sectionBackgrounds
      * @param list<array<string, mixed>> $sectionBorderPresentations
      * @param list<array<string, mixed>> $rowBackgrounds
@@ -5199,6 +5205,7 @@ final class TableGeometry
         array $columnBorderPresentations,
         array $cellDecimalAlignments,
         array $cellNoWraps,
+        array $cellDimensions,
         array $sectionBackgrounds,
         array $sectionBorderPresentations,
         array $rowBackgrounds,
@@ -5575,6 +5582,14 @@ final class TableGeometry
             'hasCellNoWraps' => $cellNoWraps !== [],
             'cellNoWrapColumns' => self::cellNoWrapColumns($cellNoWraps),
             'cellNoWrapSections' => self::cellNoWrapStringValues($cellNoWraps, 'section'),
+            'cellDimensionCount' => count($cellDimensions),
+            'hasCellDimensions' => $cellDimensions !== [],
+            'cellDimensionColumns' => self::cellDimensionColumns($cellDimensions),
+            'cellDimensionSections' => self::cellDimensionStringValues($cellDimensions, 'section'),
+            'cellDimensionWidthTypes' => self::cellDimensionStringValues($cellDimensions, 'widthType'),
+            'cellDimensionHeightTypes' => self::cellDimensionStringValues($cellDimensions, 'heightType'),
+            'cellDimensionWidthSources' => self::cellDimensionStringValues($cellDimensions, 'widthSource'),
+            'cellDimensionHeightSources' => self::cellDimensionStringValues($cellDimensions, 'heightSource'),
             'sectionBackgroundCount' => count($sectionBackgrounds),
             'hasSectionBackgrounds' => $sectionBackgrounds !== [],
             'sectionBackgroundSections' => self::rowBackgroundStringValues($sectionBackgrounds, 'section'),
@@ -6029,6 +6044,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellDimensionWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
@@ -6120,6 +6136,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+                    array_push($diagnostics, ...self::cellDimensionWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
                     array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
@@ -6227,6 +6244,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::columnBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellDecimalAlignmentWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::cellNoWrapWriterDiagnostics($table, $writer));
+            array_push($diagnostics, ...self::cellDimensionWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sectionBackgroundWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::sectionBorderPresentationWriterDiagnostics($table, $writer));
             array_push($diagnostics, ...self::rowBackgroundWriterDiagnostics($table, $writer));
@@ -8406,6 +8424,263 @@ final class TableGeometry
             'cellCount' => count($records),
             'columns' => self::cellNoWrapColumns($records),
             'sections' => self::cellNoWrapStringValues($records, 'section'),
+            'cells' => $records,
+        ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellDimensions(array $coverage): array
+    {
+        $records = [];
+        foreach ($coverage as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $node = $record['node'] ?? null;
+            $dimensions = self::cellDimensionFromNode($node);
+            if ($dimensions === []) {
+                continue;
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns === []) {
+                continue;
+            }
+
+            $cell = [
+                'section' => (string) ($record['section'] ?? ''),
+                'rowRole' => (string) ($record['rowRole'] ?? ''),
+                'row' => max(0, (int) ($record['row'] ?? 0)),
+                'globalRow' => max(0, (int) ($record['globalRow'] ?? 0)),
+                'column' => min($columns),
+                'endColumn' => max($columns) + 1,
+                'columns' => $columns,
+                'source' => 'html-table-cell-dimensions',
+                'attributes' => is_array($dimensions['attributes'] ?? null) ? $dimensions['attributes'] : [],
+                'text' => $node instanceof AstNode ? self::plainText($node) : '',
+            ];
+
+            foreach (['width', 'widthType', 'height', 'heightType', 'widthSource', 'heightSource'] as $key) {
+                $value = trim((string) ($dimensions[$key] ?? ''));
+                if ($value !== '') {
+                    $cell[$key] = $value;
+                }
+            }
+
+            foreach (['widthValue', 'heightValue'] as $key) {
+                if (isset($dimensions[$key]) && is_numeric($dimensions[$key])) {
+                    $cell[$key] = (float) $dimensions[$key];
+                }
+            }
+
+            foreach (['sourceRow', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan', 'rawColspan', 'rawRowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            foreach (['sourceRows', 'globalRows'] as $key) {
+                $values = self::intList($record[$key] ?? []);
+                if ($values !== []) {
+                    $cell[$key] = $values;
+                }
+            }
+
+            if (($record['headerCell'] ?? false) === true) {
+                $cell['headerCell'] = true;
+            }
+
+            $sourceAttributes = is_array($dimensions['sourceAttributes'] ?? null) ? $dimensions['sourceAttributes'] : [];
+            if ($sourceAttributes !== []) {
+                $cell['sourceAttributes'] = $sourceAttributes;
+            }
+
+            $records[] = $cell;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function cellDimensionFromNode(mixed $node): array
+    {
+        if (!$node instanceof AstNode) {
+            return [];
+        }
+
+        $recordAttributes = [];
+        $width = [];
+        $height = [];
+        $widthSource = '';
+        $heightSource = '';
+
+        $widthPresence = self::sourceHtmlAttributePresence($node, 'width');
+        if (($widthPresence['present'] ?? false) === true) {
+            $width = self::normalizeTableWidthAttribute((string) ($widthPresence['value'] ?? ''));
+            if ($width !== []) {
+                $recordAttributes['width'] = (string) $width['width'];
+                $widthSource = 'width';
+            }
+        }
+
+        $heightPresence = self::sourceHtmlAttributePresence($node, 'height');
+        if (($heightPresence['present'] ?? false) === true) {
+            $height = self::normalizeTableHeightAttribute((string) ($heightPresence['value'] ?? ''));
+            if ($height !== []) {
+                $recordAttributes['height'] = (string) $height['height'];
+                $heightSource = 'height';
+            }
+        }
+
+        $stylePresence = self::sourceHtmlAttributePresence($node, 'style');
+        if (($stylePresence['present'] ?? false) === true) {
+            $style = (string) ($stylePresence['value'] ?? '');
+            $styleWidth = self::normalizeTableWidthAttribute(self::tableStyleDeclarationValue($style, 'width'));
+            if ($styleWidth !== []) {
+                $width = $styleWidth;
+                $recordAttributes['width'] = (string) $styleWidth['width'];
+                $widthSource = 'style';
+            }
+
+            $styleHeight = self::normalizeTableHeightAttribute(self::tableStyleDeclarationValue($style, 'height'));
+            if ($styleHeight !== []) {
+                $height = $styleHeight;
+                $recordAttributes['height'] = (string) $styleHeight['height'];
+                $heightSource = 'style';
+            }
+        }
+
+        if ($recordAttributes === []) {
+            return [];
+        }
+
+        ksort($recordAttributes);
+        $record = [
+            'source' => 'html-table-cell-dimensions',
+            'attributes' => $recordAttributes,
+        ];
+
+        if ($width !== []) {
+            $record['width'] = (string) $width['width'];
+            $record['widthType'] = (string) $width['widthType'];
+            $record['widthValue'] = (float) $width['widthValue'];
+            $record['widthSource'] = $widthSource;
+        }
+
+        if ($height !== []) {
+            $record['height'] = (string) $height['height'];
+            $record['heightType'] = (string) $height['heightType'];
+            $record['heightValue'] = (float) $height['heightValue'];
+            $record['heightSource'] = $heightSource;
+        }
+
+        $sourceAttributes = self::sourceAttributeSummary($node);
+        if ($sourceAttributes !== []) {
+            $record['sourceAttributes'] = $sourceAttributes;
+        }
+
+        return $record;
+    }
+
+    private static function tableStyleDeclarationValue(string $style, string $name): string
+    {
+        $name = strtolower(trim($name));
+        if ($name === '') {
+            return '';
+        }
+
+        foreach (explode(';', $style) as $declaration) {
+            [$declarationName, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($declarationName)) === $name) {
+                return trim($value);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<int>
+     */
+    private static function cellDimensionColumns(array $records): array
+    {
+        $columns = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            foreach (self::intList($record['columns'] ?? []) as $column) {
+                $columns[] = $column;
+            }
+        }
+
+        return array_values(array_unique($columns));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function cellDimensionStringValues(array $records, string $key): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $value = trim((string) ($record[$key] ?? ''));
+            if ($value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cellDimensionWriterDiagnostics(AstNode $table, string $writer): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-cell-dimensions-require-raw-html', 'raw-html-cell-dimensions'],
+            'asciidoc' => ['asciidoc-cell-dimensions-review-required', 'cell-dimensions-review'],
+            'latex' => ['latex-cell-dimensions-review-required', 'table-cell-dimensions-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $records = self::cellDimensions(self::cellCoverage($table));
+        if ($records === []) {
+            return [];
+        }
+
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'cell-dimensions',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-cell-dimensions',
+            'caption' => (string) $table->attr('caption', ''),
+            'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
+            'cellCount' => count($records),
+            'columns' => self::cellDimensionColumns($records),
+            'sections' => self::cellDimensionStringValues($records, 'section'),
+            'widthTypes' => self::cellDimensionStringValues($records, 'widthType'),
+            'heightTypes' => self::cellDimensionStringValues($records, 'heightType'),
+            'widthSources' => self::cellDimensionStringValues($records, 'widthSource'),
+            'heightSources' => self::cellDimensionStringValues($records, 'heightSource'),
             'cells' => $records,
         ]];
     }
