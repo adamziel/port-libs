@@ -1092,8 +1092,13 @@ return [
             'benchmark-dependencies',
         ], array_keys($commands));
         $t->same('descriptor-only; do not execute from this isolated PHP lane', $commands['runner-test-dependencies']['executionPolicy']);
+        $t->same('.port-libs/pandoc-runner/cabal-build/runner-test-dependencies', $commands['runner-test-dependencies']['buildDirectory']);
+        $t->same('.port-libs/pandoc-runner/cabal-build/benchmark-dependencies', $commands['benchmark-dependencies']['buildDirectory']);
         $t->same([
             'v2-build',
+            '--offline',
+            '--project-dir=.',
+            '--builddir=.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
             '--dry-run',
             '--only-dependencies',
             '--enable-tests',
@@ -1103,6 +1108,9 @@ return [
         ], $commands['runner-test-dependencies']['arguments']);
         $t->same([
             'v2-build',
+            '--offline',
+            '--project-dir=.',
+            '--builddir=.port-libs/pandoc-runner/cabal-build/benchmark-dependencies',
             '--dry-run',
             '--only-dependencies',
             '--disable-tests',
@@ -1114,6 +1122,46 @@ return [
         $t->contains('exact Cabal dry-run command descriptors', $audit['nonMutatingPlan'][5]);
         $t->contains('runner-test-dependencies', $audit['activationGate']);
         $t->contains('benchmark-dependencies', $audit['activationGate']);
+    },
+
+    'records local cabal dry-run workspace before any environment can be used' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject()));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $workspace = UpstreamRunnerDependencyAudit::expectedCabalPlanWorkspace();
+        $t->same($workspace, $audit['cabalPlanWorkspace']);
+        $t->same('descriptor-only; do not read or print process environment values from this PHP lane', $workspace['environmentPolicy']);
+        $t->same([
+            'CABAL_DIR',
+            'CABAL_CONFIG',
+            'XDG_CACHE_HOME',
+            'XDG_STATE_HOME',
+            'TMPDIR',
+        ], array_keys($workspace['environmentVariables']));
+        $t->same('.port-libs/pandoc-runner/cabal', $workspace['environmentVariables']['CABAL_DIR']);
+        $t->same('.port-libs/pandoc-runner/cabal/config', $workspace['environmentVariables']['CABAL_CONFIG']);
+        $t->same('.port-libs/pandoc-runner/cache', $workspace['environmentVariables']['XDG_CACHE_HOME']);
+        $t->same('.port-libs/pandoc-runner/state', $workspace['environmentVariables']['XDG_STATE_HOME']);
+        $t->same('.port-libs/pandoc-runner/tmp', $workspace['environmentVariables']['TMPDIR']);
+        $t->same([
+            'runner-test-dependencies' => '.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
+            'benchmark-dependencies' => '.port-libs/pandoc-runner/cabal-build/benchmark-dependencies',
+        ], $workspace['buildDirectories']);
+        $t->same([
+            'runner-test-dependencies' => '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+            'benchmark-dependencies' => '.port-libs/pandoc-runner/logs/benchmark-dependencies.txt',
+        ], $workspace['transcriptFiles']);
+        $t->contains('no HOME-scoped Cabal store', implode("\n", $workspace['preflight']));
+        $t->contains('do not print process environment', implode("\n", $workspace['preflight']));
+        $t->contains('local Cabal dry-run workspace', $audit['nonMutatingPlan'][6]);
+        $t->contains('repo-local dry-run workspace', $audit['activationGate']);
     },
 
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
