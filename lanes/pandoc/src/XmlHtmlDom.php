@@ -360,9 +360,10 @@ final class XmlHtmlDom
     public static function htmlElementName(\DOMElement $element): string
     {
         $name = strtolower($element->tagName);
+        $foreignContext = self::htmlForeignContext($element);
 
-        return self::isHtmlForeignElement($element)
-            ? self::adjustHtmlForeignElementName($name)
+        return $foreignContext !== null
+            ? self::adjustHtmlForeignElementName($name, $foreignContext)
             : $name;
     }
 
@@ -392,8 +393,12 @@ final class XmlHtmlDom
         return $attributes;
     }
 
-    public static function adjustHtmlForeignElementName(string $lowercaseName): string
+    public static function adjustHtmlForeignElementName(string $lowercaseName, ?string $foreignContext = null): string
     {
+        if ($foreignContext !== null && $foreignContext !== 'svg') {
+            return $lowercaseName;
+        }
+
         return self::HTML5_FOREIGN_ELEMENT_NAMES[$lowercaseName] ?? $lowercaseName;
     }
 
@@ -900,18 +905,23 @@ final class XmlHtmlDom
 
     private static function isHtmlForeignElement(\DOMElement $element): bool
     {
+        return self::htmlForeignContext($element) !== null;
+    }
+
+    private static function htmlForeignContext(\DOMElement $element): ?string
+    {
         $node = $element;
         $isSelf = true;
         while ($node instanceof \DOMElement) {
             $name = strtolower($node->localName);
             if (!$isSelf && self::isHtmlIntegrationPoint($node)) {
-                return false;
+                return null;
             }
             if ($name === 'svg' || $name === 'math') {
-                return true;
+                return $name;
             }
             if ($name === 'html' || $name === 'body') {
-                return false;
+                return null;
             }
 
             $parent = $node->parentNode;
@@ -919,7 +929,7 @@ final class XmlHtmlDom
             $isSelf = false;
         }
 
-        return false;
+        return null;
     }
 
     private static function isHtmlIntegrationPoint(\DOMElement $element): bool

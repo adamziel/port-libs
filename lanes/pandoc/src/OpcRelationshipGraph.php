@@ -6508,6 +6508,10 @@ final class OpcRelationshipGraph
             self::appendUniqueString($issues, 'internal-target-trailing-dot-segment');
         }
 
+        if (str_contains($parseError, 'empty path segments')) {
+            self::appendUniqueString($issues, 'internal-target-empty-path-segment');
+        }
+
         if (str_contains($parseError, 'target path must not be empty') || str_contains($parseError, 'target must not be empty')) {
             self::appendUniqueString($issues, 'internal-target-empty-path');
         }

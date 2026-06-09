@@ -3157,6 +3157,7 @@ final class ArchiveCompressionStream
      *     entryLayouts:list<array{
      *         name:string,
      *         type:string,
+     *         typeFlag:string,
      *         size:int,
      *         mode:int,
      *         modifiedAt:int,
@@ -3228,6 +3229,7 @@ final class ArchiveCompressionStream
      *     entryLayouts:list<array{
      *         name:string,
      *         type:string,
+     *         typeFlag:string,
      *         size:int,
      *         mode:int,
      *         modifiedAt:int,
@@ -4834,6 +4836,7 @@ final class ArchiveCompressionStream
      *     entryLayouts:list<array{
      *         name:string,
      *         type:string,
+     *         typeFlag:string,
      *         size:int,
      *         mode:int,
      *         modifiedAt:int,
@@ -5307,6 +5310,7 @@ final class ArchiveCompressionStream
             $layouts[] = [
                 'name' => $entry->name,
                 'type' => $entry->type,
+                'typeFlag' => $entry->typeFlag,
                 'size' => $entry->size,
                 'mode' => $entry->mode,
                 'modifiedAt' => $entry->modifiedAt,

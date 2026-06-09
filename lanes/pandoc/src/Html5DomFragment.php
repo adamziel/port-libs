@@ -4096,7 +4096,7 @@ final class Html5DomFragment
     private static function normalizedElementName(string $rawName, ?string $foreignContext): string
     {
         return $foreignContext !== null
-            ? XmlHtmlDom::adjustHtmlForeignElementName($rawName)
+            ? XmlHtmlDom::adjustHtmlForeignElementName($rawName, $foreignContext)
             : $rawName;
     }
 

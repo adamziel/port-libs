@@ -183,6 +183,28 @@ return [
         $t->same('definitionURL', array_key_first($summary[1]['children'][0]['attributes']));
         $t->same('<svg preserveAspectRatio="xMidYMid meet" viewBox="0 0 10 10"><linearGradient id="g"><stop offset="0"></stop></linearGradient><textPath href="#label">Logo</textPath></svg><math><mi definitionURL="#x">x</mi><annotation-xml encoding="MathML-Content"><ci>x</ci></annotation-xml></math>', $html);
     },
+    'keeps svg element-name casing scoped to svg foreign content' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<math><lineargradient data-review="math">m</lineargradient><mtext><linearGradient viewBox="html">html</linearGradient></mtext><svg><linearGradient id="g"></linearGradient></svg></math>',
+            'mixed MathML and SVG foreign content fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $mathUnknown = $summary[0]['children'][0];
+        $mathHtmlText = $summary[0]['children'][1]['children'][0];
+        $nestedSvg = $summary[0]['children'][2];
+
+        $t->same('math', $summary[0]['name']);
+        $t->same('lineargradient', $mathUnknown['name']);
+        $t->same(['data-review' => 'math'], $mathUnknown['attributes']);
+        $t->same('lineargradient', $mathHtmlText['name']);
+        $t->same(['viewbox' => 'html'], $mathHtmlText['attributes']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->same('<math><lineargradient data-review="math">m</lineargradient><mtext><lineargradient viewbox="html">html</lineargradient></mtext><svg><linearGradient id="g"></linearGradient></svg></math>', $html);
+        $t->true(!str_contains($html, '<math><linearGradient'), 'Expected MathML non-SVG descendants to keep their parsed names');
+    },
     'keeps html integration point descendants out of foreign-content casing' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<svg><foreignObject><div viewBox="html attr"><linearGradient data-review="html child">HTML child</linearGradient><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></div></foreignObject></svg>'

@@ -10995,6 +10995,39 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdRawTab'));
         $t->same('/word/media/raw space.png', $relationships->resolveTarget('rIdEncodedSpace'));
     },
+    'rejects empty OPC package path segments before relationship preflight normalization' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word//document.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/document.xml/'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromUri('/word/media//image.png'));
+
+        $relationships = new OpcRelationships('/word/document.xml');
+        $relationships->add(new OpcRelationship('rIdEmptySegment', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 'media//image.png'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEmptySegment'));
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdEmptySegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media//image.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/media/image.png', 'data' => 'PNG'],
+        ]));
+
+        $targets = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $targets[$target['id']] = $target;
+        }
+
+        $t->same(false, $targets['rIdEmptySegment']['valid']);
+        $t->same(['invalid-target', 'internal-target-empty-path-segment'], $targets['rIdEmptySegment']['issues']);
+        $t->same(null, $targets['rIdEmptySegment']['exists']);
+        $t->same(null, $targets['rIdEmptySegment']['contentType']);
+    },
     'rejects OPC relationship Id values outside XML NCName shape' => static function (TestRunner $t): void {
         $xml = static fn (string $id): string => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="' . $id . '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image.png"/></Relationships>';
 

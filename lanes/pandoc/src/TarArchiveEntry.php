@@ -40,6 +40,7 @@ final class TarArchiveEntry
         public readonly array $deletedPaxHeaderKeys = [],
         public readonly string $nameSource = self::NAME_SOURCE_HEADER,
         public readonly ?string $gnuLongName = null,
+        public readonly string $typeFlag = '0',
     ) {
     }
 

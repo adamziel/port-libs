@@ -216,7 +216,8 @@ final class TarArchive
                 $pendingPaxHeaders,
                 $deletedPaxHeaderKeys,
                 $nameSource,
-                $pendingGnuLongName
+                $pendingGnuLongName,
+                $typeFlag
             );
 
             $entries[] = $entry;

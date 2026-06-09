@@ -6016,6 +6016,31 @@ return [
         $t->true(!str_contains($html, '<textPath>'), 'Expected SVG title fallback children to stay in HTML casing');
         $t->true(!str_contains($html, '&lt;p viewBox'), 'Expected SVG title fallback markup to stay parsed instead of escaped as RCDATA');
     },
+    'keeps svg element-name casing scoped while normalizing html5 fragments' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<math><lineargradient data-review="math">m</lineargradient><mtext><linearGradient viewBox="html">html</linearGradient></mtext><svg><linearGradient id="g"></linearGradient></svg></math>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+
+        $mathUnknown = $nodes[0]['children'][0];
+        $mathHtmlText = $nodes[0]['children'][1]['children'][0];
+        $nestedSvg = $nodes[0]['children'][2];
+
+        $t->same('<math><lineargradient data-review="math">m</lineargradient><mtext><lineargradient viewbox="html">html</lineargradient></mtext><svg><linearGradient id="g"></linearGradient></svg></math>', $html);
+        $t->same(['linearGradient', 'lineargradient', 'math', 'mtext', 'svg'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same('math', $nodes[0]['name']);
+        $t->same('lineargradient', $mathUnknown['name']);
+        $t->same(['data-review' => 'math'], $mathUnknown['attrs']);
+        $t->same('lineargradient', $mathHtmlText['name']);
+        $t->same(['viewbox' => 'html'], $mathHtmlText['attrs']);
+        $t->same('svg', $nestedSvg['name']);
+        $t->same('linearGradient', $nestedSvg['children'][0]['name']);
+        $t->true(!str_contains($html, '<math><linearGradient'), 'Expected MathML non-SVG descendants to keep their parsed names');
+    },
     'adds source line metadata to html fragment sanitizer diagnostics' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "<article>\n"

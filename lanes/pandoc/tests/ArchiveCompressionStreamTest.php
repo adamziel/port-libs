@@ -1697,6 +1697,31 @@ return [
         $t->same($documentBytes, $gzipInspection['archive']->read('/packet/legacy-contiguous.md'));
     },
 
+    'preserves raw tar typeflag provenance across gzip package streams' => static function (TestRunner $t) use ($rawTarHeader): void {
+        $documentBytes = "# Legacy typeflag provenance\n\nReady for archive review.\n";
+        $archiveBytes = $rawTarHeader('packet/legacy-contiguous.md', '7', $documentBytes, 1780479070);
+        $gzip = GzipStream::build($archiveBytes, [
+            'filename' => 'legacy-typeflag-review.tar',
+            'comment' => 'contiguous-file typeflag provenance',
+        ]);
+
+        $archive = TarArchive::fromString($archiveBytes);
+        $inspection = ArchiveCompressionStream::inspectPackageStreamAuto(
+            $gzip,
+            strlen($archiveBytes),
+            strlen($documentBytes)
+        );
+        $layout = $inspection['entryLayouts'][0];
+
+        $t->same('7', $archive->entry('/packet/legacy-contiguous.md')->typeFlag);
+        $t->same('packet/legacy-contiguous.md', $layout['name']);
+        $t->same(TarArchiveEntry::TYPE_FILE, $layout['type']);
+        $t->same('7', $layout['typeFlag']);
+        $t->same('legacy-typeflag-review.tar', $inspection['stream']['members'][0]['filename']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same($documentBytes, $inspection['archive']->read('/packet/legacy-contiguous.md'));
+    },
+
     'normalizes zero-size regular tar entries with trailing slash as legacy directories' => static function (TestRunner $t) use ($rawTarHeader): void {
         $documentBytes = "# Legacy directory marker\n\nReady for WordPress archive review.\n";
         $archiveBytes = $rawTarHeader('packet/legacy-directory/', '0', '', 1780479070, false)

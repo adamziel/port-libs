@@ -21,9 +21,25 @@ final class OpcPackagePath
         }
 
         $path = str_starts_with($partName, '/') ? $partName : '/' . $partName;
+        if ($path === '/') {
+            if ($allowRoot) {
+                return '/';
+            }
+
+            throw new \InvalidArgumentException('OPC part name must identify a package part');
+        }
+
         $segments = [];
-        foreach (explode('/', $path) as $segment) {
-            if ($segment === '' || $segment === '.') {
+        foreach (explode('/', $path) as $index => $segment) {
+            if ($index === 0 && $segment === '') {
+                continue;
+            }
+
+            if ($segment === '') {
+                throw new \InvalidArgumentException('OPC part path must not contain empty path segments');
+            }
+
+            if ($segment === '.') {
                 continue;
             }
 
@@ -44,14 +60,6 @@ final class OpcPackagePath
             }
 
             $segments[] = $segment;
-        }
-
-        if ($segments === []) {
-            if ($allowRoot) {
-                return '/';
-            }
-
-            throw new \InvalidArgumentException('OPC part name must identify a package part');
         }
 
         return '/' . implode('/', $segments);
@@ -131,7 +139,7 @@ final class OpcPackagePath
         }
 
         $source = self::canonicalPartName($sourcePartName, true);
-        $base = $source === '/' ? '/' : dirname($source);
+        $base = $source === '/' ? '' : dirname($source);
 
         return self::canonicalPartName($base . '/' . $path) . $suffix;
     }

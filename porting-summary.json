@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 12:13:35 UTC",
-    "sourceCommit": "86255a1ddb445daaf0ea840ed86a3ffb8fe9a469",
-    "sourceCommitShort": "86255a1ddb44",
+    "generated": "2026-06-09 12:15:14 UTC",
+    "sourceCommit": "b5311bb212042693e1db61983ad2ca2af126c0c6",
+    "sourceCommitShort": "b5311bb21204",
     "sourceBranch": "unknown",
-    "dashboardCommit": "86255a1ddb445daaf0ea840ed86a3ffb8fe9a469",
-    "dashboardCommitShort": "86255a1ddb44",
+    "dashboardCommit": "b5311bb212042693e1db61983ad2ca2af126c0c6",
+    "dashboardCommitShort": "b5311bb21204",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "2,985 / 2,276 (131.2%)",
             "mapPercent": "131.2%",
             "unmapped": "0",
-            "php": "2,765 pass / 0 fail",
-            "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "updated 2026-06-09: zip strict preflight follow-up blocks raw ZIP nam...",
-            "currentWork": "ZIP strict import preflight now reports raw-name-provenance-review-entries when packa...",
-            "nextTarget": "Map the next bounded doctemplates branch only if needed by Pa...",
+            "php": "2,766 pass / 0 fail",
+            "phase": "cloned inventory plus native Markdown/HTML reader and Markdown/LaTeX/...",
+            "audit": "updated 2026-06-09: pandoc-opc-empty-path-segments-current-base-20260...",
+            "currentWork": "Native Pandoc lane now includes the accepted Markdown/HTML/WordPress reader/writer ev...",
+            "nextTarget": "Add a non-overlapping OPC/ZIP follow-up only after checking q...",
             "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },
