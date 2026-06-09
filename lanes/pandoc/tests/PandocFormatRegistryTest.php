@@ -299,4 +299,61 @@ return [
             $t->same(false, array_key_exists($format, $extensionInference), "Wiki format {$format} should not be file-extension inferred");
         }
     },
+    'builds wiki format review packets without direct parity claims' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::wikiFormatReviewPacket();
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $packet['inputFormats']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $packet['outputFormats']);
+        $t->same([
+            'inputOutput' => ['dokuwiki', 'jira', 'mediawiki'],
+            'inputOnly' => ['creole', 'tikiwiki', 'twiki', 'vimwiki'],
+            'outputOnly' => ['xwiki', 'zimwiki'],
+        ], $packet['directionBuckets']);
+        $t->same([
+            '.dokuwiki' => 'dokuwiki',
+            '.wiki' => 'mediawiki',
+        ], $packet['extensionInference']);
+        $t->same(['dokuwiki', 'mediawiki'], $packet['extensionInferredFormats']);
+        $t->same(['creole', 'jira', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], $packet['nonExtensionInferredFormats']);
+        $t->same(PandocFormatRegistry::wikiInputFormats(), $packet['unsupportedInputFormats']);
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), $packet['unsupportedOutputFormats']);
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($packet['formats']));
+
+        $t->same([
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.dokuwiki'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['dokuwiki']);
+        $t->same(['.wiki'], $packet['formats']['mediawiki']['extensions']);
+        $t->same('input-only', $packet['formats']['creole']['direction']);
+        $t->same('not-applicable', $packet['formats']['creole']['outputStatus']);
+        $t->same([], $packet['formats']['creole']['extensions']);
+        $t->same('output-only', $packet['formats']['xwiki']['direction']);
+        $t->same('not-applicable', $packet['formats']['xwiki']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['xwiki']['outputStatus']);
+
+        foreach ($packet['formats'] as $format => $review) {
+            $t->same('', $review['inputImplementation'], "Wiki review packet {$format} must not register an input implementation");
+            $t->same('', $review['outputImplementation'], "Wiki review packet {$format} must not register an output implementation");
+        }
+    },
 ];

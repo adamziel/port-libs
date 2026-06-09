@@ -513,6 +513,71 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     extensionInference:array<string, string>,
+     *     extensionInferredFormats:list<string>,
+     *     nonExtensionInferredFormats:list<string>,
+     *     unsupportedInputFormats:list<string>,
+     *     unsupportedOutputFormats:list<string>,
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string}>
+     * }
+     */
+    public static function wikiFormatReviewPacket(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::wikiInputSupport();
+        $outputSupport = self::wikiOutputSupport();
+        $extensionsByFormat = [];
+
+        foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionsByFormat[$format][] = $extension;
+        }
+
+        $formats = [];
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::wikiBidirectionalFormats(),
+                'inputOnly' => self::wikiInputOnlyFormats(),
+                'outputOnly' => self::wikiOutputOnlyFormats(),
+            ],
+            'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'extensionInferredFormats' => self::wikiFormatsWithExtensionInference(),
+            'nonExtensionInferredFormats' => self::wikiFormatsWithoutExtensionInference(),
+            'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
+            'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function wikiBidirectionalFormats(): array
