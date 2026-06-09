@@ -1543,3 +1543,12 @@ set title [normalize_title $packet]
 exec wp post meta update $source_id import_title $title
 puts [json::write object title $title source_id $source_id dry_run true]
 ```
+
+``` {.php #line-highlight-review .numberLines highlight-lines=2,4-5 startFrom=1280}
+<?php
+$title = trim($packet['title'] ?? '');
+if ($title === '') {
+    $title = 'Untitled';
+}
+echo esc_html($title);
+```

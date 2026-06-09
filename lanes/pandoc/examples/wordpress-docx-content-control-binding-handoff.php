@@ -14,6 +14,7 @@ $contentTypesXml = <<<'XML'
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/itemProps2.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
 </Types>
 XML;
 
@@ -23,6 +24,7 @@ $package = ZipPackage::fromParts([
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
   <Relationship Id="rIdCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/item1.xml"/>
+  <Relationship Id="rIdMalformedCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/malformed-item.xml"/>
 </Relationships>
 XML],
     ['name' => 'word/document.xml', 'data' => <<<'XML'
@@ -52,9 +54,19 @@ XML],
   <dc:title>Migration packet</dc:title>
 </wpd:packet>
 XML],
+    ['name' => 'customXml/malformed-item.xml', 'data' => <<<'XML'
+<wpd:packet xmlns:wpd="https://example.test/wp/docx">
+  <wpd:title>Unbound packet</wpd:title>
+</wpd:packet>
+XML],
     ['name' => 'customXml/_rels/item1.xml.rels', 'data' => <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+</Relationships>
+XML],
+    ['name' => 'customXml/_rels/malformed-item.xml.rels', 'data' => <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdMalformedCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps2.xml"/>
 </Relationships>
 XML],
     ['name' => 'customXml/itemProps1.xml', 'data' => <<<'XML'
@@ -64,9 +76,18 @@ XML],
   </ds:schemaRefs>
 </ds:datastoreItem>
 XML],
+    ['name' => 'customXml/itemProps2.xml', 'data' => <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="https://example.test/wp/docx/unbound-schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML],
 ]);
 
-$document = (new DocxReader())->readDocument($package);
+$result = (new DocxReader())->readPackage($package);
+$document = $result['document'];
+$customXmlStore = $result['importReport']['customXmlStore'];
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (in_array('--self-test', $argv, true)) {
@@ -88,10 +109,22 @@ if (in_array('--self-test', $argv, true)) {
         }
     }
 
+    if (
+        ($customXmlStore['count'] ?? null) !== 2
+        || ($customXmlStore['boundStoreItemCount'] ?? null) !== 1
+        || ($customXmlStore['issueCount'] ?? null) !== 1
+        || ($customXmlStore['propertyIssueCount'] ?? null) !== 1
+        || ($customXmlStore['propertyIssueCodes'] ?? null) !== ['missing-store-item-id']
+        || ($customXmlStore['items'][1]['propertiesIssues'] ?? null) !== ['missing-store-item-id']
+    ) {
+        throw new RuntimeException('DOCX content-control binding handoff did not report malformed custom XML properties');
+    }
+
     echo "wordpress-docx-content-control-binding-handoff self-test passed\n";
     return;
 }
 
 echo json_encode([
     'blocks' => $blocks,
+    'customXmlStore' => $customXmlStore,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

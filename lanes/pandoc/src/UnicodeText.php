@@ -2960,6 +2960,30 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const MAC_CROATIAN_REPLACEMENTS = [
+        0xa9 => 0x0160,
+        0xae => 0x017d,
+        0xb4 => 0x2206,
+        0xb9 => 0x0161,
+        0xbe => 0x017e,
+        0xc6 => 0x0106,
+        0xc8 => 0x010c,
+        0xd0 => 0x0110,
+        0xd8 => 0xf8ff,
+        0xd9 => 0x00a9,
+        0xde => 0x00c6,
+        0xdf => 0x00bb,
+        0xe0 => 0x2013,
+        0xe6 => 0x0107,
+        0xe8 => 0x010d,
+        0xf0 => 0x0111,
+        0xf9 => 0x03c0,
+        0xfa => 0x00cb,
+        0xfd => 0x00ca,
+        0xfe => 0x00e6,
+    ];
+
+    /** @var array<int, int> */
     private const MAC_TURKISH_REPLACEMENTS = [
         0xda => 0x011e,
         0xdb => 0x011f,
@@ -3784,6 +3808,7 @@ final class UnicodeText
             || $normalized === 'tis-620'
             || $normalized === 'iso-8859-15'
             || $normalized === 'macintosh'
+            || $normalized === 'mac-croatian'
             || $normalized === 'mac-turkish'
             || $normalized === 'mac-iceland'
             || $normalized === 'mac-romania'
@@ -4407,6 +4432,8 @@ final class UnicodeText
             'tis620', 'tis6202533', 'cstis620', 'isoir166', 'iso885911', 'iso8859112001', 'thai' => 'tis-620',
             'iso885915', 'iso8859151999', 'latin9', 'latin-9' => 'iso-8859-15',
             'macintosh', 'macroman', 'mac-roman', 'xmacroman', 'x-mac-roman', 'mac' => 'macintosh',
+            'maccroatian', 'mac-croatian', 'xmaccroatian', 'x-mac-croatian',
+            'csmaccroatian' => 'mac-croatian',
             'macturkish', 'mac-turkish', 'xmacturkish', 'x-mac-turkish', 'xmac-turkish', 'turkishmac',
             'turkish-mac', 'csmacturkish' => 'mac-turkish',
             'maciceland', 'mac-iceland', 'xmaciceland', 'x-mac-iceland',
@@ -5321,6 +5348,10 @@ final class UnicodeText
             }
             if ($encoding === 'macintosh' && $byte >= 0x80) {
                 $out .= self::fromCodepoint(self::MAC_ROMAN_REPLACEMENTS[$byte]);
+                continue;
+            }
+            if ($encoding === 'mac-croatian' && $byte >= 0x80) {
+                $out .= self::fromCodepoint(self::MAC_CROATIAN_REPLACEMENTS[$byte] ?? self::MAC_ROMAN_REPLACEMENTS[$byte]);
                 continue;
             }
             if ($encoding === 'mac-turkish' && $byte >= 0x80) {

@@ -2354,6 +2354,14 @@ $sdtCustomXmlStorePropertiesXml = <<<'XML'
 </ds:datastoreItem>
 XML;
 
+$sdtCustomXmlStoreMissingItemIdPropertiesXml = <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="https://example.test/wp/docx/schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
 $sdtFormControlDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4113,6 +4121,24 @@ $buildSdtDataBindingCustomXmlStorePackage = static function () use (
         ['name' => 'customXml/item1.xml', 'data' => $sdtCustomXmlStoreItemXml],
         ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $sdtCustomXmlStoreItemRelationshipsXml],
         ['name' => 'customXml/itemProps1.xml', 'data' => $sdtCustomXmlStorePropertiesXml],
+    ]);
+};
+
+$buildMalformedSdtCustomXmlStorePropertiesPackage = static function () use (
+    $sdtCustomXmlStoreContentTypesXml,
+    $sdtCustomXmlStorePackageRelationshipsXml,
+    $sdtDataBindingPrefixDocumentXml,
+    $sdtCustomXmlStoreItemRelationshipsXml,
+    $sdtCustomXmlStoreItemXml,
+    $sdtCustomXmlStoreMissingItemIdPropertiesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $sdtCustomXmlStoreContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $sdtCustomXmlStorePackageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtDataBindingPrefixDocumentXml],
+        ['name' => 'customXml/item1.xml', 'data' => $sdtCustomXmlStoreItemXml],
+        ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $sdtCustomXmlStoreItemRelationshipsXml],
+        ['name' => 'customXml/itemProps1.xml', 'data' => $sdtCustomXmlStoreMissingItemIdPropertiesXml],
     ]);
 };
 
@@ -7804,6 +7830,47 @@ return [
         $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $blocks);
         $t->contains('data-docx-sdt-custom-xml-root-name="wpd:packet"', $blocks);
         $t->contains('data-docx-sdt-custom-xml-schema-ref-1-uri="https://example.test/wp/docx/schema"', $blocks);
+    },
+    'reports DOCX custom XML property diagnostics for unbound content controls' => static function (TestRunner $t) use ($buildMalformedSdtCustomXmlStorePropertiesPackage): void {
+        $result = (new DocxReader())->readPackage($buildMalformedSdtCustomXmlStorePropertiesPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $store = $result['metadata']['docxCustomXmlStore'];
+        $t->same(1, $store['count']);
+        $t->same(0, $store['boundStoreItemCount']);
+        $t->same(1, $store['issueCount']);
+        $t->same(1, $store['propertyIssueCount']);
+        $t->same(['missing-store-item-id'], $store['propertyIssueCodes']);
+        $t->same([], $store['byStoreItemID']);
+        $t->same($store, $result['importReport']['customXmlStore']);
+
+        $item = $store['items'][0];
+        $t->same('rIdCustomData', $item['id']);
+        $t->same('/customXml/item1.xml', $item['targetPart']);
+        $t->same('wpd:packet', $item['rootName']);
+        $t->same(null, $item['storeItemID']);
+        $t->same('/customXml/itemProps1.xml', $item['propertiesPart']);
+        $t->same(['missing-store-item-id'], $item['propertiesIssues']);
+        $t->same([], $item['issues']);
+
+        $inlineAttrs = $document->children[0]->children[1]->attr('attributes');
+        $t->same('{33333333-4444-5555-6666-777777777777}', $inlineAttrs['data-docx-sdt-store-item-id']);
+        $t->same('false', $inlineAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('{33333333-4444-5555-6666-777777777777}', $inlineAttrs['data-docx-sdt-custom-xml-requested-store-item-id']);
+        $t->same('1', $inlineAttrs['data-docx-sdt-custom-xml-store-item-count']);
+        $t->same('2', $inlineAttrs['data-docx-sdt-custom-xml-issue-count']);
+        $t->same('missing-custom-xml-store-item missing-store-item-id', $inlineAttrs['data-docx-sdt-custom-xml-issues']);
+
+        $blockAttrs = $document->children[1]->attr('attributes');
+        $t->same('false', $blockAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('missing-custom-xml-store-item missing-store-item-id', $blockAttrs['data-docx-sdt-custom-xml-issues']);
+
+        $t->contains('data-docx-sdt-custom-xml-bound="false"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-issues="missing-custom-xml-store-item missing-store-item-id"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-bound="false"', $blocks);
+        $t->contains('data-docx-sdt-custom-xml-issues="missing-custom-xml-store-item missing-store-item-id"', $blocks);
     },
     'preserves DOCX structured document tag form-control metadata' => static function (TestRunner $t) use ($buildSdtFormControlPackage): void {
         $document = (new DocxReader())->readDocument($buildSdtFormControlPackage());

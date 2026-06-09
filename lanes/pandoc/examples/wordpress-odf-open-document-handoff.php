@@ -307,6 +307,7 @@ $contentXml = <<<'XML'
           <svg:title>Source hero</svg:title>
           <svg:desc>ODT source hero alt</svg:desc>
         </draw:image>
+        <draw:caption><text:p>Figure 2: ODT source hero reviewed.</text:p></draw:caption>
       </draw:frame>
       <draw:frame draw:name="Reviewer aside" draw:style-name="AsideFrame" draw:layer="draft-notes" text:anchor-type="paragraph" text:anchor-page-number="3" svg:x="2cm" svg:y="5cm" svg:width="7cm" svg:height="2cm" draw:z-index="6">
         <draw:text-box>
@@ -998,6 +999,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>')) {
         throw new RuntimeException('Expected ODT image dimensions, xlink metadata, and frame anchor metadata to render in WordPress blocks');
+    }
+    if (($result['importReport']['content']['frameCaptionCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT draw:caption frames to be counted in the import report');
+    }
+    if (!str_contains($blocks, '<figure class="wp-block-image odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Source hero"><img src="Pictures/source%20hero.png" alt="ODT source hero alt" title="Source hero" width="6cm" height="3.5cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad" data-odf-frame-name="Source hero" data-odf-frame-style-name="HeroFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="2" data-odf-frame-x="1.2cm" data-odf-frame-y="2.4cm" data-odf-frame-z-index="5" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/><figcaption>Figure 2: ODT source hero reviewed.</figcaption></figure>')) {
+        throw new RuntimeException('Expected ODT draw:caption figure metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<div class="odf-text-box" data-odf-frame-name="Reviewer aside" data-odf-frame-style-name="AsideFrame" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="3" data-odf-frame-x="2cm" data-odf-frame-y="5cm" data-odf-frame-width="7cm" data-odf-frame-height="2cm" data-odf-frame-z-index="6" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Anchored text box note for reviewers.</p></div>')) {
         throw new RuntimeException('Expected ODT text-box frame metadata to render in WordPress blocks');

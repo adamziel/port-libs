@@ -104,12 +104,18 @@ final class DocxReader
     private array $currentCustomXmlPartsByStoreItemId = [];
 
     /**
+     * @var list<array<string, mixed>>
+     */
+    private array $currentCustomXmlStoreItems = [];
+
+    /**
      * @return array{document:AstNode, metadata:array<string, mixed>, documentPart:string, relationships:list<array{id:string, type:string, target:string, contentType:?string, external:bool}>, importReport:array<string, mixed>}
      */
     public function readPackage(ZipPackage $package): array
     {
         $this->noteReferenceState = $this->newNoteReferenceState([]);
         $this->currentCustomXmlPartsByStoreItemId = [];
+        $this->currentCustomXmlStoreItems = [];
         $graph = OpcRelationshipGraph::fromPackage($package);
         $documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
         if ($documentPart === null) {
@@ -135,6 +141,7 @@ final class DocxReader
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
         $customXmlStore = $this->readCustomXmlStore($package, $graph);
         $this->currentCustomXmlPartsByStoreItemId = $customXmlStore['lookupByStoreItemID'] ?? [];
+        $this->currentCustomXmlStoreItems = $customXmlStore['items'] ?? [];
         $document = $this->parseDocumentXml(
             $documentXml,
             $documentPart,
@@ -177,6 +184,9 @@ final class DocxReader
             $metadata['docxCustomXmlStore'] = [
                 'count' => $customXmlStore['count'],
                 'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'],
+                'issueCount' => $customXmlStore['issueCount'],
+                'propertyIssueCount' => $customXmlStore['propertyIssueCount'],
+                'propertyIssueCodes' => $customXmlStore['propertyIssueCodes'],
                 'items' => $customXmlStore['items'],
                 'byStoreItemID' => $customXmlStore['byStoreItemID'],
             ];
@@ -274,6 +284,9 @@ final class DocxReader
             'customXmlStore' => [
                 'count' => $customXmlStore['count'] ?? 0,
                 'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'] ?? 0,
+                'issueCount' => $customXmlStore['issueCount'] ?? 0,
+                'propertyIssueCount' => $customXmlStore['propertyIssueCount'] ?? 0,
+                'propertyIssueCodes' => $customXmlStore['propertyIssueCodes'] ?? [],
                 'items' => $customXmlStore['items'] ?? [],
                 'byStoreItemID' => $customXmlStore['byStoreItemID'] ?? [],
             ],
@@ -4701,7 +4714,22 @@ final class DocxReader
     {
         $item = $this->currentCustomXmlPartsByStoreItemId[$this->customXmlStoreLookupKey($storeItemId)] ?? null;
         if (!is_array($item)) {
-            return [];
+            if ($this->currentCustomXmlStoreItems === []) {
+                return [];
+            }
+
+            $issues = $this->customXmlStoreBindingIssues($storeItemId);
+            $attributes = [
+                'data-docx-sdt-custom-xml-bound' => 'false',
+                'data-docx-sdt-custom-xml-requested-store-item-id' => $storeItemId,
+                'data-docx-sdt-custom-xml-store-item-count' => (string) count($this->currentCustomXmlStoreItems),
+            ];
+            if ($issues !== []) {
+                $attributes['data-docx-sdt-custom-xml-issue-count'] = (string) count($issues);
+                $attributes['data-docx-sdt-custom-xml-issues'] = implode(' ', $issues);
+            }
+
+            return $attributes;
         }
 
         $attributes = [
@@ -4739,6 +4767,30 @@ final class DocxReader
         }
 
         return $attributes;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function customXmlStoreBindingIssues(string $storeItemId): array
+    {
+        $issues = ['missing-custom-xml-store-item'];
+        foreach ($this->currentCustomXmlStoreItems as $item) {
+            foreach (['issues', 'propertiesIssues'] as $key) {
+                $itemIssues = $item[$key] ?? [];
+                if (!is_array($itemIssues)) {
+                    continue;
+                }
+
+                foreach ($itemIssues as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($issues));
     }
 
     /**
@@ -11542,13 +11594,16 @@ final class DocxReader
     }
 
     /**
-     * @return array{count:int, boundStoreItemCount:int, items:list<array<string, mixed>>, byStoreItemID:array<string, array<string, mixed>>, lookupByStoreItemID:array<string, array<string, mixed>>}
+     * @return array{count:int, boundStoreItemCount:int, issueCount:int, propertyIssueCount:int, propertyIssueCodes:list<string>, items:list<array<string, mixed>>, byStoreItemID:array<string, array<string, mixed>>, lookupByStoreItemID:array<string, array<string, mixed>>}
      */
     private function readCustomXmlStore(ZipPackage $package, OpcRelationshipGraph $graph): array
     {
         $store = [
             'count' => 0,
             'boundStoreItemCount' => 0,
+            'issueCount' => 0,
+            'propertyIssueCount' => 0,
+            'propertyIssueCodes' => [],
             'items' => [],
             'byStoreItemID' => [],
             'lookupByStoreItemID' => [],
@@ -11597,10 +11652,69 @@ final class DocxReader
         return [
             'count' => count($items),
             'boundStoreItemCount' => count($byStoreItemId),
+            'issueCount' => $this->customXmlStoreIssueCount($items),
+            'propertyIssueCount' => $this->customXmlStorePropertyIssueCount($items),
+            'propertyIssueCodes' => $this->customXmlStorePropertyIssueCodes($items),
             'items' => $items,
             'byStoreItemID' => $byStoreItemId,
             'lookupByStoreItemID' => $lookupByStoreItemId,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function customXmlStoreIssueCount(array $items): int
+    {
+        $count = 0;
+        foreach ($items as $item) {
+            $issues = $item['issues'] ?? [];
+            $propertyIssues = $item['propertiesIssues'] ?? [];
+            if ((is_array($issues) && $issues !== []) || (is_array($propertyIssues) && $propertyIssues !== [])) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function customXmlStorePropertyIssueCount(array $items): int
+    {
+        $count = 0;
+        foreach ($items as $item) {
+            $propertyIssues = $item['propertiesIssues'] ?? [];
+            if (is_array($propertyIssues) && $propertyIssues !== []) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<string>
+     */
+    private function customXmlStorePropertyIssueCodes(array $items): array
+    {
+        $codes = [];
+        foreach ($items as $item) {
+            $propertyIssues = $item['propertiesIssues'] ?? [];
+            if (!is_array($propertyIssues)) {
+                continue;
+            }
+
+            foreach ($propertyIssues as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $codes[$issue] = true;
+                }
+            }
+        }
+
+        return array_keys($codes);
     }
 
     /**

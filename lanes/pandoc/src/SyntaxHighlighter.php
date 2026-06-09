@@ -415,7 +415,8 @@ final class SyntaxHighlighter
      *   css:string,
      *   diagnostics:list<array{code:string, message:string}>,
      *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string},
-     *   tokenTitles:bool
+     *   tokenTitles:bool,
+     *   highlightLines:list<int>
      * }
      */
     public function highlightCodeBlock(AstNode $codeBlock, string $style = 'pygments', array $options = []): array
@@ -452,7 +453,8 @@ final class SyntaxHighlighter
      *   css:string,
      *   diagnostics:list<array{code:string, message:string}>,
      *   lineNumbering:array{enabled:bool, anchors:bool, start:int, lineIdPrefix:string},
-     *   tokenTitles:bool
+     *   tokenTitles:bool,
+     *   highlightLines:list<int>
      * }
      */
     public function highlight(string $code, string $language = '', string $style = 'pygments', array $options = []): array
@@ -496,6 +498,7 @@ final class SyntaxHighlighter
                 'lineIdPrefix' => $lineOptions['lineIdPrefix'],
             ],
             'tokenTitles' => $lineOptions['tokenTitles'],
+            'highlightLines' => $lineOptions['highlightLines'],
         ];
     }
 
@@ -708,6 +711,7 @@ final class SyntaxHighlighter
             self::tokenStylesheetRule($selector, 'in', 'information', $colors, $tokenStyles),
             self::tokenStylesheetRule($selector, 're', 'region', $colors, $tokenStyles, ['font-weight: 600']),
             self::tokenStylesheetRule($selector, 'al', 'warning', $colors, $tokenStyles, ['font-weight: 600']),
+            "{$selector} .highlighted-line { display: inline-block; width: 100%; background-color: rgba(255, 229, 100, 0.24); }",
             'pre.numberSource code { counter-reset: source-line 0; }',
             'pre.numberSource code > span { position: relative; left: -4em; counter-increment: source-line; }',
             self::lineNumberStylesheetRule($colors),
@@ -725,13 +729,14 @@ final class SyntaxHighlighter
      *   startNumber?: int,
      *   lineIdPrefix?: string,
      *   containerClasses?: list<string>,
-     *   tokenTitles?: bool
+     *   tokenTitles?: bool,
+     *   highlightLines?: list<int>
      * } $options
      */
     public static function renderHighlightedHtml(array $tokens, string $language = '', array $options = []): string
     {
         $language = self::normalizeLanguage($language) ?? '';
-        $lineMode = ($options['numberLines'] ?? false) || ($options['lineAnchors'] ?? false);
+        $lineMode = ($options['numberLines'] ?? false) || ($options['lineAnchors'] ?? false) || (($options['highlightLines'] ?? []) !== []);
         if ($lineMode) {
             return self::renderLineNumberedHtml($tokens, $language, $options);
         }
@@ -4300,6 +4305,10 @@ final class SyntaxHighlighter
             'tokentitleattributes',
             'token-titles',
             'tokentitles',
+            'line-highlight',
+            'linehighlight',
+            'highlight-lines',
+            'highlightlines',
         ], true);
     }
 
@@ -4315,7 +4324,8 @@ final class SyntaxHighlighter
      *   startNumber: int,
      *   lineIdPrefix: string,
      *   containerClasses: list<string>,
-     *   tokenTitles: bool
+     *   tokenTitles: bool,
+     *   highlightLines: list<int>
      * }
      */
     private static function lineNumberingOptions(array $options): array
@@ -4342,6 +4352,7 @@ final class SyntaxHighlighter
         }
 
         $id = self::sanitizeId((string) ($options['id'] ?? ''));
+        $highlightLines = self::highlightLineNumbers($options, $attributes, $start);
         $tokenTitles = self::optionBoolean($options['tokenTitles'] ?? null);
         if ($tokenTitles === null) {
             $tokenTitles = in_array('title-attributes', $normalized, true)
@@ -4375,6 +4386,7 @@ final class SyntaxHighlighter
             'lineIdPrefix' => $id === '' ? '' : $id . '-',
             'containerClasses' => $classes,
             'tokenTitles' => $tokenTitles,
+            'highlightLines' => $highlightLines,
         ];
     }
 
@@ -4391,7 +4403,8 @@ final class SyntaxHighlighter
      *   startNumber?: int,
      *   lineIdPrefix?: string,
      *   containerClasses?: list<string>,
-     *   tokenTitles?: bool
+     *   tokenTitles?: bool,
+     *   highlightLines?: list<int>
      * } $options
      */
     private static function renderLineNumberedHtml(array $tokens, string $language, array $options): string
@@ -4400,6 +4413,7 @@ final class SyntaxHighlighter
         $tokenTitles = (bool) ($options['tokenTitles'] ?? false);
         $startNumber = (int) ($options['startNumber'] ?? 1);
         $lineIdPrefix = (string) ($options['lineIdPrefix'] ?? '');
+        $highlightLines = array_fill_keys(array_map('intval', $options['highlightLines'] ?? []), true);
         $containerClasses = ['sourceCode'];
         if ($numberLines) {
             $containerClasses[] = 'numberSource';
@@ -4426,7 +4440,16 @@ final class SyntaxHighlighter
         foreach (self::splitTokensIntoLines($tokens) as $index => $lineTokens) {
             $lineNumber = $startNumber + $index;
             $lineId = self::escapeHtml($lineIdPrefix . (string) $lineNumber);
-            $line = '<span id="' . $lineId . '"><a href="#' . $lineId . '"';
+            $lineClasses = [];
+            $lineAttributes = '';
+            if (isset($highlightLines[$lineNumber])) {
+                $lineClasses[] = 'highlighted-line';
+                $lineAttributes = ' data-pandoc-line-highlight="' . self::escapeHtml((string) $lineNumber) . '"';
+            }
+            $line = '<span id="' . $lineId . '"'
+                . ($lineClasses === [] ? '' : ' class="' . implode(' ', $lineClasses) . '"')
+                . $lineAttributes
+                . '><a href="#' . $lineId . '"';
             if (!$numberLines) {
                 $line .= ' aria-hidden="true" tabindex="-1"';
             }
@@ -4472,6 +4495,87 @@ final class SyntaxHighlighter
         }
 
         return $lines;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @param array<string, mixed> $attributes
+     * @return list<int>
+     */
+    private static function highlightLineNumbers(array $options, array $attributes, int $startNumber): array
+    {
+        $raw = $options['highlightLines'] ?? null;
+        if ($raw === null) {
+            foreach ([
+                'highlight-lines',
+                'highlightLines',
+                'data-highlight-lines',
+                'data-line-highlight',
+                'line-highlight',
+                'lineHighlight',
+                'hl-lines',
+                'hl_lines',
+            ] as $name) {
+                if (array_key_exists($name, $attributes)) {
+                    $raw = $attributes[$name];
+                    break;
+                }
+            }
+        }
+
+        if ($raw === null || $raw === false) {
+            return [];
+        }
+
+        if (is_bool($raw)) {
+            return [];
+        }
+
+        $lines = [];
+        $items = is_array($raw) ? $raw : preg_split('/[\s,;]+/', (string) $raw, -1, PREG_SPLIT_NO_EMPTY);
+        foreach ($items ?: [] as $item) {
+            $item = trim((string) $item);
+            if ($item === '') {
+                continue;
+            }
+
+            if (preg_match('/^(-?\d+)(?:\.\.|-)(-?\d+)$/', $item, $match) === 1) {
+                $from = (int) $match[1];
+                $to = (int) $match[2];
+                if ($from <= 0 || $to <= 0) {
+                    continue;
+                }
+                if ($from > $to) {
+                    [$from, $to] = [$to, $from];
+                }
+                for ($line = $from; $line <= $to; $line++) {
+                    $lines[] = $line;
+                }
+                continue;
+            }
+
+            if (preg_match('/^\d+$/', $item) === 1) {
+                $lines[] = (int) $item;
+            }
+        }
+
+        $absolute = self::optionBoolean($options['highlightLinesAbsolute'] ?? null);
+        if ($absolute === null) {
+            $absolute = self::attributeBoolean($attributes, [
+                'highlight-lines-absolute',
+                'highlightLinesAbsolute',
+                'data-highlight-lines-absolute',
+                'hl-lines-absolute',
+            ]);
+        }
+
+        $lines = array_values(array_unique(array_filter($lines, static fn (int $line): bool => $line > 0)));
+        sort($lines);
+        if ($lines === [] || $absolute) {
+            return $lines;
+        }
+
+        return array_map(static fn (int $line): int => $startNumber + $line - 1, $lines);
     }
 
     /**

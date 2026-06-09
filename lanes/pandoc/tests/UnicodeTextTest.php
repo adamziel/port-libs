@@ -499,6 +499,29 @@ return [
         $t->contains('<h1 id="mac-romania">Mac Romania</h1>', $blocks);
         $t->contains('<p>Editor “română” — Braşov; Ţară şi faţă; cost ¤10; Ω.</p>', $blocks);
     },
+    'decodes mac croatian source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Croatian\n\nNovinar \xD2\xA9ibenik\xD3 \xD1 \xC6evapi; \xAEupanija, \xB9uma, \xBEar; \xC6\xC8\xD0/\xE6\xE8\xF0.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-croatian');
+        $document = (new MarkdownReader())->readBytes($bytes, 'maccroatian');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA9\xAE\xB9\xBE\xC6\xC8\xD0\xE6\xE8\xF0\xB4\xD8\xD9\xDE\xDF\xE0\xF9\xFA\xFD\xFE", 'mac-croatian');
+        $macRomanComparison = UnicodeText::decodeBytes("\xA9\xAE\xB9\xBE\xC6\xC8\xD0\xE6\xE8\xF0", 'macintosh');
+
+        $t->same('mac-croatian', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Croatian\n\nNovinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.", $decoded['text']);
+        $t->same("ŠŽšžĆČĐćčđ∆\u{F8FF}©Æ»–πËÊæ", $specials['text']);
+        $t->same('mac-croatian', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same("©Æπæ∆»–ÊË\u{F8FF}", $macRomanComparison['text']);
+        $t->same(['encoding' => 'mac-croatian', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Croatian', $document->children[0]->attr('text'));
+        $t->same('Novinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.', $document->children[1]->attr('text'));
+        $t->same(57, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(61, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="mac-croatian">Mac Croatian</h1>', $blocks);
+        $t->contains('<p>Novinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.</p>', $blocks);
+    },
     'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp866');

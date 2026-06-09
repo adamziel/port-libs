@@ -508,6 +508,12 @@ if (!$tclCodeBlock instanceof PortLibs\Pandoc\AstNode || $tclCodeBlock->type !==
 }
 $tcl = $highlighter->highlightCodeBlock($tclCodeBlock, 'breezedark');
 $tclWordpressBlock = $highlighter->wordpressHtmlBlock($tclCodeBlock, 'breezedark');
+$lineHighlightCodeBlock = $document->children[81] ?? null;
+if (!$lineHighlightCodeBlock instanceof PortLibs\Pandoc\AstNode || $lineHighlightCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a line-highlighted PHP review code block');
+}
+$lineHighlight = $highlighter->highlightCodeBlock($lineHighlightCodeBlock, 'kate');
+$lineHighlightWordpressBlock = $highlighter->wordpressHtmlBlock($lineHighlightCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2222,6 +2228,18 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($tclWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
         throw new RuntimeException('Expected Tcl WordPress style metadata');
     }
+    if (($lineHighlight['highlightLines'] ?? []) !== [1281, 1283, 1284]) {
+        throw new RuntimeException('Expected Pandoc highlight-lines range metadata');
+    }
+    if (!str_contains($lineHighlight['html'], '<span id="line-highlight-review-1281" class="highlighted-line" data-pandoc-line-highlight="1281"><a href="#line-highlight-review-1281"></a><span class="va">$title</span>')) {
+        throw new RuntimeException('Expected highlighted source-line metadata in HTML output');
+    }
+    if (!str_contains($lineHighlightWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected line-highlight WordPress style metadata');
+    }
+    if (!str_contains($lineHighlightWordpressBlock, 'data-pandoc-line-highlight="1283"')) {
+        throw new RuntimeException('Expected line-highlight metadata in WordPress HTML block');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2322,6 +2340,7 @@ echo "mesonHighlightedHtml:\n" . $meson['html'] . "\n";
 echo "justHighlightedHtml:\n" . $just['html'] . "\n";
 echo "protobufHighlightedHtml:\n" . $protobuf['html'] . "\n";
 echo "tclHighlightedHtml:\n" . $tcl['html'] . "\n";
+echo "lineHighlightHighlightedHtml:\n" . $lineHighlight['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2393,4 +2412,5 @@ echo "mesonWordpressBlock:\n" . $mesonWordpressBlock . "\n";
 echo "justWordpressBlock:\n" . $justWordpressBlock . "\n";
 echo "protobufWordpressBlock:\n" . $protobufWordpressBlock . "\n";
 echo "tclWordpressBlock:\n" . $tclWordpressBlock . "\n";
+echo "lineHighlightWordpressBlock:\n" . $lineHighlightWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

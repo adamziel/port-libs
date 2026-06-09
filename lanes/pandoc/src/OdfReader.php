@@ -248,6 +248,7 @@ final class OdfReader
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
+                    'frameCaptionCount' => $contentStats['frameCaptionCount'],
                     'noteConfigurationCount' => (int) ($content['contentDeclarations']['noteConfigurationCount'] ?? 0),
                     'noteConfigurationSeparatorCount' => (int) ($content['contentDeclarations']['noteConfigurationSeparatorCount'] ?? 0),
                     'lineNumberingConfigurationCount' => (int) ($content['contentDeclarations']['lineNumberingConfigurationCount'] ?? 0),
@@ -3104,10 +3105,24 @@ final class OdfReader
             return null;
         }
 
-        return new AstNode('figure', [
+        $captionMetadata = $this->frameCaptionMetadata($frame, $package, $catalog);
+        $caption = (string) ($captionMetadata['text'] ?? $image->attr('alt', ''));
+        $attrs = [
             'sourceFormat' => 'odt',
-            'caption' => (string) $image->attr('alt', ''),
-        ], [$image]);
+            'caption' => $caption,
+        ];
+        if ($captionMetadata !== []) {
+            $attrs['classes'] = ['odf-frame-caption'];
+            $attrs['odfFrameCaption'] = $captionMetadata;
+            $attrs['attributes'] = [
+                'data-odf-frame-caption-source' => 'draw:caption',
+            ];
+            if (isset($captionMetadata['frameName'])) {
+                $attrs['attributes']['data-odf-frame-caption-frame-name'] = (string) $captionMetadata['frameName'];
+            }
+        }
+
+        return new AstNode('figure', $attrs, [$image]);
     }
 
     /**
@@ -6540,6 +6555,40 @@ final class OdfReader
 
     /**
      * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @return array<string, string|int>
+     */
+    private function frameCaptionMetadata(\DOMElement $frame, ZipPackage $package, array $catalog): array
+    {
+        $caption = self::firstChildElement($frame, 'caption', self::DRAW_NS);
+        if (!$caption instanceof \DOMElement) {
+            return [];
+        }
+
+        $blocks = $this->blockNodes($caption, $package, $catalog);
+        $text = $this->plainBlockText($blocks);
+        if ($text === '') {
+            $text = trim($this->plainInlineText($this->coalesceTextNodes($this->inlineNodes($caption, $catalog, $package))));
+        }
+        if ($text === '') {
+            $text = trim(self::normalizedText($caption));
+        }
+        if ($text === '') {
+            return [];
+        }
+
+        $paragraphCount = count(self::childElements($caption, 'p', self::TEXT_NS));
+        $frameName = self::attr($frame, self::DRAW_NS, 'name');
+
+        return self::withoutEmpty([
+            'sourceElement' => 'draw:caption',
+            'text' => preg_replace('/\s+/u', ' ', $text) ?? $text,
+            'frameName' => self::nullable($frameName),
+            'paragraphCount' => $paragraphCount > 0 ? $paragraphCount : null,
+        ]);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
      */
     private function frameTextBoxCaptionImageNode(\DOMElement $frame, array $catalog, ?ZipPackage $package): ?AstNode
     {
@@ -8274,6 +8323,7 @@ final class OdfReader
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
             'frameLayerReferenceCount' => 0,
+            'frameCaptionCount' => 0,
         ];
         foreach ($nodes as $node) {
             if ($node->type === 'note') {
@@ -8305,6 +8355,9 @@ final class OdfReader
             }
             if ($node->type === 'div' && $this->nodeHasClass($node, 'odf-table-caption')) {
                 $stats['tableCaptionCount']++;
+            }
+            if ($node->type === 'figure' && $this->nodeHasClass($node, 'odf-frame-caption')) {
+                $stats['frameCaptionCount']++;
             }
             if ($node->type === 'table' && $node->attr('odfCaptionParagraph') === true) {
                 $stats['tableCaptionCount']++;

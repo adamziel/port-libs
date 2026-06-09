@@ -3103,6 +3103,16 @@ $nameHygieneReviewPackage = ZipPackage::fromParts([
         'data' => "Windows alternate data stream media placeholder\n",
         'compressionMethod' => 0,
     ],
+    [
+        'name' => "word/media/review\u{202e}gnp.txt",
+        'data' => "Bidirectional override media placeholder\n",
+        'compressionMethod' => 0,
+    ],
+    [
+        'name' => "word/media/vector\u{200d}icon.svg",
+        'data' => "Zero-width joiner media placeholder\n",
+        'compressionMethod' => 0,
+    ],
 ]);
 $nameHygienePreflight = $nameHygieneReviewPackage->nameHygienePreflight();
 $nameHygieneStrictPreflight = $nameHygieneReviewPackage->strictImportPreflight(4096, 100.0, 4096);
@@ -4823,15 +4833,19 @@ if (in_array('--self-test', $argv, true)) {
     if (
         !$nameHygieneRejected
         || !$nameHygieneStrictRejected
-        || ($nameHygienePreflight['reviewEntryCount'] ?? null) !== 5
+        || ($nameHygienePreflight['reviewEntryCount'] ?? null) !== 7
         || ($nameHygienePreflight['leadingOrTrailingWhitespaceEntryCount'] ?? null) !== 2
         || ($nameHygienePreflight['trailingDotSegmentEntryCount'] ?? null) !== 1
         || ($nameHygienePreflight['windowsReservedNameEntryCount'] ?? null) !== 1
         || ($nameHygienePreflight['windowsAlternateDataStreamEntryCount'] ?? null) !== 1
+        || ($nameHygienePreflight['unicodeFormatControlEntryCount'] ?? null) !== 2
+        || ($nameHygienePreflight['unicodeBidiControlEntryCount'] ?? null) !== 1
         || ($nameHygienePreflight['entries'][1]['hasNameHygieneIssue'] ?? null) !== false
         || ($nameHygienePreflight['reviewEntries'][0]['flaggedSegments'][0]['segment'] ?? null) !== ' leading.png'
         || ($nameHygienePreflight['reviewEntries'][3]['issues'] ?? null) !== ['segment-windows-reserved-name']
         || ($nameHygienePreflight['reviewEntries'][4]['issues'] ?? null) !== ['segment-windows-alternate-data-stream']
+        || ($nameHygienePreflight['reviewEntries'][5]['issues'] ?? null) !== ['segment-unicode-format-control', 'segment-bidi-format-control']
+        || ($nameHygienePreflight['reviewEntries'][6]['flaggedSegments'][0]['unicodeFormatControlNames'] ?? null) !== ['zero-width-joiner']
         || ($nameHygieneStrictPreflight['diagnostics'] ?? null) !== ['name-hygiene-review-entries']
     ) {
         throw new RuntimeException('Expected ZIP entry name hygiene issues to stay blocked for strict media import');
@@ -6071,6 +6085,8 @@ echo 'zipNameHygieneReviewEntries=' . $nameHygienePreflight['reviewEntryCount'] 
 echo 'zipNameHygieneReviewIssues=' . implode(',', $nameHygienePreflight['reviewEntries'][0]['issues'] ?? []) . "\n";
 echo 'zipNameHygieneWindowsReservedEntries=' . $nameHygienePreflight['windowsReservedNameEntryCount'] . "\n";
 echo 'zipNameHygieneWindowsAdsEntries=' . $nameHygienePreflight['windowsAlternateDataStreamEntryCount'] . "\n";
+echo 'zipNameHygieneUnicodeFormatEntries=' . $nameHygienePreflight['unicodeFormatControlEntryCount'] . "\n";
+echo 'zipNameHygieneUnicodeBidiEntries=' . $nameHygienePreflight['unicodeBidiControlEntryCount'] . "\n";
 echo 'packagePlatformMetadata.entryCount=' . $packagePlatformMetadataPreflight['platformMetadataEntryCount'] . "\n";
 echo 'zipPlatformMetadataPolicy=' . ($platformMetadataRejected && $platformMetadataStrictRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipPlatformMetadataEntries=' . $platformMetadataPreflight['platformMetadataEntryCount'] . "\n";

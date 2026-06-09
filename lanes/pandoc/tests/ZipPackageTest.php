@@ -2994,6 +2994,93 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
+    'preflights unicode format controls in zip entry names before media handoff' => static function (TestRunner $t): void {
+        $rightToLeftOverrideName = "word/media/review\u{202e}gnp.txt";
+        $zeroWidthJoinerName = "word/media/vector\u{200d}icon.svg";
+        $leftToRightMarkName = "word/media/source\u{200e}.png";
+        $reviewPackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unicode format control name preflight</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review-image.png',
+                'data' => "safe source image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $rightToLeftOverrideName,
+                'data' => "right-to-left override media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $zeroWidthJoinerName,
+                'data' => "zero-width joiner media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $leftToRightMarkName,
+                'data' => "left-to-right mark media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $summary = $reviewPackage->nameHygienePreflight();
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(3, $summary['reviewEntryCount']);
+        $t->same(0, $summary['leadingOrTrailingWhitespaceEntryCount']);
+        $t->same(0, $summary['trailingDotSegmentEntryCount']);
+        $t->same(0, $summary['windowsReservedNameEntryCount']);
+        $t->same(0, $summary['windowsAlternateDataStreamEntryCount']);
+        $t->same(3, $summary['unicodeFormatControlEntryCount']);
+        $t->same(2, $summary['unicodeBidiControlEntryCount']);
+        $t->same(false, $summary['entries'][1]['hasNameHygieneIssue']);
+        $t->same([], $summary['entries'][1]['flaggedSegments']);
+
+        $t->same($rightToLeftOverrideName, $summary['reviewEntries'][0]['name']);
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $summary['reviewEntries'][0]['issues']);
+        $t->same('review' . "\u{202e}" . 'gnp.txt', $summary['reviewEntries'][0]['flaggedSegments'][0]['segment']);
+        $t->same(['right-to-left-override'], $summary['reviewEntries'][0]['flaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $summary['reviewEntries'][0]['flaggedSegments'][0]['bidiControlNames']);
+
+        $t->same($zeroWidthJoinerName, $summary['reviewEntries'][1]['name']);
+        $t->same(['segment-unicode-format-control'], $summary['reviewEntries'][1]['issues']);
+        $t->same(['zero-width-joiner'], $summary['reviewEntries'][1]['flaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same([], $summary['reviewEntries'][1]['flaggedSegments'][0]['bidiControlNames']);
+
+        $t->same($leftToRightMarkName, $summary['reviewEntries'][2]['name']);
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $summary['reviewEntries'][2]['issues']);
+        $t->same(['left-to-right-mark'], $summary['reviewEntries'][2]['flaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['left-to-right-mark'], $summary['reviewEntries'][2]['flaggedSegments'][0]['bidiControlNames']);
+        $t->same("right-to-left override media placeholder\n", $reviewPackage->read('/' . $rightToLeftOverrideName));
+
+        $strictSummary = $reviewPackage->strictImportPreflight(4096, 100.0, 4096);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['name-hygiene-review-entries'], $strictSummary['diagnostics']);
+        $t->same(3, $strictSummary['nameHygiene']['unicodeFormatControlEntryCount']);
+        $t->same(2, $strictSummary['nameHygiene']['unicodeBidiControlEntryCount']);
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertNoNameHygieneReviewEntries());
+        $t->throws(\RuntimeException::class, static fn (): array => $reviewPackage->assertStrictImportable(4096, 100.0, 4096));
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>unicode safe name hygiene</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/source-image.png',
+                'data' => "safe source image placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoNameHygieneReviewEntries();
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['unicodeFormatControlEntryCount']);
+        $t->same(0, $safeSummary['unicodeBidiControlEntryCount']);
+        $t->same([], $safeSummary['reviewEntries']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
     'preflights zip platform metadata sidecars before office package media handoff' => static function (TestRunner $t): void {
         $reviewPackage = ZipPackage::fromParts([
             [

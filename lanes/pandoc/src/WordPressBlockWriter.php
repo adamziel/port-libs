@@ -1996,7 +1996,7 @@ final class WordPressBlockWriter
             foreach ($attributes as $name => $value) {
                 $name = strtolower(trim((string) $name));
                 if (
-                    !preg_match('/\Adata-docx-caption-[a-z0-9._:-]+\z/', $name)
+                    !preg_match('/\Adata-(?:docx-caption|odf-frame-caption)-[a-z0-9._:-]+\z/', $name)
                     || !is_scalar($value)
                 ) {
                     continue;

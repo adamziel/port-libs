@@ -7675,6 +7675,107 @@ MARKDOWN);
         $t->same(['ETSI.CAdES.detached' => 1], $sequence['finalPdfSignatureSubFilters']);
     },
 
+    'fake runner extracts bounded pdf signature seed value constraints from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signature-seed-values.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.approval) /TU (Reviewer approval) /SV 11 0 R /Ff 3 >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.witness) /SV << /Ff 2 /SubFilter /adbe.pkcs7.sha1 /TimeStamp << /URL (https://tsa.example.test/witness) >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R] /SigFlags 3 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /SV /Ff 127 /Filter [/Adobe.PPKLite /Entrust.PPKEF] /SubFilter [/adbe.pkcs7.detached /ETSI.CAdES.detached] /DigestMethod [/SHA256 /SHA512] /V 2.0 /Reasons [(Approved) (Migration review)] /LegalAttestation [(Reviewed preservation)] /MDP << /P 2 >> /TimeStamp << /URL (https://tsa.example.test/review) /Ff 1 >> /AddRevInfo true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signature-seed-values.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signature-seed-values.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'fieldName' => 'review.approval',
+                'fieldObject' => '4 0 R',
+                'seedValueObject' => '11 0 R',
+                'flags' => 127,
+                'flagNames' => ['filter', 'subFilter', 'minimumVersion', 'reasons', 'legalAttestation', 'addRevInfo', 'digestMethod'],
+                'filters' => ['Adobe.PPKLite', 'Entrust.PPKEF'],
+                'subFilters' => ['adbe.pkcs7.detached', 'ETSI.CAdES.detached'],
+                'digestMethods' => ['SHA256', 'SHA512'],
+                'minimumVersion' => 2.0,
+                'reasons' => ['Approved', 'Migration review'],
+                'legalAttestations' => ['Reviewed preservation'],
+                'mdpPermissions' => 2,
+                'timestampUrl' => 'https://tsa.example.test/review',
+                'timestampRequired' => true,
+                'addRevInfo' => true,
+            ],
+            [
+                'fieldName' => 'review.witness',
+                'fieldObject' => '5 0 R',
+                'seedValueObject' => 'inline',
+                'flags' => 2,
+                'flagNames' => ['subFilter'],
+                'filters' => [],
+                'subFilters' => ['adbe.pkcs7.sha1'],
+                'digestMethods' => [],
+                'minimumVersion' => null,
+                'reasons' => [],
+                'legalAttestations' => [],
+                'mdpPermissions' => null,
+                'timestampUrl' => 'https://tsa.example.test/witness',
+                'timestampRequired' => false,
+                'addRevInfo' => null,
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureSeedValues']);
+        $t->contains('pdf-byte-signature-seed-values:2', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-required-flags:129', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-filter:Adobe.PPKLite:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-filter:Entrust.PPKEF:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-subfilter:ETSI.CAdES.detached:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-subfilter:adbe.pkcs7.detached:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-digest-method:SHA256:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-digest-method:SHA512:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-reasons:2', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-legal-attestations:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-mdp-permissions:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-timestamp-required:1', $diagnostics);
+        $t->contains('pdf-byte-signature-seed-add-rev-info:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureSeedValues']);
+    },
+
     'fake runner summarizes bounded pdf signature byte range policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed-byte-ranges.pdf']);

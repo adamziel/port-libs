@@ -9693,6 +9693,33 @@ final class MarkdownReader
 
         if (
             preg_match(
+                '/^ {0,3}\\\\(DeclarePairedDelimiterXPP)(?:\{\\\\([A-Za-z]+)\}|\\\\([A-Za-z]+))(?:\[(\d+)])?\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
+                $line,
+                $m
+            ) === 1
+        ) {
+            $name = ($m[2] ?? '') !== '' ? $m[2] : $m[3];
+            $prefix = trim($m[5]);
+            $suffix = trim($m[8]);
+            $template = '';
+            if ($prefix !== '') {
+                $template .= $prefix . ' ';
+            }
+            $template .= '\\left' . trim($m[6]) . ' ' . trim($m[9]) . ' \\right' . trim($m[7]);
+            if ($suffix !== '') {
+                $template .= ' ' . $suffix;
+            }
+
+            return [
+                'command' => $m[1],
+                'name' => $name,
+                'arity' => isset($m[4]) && $m[4] !== '' ? (int) $m[4] : $this->inferRawTexMacroArity($m[9]),
+                'template' => $template,
+            ];
+        }
+
+        if (
+            preg_match(
                 '/^ {0,3}\\\\(DeclarePairedDelimiterX)(?:\{\\\\([A-Za-z]+)\}|\\\\([A-Za-z]+))(?:\[(\d+)])?\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
                 $line,
                 $m

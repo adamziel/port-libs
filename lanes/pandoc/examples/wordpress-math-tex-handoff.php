@@ -19,6 +19,7 @@ $markdown = <<<'MARKDOWN'
 \DeclareMathOperator*{\wpargreview}{arg\,review}
 \DeclarePairedDelimiter{\wpabs}{\lvert}{\rvert}
 \DeclarePairedDelimiterX{\wpbetween}[2]{\langle}{\rangle}{#1 , #2}
+\DeclarePairedDelimiterXPP{\wprelated}[2]{\alpha\,}{\lbrack}{\rbrack}{\,\omega}{#1 \mid #2}
 
 Reviewer equation $\wptuple{post_id,media_id}$ stays editable.
 
@@ -33,6 +34,8 @@ Paired delimiter audit $\wpabs{p_i + m_i}$ stays semantic.
 Starred and sized paired delimiter audit $\wpabs*{p_i + m_i} + \wpabs[\Big]{q_i} + \wpabs[\bigg]{r_i}$ stays semantic.
 
 Paired delimiter template audit $\wpbetween{p_i}{m_i} + \wpbetween[\Big]{q_i}{r_i}$ stays semantic.
+
+Paired delimiter prefix-suffix audit $\wprelated{p_i}{m_i} + \wprelated[\Big]{q_i}{r_i}$ stays semantic.
 
 Text alias audit $\mbox{review mode} + \textrm{media label} + \textbf{draft} + \textit{review} + \texttt{code_1} + \textsf{sans group}$ stays semantic.
 
@@ -232,6 +235,7 @@ $summary = [
     'declaredPairedDelimiterMathml' => $converter->texToMathMl('\\wpabs{p_i + m_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'declaredPairedDelimiterSizedMathml' => $converter->texToMathMl('\\wpabs*{p_i + m_i} + \\wpabs[\\Big]{q_i} + \\wpabs[\\bigg]{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'declaredPairedDelimiterXMathml' => $converter->texToMathMl('\\wpbetween{p_i}{m_i} + \\wpbetween[\\Big]{q_i}{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
+    'declaredPairedDelimiterXppMathml' => $converter->texToMathMl('\\wprelated{p_i}{m_i} + \\wprelated[\\Big]{q_i}{r_i}', false, $converter->macroDefinitionsFromDocument($document)),
     'textAliasMathml' => $converter->texToMathMl('\\mbox{review mode} + \\textrm{media label} + \\textbf{draft} + \\textit{review} + \\texttt{code_1} + \\textsf{sans group}'),
     'dotRelationSymbolAliasMathml' => $converter->texToMathMl('\\ldots + \\cdots + \\ddots + \\aleph + \\ell + \\Re + \\Im + \\wp + a \\cong b + c \\simeq d + x \\propto y + u \\parallel v + r \\perp s + \\angle x + \\nabla f + \\top + \\bot'),
     'operatorRelationAliasMathml' => $converter->texToMathMl('a \\oplus b + c \\ominus d + x \\asymp y + p \\vdash q + u \\bowtie v'),
@@ -360,6 +364,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['declaredPairedDelimiterXMathml'], 'minsize="1.8em" maxsize="1.8em"')
     ) {
         throw new RuntimeException('Math TeX handoff self-test left declared paired delimiter X syntax unexpanded');
+    }
+
+    if (
+        str_contains($summary['declaredPairedDelimiterXppMathml'], '<mi>\\wprelated</mi>')
+        || str_contains($summary['declaredPairedDelimiterXppMathml'], '<mo>[</mo>')
+        || !str_contains($summary['declaredPairedDelimiterXppMathml'], '<mi>α</mi><mspace width="0.1667em"></mspace><mo fence="true" stretchy="true">[</mo>')
+        || !str_contains($summary['declaredPairedDelimiterXppMathml'], '<mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">]</mo><mspace width="0.1667em"></mspace><mi>ω</mi>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test left declared paired delimiter XPP prefix/suffix syntax unexpanded');
     }
 
     if (str_contains($summary['allowBreakMathml'], '<mi>\\allowbreak</mi>')) {

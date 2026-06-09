@@ -547,6 +547,53 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpinner[\\small]{x}{y}', false, $macros));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wpinner*{x}', false, $macros));
     },
+    'captures bounded declared paired delimiter xpp prefix suffix templates for mathml handoff' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '\\DeclarePairedDelimiterXPP{\\wprelated}[2]{\\alpha\\,}{\\lbrack}{\\rbrack}{\\,\\omega}{#1 \\mid #2}',
+            '\\DeclarePairedDelimiterXPP\\wpannotated[1]{\\beta\\,}{\\lvert}{\\rvert}{\\,\\gamma}{#1}',
+            '',
+            '$\\wprelated{p_i}{m_i} + \\wpannotated{x_i}$',
+        ]));
+        $firstDeclaration = $document->children[0];
+        $secondDeclaration = $document->children[1];
+        $math = $document->children[2]->children[0];
+        $macros = $converter->macroDefinitionsFromDocument($document);
+        $mathml = $converter->texToMathMl('\\wprelated*{p_i}{m_i} + \\wprelated[\\Big]{q_i}{r_i}', true, $macros);
+        $readerMathml = $converter->mathMlFor($math);
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\wprelated{x}{y}', false, $macros);
+
+        $t->same('raw_tex', $firstDeclaration->type);
+        $t->same('DeclarePairedDelimiterXPP', $firstDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterXPP{\\wprelated}[2]{\\alpha\\,}{\\lbrack}{\\rbrack}{\\,\\omega}{#1 \\mid #2}', $firstDeclaration->attr('tex'));
+        $t->same('raw_tex', $secondDeclaration->type);
+        $t->same('DeclarePairedDelimiterXPP', $secondDeclaration->attr('command'));
+        $t->same('\\DeclarePairedDelimiterXPP\\wpannotated[1]{\\beta\\,}{\\lvert}{\\rvert}{\\,\\gamma}{#1}', $secondDeclaration->attr('tex'));
+        $t->same([
+            'wprelated' => ['arity' => 2, 'template' => '\\alpha\\, \\left\\lbrack #1 \\mid #2 \\right\\rbrack \\,\\omega'],
+            'wpannotated' => ['arity' => 1, 'template' => '\\beta\\, \\left\\lvert #1 \\right\\rvert \\,\\gamma'],
+        ], $macros);
+        $t->same('\\alpha\\, \\left\\lbrack p_i \\mid m_i \\right\\rbrack \\,\\omega + \\beta\\, \\left\\lvert x_i \\right\\rvert \\,\\gamma', $math->attr('text'));
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mi>α</mi><mspace width="0.1667em"></mspace><mo fence="true" stretchy="true">[</mo><msub><mi>p</mi><mi>i</mi></msub><mo>∣</mo><msub><mi>m</mi><mi>i</mi></msub><mo fence="true" stretchy="true">]</mo><mspace width="0.1667em"></mspace><mi>ω</mi>', $mathml);
+        $t->contains('<mi>α</mi><mspace width="0.1667em"></mspace><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">[</mo><msub><mi>q</mi><mi>i</mi></msub><mo>∣</mo><msub><mi>r</mi><mi>i</mi></msub><mo fence="true" stretchy="true" minsize="1.8em" maxsize="1.8em">]</mo><mspace width="0.1667em"></mspace><mi>ω</mi>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">\\wprelated*{p_i}{m_i} + \\wprelated[\\Big]{q_i}{r_i}</annotation>', $mathml);
+        $t->contains('<mi>β</mi><mspace width="0.1667em"></mspace><mo fence="true" stretchy="true">|</mo><msub><mi>x</mi><mi>i</mi></msub><mo fence="true" stretchy="true">|</mo><mspace width="0.1667em"></mspace><mi>γ</mi>', $readerMathml);
+        $t->contains('alttext="alpha space left bracket x divides y right bracket space omega"', $accessibleMathml);
+        $t->true(!str_contains($mathml . $readerMathml, '<mi>\\wprelated</mi>') && !str_contains($mathml . $readerMathml, '<mi>\\wpannotated</mi>'));
+        $t->true(!str_contains($mathml, '<mo>*</mo>') && !str_contains($mathml, '<mo>[</mo>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterXPP{\\bad}[1]{#1}{\\lvert}{\\rvert}{}{#1}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterXPP{\\bad}[1]{}{\\input{secret}}{\\rvert}{}{#1}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $converter->macroDefinitionsFromDocument(new AstNode('document', [], [
+            new AstNode('raw_tex', ['tex' => '\\DeclarePairedDelimiterXPP{\\bad}[1]{}{\\lvert}{\\rvert}{#1}{#1}']),
+        ])));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wprelated[\\small]{x}{y}', false, $macros));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\wprelated*{x}', false, $macros));
+    },
     'rejects unsupported bounded tex macro definitions before mathml conversion' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
 

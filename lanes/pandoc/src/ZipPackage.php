@@ -99,6 +99,41 @@ final class ZipPackage
         "u\u{0300}" => 'ù', "u\u{0301}" => 'ú', "u\u{0302}" => 'û', "u\u{0308}" => 'ü',
         "y\u{0301}" => 'ý', "y\u{0308}" => 'ÿ',
     ];
+    private const UNICODE_FORMAT_CONTROL_NAMES = [
+        "\u{00ad}" => 'soft-hyphen',
+        "\u{061c}" => 'arabic-letter-mark',
+        "\u{180e}" => 'mongolian-vowel-separator',
+        "\u{200b}" => 'zero-width-space',
+        "\u{200c}" => 'zero-width-non-joiner',
+        "\u{200d}" => 'zero-width-joiner',
+        "\u{200e}" => 'left-to-right-mark',
+        "\u{200f}" => 'right-to-left-mark',
+        "\u{202a}" => 'left-to-right-embedding',
+        "\u{202b}" => 'right-to-left-embedding',
+        "\u{202c}" => 'pop-directional-formatting',
+        "\u{202d}" => 'left-to-right-override',
+        "\u{202e}" => 'right-to-left-override',
+        "\u{2060}" => 'word-joiner',
+        "\u{2066}" => 'left-to-right-isolate',
+        "\u{2067}" => 'right-to-left-isolate',
+        "\u{2068}" => 'first-strong-isolate',
+        "\u{2069}" => 'pop-directional-isolate',
+        "\u{feff}" => 'zero-width-no-break-space',
+    ];
+    private const UNICODE_BIDI_FORMAT_CONTROL_NAMES = [
+        "\u{061c}" => 'arabic-letter-mark',
+        "\u{200e}" => 'left-to-right-mark',
+        "\u{200f}" => 'right-to-left-mark',
+        "\u{202a}" => 'left-to-right-embedding',
+        "\u{202b}" => 'right-to-left-embedding',
+        "\u{202c}" => 'pop-directional-formatting',
+        "\u{202d}" => 'left-to-right-override',
+        "\u{202e}" => 'right-to-left-override',
+        "\u{2066}" => 'left-to-right-isolate',
+        "\u{2067}" => 'right-to-left-isolate',
+        "\u{2068}" => 'first-strong-isolate',
+        "\u{2069}" => 'pop-directional-isolate',
+    ];
 
     /**
      * @param array<string, ZipPackageEntry> $entriesByName
@@ -2374,8 +2409,10 @@ final class ZipPackage
      *     trailingDotSegmentEntryCount:int,
      *     windowsReservedNameEntryCount:int,
      *     windowsAlternateDataStreamEntryCount:int,
-     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
-     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
+     *     unicodeFormatControlEntryCount:int,
+     *     unicodeBidiControlEntryCount:int,
+     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
      * }
      */
     public function nameHygienePreflight(): array
@@ -2386,6 +2423,8 @@ final class ZipPackage
         $trailingDotSegmentEntryCount = 0;
         $windowsReservedNameEntryCount = 0;
         $windowsAlternateDataStreamEntryCount = 0;
+        $unicodeFormatControlEntryCount = 0;
+        $unicodeBidiControlEntryCount = 0;
 
         foreach ($this->entries as $entry) {
             $path = rtrim($entry->name, '/');
@@ -2412,6 +2451,16 @@ final class ZipPackage
                     $segmentIssues[] = 'segment-windows-alternate-data-stream';
                 }
 
+                $formatControlNames = self::unicodeFormatControlNames($segment);
+                $bidiControlNames = self::unicodeBidiControlNames($segment);
+                if ($formatControlNames !== []) {
+                    $segmentIssues[] = 'segment-unicode-format-control';
+                }
+
+                if ($bidiControlNames !== []) {
+                    $segmentIssues[] = 'segment-bidi-format-control';
+                }
+
                 if ($segmentIssues === []) {
                     continue;
                 }
@@ -2420,6 +2469,8 @@ final class ZipPackage
                     'index' => $index,
                     'segment' => $segment,
                     'issues' => $segmentIssues,
+                    'unicodeFormatControlNames' => $formatControlNames,
+                    'bidiControlNames' => $bidiControlNames,
                 ];
                 foreach ($segmentIssues as $issue) {
                     if (!in_array($issue, $issues, true)) {
@@ -2439,6 +2490,12 @@ final class ZipPackage
             }
             if (in_array('segment-windows-alternate-data-stream', $issues, true)) {
                 $windowsAlternateDataStreamEntryCount++;
+            }
+            if (in_array('segment-unicode-format-control', $issues, true)) {
+                $unicodeFormatControlEntryCount++;
+            }
+            if (in_array('segment-bidi-format-control', $issues, true)) {
+                $unicodeBidiControlEntryCount++;
             }
 
             $summary = [
@@ -2463,6 +2520,8 @@ final class ZipPackage
             'trailingDotSegmentEntryCount' => $trailingDotSegmentEntryCount,
             'windowsReservedNameEntryCount' => $windowsReservedNameEntryCount,
             'windowsAlternateDataStreamEntryCount' => $windowsAlternateDataStreamEntryCount,
+            'unicodeFormatControlEntryCount' => $unicodeFormatControlEntryCount,
+            'unicodeBidiControlEntryCount' => $unicodeBidiControlEntryCount,
             'reviewEntries' => $reviewEntries,
             'entries' => $entries,
         ];
@@ -2476,8 +2535,10 @@ final class ZipPackage
      *     trailingDotSegmentEntryCount:int,
      *     windowsReservedNameEntryCount:int,
      *     windowsAlternateDataStreamEntryCount:int,
-     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
-     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
+     *     unicodeFormatControlEntryCount:int,
+     *     unicodeBidiControlEntryCount:int,
+     *     reviewEntries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>,
+     *     entries:list<array{name:string, path:string, isDirectory:bool, segments:list<string>, flaggedSegments:list<array{index:int, segment:string, issues:list<string>, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>}>, hasNameHygieneIssue:bool, issues:list<string>}>
      * }
      */
     public function assertNoNameHygieneReviewEntries(): array
@@ -2522,6 +2583,56 @@ final class ZipPackage
         $suffix = substr($deviceBase, 3, 1);
 
         return ($prefix === 'COM' || $prefix === 'LPT') && $suffix >= '1' && $suffix <= '9';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function unicodeFormatControlNames(string $segment): array
+    {
+        return self::unicodeControlNames($segment, self::UNICODE_FORMAT_CONTROL_NAMES, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function unicodeBidiControlNames(string $segment): array
+    {
+        return self::unicodeControlNames($segment, self::UNICODE_BIDI_FORMAT_CONTROL_NAMES, false);
+    }
+
+    /**
+     * @param array<string, string> $knownNames
+     * @return list<string>
+     */
+    private static function unicodeControlNames(string $segment, array $knownNames, bool $includeUnknownFormatControls): array
+    {
+        $characters = preg_split('//u', $segment, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters === false) {
+            return [];
+        }
+
+        $names = [];
+        $hasUnknownFormatControl = false;
+        foreach ($characters as $character) {
+            if (isset($knownNames[$character])) {
+                if (!in_array($knownNames[$character], $names, true)) {
+                    $names[] = $knownNames[$character];
+                }
+
+                continue;
+            }
+
+            if ($includeUnknownFormatControls && preg_match('/\p{Cf}/u', $character) === 1) {
+                $hasUnknownFormatControl = true;
+            }
+        }
+
+        if ($hasUnknownFormatControl && !in_array('unicode-format-control', $names, true)) {
+            $names[] = 'unicode-format-control';
+        }
+
+        return $names;
     }
 
     /**

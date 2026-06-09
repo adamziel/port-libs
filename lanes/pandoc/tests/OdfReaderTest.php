@@ -6356,6 +6356,60 @@ XML;
         $t->contains('![Block-level recovered caption.](Pictures/hero.png "fig:Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
         $t->contains('<figure class="wp-block-image"><img src="Pictures/hero.png" alt="Block-level recovered caption." title="fig:Block hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"/><figcaption>Block-level recovered caption.</figcaption></figure>', $blocksHtml);
     },
+    'maps ODT draw frame captions into figure caption metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithDrawCaption = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Captioned draw frame">
+        <draw:image xlink:href="Pictures/hero.png">
+          <svg:title>Hero source title</svg:title>
+          <svg:desc>Hero fallback alt</svg:desc>
+        </draw:image>
+        <draw:caption>
+          <text:p>Figure <text:span text:style-name="CaptionStrong">2</text:span>: Source hero caption.</text:p>
+        </draw:caption>
+      </draw:frame>
+      <text:p>Following content remains separate.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithDrawCaption));
+        $blocks = $result['document']->children;
+        $figure = $blocks[0];
+        $image = $figure->children[0];
+        $captionMetadata = $figure->attr('odfFrameCaption');
+        $attributes = $figure->attr('attributes');
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+
+        $t->same(2, count($blocks));
+        $t->same('figure', $figure->type);
+        $t->same('Figure 2: Source hero caption.', $figure->attr('caption'));
+        $t->same(['odf-frame-caption'], $figure->attr('classes'));
+        $t->same('draw:caption', $captionMetadata['sourceElement'] ?? null);
+        $t->same('Figure 2: Source hero caption.', $captionMetadata['text'] ?? null);
+        $t->same('Captioned draw frame', $captionMetadata['frameName'] ?? null);
+        $t->same(1, $captionMetadata['paragraphCount'] ?? null);
+        $t->same('draw:caption', $attributes['data-odf-frame-caption-source'] ?? null);
+        $t->same('Captioned draw frame', $attributes['data-odf-frame-caption-frame-name'] ?? null);
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png', $image->attr('url'));
+        $t->same('Hero fallback alt', $image->attr('alt'));
+        $t->same('Hero source title', $image->attr('title'));
+        $t->same(1, $result['importReport']['content']['frameCaptionCount'] ?? 0);
+        $t->same('paragraph', $blocks[1]->type);
+        $t->same('Following content remains separate.', $blocks[1]->attr('text'));
+        $t->contains('![Hero fallback alt](Pictures/hero.png "Hero source title"){.odf-frame-caption data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"}', $markdown);
+        $t->contains('<figure class="wp-block-image odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"><img src="Pictures/hero.png" alt="Hero fallback alt" title="Hero source title"/><figcaption>Figure 2: Source hero caption.</figcaption></figure>', $blocksHtml);
+    },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithSizedImages = <<<'XML'
 <office:document-content

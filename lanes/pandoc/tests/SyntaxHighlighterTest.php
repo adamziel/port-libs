@@ -349,6 +349,55 @@ return [
         $t->contains('<pre class="sourceCode line-anchors"><code class="sourceCode php">', $anchorOnly['html']);
         $t->contains('<span id="anchor-only-1"><a href="#anchor-only-1" aria-hidden="true" tabindex="-1"></a><span class="kw">echo</span>', $anchorOnly['html']);
     },
+    'preserves pandoc line highlight ranges for wordpress review packets' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[81] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a line-highlighted PHP code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $direct = $highlighter->highlight('echo "draft";' . "\n" . 'echo "publish";', 'php', 'pygments', [
+            'id' => 'manual-review',
+            'attributes' => ['highlight-lines' => '2'],
+        ]);
+        $absolute = $highlighter->highlight('first' . "\n" . 'second', 'unknown-review-language', 'pygments', [
+            'id' => 'absolute-review',
+            'attributes' => [
+                'startFrom' => '40',
+                'highlight-lines' => '41',
+                'highlight-lines-absolute' => 'true',
+            ],
+        ]);
+
+        $t->same('php', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('php', $highlighted['language']);
+        $t->same(1280, $highlighted['lineNumbering']['start']);
+        $t->same([1281, 1283, 1284], $highlighted['highlightLines']);
+        $t->contains('<pre class="sourceCode numberSource php numberLines"><code class="sourceCode php" style="counter-reset: source-line 1279;">', $highlighted['html']);
+        $t->contains('<span id="line-highlight-review-1280"><a href="#line-highlight-review-1280"></a><span class="pp">&lt;?php</span></span>', $highlighted['html']);
+        $t->contains('<span id="line-highlight-review-1281" class="highlighted-line" data-pandoc-line-highlight="1281"><a href="#line-highlight-review-1281"></a><span class="va">$title</span>', $highlighted['html']);
+        $t->contains('<span id="line-highlight-review-1283" class="highlighted-line" data-pandoc-line-highlight="1283"><a href="#line-highlight-review-1283"></a>    <span class="va">$title</span>', $highlighted['html']);
+        $t->contains('<span id="line-highlight-review-1284" class="highlighted-line" data-pandoc-line-highlight="1284"><a href="#line-highlight-review-1284"></a><span class="op">}</span></span>', $highlighted['html']);
+        $t->same(false, str_contains($highlighted['html'], 'data-pandoc-line-highlight="1282"'));
+        $t->contains('.sourceCode .highlighted-line', $highlighted['css']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('data-pandoc-line-highlight="1283"', $wordpressBlock);
+        $t->contains('<span class="fu">esc_html</span>', $wordpressBlock);
+        $t->same([2], $direct['highlightLines']);
+        $t->same(false, $direct['lineNumbering']['enabled']);
+        $t->contains('<pre class="sourceCode"><code class="sourceCode php">', $direct['html']);
+        $t->contains('<span id="manual-review-2" class="highlighted-line" data-pandoc-line-highlight="2"><a href="#manual-review-2" aria-hidden="true" tabindex="-1"></a><span class="kw">echo</span> <span class="st">&quot;publish&quot;</span>', $direct['html']);
+        $t->same([41], $absolute['highlightLines']);
+        $t->contains('<span id="absolute-review-41" class="highlighted-line" data-pandoc-line-highlight="41"><a href="#absolute-review-41" aria-hidden="true" tabindex="-1"></a>second</span>', $absolute['html']);
+    },
     'renders opt in token title attributes for reviewer metadata' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {
