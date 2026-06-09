@@ -5957,6 +5957,48 @@ XML;
         $t->contains('<span class="odf-field odf-field-file-name" data-odf-field-type="file-name" data-odf-field-display="full">source/review.odt</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-word-count" data-odf-field-type="word-count">128</span>', $blocksHtml);
     },
+    'maps ODT page continuation fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPageContinuationFields = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Continuation <text:page-continuation text:select-page="next" text:string-value="continued on next page">continued on next page</text:page-continuation> and fallback <text:page-continuation text:select-page="previous" text:string-value="continued from previous page"/> stay reviewable.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPageContinuationFields));
+        $paragraph = $result['document']->children[0];
+        $next = $paragraph->children[1];
+        $previous = $paragraph->children[3];
+
+        $t->same('Continuation continued on next page and fallback continued from previous page stay reviewable.', $paragraph->attr('text'));
+        $t->same('span', $next->type);
+        $t->same(['odf-field', 'odf-field-page-continuation'], $next->attr('classes'));
+        $t->same('page-continuation', $next->attr('fieldType'));
+        $t->same('next', $next->attr('fieldMetadata')['selectPage']);
+        $t->same('continued on next page', $next->attr('fieldMetadata')['stringValue']);
+        $t->same('next', $next->attr('attributes')['data-odf-field-select-page']);
+        $t->same('continued on next page', $next->attr('attributes')['data-odf-field-string-value']);
+        $t->same('continued on next page', $next->children[0]->attr('text'));
+
+        $t->same('page-continuation', $previous->attr('fieldType'));
+        $t->same('previous', $previous->attr('fieldMetadata')['selectPage']);
+        $t->same('continued from previous page', $previous->attr('fieldMetadata')['stringValue']);
+        $t->same('previous', $previous->attr('attributes')['data-odf-field-select-page']);
+        $t->same('continued from previous page', $previous->children[0]->attr('text'));
+        $t->same(2, $result['importReport']['content']['fieldCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[continued on next page]{.odf-field .odf-field-page-continuation data-odf-field-type="page-continuation" data-odf-field-string-value="continued on next page" data-odf-field-select-page="next"}', $markdown);
+        $t->contains('[continued from previous page]{.odf-field .odf-field-page-continuation data-odf-field-type="page-continuation" data-odf-field-string-value="continued from previous page" data-odf-field-select-page="previous"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued on next page" data-odf-field-select-page="next">continued on next page</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-page-continuation" data-odf-field-type="page-continuation" data-odf-field-string-value="continued from previous page" data-odf-field-select-page="previous">continued from previous page</span>', $blocksHtml);
+    },
     'maps ODT conditional and hidden text fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithConditionalFields = <<<'XML'
 <office:document-content

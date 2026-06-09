@@ -6108,6 +6108,7 @@ final class OdfReader
             'database-row-number',
             'database-row-select',
             'page-number',
+            'page-continuation',
             'page-count',
             'page-variable-set',
             'page-variable-get',
