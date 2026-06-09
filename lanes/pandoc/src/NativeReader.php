@@ -194,6 +194,15 @@ final class NativeReader
         }
 
         $shortCaption = $this->unwrapMaybeConstructor($shortCaption);
+        if (
+            is_array($shortCaption)
+            && array_is_list($shortCaption)
+            && count($shortCaption) === 1
+            && is_array($shortCaption[0])
+            && ($shortCaption[0]['t'] ?? null) === 'ShortCaption'
+        ) {
+            $shortCaption = $shortCaption[0];
+        }
         $content = $this->constructorContent($shortCaption, 'ShortCaption', 'Pandoc native JSON Table short caption', false);
         if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
             $content = $content[0];

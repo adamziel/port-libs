@@ -352,6 +352,99 @@ return [
         $t->contains('<strong>caption</strong>', $blocks);
         $t->same($nativeTable, $roundTrip['blocks'][0]);
     },
+    'maps wrapped native ast short captions into shared table metadata' => static function (TestRunner $t): void {
+        $nativeTable = [
+            't' => 'Table',
+            'c' => [
+                ['', [], []],
+                [
+                    't' => 'Caption',
+                    'c' => [
+                        [
+                            [
+                                't' => 'ShortCaption',
+                                'c' => [
+                                    ['t' => 'Str', 'c' => 'Audit'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Code', 'c' => [
+                                        ['', ['queue-code'], [['data-kind', 'short']]],
+                                        'Q1',
+                                    ]],
+                                ],
+                            ],
+                        ],
+                        [
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'Long'],
+                                ['t' => 'Space'],
+                                ['t' => 'Strong', 'c' => [
+                                    ['t' => 'Str', 'c' => 'caption'],
+                                ]],
+                            ]],
+                        ],
+                    ],
+                ],
+                [
+                    [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+                ],
+                [
+                    ['', [], []],
+                    [],
+                ],
+                [
+                    [
+                        ['', [], []],
+                        0,
+                        [],
+                        [
+                            [
+                                ['', [], []],
+                                [
+                                    [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        1,
+                                        1,
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Ready'],
+                                            ]],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [
+                    ['', [], []],
+                    [],
+                ],
+            ],
+        ];
+
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$nativeTable],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $table = $document->children[0];
+        $shortCaptionInlines = $table->attr('shortCaptionInlines');
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $packet = TableGeometry::reviewPacket($table, ['accessibility' => false]);
+
+        $t->same('Long caption', $table->attr('caption'));
+        $t->same('Audit Q1', $table->attr('shortCaption'));
+        $t->same(true, is_array($shortCaptionInlines));
+        $t->same(['text', 'code'], array_map(static fn ($node): string => $node->type, $shortCaptionInlines));
+        $t->same(['queue-code'], $shortCaptionInlines[1]->attr('classes'));
+        $t->same(['data-kind' => 'short'], $shortCaptionInlines[1]->attr('attributes'));
+        $t->same($nativeTable, $roundTrip['blocks'][0]);
+        $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
+        $t->same(['text', 'code'], $packet['captions']['short']['inlineTypes'] ?? null);
+    },
     'writes shared table captions as pandoc native ast json' => static function (TestRunner $t): void {
         $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
             new AstNode('table', [
