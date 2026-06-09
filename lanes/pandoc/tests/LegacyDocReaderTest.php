@@ -2297,6 +2297,20 @@ return [
             $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
         }
     },
+    'rejects absent CFB MiniFAT and DIFAT chains whose header starts are not ENDOFCHAIN' => static function (TestRunner $t) use ($buildCfb, $u32): void {
+        $regularOnly = $buildCfb([
+            'WordDocument' => str_repeat('W', 4096),
+        ], false);
+
+        foreach ([
+            'MiniFAT FREESECT start without chain' => substr_replace($regularOnly, $u32(0xffffffff), 60, 4),
+            'MiniFAT FATSECT start without chain' => substr_replace($regularOnly, $u32(0xfffffffd), 60, 4),
+            'DIFAT FREESECT start without chain' => substr_replace($regularOnly, $u32(0xffffffff), 68, 4),
+            'DIFAT DIFSECT start without chain' => substr_replace($regularOnly, $u32(0xfffffffc), 68, 4),
+        ] as $_label => $corruptDocBytes) {
+            $t->throws(\RuntimeException::class, static fn (): CompoundFileBinary => CompoundFileBinary::fromBytes($corruptDocBytes));
+        }
+    },
     'rejects overlong CFB MiniFAT chains beyond the declared sector count' => static function (TestRunner $t) use ($buildCfb, $u32): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

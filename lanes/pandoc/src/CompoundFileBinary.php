@@ -116,14 +116,14 @@ final class CompoundFileBinary
         if ($miniStreamCutoff !== 4096) {
             throw new \RuntimeException('CFB mini stream cutoff size must be 4096 bytes');
         }
-        if ($miniFatSectorCount === 0 && self::isRegularSector($firstMiniFatSector)) {
-            throw new \RuntimeException('CFB header declares a MiniFAT start sector without MiniFAT sectors');
+        if ($miniFatSectorCount === 0 && $firstMiniFatSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB header declares no MiniFAT sectors but the MiniFAT start sector is not ENDOFCHAIN');
         }
         if ($miniFatSectorCount > 0 && !self::isRegularSector($firstMiniFatSector)) {
             throw new \RuntimeException('CFB header declares MiniFAT sectors without a valid MiniFAT start sector');
         }
-        if ($difatSectorCount === 0 && self::isRegularSector($firstDifatSector)) {
-            throw new \RuntimeException('CFB header declares a DIFAT start sector without DIFAT sectors');
+        if ($difatSectorCount === 0 && $firstDifatSector !== self::ENDOFCHAIN) {
+            throw new \RuntimeException('CFB header declares no DIFAT sectors but the DIFAT start sector is not ENDOFCHAIN');
         }
         if ($difatSectorCount > 0 && !self::isRegularSector($firstDifatSector)) {
             throw new \RuntimeException('CFB header declares DIFAT sectors without a valid DIFAT start sector');

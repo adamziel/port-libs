@@ -3090,6 +3090,63 @@ if (($argv[1] ?? '') === '--self-test') {
         . $smallRegularFat
         . $padDirectoryEntries($smallRegularDirectory, $sectorSize)
         . $padTo($smallRegularWordDocument, $sectorSize);
+    $regularOnlyWordDocument = str_repeat('R', 4096);
+    $regularOnlyDirectory = $makeDirectoryEntry('Root Entry', 5, $end, 0, $free, $free, 1)
+        . $makeDirectoryEntry('WordDocument', 2, 2, strlen($regularOnlyWordDocument), $free, $free, $free);
+    $regularOnlyFatEntries = [
+        $fatSector,
+        $end,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        $end,
+    ];
+    $regularOnlyFat = implode('', array_map($u32, $regularOnlyFatEntries))
+        . str_repeat($u32($free), 128 - count($regularOnlyFatEntries));
+    $regularOnlyHeader = "\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+        . str_repeat("\0", 16)
+        . $u16(0x003e)
+        . $u16(3)
+        . $u16(0xfffe)
+        . $u16(9)
+        . $u16(6)
+        . str_repeat("\0", 6)
+        . $u32(0)
+        . $u32(1)
+        . $u32(1)
+        . $u32(0)
+        . $u32(4096)
+        . $u32($end)
+        . $u32(0)
+        . $u32($end)
+        . $u32(0)
+        . $u32(0)
+        . str_repeat($u32($free), 108);
+    $regularOnlyCfb = str_pad($regularOnlyHeader, 512, "\0")
+        . $regularOnlyFat
+        . $padDirectoryEntries($regularOnlyDirectory, $sectorSize)
+        . $regularOnlyWordDocument;
+    if (CompoundFileBinary::fromBytes($regularOnlyCfb)->readStream('WordDocument') !== $regularOnlyWordDocument) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing regular-only CFB preflight fixture');
+    }
+    foreach ([
+        'absent MiniFAT FREESECT start sentinel' => substr_replace($regularOnlyCfb, $u32($free), 60, 4),
+        'absent MiniFAT FATSECT start sentinel' => substr_replace($regularOnlyCfb, $u32($fatSector), 60, 4),
+        'absent DIFAT FREESECT start sentinel' => substr_replace($regularOnlyCfb, $u32($free), 68, 4),
+        'absent DIFAT DIFSECT start sentinel' => substr_replace($regularOnlyCfb, $u32(0xfffffffc), 68, 4),
+    ] as $label => $corruptCfb) {
+        try {
+            CompoundFileBinary::fromBytes($corruptCfb);
+        } catch (InvalidArgumentException | RuntimeException) {
+            continue;
+        }
+
+        throw new RuntimeException('Legacy DOC handoff self-test accepted CFB absent-chain header start: ' . $label);
+    }
     $regularWordDocumentForRootMiniStream = str_pad($smallRegularWordDocument, 4096, "\0");
     $rootMiniStreamWithoutMiniFatSector = 10;
     $rootMiniStreamWithoutMiniFatDirectory = $makeDirectoryEntry('Root Entry', 5, $rootMiniStreamWithoutMiniFatSector, 64, $free, $free, 1)
