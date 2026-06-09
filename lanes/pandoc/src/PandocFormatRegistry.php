@@ -240,6 +240,68 @@ final class PandocFormatRegistry
     ];
 
     /** @var array<string, string> */
+    private const RICH_PACKAGE_EXTENSION_INFERENCE = [
+        '.docx' => 'docx',
+        '.epub' => 'epub',
+        '.fodt' => 'opendocument',
+        '.icml' => 'icml',
+        '.ipynb' => 'ipynb',
+        '.odt' => 'odt',
+        '.pdf' => 'pdf',
+        '.pptx' => 'pptx',
+        '.xlsx' => 'xlsx',
+    ];
+
+    /** @var array<string, array{primaryFormat:string, formats:list<string>, kind:string}> */
+    private const RICH_PACKAGE_EXTENSION_METADATA = [
+        '.docx' => [
+            'primaryFormat' => 'docx',
+            'formats' => ['docx'],
+            'kind' => 'office-open-xml-wordprocessing-package',
+        ],
+        '.epub' => [
+            'primaryFormat' => 'epub',
+            'formats' => ['epub', 'epub2', 'epub3'],
+            'kind' => 'epub-publication-package',
+        ],
+        '.fodt' => [
+            'primaryFormat' => 'opendocument',
+            'formats' => ['opendocument'],
+            'kind' => 'flat-open-document-text',
+        ],
+        '.icml' => [
+            'primaryFormat' => 'icml',
+            'formats' => ['icml'],
+            'kind' => 'indesign-markup-file',
+        ],
+        '.ipynb' => [
+            'primaryFormat' => 'ipynb',
+            'formats' => ['ipynb'],
+            'kind' => 'notebook-json-package',
+        ],
+        '.odt' => [
+            'primaryFormat' => 'odt',
+            'formats' => ['odt'],
+            'kind' => 'open-document-text-package',
+        ],
+        '.pdf' => [
+            'primaryFormat' => 'pdf',
+            'formats' => ['pdf'],
+            'kind' => 'pdf-rendered-artifact',
+        ],
+        '.pptx' => [
+            'primaryFormat' => 'pptx',
+            'formats' => ['pptx'],
+            'kind' => 'office-open-xml-presentation-package',
+        ],
+        '.xlsx' => [
+            'primaryFormat' => 'xlsx',
+            'formats' => ['xlsx'],
+            'kind' => 'office-open-xml-spreadsheet-package',
+        ],
+    ];
+
+    /** @var array<string, string> */
     private const INPUT_ALIASES = [
         'bits' => 'jats',
         'markdown_github' => 'gfm',
@@ -959,6 +1021,96 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, string>
+     */
+    public static function richPackageExtensionInference(): array
+    {
+        return self::RICH_PACKAGE_EXTENSION_INFERENCE;
+    }
+
+    /**
+     * @return string|null
+     */
+    public static function inferRichPackageFormatFromExtension(string $extension): ?string
+    {
+        return self::classifyRichPackageExtension($extension)['format'];
+    }
+
+    /**
+     * @return array<string, array{primaryFormat:string, formats:list<string>, kind:string}>
+     */
+    public static function richPackageExtensionMetadata(): array
+    {
+        return self::RICH_PACKAGE_EXTENSION_METADATA;
+    }
+
+    /**
+     * @return array{
+     *     format:string|null,
+     *     normalizedExtension:string,
+     *     kind:string,
+     *     formats:list<string>,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>
+     * }
+     */
+    public static function classifyRichPackageExtension(string $extension): array
+    {
+        $normalized = strtolower($extension);
+        if ($normalized === '') {
+            return self::richPackageExtensionClassification(null, '', 'unknown', []);
+        }
+        if ($normalized[0] !== '.') {
+            $normalized = '.' . $normalized;
+        }
+
+        $metadata = self::RICH_PACKAGE_EXTENSION_METADATA[$normalized] ?? null;
+        if ($metadata === null) {
+            return self::richPackageExtensionClassification(null, $normalized, 'unknown', []);
+        }
+
+        return self::richPackageExtensionClassification(
+            $metadata['primaryFormat'],
+            $normalized,
+            $metadata['kind'],
+            $metadata['formats']
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageFormatsWithExtensionInference(): array
+    {
+        $formats = [];
+        foreach (self::RICH_PACKAGE_EXTENSION_METADATA as $metadata) {
+            foreach ($metadata['formats'] as $format) {
+                $formats[] = $format;
+            }
+        }
+
+        return array_values(array_unique($formats));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageFormatsWithoutExtensionInference(): array
+    {
+        $inferred = array_flip(self::richPackageFormatsWithExtensionInference());
+        $formats = array_values(array_unique(array_merge(self::RICH_PACKAGE_INPUT_FORMATS, self::RICH_PACKAGE_OUTPUT_FORMATS)));
+        $withoutInference = [];
+
+        foreach ($formats as $format) {
+            if (!array_key_exists($format, $inferred)) {
+                $withoutInference[] = $format;
+            }
+        }
+
+        return $withoutInference;
+    }
+
+    /**
      * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
      */
     public static function richPackageFormatDirections(): array
@@ -979,6 +1131,10 @@ final class PandocFormatRegistry
      *     inputFormats:list<string>,
      *     outputFormats:list<string>,
      *     directionBuckets:array{inputOutput:list<string>, inputOnly:list<string>, outputOnly:list<string>},
+     *     extensionInference:array<string, string>,
+     *     extensionMetadata:array<string, array{primaryFormat:string, formats:list<string>, kind:string}>,
+     *     extensionInferredFormats:list<string>,
+     *     nonExtensionInferredFormats:list<string>,
      *     partialInputFormats:list<string>,
      *     partialOutputFormats:list<string>,
      *     unsupportedInputFormats:list<string>,
@@ -992,7 +1148,7 @@ final class PandocFormatRegistry
      *         noNativeReader:list<string>,
      *         noNativeWriter:list<string>
      *     },
-     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, outputImplementation:string}>
+     *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, extensionInferred:bool, extensions:list<string>, inputImplementation:string, outputImplementation:string}>
      * }
      */
     public static function richPackageFormatReviewPacket(): array
@@ -1000,6 +1156,14 @@ final class PandocFormatRegistry
         $directions = self::richPackageFormatDirections();
         $inputSupport = self::richPackageInputSupport();
         $outputSupport = self::richPackageOutputSupport();
+        $extensionsByFormat = [];
+
+        foreach (self::RICH_PACKAGE_EXTENSION_METADATA as $extension => $metadata) {
+            foreach ($metadata['formats'] as $candidateFormat) {
+                $extensionsByFormat[$candidateFormat][] = $extension;
+            }
+        }
+
         $formats = [];
 
         foreach ($directions as $format => $direction) {
@@ -1012,6 +1176,8 @@ final class PandocFormatRegistry
                 'direction' => $direction['direction'],
                 'inputStatus' => $direction['inputStatus'],
                 'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => array_key_exists($format, $extensionsByFormat),
+                'extensions' => $extensionsByFormat[$format] ?? [],
                 'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
                 'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
             ];
@@ -1028,6 +1194,10 @@ final class PandocFormatRegistry
                 'inputOnly' => self::richPackageInputOnlyFormats(),
                 'outputOnly' => self::richPackageOutputOnlyFormats(),
             ],
+            'extensionInference' => self::RICH_PACKAGE_EXTENSION_INFERENCE,
+            'extensionMetadata' => self::RICH_PACKAGE_EXTENSION_METADATA,
+            'extensionInferredFormats' => self::richPackageFormatsWithExtensionInference(),
+            'nonExtensionInferredFormats' => self::richPackageFormatsWithoutExtensionInference(),
             'partialInputFormats' => self::formatsWithStatus($inputSupport, 'partial'),
             'partialOutputFormats' => self::formatsWithStatus($outputSupport, 'partial'),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
@@ -1332,6 +1502,42 @@ final class PandocFormatRegistry
         }
 
         return $directions;
+    }
+
+    /**
+     * @param list<string> $formats
+     * @return array{
+     *     format:string|null,
+     *     normalizedExtension:string,
+     *     kind:string,
+     *     formats:list<string>,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>
+     * }
+     */
+    private static function richPackageExtensionClassification(
+        ?string $format,
+        string $normalizedExtension,
+        string $kind,
+        array $formats
+    ): array {
+        $inputFormatSet = array_flip(self::RICH_PACKAGE_INPUT_FORMATS);
+        $outputFormatSet = array_flip(self::RICH_PACKAGE_OUTPUT_FORMATS);
+
+        return [
+            'format' => $format,
+            'normalizedExtension' => $normalizedExtension,
+            'kind' => $kind,
+            'formats' => $formats,
+            'inputFormats' => array_values(array_filter(
+                $formats,
+                static fn (string $candidateFormat): bool => array_key_exists($candidateFormat, $inputFormatSet)
+            )),
+            'outputFormats' => array_values(array_filter(
+                $formats,
+                static fn (string $candidateFormat): bool => array_key_exists($candidateFormat, $outputFormatSet)
+            )),
+        ];
     }
 
     /**

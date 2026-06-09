@@ -500,6 +500,83 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Rich package format {$format} output status mismatch");
         }
     },
+    'tracks rich package extension evidence without converter parity' => static function (TestRunner $t): void {
+        $t->same([
+            '.docx' => 'docx',
+            '.epub' => 'epub',
+            '.fodt' => 'opendocument',
+            '.icml' => 'icml',
+            '.ipynb' => 'ipynb',
+            '.odt' => 'odt',
+            '.pdf' => 'pdf',
+            '.pptx' => 'pptx',
+            '.xlsx' => 'xlsx',
+        ], PandocFormatRegistry::richPackageExtensionInference());
+
+        $t->same('docx', PandocFormatRegistry::inferRichPackageFormatFromExtension('.docx'));
+        $t->same('docx', PandocFormatRegistry::inferRichPackageFormatFromExtension('DOCX'));
+        $t->same('epub', PandocFormatRegistry::inferRichPackageFormatFromExtension('.EPUB'));
+        $t->same('opendocument', PandocFormatRegistry::inferRichPackageFormatFromExtension('fodt'));
+        $t->same('ipynb', PandocFormatRegistry::inferRichPackageFormatFromExtension('.ipynb'));
+        $t->same('pdf', PandocFormatRegistry::inferRichPackageFormatFromExtension('PDF'));
+        $t->same(null, PandocFormatRegistry::inferRichPackageFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferRichPackageFormatFromExtension('.zip'));
+
+        $t->same([
+            'format' => 'epub',
+            'normalizedExtension' => '.epub',
+            'kind' => 'epub-publication-package',
+            'formats' => ['epub', 'epub2', 'epub3'],
+            'inputFormats' => ['epub'],
+            'outputFormats' => ['epub', 'epub2', 'epub3'],
+        ], PandocFormatRegistry::classifyRichPackageExtension('EPUB'));
+        $t->same([
+            'format' => 'opendocument',
+            'normalizedExtension' => '.fodt',
+            'kind' => 'flat-open-document-text',
+            'formats' => ['opendocument'],
+            'inputFormats' => [],
+            'outputFormats' => ['opendocument'],
+        ], PandocFormatRegistry::classifyRichPackageExtension('.FODT'));
+        $t->same([
+            'format' => 'xlsx',
+            'normalizedExtension' => '.xlsx',
+            'kind' => 'office-open-xml-spreadsheet-package',
+            'formats' => ['xlsx'],
+            'inputFormats' => ['xlsx'],
+            'outputFormats' => [],
+        ], PandocFormatRegistry::classifyRichPackageExtension('xlsx'));
+        $t->same([
+            'format' => null,
+            'normalizedExtension' => '.zip',
+            'kind' => 'unknown',
+            'formats' => [],
+            'inputFormats' => [],
+            'outputFormats' => [],
+        ], PandocFormatRegistry::classifyRichPackageExtension('.zip'));
+
+        $t->same([
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'opendocument',
+            'icml',
+            'ipynb',
+            'odt',
+            'pdf',
+            'pptx',
+            'xlsx',
+        ], PandocFormatRegistry::richPackageFormatsWithExtensionInference());
+        $t->same(['chunkedhtml'], PandocFormatRegistry::richPackageFormatsWithoutExtensionInference());
+
+        $directions = PandocFormatRegistry::richPackageFormatDirections();
+        foreach (PandocFormatRegistry::richPackageFormatsWithExtensionInference() as $format) {
+            $t->same(true, array_key_exists($format, $directions), "Rich package extension-inferred format {$format} must remain in direction accounting");
+            $t->same(true, $directions[$format]['inputStatus'] === 'partial' || $directions[$format]['inputStatus'] === 'unsupported' || $directions[$format]['inputStatus'] === 'not-applicable', "Rich package extension-inferred format {$format} must keep explicit input accounting");
+            $t->same(true, $directions[$format]['outputStatus'] === 'unsupported' || $directions[$format]['outputStatus'] === 'not-applicable', "Rich package extension-inferred format {$format} must not claim output parity");
+        }
+    },
     'builds rich package review packets without direct converter parity claims' => static function (TestRunner $t): void {
         $packet = PandocFormatRegistry::richPackageFormatReviewPacket();
 
@@ -513,6 +590,22 @@ return [
             'inputOnly' => ['xlsx'],
             'outputOnly' => ['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'],
         ], $packet['directionBuckets']);
+        $t->same(PandocFormatRegistry::richPackageExtensionInference(), $packet['extensionInference']);
+        $t->same(PandocFormatRegistry::richPackageExtensionMetadata(), $packet['extensionMetadata']);
+        $t->same([
+            'docx',
+            'epub',
+            'epub2',
+            'epub3',
+            'opendocument',
+            'icml',
+            'ipynb',
+            'odt',
+            'pdf',
+            'pptx',
+            'xlsx',
+        ], $packet['extensionInferredFormats']);
+        $t->same(['chunkedhtml'], $packet['nonExtensionInferredFormats']);
         $t->same(['docx', 'epub', 'ipynb', 'odt', 'pptx'], PandocFormatRegistry::richPackageBidirectionalFormats());
         $t->same(['xlsx'], PandocFormatRegistry::richPackageInputOnlyFormats());
         $t->same(['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'], PandocFormatRegistry::richPackageOutputOnlyFormats());
@@ -553,13 +646,22 @@ return [
             'direction' => 'input-output',
             'inputStatus' => 'partial',
             'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.docx'],
             'inputImplementation' => DocxReader::class,
             'outputImplementation' => '',
         ], $packet['formats']['docx']);
+        $t->same(['.epub'], $packet['formats']['epub']['extensions']);
+        $t->same(['.epub'], $packet['formats']['epub2']['extensions']);
+        $t->same(['.epub'], $packet['formats']['epub3']['extensions']);
         $t->same('partial', $packet['formats']['epub']['inputStatus']);
         $t->same(EpubReader::class, $packet['formats']['epub']['inputImplementation']);
         $t->same('partial', $packet['formats']['odt']['inputStatus']);
         $t->same(OdtReader::class, $packet['formats']['odt']['inputImplementation']);
+        $t->same(true, $packet['formats']['opendocument']['extensionInferred']);
+        $t->same(['.fodt'], $packet['formats']['opendocument']['extensions']);
+        $t->same(false, $packet['formats']['chunkedhtml']['extensionInferred']);
+        $t->same([], $packet['formats']['chunkedhtml']['extensions']);
         $t->same('unsupported', $packet['formats']['ipynb']['inputStatus']);
         $t->same('unsupported', $packet['formats']['ipynb']['outputStatus']);
         $t->same('', $packet['formats']['ipynb']['inputImplementation']);
