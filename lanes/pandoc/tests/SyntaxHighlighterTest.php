@@ -131,6 +131,10 @@ return [
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cpp'));
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('cxx'));
         $t->same('cpp', SyntaxHighlighter::normalizeLanguage('hpp'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('crystal'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('cr'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('crystal-lang'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('language-crystal-source'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('cs'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('csharp'));
         $t->same('csharp', SyntaxHighlighter::normalizeLanguage('C#'));
@@ -4264,6 +4268,53 @@ return [
         $t->same('Jenkinsfile', $directJenkinsfile['requestedLanguage']);
         $t->contains('<span class="fu">node</span> <span class="op">{</span> <span class="fu">stage</span><span class="op">(</span><span class="st">&quot;Review&quot;</span><span class="op">)</span>', $directJenkinsfile['html']);
         $t->contains('<span class="fu">sh</span> <span class="st">&quot;wp post list --post_type=post&quot;</span>', $directJenkinsfile['html']);
+    },
+    'highlights crystal review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[87] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Crystal review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directCrystal = $highlighter->highlight('@[Link("wp-review")] struct Packet; property title : String?; end', 'cr');
+
+        $t->same('crystal', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('cr'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('crystal-lang'));
+        $t->same('crystal', SyntaxHighlighter::normalizeLanguage('crystal-source'));
+        $t->same('crystal', $highlighted['language']);
+        $t->same('crystal', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1400, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource crystal numberLines"><code class="sourceCode crystal" style="counter-reset: source-line 1399;">', $highlighted['html']);
+        $t->contains('<span id="crystal-review-1400"><a href="#crystal-review-1400"></a><span class="co"># Crystal WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">require</span> <span class="st">&quot;json&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@[Link(&quot;wp-review&quot;)]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">WPImport</span>', $highlighted['html']);
+        $t->contains('<span class="kw">struct</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">include</span> <span class="dt">JSON</span><span class="op">::</span><span class="dt">Serializable</span>', $highlighted['html']);
+        $t->contains('<span class="kw">property</span> <span class="va">source_id</span> <span class="op">:</span> <span class="dt">Int32</span>', $highlighted['html']);
+        $t->contains('<span class="kw">property</span> <span class="va">title</span> <span class="op">:</span> <span class="dt">String</span><span class="op">?</span>', $highlighted['html']);
+        $t->contains('<span class="kw">def</span> <span class="kw">self</span><span class="op">.</span><span class="fu">normalized_title</span><span class="op">(</span><span class="va">packet</span> <span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">:</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">try</span><span class="op">(&amp;.</span><span class="fu">strip</span><span class="op">)</span> <span class="op">||</span> <span class="st">&quot;Import #{packet.source_id}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="va">title</span><span class="op">.</span><span class="fu">empty?</span>', $highlighted['html']);
+        $t->contains('<span class="kw">rescue</span> <span class="va">ex</span> <span class="op">:</span> <span class="dt">JSON</span><span class="op">::</span><span class="dt">ParseException</span>', $highlighted['html']);
+        $t->contains('<span class="cn">STDERR</span><span class="op">.</span><span class="fu">puts</span> <span class="st">&quot;invalid review packet: #{ex.message}&quot;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="dt">JSON</span><span class="op">::</span><span class="dt">Serializable</span>', $wordpressBlock);
+        $t->same('crystal', $directCrystal['language']);
+        $t->same('cr', $directCrystal['requestedLanguage']);
+        $t->contains('<span class="ot">@[Link(&quot;wp-review&quot;)]</span> <span class="kw">struct</span> <span class="dt">Packet</span>', $directCrystal['html']);
+        $t->contains('<span class="kw">property</span> <span class="va">title</span> <span class="op">:</span> <span class="dt">String</span><span class="op">?;</span>', $directCrystal['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -3140,6 +3140,36 @@ final class ArchiveCompressionStream
     /**
      * @return array<string, mixed>
      */
+    public static function inspectZipLocalHeaderOrderPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
+        $package = ZipPackage::fromString($zipBytes);
+        $policy = $package->localHeaderOrderPreflight();
+        $diagnostics = ($policy['hasCentralDirectoryOrderMismatch'] ?? false) === true
+            ? ['central-directory-local-header-order-mismatch']
+            : [];
+
+        return [
+            'format' => $format,
+            'zipBytes' => $zipBytes,
+            'packageByteSize' => strlen($zipBytes),
+            'type' => 'zip-local-header-order-policy',
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'local-header-order-review',
+            'diagnostics' => $diagnostics,
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function inspectZipLocalHeaderMetadataPolicy(
         string $bytes,
         string $format,

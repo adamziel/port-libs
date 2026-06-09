@@ -544,6 +544,12 @@ if (!$groovyCodeBlock instanceof PortLibs\Pandoc\AstNode || $groovyCodeBlock->ty
 }
 $groovy = $highlighter->highlightCodeBlock($groovyCodeBlock, 'zenburn');
 $groovyWordpressBlock = $highlighter->wordpressHtmlBlock($groovyCodeBlock, 'zenburn');
+$crystalCodeBlock = $document->children[87] ?? null;
+if (!$crystalCodeBlock instanceof PortLibs\Pandoc\AstNode || $crystalCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Crystal review packet code block');
+}
+$crystal = $highlighter->highlightCodeBlock($crystalCodeBlock, 'espresso');
+$crystalWordpressBlock = $highlighter->wordpressHtmlBlock($crystalCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2390,6 +2396,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($groovyWordpressBlock, '<span class="fu">writeJSON</span> <span class="ot">file</span><span class="op">:</span> <span class="st">&#039;review.json&#039;</span>')) {
         throw new RuntimeException('Expected Groovy Gradle/Jenkins WordPress block token handoff');
     }
+    if (($crystal['language'] ?? '') !== 'crystal') {
+        throw new RuntimeException('Expected Crystal language alias handoff');
+    }
+    if (($crystal['requestedLanguage'] ?? '') !== 'crystal') {
+        throw new RuntimeException('Expected Crystal requested-language metadata');
+    }
+    if (($crystal['lineNumbering']['start'] ?? null) !== 1400) {
+        throw new RuntimeException('Expected Crystal line-number start handoff');
+    }
+    if (!str_contains($crystal['html'], '<span class="ot">@[Link(&quot;wp-review&quot;)]</span>')) {
+        throw new RuntimeException('Expected Crystal annotation token handoff');
+    }
+    if (!str_contains($crystal['html'], '<span class="kw">include</span> <span class="dt">JSON</span><span class="op">::</span><span class="dt">Serializable</span>')) {
+        throw new RuntimeException('Expected Crystal namespace datatype token handoff');
+    }
+    if (!str_contains($crystal['html'], '<span class="fu">try</span><span class="op">(&amp;.</span><span class="fu">strip</span><span class="op">)</span>')) {
+        throw new RuntimeException('Expected Crystal block shorthand call token handoff');
+    }
+    if (!str_contains($crystal['html'], '<span class="kw">rescue</span> <span class="va">ex</span> <span class="op">:</span> <span class="dt">JSON</span><span class="op">::</span><span class="dt">ParseException</span>')) {
+        throw new RuntimeException('Expected Crystal rescue datatype token handoff');
+    }
+    if (!str_contains($crystalWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected Crystal WordPress style metadata');
+    }
+    if (!str_contains($crystalWordpressBlock, '<span class="cn">STDERR</span><span class="op">.</span><span class="fu">puts</span>')) {
+        throw new RuntimeException('Expected Crystal WordPress block token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2495,6 +2528,7 @@ echo "dHighlightedHtml:\n" . $d['html'] . "\n";
 echo "commonLispHighlightedHtml:\n" . $commonLisp['html'] . "\n";
 echo "pascalHighlightedHtml:\n" . $pascal['html'] . "\n";
 echo "groovyHighlightedHtml:\n" . $groovy['html'] . "\n";
+echo "crystalHighlightedHtml:\n" . $crystal['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2571,4 +2605,5 @@ echo "dWordpressBlock:\n" . $dWordpressBlock . "\n";
 echo "commonLispWordpressBlock:\n" . $commonLispWordpressBlock . "\n";
 echo "pascalWordpressBlock:\n" . $pascalWordpressBlock . "\n";
 echo "groovyWordpressBlock:\n" . $groovyWordpressBlock . "\n";
+echo "crystalWordpressBlock:\n" . $crystalWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -169,8 +169,8 @@ $lz4DictionaryUncompressedFrame = static function (
 };
 $zipDescriptorFixtureBytes = static function (array $entries, string $packageComment = '', array $eocd = []): string {
     $body = '';
-    $centralDirectory = '';
-    foreach ($entries as $entry) {
+    $centralRecords = [];
+    foreach ($entries as $entryIndex => $entry) {
         $name = (string) $entry['name'];
         $data = (string) ($entry['data'] ?? '');
         $method = (int) ($entry['compressionMethod'] ?? 0);
@@ -221,7 +221,7 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
         }
         $body .= (string) ($entry['localSlack'] ?? '');
 
-        $centralDirectory .= pack(
+        $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
@@ -241,7 +241,17 @@ $zipDescriptorFixtureBytes = static function (array $entries, string $packageCom
             0,
             $centralLocalHeaderOffset
         ) . $name . $centralExtra;
+        $centralRecords[] = [
+            'order' => (int) ($entry['centralIndex'] ?? $entryIndex),
+            'index' => $entryIndex,
+            'record' => $centralRecord,
+        ];
     }
+    usort(
+        $centralRecords,
+        static fn (array $left, array $right): int => [$left['order'], $left['index']] <=> [$right['order'], $right['index']]
+    );
+    $centralDirectory = implode('', array_map(static fn (array $record): string => $record['record'], $centralRecords));
 
     return $body
         . $centralDirectory
@@ -1237,6 +1247,39 @@ try {
 } catch (RuntimeException) {
     $localHeaderSpanExtractionBlocked = true;
 }
+$localHeaderOrderMimetype = 'application/vnd.oasis.opendocument.text';
+$localHeaderOrderContentXml = '<office:document-content><text:p>ZIP order review</text:p></office:document-content>';
+$localHeaderOrderStylesXml = '<office:document-styles><style:style/></office:document-styles>';
+$localHeaderOrderZipBytes = $zipDescriptorFixtureBytes([
+    [
+        'name' => 'mimetype',
+        'data' => $localHeaderOrderMimetype,
+        'compressionMethod' => 0,
+        'centralIndex' => 2,
+    ],
+    [
+        'name' => 'content.xml',
+        'data' => $localHeaderOrderContentXml,
+        'compressionMethod' => 8,
+        'centralIndex' => 0,
+    ],
+    [
+        'name' => 'styles.xml',
+        'data' => $localHeaderOrderStylesXml,
+        'compressionMethod' => 8,
+        'centralIndex' => 1,
+    ],
+], 'local header order stream review fixture');
+$localHeaderOrderZipGzip = GzipStream::build($localHeaderOrderZipBytes, [
+    'filename' => 'wordpress-local-header-order-review.zip',
+    'comment' => 'ZIP local header order preflight fixture',
+    'headerCrc' => true,
+]);
+$localHeaderOrderInspection = ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy(
+    $localHeaderOrderZipGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+    strlen($localHeaderOrderZipBytes)
+);
 $generalPurposeZipBytes = $zipDescriptorFixtureBytes([
     [
         'name' => '[Content_Types].xml',
@@ -2071,6 +2114,17 @@ if (in_array('--self-test', $argv, true)) {
         'zipLocalHeaderSpanUnclaimedBytes' => strlen($localHeaderSpanOrphanBytes),
         'zipLocalHeaderSpanStartsWithLocalHeader' => true,
         'zipLocalHeaderSpanGzipFilename' => 'wordpress-local-header-span-gap.zip',
+        'zipLocalHeaderOrderFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+        'zipLocalHeaderOrderType' => 'zip-local-header-order-policy',
+        'zipLocalHeaderOrderEntryCount' => 3,
+        'zipLocalHeaderOrderMismatchCount' => 3,
+        'zipLocalHeaderOrderDiagnostics' => ['central-directory-local-header-order-mismatch'],
+        'zipLocalHeaderOrderHandoffPolicy' => 'review-before-conversion',
+        'zipLocalHeaderOrderExtractionPolicy' => 'local-header-order-review',
+        'zipLocalHeaderOrderCentralNames' => ['content.xml', 'styles.xml', 'mimetype'],
+        'zipLocalHeaderOrderLocalNames' => ['mimetype', 'content.xml', 'styles.xml'],
+        'zipLocalHeaderOrderLocalIndexes' => [1, 2, 0],
+        'zipLocalHeaderOrderGzipFilename' => 'wordpress-local-header-order-review.zip',
         'zipGeneralPurposeFormat' => ArchiveCompressionStream::FORMAT_GZIP_ZIP,
         'zipGeneralPurposeEntryCount' => 4,
         'zipGeneralPurposeSupportedCount' => 4,
@@ -2742,6 +2796,23 @@ if (in_array('--self-test', $argv, true)) {
         || ($localHeaderSpanInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderSpanGzipFilename']
         || isset($localHeaderSpanInspection['package'])
         || !$localHeaderSpanExtractionBlocked
+        || $localHeaderOrderInspection['format'] !== $expected['zipLocalHeaderOrderFormat']
+        || $localHeaderOrderInspection['type'] !== $expected['zipLocalHeaderOrderType']
+        || $localHeaderOrderInspection['zipBytes'] !== $localHeaderOrderZipBytes
+        || $localHeaderOrderInspection['packageByteSize'] !== strlen($localHeaderOrderZipBytes)
+        || $localHeaderOrderInspection['entryCount'] !== $expected['zipLocalHeaderOrderEntryCount']
+        || $localHeaderOrderInspection['hasCentralDirectoryOrderMismatch'] !== true
+        || $localHeaderOrderInspection['mismatchedEntryCount'] !== $expected['zipLocalHeaderOrderMismatchCount']
+        || $localHeaderOrderInspection['diagnostics'] !== $expected['zipLocalHeaderOrderDiagnostics']
+        || $localHeaderOrderInspection['handoffPolicy'] !== $expected['zipLocalHeaderOrderHandoffPolicy']
+        || $localHeaderOrderInspection['extractionPolicy'] !== $expected['zipLocalHeaderOrderExtractionPolicy']
+        || $localHeaderOrderInspection['centralDirectoryOrderNames'] !== $expected['zipLocalHeaderOrderCentralNames']
+        || $localHeaderOrderInspection['localHeaderOrderNames'] !== $expected['zipLocalHeaderOrderLocalNames']
+        || array_column($localHeaderOrderInspection['mismatchedEntries'], 'name') !== $expected['zipLocalHeaderOrderCentralNames']
+        || array_column($localHeaderOrderInspection['mismatchedEntries'], 'localHeaderOrder') !== $expected['zipLocalHeaderOrderLocalIndexes']
+        || array_column($localHeaderOrderInspection['mismatchedEntries'], 'localHeaderNameAtCentralDirectoryIndex') !== $expected['zipLocalHeaderOrderLocalNames']
+        || ($localHeaderOrderInspection['stream']['members'][0]['filename'] ?? null) !== $expected['zipLocalHeaderOrderGzipFilename']
+        || isset($localHeaderOrderInspection['package'])
         || $generalPurposeZipInspection['format'] !== $expected['zipGeneralPurposeFormat']
         || $generalPurposeZipInspection['zipBytes'] !== $generalPurposeZipBytes
         || $generalPurposeZipInspection['packageByteSize'] !== strlen($generalPurposeZipBytes)
@@ -3215,6 +3286,13 @@ echo 'zipLocalHeaderSpan.issueName=' . $localHeaderSpanInspection['issueEntries'
 echo 'zipLocalHeaderSpan.issues=' . implode(',', $localHeaderSpanInspection['issues']) . "\n";
 echo 'zipLocalHeaderSpan.gzipFilename=' . $localHeaderSpanInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipLocalHeaderSpan.extractionBlocked=' . ($localHeaderSpanExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'zipLocalHeaderOrder.format=' . $localHeaderOrderInspection['format'] . "\n";
+echo 'zipLocalHeaderOrder.entryCount=' . $localHeaderOrderInspection['entryCount'] . "\n";
+echo 'zipLocalHeaderOrder.mismatchCount=' . $localHeaderOrderInspection['mismatchedEntryCount'] . "\n";
+echo 'zipLocalHeaderOrder.centralNames=' . implode(',', $localHeaderOrderInspection['centralDirectoryOrderNames']) . "\n";
+echo 'zipLocalHeaderOrder.localNames=' . implode(',', $localHeaderOrderInspection['localHeaderOrderNames']) . "\n";
+echo 'zipLocalHeaderOrder.diagnostics=' . implode(',', $localHeaderOrderInspection['diagnostics']) . "\n";
+echo 'zipLocalHeaderOrder.gzipFilename=' . $localHeaderOrderInspection['stream']['members'][0]['filename'] . "\n";
 echo 'zipGeneralPurpose.format=' . $generalPurposeZipInspection['format'] . "\n";
 echo 'zipGeneralPurpose.entryCount=' . $generalPurposeZipInspection['entryCount'] . "\n";
 echo 'zipGeneralPurpose.supportedCount=' . $generalPurposeZipInspection['supportedEntryCount'] . "\n";

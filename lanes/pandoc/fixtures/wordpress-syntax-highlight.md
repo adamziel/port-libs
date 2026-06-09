@@ -1674,3 +1674,30 @@ pipeline {
     }
 }
 ```
+
+``` {.crystal #crystal-review .numberLines startFrom=1400}
+# Crystal WordPress import review helper
+require "json"
+
+@[Link("wp-review")]
+module WPImport
+  struct ReviewPacket
+    include JSON::Serializable
+
+    property source_id : Int32
+    property title : String?
+    property blocks : Array(String)
+  end
+
+  def self.normalized_title(packet : ReviewPacket) : String
+    title = packet.title.try(&.strip) || "Import #{packet.source_id}"
+    if title.empty?
+      return "Import #{packet.source_id}"
+    end
+    title
+  rescue ex : JSON::ParseException
+    STDERR.puts "invalid review packet: #{ex.message}"
+    "Untitled"
+  end
+end
+```

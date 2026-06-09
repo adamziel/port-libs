@@ -65,6 +65,10 @@ final class SyntaxHighlighter
         'cc' => 'cpp',
         'cpp' => 'cpp',
         'c++' => 'cpp',
+        'cr' => 'crystal',
+        'crystal' => 'crystal',
+        'crystal-lang' => 'crystal',
+        'crystal-source' => 'crystal',
         'cs' => 'csharp',
         'csharp' => 'csharp',
         'csx' => 'csharp',
@@ -817,6 +821,7 @@ final class SyntaxHighlighter
             'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
             'commonlisp' => $this->tokenizeCommonLisp($code),
+            'crystal' => $this->tokenizeCrystal($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
             'csv' => $this->tokenizeDelimitedText($code, ','),
@@ -1921,6 +1926,31 @@ final class SyntaxHighlighter
             ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:\\?\\.|\\*\\.|\\.&|\\.\\.<?|<=>|==~|=~|=>|::|\\?\\:|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<=?|>>=?|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeCrystal(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#[^\\n]*/'],
+            ['string', '/^"""[\\s\\S]*?"""/'],
+            ['string', "/^'''[\\s\\S]*?'''/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['attribute', '/^@\\[[^\\]\\n]*(?:\\][ \\t]*@\\[[^\\]\\n]*)*\\]/'],
+            ['keyword', '/^\\b(?:abstract|alias|annotation|as|asm|begin|break|case|class|def|do|else|elsif|end|ensure|enum|extend|for|fun|getter|if|in|include|lib|macro|module|next|of|out|private|property|protected|require|rescue|return|select|self|setter|struct|super|then|type|typeof|unless|until|when|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:false|nil|true|STDERR|STDIN|STDOUT)\\b/'],
+            ['datatype', '/^\\b(?:Array|Bool|Bytes|Char|Deque|Exception|Float32|Float64|Hash|Int8|Int16|Int32|Int64|JSON|Nil|Number|Set|Slice|StaticArray|String|Symbol|Time|Tuple|UInt8|UInt16|UInt32|UInt64|Union)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?:_[iu](?:8|16|32|64)|_f(?:32|64))?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.:]|::|\\b))/'],
+            ['function', '/^\\b(?:empty\\?|from_json|parse|puts|strip|to_json|try)(?=\\s|\\)|\\(|\\{|$|["\'])/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_!?]*(?=\\s*\\()/'],
+            ['variable', '/^@[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_!?]*\\b/'],
+            ['operator', '/^(?:::|=>|->|\\?\\.|\\?\\?|\\?=|&\\.|\\.\\.\\.?|==|!=|<=|>=|&&|\\|\\||\\+=|-=|\\*=|\\/=|%=|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 

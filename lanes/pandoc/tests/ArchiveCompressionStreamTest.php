@@ -192,8 +192,8 @@ $lz4DictionaryUncompressedFrame = static function (
 
 $zipFixtureBytes = static function (array $entries, string $packageComment = '', array $eocd = []): string {
     $body = '';
-    $centralDirectory = '';
-    foreach ($entries as $entry) {
+    $centralRecords = [];
+    foreach ($entries as $entryIndex => $entry) {
         $name = (string) $entry['name'];
         $data = (string) ($entry['data'] ?? '');
         $method = (int) ($entry['compressionMethod'] ?? 0);
@@ -265,7 +265,7 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
         }
         $body .= (string) ($entry['localSlack'] ?? '');
 
-        $centralDirectory .= pack(
+        $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
@@ -285,7 +285,17 @@ $zipFixtureBytes = static function (array $entries, string $packageComment = '',
             (int) ($entry['externalAttributes'] ?? 0),
             $centralLocalHeaderOffset
         ) . $name . $centralExtra . $comment;
+        $centralRecords[] = [
+            'order' => (int) ($entry['centralIndex'] ?? $entryIndex),
+            'index' => $entryIndex,
+            'record' => $centralRecord,
+        ];
     }
+    usort(
+        $centralRecords,
+        static fn (array $left, array $right): int => [$left['order'], $left['index']] <=> [$right['order'], $right['index']]
+    );
+    $centralDirectory = implode('', array_map(static fn (array $record): string => $record['record'], $centralRecords));
 
     return $body
         . $centralDirectory
@@ -5708,6 +5718,128 @@ return [
         $t->throws(
             \RuntimeException::class,
             static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderSpanPolicy(
+                $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+                ArchiveCompressionStream::FORMAT_GZIP_TAR,
+                strlen($zipBytes)
+            )
+        );
+    },
+
+    'preflights zip central directory order across archive streams before package handoff' => static function (TestRunner $t) use ($zipFixtureBytes): void {
+        $mimetype = 'application/vnd.oasis.opendocument.text';
+        $contentXml = '<office:document-content><text:p>stream order body</text:p></office:document-content>';
+        $stylesXml = '<office:document-styles><style:style/></office:document-styles>';
+        $zipBytes = $zipFixtureBytes([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'compressionMethod' => 0,
+                'centralIndex' => 2,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => $contentXml,
+                'compressionMethod' => 8,
+                'centralIndex' => 0,
+            ],
+            [
+                'name' => 'styles.xml',
+                'data' => $stylesXml,
+                'compressionMethod' => 8,
+                'centralIndex' => 1,
+            ],
+        ], 'local header order stream fixture');
+        $streams = [
+            ArchiveCompressionStream::FORMAT_ZIP => $zipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP => GzipStream::build($zipBytes, [
+                'filename' => 'wordpress-local-header-order-review.zip',
+                'comment' => 'ZIP local header order preflight fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_ZIP => DeflateStream::build($zipBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP => Lz4Frame::skippableFrame('local header order reviewer metadata', 12)
+                . Lz4Frame::build($zipBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy($bytes, $format, strlen($zipBytes));
+
+            $t->same($zipBytes, ArchiveCompressionStream::decodeZipBytes($bytes, $format, strlen($zipBytes)));
+            $t->same('zip-local-header-order-policy', $inspection['type']);
+            $t->same($format, $inspection['format']);
+            $t->same($zipBytes, $inspection['zipBytes']);
+            $t->same(strlen($zipBytes), $inspection['packageByteSize']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(['content.xml', 'styles.xml', 'mimetype'], $inspection['centralDirectoryOrderNames']);
+            $t->same(['mimetype', 'content.xml', 'styles.xml'], $inspection['localHeaderOrderNames']);
+            $t->same(true, $inspection['hasCentralDirectoryOrderMismatch']);
+            $t->same(3, $inspection['mismatchedEntryCount']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('local-header-order-review', $inspection['extractionPolicy']);
+            $t->same(['central-directory-local-header-order-mismatch'], $inspection['diagnostics']);
+            $t->same(['content.xml', 'styles.xml', 'mimetype'], array_column($inspection['mismatchedEntries'], 'name'));
+            $t->same([1, 2, 0], array_column($inspection['mismatchedEntries'], 'localHeaderOrder'));
+            $t->same(['mimetype', 'content.xml', 'styles.xml'], array_column($inspection['mismatchedEntries'], 'localHeaderNameAtCentralDirectoryIndex'));
+            $t->same(['styles.xml', 'mimetype', 'content.xml'], array_column($inspection['mismatchedEntries'], 'centralDirectoryNameAtLocalHeaderOrder'));
+            $t->same(false, array_key_exists('package', $inspection));
+            $t->same($mimetype, ZipPackage::fromString($zipBytes)->read('/mimetype'));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($zipBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_ZIP],
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            strlen($zipBytes)
+        );
+        $matchingZipBytes = $zipFixtureBytes([
+            [
+                'name' => 'mimetype',
+                'data' => $mimetype,
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'content.xml',
+                'data' => $contentXml,
+                'compressionMethod' => 8,
+            ],
+        ], 'matching local header order stream fixture');
+        $matchingInspection = ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy(
+            DeflateStream::build($matchingZipBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_ZIP,
+            strlen($matchingZipBytes)
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-local-header-order-review.zip', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('ZIP local header order preflight fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same(2, $lz4Inspection['stream']['frameCount']);
+        $t->same('local header order reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same(false, $matchingInspection['hasCentralDirectoryOrderMismatch']);
+        $t->same(0, $matchingInspection['mismatchedEntryCount']);
+        $t->same('within-thresholds', $matchingInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $matchingInspection['extractionPolicy']);
+        $t->same([], $matchingInspection['diagnostics']);
+        $t->throws(
+            \RuntimeException::class,
+            static fn (): array => ArchiveCompressionStream::inspectZipLocalHeaderOrderPolicy(
                 $streams[ArchiveCompressionStream::FORMAT_GZIP_ZIP],
                 ArchiveCompressionStream::FORMAT_GZIP_TAR,
                 strlen($zipBytes)
