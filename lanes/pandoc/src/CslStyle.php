@@ -1847,6 +1847,7 @@ final class CslStyle
             'author',
             'editor',
             'holder',
+            'authority',
             'translator',
             'chair',
             'container-author',

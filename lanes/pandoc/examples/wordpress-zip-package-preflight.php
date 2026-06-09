@@ -2748,6 +2748,20 @@ $strictImportPackage = ZipPackage::fromParts([
 ]);
 $strictImportPreflight = $strictImportPackage->strictImportPreflight(4096, 100.0, 4096);
 $strictImportCentralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($strictImportPackage->bytes());
+$centralDirectoryDeclaredLowInventory = ZipPackage::centralDirectoryInventoryPreflight($rewriteZipEndOfCentralDirectory(
+    $strictImportPackage->bytes(),
+    [
+        'diskEntryCount' => 2,
+        'totalEntryCount' => 2,
+    ]
+));
+$centralDirectoryDeclaredHighInventory = ZipPackage::centralDirectoryInventoryPreflight($rewriteZipEndOfCentralDirectory(
+    $strictImportPackage->bytes(),
+    [
+        'diskEntryCount' => 4,
+        'totalEntryCount' => 4,
+    ]
+));
 $rawStrictImportPreflight = ZipPackage::rawStrictImportPreflight($strictImportPackage->bytes(), 4096, 100.0, 4096);
 $rawStrictTrailingEocdBytes = $strictImportPackage->bytes() . "detached reviewer bytes\n";
 $rawStrictTrailingEocdSummary = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($rawStrictTrailingEocdBytes);
@@ -4468,6 +4482,30 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($centralDirectoryDeclaredLowInventory['declaredEntryCount'] ?? null) !== 2
+        || ($centralDirectoryDeclaredLowInventory['scannedEntryCount'] ?? null) !== 3
+        || ($centralDirectoryDeclaredLowInventory['entryCountDelta'] ?? null) !== 1
+        || ($centralDirectoryDeclaredLowInventory['extraScannedEntryCount'] ?? null) !== 1
+        || ($centralDirectoryDeclaredLowInventory['missingDeclaredEntryCount'] ?? null) !== 0
+        || ($centralDirectoryDeclaredLowInventory['entryCountMismatchKind'] ?? null) !== 'declared-too-low'
+        || ($centralDirectoryDeclaredLowInventory['issues'] ?? null) !== ['central-directory-entry-count-mismatch']
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory inventory to expose under-declared EOCD entry counts');
+    }
+
+    if (
+        ($centralDirectoryDeclaredHighInventory['declaredEntryCount'] ?? null) !== 4
+        || ($centralDirectoryDeclaredHighInventory['scannedEntryCount'] ?? null) !== 3
+        || ($centralDirectoryDeclaredHighInventory['entryCountDelta'] ?? null) !== -1
+        || ($centralDirectoryDeclaredHighInventory['extraScannedEntryCount'] ?? null) !== 0
+        || ($centralDirectoryDeclaredHighInventory['missingDeclaredEntryCount'] ?? null) !== 1
+        || ($centralDirectoryDeclaredHighInventory['entryCountMismatchKind'] ?? null) !== 'declared-too-high'
+        || ($centralDirectoryDeclaredHighInventory['issues'] ?? null) !== ['central-directory-entry-count-mismatch']
+    ) {
+        throw new RuntimeException('Expected ZIP central-directory inventory to expose over-declared EOCD entry counts');
+    }
+
+    if (
         ($rawStrictImportPreflight['isValid'] ?? null) !== true
         || ($rawStrictImportPreflight['canInstantiate'] ?? null) !== true
         || ($rawStrictImportPreflight['instantiationError'] ?? null) !== null
@@ -6029,6 +6067,10 @@ echo 'zipStrictImportPolicy=' . ($strictImportPreflight['isValid'] ? 'accepted' 
 echo 'zipStrictImportDiagnostics=' . implode(',', $strictImportPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportCentralDirectoryEntries=' . $strictImportPreflight['centralDirectoryInventory']['entryCount'] . "\n";
 echo 'zipStrictImportCentralDirectorySupported=' . ($strictImportPreflight['centralDirectoryInventory']['isSupportedByBoundedReader'] ? 'true' : 'false') . "\n";
+echo 'zipCentralDirectoryDeclaredLowKind=' . ($centralDirectoryDeclaredLowInventory['entryCountMismatchKind'] ?? 'none') . "\n";
+echo 'zipCentralDirectoryDeclaredLowExtraScanned=' . $centralDirectoryDeclaredLowInventory['extraScannedEntryCount'] . "\n";
+echo 'zipCentralDirectoryDeclaredHighKind=' . ($centralDirectoryDeclaredHighInventory['entryCountMismatchKind'] ?? 'none') . "\n";
+echo 'zipCentralDirectoryDeclaredHighMissing=' . $centralDirectoryDeclaredHighInventory['missingDeclaredEntryCount'] . "\n";
 echo 'zipStrictImportNameHygieneReviewEntries=' . $strictImportPreflight['nameHygiene']['reviewEntryCount'] . "\n";
 echo 'zipStrictImportPlatformMetadataEntries=' . $strictImportPreflight['platformMetadata']['platformMetadataEntryCount'] . "\n";
 echo 'zipRawStrictImportPolicy=' . ($rawStrictImportPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";

@@ -902,6 +902,8 @@ final class CitationCslProcessor
         if ($eventPlace === '' && $eventPlaceList !== []) {
             $eventPlace = implode('; ', $eventPlaceList);
         }
+        $authorityNames = self::namesOrLiteral($item['authority'] ?? [], $id, 'authority');
+        $authority = self::stringOrNamesField($item, 'authority', $id, $authorityNames);
         $accessedDate = self::dateVariable($item['accessed'] ?? null, $id, 'accessed');
         $availableDate = self::dateVariable($item['available-date'] ?? $item['availableDate'] ?? null, $id, 'available-date');
         $originalDate = self::dateVariable($item['original-date'] ?? null, $id, 'original-date');
@@ -1027,7 +1029,7 @@ final class CitationCslProcessor
             'gender' => $biblatexGender,
             'biblatexGender' => $biblatexGender,
             'biblatexGenderSummary' => $biblatexGender,
-            'authority' => self::stringField($item, 'authority'),
+            'authority' => $authority,
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
             'status' => self::stringField($item, 'status'),
             'version' => self::stringField($item, 'version'),
@@ -1125,6 +1127,7 @@ final class CitationCslProcessor
             'shortAuthors' => self::names($item['short-author'] ?? $item['shortAuthor'] ?? [], $id, 'short-author'),
             'shortEditors' => self::names($item['short-editor'] ?? $item['shortEditor'] ?? [], $id, 'short-editor'),
             'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
+            'authorities' => $authorityNames,
             'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
             'chairs' => self::names($item['chair'] ?? $item['chairs'] ?? [], $id, 'chair'),
             'containerAuthors' => self::names($item['container-author'] ?? $item['containerAuthor'] ?? [], $id, 'container-author'),
@@ -1179,6 +1182,33 @@ final class CitationCslProcessor
         }
 
         return trim((string) $value);
+    }
+
+    /**
+     * @param list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}> $names
+     */
+    private static function stringOrNamesField(array $item, string $key, string $id, array $names): string
+    {
+        $value = $item[$key] ?? '';
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_scalar($value)) {
+            return trim((string) $value);
+        }
+
+        if (is_array($value) && array_is_list($value)) {
+            return implode('; ', array_values(array_filter(
+                array_map(
+                    static fn (array $name): string => self::plainNameDisplay($name),
+                    $names
+                ),
+                static fn (string $name): bool => $name !== ''
+            )));
+        }
+
+        throw new \InvalidArgumentException('CSL field ' . $key . ' must be scalar or a list of names when present on item ' . $id);
     }
 
     private static function firstPageFromRange(string $pages): string
@@ -2106,6 +2136,45 @@ final class CitationCslProcessor
         }
 
         return $names;
+    }
+
+    /**
+     * @return list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>
+     */
+    private static function namesOrLiteral(mixed $value, string $id, string $field): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_scalar($value)) {
+            $literal = trim((string) $value);
+
+            return $literal === '' ? [] : self::names([['literal' => $literal]], $id, $field);
+        }
+
+        return self::names($value, $id, $field);
+    }
+
+    /**
+     * @param array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool} $name
+     */
+    private static function plainNameDisplay(array $name): string
+    {
+        $literal = trim((string) ($name['literal'] ?? ''));
+        if ($literal !== '') {
+            return $literal;
+        }
+
+        $family = trim(implode(' ', array_values(array_filter([
+            trim((string) ($name['nonDroppingParticle'] ?? '')),
+            trim((string) ($name['family'] ?? '')),
+        ], static fn (string $part): bool => $part !== ''))));
+        $given = trim((string) ($name['given'] ?? ''));
+        $display = trim($given . ($given !== '' && $family !== '' ? ' ' : '') . $family);
+        $suffix = trim((string) ($name['suffix'] ?? ''));
+
+        return $suffix !== '' && $display !== '' ? $display . ', ' . $suffix : $display;
     }
 
     /**
@@ -8444,7 +8513,7 @@ final class CitationCslProcessor
             return $this->renderVariableValue($item, $variable, $scope, $citation) !== '';
         }
 
-        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'executive-producer', 'event-organizer', 'organizer', 'guest', 'host', 'narrator', 'original-author', 'performer', 'producer', 'recipient', 'script-writer', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'founder', 'continuator', 'reviser', 'collaborator', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword', 'namea', 'nameb', 'namec'], true)) {
+        if (in_array($normalized, ['short-author', 'short-editor', 'author', 'editor', 'holder', 'authority', 'translator', 'chair', 'container-author', 'collection-editor', 'composer', 'contributor', 'editor-translator', 'executive-producer', 'event-organizer', 'organizer', 'guest', 'host', 'narrator', 'original-author', 'performer', 'producer', 'recipient', 'script-writer', 'compiler', 'curator', 'director', 'editorial-director', 'illustrator', 'interviewer', 'reviewed-author', 'redactor', 'founder', 'continuator', 'reviser', 'collaborator', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword', 'namea', 'nameb', 'namec'], true)) {
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
@@ -8663,6 +8732,7 @@ final class CitationCslProcessor
             'author' => $item['authors'] ?? [],
             'editor' => $item['editors'] ?? [],
             'holder' => $item['holders'] ?? [],
+            'authority' => $item['authorities'] ?? [],
             'translator' => $item['translators'] ?? [],
             'chair' => $item['chairs'] ?? [],
             'container-author' => $item['containerAuthors'] ?? [],

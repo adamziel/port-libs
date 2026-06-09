@@ -53,6 +53,9 @@ final class OdfReader
     /** @var array<string, int> */
     private array $headingAnchorUses = [];
 
+    /** @var array<string, array<string, mixed>> */
+    private array $variableFieldValuesByName = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -455,6 +458,7 @@ final class OdfReader
         $this->currentListStyleNames = [];
         $this->currentListLevel = 0;
         $this->headingAnchorUses = [];
+        $this->variableFieldValuesByName = [];
 
         return [
             'blocks' => $this->blockNodes($text, $package, $styleCatalog),
@@ -3460,6 +3464,12 @@ final class OdfReader
                 $variableDeclarations[$name] = self::withoutEmpty([
                     'name' => $name,
                     'valueType' => self::nullable(self::attr($decl, self::OFFICE_NS, 'value-type')),
+                    'value' => self::nullable(self::attr($decl, self::OFFICE_NS, 'value')),
+                    'stringValue' => self::nullable(self::attr($decl, self::OFFICE_NS, 'string-value')),
+                    'dateValue' => self::nullable(self::attr($decl, self::OFFICE_NS, 'date-value')),
+                    'timeValue' => self::nullable(self::attr($decl, self::OFFICE_NS, 'time-value')),
+                    'booleanValue' => self::nullableBool(self::attr($decl, self::OFFICE_NS, 'boolean-value')),
+                    'currency' => self::nullable(self::attr($decl, self::OFFICE_NS, 'currency')),
                 ]);
             }
         }
@@ -5666,8 +5676,10 @@ final class OdfReader
         if ($this->isElement($field, self::TEXT_NS, 'dde-connection')) {
             $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
         }
+        $this->rememberVariableFieldValue($field, $metadata);
         if ($children === []) {
             $metadata = $this->fieldMetadataWithDeclarations($field, $metadata);
+            $this->rememberVariableFieldValue($field, $metadata);
             $text = $this->fieldFallbackText($field, $metadata);
             if ($text === '') {
                 return null;
@@ -5836,6 +5848,12 @@ final class OdfReader
             return $this->fieldMetadataWithDdeDeclaration($metadata);
         }
 
+        if ($this->isElement($field, self::TEXT_NS, 'variable-set')
+            || $this->isElement($field, self::TEXT_NS, 'variable-get')
+            || $this->isElement($field, self::TEXT_NS, 'variable-input')) {
+            return $this->fieldMetadataWithVariableState($field, $metadata);
+        }
+
         if (!$this->isElement($field, self::TEXT_NS, 'user-field-get')
             && !$this->isElement($field, self::TEXT_NS, 'user-field-input')) {
             return $metadata;
@@ -5865,6 +5883,88 @@ final class OdfReader
             }
         }
         $metadata['declared'] = true;
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function fieldMetadataWithVariableState(\DOMElement $field, array $metadata): array
+    {
+        $name = (string) ($metadata['name'] ?? '');
+        if ($name === '') {
+            return $metadata;
+        }
+
+        $declared = false;
+        $declarations = $this->contentDeclarations['variableDeclarations'] ?? [];
+        if (is_array($declarations)) {
+            $declaration = $declarations[$name] ?? null;
+            if (is_array($declaration)) {
+                $metadata = $this->fillMissingFieldMetadata($metadata, $declaration);
+                $declared = true;
+            }
+        }
+
+        if ($this->isElement($field, self::TEXT_NS, 'variable-get')) {
+            $metadata = $this->fillMissingFieldMetadata(
+                $metadata,
+                $this->variableFieldValuesByName[$name] ?? []
+            );
+        }
+
+        if ($declared) {
+            $metadata['declared'] = true;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function rememberVariableFieldValue(\DOMElement $field, array $metadata): void
+    {
+        if (!$this->isElement($field, self::TEXT_NS, 'variable-set')
+            && !$this->isElement($field, self::TEXT_NS, 'variable-input')) {
+            return;
+        }
+
+        $name = (string) ($metadata['name'] ?? '');
+        if ($name === '') {
+            return;
+        }
+
+        $value = [];
+        foreach (['valueType', 'value', 'stringValue', 'dateValue', 'timeValue', 'booleanValue', 'currency', 'currentValue'] as $key) {
+            if (!array_key_exists($key, $metadata) || $metadata[$key] === null || $metadata[$key] === '') {
+                continue;
+            }
+            $value[$key] = $metadata[$key];
+        }
+
+        if ($value !== []) {
+            $this->variableFieldValuesByName[$name] = $value;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private function fillMissingFieldMetadata(array $metadata, array $source): array
+    {
+        foreach (['valueType', 'value', 'stringValue', 'dateValue', 'timeValue', 'booleanValue', 'currency', 'currentValue'] as $key) {
+            if (!array_key_exists($key, $source)) {
+                continue;
+            }
+            if (!array_key_exists($key, $metadata) || $metadata[$key] === null || $metadata[$key] === '') {
+                $metadata[$key] = $source[$key];
+            }
+        }
 
         return $metadata;
     }

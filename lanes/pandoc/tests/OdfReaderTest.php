@@ -3936,6 +3936,73 @@ XML;
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="Reviewer" data-odf-field-value-type="string" data-odf-field-string-value="Migration Desk" data-odf-field-declared="true">Migration Desk</span>', $blocksHtml);
         $t->contains('<span class="odf-field odf-field-user-field-get" data-odf-field-type="user-field-get" data-odf-field-name="SourcePage" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
     },
+    'resolves ODT variable-get fallbacks from current variable state' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithVariableState = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:variable-decls>
+        <text:variable-decl text:name="ReviewStatus" office:value-type="string"/>
+        <text:variable-decl text:name="ApprovedCount" office:value-type="float"/>
+      </text:variable-decls>
+      <text:p>Status <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready"/> then <text:variable-get text:name="ReviewStatus"/>.</text:p>
+      <text:p>Approved <text:variable-input text:name="ApprovedCount" office:value-type="float" office:value="12"/> then <text:variable-get text:name="ApprovedCount"/>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithVariableState));
+        $declarations = $result['contentDeclarations'];
+        $statusParagraph = $result['document']->children[0];
+        $countParagraph = $result['document']->children[1];
+        $statusSet = $statusParagraph->children[1];
+        $statusGet = $statusParagraph->children[3];
+        $countInput = $countParagraph->children[1];
+        $countGet = $countParagraph->children[3];
+
+        $t->same(2, $declarations['variableDeclarationCount']);
+        $t->same('string', $declarations['variableDeclarations']['ReviewStatus']['valueType']);
+        $t->same('float', $declarations['variableDeclarations']['ApprovedCount']['valueType']);
+        $t->same('Status Ready then Ready.', $statusParagraph->attr('text'));
+        $t->same('Approved 12 then 12.', $countParagraph->attr('text'));
+
+        $t->same('variable-set', $statusSet->attr('fieldType'));
+        $t->same('Ready', $statusSet->attr('fieldMetadata')['stringValue']);
+        $t->same('Ready', $statusSet->children[0]->attr('text'));
+        $t->same('variable-get', $statusGet->attr('fieldType'));
+        $t->same('ReviewStatus', $statusGet->attr('fieldName'));
+        $t->same('string', $statusGet->attr('fieldMetadata')['valueType']);
+        $t->same('Ready', $statusGet->attr('fieldMetadata')['stringValue']);
+        $t->same(true, $statusGet->attr('fieldMetadata')['declared']);
+        $t->same('Ready', $statusGet->children[0]->attr('text'));
+        $t->same('true', $statusGet->attr('attributes')['data-odf-field-declared']);
+        $t->same('Ready', $statusGet->attr('attributes')['data-odf-field-string-value']);
+
+        $t->same('variable-input', $countInput->attr('fieldType'));
+        $t->same('ApprovedCount', $countInput->attr('fieldName'));
+        $t->same('float', $countInput->attr('fieldMetadata')['valueType']);
+        $t->same('12', $countInput->attr('fieldMetadata')['value']);
+        $t->same(true, $countInput->attr('fieldMetadata')['declared']);
+        $t->same('12', $countInput->children[0]->attr('text'));
+        $t->same('variable-get', $countGet->attr('fieldType'));
+        $t->same('ApprovedCount', $countGet->attr('fieldName'));
+        $t->same('float', $countGet->attr('fieldMetadata')['valueType']);
+        $t->same('12', $countGet->attr('fieldMetadata')['value']);
+        $t->same(true, $countGet->attr('fieldMetadata')['declared']);
+        $t->same('12', $countGet->children[0]->attr('text'));
+        $t->same(4, $result['importReport']['content']['fieldCount']);
+        $t->same(2, $result['importReport']['contentDeclarations']['variableDeclarationCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[Ready]{.odf-field .odf-field-variable-get data-odf-field-type="variable-get" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready" data-odf-field-declared="true"}', $markdown);
+        $t->contains('[12]{.odf-field .odf-field-variable-get data-odf-field-type="variable-get" data-odf-field-name="ApprovedCount" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true"}', $markdown);
+        $t->contains('<span class="odf-field odf-field-variable-get" data-odf-field-type="variable-get" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready" data-odf-field-declared="true">Ready</span>', $blocksHtml);
+        $t->contains('<span class="odf-field odf-field-variable-get" data-odf-field-type="variable-get" data-odf-field-name="ApprovedCount" data-odf-field-value-type="float" data-odf-field-value="12" data-odf-field-declared="true">12</span>', $blocksHtml);
+    },
     'maps ODT variable user page and date fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithFields = <<<'XML'
 <office:document-content

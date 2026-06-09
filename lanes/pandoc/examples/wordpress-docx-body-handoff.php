@@ -329,6 +329,13 @@ XML],
       <w:r><w:t xml:space="preserve"> remain labeled.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r><w:t xml:space="preserve">Directional wrapper source </w:t></w:r>
+      <w:dir w:val="rtl"><w:r><w:rPr><w:b/></w:rPr><w:t>ملف المصدر</w:t></w:r></w:dir>
+      <w:r><w:t xml:space="preserve"> and override </w:t></w:r>
+      <w:bdo w:val="ltr"><w:r><w:t>ABC-123</w:t></w:r></w:bdo>
+      <w:r><w:t> remain traceable.</w:t></w:r>
+    </w:p>
+    <w:p>
       <w:pPr><w:bidi/><w:textDirection w:val="tbRl"/></w:pPr>
       <w:r><w:t>ملف المصدر paragraph direction remains labeled.</w:t></w:r>
     </w:p>
@@ -1379,6 +1386,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<p>Character style reviewer label <span class="docx-highlight docx-highlight-yellow docx-language docx-shading" data-docx-highlight="yellow" data-docx-lang="fr-FR" lang="fr-FR" data-docx-shading-fill="FFE699"><strong><em><u>inherited urgency</u></em></strong></span> and <span class="docx-shading docx-language" data-docx-shading-fill="FFE699" data-docx-lang="de-DE" lang="de-DE"><strong><u>muted follow-up</u></strong></span>.</p>',
         '<p>Theme font reviewer label <span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display" data-docx-theme-font-hansi="majorHAnsi" data-docx-font-hansi="Aptos Display" data-docx-theme-font-east-asia="majorEastAsia" data-docx-font-east-asia="Yu Gothic" data-docx-theme-font-complex-script="majorBidi" data-docx-font-complex-script="Arial">major theme source</span> and <span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia" data-docx-font-east-asia="Meiryo" data-docx-theme-font-complex-script="minorBidi" data-docx-font-complex-script="Times New Roman">direct font override</span>.</p>',
         '<p>Multilingual source note <span class="docx-language" data-docx-lang="es-ES" lang="es-ES">Resumen</span> and <span class="docx-language docx-rtl" data-docx-lang="ar-SA" data-docx-lang-bidi="ar-SA" lang="ar-SA" dir="rtl">ملف المصدر</span> remain labeled.</p>',
+        '<p>Directional wrapper source <span class="docx-direction docx-dir docx-dir-rtl" data-docx-direction-kind="embedding" data-docx-direction="rtl" dir="rtl"><strong>ملف المصدر</strong></span> and override <span class="docx-direction docx-bidi-override docx-bdo docx-bdo-ltr" data-docx-direction-kind="override" data-docx-direction="ltr" data-docx-bidi-override="true" dir="ltr">ABC-123</span> remain traceable.</p>',
         '<p><span class="docx-paragraph-bidi docx-rtl docx-text-direction docx-text-direction-tbrl" data-docx-paragraph-bidi="true" dir="rtl" data-docx-text-direction="tbRl">ملف المصدر paragraph direction remains labeled.</span></p>',
         '<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-paragraph-indent docx-paragraph-tabs docx-keep-next docx-page-break-before" data-docx-paragraph-align="center" data-docx-spacing-before-twips="240" data-docx-spacing-after-twips="120" data-docx-spacing-line="360" data-docx-spacing-line-rule="auto" data-docx-indent-left-twips="720" data-docx-indent-first-line-twips="240" data-docx-tab-stop-count="2" data-docx-tab-1-val="left" data-docx-tab-1-pos-twips="720" data-docx-tab-2-val="decimal" data-docx-tab-2-pos-twips="1440" data-docx-tab-2-leader="dot" data-docx-keep-next="true" data-docx-page-break-before="true">Centered source packet layout remains labeled.</span></p>',
         '<p><span class="docx-paragraph-policy docx-keep-lines docx-widow-control-off docx-contextual-spacing docx-mirror-indents docx-suppress-line-numbers docx-suppress-auto-hyphens docx-snap-to-grid-off" data-docx-keep-lines="true" data-docx-widow-control="false" data-docx-contextual-spacing="true" data-docx-mirror-indents="true" data-docx-suppress-line-numbers="true" data-docx-suppress-auto-hyphens="true" data-docx-snap-to-grid="false">Paragraph policy source packet remains labeled.</span></p>',

@@ -286,6 +286,7 @@ $contentXml = <<<'XML'
       <text:p>Hidden paragraph marker <text:hidden-paragraph text:condition="ArchiveOnly" text:string-value="archive paragraph marker"/> remains available to reviewers.</text:p>
       <text:p>Source metadata fields <text:title>WordPress ODT source packet</text:title> custom id <text:user-defined text:name="wp-source-id" office:value-type="string" office:string-value="packet-42" text:fixed="true">packet-42</text:user-defined> by <text:author-name text:style-name="ReviewerField" text:fixed="true">Migration Desk</text:author-name> created <text:creation-date text:date-value="2026-06-05" text:date-adjust="P1D" style:data-style-name="ReviewDateFormat">June 6, 2026</text:creation-date> at <text:creation-time text:time-value="PT09H30M00S" text:time-adjust="PT30M" style:data-style-name="ReviewTimeFormat">10:00</text:creation-time>, metadata span <text:meta xml:id="source-quality-meta" text:name="review:quality" text:description="Manual source-quality flag">source quality</text:meta>, and score <text:meta-field text:name="review-score" office:value-type="float" office:value="0.98">98%</text:meta-field>.</text:p>
       <text:p>Input fields <text:text-input text:description="Confirm imported title">Imported packet title</text:text-input>, <text:variable-input text:name="ReviewStatus" office:value-type="string" office:string-value="Ready">Ready</text:variable-input>, <text:user-field-input text:name="Reviewer">Migration Desk</text:user-field-input>, and disposition <text:drop-down text:name="ReviewDisposition"><text:label text:value="Draft"/><text:label text:value="Ready to publish" text:current-selected="true"/><text:label text:value="Needs legal review"/></text:drop-down> remain reviewer-visible.</text:p>
+      <text:p>Declared variable fallback <text:variable-set text:name="ReviewStatus" office:value-type="string" office:string-value="Ready"/> resolves as <text:variable-get text:name="ReviewStatus"/>.</text:p>
       <text:p text:style-name="ReviewQuote">Quoted source decision survives as review context.</text:p>
       <text:p text:style-name="SourceCode">define('WP_IMPORTING', true);<text:line-break/>echo sanitize_text_field($title);<text:tab/>// source audit</text:p>
       <text:list text:id="review-checklist" text:style-name="ReviewSteps">
@@ -758,7 +759,7 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<span class="odf-sequence" data-odf-sequence-name="Illustration" data-odf-sequence-formula="ooow:Illustration+1" data-odf-sequence-ref-name="source-hero-seq">Figure 1</span>')) {
         throw new RuntimeException('Expected ODT sequence field to render in WordPress blocks');
     }
-    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 23) {
+    if (($result['importReport']['content']['fieldCount'] ?? 0) !== 25) {
         throw new RuntimeException('Expected ODT variable, input, dropdown, conditional, hidden, hidden paragraph, user, user-defined, typed expression, measure, source metadata, page variable, chapter, filename, and statistic fields to be counted in the import report');
     }
     if (($result['importReport']['content']['metaSpanCount'] ?? 0) !== 2) {
@@ -787,6 +788,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-variable-set" data-odf-field-type="variable-set" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready">Ready</span>')) {
         throw new RuntimeException('Expected ODT variable field to render in WordPress blocks');
+    }
+    if (!str_contains($blocks, '<span class="odf-field odf-field-variable-get" data-odf-field-type="variable-get" data-odf-field-name="ReviewStatus" data-odf-field-value-type="string" data-odf-field-string-value="Ready" data-odf-field-declared="true">Ready</span>')) {
+        throw new RuntimeException('Expected ODT variable-get declaration fallback to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-conditional-text" data-odf-field-type="conditional-text" data-odf-field-condition="ReviewStatus == &quot;Ready&quot;" data-odf-field-string-value-if-true="Ready to publish" data-odf-field-string-value-if-false="Hold for review">Ready to publish</span>')) {
         throw new RuntimeException('Expected ODT conditional text field to render in WordPress blocks');

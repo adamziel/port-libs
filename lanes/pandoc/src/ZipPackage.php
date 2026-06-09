@@ -3988,6 +3988,10 @@ final class ZipPackage
      *     scannedCentralDirectoryBytes:int,
      *     centralDirectoryTailBytes:int,
      *     hasEntryCountMismatch:bool,
+     *     entryCountDelta:int,
+     *     extraScannedEntryCount:int,
+     *     missingDeclaredEntryCount:int,
+     *     entryCountMismatchKind:?string,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
      *     isSupportedByBoundedReader:bool,
@@ -4083,7 +4087,19 @@ final class ZipPackage
             }
         }
 
-        $entryCountMismatch = count($entries) !== $archive['totalEntryCount'];
+        $scannedEntryCount = count($entries);
+        $declaredEntryCount = $archive['totalEntryCount'];
+        $entryCountDelta = $scannedEntryCount - $declaredEntryCount;
+        $entryCountMismatch = $entryCountDelta !== 0;
+        $extraScannedEntryCount = max(0, $entryCountDelta);
+        $missingDeclaredEntryCount = max(0, -$entryCountDelta);
+        $entryCountMismatchKind = null;
+        if ($entryCountDelta > 0) {
+            $entryCountMismatchKind = 'declared-too-low';
+        } elseif ($entryCountDelta < 0) {
+            $entryCountMismatchKind = 'declared-too-high';
+        }
+
         if ($entryCountMismatch) {
             $issues[] = 'central-directory-entry-count-mismatch';
         }
@@ -4106,10 +4122,10 @@ final class ZipPackage
         $issues = array_values(array_unique($issues));
 
         return [
-            'declaredEntryCount' => $archive['totalEntryCount'],
+            'declaredEntryCount' => $declaredEntryCount,
             'diskEntryCount' => $archive['diskEntryCount'],
-            'scannedEntryCount' => count($entries),
-            'entryCount' => count($entries),
+            'scannedEntryCount' => $scannedEntryCount,
+            'entryCount' => $scannedEntryCount,
             'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
             'centralDirectorySize' => $archive['centralDirectorySize'],
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
@@ -4117,6 +4133,10 @@ final class ZipPackage
             'scannedCentralDirectoryBytes' => $cursor - $archive['centralDirectoryOffset'],
             'centralDirectoryTailBytes' => max(0, $archive['centralDirectoryEnd'] - $cursor),
             'hasEntryCountMismatch' => $entryCountMismatch,
+            'entryCountDelta' => $entryCountDelta,
+            'extraScannedEntryCount' => $extraScannedEntryCount,
+            'missingDeclaredEntryCount' => $missingDeclaredEntryCount,
+            'entryCountMismatchKind' => $entryCountMismatchKind,
             'hasCentralDirectorySignature' => $centralDirectorySignature !== null,
             'centralDirectorySignature' => $centralDirectorySignature,
             'isSupportedByBoundedReader' => $issues === [],

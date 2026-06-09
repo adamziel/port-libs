@@ -3074,6 +3074,27 @@ $runLanguageDirectionDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$directionalInlineDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Directional reviewer note </w:t></w:r>
+      <w:dir w:val="rtl">
+        <w:r><w:rPr><w:b/></w:rPr><w:t>ملف المصدر</w:t></w:r>
+      </w:dir>
+      <w:r><w:t xml:space="preserve"> and override </w:t></w:r>
+      <w:bdo w:val="ltr">
+        <w:r><w:t>ABC-123</w:t></w:r>
+      </w:bdo>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:dir w:val="sideways"><w:r><w:t>Unsupported direction keeps visible text.</w:t></w:r></w:dir>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $paragraphBidiDirectionDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4410,6 +4431,14 @@ $buildRunLanguageDirectionPackage = static function () use ($contentTypesXml, $p
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
         ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $runLanguageDirectionDocumentXml],
+    ]);
+};
+
+$buildDirectionalInlinePackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $directionalInlineDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $directionalInlineDocumentXml],
     ]);
 };
 
@@ -8929,6 +8958,52 @@ return [
         $t->contains('<span class="docx-language" data-docx-lang-east-asia="ja-JP" lang="ja-JP"><strong>レビュー</strong></span> plain.', $blocks);
         $t->true(!str_contains($markdown, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create direction metadata');
         $t->true(!str_contains($blocks, 'dir="ltr"'), 'Disabled DOCX w:rtl should not create WordPress direction metadata');
+    },
+    'preserves DOCX directional inline wrappers around visible text' => static function (TestRunner $t) use ($buildDirectionalInlinePackage): void {
+        $document = (new DocxReader())->readDocument($buildDirectionalInlinePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(2, count($document->children));
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(5, count($paragraph->children));
+        $t->same('Directional reviewer note ', $paragraph->children[0]->attr('text'));
+
+        $embedding = $paragraph->children[1];
+        $t->same('span', $embedding->type);
+        $t->same(['docx-direction', 'docx-dir', 'docx-dir-rtl'], $embedding->attr('classes'));
+        $t->same('embedding', $embedding->attr('attributes')['data-docx-direction-kind']);
+        $t->same('rtl', $embedding->attr('attributes')['data-docx-direction']);
+        $t->same('rtl', $embedding->attr('attributes')['dir']);
+        $t->same('strong', $embedding->children[0]->type);
+        $t->same('ملف المصدر', $embedding->children[0]->children[0]->attr('text'));
+
+        $t->same(' and override ', $paragraph->children[2]->attr('text'));
+        $override = $paragraph->children[3];
+        $t->same('span', $override->type);
+        $t->same(['docx-direction', 'docx-bidi-override', 'docx-bdo', 'docx-bdo-ltr'], $override->attr('classes'));
+        $t->same('override', $override->attr('attributes')['data-docx-direction-kind']);
+        $t->same('ltr', $override->attr('attributes')['data-docx-direction']);
+        $t->same('true', $override->attr('attributes')['data-docx-bidi-override']);
+        $t->same('ltr', $override->attr('attributes')['dir']);
+        $t->same('ABC-123', $override->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[4]->attr('text'));
+
+        $fallback = $document->children[1];
+        $t->same('paragraph', $fallback->type);
+        $t->same('text', $fallback->children[0]->type);
+        $t->same('Unsupported direction keeps visible text.', $fallback->children[0]->attr('text'));
+
+        $t->contains('[**ملف المصدر**]{.docx-direction .docx-dir .docx-dir-rtl data-docx-direction-kind="embedding" data-docx-direction="rtl" dir="rtl"}', $markdown);
+        $t->contains('[ABC-123]{.docx-direction .docx-bidi-override .docx-bdo .docx-bdo-ltr data-docx-direction-kind="override" data-docx-direction="ltr" data-docx-bidi-override="true" dir="ltr"}', $markdown);
+        $t->contains('Unsupported direction keeps visible text.', $markdown);
+        $t->true(!str_contains($markdown, 'sideways'), 'Unsupported DOCX directional wrapper values should not leak into Markdown metadata');
+
+        $t->contains('<span class="docx-direction docx-dir docx-dir-rtl" data-docx-direction-kind="embedding" data-docx-direction="rtl" dir="rtl"><strong>ملف المصدر</strong></span>', $blocks);
+        $t->contains('<span class="docx-direction docx-bidi-override docx-bdo docx-bdo-ltr" data-docx-direction-kind="override" data-docx-direction="ltr" data-docx-bidi-override="true" dir="ltr">ABC-123</span>', $blocks);
+        $t->contains('<p>Unsupported direction keeps visible text.</p>', $blocks);
+        $t->true(!str_contains($blocks, 'sideways'), 'Unsupported DOCX directional wrapper values should not leak into WordPress metadata');
     },
     'preserves DOCX paragraph bidi and text direction metadata as reviewer spans' => static function (TestRunner $t) use ($buildParagraphBidiDirectionPackage): void {
         $document = (new DocxReader())->readDocument($buildParagraphBidiDirectionPackage());

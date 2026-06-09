@@ -19047,6 +19047,94 @@ XML);
         $lateAccessPos = strpos($blocks, '<dt>Zed 2026</dt>');
         $t->true(is_int($lateEventPos) && is_int($earlyEventPos) && is_int($lateAccessPos) && $lateEventPos < $earlyEventPos && $earlyEventPos < $lateAccessPos, 'WordPress bibliography entries should follow CSL date sort order');
     },
+    'renders bounded csl authority as creator names for legal citation handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'scalar-authority',
+                'type' => 'legislation',
+                'title' => 'Migration Review Act',
+                'authority' => 'Oregon Legislature',
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'name-authority',
+                'type' => 'legal_case',
+                'title' => 'Review Board v. Archive Desk',
+                'authority' => [
+                    ['literal' => 'Migration Review Court'],
+                    ['literal' => 'Appeals Board'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'plain-source',
+                'type' => 'report',
+                'title' => 'Plain Source',
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Authority Creator Review Style</title>
+    <id>https://example.test/styles/bounded-authority-creator-review</id>
+    <updated>2026-06-09T02:25:57+00:00</updated>
+  </info>
+  <macro name="authority-route">
+    <choose>
+      <if is-creator="authority">
+        <text value="authority-creator"/>
+      </if>
+      <else>
+        <text value="no-authority"/>
+      </else>
+    </choose>
+  </macro>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <text macro="authority-route"/>
+        <names variable="authority">
+          <substitute>
+            <text variable="title"/>
+          </substitute>
+        </names>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="authority"/>
+      <names variable="authority"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Authority Creator Review Style', $summary['title'] ?? null);
+        $t->same(['authority'], $summary['macros']['authority-route'][0]['branches'][0]['isCreator'] ?? null);
+        $t->same('Oregon Legislature', $processor->item('scalar-authority')['authority'] ?? null);
+        $t->same('Oregon Legislature', $processor->item('scalar-authority')['authorities'][0]['literal'] ?? null);
+        $t->same('Migration Review Court; Appeals Board', $processor->item('name-authority')['authority'] ?? null);
+        $t->same('Appeals Board', $processor->item('name-authority')['authorities'][1]['literal'] ?? null);
+
+        $t->same('(authority-creator | Oregon Legislature; authority-creator | Migration Review Court and Appeals Board; no-authority | Plain Source)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'scalar-authority', 'text' => '[@scalar-authority]']),
+            new AstNode('citation', ['id' => 'name-authority', 'text' => '[@name-authority]']),
+            new AstNode('citation', ['id' => 'plain-source', 'text' => '[@plain-source]']),
+        ]));
+        $t->same('Migration Review Act :: Oregon Legislature :: Oregon Legislature', $processor->renderBibliographyEntry('scalar-authority'));
+        $t->same('Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board', $processor->renderBibliographyEntry('name-authority'));
+
+        $document = (new MarkdownReader())->read('Legal review cites [@scalar-authority; @name-authority; @plain-source] for authority routing.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legal review cites (authority-creator | Oregon Legislature; authority-creator | Migration Review Court and Appeals Board; no-authority | Plain Source) for authority routing.</p>', $blocks);
+        $t->contains('<dt>Migration Review Act 2026</dt><dd>Migration Review Act :: Oregon Legislature :: Oregon Legislature</dd>', $blocks);
+        $t->contains('<dt>Review Board v. Archive Desk 2025</dt><dd>Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board</dd>', $blocks);
+        $t->contains('<dt>Plain Source 2024</dt><dd>Plain Source</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

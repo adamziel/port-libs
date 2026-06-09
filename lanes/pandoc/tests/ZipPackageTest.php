@@ -3593,6 +3593,10 @@ return [
         $t->same($summary['centralDirectorySize'], $summary['scannedCentralDirectoryBytes']);
         $t->same(0, $summary['centralDirectoryTailBytes']);
         $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(0, $summary['entryCountDelta']);
+        $t->same(0, $summary['extraScannedEntryCount']);
+        $t->same(0, $summary['missingDeclaredEntryCount']);
+        $t->same(null, $summary['entryCountMismatchKind']);
         $t->same(false, $summary['hasCentralDirectorySignature']);
         $t->same(null, $summary['centralDirectorySignature']);
         $t->same(true, $summary['isSupportedByBoundedReader']);
@@ -3609,6 +3613,10 @@ return [
         $t->same(1, $lowSummary['declaredEntryCount']);
         $t->same(2, $lowSummary['scannedEntryCount']);
         $t->same(true, $lowSummary['hasEntryCountMismatch']);
+        $t->same(1, $lowSummary['entryCountDelta']);
+        $t->same(1, $lowSummary['extraScannedEntryCount']);
+        $t->same(0, $lowSummary['missingDeclaredEntryCount']);
+        $t->same('declared-too-low', $lowSummary['entryCountMismatchKind']);
         $t->same(false, $lowSummary['isSupportedByBoundedReader']);
         $t->same(['central-directory-entry-count-mismatch'], $lowSummary['issues']);
         $t->same(['word/document.xml', 'word/media/review.png'], array_column($lowSummary['entries'], 'name'));
@@ -3622,6 +3630,10 @@ return [
         $t->same(3, $highSummary['declaredEntryCount']);
         $t->same(2, $highSummary['scannedEntryCount']);
         $t->same(true, $highSummary['hasEntryCountMismatch']);
+        $t->same(-1, $highSummary['entryCountDelta']);
+        $t->same(0, $highSummary['extraScannedEntryCount']);
+        $t->same(1, $highSummary['missingDeclaredEntryCount']);
+        $t->same('declared-too-high', $highSummary['entryCountMismatchKind']);
         $t->same(false, $highSummary['isSupportedByBoundedReader']);
         $t->same(['central-directory-entry-count-mismatch'], $highSummary['issues']);
         $t->same(0, $highSummary['centralDirectoryTailBytes']);

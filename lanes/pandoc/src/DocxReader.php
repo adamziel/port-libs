@@ -4402,6 +4402,10 @@ final class DocxReader
             return $this->structuredDocumentTagInlineNodes($element, $package, $relationships, $referencedNotes);
         }
 
+        if ($this->isWordElement($element, 'dir') || $this->isWordElement($element, 'bdo')) {
+            return $this->directionalInlineNodes($element, $package, $relationships, $referencedNotes);
+        }
+
         if ($this->isWordElement($element, 'ins')) {
             return $this->trackedAcceptedChangeNodes($element, $package, $relationships, $referencedNotes, 'insertion');
         }
@@ -5066,6 +5070,70 @@ final class DocxReader
      * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
+    private function directionalInlineNodes(
+        \DOMElement $element,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes
+    ): array {
+        $children = $this->coalesceTextNodes($this->inlineContainerNodes($element, $package, $relationships, $referencedNotes));
+        if ($children === []) {
+            return [];
+        }
+
+        $attrs = $this->directionalInlineAttrs($element);
+        if ($attrs === null) {
+            return $children;
+        }
+
+        return [new AstNode('span', $attrs, $children)];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private function directionalInlineAttrs(\DOMElement $element): ?array
+    {
+        $direction = strtolower(trim((string) ($this->wordAttr($element, 'val') ?? '')));
+        if ($direction !== 'ltr' && $direction !== 'rtl') {
+            return null;
+        }
+
+        if ($this->isWordElement($element, 'bdo')) {
+            return [
+                'classes' => [
+                    'docx-direction',
+                    'docx-bidi-override',
+                    'docx-bdo',
+                    'docx-bdo-' . $direction,
+                ],
+                'attributes' => [
+                    'data-docx-direction-kind' => 'override',
+                    'data-docx-direction' => $direction,
+                    'data-docx-bidi-override' => 'true',
+                    'dir' => $direction,
+                ],
+            ];
+        }
+
+        return [
+            'classes' => [
+                'docx-direction',
+                'docx-dir',
+                'docx-dir-' . $direction,
+            ],
+            'attributes' => [
+                'data-docx-direction-kind' => 'embedding',
+                'data-docx-direction' => $direction,
+                'dir' => $direction,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     * @return list<AstNode>
+     */
     private function smartTagNodes(
         \DOMElement $smartTag,
         ZipPackage $package,
@@ -5316,6 +5384,10 @@ final class DocxReader
 
         if ($this->isWordElement($child, 'object')) {
             return $this->embeddedObjectNodes($child, $package, $relationships);
+        }
+
+        if ($this->isWordElement($child, 'dir') || $this->isWordElement($child, 'bdo')) {
+            return $this->directionalInlineNodes($child, $package, $relationships, $referencedNotes);
         }
 
         return [];
