@@ -33,6 +33,8 @@ final class PlainWriter
      *     maxOverColumnDisplayWidth:int,
      *     hardBreakCount:int,
      *     softBreakOpportunityCount:int,
+     *     tabBreakOpportunityCount:int,
+     *     maxTabDisplayAdvance:int,
      *     zeroWidthSpaceBreakOpportunityCount:int,
      *     softHyphenBreakOpportunityCount:int,
      *     visibleBreakAfterOpportunityCount:int,
@@ -48,6 +50,8 @@ final class PlainWriter
      *       overColumnLineCount:int,
      *       maxOverColumnDisplayWidth:int,
      *       wrapped:bool,
+     *       tabBreakOpportunityCount:int,
+     *       maxTabDisplayAdvance:int,
      *       zeroWidthSpaceBreakOpportunityCount:int,
      *       softHyphenBreakOpportunityCount:int,
      *       visibleBreakAfterOpportunityCount:int,
@@ -75,6 +79,8 @@ final class PlainWriter
         $maxOverColumnDisplayWidth = 0;
         $hardBreakCount = 0;
         $softBreakOpportunityCount = 0;
+        $tabBreakOpportunityCount = 0;
+        $maxTabDisplayAdvance = 0;
         $zeroWidthSpaceBreakOpportunityCount = 0;
         $softHyphenBreakOpportunityCount = 0;
         $visibleBreakAfterOpportunityCount = 0;
@@ -116,6 +122,8 @@ final class PlainWriter
             $typeCounts = $this->lineBreakOpportunityTypeCounts($opportunities['opportunities']);
             $hardBreakCount += $opportunities['hardBreakCount'];
             $softBreakOpportunityCount += $opportunities['softBreakCount'];
+            $tabBreakOpportunityCount += $typeCounts['tab'];
+            $maxTabDisplayAdvance = max($maxTabDisplayAdvance, $typeCounts['maxTabDisplayAdvance']);
             $zeroWidthSpaceBreakOpportunityCount += $typeCounts['zeroWidthSpace'];
             $softHyphenBreakOpportunityCount += $typeCounts['softHyphen'];
             $visibleBreakAfterOpportunityCount += $typeCounts['visibleBreakAfter'];
@@ -132,6 +140,8 @@ final class PlainWriter
                 'overColumnLineCount' => $overColumn['count'],
                 'maxOverColumnDisplayWidth' => $overColumn['maxDisplayWidth'],
                 'wrapped' => $wrapped,
+                'tabBreakOpportunityCount' => $typeCounts['tab'],
+                'maxTabDisplayAdvance' => $typeCounts['maxTabDisplayAdvance'],
                 'zeroWidthSpaceBreakOpportunityCount' => $typeCounts['zeroWidthSpace'],
                 'softHyphenBreakOpportunityCount' => $typeCounts['softHyphen'],
                 'visibleBreakAfterOpportunityCount' => $typeCounts['visibleBreakAfter'],
@@ -154,6 +164,8 @@ final class PlainWriter
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
+                'tabBreakOpportunityCount' => $tabBreakOpportunityCount,
+                'maxTabDisplayAdvance' => $maxTabDisplayAdvance,
                 'zeroWidthSpaceBreakOpportunityCount' => $zeroWidthSpaceBreakOpportunityCount,
                 'softHyphenBreakOpportunityCount' => $softHyphenBreakOpportunityCount,
                 'visibleBreakAfterOpportunityCount' => $visibleBreakAfterOpportunityCount,
@@ -191,12 +203,14 @@ final class PlainWriter
     }
 
     /**
-     * @param list<array{type:string}> $opportunities
-     * @return array{zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
+     * @param list<array{type:string, column?:int, columnAfter?:int}> $opportunities
+     * @return array{tab:int, maxTabDisplayAdvance:int, zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
      */
     private function lineBreakOpportunityTypeCounts(array $opportunities): array
     {
         $counts = [
+            'tab' => 0,
+            'maxTabDisplayAdvance' => 0,
             'zeroWidthSpace' => 0,
             'softHyphen' => 0,
             'visibleBreakAfter' => 0,
@@ -204,6 +218,7 @@ final class PlainWriter
 
         foreach ($opportunities as $opportunity) {
             $key = match ($opportunity['type']) {
+                'tab' => 'tab',
                 'zero-width-space' => 'zeroWidthSpace',
                 'soft-hyphen' => 'softHyphen',
                 'visible-break-after' => 'visibleBreakAfter',
@@ -211,6 +226,10 @@ final class PlainWriter
             };
             if ($key !== null) {
                 ++$counts[$key];
+            }
+            if ($opportunity['type'] === 'tab') {
+                $advance = max(0, (int) ($opportunity['columnAfter'] ?? 0) - (int) ($opportunity['column'] ?? 0));
+                $counts['maxTabDisplayAdvance'] = max($counts['maxTabDisplayAdvance'], $advance);
             }
         }
 

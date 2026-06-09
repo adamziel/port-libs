@@ -40,6 +40,8 @@ return [
         $t->same(22, $result['diagnostics']['maxOutputDisplayWidth']);
         $t->same(1, $result['diagnostics']['hardBreakCount']);
         $t->same(9, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['tabBreakOpportunityCount']);
+        $t->same(0, $result['diagnostics']['maxTabDisplayAdvance']);
         $t->same(0, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
         $t->same(0, $result['diagnostics']['softHyphenBreakOpportunityCount']);
         $t->same(0, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
@@ -55,6 +57,8 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
             'visibleBreakAfterOpportunityCount' => 0,
@@ -91,6 +95,44 @@ return [
             'overColumnLineCount' => 2,
             'maxOverColumnDisplayWidth' => 33,
             'wrapped' => false,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports tab break opportunities in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "A\tBeta reviewer\tTail\nPlain\trow"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 12]))->writeWithDiagnostics($document);
+
+        $t->same("A Beta\nreviewer\nTail\nPlain row", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(9, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(1, $result['diagnostics']['hardBreakCount']);
+        $t->same(4, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(3, $result['diagnostics']['tabBreakOpportunityCount']);
+        $t->same(3, $result['diagnostics']['maxTabDisplayAdvance']);
+        $t->same(0, $result['diagnostics']['overColumnLineCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 2,
+            'outputLineCount' => 4,
+            'maxSourceDisplayWidth' => 24,
+            'maxOutputDisplayWidth' => 9,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'wrapped' => true,
+            'tabBreakOpportunityCount' => 3,
+            'maxTabDisplayAdvance' => 3,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
             'visibleBreakAfterOpportunityCount' => 0,
@@ -142,6 +184,8 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
             'softHyphenBreakOpportunityCount' => 0,
             'visibleBreakAfterOpportunityCount' => 0,
@@ -181,6 +225,8 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 1,
             'softHyphenBreakOpportunityCount' => 1,
             'visibleBreakAfterOpportunityCount' => 1,
