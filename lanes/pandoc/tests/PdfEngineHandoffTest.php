@@ -2804,6 +2804,52 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
+    'fake runner decodes pdfdocencoding document info strings from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfdocencoding-info.pdf']);
+        $title = "WordPress\x80 PDF \x93\x94 Import \xA0";
+        $authorHex = '4D6967726174696F6E208D5265766965778E';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Title (' . $title . ') /Author <' . $authorHex . '> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Info 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/pdfdocencoding-info.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/pdfdocencoding-info.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same("WordPress\u{2022} PDF \u{FB01}\u{FB02} Import \u{20AC}", $result['pdfDocumentInfo']['Title']);
+        $t->same("Migration \u{201C}Review\u{201D}", $result['pdfDocumentInfo']['Author']);
+        $t->contains('pdf-byte-document-info:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($result['pdfDocumentInfo'], $sequence['finalPdfDocumentInfo']);
+    },
+
     'fake runner normalizes bounded pdf document info date metadata' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/dates.pdf']);

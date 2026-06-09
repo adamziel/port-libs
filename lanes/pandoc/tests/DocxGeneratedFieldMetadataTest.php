@@ -77,6 +77,13 @@ $generatedFieldDocumentXml = <<<'XML'
       <w:fldSimple w:instr=' ADDIN EN.REFLIST '><w:r><w:t>EndNote sources.</w:t></w:r></w:fldSimple>
       <w:r><w:t>.</w:t></w:r>
     </w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">List of figures </w:t></w:r>
+      <w:fldSimple w:instr=' TOC \c "Figure" \h \p " - " '>
+        <w:r><w:t>Figure 1 - Workflow diagram</w:t></w:r>
+      </w:fldSimple>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
   </w:body>
 </w:document>
 XML;
@@ -333,5 +340,44 @@ return [
         $t->contains('data-docx-addin-citation-item-ids="Smith2024,Jones2025"', $blocks);
         $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-csl-bibliography docx-addin-provider-mendeley"', $blocks);
         $t->contains('<span class="docx-field docx-field-addin docx-addin-field docx-addin-endnote-reference-list docx-addin-provider-endnote"', $blocks);
+    },
+    'preserves DOCX table-of-figures TOC sequence switch provenance' => static function (TestRunner $t) use ($buildGeneratedFieldPackage): void {
+        $document = (new DocxReader())->readDocument($buildGeneratedFieldPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[5];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('List of figures ', $paragraph->children[0]->attr('text'));
+
+        $listOfFigures = $paragraph->children[1];
+        $t->same('span', $listOfFigures->type);
+        $t->same([
+            'docx-field',
+            'docx-field-toc',
+            'docx-generated-field',
+            'docx-generated-field-toc',
+            'docx-field-hyperlink',
+        ], $listOfFigures->attr('classes'));
+        $attrs = $listOfFigures->attr('attributes');
+        $t->same('toc', $attrs['data-docx-field']);
+        $t->same('TOC \c "Figure" \h \p " - "', $attrs['data-docx-field-instruction']);
+        $t->same('table-of-contents', $attrs['data-docx-generated-field-type']);
+        $t->same('Figure', $attrs['data-docx-field-sequence']);
+        $t->same(' - ', $attrs['data-docx-field-page-number-separator']);
+        $t->same('true', $attrs['data-docx-field-hyperlink']);
+        $t->true(!isset($attrs['data-docx-field-columns']), 'TOC \\c should not be reported as INDEX column metadata');
+        $t->same('Figure 1 - Workflow diagram', $listOfFigures->children[0]->attr('text'));
+        $t->same('.', $paragraph->children[2]->attr('text'));
+
+        $t->contains('[Figure 1 - Workflow diagram]{.docx-field .docx-field-toc .docx-generated-field .docx-generated-field-toc .docx-field-hyperlink', $markdown);
+        $t->contains('data-docx-field-sequence="Figure"', $markdown);
+        $t->contains('data-docx-field-page-number-separator=" - "', $markdown);
+        $t->true(!str_contains($markdown, 'data-docx-field-columns="Figure"'), 'Markdown output should not label TOC \\c as columns');
+
+        $t->contains('<span class="docx-field docx-field-toc docx-generated-field docx-generated-field-toc docx-field-hyperlink"', $blocks);
+        $t->contains('data-docx-field-sequence="Figure"', $blocks);
+        $t->contains('data-docx-field-page-number-separator=" - "', $blocks);
+        $t->true(!str_contains($blocks, 'data-docx-field-columns="Figure"'), 'WordPress output should not label TOC \\c as columns');
     },
 ];

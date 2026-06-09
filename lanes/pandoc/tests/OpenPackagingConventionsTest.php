@@ -1736,6 +1736,71 @@ XML;
         ), 'targetPart'));
         $t->same(array_fill(0, 10, false), array_column($preflight, 'valid'));
     },
+    'classifies invalid internal OPC relationship target query and fragment escapes' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGoodQuery" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?review=%20ready#note%20one"/>
+  <Relationship Id="rIdBadQueryEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?review=%ZZ"/>
+  <Relationship Id="rIdBadFragmentEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml#note%ZZ"/>
+  <Relationship Id="rIdEncodedQueryNul" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?review=%00"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $preflight = [];
+        foreach ($graph->preflightTargetsForSource('/word/document.xml') as $target) {
+            $preflight[$target['id']] = $target;
+        }
+
+        $t->same('/word/styles.xml?review=%20ready#note%20one', $preflight['rIdGoodQuery']['target']);
+        $t->same(true, $preflight['rIdGoodQuery']['valid']);
+        $t->same([], $preflight['rIdGoodQuery']['issues']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $preflight['rIdGoodQuery']['contentType']);
+
+        $t->same('styles.xml?review=%ZZ', $preflight['rIdBadQueryEscape']['target']);
+        $t->same(false, $preflight['rIdBadQueryEscape']['valid']);
+        $t->same(['invalid-target', 'internal-target-malformed-percent-escape'], $preflight['rIdBadQueryEscape']['issues']);
+
+        $t->same('styles.xml#note%ZZ', $preflight['rIdBadFragmentEscape']['target']);
+        $t->same(false, $preflight['rIdBadFragmentEscape']['valid']);
+        $t->same(['invalid-target', 'internal-target-malformed-percent-escape'], $preflight['rIdBadFragmentEscape']['issues']);
+
+        $t->same('styles.xml?review=%00', $preflight['rIdEncodedQueryNul']['target']);
+        $t->same(false, $preflight['rIdEncodedQueryNul']['valid']);
+        $t->same(['invalid-target', 'internal-target-unsafe-percent-encoded-byte'], $preflight['rIdEncodedQueryNul']['issues']);
+
+        $references = [];
+        foreach ($graph->preflightInternalTargetReferences('/word/document.xml') as $reference) {
+            $references[$reference['id']] = $reference;
+        }
+
+        $t->same('/word/styles.xml', $references['rIdGoodQuery']['targetPart']);
+        $t->same('review=%20ready', $references['rIdGoodQuery']['targetQuery']);
+        $t->same('note%20one', $references['rIdGoodQuery']['targetFragment']);
+        $t->same(null, $references['rIdBadQueryEscape']['targetPart']);
+        $t->same(null, $references['rIdBadFragmentEscape']['targetPart']);
+        $t->same(null, $references['rIdEncodedQueryNul']['targetPart']);
+
+        $allTargets = [];
+        foreach ($graph->preflightAllRelationshipTargets() as $target) {
+            if ($target['source'] === '/word/document.xml') {
+                $allTargets[$target['id']] = $target;
+            }
+        }
+
+        $t->same('/word/styles.xml', $allTargets['rIdGoodQuery']['targetPart']);
+        $t->same(null, $allTargets['rIdBadQueryEscape']['targetPart']);
+        $t->same(null, $allTargets['rIdBadFragmentEscape']['targetPart']);
+        $t->same(null, $allTargets['rIdEncodedQueryNul']['targetPart']);
+    },
     'rejects percent encoded OPC relationship target dot segments' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">

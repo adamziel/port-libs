@@ -7714,9 +7714,8 @@ final class DocxReader
             $attributes['data-docx-field-format'] = $format;
         }
 
-        foreach ([
+        $switchAttributes = [
             'b' => 'bookmark',
-            'c' => 'columns',
             'd' => 'chapter-separator',
             'e' => 'entry-separator',
             'f' => 'entry-type',
@@ -7728,7 +7727,14 @@ final class DocxReader
             's' => 'sequence',
             't' => 'style-levels',
             'v' => 'citation-volume',
-        ] as $switch => $attributeSuffix) {
+        ];
+        if ($fieldKey === 'toc') {
+            $switchAttributes['c'] = 'sequence';
+        } elseif ($fieldKey === 'index') {
+            $switchAttributes['c'] = 'columns';
+        }
+
+        foreach ($switchAttributes as $switch => $attributeSuffix) {
             $value = $this->fieldSwitchValue($tokens, $switch);
             if ($value !== null && $value !== '') {
                 $attributes['data-docx-field-' . $attributeSuffix] = $value;

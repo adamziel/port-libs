@@ -579,6 +579,7 @@ final class OpcRelationshipGraph
             }
 
             try {
+                self::assertInternalRelationshipTargetUriReferenceSuffix($relationship->target);
                 $target = $relationships->resolveTarget($relationship);
             } catch (\InvalidArgumentException $exception) {
                 $issues = array_values(array_unique(array_merge(
@@ -6457,6 +6458,8 @@ final class OpcRelationshipGraph
             self::appendUniqueString($issues, 'internal-target-malformed-percent-escape');
         } elseif (self::internalTargetContainsUnsafePercentEncodedPathByte($target)) {
             self::appendUniqueString($issues, 'internal-target-unsafe-percent-encoded-path-byte');
+        } elseif (self::internalTargetSuffixContainsUnsafePercentEncodedByte($target)) {
+            self::appendUniqueString($issues, 'internal-target-unsafe-percent-encoded-byte');
         }
 
         if (str_contains($parseError, 'unsafe percent-encoded dot segment')) {
@@ -6476,6 +6479,26 @@ final class OpcRelationshipGraph
         }
 
         return $issues;
+    }
+
+    private static function assertInternalRelationshipTargetUriReferenceSuffix(string $target): void
+    {
+        $suffix = substr($target, strcspn($target, '?#'));
+        if ($suffix === '') {
+            return;
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $suffix) === 1) {
+            throw new \InvalidArgumentException(
+                'OPC internal relationship target query or fragment contains malformed percent escape'
+            );
+        }
+
+        if (self::containsPercentEncodedControlByte($suffix)) {
+            throw new \InvalidArgumentException(
+                'OPC internal relationship target query or fragment contains unsafe percent-encoded byte'
+            );
+        }
     }
 
     /**
@@ -6528,6 +6551,29 @@ final class OpcRelationshipGraph
         foreach (explode('/', $path) as $segment) {
             $decoded = rawurldecode($segment);
             if (str_contains($decoded, "\0") || str_contains($decoded, '/') || str_contains($decoded, '\\')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function internalTargetSuffixContainsUnsafePercentEncodedByte(string $target): bool
+    {
+        $suffix = substr($target, strcspn($target, '?#'));
+
+        return $suffix !== '' && self::containsPercentEncodedControlByte($suffix);
+    }
+
+    private static function containsPercentEncodedControlByte(string $value): bool
+    {
+        if (preg_match_all('/%([0-9A-Fa-f]{2})/', $value, $matches) === 0) {
+            return false;
+        }
+
+        foreach ($matches[1] as $hex) {
+            $byte = hexdec($hex);
+            if ($byte < 0x20 || $byte === 0x7f) {
                 return true;
             }
         }

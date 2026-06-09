@@ -143,6 +143,7 @@ final class LegacyDocReader
     private const FIELD_CHARACTER_SEPARATOR = 0x14;
     private const FIELD_CHARACTER_END = 0x15;
     private const MAX_CLIPBOARD_DATA_BYTES = 8388608;
+    private const MAX_PROPERTY_BLOB_BYTES = 8388608;
     private const MAX_RESERVED_HYPERLINK_BLOB_BYTES = 1048576;
     private const MAX_RESERVED_HYPERLINK_COUNT = 4096;
     private const FIELD_TYPE_NAMES = [
@@ -7518,6 +7519,7 @@ final class LegacyDocReader
             0x0040 => $valueOffset + 8 <= strlen($bytes)
                 ? ['value' => $this->readFiletime($bytes, $valueOffset), 'bytes' => 12]
                 : null,
+            0x0041 => $this->typedSizedValue($this->readBlobWithSize($bytes, $valueOffset)),
             0x0047 => $this->typedSizedValue($this->readClipboardDataWithSize($bytes, $valueOffset)),
             0x0048 => $valueOffset + 16 <= strlen($bytes)
                 ? ['value' => self::formatClsid(substr($bytes, $valueOffset, 16)), 'bytes' => 20]
@@ -7568,6 +7570,35 @@ final class LegacyDocReader
         return [
             'value' => $sizedValue['value'],
             'bytes' => 4 + $sizedValue['bytes'],
+        ];
+    }
+
+    /**
+     * @return array{value:array<string,mixed>,bytes:int}|null
+     */
+    private function readBlobWithSize(string $bytes, int $offset): ?array
+    {
+        if ($offset + 4 > strlen($bytes)) {
+            return null;
+        }
+
+        $byteCount = self::u32($bytes, $offset);
+        if ($byteCount > self::MAX_PROPERTY_BLOB_BYTES || $offset + 4 + $byteCount > strlen($bytes)) {
+            return null;
+        }
+
+        $payload = substr($bytes, $offset + 4, $byteCount);
+
+        return [
+            'value' => [
+                'type' => 'blob',
+                'conformsTo' => 'VT_BLOB',
+                'byteCount' => $byteCount,
+                'sha256' => hash('sha256', $payload),
+                'extractionPolicy' => 'metadata-only-native-review',
+                'canExposeBytes' => false,
+            ],
+            'bytes' => $this->consumeDwordPadding($bytes, $offset, 4 + $byteCount),
         ];
     }
 

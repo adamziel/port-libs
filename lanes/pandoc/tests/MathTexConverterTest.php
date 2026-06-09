@@ -1176,6 +1176,7 @@ return [
         $converter = new MathTexConverter();
         $starredMathml = $converter->texToMathMl('\\operatorname*{argmax}_{p_i \\in P}^{\\text{draft}} f(p_i) + \\operatorname*{limsup}^{n} a_n', true);
         $displayLimitsMathml = $converter->texToMathMl('\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j');
+        $operatorWithLimitsMathml = $converter->texToMathMl('\\operatornamewithlimits{argmin}_{x \\in S}^{\\text{draft}} f(x) + \\operatornamewithlimits\\max_{j} q_j', true);
         $plainStarredMathml = $converter->texToMathMl('\\operatorname*{review} + x');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $starredMathml);
@@ -1185,6 +1186,10 @@ return [
         $t->contains('<munderover><mi>median</mi><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>n</mi></munderover><msub><mi>p</mi><mi>i</mi></msub>', $displayLimitsMathml);
         $t->contains('<msub><mi>rank</mi><mi>j</mi></msub><msub><mi>q</mi><mi>j</mi></msub>', $displayLimitsMathml);
         $t->contains('<annotation encoding="application/x-tex">\\operatorname{median}\\displaylimits_{i=1}^{n} p_i + \\operatorname*{rank}\\nolimits_{j} q_j</annotation>', $displayLimitsMathml);
+        $t->contains('<munderover><mi>argmin</mi><mrow><mi>x</mi><mo>∈</mo><mi>S</mi></mrow><mtext>draft</mtext></munderover><mi>f</mi><mo>(</mo><mi>x</mi><mo>)</mo>', $operatorWithLimitsMathml);
+        $t->contains('<munder><mi>max</mi><mi>j</mi></munder><msub><mi>q</mi><mi>j</mi></msub>', $operatorWithLimitsMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\operatornamewithlimits{argmin}_{x \\in S}^{\\text{draft}} f(x) + \\operatornamewithlimits\\max_{j} q_j</annotation>', $operatorWithLimitsMathml);
+        $t->true(!str_contains($operatorWithLimitsMathml, '<mi>\\operatornamewithlimits</mi>'));
         $t->contains('<mi>review</mi><mo>+</mo><mi>x</mi>', $plainStarredMathml);
     },
     'converts bounded tex unbraced operatorname tokens to mathml' => static function (TestRunner $t): void {
@@ -2651,6 +2656,7 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaylimits_{i=1}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname{median}\\displaylimits'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatorname*{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\operatornamewithlimits{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\substack{a & b}'));

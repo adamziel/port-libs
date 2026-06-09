@@ -4644,6 +4644,47 @@ return [
             $typedBlob($u32(6) . $typedI4(1) . $typedI4(2) . $typedI4(3) . $typedI4(4))
         )));
     },
+    'extracts legacy DOC generic blob custom properties as metadata-only hashes' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedI2, $typedBlob): void {
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $payload = "do-not-render-binary\0legacy-doc-payload";
+        $docBytes = $buildCfb([
+            'WordDocument' => $buildSimpleWordDocument("Generic blob metadata packet\r"),
+            "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                [
+                    'fmtid' => $userDefinedFmtid,
+                    'properties' => [
+                        0 => $typedDictionary([
+                            2 => 'Source Binary',
+                        ]),
+                        1 => $typedI2(1252),
+                        2 => $typedBlob($payload),
+                    ],
+                ],
+            ]),
+        ]);
+
+        $result = (new LegacyDocReader())->readBytes($docBytes);
+        $metadata = $result['metadata'];
+        $blob = $metadata['customProperties']['Source Binary'] ?? null;
+
+        $t->same([
+            'type' => 'blob',
+            'conformsTo' => 'VT_BLOB',
+            'byteCount' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'extractionPolicy' => 'metadata-only-native-review',
+            'canExposeBytes' => false,
+        ], $blob);
+        $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Generic blob metadata packet', $blocks);
+        $t->true(!str_contains($blocks, 'do-not-render-binary'), 'Generic custom blobs must remain metadata-only');
+    },
     'extracts legacy DOC unsigned integer 64-bit and CLSID OLE property scalars' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedPropertySetStream, $typedDictionary, $typedI2, $typedUi2, $typedUi4, $typedI8Parts, $typedUi8Parts, $typedClsid): void {
         $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
         $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');

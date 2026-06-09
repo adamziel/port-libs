@@ -34,6 +34,50 @@ final class PdfEngineHandoff
     private const XMP_RESOURCE_REF_NAMESPACE = 'http://ns.adobe.com/xap/1.0/sType/ResourceRef#';
     private const XMP_RESOURCE_EVENT_NAMESPACE = 'http://ns.adobe.com/xap/1.0/sType/ResourceEvent#';
     private const XMP_RDF_NAMESPACE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    private const PDF_DOC_ENCODING_OVERRIDES = [
+        0x18 => 0x02D8,
+        0x19 => 0x02C7,
+        0x1A => 0x02C6,
+        0x1B => 0x02D9,
+        0x1C => 0x02DD,
+        0x1D => 0x02DB,
+        0x1E => 0x02DA,
+        0x1F => 0x02DC,
+        0x7F => 0xFFFD,
+        0x80 => 0x2022,
+        0x81 => 0x2020,
+        0x82 => 0x2021,
+        0x83 => 0x2026,
+        0x84 => 0x2014,
+        0x85 => 0x2013,
+        0x86 => 0x0192,
+        0x87 => 0x2044,
+        0x88 => 0x2039,
+        0x89 => 0x203A,
+        0x8A => 0x2212,
+        0x8B => 0x2030,
+        0x8C => 0x201E,
+        0x8D => 0x201C,
+        0x8E => 0x201D,
+        0x8F => 0x2018,
+        0x90 => 0x2019,
+        0x91 => 0x201A,
+        0x92 => 0x2122,
+        0x93 => 0xFB01,
+        0x94 => 0xFB02,
+        0x95 => 0x0141,
+        0x96 => 0x0152,
+        0x97 => 0x0160,
+        0x98 => 0x0178,
+        0x99 => 0x017D,
+        0x9A => 0x0131,
+        0x9B => 0x0142,
+        0x9C => 0x0153,
+        0x9D => 0x0161,
+        0x9E => 0x017E,
+        0x9F => 0xFFFD,
+        0xA0 => 0x20AC,
+    ];
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -25409,7 +25453,24 @@ final class PdfEngineHandoff
             return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]+/', '', $bytes) ?? $bytes;
         }
 
-        return preg_replace('/[^\x20-\x7E]+/', '', $bytes) ?? '';
+        return $this->pdfDocEncodingBytesToUtf8($bytes);
+    }
+
+    private function pdfDocEncodingBytesToUtf8(string $bytes): string
+    {
+        $output = '';
+        $length = strlen($bytes);
+        for ($i = 0; $i < $length; $i++) {
+            $byte = ord($bytes[$i]);
+            $codepoint = self::PDF_DOC_ENCODING_OVERRIDES[$byte] ?? $byte;
+            if ($codepoint === 0 || ($codepoint < 0x20 && !in_array($codepoint, [0x09, 0x0A, 0x0D], true))) {
+                continue;
+            }
+
+            $output .= $this->codepointToUtf8($codepoint);
+        }
+
+        return $output;
     }
 
     private function utf16BytesToUtf8(string $bytes, bool $bigEndian): string

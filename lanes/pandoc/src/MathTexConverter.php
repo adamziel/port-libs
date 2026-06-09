@@ -3087,8 +3087,10 @@ final class MathTexConverter
             return $this->parseTextModeCommand($source, $offset, $command);
         }
 
-        if ($command === 'operatorname') {
-            if (($source[$offset] ?? '') === '*') {
+        if ($command === 'operatorname' || $command === 'operatornamewithlimits') {
+            if ($command === 'operatornamewithlimits') {
+                $defaultScriptPlacement = 'limits';
+            } elseif (($source[$offset] ?? '') === '*') {
                 $defaultScriptPlacement = 'limits';
                 $offset++;
             }

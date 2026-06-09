@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:33:39 UTC",
-    "sourceCommit": "b34a23b3bf2bca0071e0dfeaebe1062b96037f86",
-    "sourceCommitShort": "b34a23b3bf2b",
+    "generated": "2026-06-09 11:37:51 UTC",
+    "sourceCommit": "40be33e035b6d3addfa6a325be67fa046228f1e1",
+    "sourceCommitShort": "40be33e035b6",
     "sourceBranch": "unknown",
-    "dashboardCommit": "b34a23b3bf2bca0071e0dfeaebe1062b96037f86",
-    "dashboardCommitShort": "b34a23b3bf2b",
+    "dashboardCommit": "40be33e035b6d3addfa6a325be67fa046228f1e1",
+    "dashboardCommitShort": "40be33e035b6",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,919 / 2,276 (128.3%)",
             "mapPercent": "128.3%",
             "unmapped": "0",
-            "php": "2,707 pass / 0 fail",
-            "phase": "native PHP Pandoc YAML metadata review handoff",
-            "audit": "2026-06-09 UTC current-base YAML metadata slice: tagged explicit flow...",
-            "currentWork": "Pandoc YAML metadata review packets preserve tagged explicit flow key provenance with...",
+            "php": "2,712 pass / 0 fail",
+            "phase": "native PHP Pandoc DOCX field metadata handoff",
+            "audit": "2026-06-09 UTC current-base DOCX field slice: preserve TOC SEQ field...",
+            "currentWork": "DOCX review packets preserve TOC sequence field metadata without office tooling.",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No external YAML parser, Pandoc, model, or GPU path used.",
+            "remainingGate": "No Word, Pandoc, model, or GPU path used.",
             "commit": "pending fast ba..."
         },
         {
