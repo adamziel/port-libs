@@ -1416,6 +1416,126 @@ final class ArchiveCompressionStream
      *     compressedSize:int,
      *     uncompressedSize:int,
      *     memberCount:int,
+     *     metadataMemberCount:int,
+     *     filenameMemberCount:int,
+     *     commentMemberCount:int,
+     *     unsafeFilenameMemberCount:int,
+     *     unsafeCommentMemberCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     members:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectGzipMemberMetadataPolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        if ($format !== self::FORMAT_GZIP_TAR && $format !== self::FORMAT_GZIP_ZIP) {
+            throw new \RuntimeException("GZIP member metadata policy requires a GZIP archive stream format: {$format}");
+        }
+
+        $inspection = GzipStream::inspect($bytes, $maxUncompressedBytes);
+        $members = [];
+        $metadataMemberCount = 0;
+        $filenameMemberCount = 0;
+        $commentMemberCount = 0;
+        $unsafeFilenameMemberCount = 0;
+        $unsafeCommentMemberCount = 0;
+        $diagnostics = [];
+
+        foreach ($inspection['members'] as $index => $member) {
+            $filenameText = is_string($member['filenameText'] ?? null)
+                ? $member['filenameText']
+                : null;
+            $commentText = is_string($member['commentText'] ?? null)
+                ? $member['commentText']
+                : null;
+            $hasFilename = $filenameText !== null;
+            $hasComment = $commentText !== null;
+            if ($hasFilename || $hasComment) {
+                $metadataMemberCount++;
+            }
+            if ($hasFilename) {
+                $filenameMemberCount++;
+            }
+            if ($hasComment) {
+                $commentMemberCount++;
+            }
+
+            $filenameDiagnostics = $hasFilename
+                ? self::gzipMemberMetadataTextDiagnostics($filenameText, 'gzip-member-filename', true)
+                : [];
+            $commentDiagnostics = $hasComment
+                ? self::gzipMemberMetadataTextDiagnostics($commentText, 'gzip-member-comment', false)
+                : [];
+            if ($filenameDiagnostics !== []) {
+                $unsafeFilenameMemberCount++;
+            }
+            if ($commentDiagnostics !== []) {
+                $unsafeCommentMemberCount++;
+            }
+
+            $memberDiagnostics = array_values(array_unique(array_merge($filenameDiagnostics, $commentDiagnostics)));
+            foreach ($memberDiagnostics as $diagnostic) {
+                if (!in_array($diagnostic, $diagnostics, true)) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+
+            $members[] = [
+                'memberIndex' => $index,
+                'filename' => $member['filename'],
+                'filenameText' => $filenameText,
+                'filenameEncoding' => $member['filenameEncoding'],
+                'filenameLength' => $filenameText === null ? 0 : strlen($filenameText),
+                'filenameSegmentCount' => $filenameText === null || $filenameText === ''
+                    ? 0
+                    : count(explode('/', str_replace('\\', '/', $filenameText))),
+                'comment' => $member['comment'],
+                'commentText' => $commentText,
+                'commentEncoding' => $member['commentEncoding'],
+                'commentLength' => $commentText === null ? 0 : strlen($commentText),
+                'hasFilenameMetadata' => $hasFilename,
+                'hasCommentMetadata' => $hasComment,
+                'decodedDataOffset' => $member['decodedDataOffset'],
+                'decodedDataEndOffset' => $member['decodedDataEndOffset'],
+                'uncompressedSize' => $member['uncompressedSize'],
+                'compressedSize' => $member['compressedSize'],
+                'memberOffset' => $member['memberOffset'],
+                'nextMemberOffset' => $member['nextMemberOffset'],
+                'policy' => $memberDiagnostics === [] ? 'metadata' : 'review-before-conversion',
+                'diagnostics' => $memberDiagnostics,
+            ];
+        }
+
+        return [
+            'type' => 'archive-gzip-member-metadata-policy',
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'uncompressedSize' => $inspection['uncompressedSize'],
+            'memberCount' => $inspection['memberCount'],
+            'metadataMemberCount' => $metadataMemberCount,
+            'filenameMemberCount' => $filenameMemberCount,
+            'commentMemberCount' => $commentMemberCount,
+            'unsafeFilenameMemberCount' => $unsafeFilenameMemberCount,
+            'unsafeCommentMemberCount' => $unsafeCommentMemberCount,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'gzip-member-metadata-review',
+            'diagnostics' => $diagnostics,
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     type:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     uncompressedSize:int,
+     *     memberCount:int,
      *     timestampedMemberCount:int,
      *     unknownModifiedAtMemberCount:int,
      *     earliestModifiedAt:?int,
@@ -5307,6 +5427,55 @@ final class ArchiveCompressionStream
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function gzipMemberMetadataTextDiagnostics(string $text, string $prefix, bool $checkPath): array
+    {
+        $diagnostics = [];
+
+        if (preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\x{0080}-\x{009f}]/u', $text) === 1) {
+            $diagnostics[] = "{$prefix}-control-bytes";
+        }
+
+        if (preg_match('/[\x{200b}-\x{200f}\x{202a}-\x{202e}\x{2060}-\x{206f}\x{feff}]/u', $text) === 1) {
+            $diagnostics[] = "{$prefix}-unicode-format-control";
+        }
+
+        if (preg_match('/[\x{061c}\x{200e}\x{200f}\x{202a}-\x{202e}\x{2066}-\x{2069}]/u', $text) === 1) {
+            $diagnostics[] = "{$prefix}-bidi-format-control";
+        }
+
+        if (!$checkPath) {
+            return $diagnostics;
+        }
+
+        if ($text === '') {
+            $diagnostics[] = "{$prefix}-empty";
+        }
+
+        if (str_starts_with($text, '/')) {
+            $diagnostics[] = "{$prefix}-absolute-path";
+        }
+
+        if (preg_match('/^[A-Za-z]:[\/\\\\]/', $text) === 1) {
+            $diagnostics[] = "{$prefix}-drive-letter-path";
+        }
+
+        if (str_contains($text, '\\')) {
+            $diagnostics[] = "{$prefix}-backslash-path";
+        }
+
+        foreach (explode('/', str_replace('\\', '/', $text)) as $segment) {
+            if ($segment === '..') {
+                $diagnostics[] = "{$prefix}-parent-segment";
+                break;
+            }
+        }
+
+        return array_values(array_unique($diagnostics));
     }
 
     /**

@@ -2794,6 +2794,98 @@ return [
         ));
     },
 
+    'preflights gzip member filename and comment metadata before package handoff' => static function (TestRunner $t): void {
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{"source":"gzip-member-metadata","target":"wordpress"}',
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => "# GZIP member metadata policy\n\nReady for WordPress archive review.\n",
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $splitOffset = 512;
+        $unsafeFilename = '../wp-content\\uploads.tar';
+        $unsafeComment = "review\x7fsource";
+        $gzip = GzipStream::build(substr($tarBytes, 0, $splitOffset), [
+            'filename' => $unsafeFilename,
+            'comment' => $unsafeComment,
+        ]) . GzipStream::build(substr($tarBytes, $splitOffset), [
+            'filename' => 'wordpress-member-metadata-part-2.tar',
+            'comment' => 'safe decoded package segment',
+        ]);
+        $safeGzip = GzipStream::build($tarBytes, [
+            'filename' => 'wordpress-member-metadata.tar',
+            'comment' => 'safe source package name',
+        ]);
+
+        $policy = ArchiveCompressionStream::inspectGzipMemberMetadataPolicy(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $safePolicy = ArchiveCompressionStream::inspectGzipMemberMetadataPolicy(
+            $safeGzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $roundTrip = ArchiveCompressionStream::openTar(
+            $gzip,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+
+        $t->same('archive-gzip-member-metadata-policy', $policy['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $policy['format']);
+        $t->same(strlen($gzip), $policy['compressedSize']);
+        $t->same(strlen($tarBytes), $policy['uncompressedSize']);
+        $t->same(2, $policy['memberCount']);
+        $t->same(2, $policy['metadataMemberCount']);
+        $t->same(2, $policy['filenameMemberCount']);
+        $t->same(2, $policy['commentMemberCount']);
+        $t->same(1, $policy['unsafeFilenameMemberCount']);
+        $t->same(1, $policy['unsafeCommentMemberCount']);
+        $t->same('review-before-conversion', $policy['handoffPolicy']);
+        $t->same('gzip-member-metadata-review', $policy['extractionPolicy']);
+        $t->same([
+            'gzip-member-filename-backslash-path',
+            'gzip-member-filename-parent-segment',
+            'gzip-member-comment-control-bytes',
+        ], $policy['diagnostics']);
+        $t->same([$unsafeFilename, 'wordpress-member-metadata-part-2.tar'], array_column($policy['members'], 'filenameText'));
+        $t->same([$unsafeComment, 'safe decoded package segment'], array_column($policy['members'], 'commentText'));
+        $t->same([3, 1], array_column($policy['members'], 'filenameSegmentCount'));
+        $t->same(['review-before-conversion', 'metadata'], array_column($policy['members'], 'policy'));
+        $t->same([
+            [
+                'gzip-member-filename-backslash-path',
+                'gzip-member-filename-parent-segment',
+                'gzip-member-comment-control-bytes',
+            ],
+            [],
+        ], array_column($policy['members'], 'diagnostics'));
+        $t->same([0, $splitOffset], array_column($policy['members'], 'decodedDataOffset'));
+        $t->same([$splitOffset, strlen($tarBytes)], array_column($policy['members'], 'decodedDataEndOffset'));
+        $t->same(false, isset($policy['members'][0]['data']));
+        $t->same(false, isset($policy['archive']));
+        $t->same(false, isset($policy['tarBytes']));
+        $t->same("# GZIP member metadata policy\n\nReady for WordPress archive review.\n", $roundTrip->read('/packet/content.md'));
+
+        $t->same('within-thresholds', $safePolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $safePolicy['extractionPolicy']);
+        $t->same([], $safePolicy['diagnostics']);
+        $t->same(0, $safePolicy['unsafeFilenameMemberCount']);
+        $t->same(0, $safePolicy['unsafeCommentMemberCount']);
+        $t->same('metadata', $safePolicy['members'][0]['policy']);
+        $t->same([], $safePolicy['members'][0]['diagnostics']);
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectGzipMemberMetadataPolicy(
+            $tarBytes,
+            ArchiveCompressionStream::FORMAT_TAR
+        ));
+    },
+
     'labels gzip timestamp compression and platform provenance for review packets' => static function (TestRunner $t): void {
         $archive = TarArchive::fromEntries([
             [

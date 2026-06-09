@@ -75,6 +75,9 @@ $koi8RText = (string) $koi8RSource->children[1]->attr('text');
 $koi8UBytes = "# \xF5\xCB\xD2\xC1\xA7\xCE\xC1\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xEB\xC9\xA7\xD7; \xA7\xD6\xC1\xCB \xA6 \xAD\xC1\xCE\xCF\xCB; \xB4\xB6\xB7\xBD.";
 $koi8USource = (new MarkdownReader())->readBytes($koi8UBytes, 'koi8-u');
 $koi8UText = (string) $koi8USource->children[1]->attr('text');
+$koi8RuBytes = "# \xE2\xC5\xCC\xC1\xD2\xD5\xD3\xD8\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xED\xA6\xCE\xD3\xCB; \xE2\xC5\xCC\xC1\xD2\xD5\xD3\xD8: \xBE\xAE; \xF5\xCB\xD2\xC1\xA7\xCE\xC1 \xB4\xB6\xB7\xBD.";
+$koi8RuSource = (new MarkdownReader())->readBytes($koi8RuBytes, 'koi8-ru');
+$koi8RuText = (string) $koi8RuSource->children[1]->attr('text');
 $koi8TBytes = "# \xF4\xCF\x8D\xC9\xCB\xC9\xD3\xD4\xCF\xCE\n\n\xED\xC1\xD4\xCE \x93\xD4\xCF\x8D\xC9\xCB\xA5\x94 \x97 \xB9 7; \x83\xC1\xC6\xD5\xD2; \x90\xA1\x80\xCF\xCE; \xA2\x8C\x8E\x8D.";
 $koi8TSource = (new MarkdownReader())->readBytes($koi8TBytes, 'koi8-tajik');
 $koi8TText = (string) $koi8TSource->children[1]->attr('text');
@@ -700,6 +703,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8USource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8UText) . '/' . UnicodeText::displayWidth($koi8UText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'KOI8-RU source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $koi8RuText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8RuSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8RuText) . '/' . UnicodeText::displayWidth($koi8RuText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'KOI8-T source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $koi8TText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($koi8TSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($koi8TText) . '/' . UnicodeText::displayWidth($koi8TText, 'wide')])]),
@@ -1252,6 +1260,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>KOI8-U source</td><td>Редактор Київ; їжак і ґанок; ЄІЇҐ.</td><td>koi8-u:34/52</td>')) {
         throw new RuntimeException('charset handoff self-test missing KOI8-U Ukrainian decode audit row');
+    }
+    if (($koi8RuSource->attr('sourceEncoding')['encoding'] ?? '') !== 'koi8-ru') {
+        throw new RuntimeException('charset handoff self-test missing KOI8-RU source encoding');
+    }
+    if (!str_contains($blocks, '<td>KOI8-RU source</td><td>Редактор Мінск; Беларусь: Ўў; Україна ЄІЇҐ.</td><td>koi8-ru:43/69</td>')) {
+        throw new RuntimeException('charset handoff self-test missing KOI8-RU Belarusian decode audit row');
     }
     if (($koi8TSource->attr('sourceEncoding')['encoding'] ?? '') !== 'koi8-t') {
         throw new RuntimeException('charset handoff self-test missing KOI8-T source encoding');

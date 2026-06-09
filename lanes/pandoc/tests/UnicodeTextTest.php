@@ -388,6 +388,27 @@ return [
         $t->contains('<h1 id="україна">Україна</h1>', $blocks);
         $t->contains('<p>Редактор Київ; їжак і ґанок; ЄІЇҐ.</p>', $blocks);
     },
+    'decodes koi8 ru belarusian ukrainian source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# \xE2\xC5\xCC\xC1\xD2\xD5\xD3\xD8\n\n\xF2\xC5\xC4\xC1\xCB\xD4\xCF\xD2 \xED\xA6\xCE\xD3\xCB; \xE2\xC5\xCC\xC1\xD2\xD5\xD3\xD8: \xBE\xAE; \xF5\xCB\xD2\xC1\xA7\xCE\xC1 \xB4\xB6\xB7\xBD.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'koi8-ru');
+        $document = (new MarkdownReader())->readBytes($bytes, 'cskoi8ru');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\xA4\xA6\xA7\xAD\xAE\xB4\xB6\xB7\xBD\xBE", 'koi8-ru');
+        $koi8UComparison = UnicodeText::decodeBytes("\xAE\xBE", 'koi8-u');
+
+        $t->same('koi8-ru', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Беларусь\n\nРедактор Мінск; Беларусь: Ўў; Україна ЄІЇҐ.", $decoded['text']);
+        $t->same('єіїґўЄІЇҐЎ', $specials['text']);
+        $t->same('╝╬', $koi8UComparison['text']);
+        $t->same(['encoding' => 'koi8-ru', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Беларусь', $document->children[0]->attr('text'));
+        $t->same('Редактор Мінск; Беларусь: Ўў; Україна ЄІЇҐ.', $document->children[1]->attr('text'));
+        $t->same(43, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(69, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="беларусь">Беларусь</h1>', $blocks);
+        $t->contains('<p>Редактор Мінск; Беларусь: Ўў; Україна ЄІЇҐ.</p>', $blocks);
+    },
     'decodes koi8 t tajik source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xF4\xCF\x8D\xC9\xCB\xC9\xD3\xD4\xCF\xCE\n\n\xED\xC1\xD4\xCE \x93\xD4\xCF\x8D\xC9\xCB\xA5\x94 \x97 \xB9 7; \x83\xC1\xC6\xD5\xD2; \x90\xA1\x80\xCF\xCE; \xA2\x8C\x8E\x8D.";
         $decoded = UnicodeText::decodeBytes($bytes, 'koi8-tajik');

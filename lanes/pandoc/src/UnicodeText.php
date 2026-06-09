@@ -906,6 +906,20 @@ final class UnicodeText
     ];
 
     /** @var array<int, int> */
+    private const KOI8_RU_OVERRIDES = [
+        0xa4 => 0x0454,
+        0xa6 => 0x0456,
+        0xa7 => 0x0457,
+        0xad => 0x0491,
+        0xae => 0x045e,
+        0xb4 => 0x0404,
+        0xb6 => 0x0406,
+        0xb7 => 0x0407,
+        0xbd => 0x0490,
+        0xbe => 0x040e,
+    ];
+
+    /** @var array<int, int> */
     private const KOI8_T_REPLACEMENTS = [
         0x80 => 0x049b,
         0x81 => 0x0493,
@@ -4709,6 +4723,7 @@ final class UnicodeText
             || $normalized === 'windows-874'
             || $normalized === 'koi8-r'
             || $normalized === 'koi8-u'
+            || $normalized === 'koi8-ru'
             || $normalized === 'koi8-t'
             || $normalized === 'ibm437'
             || $normalized === 'ibm737'
@@ -5523,6 +5538,7 @@ final class UnicodeText
             'windows874', 'cp874', 'microsoftcp874', 'ms874', 'xcp874', 'dos874' => 'windows-874',
             'koi8r', 'cskoi8r', 'koi8' => 'koi8-r',
             'koi8u', 'cskoi8u' => 'koi8-u',
+            'koi8ru', 'cskoi8ru', 'koi8russianukrainian' => 'koi8-ru',
             'koi8t', 'cskoi8t', 'koi8tajik' => 'koi8-t',
             '437', 'cp437', 'ibm437', 'dos437', 'xcp437', 'oem437', 'cspc8codepage437', 'csibm437' => 'ibm437',
             '737', 'cp737', 'ibm737', 'dos737', 'xcp737', 'oem737', 'csibm737' => 'ibm737',
@@ -6315,9 +6331,13 @@ final class UnicodeText
                 $repairs++;
                 continue;
             }
-            if (($encoding === 'koi8-r' || $encoding === 'koi8-u') && $byte >= 0x80) {
+            if (($encoding === 'koi8-r' || $encoding === 'koi8-u' || $encoding === 'koi8-ru') && $byte >= 0x80) {
                 if ($encoding === 'koi8-u' && isset(self::KOI8_U_OVERRIDES[$byte])) {
                     $out .= self::fromCodepoint(self::KOI8_U_OVERRIDES[$byte]);
+                    continue;
+                }
+                if ($encoding === 'koi8-ru' && isset(self::KOI8_RU_OVERRIDES[$byte])) {
+                    $out .= self::fromCodepoint(self::KOI8_RU_OVERRIDES[$byte]);
                     continue;
                 }
 
