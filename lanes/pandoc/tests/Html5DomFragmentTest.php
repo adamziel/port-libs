@@ -2339,7 +2339,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author" data-pandoc-microdata-properties="headline schema:name" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author" data-pandoc-microdata-ref-count="2" data-pandoc-microdata-ref-missing="headline author" data-pandoc-microdata-ref-missing-count="2" data-pandoc-microdata-properties="headline schema:name" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
             . '<h1 data-pandoc-microdata-property="headline schema:name" data-pandoc-microdata-value="Title">Title</h1>'
             . '<a data-pandoc-rdfa-property="schema:url og:url" data-pandoc-rdfa-typeof="schema:Article https://schema.org/NewsArticle" data-pandoc-rdfa-about="https://source.example.test/import/posts/post.html#article" data-pandoc-rdfa-resource="https://source.example.test/import/posts/canonical.html" data-pandoc-rdfa-vocab="https://schema.org/" data-pandoc-rdfa-prefix="schema: https://schema.org/ og: https://ogp.me/ns#" href="https://source.example.test/import/posts/canonical.html">Canonical</a>'
             . '<span data-pandoc-rdfa-property="og:title">Social</span></article>';
@@ -2374,6 +2374,7 @@ return [
             'unsafe-url',
             'unsafe-attribute',
             'semantic-metadata-review',
+            'microdata-itemref-review',
             'microdata-item-review',
         ], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
@@ -2382,6 +2383,9 @@ return [
             'data-pandoc-microdata-type' => 'https://schema.org/Article https://source.example.test/import/posts/types/Local',
             'data-pandoc-microdata-id' => 'https://source.example.test/import/posts/articles/42',
             'data-pandoc-microdata-ref' => 'headline author',
+            'data-pandoc-microdata-ref-count' => '2',
+            'data-pandoc-microdata-ref-missing' => 'headline author',
+            'data-pandoc-microdata-ref-missing-count' => '2',
             'data-pandoc-microdata-properties' => 'headline schema:name',
             'data-pandoc-microdata-property-count' => '2',
             'data-pandoc-microdata-value-count' => '2',
@@ -2540,6 +2544,54 @@ return [
             $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
         }
     },
+    'preserves microdata itemref inventories as inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Article" itemref="headline author missing-id">'
+            . '<h1 id="headline" itemprop="headline">Referenced title</h1>'
+            . '<p id="author" itemprop="author">Reference author</p>'
+            . '</article>',
+            'https://source.example.test/import/posts/ref-review.html'
+        );
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-itemref-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $itemRefDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-itemref-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article" data-pandoc-microdata-ref="headline author missing-id" data-pandoc-microdata-ref-count="3" data-pandoc-microdata-ref-resolved="headline author" data-pandoc-microdata-ref-resolved-count="2" data-pandoc-microdata-ref-missing="missing-id" data-pandoc-microdata-ref-missing-count="1" data-pandoc-microdata-properties="headline author" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
+            . '<h1 id="headline" data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Referenced title">Referenced title</h1>'
+            . '<p id="author" data-pandoc-microdata-property="author" data-pandoc-microdata-value="Reference author">Reference author</p></article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Article',
+            'data-pandoc-microdata-ref' => 'headline author missing-id',
+            'data-pandoc-microdata-ref-count' => '3',
+            'data-pandoc-microdata-ref-resolved' => 'headline author',
+            'data-pandoc-microdata-ref-resolved-count' => '2',
+            'data-pandoc-microdata-ref-missing' => 'missing-id',
+            'data-pandoc-microdata-ref-missing-count' => '1',
+            'data-pandoc-microdata-properties' => 'headline author',
+            'data-pandoc-microdata-property-count' => '2',
+            'data-pandoc-microdata-value-count' => '2',
+        ], $nodes[0]['attrs']);
+        $t->same(1, count($itemRefDiagnostics));
+        $t->same(3, $itemRefDiagnostics[0]['referenceCount']);
+        $t->same(2, $itemRefDiagnostics[0]['resolvedCount']);
+        $t->same(1, $itemRefDiagnostics[0]['missingCount']);
+        $t->same('/migration/microdata-itemref-review.html', $document->children[0]->attr('part'));
+        foreach ([' itemscope', ' itemtype=', ' itemref=', ' itemprop='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
+        }
+    },
     'adds source line metadata to semantic metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "<article itemscope itemtype=\"./types/Local javascript:alert(1)\" itemid=\"./articles/42\" itemref=\"headline bad<tag\">\n"
@@ -2585,7 +2637,7 @@ return [
             }
         ));
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline" data-pandoc-microdata-properties="headline" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1">' . "\n"
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline" data-pandoc-microdata-ref-count="1" data-pandoc-microdata-ref-missing="headline" data-pandoc-microdata-ref-missing-count="1" data-pandoc-microdata-properties="headline" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1">' . "\n"
             . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Title">Title</h1>' . "\n"
             . '<a data-pandoc-rdfa-property="schema:url" data-pandoc-rdfa-about="https://source.example.test/import/posts/article" data-pandoc-rdfa-prefix="schema: https://source.example.test/import/posts/schema" href="https://source.example.test/import/posts/canonical.html">Canonical</a>' . "\n"
             . '</article>';

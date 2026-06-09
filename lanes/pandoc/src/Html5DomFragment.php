@@ -647,6 +647,7 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $elementForeignContext === null) {
             self::markHtmlMicrodataValueMetadata($node, $name, $attrs, $children, $diagnostics);
+            self::markHtmlMicrodataItemRefMetadata($node, $name, $attrs, $diagnostics);
             self::markHtmlMicrodataItemSummaryMetadata($node, $name, $attrs, $children, $diagnostics);
         }
 
@@ -8165,6 +8166,101 @@ final class Html5DomFragment
             'metadataAttribute' => 'data-pandoc-microdata-properties',
             'reason' => 'microdata-item-property-summary-preserved-as-review-metadata',
         ], $element);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataItemRefMetadata(
+        \DOMElement $element,
+        string $tagName,
+        array &$attrs,
+        array &$diagnostics
+    ): void {
+        if (!array_key_exists('data-pandoc-microdata-scope', $attrs)) {
+            return;
+        }
+        if (!isset($attrs['data-pandoc-microdata-ref'])) {
+            return;
+        }
+
+        $references = self::splitHtmlSemanticTokens($attrs['data-pandoc-microdata-ref']);
+        if ($references === []) {
+            return;
+        }
+
+        $summary = self::htmlMicrodataItemRefSummary($element, $references);
+        $attrs['data-pandoc-microdata-ref-count'] = (string) count($references);
+        if ($summary['resolved'] !== []) {
+            $resolved = implode(' ', $summary['resolved']);
+            if (strlen($resolved) <= 512) {
+                $attrs['data-pandoc-microdata-ref-resolved'] = $resolved;
+            }
+            $attrs['data-pandoc-microdata-ref-resolved-count'] = (string) count($summary['resolved']);
+        }
+        if ($summary['missing'] !== []) {
+            $missing = implode(' ', $summary['missing']);
+            if (strlen($missing) <= 512) {
+                $attrs['data-pandoc-microdata-ref-missing'] = $missing;
+            }
+            $attrs['data-pandoc-microdata-ref-missing-count'] = (string) count($summary['missing']);
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'microdata-itemref-review',
+            'tag' => $tagName,
+            'attribute' => 'itemref',
+            'metadataAttribute' => 'data-pandoc-microdata-ref-count',
+            'referenceCount' => count($references),
+            'resolvedCount' => count($summary['resolved']),
+            'missingCount' => count($summary['missing']),
+            'reason' => 'microdata-itemref-inventory-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<string> $references
+     * @return array{resolved:list<string>, missing:list<string>}
+     */
+    private static function htmlMicrodataItemRefSummary(\DOMElement $element, array $references): array
+    {
+        $resolved = [];
+        $missing = [];
+        $document = $element->ownerDocument;
+        $ids = $document instanceof \DOMDocument ? self::htmlDocumentElementIdSet($document) : [];
+        foreach ($references as $reference) {
+            if (isset($ids[$reference])) {
+                $resolved[] = $reference;
+                continue;
+            }
+
+            $missing[] = $reference;
+        }
+
+        return [
+            'resolved' => $resolved,
+            'missing' => $missing,
+        ];
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private static function htmlDocumentElementIdSet(\DOMDocument $document): array
+    {
+        $ids = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            $id = $element->getAttribute('id');
+            if ($id !== '') {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**
