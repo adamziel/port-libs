@@ -394,6 +394,10 @@ final class SyntaxHighlighter
         'typescriptreact' => 'tsx',
         'udiff' => 'diff',
         'unified-diff' => 'diff',
+        'v' => 'v',
+        'v-language' => 'v',
+        'v-source' => 'v',
+        'vlang' => 'v',
         'vue' => 'vue',
         'vue-component' => 'vue',
         'vue-sfc' => 'vue',
@@ -902,6 +906,7 @@ final class SyntaxHighlighter
             'tsx' => $this->tokenizeTsx($code),
             'typst' => $this->tokenizeTypst($code),
             'typescript' => $this->tokenizeTypeScript($code),
+            'v' => $this->tokenizeV($code),
             'vim' => $this->tokenizeVimscript($code),
             'vue' => $this->tokenizeVue($code),
             'xml' => $this->tokenizeXml($code),
@@ -3562,6 +3567,34 @@ final class SyntaxHighlighter
             ['attribute', '/^[A-Za-z_][A-Za-z0-9_-]*(?=\\s*:)/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_-]*\\b/'],
             ['operator', '/^(?:=>|==|!=|<=|>=|\\.\\.\\.|[{}()[\\],.:;=+*\\/%!<>?&|#~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeV(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['attribute', '/^\\[(?:(?:json|heap|deprecated|manualfree|params|inline|typedef|unsafe|flag|export|extern|if|console)(?::[^\\]\\n]*)?|[A-Za-z_][A-Za-z0-9_]*\\s*:[^\\]\\n]+)\\](?:[ \\t]*\\[(?:(?:json|heap|deprecated|manualfree|params|inline|typedef|unsafe|flag|export|extern|if|console)(?::[^\\]\\n]*)?|[A-Za-z_][A-Za-z0-9_]*\\s*:[^\\]\\n]+)\\])*/i'],
+            ['string', '/^r"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^r'(?:\\\\.|[^'\\\\])*'/s"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
+            ['string', '/^`(?:\\\\.|[^`\\\\])*`/s'],
+            ['keyword', '/^\\$(?:else|for|if)\\b/'],
+            ['function', '/^\\$d(?=\\s*\\()/'],
+            ['keyword', '/^\\b(?:as|asm|assert|atomic|break|const|continue|defer|else|enum|fn|for|go|goto|if|import|in|interface|is|lock|match|module|mut|or|pub|return|rlock|select|shared|spawn|static|struct|type|unsafe)\\b/'],
+            ['constant', '/^\\b(?:false|none|null|true)\\b/'],
+            ['datatype', '/^\\b(?:any|bool|byte|char|f32|f64|i16|i32|i64|i8|int|isize|map|rune|string|u16|u32|u64|u8|usize|voidptr)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d[\\d_]*)?)(?:[A-Za-z][A-Za-z0-9_]*)?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({\\[.!?]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['variable', '/^\\$[A-Za-z_][A-Za-z0-9_]*/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.?|:=|=>|\\?\\?|\\?|!|==|!=|<=|>=|&&|\\|\\||<-|[{}()[\\];,.+*\\/%=<>:&|^~@-])/'],
         ]);
     }
 

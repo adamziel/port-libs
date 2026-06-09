@@ -1735,3 +1735,36 @@ proc queueReview*(raw: string): JsonNode =
     "blocks": packet.blocks
   }
 ```
+
+``` {.v #v-review .numberLines startFrom=1460}
+// V WordPress import review helper
+module review
+
+import json
+import strings
+
+[json: source_id]
+struct ReviewPacket {
+    source_id int
+    title ?string
+    blocks []string
+}
+
+pub fn normalize_title(packet ReviewPacket) !string {
+    mut title := packet.title or { 'Untitled' }
+    title = strings.trim_space(title)
+    if title.len == 0 {
+        return error('missing title for ${packet.source_id}')
+    }
+    $if debug {
+        println('review ${packet.source_id}')
+    }
+    return title
+}
+
+pub fn queue_review(raw string) !map[string]string {
+    packet := json.decode(ReviewPacket, raw)!
+    title := normalize_title(packet)!
+    return {'title': title, 'dryRun': 'true'}
+}
+```

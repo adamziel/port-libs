@@ -562,6 +562,12 @@ if (!$nimCodeBlock instanceof PortLibs\Pandoc\AstNode || $nimCodeBlock->type !==
 }
 $nim = $highlighter->highlightCodeBlock($nimCodeBlock, 'monochrome');
 $nimWordpressBlock = $highlighter->wordpressHtmlBlock($nimCodeBlock, 'monochrome');
+$vCodeBlock = $document->children[90] ?? null;
+if (!$vCodeBlock instanceof PortLibs\Pandoc\AstNode || $vCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a V review packet code block');
+}
+$v = $highlighter->highlightCodeBlock($vCodeBlock, 'haddock');
+$vWordpressBlock = $highlighter->wordpressHtmlBlock($vCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2486,6 +2492,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($nimWordpressBlock, '<span class="fu">normalizeTitle</span><span class="op">(</span><span class="va">packet</span><span class="op">),</span>')) {
         throw new RuntimeException('Expected Nim WordPress block token handoff');
     }
+    if (($v['language'] ?? '') !== 'v') {
+        throw new RuntimeException('Expected V language alias handoff');
+    }
+    if (($v['requestedLanguage'] ?? '') !== 'v') {
+        throw new RuntimeException('Expected V requested-language metadata');
+    }
+    if (($v['lineNumbering']['start'] ?? null) !== 1460) {
+        throw new RuntimeException('Expected V line-number start handoff');
+    }
+    if (!str_contains($v['html'], '<span class="kw">module</span> <span class="va">review</span>')) {
+        throw new RuntimeException('Expected V module token handoff');
+    }
+    if (!str_contains($v['html'], '<span class="ot">[json: source_id]</span>')) {
+        throw new RuntimeException('Expected V attribute token handoff');
+    }
+    if (!str_contains($v['html'], '<span class="kw">pub</span> <span class="kw">fn</span> <span class="fu">normalize_title</span>')) {
+        throw new RuntimeException('Expected V function token handoff');
+    }
+    if (!str_contains($vWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected V WordPress style metadata');
+    }
+    if (!str_contains($vWordpressBlock, '<span class="kw">$if</span> <span class="va">debug</span>')) {
+        throw new RuntimeException('Expected V compile-time guard token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2594,6 +2624,7 @@ echo "groovyHighlightedHtml:\n" . $groovy['html'] . "\n";
 echo "crystalHighlightedHtml:\n" . $crystal['html'] . "\n";
 echo "shellSessionHighlightedHtml:\n" . $shellSession['html'] . "\n";
 echo "nimHighlightedHtml:\n" . $nim['html'] . "\n";
+echo "vHighlightedHtml:\n" . $v['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2673,4 +2704,5 @@ echo "groovyWordpressBlock:\n" . $groovyWordpressBlock . "\n";
 echo "crystalWordpressBlock:\n" . $crystalWordpressBlock . "\n";
 echo "shellSessionWordpressBlock:\n" . $shellSessionWordpressBlock . "\n";
 echo "nimWordpressBlock:\n" . $nimWordpressBlock . "\n";
+echo "vWordpressBlock:\n" . $vWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

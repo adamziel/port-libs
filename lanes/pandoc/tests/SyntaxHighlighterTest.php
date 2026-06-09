@@ -286,6 +286,10 @@ return [
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typst'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('typ'));
         $t->same('typst', SyntaxHighlighter::normalizeLanguage('language-typst-source'));
+        $t->same('v', SyntaxHighlighter::normalizeLanguage('v'));
+        $t->same('v', SyntaxHighlighter::normalizeLanguage('vlang'));
+        $t->same('v', SyntaxHighlighter::normalizeLanguage('v-source'));
+        $t->same('v', SyntaxHighlighter::normalizeLanguage('language-v-language'));
         $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tcl'));
         $t->same('tcl', SyntaxHighlighter::normalizeLanguage('tclsh'));
         $t->same('tcl', SyntaxHighlighter::normalizeLanguage('Tcl/Tk'));
@@ -4476,6 +4480,52 @@ return [
         $t->same('nimrod', $directNim['requestedLanguage']);
         $t->contains('<span class="kw">proc</span> <span class="fu">queue*</span><span class="op">(</span><span class="va">title</span><span class="op">:</span> <span class="dt">Option</span><span class="op">[</span><span class="dt">string</span><span class="op">]):</span> <span class="dt">string</span>', $directNim['html']);
         $t->contains('<span class="va">title</span><span class="op">.</span><span class="fu">get</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directNim['html']);
+    },
+    'highlights v review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[90] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a V review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directV = $highlighter->highlight("module review\npub fn main() !map[string]string { return {'dryRun': 'true'} }", 'vlang');
+
+        $t->same('v', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('v', $highlighted['language']);
+        $t->same('v', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1460, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource v numberLines"><code class="sourceCode v" style="counter-reset: source-line 1459;">', $highlighted['html']);
+        $t->contains('<span id="v-review-1460"><a href="#v-review-1460"></a><span class="co">// V WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="va">review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">json</span>', $highlighted['html']);
+        $t->contains('<span class="ot">[json: source_id]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">struct</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span> <span class="op">?</span><span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="va">blocks</span> <span class="op">[]</span><span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="kw">pub</span> <span class="kw">fn</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">!</span><span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="kw">mut</span> <span class="va">title</span> <span class="op">:=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span> <span class="kw">or</span> <span class="op">{</span> <span class="st">&#039;Untitled&#039;</span> <span class="op">}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">error</span><span class="op">(</span><span class="st">&#039;missing title for ${packet.source_id}&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">$if</span> <span class="va">debug</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="fu">println</span><span class="op">(</span><span class="st">&#039;review ${packet.source_id}&#039;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="dt">map</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span><span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span> <span class="op">:=</span> <span class="va">json</span><span class="op">.</span><span class="fu">decode</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">,</span> <span class="va">raw</span><span class="op">)!</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="op">{</span><span class="st">&#039;title&#039;</span><span class="op">:</span> <span class="va">title</span><span class="op">,</span> <span class="st">&#039;dryRun&#039;</span><span class="op">:</span> <span class="st">&#039;true&#039;</span><span class="op">}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="kw">$if</span> <span class="va">debug</span>', $wordpressBlock);
+        $t->same('v', $directV['language']);
+        $t->same('vlang', $directV['requestedLanguage']);
+        $t->contains('<span class="kw">pub</span> <span class="kw">fn</span> <span class="fu">main</span><span class="op">()</span> <span class="op">!</span><span class="dt">map</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span><span class="dt">string</span>', $directV['html']);
+        $t->contains('<span class="kw">return</span> <span class="op">{</span><span class="st">&#039;dryRun&#039;</span><span class="op">:</span> <span class="st">&#039;true&#039;</span><span class="op">}</span>', $directV['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
