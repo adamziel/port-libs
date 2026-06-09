@@ -4046,6 +4046,50 @@ return [
         $t->contains('<span class="kw">sub</span> <span class="fu">normalize</span><span class="op">(</span><span class="dt">Str</span> <span class="va">$title</span> <span class="op">--&gt;</span> <span class="dt">Str</span><span class="op">)</span> <span class="kw">is</span> <span class="kw">export</span>', $directRaku['html']);
         $t->contains('<span class="fu">say</span> <span class="va">$title</span><span class="op">.</span><span class="va">trim</span>', $directRaku['html']);
     },
+    'preserves raku pod block boundaries and heredoc quote forms' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[96] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Raku POD quote review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'breezedark');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'breezedark');
+        $directRakuQuote = $highlighter->highlight(
+            "=begin pod\n=head1 Direct\n=end pod\nmy \$block = qq:to/HTML/;\n<p>{{title}}</p>\nHTML\nsay \$block;",
+            'rakudoc'
+        );
+
+        $t->same('rakudoc', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('raku', SyntaxHighlighter::normalizeLanguage('rakudoc'));
+        $t->same('raku', $highlighted['language']);
+        $t->same('rakudoc', $highlighted['requestedLanguage']);
+        $t->same('breezedark', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1610, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource rakudoc numberLines"><code class="sourceCode raku" style="counter-reset: source-line 1609;">', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1610"><a href="#raku-pod-quote-review-1610"></a><span class="co">=begin pod</span></span>', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1614"><a href="#raku-pod-quote-review-1614"></a><span class="co">=end pod</span></span>', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1616"><a href="#raku-pod-quote-review-1616"></a><span class="kw">my</span> <span class="va">$title</span> <span class="op">=</span> <span class="st">q:to/END/;</span></span>', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1617"><a href="#raku-pod-quote-review-1617"></a><span class="st">Legacy shortcode [gallery]</span></span>', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1621"><a href="#raku-pod-quote-review-1621"></a><span class="st">&lt;!-- wp:paragraph --&gt;&lt;p&gt;$title&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;</span></span>', $highlighted['html']);
+        $t->contains('<span id="raku-pod-quote-review-1624"><a href="#raku-pod-quote-review-1624"></a><span class="fu">say</span> <span class="va">$title</span><span class="op">.</span><span class="va">trim</span><span class="op">;</span></span>', $highlighted['html']);
+        $t->contains('<!-- wp:html -->', $wordpressBlock);
+        $t->contains('<style data-pandoc-highlight-style="breezedark">', $wordpressBlock);
+        $t->contains('<pre class="sourceCode numberSource rakudoc numberLines"><code class="sourceCode raku" style="counter-reset: source-line 1609;">', $wordpressBlock);
+        $t->same('raku', $directRakuQuote['language']);
+        $t->same('rakudoc', $directRakuQuote['requestedLanguage']);
+        $t->contains("=end pod</span>\n<span class=\"kw\">my</span>", $directRakuQuote['html']);
+        $t->contains('<span class="kw">my</span> <span class="va">$block</span> <span class="op">=</span> <span class="st">qq:to/HTML/;', $directRakuQuote['html']);
+        $t->contains("qq:to/HTML/;\n&lt;p&gt;{{title}}&lt;/p&gt;\nHTML</span>", $directRakuQuote['html']);
+        $t->contains('<span class="fu">say</span> <span class="va">$block</span><span class="op">;</span>', $directRakuQuote['html']);
+    },
     'highlights fennel review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
         if (!is_string($fixture)) {

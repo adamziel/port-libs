@@ -598,6 +598,12 @@ if (!$fsharpCodeBlock instanceof PortLibs\Pandoc\AstNode || $fsharpCodeBlock->ty
 }
 $fsharp = $highlighter->highlightCodeBlock($fsharpCodeBlock, 'kate');
 $fsharpWordpressBlock = $highlighter->wordpressHtmlBlock($fsharpCodeBlock, 'kate');
+$rakuPodQuoteCodeBlock = $document->children[96] ?? null;
+if (!$rakuPodQuoteCodeBlock instanceof PortLibs\Pandoc\AstNode || $rakuPodQuoteCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Raku POD quote review code block');
+}
+$rakuPodQuote = $highlighter->highlightCodeBlock($rakuPodQuoteCodeBlock, 'breezedark');
+$rakuPodQuoteWordpressBlock = $highlighter->wordpressHtmlBlock($rakuPodQuoteCodeBlock, 'breezedark');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2651,6 +2657,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($fsharpWordpressBlock, '<span class="kw">return</span> <span class="op">{|</span> <span class="va">title</span> <span class="op">=</span> <span class="fu">normalizeTitle</span>')) {
         throw new RuntimeException('Expected F# anonymous-record token handoff');
     }
+    if (($rakuPodQuote['language'] ?? '') !== 'raku') {
+        throw new RuntimeException('Expected Raku POD quote language alias handoff');
+    }
+    if (($rakuPodQuote['requestedLanguage'] ?? '') !== 'rakudoc') {
+        throw new RuntimeException('Expected Raku POD quote requested-language metadata');
+    }
+    if (($rakuPodQuote['lineNumbering']['start'] ?? null) !== 1610) {
+        throw new RuntimeException('Expected Raku POD quote line-number start handoff');
+    }
+    if (!str_contains($rakuPodQuote['html'], '<span class="co">=end pod</span></span>')) {
+        throw new RuntimeException('Expected Raku POD terminator comment boundary handoff');
+    }
+    if (!str_contains($rakuPodQuote['html'], '<span class="kw">my</span> <span class="va">$title</span> <span class="op">=</span> <span class="st">q:to/END/;</span>')) {
+        throw new RuntimeException('Expected Raku q:to heredoc opener string handoff');
+    }
+    if (!str_contains($rakuPodQuote['html'], '<span class="fu">say</span> <span class="va">$title</span><span class="op">.</span><span class="va">trim</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected Raku code after POD and heredoc to remain tokenized');
+    }
+    if (!str_contains($rakuPodQuoteWordpressBlock, '<style data-pandoc-highlight-style="breezedark">')) {
+        throw new RuntimeException('Expected Raku POD quote WordPress style metadata');
+    }
+    if (!str_contains($rakuPodQuoteWordpressBlock, '<span class="st">&lt;!-- wp:paragraph --&gt;&lt;p&gt;$title&lt;/p&gt;&lt;!-- /wp:paragraph --&gt;</span>')) {
+        throw new RuntimeException('Expected Raku qq:to heredoc body token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2765,6 +2795,7 @@ echo "coqHighlightedHtml:\n" . $coq['html'] . "\n";
 echo "agdaHighlightedHtml:\n" . $agda['html'] . "\n";
 echo "purescriptHighlightedHtml:\n" . $purescript['html'] . "\n";
 echo "fsharpHighlightedHtml:\n" . $fsharp['html'] . "\n";
+echo "rakuPodQuoteHighlightedHtml:\n" . $rakuPodQuote['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2850,4 +2881,5 @@ echo "coqWordpressBlock:\n" . $coqWordpressBlock . "\n";
 echo "agdaWordpressBlock:\n" . $agdaWordpressBlock . "\n";
 echo "purescriptWordpressBlock:\n" . $purescriptWordpressBlock . "\n";
 echo "fsharpWordpressBlock:\n" . $fsharpWordpressBlock . "\n";
+echo "rakuPodQuoteWordpressBlock:\n" . $rakuPodQuoteWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

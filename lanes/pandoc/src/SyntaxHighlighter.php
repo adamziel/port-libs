@@ -3278,8 +3278,11 @@ final class SyntaxHighlighter
     private function tokenizeRaku(string $code): array
     {
         return $this->scan($code, [
-            ['comment', '/^=(?:begin|for|head\\d|item|end)\\b[^\\n]*(?:\\n(?!=(?:end|begin|for|head\\d|item)\\b)[^\\n]*)*/'],
+            ['comment', '/^=begin\\b[^\\n]*(?:\\n(?!^=end\\b)[^\\n]*)*\\n^=end\\b[^\\n]*/m'],
+            ['comment', '/^=finish\\b[\\s\\S]*/i'],
+            ['comment', '/^=(?:begin|for|head\\d|item|end|para|defn|code|comment)\\b[^\\n]*/i'],
             ['comment', '/^#[^\\n]*/'],
+            ['string', '/^q[qxw]?\\s*:to\\s*\\/([A-Za-z_][A-Za-z0-9_-]*)\\/\\s*;?\\R[\\s\\S]*?^\\1\\s*$/m'],
             ['string', '/^q[qxw]?(?:\\{(?:\\\\.|[^}\\\\])*\\}|\\[(?:\\\\.|[^\\]\\\\])*\\]|\\((?:\\\\.|[^)\\\\])*\\)|<(?:\\\\.|[^>\\\\])*>|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\')/s'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],

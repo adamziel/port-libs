@@ -1895,3 +1895,21 @@ let queueReview packet =
         return {| title = normalizeTitle packet; blockCount = blocks.Length |}
     }
 ```
+
+``` {.rakudoc #raku-pod-quote-review .numberLines startFrom=1610}
+=begin pod
+=head1 Import review
+
+Preserve WordPress shortcode notes while auditing generated HTML.
+=end pod
+
+my $title = q:to/END/;
+Legacy shortcode [gallery]
+END
+
+my $html = qq:to/HTML/;
+<!-- wp:paragraph --><p>$title</p><!-- /wp:paragraph -->
+HTML
+
+say $title.trim;
+```
