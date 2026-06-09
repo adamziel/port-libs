@@ -6565,6 +6565,146 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAnnotationAppearances']);
     },
 
+    'fake runner summarizes bounded pdf annotation appearance review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/annotation-appearance-policy.pdf']);
+        $offBytes = '';
+        $downBytes = "q 0.9 0.9 0.9 rg 0 0 24 24 re f Q\n";
+        $freeTextDownBytes = "q BT /Helv 10 Tf (Reviewer note) Tj ET Q\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [5 0 R 6 0 R 7 0 R] >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (review.choice) /AS /Yes /AP << /N << /Off 8 0 R >> /D 9 0 R >> >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /FreeText /Rect [72 620 300 660] /Contents (Needs a normal appearance) /AP << /D 10 0 R >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (review.empty) /Rect [72 580 300 604] /AP << /N 11 0 R >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 24 24] /Length 0 >>',
+            'stream',
+            $offBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 24 24] /Length ' . strlen($downBytes) . ' >>',
+            'stream',
+            $downBytes,
+            'endstream',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 228 40] /Length ' . strlen($freeTextDownBytes) . ' >>',
+            'stream',
+            $freeTextDownBytes,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 228 24] /Length 12 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/annotation-appearance-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/annotation-appearance-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '5 0 R',
+                'subtype' => 'Widget',
+                'fieldName' => 'review.choice',
+                'selectedState' => 'Yes',
+                'appearanceCount' => 2,
+                'normalAppearanceCount' => 1,
+                'rolloverAppearanceCount' => 0,
+                'downAppearanceCount' => 1,
+                'streamCount' => 2,
+                'streamBytes' => strlen($offBytes) + strlen($downBytes),
+                'skippedStreamCount' => 0,
+                'appearanceStates' => ['Off'],
+                'appearanceObjects' => ['8 0 R', '9 0 R'],
+                'reviewStatus' => 'review',
+                'issues' => ['selected-state-appearance-missing'],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '6 0 R',
+                'subtype' => 'FreeText',
+                'fieldName' => null,
+                'selectedState' => null,
+                'appearanceCount' => 1,
+                'normalAppearanceCount' => 0,
+                'rolloverAppearanceCount' => 0,
+                'downAppearanceCount' => 1,
+                'streamCount' => 1,
+                'streamBytes' => strlen($freeTextDownBytes),
+                'skippedStreamCount' => 0,
+                'appearanceStates' => [],
+                'appearanceObjects' => ['10 0 R'],
+                'reviewStatus' => 'missing',
+                'issues' => ['missing-normal-appearance'],
+            ],
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '7 0 R',
+                'subtype' => 'Widget',
+                'fieldName' => 'review.empty',
+                'selectedState' => null,
+                'appearanceCount' => 1,
+                'normalAppearanceCount' => 1,
+                'rolloverAppearanceCount' => 0,
+                'downAppearanceCount' => 0,
+                'streamCount' => 0,
+                'streamBytes' => 0,
+                'skippedStreamCount' => 0,
+                'appearanceStates' => [],
+                'appearanceObjects' => ['11 0 R'],
+                'reviewStatus' => 'review',
+                'issues' => ['missing-normal-appearance-stream'],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAnnotationAppearancePolicy'] ?? null);
+        $t->same($expected, $sequence['finalPdfAnnotationAppearancePolicy'] ?? null);
+        $t->contains('pdf-byte-annotation-appearance-policy:3', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-status:missing:1', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-status:review:2', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-normal:2', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-streams:3', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-states:1', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-issue:missing-normal-appearance:1', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-issue:missing-normal-appearance-stream:1', $diagnostics);
+        $t->contains('pdf-byte-annotation-appearance-policy-issue:selected-state-appearance-missing:1', $diagnostics);
+    },
+
     'fake runner summarizes bounded pdf stream filter policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/stream-filters.pdf']);

@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -481,7 +481,13 @@ final class Html5DomFragment
                     $baseUrl
                 );
 
-                return $objectSource === null ? $children : [$objectSource, ...$children];
+                if ($objectSource === null) {
+                    return $children;
+                }
+
+                $objectParamMetadata = self::htmlObjectParamReviewMetadataNodes($node, $diagnostics, $baseUrl);
+
+                return [$objectSource, ...$objectParamMetadata, ...$children];
             }
 
             if ($name === 'form') {
@@ -2782,6 +2788,264 @@ final class Html5DomFragment
                 'text' => $title !== '' ? $title : $fallbackLabel,
             ]],
         ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlObjectParamReviewMetadataNodes(
+        \DOMElement $object,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): array {
+        $nodes = [];
+        foreach ($object->childNodes as $child) {
+            if (!$child instanceof \DOMElement || strtolower($child->localName) !== 'param') {
+                continue;
+            }
+
+            $node = self::htmlObjectParamReviewMetadataNode($child, $diagnostics, $baseUrl);
+            if ($node === null) {
+                continue;
+            }
+
+            $nodes[] = $node;
+            if (count($nodes) >= 20) {
+                break;
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>|null
+     */
+    private static function htmlObjectParamReviewMetadataNode(
+        \DOMElement $param,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?array {
+        foreach ($param->attributes as $attribute) {
+            $attributeName = strtolower($attribute->name);
+            if (!str_starts_with($attributeName, 'data-pandoc-object-param-')) {
+                continue;
+            }
+
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'param',
+                'attribute' => $attributeName,
+                'reason' => 'reserved-review-metadata-source-spoof',
+            ], $param);
+        }
+
+        if (!$param->hasAttribute('name')) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'param',
+                'attribute' => 'name',
+                'reason' => 'missing-object-param-name',
+            ], $param);
+
+            return null;
+        }
+
+        $name = self::normalizeHtmlObjectParamName($param->getAttribute('name'));
+        if ($name === null) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'param',
+                'attribute' => 'name',
+                'reason' => 'invalid-object-param-name',
+            ], $param);
+
+            return null;
+        }
+
+        $attrs = [
+            'data-pandoc-object-param-name' => $name,
+        ];
+
+        $valueType = null;
+        if ($param->hasAttribute('valuetype')) {
+            $valueType = self::normalizeHtmlObjectParamValueType($param->getAttribute('valuetype'));
+            if ($valueType === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'param',
+                    'attribute' => 'valuetype',
+                    'reason' => 'invalid-object-param-valuetype',
+                ], $param);
+            } else {
+                $attrs['data-pandoc-object-param-valuetype'] = $valueType;
+            }
+        }
+
+        if ($param->hasAttribute('type')) {
+            $type = self::normalizeHtmlObjectParamType($param->getAttribute('type'));
+            if ($type === null) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-attribute',
+                    'tag' => 'param',
+                    'attribute' => 'type',
+                    'reason' => 'invalid-object-param-type',
+                ], $param);
+            } else {
+                $attrs['data-pandoc-object-param-type'] = $type;
+            }
+        }
+
+        $value = null;
+        if ($param->hasAttribute('value')) {
+            $value = self::normalizeHtmlObjectParamValue(
+                $param->getAttribute('value'),
+                $name,
+                $valueType,
+                $param,
+                $diagnostics,
+                $baseUrl
+            );
+            if ($value !== null) {
+                $attrs['data-pandoc-object-param-value'] = $value;
+            }
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'object-param-review',
+            'tag' => 'param',
+            'attribute' => $value === null ? 'name' : 'value',
+            'metadataAttribute' => $value === null ? 'data-pandoc-object-param-name' : 'data-pandoc-object-param-value',
+            'name' => $name,
+            'reason' => 'object-param-preserved-as-review-metadata',
+        ], $param);
+
+        $label = 'Object parameter: ' . $name;
+        if ($value !== null) {
+            $label .= '=' . $value;
+        }
+
+        return self::nodeWithSourceLine([
+            'type' => 'element',
+            'name' => 'span',
+            'attrs' => $attrs,
+            'children' => [[
+                'type' => 'text',
+                'text' => $label,
+            ]],
+        ], $param);
+    }
+
+    private static function normalizeHtmlObjectParamName(string $value): ?string
+    {
+        $name = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($name === '' || strlen($name) > 128 || preg_match('/^[a-z0-9][a-z0-9_.:-]*$/', $name) !== 1) {
+            return null;
+        }
+
+        return $name;
+    }
+
+    private static function normalizeHtmlObjectParamValueType(string $value): ?string
+    {
+        $valueType = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        return in_array($valueType, ['data', 'ref', 'object'], true) ? $valueType : null;
+    }
+
+    private static function normalizeHtmlObjectParamType(string $value): ?string
+    {
+        $type = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if ($type === '' || strlen($type) > 128 || preg_match('/^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*(?:;\s*[a-z0-9._-]+=[A-Za-z0-9._:+-]+)*$/', $type) !== 1) {
+            return null;
+        }
+
+        return $type;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlObjectParamValue(
+        string $value,
+        string $name,
+        ?string $valueType,
+        \DOMElement $param,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): ?string {
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '' || strlen($cleaned) > 512 || preg_match('/[<>{}`]/u', $cleaned) === 1) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => 'param',
+                'attribute' => 'value',
+                'reason' => 'invalid-object-param-value',
+            ], $param);
+
+            return null;
+        }
+
+        $isUrlValue = $valueType === 'ref' || self::isHtmlObjectParamUrlName($name);
+        $normalizedUrl = self::normalizeUrlAttributeValue($cleaned);
+        if ($isUrlValue) {
+            if ($normalizedUrl === '' || !self::isSafeFetchUrl($normalizedUrl)) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-url',
+                    'tag' => 'param',
+                    'attribute' => 'value',
+                    'name' => $name,
+                ], $param);
+
+                return null;
+            }
+
+            if ($normalizedUrl !== $cleaned) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'normalized-url',
+                    'tag' => 'param',
+                    'attribute' => 'value',
+                    'name' => $name,
+                ], $param);
+            }
+
+            return $baseUrl === null ? $normalizedUrl : self::resolveRelativeUrl($baseUrl, $normalizedUrl);
+        }
+
+        if (preg_match('/^(?:javascript|vbscript|data):/i', $normalizedUrl) === 1 || self::hasUnsafePercentDecodedUrlScheme($normalizedUrl)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-url',
+                'tag' => 'param',
+                'attribute' => 'value',
+                'name' => $name,
+            ], $param);
+
+            return null;
+        }
+
+        return $cleaned;
+    }
+
+    private static function isHtmlObjectParamUrlName(string $name): bool
+    {
+        return in_array($name, [
+            'archive',
+            'base',
+            'code',
+            'codebase',
+            'data',
+            'file',
+            'href',
+            'movie',
+            'pluginspage',
+            'pluginurl',
+            'poster',
+            'src',
+            'url',
+            'uri',
+        ], true);
     }
 
     /**

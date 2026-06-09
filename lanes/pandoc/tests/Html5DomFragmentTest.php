@@ -905,6 +905,78 @@ return [
         $t->true(!str_contains($blocks, '<object'), 'Expected WordPress blocks to omit object wrapper');
         $t->true(!str_contains($blocks, '<embed'), 'Expected WordPress blocks to omit embed wrapper');
     },
+    'converts safe object params into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . "<article>\n"
+            . '<object data="./docs/source.pdf" title="Embedded PDF source">'
+            . '<param name="movie" value="./media/player.swf" valuetype="ref" type="application/x-shockwave-flash">'
+            . '<param name="FlashVars" value=" autoplay = false ; poster = cover.png " data-pandoc-object-param-name="spoof">'
+            . '<param name="src" value="java&#10;script:alert(1)">'
+            . '<param name="bad name" value="drop">'
+            . '<p>PDF fallback <a href="./docs/fallback.html">details</a></p>'
+            . '</object>'
+            . "\n</article>",
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/object-param-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $paramDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+
+                return ($diagnostic['tag'] ?? '') === 'param'
+                    && in_array($code, ['object-param-review', 'unsafe-attribute', 'unsafe-url'], true);
+            }
+        ));
+        $astParamDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+
+                return ($diagnostic['tag'] ?? '') === 'param'
+                    && in_array($code, ['object-param-review', 'unsafe-attribute', 'unsafe-url'], true);
+            }
+        ));
+
+        $t->contains('<a href="https://source.example.test/import/posts/docs/source.pdf" data-pandoc-object-data="true" title="Embedded PDF source">Embedded PDF source</a>', $html);
+        $t->contains('<span data-pandoc-object-param-name="movie" data-pandoc-object-param-valuetype="ref" data-pandoc-object-param-type="application/x-shockwave-flash" data-pandoc-object-param-value="https://source.example.test/import/posts/media/player.swf">Object parameter: movie=https://source.example.test/import/posts/media/player.swf</span>', $html);
+        $t->contains('<span data-pandoc-object-param-name="flashvars" data-pandoc-object-param-value="autoplay = false ; poster = cover.png">Object parameter: flashvars=autoplay = false ; poster = cover.png</span>', $html);
+        $t->contains('<span data-pandoc-object-param-name="src">Object parameter: src</span>', $html);
+        $t->contains('<p>PDF fallback <a href="https://source.example.test/import/posts/docs/fallback.html">details</a></p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same(['a', 'article', 'p', 'span'], $summary['elementNames']);
+        $t->same(['base', 'object', 'param'], $summary['blockedTags']);
+        $t->same(['data', 'data-pandoc-object-param-name', 'name', 'value'], $summary['filteredAttributes']);
+        $t->same('/migration/object-param-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->same(6, count($paramDiagnostics));
+        $t->same(
+            ['object-param-review', 'unsafe-attribute', 'object-param-review', 'unsafe-url', 'object-param-review', 'unsafe-attribute'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $paramDiagnostics)
+        );
+        $t->same(
+            ['value', 'data-pandoc-object-param-name', 'value', 'value', 'name', 'name'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $paramDiagnostics)
+        );
+        $t->same([2, 2, 2, 2, 2, 2], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $paramDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $paramDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astParamDiagnostics)
+        );
+        $t->true(!str_contains($html, '<object'), 'Expected object wrapper to be stripped');
+        $t->true(!str_contains($html, '<param'), 'Expected live param elements to be stripped');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe param values to stay diagnostic-only');
+        $t->true(!str_contains($html, 'bad name'), 'Expected invalid param names to stay diagnostic-only');
+        $t->true(!str_contains($html, 'spoof'), 'Expected source-authored reserved object-param metadata to be stripped');
+        $t->true(!str_contains($blocks, '<param'), 'Expected WordPress blocks to omit live param elements');
+    },
     'adds source line metadata to object and embed source diagnostics before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "<article>\n"

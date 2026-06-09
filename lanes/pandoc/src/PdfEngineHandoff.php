@@ -385,6 +385,7 @@ final class PdfEngineHandoff
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     pdfAnnotationReviewMetadata: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     pdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     pdfAnnotationAppearancePolicy: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearanceCount:int, normalAppearanceCount:int, rolloverAppearanceCount:int, downAppearanceCount:int, streamCount:int, streamBytes:int, skippedStreamCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, reviewStatus:string, issues:list<string>}>,
      *     pdfAnnotationTypes: array<string, int>,
      *     pdfLinkTargets: list<string>,
      *     pdfEmbeddedFileNames: list<string>,
@@ -876,6 +877,7 @@ final class PdfEngineHandoff
         $pdfAnnotations = [];
         $pdfAnnotationReviewMetadata = [];
         $pdfAnnotationAppearances = [];
+        $pdfAnnotationAppearancePolicy = [];
         $pdfAnnotationTypes = [];
         $pdfLinkTargets = [];
         $pdfEmbeddedFileNames = [];
@@ -1011,6 +1013,7 @@ final class PdfEngineHandoff
                 $pdfAnnotations = $pdfInspection['annotations'];
                 $pdfAnnotationReviewMetadata = $pdfInspection['annotationReviewMetadata'];
                 $pdfAnnotationAppearances = $pdfInspection['annotationAppearances'];
+                $pdfAnnotationAppearancePolicy = $pdfInspection['annotationAppearancePolicy'];
                 $pdfAnnotationTypes = $pdfInspection['annotationTypes'];
                 $pdfLinkTargets = $pdfInspection['linkTargets'];
                 $pdfEmbeddedFileNames = $pdfInspection['embeddedFileNames'];
@@ -3413,6 +3416,52 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-annotation-appearance-stream-skipped:' . $skipReason;
                     }
                 }
+                if ($pdfAnnotationAppearancePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-annotation-appearance-policy:' . count($pdfAnnotationAppearancePolicy);
+                    $statusCounts = [];
+                    $normalAppearanceCount = 0;
+                    $stateCount = 0;
+                    $streamCount = 0;
+                    $skippedStreamCount = 0;
+                    $issueCounts = [];
+                    foreach ($pdfAnnotationAppearancePolicy as $policy) {
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+                        $normalAppearanceCount += is_int($policy['normalAppearanceCount'] ?? null) ? $policy['normalAppearanceCount'] : 0;
+                        $streamCount += is_int($policy['streamCount'] ?? null) ? $policy['streamCount'] : 0;
+                        $skippedStreamCount += is_int($policy['skippedStreamCount'] ?? null) ? $policy['skippedStreamCount'] : 0;
+                        $stateCount += isset($policy['appearanceStates']) && is_array($policy['appearanceStates'])
+                            ? count($policy['appearanceStates'])
+                            : 0;
+                        foreach (($policy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $reviewStatus => $count) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-status:' . $reviewStatus . ':' . $count;
+                    }
+                    if ($normalAppearanceCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-normal:' . $normalAppearanceCount;
+                    }
+                    if ($streamCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-streams:' . $streamCount;
+                    }
+                    if ($stateCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-states:' . $stateCount;
+                    }
+                    if ($skippedStreamCount > 0) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-skipped-streams:' . $skippedStreamCount;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $count) {
+                        $diagnostics[] = 'pdf-byte-annotation-appearance-policy-issue:' . $issue . ':' . $count;
+                    }
+                }
                 if ($pdfAnnotationReviewMetadata !== []) {
                     $diagnostics[] = 'pdf-byte-annotation-review-metadata:' . count($pdfAnnotationReviewMetadata);
                     $annotationBorderStyleCount = 0;
@@ -3886,6 +3935,7 @@ final class PdfEngineHandoff
             'pdfAnnotations' => $pdfAnnotations,
             'pdfAnnotationReviewMetadata' => $pdfAnnotationReviewMetadata,
             'pdfAnnotationAppearances' => $pdfAnnotationAppearances,
+            'pdfAnnotationAppearancePolicy' => $pdfAnnotationAppearancePolicy,
             'pdfAnnotationTypes' => $pdfAnnotationTypes,
             'pdfLinkTargets' => $pdfLinkTargets,
             'pdfEmbeddedFileNames' => $pdfEmbeddedFileNames,
@@ -4042,6 +4092,7 @@ final class PdfEngineHandoff
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     finalPdfAnnotationReviewMetadata: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     finalPdfAnnotationAppearances: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     finalPdfAnnotationAppearancePolicy: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearanceCount:int, normalAppearanceCount:int, rolloverAppearanceCount:int, downAppearanceCount:int, streamCount:int, streamBytes:int, skippedStreamCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, reviewStatus:string, issues:list<string>}>,
      *     finalPdfAnnotationTypes: array<string, int>,
      *     finalPdfLinkTargets: list<string>,
      *     finalPdfEmbeddedFileNames: list<string>,
@@ -4343,6 +4394,7 @@ final class PdfEngineHandoff
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
             'finalPdfAnnotationReviewMetadata' => is_array($finalRun) && is_array($finalRun['pdfAnnotationReviewMetadata'] ?? null) ? $finalRun['pdfAnnotationReviewMetadata'] : [],
             'finalPdfAnnotationAppearances' => is_array($finalRun) && is_array($finalRun['pdfAnnotationAppearances'] ?? null) ? $finalRun['pdfAnnotationAppearances'] : [],
+            'finalPdfAnnotationAppearancePolicy' => is_array($finalRun) && is_array($finalRun['pdfAnnotationAppearancePolicy'] ?? null) ? $finalRun['pdfAnnotationAppearancePolicy'] : [],
             'finalPdfAnnotationTypes' => is_array($finalRun) && is_array($finalRun['pdfAnnotationTypes'] ?? null) ? $finalRun['pdfAnnotationTypes'] : [],
             'finalPdfLinkTargets' => is_array($finalRun) && is_array($finalRun['pdfLinkTargets'] ?? null) ? $finalRun['pdfLinkTargets'] : [],
             'finalPdfEmbeddedFileNames' => is_array($finalRun) && is_array($finalRun['pdfEmbeddedFileNames'] ?? null) ? $finalRun['pdfEmbeddedFileNames'] : [],
@@ -5725,6 +5777,8 @@ final class PdfEngineHandoff
      *     activeActionTypes:array<string, int>,
      *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     annotationReviewMetadata:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
+     *     annotationAppearances:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
+     *     annotationAppearancePolicy:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearanceCount:int, normalAppearanceCount:int, rolloverAppearanceCount:int, downAppearanceCount:int, streamCount:int, streamBytes:int, skippedStreamCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, reviewStatus:string, issues:list<string>}>,
      *     annotationTypes:array<string, int>,
      *     linkTargets:list<string>,
      *     embeddedFileNames:list<string>,
@@ -5789,6 +5843,7 @@ final class PdfEngineHandoff
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
         $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
         $signatureAppearancePolicy = $this->summarizePdfSignatureAppearancePolicy($signatures, $annotationAppearances, $signatureAppearanceByteRanges);
+        $annotationAppearancePolicy = $this->summarizePdfAnnotationAppearancePolicy($annotationAppearances);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $documentSecurityStore = $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
@@ -5944,6 +5999,7 @@ final class PdfEngineHandoff
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
             'annotationReviewMetadata' => $this->extractPdfAnnotationReviewMetadata($pdfBytes, $catalog),
             'annotationAppearances' => $annotationAppearances,
+            'annotationAppearancePolicy' => $annotationAppearancePolicy,
             'annotationTypes' => $this->extractPdfAnnotationTypes($pdfBytes),
             'linkTargets' => $this->extractPdfLinkTargets($pdfBytes),
             'embeddedFileNames' => $embeddedFileNames,
@@ -15827,6 +15883,156 @@ final class PdfEngineHandoff
         }
 
         return 'current-revision';
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $annotationAppearances
+     * @return list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearanceCount:int, normalAppearanceCount:int, rolloverAppearanceCount:int, downAppearanceCount:int, streamCount:int, streamBytes:int, skippedStreamCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfAnnotationAppearancePolicy(array $annotationAppearances): array
+    {
+        if ($annotationAppearances === []) {
+            return [];
+        }
+
+        $groups = [];
+        foreach ($annotationAppearances as $appearance) {
+            $key = implode("\0", [
+                (string) ($appearance['page'] ?? 0),
+                is_string($appearance['pageObject'] ?? null) ? $appearance['pageObject'] : '',
+                is_string($appearance['annotationObject'] ?? null) ? $appearance['annotationObject'] : '',
+            ]);
+            $groups[$key][] = $appearance;
+        }
+
+        $summaries = [];
+        foreach ($groups as $appearances) {
+            $anchor = $appearances[0];
+            $normalAppearances = [];
+            $rolloverAppearanceCount = 0;
+            $downAppearanceCount = 0;
+            $streamCount = 0;
+            $streamBytes = 0;
+            $skippedStreamCount = 0;
+            $appearanceStates = [];
+            $normalAppearanceStates = [];
+            $appearanceObjects = [];
+            $normalMissingStream = false;
+            $normalStreamSkipped = false;
+
+            foreach ($appearances as $appearance) {
+                $appearanceKind = is_string($appearance['appearance'] ?? null) ? $appearance['appearance'] : '';
+                if ($appearanceKind === 'N') {
+                    $normalAppearances[] = $appearance;
+                } elseif ($appearanceKind === 'R') {
+                    $rolloverAppearanceCount++;
+                } elseif ($appearanceKind === 'D') {
+                    $downAppearanceCount++;
+                }
+
+                if (is_string($appearance['stateName'] ?? null) && $appearance['stateName'] !== '') {
+                    $appearanceStates[$appearance['stateName']] = true;
+                    if ($appearanceKind === 'N') {
+                        $normalAppearanceStates[$appearance['stateName']] = true;
+                    }
+                }
+                if (is_string($appearance['appearanceObject'] ?? null) && $appearance['appearanceObject'] !== '') {
+                    $appearanceObjects[$appearance['appearanceObject']] = true;
+                }
+                $streamSkipped = is_string($appearance['streamSkipped'] ?? null) && $appearance['streamSkipped'] !== '';
+                if (is_int($appearance['streamBytes'] ?? null)) {
+                    $streamCount++;
+                    $streamBytes += $appearance['streamBytes'];
+                } elseif ($appearanceKind === 'N' && !$streamSkipped) {
+                    $normalMissingStream = true;
+                }
+                if ($streamSkipped) {
+                    $skippedStreamCount++;
+                    if ($appearanceKind === 'N') {
+                        $normalStreamSkipped = true;
+                    }
+                }
+            }
+
+            $appearanceStateList = array_keys($appearanceStates);
+            sort($appearanceStateList, SORT_STRING);
+            $normalAppearanceStateList = array_keys($normalAppearanceStates);
+            sort($normalAppearanceStateList, SORT_STRING);
+            $appearanceObjectList = array_keys($appearanceObjects);
+            usort($appearanceObjectList, fn (string $left, string $right): int => $this->pdfReferenceSortKey($left) <=> $this->pdfReferenceSortKey($right));
+
+            $selectedState = is_string($anchor['selectedState'] ?? null) && $anchor['selectedState'] !== ''
+                ? $anchor['selectedState']
+                : null;
+            $issues = [];
+            if ($normalAppearances === []) {
+                $issues[] = 'missing-normal-appearance';
+            }
+            if ($normalAppearanceStateList !== [] && $selectedState === null) {
+                $issues[] = 'missing-selected-state';
+            }
+            if ($normalAppearanceStateList !== [] && $selectedState !== null && !in_array($selectedState, $normalAppearanceStateList, true)) {
+                $issues[] = 'selected-state-appearance-missing';
+            }
+            if ($normalMissingStream) {
+                $issues[] = 'missing-normal-appearance-stream';
+            }
+            if ($normalStreamSkipped) {
+                $issues[] = 'normal-appearance-stream-skipped';
+            }
+
+            $summaries[] = [
+                'page' => is_int($anchor['page'] ?? null) ? $anchor['page'] : 0,
+                'pageObject' => is_string($anchor['pageObject'] ?? null) && $anchor['pageObject'] !== '' ? $anchor['pageObject'] : null,
+                'annotationObject' => is_string($anchor['annotationObject'] ?? null) && $anchor['annotationObject'] !== '' ? $anchor['annotationObject'] : null,
+                'subtype' => is_string($anchor['subtype'] ?? null) && $anchor['subtype'] !== '' ? $anchor['subtype'] : null,
+                'fieldName' => is_string($anchor['fieldName'] ?? null) && $anchor['fieldName'] !== '' ? $anchor['fieldName'] : null,
+                'selectedState' => $selectedState,
+                'appearanceCount' => count($appearances),
+                'normalAppearanceCount' => count($normalAppearances),
+                'rolloverAppearanceCount' => $rolloverAppearanceCount,
+                'downAppearanceCount' => $downAppearanceCount,
+                'streamCount' => $streamCount,
+                'streamBytes' => $streamBytes,
+                'skippedStreamCount' => $skippedStreamCount,
+                'appearanceStates' => $appearanceStateList,
+                'appearanceObjects' => $appearanceObjectList,
+                'reviewStatus' => $this->pdfAnnotationAppearancePolicyReviewStatus($issues),
+                'issues' => $issues,
+            ];
+        }
+
+        usort(
+            $summaries,
+            fn (array $a, array $b): int => [
+                $a['page'],
+                $this->pdfReferenceSortKey($a['annotationObject'] ?? ''),
+                $a['subtype'] ?? '',
+                $a['fieldName'] ?? '',
+            ] <=> [
+                $b['page'],
+                $this->pdfReferenceSortKey($b['annotationObject'] ?? ''),
+                $b['subtype'] ?? '',
+                $b['fieldName'] ?? '',
+            ]
+        );
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private function pdfAnnotationAppearancePolicyReviewStatus(array $issues): string
+    {
+        if ($issues === []) {
+            return 'ok';
+        }
+        if (in_array('missing-normal-appearance', $issues, true)) {
+            return 'missing';
+        }
+
+        return 'review';
     }
 
     /**
