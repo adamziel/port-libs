@@ -7881,6 +7881,10 @@ final class ZipPackage
             $diagnostics[] = 'raw-name-collisions';
         }
 
+        if ($rawNames['provenanceEntryCount'] > 0) {
+            $diagnostics[] = 'raw-name-provenance-review-entries';
+        }
+
         if ($nameHygiene['reviewEntryCount'] > 0) {
             $diagnostics[] = 'name-hygiene-review-entries';
         }

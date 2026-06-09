@@ -3014,7 +3014,7 @@ return [
 
         $strictSummary = $collisionPackage->strictImportPreflight(4096, 100.0, 4096);
         $t->same(false, $strictSummary['isValid']);
-        $t->same(['raw-name-collisions'], $strictSummary['diagnostics']);
+        $t->same(['raw-name-collisions', 'raw-name-provenance-review-entries'], $strictSummary['diagnostics']);
         $t->same(2, $strictSummary['rawNames']['collisionEntryCount']);
         $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoRawNameCollisions());
         $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertStrictImportable(4096, 100.0, 4096));
@@ -3133,6 +3133,47 @@ return [
         $t->same(0, $safeSummary['unicodePathExtraEntryCount']);
         $t->same([], $safeSummary['provenanceEntries']);
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
+    'blocks raw zip name provenance in strict import preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $cp437RawName = "word/media/caf\x82.txt";
+        $cp437Name = "word/media/caf\u{00e9}.txt";
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.txt";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => $cp437RawName,
+                'data' => "legacy encoded reviewer note\n",
+                'method' => 0,
+                'flags' => 0,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'localName' => $unicodeRawName,
+                'data' => "unicode path reviewer note\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+        ]));
+
+        $summary = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(false, $summary['isValid']);
+        $t->same(['raw-name-provenance-review-entries'], $summary['diagnostics']);
+        $t->same(2, $summary['rawNames']['provenanceEntryCount']);
+        $t->same(1, $summary['rawNames']['legacyEncodedNameEntryCount']);
+        $t->same(1, $summary['rawNames']['unicodePathExtraEntryCount']);
+        $t->same(2, $summary['rawNames']['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($cp437Name, $summary['rawNames']['provenanceEntries'][0]['name']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $summary['rawNames']['provenanceEntries'][0]['issues']);
+        $t->same($unicodeName, $summary['rawNames']['provenanceEntries'][1]['name']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $summary['rawNames']['provenanceEntries'][1]['issues']);
+        $t->same("legacy encoded reviewer note\n", $package->read('/' . $cp437Name));
+        $t->same("unicode path reviewer note\n", $package->read('/' . $unicodeName));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
     },
 
     'preflights zip entry name hygiene before office package media handoff' => static function (TestRunner $t): void {

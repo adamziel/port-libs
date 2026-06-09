@@ -161,6 +161,43 @@ return [
         $t->same('Heading', $styles['Heading_20_2']['parent']);
         $t->same('Heading 2', $styles['Heading_20_2']['displayName']);
     },
+    'maps ODT editing metadata and document statistics from meta xml' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $meta = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  office:version="1.3">
+  <office:meta>
+    <dc:title>Statistic Packet</dc:title>
+    <meta:editing-duration>PT1H2M3S</meta:editing-duration>
+    <meta:editing-cycles>7</meta:editing-cycles>
+    <meta:document-statistic
+      meta:page-count="12"
+      meta:word-count="128"
+      meta:paragraph-count="9"
+      meta:non-whitespace-character-count="600"
+      meta:syllable-count="210"
+      meta:image-count="1"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(meta: $meta));
+        $metadata = $odt->metadata();
+        $summary = $odt->summarize();
+
+        $t->same('Statistic Packet', $metadata['title']);
+        $t->same('PT1H2M3S', $metadata['editingDuration']);
+        $t->same('7', $metadata['editingCycles']);
+        $t->same(12, $metadata['statistics']['pageCount']);
+        $t->same(128, $metadata['statistics']['wordCount']);
+        $t->same(9, $metadata['statistics']['paragraphCount']);
+        $t->same(600, $metadata['statistics']['nonWhitespaceCharacterCount']);
+        $t->same(210, $metadata['statistics']['syllableCount']);
+        $t->same(1, $metadata['statistics']['imageCount']);
+        $t->same($metadata['statistics'], $summary['metadata']['statistics']);
+    },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
         $blocks = (new WordPressBlockWriter())->write($document);

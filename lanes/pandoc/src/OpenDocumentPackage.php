@@ -322,6 +322,8 @@ final class OpenDocumentPackage
             'creator' => [self::DC_NAMESPACE, 'creator'],
             'creationDate' => [self::META_NAMESPACE, 'creation-date'],
             'date' => [self::DC_NAMESPACE, 'date'],
+            'editingDuration' => [self::META_NAMESPACE, 'editing-duration'],
+            'editingCycles' => [self::META_NAMESPACE, 'editing-cycles'],
         ];
 
         foreach ($fields as $key => [$namespace, $localName]) {
@@ -359,7 +361,60 @@ final class OpenDocumentPackage
             $metadata['userDefined'] = $userDefined;
         }
 
+        $statistics = self::documentStatistics($meta);
+        if ($statistics !== []) {
+            $metadata['statistics'] = $statistics;
+        }
+
         return $metadata;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function documentStatistics(\DOMElement $meta): array
+    {
+        $element = null;
+        foreach ($meta->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::META_NAMESPACE && $child->localName === 'document-statistic') {
+                $element = $child;
+                break;
+            }
+        }
+
+        if (!$element instanceof \DOMElement) {
+            return [];
+        }
+
+        $statistics = [];
+        foreach ([
+            'page-count',
+            'table-count',
+            'image-count',
+            'object-count',
+            'paragraph-count',
+            'word-count',
+            'sentence-count',
+            'character-count',
+            'non-whitespace-character-count',
+            'syllable-count',
+        ] as $name) {
+            $value = self::namespacedAttribute($element, self::META_NAMESPACE, $name);
+            if ($value !== null && ctype_digit($value)) {
+                $statistics[self::camelCase($name)] = (int) $value;
+            }
+        }
+
+        return $statistics;
+    }
+
+    private static function camelCase(string $name): string
+    {
+        return preg_replace_callback(
+            '/-([a-z])/',
+            static fn (array $matches): string => strtoupper($matches[1]),
+            $name
+        ) ?? $name;
     }
 
     /**
