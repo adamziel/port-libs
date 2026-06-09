@@ -383,6 +383,64 @@ return [
         $t->same($metadata['identifierDiagnostics'], $summary['wordpressImport']['metadataDetails']['identifierDiagnostics']);
     },
 
+    'summarizes OPF date event metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithDates = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:language>en-US</dc:language>
+    <dc:date id="published" scheme="W3CDTF" event="publication">2026-06-01</dc:date>
+    <dc:date id="reviewed" xml:lang="en" dir="ltr">2026-06-05</dc:date>',
+            $epub3OpfXml
+        );
+        $opfWithDates = str_replace(
+            '</metadata>',
+            '    <meta refines="#reviewed" property="event">review</meta>
+    <meta refines="#reviewed" property="display-seq">2</meta>
+    <meta refines="#reviewed" property="alternate-script" xml:lang="fr" dir="ltr">5 juin 2026</meta>
+  </metadata>',
+            $opfWithDates
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithDates],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $dateDetails = $metadata['dateDetails'];
+
+        $t->same(['2026-06-01', '2026-06-05'], $metadata['dates']);
+        $t->same('2026-06-01', $metadata['date']);
+        $t->same(2, count($dateDetails));
+        $t->same('published', $dateDetails[0]['id']);
+        $t->same('W3CDTF', $dateDetails[0]['scheme']);
+        $t->same('publication', $dateDetails[0]['event']);
+        $t->same('attribute', $dateDetails[0]['eventSource']);
+        $t->same('reviewed', $dateDetails[1]['id']);
+        $t->same('review', $dateDetails[1]['event']);
+        $t->same('refinement', $dateDetails[1]['eventSource']);
+        $t->same('2', $dateDetails[1]['displaySeq']);
+        $t->same('5 juin 2026', $dateDetails[1]['alternateScripts'][0]['text']);
+        $t->same('fr', $dateDetails[1]['alternateScripts'][0]['language']);
+        $t->same('2026-06-01', $metadata['datesByEvent']['publication'][0]['text']);
+        $t->same('2026-06-05', $metadata['datesByEvent']['review'][0]['text']);
+        $t->same([
+            'present' => true,
+            'count' => 2,
+            'eventCount' => 2,
+            'events' => ['publication', 'review'],
+        ], $metadata['dateSummary']);
+        $t->same($dateDetails, $summary['wordpressImport']['metadataDetails']['dateDetails']);
+        $t->same($metadata['datesByEvent'], $summary['wordpressImport']['metadataDetails']['datesByEvent']);
+        $t->same($metadata['dateSummary'], $summary['wordpressImport']['metadataDetails']['dateSummary']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',

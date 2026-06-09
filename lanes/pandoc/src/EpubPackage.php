@@ -398,6 +398,9 @@ final class EpubPackage
                     'identifierSummary' => $this->metadata['identifierSummary'] ?? [],
                     'identifierDiagnostics' => $this->metadata['identifierDiagnostics'] ?? [],
                     'identifiersByType' => $this->metadata['identifiersByType'] ?? [],
+                    'dateDetails' => $this->metadata['dateDetails'] ?? [],
+                    'datesByEvent' => $this->metadata['datesByEvent'] ?? [],
+                    'dateSummary' => $this->metadata['dateSummary'] ?? [],
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
@@ -598,6 +601,7 @@ final class EpubPackage
                     'text' => $value,
                     'id' => self::emptyToNull($child->getAttribute('id')),
                     'scheme' => self::metadataElementScheme($child),
+                    'event' => self::emptyToNull($child->getAttribute('event')),
                     'language' => self::metadataElementLanguage($child),
                     'direction' => self::metadataElementDirection($child),
                     'refinements' => [],
@@ -679,6 +683,7 @@ final class EpubPackage
         $uniqueIdentifier = self::metadataUniqueIdentifierReport($uniqueIdentifierId, $identifierDetails, $requiresUniqueIdentifier);
         $identifierSummary = self::metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
         $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
+        $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
 
         return [
@@ -708,6 +713,11 @@ final class EpubPackage
             'contributorsByRole' => self::metadataAgentsByRole($contributorDetails),
             'language' => $languages[0] ?? '',
             'languages' => $languages,
+            'date' => $dateDetails[0]['text'] ?? null,
+            'dates' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['date'] ?? []),
+            'dateDetails' => $dateDetails,
+            'datesByEvent' => self::metadataDetailsByField($dateDetails, 'event'),
+            'dateSummary' => self::metadataDateSummary($dateDetails),
             'modified' => $propertyValues['dcterms:modified'][0] ?? null,
             'properties' => $propertyValues,
             'dc' => $dc,
@@ -1137,6 +1147,64 @@ final class EpubPackage
             'duplicatesByValue' => array_values($duplicatesByValue),
             'valid' => $diagnostics === [],
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataDateDetails(array $entries): array
+    {
+        $details = [];
+        foreach ($entries as $index => $entry) {
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $eventAttribute = is_string($entry['event'] ?? null) && $entry['event'] !== ''
+                ? $entry['event']
+                : null;
+            $eventRefinement = self::firstMetadataRefinementValue($refinements, 'event');
+            $event = $eventAttribute ?? $eventRefinement;
+
+            $details[] = [
+                'kind' => 'date',
+                'index' => $index,
+                'text' => (string) ($entry['text'] ?? ''),
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'event' => $event,
+                'eventSource' => $eventAttribute !== null ? 'attribute' : ($eventRefinement !== null ? 'refinement' : null),
+                'displaySeq' => self::firstMetadataRefinementValue($refinements, 'display-seq'),
+                'alternateScripts' => self::metadataRefinementEntries($refinements, 'alternate-script'),
+                'refinements' => $refinements,
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $dateDetails
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataDateSummary(array $dateDetails): array
+    {
+        $events = [];
+        foreach ($dateDetails as $detail) {
+            $event = is_string($detail['event'] ?? null) ? trim($detail['event']) : '';
+            if ($event !== '') {
+                $events[$event] = $event;
+            }
+        }
+
+        return [
+            'present' => $dateDetails !== [],
+            'count' => count($dateDetails),
+            'eventCount' => count($events),
+            'events' => array_values($events),
         ];
     }
 
