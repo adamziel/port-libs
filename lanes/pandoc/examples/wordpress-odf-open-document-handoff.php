@@ -611,10 +611,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['document']->children[1]->attr('odfHeadingAnchor')['attributeName'] ?? '') !== 'xml:id') {
         throw new RuntimeException('Expected ODT xml:id heading provenance to survive AST handoff');
     }
-    if (!str_contains($blocks, '<h1 id="odt-source-packet">ODT source packet</h1>')) {
+    if (!str_contains($blocks, '<h1 id="odt-source-packet" data-odf-heading-anchor-source="bookmark" data-odf-heading-bookmark-name="ODT source packet" data-odf-heading-anchor-id="odt-source-packet">ODT source packet</h1>')) {
         throw new RuntimeException('Expected ODT heading to render as a WordPress heading block');
     }
-    if (!str_contains($blocks, '<h1 id="source-overview-id">Source overview heading</h1>')) {
+    if (!str_contains($blocks, '<h1 id="source-overview-id" data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="source-overview-id" data-odf-heading-anchor-id="source-overview-id">Source overview heading</h1>')) {
         throw new RuntimeException('Expected ODT xml:id heading to render as a WordPress heading block');
     }
     if (!str_contains($markdown, '# Source overview heading {#source-overview-id data-odf-heading-anchor-source="attribute" data-odf-heading-source-attribute="xml:id" data-odf-heading-source-id="source-overview-id" data-odf-heading-anchor-id="source-overview-id"}')) {
@@ -753,13 +753,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['styles']['ReviewQuote']['paragraphProperties']['marginLeft'] ?? '') !== '6mm') {
         throw new RuntimeException('Expected ODT quote paragraph margin to survive style parsing');
     }
-    if (!str_contains($blocks, '<blockquote class="wp-block-quote"><p>Quoted source decision survives as review context.</p></blockquote>')) {
+    if (!str_contains($blocks, '<blockquote class="wp-block-quote odf-blockquote"><p>Quoted source decision survives as review context.</p></blockquote>')) {
         throw new RuntimeException('Expected ODT indented paragraph style to render as a WordPress quote block');
     }
     if (($result['importReport']['content']['preformattedCodeBlockCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT preformatted paragraph styles to be counted as code block handoffs');
     }
-    if (!str_contains($blocks, '<pre class="wp-block-code"><code>define(&#039;WP_IMPORTING&#039;, true);')) {
+    if (!str_contains($blocks, '<pre class="wp-block-code" data-odf-preformatted="true" data-odf-style-name="SourceCode"><code>define(&#039;WP_IMPORTING&#039;, true);')) {
         throw new RuntimeException('Expected ODT preformatted source style to render as a WordPress code block');
     }
     if (!str_contains($blocks, 'echo sanitize_text_field($title); // source audit</code></pre>')) {

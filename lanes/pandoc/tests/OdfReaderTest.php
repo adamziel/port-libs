@@ -346,6 +346,70 @@ XML;
         $t->same('MissingLayout', $diagnosticsByCode['odf-master-page-missing-page-layout'][0]['pageLayoutName']);
         $t->same('MissingBulletFont', $diagnosticsByCode['odf-list-style-missing-font-face'][0]['fontName']);
     },
+    'reports ODT style family mismatch diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPlainParagraph = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Style family diagnostics packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $stylesWithFamilyMismatches = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0">
+  <office:styles>
+    <style:style style:name="ParagraphParent" style:family="paragraph"/>
+    <style:style style:name="TextParent" style:family="text"/>
+    <style:style style:name="ParagraphWithTextParent" style:family="paragraph" style:parent-style-name="TextParent"/>
+    <style:style style:name="CellMappedToParagraph" style:family="table-cell">
+      <style:map style:condition="value() &gt; 0" style:apply-style-name="ParagraphParent"/>
+    </style:style>
+    <style:style style:name="WrongTemplateParagraph" style:family="paragraph"/>
+    <style:style style:name="WrongDrawCell" style:family="table-cell"/>
+    <table:table-template table:name="FamilyTemplate" table:first-row="WrongTemplateParagraph" table:body="CellMappedToParagraph"/>
+  </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="ReviewMaster" draw:style-name="WrongDrawCell"/>
+  </office:master-styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPlainParagraph, null, $stylesWithFamilyMismatches));
+        $styleReport = $result['importReport']['styles'];
+        $diagnosticsByCode = [];
+        foreach ($styleReport['diagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(4, $styleReport['diagnosticCount']);
+        $t->same([
+            'odf-master-page-style-family-mismatch' => 1,
+            'odf-style-map-target-family-mismatch' => 1,
+            'odf-style-parent-family-mismatch' => 1,
+            'odf-table-template-style-family-mismatch' => 1,
+        ], $styleReport['diagnosticCodeCounts']);
+        $t->same('ParagraphWithTextParent', $diagnosticsByCode['odf-style-parent-family-mismatch'][0]['styleName']);
+        $t->same('TextParent', $diagnosticsByCode['odf-style-parent-family-mismatch'][0]['parentName']);
+        $t->same('paragraph', $diagnosticsByCode['odf-style-parent-family-mismatch'][0]['expectedFamily']);
+        $t->same('text', $diagnosticsByCode['odf-style-parent-family-mismatch'][0]['actualFamily']);
+        $t->same('CellMappedToParagraph', $diagnosticsByCode['odf-style-map-target-family-mismatch'][0]['styleName']);
+        $t->same('ParagraphParent', $diagnosticsByCode['odf-style-map-target-family-mismatch'][0]['applyStyleName']);
+        $t->same('table-cell', $diagnosticsByCode['odf-style-map-target-family-mismatch'][0]['expectedFamily']);
+        $t->same('FamilyTemplate', $diagnosticsByCode['odf-table-template-style-family-mismatch'][0]['tableTemplateName']);
+        $t->same('WrongTemplateParagraph', $diagnosticsByCode['odf-table-template-style-family-mismatch'][0]['styleName']);
+        $t->same('ReviewMaster', $diagnosticsByCode['odf-master-page-style-family-mismatch'][0]['masterPageName']);
+        $t->same('WrongDrawCell', $diagnosticsByCode['odf-master-page-style-family-mismatch'][0]['drawStyleName']);
+        $t->same('drawing-page', $diagnosticsByCode['odf-master-page-style-family-mismatch'][0]['expectedFamily']);
+    },
     'preserves ODT manifest version and preferred view mode provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPreferredViewModes = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',

@@ -9516,6 +9516,19 @@ final class OdfReader
                 (string) ($style['parentName'] ?? ''),
                 $catalog['styles']
             );
+            $family = (string) ($style['family'] ?? '');
+            if ($family !== '') {
+                $this->appendStyleFamilyMismatchDiagnostic(
+                    $diagnostics,
+                    'odf-style-parent-family-mismatch',
+                    'style',
+                    $styleName,
+                    'parentName',
+                    (string) ($style['parentName'] ?? ''),
+                    $catalog['styles'],
+                    $family
+                );
+            }
             $this->appendMissingNamedReferenceDiagnostic(
                 $diagnostics,
                 'odf-style-missing-list-style',
@@ -9568,17 +9581,34 @@ final class OdfReader
                 }
 
                 $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
-                if ($applyStyleName === '' || isset($catalog['styles'][$applyStyleName])) {
+                if ($applyStyleName === '') {
                     continue;
                 }
 
-                $diagnostics[] = self::withoutEmpty([
-                    'code' => 'odf-style-map-missing-target',
-                    'styleName' => $styleName,
-                    'mapIndex' => $index,
-                    'applyStyleName' => $applyStyleName,
-                    'condition' => $styleMap['condition'] ?? null,
-                ]);
+                if (!isset($catalog['styles'][$applyStyleName])) {
+                    $diagnostics[] = self::withoutEmpty([
+                        'code' => 'odf-style-map-missing-target',
+                        'styleName' => $styleName,
+                        'mapIndex' => $index,
+                        'applyStyleName' => $applyStyleName,
+                        'condition' => $styleMap['condition'] ?? null,
+                    ]);
+                    continue;
+                }
+
+                $family = (string) ($style['family'] ?? '');
+                $actualFamily = (string) ($catalog['styles'][$applyStyleName]['family'] ?? '');
+                if ($family !== '' && $actualFamily !== '' && $actualFamily !== $family) {
+                    $diagnostics[] = self::withoutEmpty([
+                        'code' => 'odf-style-map-target-family-mismatch',
+                        'styleName' => $styleName,
+                        'mapIndex' => $index,
+                        'applyStyleName' => $applyStyleName,
+                        'expectedFamily' => $family,
+                        'actualFamily' => $actualFamily,
+                        'condition' => $styleMap['condition'] ?? null,
+                    ]);
+                }
             }
         }
 
@@ -9622,16 +9652,31 @@ final class OdfReader
 
             foreach ($styles as $role => $styleName) {
                 $styleName = (string) $styleName;
-                if ($styleName === '' || isset($catalog['styles'][$styleName])) {
+                if ($styleName === '') {
                     continue;
                 }
 
-                $diagnostics[] = [
-                    'code' => 'odf-table-template-missing-style',
-                    'tableTemplateName' => $tableTemplateName,
-                    'templateRole' => (string) $role,
-                    'styleName' => $styleName,
-                ];
+                if (!isset($catalog['styles'][$styleName])) {
+                    $diagnostics[] = [
+                        'code' => 'odf-table-template-missing-style',
+                        'tableTemplateName' => $tableTemplateName,
+                        'templateRole' => (string) $role,
+                        'styleName' => $styleName,
+                    ];
+                    continue;
+                }
+
+                $actualFamily = (string) ($catalog['styles'][$styleName]['family'] ?? '');
+                if ($actualFamily !== '' && $actualFamily !== 'table-cell') {
+                    $diagnostics[] = [
+                        'code' => 'odf-table-template-style-family-mismatch',
+                        'tableTemplateName' => $tableTemplateName,
+                        'templateRole' => (string) $role,
+                        'styleName' => $styleName,
+                        'expectedFamily' => 'table-cell',
+                        'actualFamily' => $actualFamily,
+                    ];
+                }
             }
         }
 
@@ -9662,6 +9707,16 @@ final class OdfReader
                 'drawStyleName',
                 (string) ($masterPage['drawStyleName'] ?? ''),
                 $catalog['styles']
+            );
+            $this->appendStyleFamilyMismatchDiagnostic(
+                $diagnostics,
+                'odf-master-page-style-family-mismatch',
+                'masterPage',
+                $masterPageName,
+                'drawStyleName',
+                (string) ($masterPage['drawStyleName'] ?? ''),
+                $catalog['styles'],
+                'drawing-page'
             );
         }
 
@@ -9710,6 +9765,38 @@ final class OdfReader
             'code' => $code,
             $sourceKind . 'Name' => $sourceName,
             $referenceKey => $referenceName,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, array<string, mixed>> $styles
+     */
+    private function appendStyleFamilyMismatchDiagnostic(
+        array &$diagnostics,
+        string $code,
+        string $sourceKind,
+        string $sourceName,
+        string $referenceKey,
+        string $referenceName,
+        array $styles,
+        string $expectedFamily
+    ): void {
+        if ($referenceName === '' || !isset($styles[$referenceName])) {
+            return;
+        }
+
+        $actualFamily = (string) ($styles[$referenceName]['family'] ?? '');
+        if ($actualFamily === '' || $actualFamily === $expectedFamily) {
+            return;
+        }
+
+        $diagnostics[] = [
+            'code' => $code,
+            $sourceKind . 'Name' => $sourceName,
+            $referenceKey => $referenceName,
+            'expectedFamily' => $expectedFamily,
+            'actualFamily' => $actualFamily,
         ];
     }
 
