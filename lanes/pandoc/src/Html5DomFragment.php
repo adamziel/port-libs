@@ -2095,21 +2095,21 @@ final class Html5DomFragment
         $target = $element->getAttribute('src');
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
         if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => 'iframe',
                 'attribute' => 'src',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalizedTarget !== $target) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => 'iframe',
                 'attribute' => 'src',
-            ];
+            ], $element);
         }
 
         $href = $baseUrl !== null
@@ -2127,7 +2127,7 @@ final class Html5DomFragment
         }
         self::addIframePolicyReviewAttributes($element, $attrs, $diagnostics);
 
-        return [
+        return self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'a',
             'attrs' => $attrs,
@@ -2135,7 +2135,7 @@ final class Html5DomFragment
                 'type' => 'text',
                 'text' => $title !== '' ? $title : 'Embedded frame source',
             ]],
-        ];
+        ], $element);
     }
 
     /**
@@ -3213,18 +3213,18 @@ final class Html5DomFragment
      */
     private static function normalizeHtmlAreaElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
     {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'blocked-tag',
             'tag' => 'area',
-        ];
+        ], $element);
 
         foreach (['download', 'ping', 'target'] as $attributeName) {
             if ($element->hasAttribute($attributeName)) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'area',
                     'attribute' => $attributeName,
-                ];
+                ], $element);
             }
         }
 
@@ -3235,21 +3235,21 @@ final class Html5DomFragment
         $target = $element->getAttribute('href');
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
         if ($normalizedTarget === '' || !self::isSafeUrl($normalizedTarget)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => 'area',
                 'attribute' => 'href',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalizedTarget !== $target) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => 'area',
                 'attribute' => 'href',
-            ];
+            ], $element);
         }
 
         $href = $baseUrl !== null
@@ -3315,7 +3315,7 @@ final class Html5DomFragment
             }
         }
 
-        return [[
+        return [self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'a',
             'attrs' => $attrs,
@@ -3323,7 +3323,7 @@ final class Html5DomFragment
                 'type' => 'text',
                 'text' => $label ?? 'Image map region',
             ]],
-        ]];
+        ], $element)];
     }
 
     private static function nearestHtmlMapName(\DOMElement $element): ?string
@@ -3436,10 +3436,10 @@ final class Html5DomFragment
      */
     private static function normalizeHtmlLinkElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
     {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'blocked-tag',
             'tag' => 'link',
-        ];
+        ], $element);
 
         $relations = self::htmlLinkRelationTokens($element);
         $reviewRelations = self::reviewableHtmlLinkRelations($relations);
@@ -3450,21 +3450,21 @@ final class Html5DomFragment
         $target = $element->getAttribute('href');
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
         if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => 'link',
                 'attribute' => 'href',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalizedTarget !== $target) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => 'link',
                 'attribute' => 'href',
-            ];
+            ], $element);
         }
 
         $href = $baseUrl !== null
@@ -3499,7 +3499,7 @@ final class Html5DomFragment
             }
         }
 
-        return [[
+        return [self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'a',
             'attrs' => $attrs,
@@ -3507,7 +3507,7 @@ final class Html5DomFragment
                 'type' => 'text',
                 'text' => self::htmlLinkReviewLabel($reviewRelations, $attrs),
             ]],
-        ]];
+        ], $element)];
     }
 
     /**
@@ -3619,10 +3619,10 @@ final class Html5DomFragment
      */
     private static function normalizeHtmlMetaElement(\DOMElement $element, array &$diagnostics, ?string $baseUrl): ?array
     {
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'blocked-tag',
             'tag' => 'meta',
-        ];
+        ], $element);
 
         $target = self::htmlMetaRefreshTarget($element);
         if ($target === null) {
@@ -3649,21 +3649,21 @@ final class Html5DomFragment
                 [$kind, $name, $target] = $urlMetadata;
                 $normalizedTarget = self::normalizeUrlAttributeValue($target);
                 if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'unsafe-url',
                         'tag' => 'meta',
                         'attribute' => 'content',
-                    ];
+                    ], $element);
 
                     return null;
                 }
 
                 if ($normalizedTarget !== $target) {
-                    $diagnostics[] = [
+                    $diagnostics[] = self::diagnosticWithSourceLine([
                         'code' => 'normalized-url',
                         'tag' => 'meta',
                         'attribute' => 'content',
-                    ];
+                    ], $element);
                 }
 
                 $href = $baseUrl !== null
@@ -3673,7 +3673,7 @@ final class Html5DomFragment
                     ? 'data-pandoc-meta-property'
                     : 'data-pandoc-meta-name';
 
-                return [[
+                return [self::nodeWithSourceLine([
                     'type' => 'element',
                     'name' => 'a',
                     'attrs' => [
@@ -3686,7 +3686,7 @@ final class Html5DomFragment
                         'type' => 'text',
                         'text' => self::htmlMetaReviewLabel($name),
                     ]],
-                ]];
+                ], $element)];
             }
 
             $policyMetadata = self::htmlMetaPolicyMetadata($element, $diagnostics);
@@ -3761,28 +3761,28 @@ final class Html5DomFragment
 
         $normalizedTarget = self::normalizeUrlAttributeValue($target);
         if ($normalizedTarget === '' || !self::isSafeFetchUrl($normalizedTarget)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => 'meta',
                 'attribute' => 'content',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalizedTarget !== $target) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => 'meta',
                 'attribute' => 'content',
-            ];
+            ], $element);
         }
 
         $href = $baseUrl !== null
             ? self::resolveRelativeUrl($baseUrl, $normalizedTarget)
             : $normalizedTarget;
 
-        return [[
+        return [self::nodeWithSourceLine([
             'type' => 'element',
             'name' => 'a',
             'attrs' => [
@@ -3795,7 +3795,7 @@ final class Html5DomFragment
                     'text' => 'Refresh target',
                 ],
             ],
-        ]];
+        ], $element)];
     }
 
     private static function htmlMetaRefreshTarget(\DOMElement $element): ?string
@@ -4790,6 +4790,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics,
                     $baseUrl
                 );
@@ -4800,7 +4801,7 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isHtmlQuoteCitationAttribute($tagName, $name)) {
-                $cite = self::normalizeHtmlQuoteCitationAttribute($value, $tagName, $diagnostics, $baseUrl);
+                $cite = self::normalizeHtmlQuoteCitationAttribute($value, $tagName, $element, $diagnostics, $baseUrl);
                 if ($cite !== null) {
                     $attrs['data-pandoc-quote-cite'] = $cite;
                 }
@@ -5594,38 +5595,39 @@ final class Html5DomFragment
     private static function normalizeHtmlQuoteCitationAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): ?string {
         $normalized = self::normalizeUrlAttributeValue($value);
         if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => $tagName,
                 'attribute' => 'cite',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalized !== $value) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => $tagName,
                 'attribute' => 'cite',
-            ];
+            ], $element);
         }
 
         if ($baseUrl !== null) {
             $normalized = self::resolveRelativeUrl($baseUrl, $normalized);
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'quote-cite-review',
             'tag' => $tagName,
             'attribute' => 'cite',
             'reason' => 'quote-cite-preserved-as-metadata',
-        ];
+        ], $element);
 
         return $normalized;
     }
@@ -5638,17 +5640,18 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): array {
         $attribute = strtolower($name);
         if ($attribute === 'cite') {
-            $cite = self::normalizeHtmlRevisionCiteAttribute($value, $tagName, $diagnostics, $baseUrl);
+            $cite = self::normalizeHtmlRevisionCiteAttribute($value, $tagName, $element, $diagnostics, $baseUrl);
 
             return $cite === null ? [] : ['data-pandoc-revision-cite' => $cite];
         }
 
-        $datetime = self::normalizeHtmlRevisionDatetimeAttribute($value, $tagName, $diagnostics);
+        $datetime = self::normalizeHtmlRevisionDatetimeAttribute($value, $tagName, $element, $diagnostics);
 
         return $datetime === null
             ? []
@@ -5664,38 +5667,39 @@ final class Html5DomFragment
     private static function normalizeHtmlRevisionCiteAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics,
         ?string $baseUrl
     ): ?string {
         $normalized = self::normalizeUrlAttributeValue($value);
         if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => $tagName,
                 'attribute' => 'cite',
-            ];
+            ], $element);
 
             return null;
         }
 
         if ($normalized !== $value) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'normalized-url',
                 'tag' => $tagName,
                 'attribute' => 'cite',
-            ];
+            ], $element);
         }
 
         if ($baseUrl !== null) {
             $normalized = self::resolveRelativeUrl($baseUrl, $normalized);
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'revision-metadata-review',
             'tag' => $tagName,
             'attribute' => 'cite',
             'reason' => 'revision-cite-preserved-as-metadata',
-        ];
+        ], $element);
 
         return $normalized;
     }
@@ -5707,26 +5711,27 @@ final class Html5DomFragment
     private static function normalizeHtmlRevisionDatetimeAttribute(
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): ?array {
         $datetime = self::normalizeHtmlTimeDatetimeValue(self::cleanHtmlMetadataAttribute($value));
         if ($datetime === null || !in_array($datetime[0], ['date', 'global-datetime', 'local-datetime'], true)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => 'datetime',
-            ];
+            ], $element);
 
             return null;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'revision-metadata-review',
             'tag' => $tagName,
             'attribute' => 'datetime',
             'kind' => $datetime[0],
             'reason' => 'revision-datetime-preserved-as-metadata',
-        ];
+        ], $element);
 
         return $datetime;
     }

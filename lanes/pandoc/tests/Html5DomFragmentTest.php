@@ -4271,6 +4271,77 @@ return [
         $t->true(!str_contains($html, ' urgent'), 'Expected invalid fetchpriority source value to stay diagnostic-only');
         $t->true(!str_contains($blocks, 'credentialed'), 'Expected invalid crossorigin source value to stay diagnostic-only');
     },
+    'adds source line metadata to URL repair diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<link rel=\"canonical\" href=\" h&#9;ttps://example.test/review \" title=\"Canonical\">\n"
+            . "<meta http-equiv=\"refresh\" content=\"0; url=java&#10;script:alert(1)\">\n"
+            . "<iframe src=\" ./frame.html&#10;\" title=\"Frame\"></iframe>\n"
+            . "<blockquote cite=\" ./quote.html&#10;\"><p>Quote</p></blockquote>\n"
+            . "<ins cite=\"java&#10;script:alert(1)\" datetime=\"2026-06-08\">Bad cite</ins>\n"
+            . "<map name=\"m\"><area href=\" ./map.html&#10;\" alt=\"Map\"></map>\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/url-diagnostic-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $urlDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return in_array($code, ['unsafe-url', 'normalized-url', 'quote-cite-review', 'revision-metadata-review'], true)
+                    && in_array($attribute, ['href', 'content', 'src', 'cite', 'datetime'], true);
+            }
+        ));
+        $astUrlDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return in_array($code, ['unsafe-url', 'normalized-url', 'quote-cite-review', 'revision-metadata-review'], true)
+                    && in_array($attribute, ['href', 'content', 'src', 'cite', 'datetime'], true);
+            }
+        ));
+
+        $t->contains('<a href="https://example.test/review" data-pandoc-link-rel="canonical" title="Canonical">Canonical</a>', $html);
+        $t->contains('<a href="https://source.example.test/import/posts/frame.html" data-pandoc-iframe-src="true" title="Frame">Frame</a>', $html);
+        $t->contains('<blockquote data-pandoc-quote-cite="https://source.example.test/import/posts/quote.html"><p>Quote</p></blockquote>', $html);
+        $t->contains('<ins data-pandoc-revision-datetime="2026-06-08" data-pandoc-revision-kind="date">Bad cite</ins>', $html);
+        $t->contains('<a href="https://source.example.test/import/posts/map.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="m" data-pandoc-image-map-alt="Map">Map</a>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/url-diagnostic-lines-review.html', $document->children[0]->attr('part'));
+        $t->same(8, count($urlDiagnostics));
+        $t->same(
+            ['normalized-url', 'unsafe-url', 'normalized-url', 'normalized-url', 'quote-cite-review', 'unsafe-url', 'revision-metadata-review', 'normalized-url'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $urlDiagnostics)
+        );
+        $t->same(
+            ['link', 'meta', 'iframe', 'blockquote', 'blockquote', 'ins', 'ins', 'area'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $urlDiagnostics)
+        );
+        $t->same(
+            ['href', 'content', 'src', 'cite', 'cite', 'cite', 'datetime', 'href'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $urlDiagnostics)
+        );
+        $t->same([2, 3, 4, 5, 5, 6, 6, 7], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $urlDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $urlDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astUrlDiagnostics)
+        );
+        $t->true(!str_contains($html, '<link'), 'Expected source link elements to become inert review links');
+        $t->true(!str_contains($html, '<meta'), 'Expected source meta refresh elements to be stripped');
+        $t->true(!str_contains($html, '<iframe'), 'Expected source iframe elements to become inert review links');
+        $t->true(!str_contains($html, '<map'), 'Expected image map wrapper to be stripped');
+        $t->true(!str_contains($html, '<area'), 'Expected image map area to become an inert review link');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected active URL schemes to stay diagnostic-only');
+        $t->true(!str_contains($blocks, 'java&#10;script'), 'Expected WordPress blocks to omit active split-scheme URL sources');
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'
