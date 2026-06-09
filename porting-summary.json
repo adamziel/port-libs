@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 11:05:58 UTC",
-    "sourceCommit": "f733fccf6080bd67053dca60f16d3e8f70ea0dc7",
-    "sourceCommitShort": "f733fccf6080",
+    "generated": "2026-06-09 11:07:50 UTC",
+    "sourceCommit": "36699f87265153e398897b76b4dc655b33b5a1a0",
+    "sourceCommitShort": "36699f872651",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f733fccf6080bd67053dca60f16d3e8f70ea0dc7",
-    "dashboardCommitShort": "f733fccf6080",
+    "dashboardCommit": "36699f87265153e398897b76b4dc655b33b5a1a0",
+    "dashboardCommitShort": "36699f872651",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,690 pass / 0 fail",
-            "phase": "native PHP Pandoc BibTeX/CSL parser handoff; spaced TeX em dash punct...",
-            "audit": "2026-06-09 UTC rebased pandoc-citations-tex-em-dash slice on accepted...",
-            "currentWork": "Pandoc BibTeX/CSL handoff now renders spaced TeX em dash punctuation in imported titl...",
+            "php": "2,691 pass / 0 fail",
+            "phase": "native PHP Pandoc syntax highlighting handoff; CSS percentage units a...",
+            "audit": "2026-06-09 UTC rebased pandoc-css-percent-unit-syntax slice on accept...",
+            "currentWork": "Pandoc syntax-highlight review packets now preserve CSS percent values and dashed ide...",
             "nextTarget": "Continue non-overlapping native conversion support under ODF/...",
-            "remainingGate": "No external citation engine is needed.",
+            "remainingGate": "No external highlighter is needed.",
             "commit": "pending fast ba..."
         },
         {

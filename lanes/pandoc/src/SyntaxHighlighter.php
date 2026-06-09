@@ -4142,8 +4142,8 @@ final class SyntaxHighlighter
             ['attribute', '/^--[A-Za-z0-9_-]+|^[A-Za-z-]+(?=\\s*:\\s)/'],
             ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
             ['string', "/^'(?:\\\\.|[^'\\\\])*'/s"],
-            ['number', '/^-?(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:ch|cm|deg|dppx|em|ex|fr|in|mm|ms|pc|pt|px|rem|s|turn|vh|vmax|vmin|vw|%)?\\b/i'],
-            ['keyword', '/^\\b(?:auto|block|border-box|center|contents|flex|flow-root|grid|inherit|initial|inline|inline-flex|inline-grid|none|relative|repeat|revert|revert-layer|safe|solid|subgrid|transparent|unsafe|unset)\\b/i'],
+            ['number', '/^-?(?:\\d+\\.\\d+|\\.\\d+|\\d+)(?:ch|cm|deg|dppx|em|ex|fr|in|mm|ms|pc|pt|px|rem|s|turn|vh|vmax|vmin|vw|%)?(?=$|[^A-Za-z0-9_])/i'],
+            ['keyword', '/^\\b(?:auto|block|border-box|center|contents|flex|flow-root|grid|inherit|initial|inline|inline-flex|inline-grid|none|relative|repeat|revert|revert-layer|safe|solid|subgrid|transparent|unsafe|unset)(?=$|[^A-Za-z0-9_-])/i'],
             ['datatype', '/^[A-Za-z][A-Za-z0-9_-]*(?=(?:[#.:\\s,{>+~]|$))/'],
             ['operator', '/^(?:~=|\\|=|\\^=|\\$=|\\*=|::|[{}()[\\]:;,.#>+~=*!\\/|-])/'],
         ]);

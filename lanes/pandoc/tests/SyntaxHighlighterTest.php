@@ -569,8 +569,20 @@ return [
         $t->contains('<span class="dt">.review</span><span class="fu">:has</span><span class="op">(</span>a<span class="op">)</span>', $highlighted['html']);
         $t->contains('<span class="ot">display</span><span class="op">:</span> <span class="kw">subgrid</span><span class="op">;</span>', $highlighted['html']);
         $t->contains('<span class="fu">color-mix</span><span class="op">(</span><span class="dt">in</span> <span class="dt">oklch</span>', $highlighted['html']);
-        $t->contains('<span class="fu">oklch</span><span class="op">(</span><span class="dv">60</span>% <span class="dv">0.2</span> <span class="dv">240</span><span class="op">),</span>', $highlighted['html']);
+        $t->contains('<span class="fu">oklch</span><span class="op">(</span><span class="dv">60%</span> <span class="dv">0.2</span> <span class="dv">240</span><span class="op">),</span>', $highlighted['html']);
         $t->contains('<span class="ot">overflow-position</span><span class="op">:</span> <span class="kw">safe</span><span class="op">;</span>', $highlighted['html']);
+    },
+    'highlights css percent units as numeric values in review snippets' => static function (TestRunner $t): void {
+        $source = implode("\n", [
+            ':root { --hero-width: min(100%, 48rem); }',
+            '@container (inline-size > 60%) { .wp-block-cover { opacity: .75; } }',
+        ]);
+        $highlighted = (new SyntaxHighlighter())->highlight($source, 'css');
+
+        $t->same('css', $highlighted['language']);
+        $t->contains('<span class="ot">--hero-width</span><span class="op">:</span> <span class="fu">min</span><span class="op">(</span><span class="dv">100%</span><span class="op">,</span> <span class="dv">48rem</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">@container</span> <span class="op">(</span><span class="dt">inline-size</span> <span class="op">&gt;</span> <span class="dv">60%</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">opacity</span><span class="op">:</span> <span class="dv">.75</span><span class="op">;</span>', $highlighted['html']);
     },
     'highlights rust review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
