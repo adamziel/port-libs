@@ -15872,6 +15872,146 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $none, $blocks);
         $t->true(!str_contains($blocks, '&lt;none'), 'Standalone MathML none should not be escaped into reviewer text');
     },
+    'maps upstream html reader mathml merror fragments as raw review markup' => static function (TestRunner $t): void {
+        $merror = '<merror data-source="batch-64"><mi>x</mi></merror>';
+        $document = (new MarkdownReader())->read($merror . "\n\nAfter the error expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($merror, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the error expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $merror, $blocks);
+        $t->true(!str_contains($blocks, '&lt;merror'), 'Standalone MathML merror should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mmultiscripts fragments as raw review markup' => static function (TestRunner $t): void {
+        $mmultiscripts = '<mmultiscripts data-source="batch-64"><mi>x</mi><mn>1</mn><mn>2</mn></mmultiscripts>';
+        $document = (new MarkdownReader())->read($mmultiscripts . "\n\nAfter the multiscript expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mmultiscripts, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the multiscript expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mmultiscripts, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mmultiscripts'), 'Standalone MathML mmultiscripts should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mprescripts fragments as raw review markup' => static function (TestRunner $t): void {
+        $mprescripts = '<mprescripts data-source="batch-64"></mprescripts>';
+        $document = (new MarkdownReader())->read($mprescripts . "\n\nAfter the prescripts marker.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mprescripts, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the prescripts marker.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mprescripts, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mprescripts'), 'Standalone MathML mprescripts should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mstack fragments as raw review markup' => static function (TestRunner $t): void {
+        $mstack = '<mstack data-source="batch-64"><mn>123</mn><msrow><mn>45</mn></msrow></mstack>';
+        $document = (new MarkdownReader())->read($mstack . "\n\nAfter the stack expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mstack, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the stack expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mstack, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mstack'), 'Standalone MathML mstack should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mlongdiv fragments as raw review markup' => static function (TestRunner $t): void {
+        $mlongdiv = '<mlongdiv data-source="batch-64"><mn>123</mn><mn>3</mn></mlongdiv>';
+        $document = (new MarkdownReader())->read($mlongdiv . "\n\nAfter the long division expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mlongdiv, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the long division expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mlongdiv, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mlongdiv'), 'Standalone MathML mlongdiv should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml msgroup fragments as raw review markup' => static function (TestRunner $t): void {
+        $msgroup = '<msgroup data-source="batch-64"><msrow><mn>1</mn></msrow></msgroup>';
+        $document = (new MarkdownReader())->read($msgroup . "\n\nAfter the stack group.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($msgroup, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the stack group.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $msgroup, $blocks);
+        $t->true(!str_contains($blocks, '&lt;msgroup'), 'Standalone MathML msgroup should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml msrow fragments as raw review markup' => static function (TestRunner $t): void {
+        $msrow = '<msrow data-source="batch-64"><mn>1</mn></msrow>';
+        $document = (new MarkdownReader())->read($msrow . "\n\nAfter the stack row.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($msrow, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the stack row.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $msrow, $blocks);
+        $t->true(!str_contains($blocks, '&lt;msrow'), 'Standalone MathML msrow should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mscarries fragments as raw review markup' => static function (TestRunner $t): void {
+        $mscarries = '<mscarries data-source="batch-64"><mscarry><mn>1</mn></mscarry></mscarries>';
+        $document = (new MarkdownReader())->read($mscarries . "\n\nAfter the carries group.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mscarries, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the carries group.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mscarries, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mscarries'), 'Standalone MathML mscarries should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mscarry fragments as raw review markup' => static function (TestRunner $t): void {
+        $mscarry = '<mscarry data-source="batch-64"><mn>1</mn></mscarry>';
+        $document = (new MarkdownReader())->read($mscarry . "\n\nAfter the carry marker.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mscarry, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the carry marker.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mscarry, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mscarry'), 'Standalone MathML mscarry should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml msline fragments as raw review markup' => static function (TestRunner $t): void {
+        $msline = '<msline data-source="batch-64"></msline>';
+        $document = (new MarkdownReader())->read($msline . "\n\nAfter the stack line.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($msline, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the stack line.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $msline, $blocks);
+        $t->true(!str_contains($blocks, '&lt;msline'), 'Standalone MathML msline should not be escaped into reviewer text');
+    },
     'maps upstream html reader svg symbol fragments as raw review markup' => static function (TestRunner $t): void {
         $symbol = '<symbol id="review-icon" viewBox="0 0 10 10" data-source="batch-58"><path d="M0 0L10 10"></path></symbol>';
         $document = (new MarkdownReader())->read($symbol . "\n\nAfter the symbol.");
