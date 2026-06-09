@@ -1123,7 +1123,7 @@ final class WordPressBlockWriter
     {
         $enabled = $table->attr('accessibilityHeaders', false);
         $prefix = trim((string) $table->attr('accessibilityIdPrefix', ''));
-        if ($enabled !== true && $prefix === '') {
+        if ($enabled !== true && $prefix === '' && !$this->tableHasAutoHeaderScope($table)) {
             return [];
         }
 
@@ -1139,6 +1139,29 @@ final class WordPressBlockWriter
         }
 
         return TableGeometry::accessibilityAttributes($table, $prefix);
+    }
+
+    private function tableHasAutoHeaderScope(AstNode $table): bool
+    {
+        foreach ($table->children as $section) {
+            if (!in_array($section->type, ['table_head', 'table_body', 'table_foot'], true)) {
+                continue;
+            }
+
+            foreach ($section->children as $row) {
+                if ($row->type !== 'table_row') {
+                    continue;
+                }
+
+                foreach ($row->children as $cell) {
+                    if ($cell->type === 'table_cell' && $this->sourceTableCellRawScope($cell) === 'auto') {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1557,15 +1580,20 @@ final class WordPressBlockWriter
 
     private function sourceTableCellScope(AstNode $cell): string
     {
+        $scope = $this->sourceTableCellRawScope($cell);
+
+        return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : '';
+    }
+
+    private function sourceTableCellRawScope(AstNode $cell): string
+    {
         $htmlAttributes = $cell->attr('htmlAttributes', []);
         if (!is_array($htmlAttributes)) {
             $htmlAttributes = [];
         }
 
         $htmlAttributes = $this->mergedStoredHtmlAttributes($cell, $htmlAttributes);
-        $scope = strtolower(trim((string) ($htmlAttributes['scope'] ?? '')));
-
-        return in_array($scope, self::TABLE_CELL_SCOPES, true) ? $scope : '';
+        return strtolower(trim((string) ($htmlAttributes['scope'] ?? '')));
     }
 
     /**

@@ -8,6 +8,7 @@ final class TableGeometry
 {
     private const WIDTH_EPSILON = 0.000001;
     private const SOURCE_HTML_HEADER_SCOPES = ['col', 'row', 'colgroup', 'rowgroup'];
+    private const SOURCE_HTML_HEADER_SCOPE_VALUES = ['auto', 'col', 'row', 'colgroup', 'rowgroup'];
 
     public static function columnCount(AstNode $table): int
     {
@@ -917,7 +918,7 @@ final class TableGeometry
 
                     $node = $slot['node'] ?? null;
                     $rawScope = self::cellSourceHtmlScopeRaw($node);
-                    if ($rawScope === '' || self::isSourceHtmlScope($rawScope)) {
+                    if ($rawScope === '' || self::isSourceHtmlScopeValue($rawScope)) {
                         continue;
                     }
 
@@ -936,7 +937,7 @@ final class TableGeometry
                             max(1, (int) ($slot['sourceRowspan'] ?? $slot['rowspan'] ?? 1))
                         ),
                         'rawScope' => $rawScope,
-                        'allowedScopes' => self::SOURCE_HTML_HEADER_SCOPES,
+                        'allowedScopes' => self::SOURCE_HTML_HEADER_SCOPE_VALUES,
                         'fallbackScope' => self::headerScope($slot),
                         'headerCell' => (bool) ($slot['headerCell'] ?? false),
                         'text' => $node instanceof AstNode ? self::plainText($node) : '',
@@ -3743,6 +3744,11 @@ final class TableGeometry
     private static function isSourceHtmlScope(string $scope): bool
     {
         return in_array($scope, self::SOURCE_HTML_HEADER_SCOPES, true);
+    }
+
+    private static function isSourceHtmlScopeValue(string $scope): bool
+    {
+        return in_array($scope, self::SOURCE_HTML_HEADER_SCOPE_VALUES, true);
     }
 
     private static function cellSourceHtmlAbbr(mixed $node): string

@@ -458,6 +458,21 @@ $axisSourceTables = array_values(array_filter(
     $axisSourceDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$autoScopeDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="auto-scope-grid" data-source="html-reader">
+<caption>Auto scope review</caption>
+<thead>
+<tr><th id="auto-document" scope="auto">Document</th><th id="auto-state" scope="auto">State</th></tr>
+</thead>
+<tbody>
+<tr><th id="auto-posts" scope="auto">Posts</th><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$autoScopeTables = array_values(array_filter(
+    $autoScopeDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $captionMetadataTables = [
     new AstNode('table', [
         'caption' => 'Long caption for reviewer',
@@ -1540,6 +1555,7 @@ $document = new AstNode('document', [], [
     ...$multiBodyRowHeadTables,
     ...$captionSourceTables,
     ...$axisSourceTables,
+    ...$autoScopeTables,
     ...$captionMetadataTables,
     $blockCaptionTable,
     $malformedSpanTable,
@@ -3682,6 +3698,29 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing row header axis and headers handoff in WordPress output');
     }
     json_encode($axisSourcePacket, JSON_THROW_ON_ERROR);
+
+    $autoScopeTable = $autoScopeTables[0] ?? null;
+    $autoScopePacket = $autoScopeTable instanceof AstNode ? $autoScopeTable->attr('tableGeometry') : null;
+    $autoScopeBlocks = (new WordPressBlockWriter())->write($autoScopeDocument);
+    if (
+        !is_array($autoScopePacket)
+        || ($autoScopePacket['summary']['diagnosticCodes'] ?? null) !== []
+        || ($autoScopePacket['summary']['hasInvalidSourceScopes'] ?? null) !== false
+        || ($autoScopePacket['headerAssociations']['summary']['headerScopes'] ?? null) !== ['col', 'row']
+        || isset($autoScopePacket['headerAssociations']['headerCells'][0]['sourceScope'])
+        || isset($autoScopePacket['headerAssociations']['headerCells'][2]['sourceScope'])
+        || ($autoScopePacket['headerAssociations']['dataCells'][0]['headers'] ?? null) !== ['auto-state', 'auto-posts']
+    ) {
+        throw new RuntimeException('Table geometry self-test missing HTML scope=auto computed header handoff metadata');
+    }
+    if (
+        str_contains($autoScopeBlocks, 'scope="auto"')
+        || !str_contains($autoScopeBlocks, '<th scope="col" id="auto-document">Document</th><th scope="col" id="auto-state">State</th>')
+        || !str_contains($autoScopeBlocks, '<th scope="row" id="auto-posts">Posts</th><td headers="auto-state auto-posts">Ready</td>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing computed WordPress output for HTML scope=auto headers');
+    }
+    json_encode($autoScopePacket, JSON_THROW_ON_ERROR);
 
     $captionMetadataTable = null;
     foreach ($document->children as $node) {

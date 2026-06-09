@@ -3002,7 +3002,7 @@ return [
         $t->same(0, $diagnostic['sourceRow'] ?? null);
         $t->same([0, 1], $diagnostic['sourceRowRange'] ?? null);
         $t->same('columnish', $diagnostic['rawScope'] ?? null);
-        $t->same(['col', 'row', 'colgroup', 'rowgroup'], $diagnostic['allowedScopes'] ?? null);
+        $t->same(['auto', 'col', 'row', 'colgroup', 'rowgroup'], $diagnostic['allowedScopes'] ?? null);
         $t->same('col', $diagnostic['fallbackScope'] ?? null);
         $t->same(true, $diagnostic['headerCell'] ?? null);
         $t->same('Document', $diagnostic['text'] ?? null);

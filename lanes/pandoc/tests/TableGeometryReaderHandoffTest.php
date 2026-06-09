@@ -1136,6 +1136,53 @@ HTML;
         json_encode($rowHeaderMap, JSON_THROW_ON_ERROR);
         json_encode($matrix, JSON_THROW_ON_ERROR);
     },
+    'treats html scope auto as computed header scope in geometry and wordpress handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="auto-scope-grid" data-source="html-reader">
+<caption>Auto scope review</caption>
+<thead>
+<tr><th id="auto-document" scope="auto">Document</th><th id="auto-state" scope="auto">State</th></tr>
+</thead>
+<tbody>
+<tr><th id="auto-posts" scope="auto">Posts</th><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $packet = $table->attr('tableGeometry');
+        $associations = TableGeometry::headerAssociations($table, 'Auto Scope Grid');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same([], $packet['summary']['diagnosticCodes'] ?? null);
+        $t->same(false, $packet['summary']['hasInvalidSourceScopes'] ?? null);
+        $t->same(0, $packet['summary']['invalidSourceScopeCount'] ?? null);
+        $t->same('auto', $packet['coverage'][0]['sourceAttributes']['htmlAttributes']['scope'] ?? null);
+        $t->same('auto', $packet['coverage'][2]['sourceAttributes']['htmlAttributes']['scope'] ?? null);
+
+        $t->same(3, $associations['summary']['headerCellCount'] ?? null);
+        $t->same(['col', 'row'], $associations['summary']['headerScopes'] ?? null);
+        $t->same('col', $associations['headerCells'][0]['scope'] ?? null);
+        $t->same('col', $associations['headerCells'][1]['scope'] ?? null);
+        $t->same('row', $associations['headerCells'][2]['scope'] ?? null);
+        $t->true(!isset($associations['headerCells'][0]['sourceScope']), 'scope=auto must not override computed column scope');
+        $t->true(!isset($associations['headerCells'][2]['sourceScope']), 'scope=auto must not override computed row scope');
+        $t->same(['auto-state', 'auto-posts'], $associations['dataCells'][0]['headers'] ?? null);
+        $t->same(['auto-state', 'auto-posts'], $packet['accessibility']['body:0:1:1']['headers'] ?? null);
+        $t->same('col', $packet['accessibility']['head:0:0:0']['scope'] ?? null);
+        $t->same('row', $packet['accessibility']['body:0:0:0']['scope'] ?? null);
+        $t->same($associations, $packet['headerAssociations'] ?? null);
+
+        $t->contains('<th scope="col" id="auto-document">Document</th><th scope="col" id="auto-state">State</th>', $blocks);
+        $t->contains('<th scope="row" id="auto-posts">Posts</th><td headers="auto-state auto-posts">Ready</td>', $blocks);
+        $t->true(!str_contains($blocks, 'scope="auto"'), 'scope=auto should be computed for WordPress output instead of preserved literally');
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($associations, JSON_THROW_ON_ERROR);
+    },
     'reports html colgroup count mismatches while preserving usable geometry metadata' => static function (TestRunner $t): void {
         $underdeclaredHtml = <<<'HTML'
 <table id="colgroup-underdeclared-grid" data-source="html-reader">
