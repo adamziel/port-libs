@@ -1891,6 +1891,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($summary['metadata']['creator'] ?? '') !== 'Migration Desk') {
         throw new RuntimeException('Legacy DOC handoff self-test missing metadata creator');
     }
+    $summaryInfoLocation = $locations["\x05SummaryInformation"] ?? null;
+    if (!is_array($summaryInfoLocation)) {
+        throw new RuntimeException('Legacy DOC handoff self-test missing SummaryInformation stream location');
+    }
+    $summaryInfoOffset = 512 + ($rootMiniStart * $sectorSize) + ((int) $summaryInfoLocation['startSector'] * $miniSectorSize);
+    $duplicatePropertyGuardDoc = substr_replace($docBytes, $u32(2), $summaryInfoOffset + 48 + 8 + (2 * 8), 4);
+    try {
+        (new LegacyDocReader())->readBytes($duplicatePropertyGuardDoc);
+
+        throw new RuntimeException('Legacy DOC handoff self-test accepted duplicate OLE property-set identifiers');
+    } catch (RuntimeException $exception) {
+        if (!str_contains($exception->getMessage(), 'duplicate property identifiers')) {
+            throw $exception;
+        }
+    }
     if (($summary['metadata']['subject'] ?? '') !== 'Legacy source packet') {
         throw new RuntimeException('Legacy DOC handoff self-test missing SttbfAssoc fallback subject');
     }

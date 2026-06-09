@@ -428,6 +428,21 @@ TYPST,
         exit(1);
     }
 
+    $unclosedSeparatorDiagnostic = null;
+    try {
+        (new DocTemplate())->renderResource('review-packets/broken.html', [
+            'review-packets/broken.html' => "<ul>\n" . '${ warnings:components/warning-row()[, }',
+        ], [
+            'warnings' => [['source' => 'media']],
+        ]);
+    } catch (UnexpectedValueException $exception) {
+        $unclosedSeparatorDiagnostic = $exception->getMessage();
+    }
+    if ($unclosedSeparatorDiagnostic !== 'Unclosed doctemplate separator at review-packets/broken.html:2:37') {
+        fwrite(STDERR, "Unexpected doctemplate separator diagnostic: " . (string) $unclosedSeparatorDiagnostic . "\n");
+        exit(1);
+    }
+
     $epub2Default = (new DocTemplate())->renderResource('templates/default', [], [
         'pagetitle' => 'Legacy EPUB Review Packet',
         'titlepage' => true,

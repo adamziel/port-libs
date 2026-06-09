@@ -4893,6 +4893,44 @@ TPL;
         $t->throws(\UnexpectedValueException::class, static fn (): string => $renderer->render('Cost: $5', []));
     },
 
+    'reports unclosed pandoc doctemplate separators at bracket source locations' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('$reviewSources[ / $', [
+                'reviewSources' => ['media', 'links'],
+            ]),
+            'Unclosed doctemplate separator at <template>:1:15',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('${ components/row()[; }', [], [
+                'components/row' => '$it$',
+            ]),
+            'Unclosed doctemplate separator at <template>:1:20',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('${ warnings:components/warning-row()[, }', [
+                'warnings' => [['source' => 'media']],
+            ], [
+                'components/warning-row' => '$it.source$',
+            ]),
+            'Unclosed doctemplate separator at <template>:1:37',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "Intro\n" . '${ components/row()[; }',
+            ], []),
+            'Unclosed doctemplate separator at review-packets/review.html:2:20',
+        );
+    },
+
     'returns pandoc doctemplate loop literal at partial nesting limit' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

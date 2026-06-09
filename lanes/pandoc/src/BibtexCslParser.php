@@ -580,7 +580,7 @@ final class BibtexCslParser
     private static function crossrefInheritedFields(string $childType, array $childFields, array $parentFields): array
     {
         $inherited = $parentFields;
-        unset($inherited['crossref']);
+        unset($inherited['crossref'], $inherited['options']);
 
         $containerField = self::crossrefTitleContainerField($childType);
         if ($containerField !== null && !self::hasAnyField($childFields, ['booktitle', 'journaltitle', 'journal'])) {
@@ -599,7 +599,14 @@ final class BibtexCslParser
     {
         return match (strtolower($childType)) {
             'article' => 'journal',
-            'conference', 'inbook', 'incollection', 'inproceedings' => 'booktitle',
+            'bookinbook',
+            'conference',
+            'inbook',
+            'incollection',
+            'inproceedings',
+            'inreference',
+            'suppbook',
+            'suppcollection' => 'booktitle',
             default => null,
         };
     }
@@ -1148,7 +1155,7 @@ final class BibtexCslParser
         return match (strtolower($type)) {
             'article' => 'article-journal',
             'inproceedings', 'conference' => 'paper-conference',
-            'inbook', 'incollection' => 'chapter',
+            'bookinbook', 'inbook', 'incollection', 'suppbook', 'suppcollection' => 'chapter',
             'inreference' => 'entry-encyclopedia',
             'set' => 'entry',
             'collection', 'mvcollection', 'mvbook', 'mvproceedings', 'mvreference', 'proceedings', 'reference' => 'book',

@@ -6571,13 +6571,22 @@ final class LegacyDocReader
         $values = [];
         $codepage = 1252;
         $locations = [];
+        $directoryBytes = $propertyCount * 8;
+        if ($entriesOffset + $directoryBytes > $offset + $propertySetSize) {
+            throw new \RuntimeException('Legacy DOC OLE property-set directory points outside its section');
+        }
+        $minimumValueOffset = 8 + $directoryBytes;
         for ($index = 0; $index < $propertyCount; $index++) {
             $entryOffset = $entriesOffset + ($index * 8);
-            if ($entryOffset + 8 > $offset + $propertySetSize) {
-                break;
-            }
             $propertyId = self::u32($bytes, $entryOffset);
             $valueOffset = self::u32($bytes, $entryOffset + 4);
+            if (isset($locations[$propertyId])) {
+                throw new \RuntimeException('Legacy DOC OLE property-set directory contains duplicate property identifiers');
+            }
+            if ($valueOffset < $minimumValueOffset || $valueOffset >= $propertySetSize || ($valueOffset % 4) !== 0) {
+                throw new \RuntimeException('Legacy DOC OLE property-set directory contains an invalid property value offset');
+            }
+
             $locations[$propertyId] = $offset + $valueOffset;
         }
 

@@ -410,6 +410,93 @@ BIB;
         $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $markdown);
         $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027.', $markdown);
     },
+    'inherits bounded biblatex reference crossref titles into child containers' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@reference{migration-reference,
+  options   = {dataonly},
+  editor    = {Curator, Eli},
+  title     = {Migration Reference Desk},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@inreference{source-term,
+  author   = {Ng, Nia},
+  title    = {Import Source Term},
+  pages    = {42--43},
+  crossref = {migration-reference}
+}
+
+@bookinbook{embedded-source,
+  author   = {Roe, Pat},
+  title    = {Embedded Audit Leaf},
+  pages    = {9--11},
+  crossref = {migration-reference}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('source-term', $items[0]['id']);
+        $t->same('entry-encyclopedia', $items[0]['type']);
+        $t->same('Migration Reference Desk', $items[0]['container-title']);
+        $t->same('Review Press', $items[0]['publisher']);
+        $t->same([['family' => 'Curator', 'given' => 'Eli']], $items[0]['editor']);
+        $t->same('42-43', $items[0]['page']);
+        $t->same('embedded-source', $items[1]['id']);
+        $t->same('chapter', $items[1]['type']);
+        $t->same('Migration Reference Desk', $items[1]['container-title']);
+        $t->same('9-11', $items[1]['page']);
+        $t->same('migration-reference', $items[1]['rawBibtex']['fields']['crossref'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $term = $processor->item('source-term');
+        $embedded = $processor->item('embedded-source');
+        $t->same('Migration Reference Desk', $term['containerTitle'] ?? null);
+        $t->same('Review Press', $term['publisher'] ?? null);
+        $t->same([2026], $term['issuedDate']['parts'] ?? null);
+        $t->same('Migration Reference Desk', $embedded['containerTitle'] ?? null);
+        $t->same('chapter', $embedded['type'] ?? null);
+        $t->same('(Ng 2026; Roe 2026)', $processor->renderCitationCluster([
+            $citation('source-term', '[@source-term]'),
+            $citation('embedded-source', '[@embedded-source]'),
+        ]));
+        $t->same('Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43.', $processor->renderBibliographyEntry('source-term'));
+        $t->same('Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11.', $processor->renderBibliographyEntry('embedded-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="type"/>
+        <text variable="title"/>
+        <text variable="container-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title"/>
+      <names variable="editor"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[entry-encyclopedia | Import Source Term | Migration Reference Desk; chapter | Embedded Audit Leaf | Migration Reference Desk]', $styled->renderCitationCluster([
+            $citation('source-term', '[@source-term]'),
+            $citation('embedded-source', '[@embedded-source]'),
+        ]));
+        $t->same('Import Source Term :: Migration Reference Desk :: Curator, Eli', $styled->renderBibliographyEntry('source-term'));
+
+        $document = (new MarkdownReader())->read('Reference children cite @source-term and [@embedded-source] with inherited container context.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Reference children cite Ng (2026) and (Roe 2026) with inherited container context.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43.</dd>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11.</dd>', $blocks);
+    },
     'inherits bounded biblatex xdata fields and preserves reviewer metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @xdata{shared-review-packet,

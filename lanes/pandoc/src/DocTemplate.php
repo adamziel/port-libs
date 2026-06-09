@@ -4508,8 +4508,13 @@ CSS;
             }
 
             if (($template[$index + 1] ?? '') === '{') {
-                $closing = $this->findBracedDirectiveClosing($template, $index + 2);
+                $unclosedSeparatorOffset = null;
+                $closing = $this->findBracedDirectiveClosing($template, $index + 2, $unclosedSeparatorOffset);
                 if ($closing === null) {
+                    if ($unclosedSeparatorOffset !== null) {
+                        $this->throwTemplateError('Unclosed doctemplate separator', $template, $unclosedSeparatorOffset, $sourceName);
+                    }
+
                     $this->throwTemplateError('Unclosed doctemplate ${...} directive', $template, $index, $sourceName);
                 }
 
@@ -4536,8 +4541,13 @@ CSS;
                 continue;
             }
 
-            $closing = $this->findDollarDirectiveClosing($template, $index + 1);
+            $unclosedSeparatorOffset = null;
+            $closing = $this->findDollarDirectiveClosing($template, $index + 1, $unclosedSeparatorOffset);
             if ($closing === null) {
+                if ($unclosedSeparatorOffset !== null) {
+                    $this->throwTemplateError('Unclosed doctemplate separator', $template, $unclosedSeparatorOffset, $sourceName);
+                }
+
                 $this->throwTemplateError('Unclosed doctemplate $...$ directive', $template, $index, $sourceName);
             }
 
@@ -4592,8 +4602,9 @@ CSS;
         return $closingOffset;
     }
 
-    private function findBracedDirectiveClosing(string $template, int $start): ?int
+    private function findBracedDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null): ?int
     {
+        $unclosedSeparatorOffset = null;
         $inQuote = false;
         $escape = false;
         $length = strlen($template);
@@ -4613,6 +4624,8 @@ CSS;
             if (!$inQuote && $char === '[') {
                 $separatorClosing = strpos($template, ']', $index + 1);
                 if ($separatorClosing === false) {
+                    $unclosedSeparatorOffset = $index;
+
                     return null;
                 }
 
@@ -4633,8 +4646,9 @@ CSS;
         return null;
     }
 
-    private function findDollarDirectiveClosing(string $template, int $start): ?int
+    private function findDollarDirectiveClosing(string $template, int $start, ?int &$unclosedSeparatorOffset = null): ?int
     {
+        $unclosedSeparatorOffset = null;
         $inQuote = false;
         $escape = false;
         $length = strlen($template);
@@ -4659,6 +4673,8 @@ CSS;
             if (!$inQuote && $char === '[') {
                 $separatorClosing = strpos($template, ']', $index + 1);
                 if ($separatorClosing === false) {
+                    $unclosedSeparatorOffset = $index;
+
                     return null;
                 }
 

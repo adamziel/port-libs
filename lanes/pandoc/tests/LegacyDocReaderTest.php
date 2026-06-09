@@ -3968,6 +3968,33 @@ return [
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
     },
+    'rejects malformed legacy DOC OLE property-set directories before metadata exposure' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $u32): void {
+        $reader = new LegacyDocReader();
+        $validPropertySet = $typedPropertySet([
+            2 => $typedLpstr('Safe review title'),
+            4 => $typedLpstr('Migration Desk'),
+        ]);
+        $propertySetOffset = 48;
+        $thirdPropertyIdOffset = $propertySetOffset + 8 + (2 * 8);
+        $firstValueOffset = $propertySetOffset + 8 + 4;
+
+        $duplicatePropertyId = substr_replace($validPropertySet, $u32(2), $thirdPropertyIdOffset, 4);
+        $overlongPropertyDirectory = substr_replace($validPropertySet, $u32(4097), $propertySetOffset + 4, 4);
+        $valueOffsetIntoDirectory = substr_replace($validPropertySet, $u32(8), $firstValueOffset, 4);
+        $misalignedValueOffset = substr_replace($validPropertySet, $u32(9), $firstValueOffset, 4);
+
+        foreach ([
+            'duplicate property id' => $duplicatePropertyId,
+            'overlong property directory' => $overlongPropertyDirectory,
+            'value offset into directory' => $valueOffsetIntoDirectory,
+            'misaligned value offset' => $misalignedValueOffset,
+        ] as $_label => $summaryInformation) {
+            $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+                'WordDocument' => $buildSimpleWordDocument("Malformed property-set guard packet\r"),
+                "\x05SummaryInformation" => $summaryInformation,
+            ])));
+        }
+    },
     'extracts legacy DOC reserved hyperlink custom properties as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedBool, $typedUnicodeBlob, $typedHyperlinks, $typedBlob, $typedI4, $u32): void {
         $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
         $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
