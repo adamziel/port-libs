@@ -409,7 +409,25 @@ final class PandocJsonReader
             $this->readCaptionAttrs($tuple[1], 'Figure')
         );
 
-        return new AstNode('figure', $attrs, $this->readBlocks($this->listContent($tuple[2], 'Figure blocks')));
+        return new AstNode('figure', $attrs, $this->figureChildren($this->readBlocks($this->listContent($tuple[2], 'Figure blocks'))));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function figureChildren(array $blocks): array
+    {
+        if (
+            count($blocks) === 1
+            && in_array($blocks[0]->type, ['plain', 'paragraph'], true)
+            && count($blocks[0]->children) === 1
+            && $blocks[0]->children[0]->type === 'image'
+        ) {
+            return [$blocks[0]->children[0]];
+        }
+
+        return $blocks;
     }
 
     private function readTableBlock(mixed $content): AstNode
@@ -849,10 +867,19 @@ final class PandocJsonReader
             throw new \InvalidArgumentException(ucfirst($type) . ' target entries must be strings');
         }
 
-        return new AstNode($type, array_merge($this->readAttrTuple($tuple[0]), [
+        $label = $this->readInlines($this->listContent($tuple[1], ucfirst($type) . ' label'));
+        $attrs = array_merge($this->readAttrTuple($tuple[0]), [
             'url' => $target[0],
             'title' => $target[1],
-        ]), $this->readInlines($this->listContent($tuple[1], ucfirst($type) . ' label')));
+        ]);
+        if ($type === 'image') {
+            $alt = trim($this->plainText($label));
+            if ($alt !== '') {
+                $attrs['alt'] = $alt;
+            }
+        }
+
+        return new AstNode($type, $attrs, $label);
     }
 
     private function readSpanInline(mixed $content): AstNode

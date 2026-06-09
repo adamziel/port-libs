@@ -786,7 +786,7 @@ return [
         $writer = new PandocJsonWriter();
         $document = $reader->readPacket($packet);
         $figure = $document->children[0];
-        $image = $figure->children[0]->children[0];
+        $image = $figure->children[0];
         $encoded = $writer->toArray($document);
         $roundTrip = $reader->readPacket($encoded)->children[0];
         $blocks = (new WordPressBlockWriter())->write($document);
@@ -803,16 +803,123 @@ return [
         $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
         $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
         $t->same('Reviewer', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
-        $t->same('Para', $encoded['blocks'][0]['c'][2][0]['t']);
+        $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Reviewer figure', $roundTrip->attr('caption'));
         $t->contains(
             '<figure class="wp-block-image wp-import-figure" id="json-figure" data-review="figure" xml:lang="fr-CA" title="Escaped &quot;figure&quot; title" data-pandoc-latex-placement="htbp">',
             $blocks
         );
-        $t->contains('<img src="media/review.png" alt="" title="Figure image" class="review-image" data-image="source"/>', $blocks);
+        $t->contains('<img src="media/review.png" alt="Review image" title="Figure image" class="review-image" data-image="source"/>', $blocks);
         $t->contains('<figcaption>Reviewer figure</figcaption>', $blocks);
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers must not render on Pandoc Figure output');
         $t->true(!str_contains($blocks, 'style="display:none"'), 'Unsafe style attributes must not render on Pandoc Figure output');
+    },
+    'round trips pandoc json figure caption metadata through shared figure ast' => static function (TestRunner $t): void {
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['json-figure', ['wp-import'], [['data-source', 'json-filter']]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Short'],
+                        ['t' => 'Space'],
+                        ['t' => 'Strong', 'c' => [
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Emph', 'c' => [
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'source'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', ['hero-image'], [['data-source', 'media-bag']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Alt'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'text'],
+                            ],
+                            ['media/hero.png', 'Hero title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket($packet);
+        $figure = $document->children[0];
+        $image = $figure->children[0];
+        $captionInlines = $figure->attr('captionInlines');
+        $shortCaptionInlines = $figure->attr('shortCaptionInlines');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $generated = $writer->toArray(new AstNode('document', [], [
+            new AstNode('figure', [
+                'caption' => 'Generated caption',
+                'shortCaption' => 'Generated short',
+                'id' => 'generated-figure',
+                'classes' => ['wp-import'],
+            ], [
+                new AstNode('image', [
+                    'url' => 'media/generated.png',
+                    'title' => 'Generated title',
+                    'alt' => 'Generated alt',
+                ]),
+            ]),
+        ]));
+        $generatedRoundTrip = $reader->readPacket($generated);
+
+        $t->same('figure', $figure->type);
+        $t->same('json-figure', $figure->attr('id'));
+        $t->same(['wp-import'], $figure->attr('classes'));
+        $t->same(['data-source' => 'json-filter'], $figure->attr('attributes'));
+        $t->same('Long caption source', $figure->attr('caption'));
+        $t->same('Short figure', $figure->attr('shortCaption'));
+        $t->same(true, is_array($captionInlines));
+        $t->same(['text', 'space', 'emph', 'space', 'text'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same(true, is_array($shortCaptionInlines));
+        $t->same(['text', 'space', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
+        $t->same('image', $image->type);
+        $t->same('media/hero.png', $image->attr('url'));
+        $t->same('Hero title', $image->attr('title'));
+        $t->same('Alt text', $image->attr('alt'));
+        $t->same(['hero-image'], $image->attr('classes'));
+        $t->same(['data-source' => 'media-bag'], $image->attr('attributes'));
+        $t->same('Figure', $encoded['blocks'][0]['t']);
+        $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
+        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
+        $t->same('Image', $encoded['blocks'][0]['c'][2][0]['c'][0]['t']);
+        $t->same('Alt', $encoded['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
+        $t->same('figure', $roundTrip->children[0]->type);
+        $t->same('Alt text', $roundTrip->children[0]->children[0]->attr('alt'));
+        $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long caption source</figcaption></figure>', $blocks);
+        $t->same('Figure', $generated['blocks'][0]['t']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Generated', $generated['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
+        $t->same('generated-figure', $generatedRoundTrip->children[0]->attr('id'));
+        $t->same('Generated caption', $generatedRoundTrip->children[0]->attr('caption'));
+        $t->same('Generated short', $generatedRoundTrip->children[0]->attr('shortCaption'));
+        $t->same('Generated alt', $generatedRoundTrip->children[0]->children[0]->attr('alt'));
     },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
@@ -900,7 +1007,7 @@ return [
         $t->contains('<span id="inline-lang" class="language" data-review="span" xml:lang="pl">tekst</span>', $blocks);
         $t->contains('<a href="https://example.test/source" title="Source title" class="source-link" data-review="link" xml:lang="en-US">source</a>', $blocks);
         $t->contains('<code id="code-frag" class="php" data-review="code" xml:lang="en-US">echo &quot;x&quot;;</code>', $blocks);
-        $t->contains('<img src="/media/diagram.png" alt="" title="Diagram title" class="inline-media" data-review="image" xml:lang="en-US"/>', $blocks);
+        $t->contains('<img src="/media/diagram.png" alt="Diagram" title="Diagram title" class="inline-media" data-review="image" xml:lang="en-US"/>', $blocks);
         $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes must not render on Pandoc inline output');
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe click handler attributes must not render on Pandoc inline output');
         $t->true(!str_contains($blocks, 'onfocus='), 'Unsafe focus handler attributes must not render on Pandoc inline output');

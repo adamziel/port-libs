@@ -585,11 +585,23 @@ final class PandocJsonWriter
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
-            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
+            'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
             'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
             default => throw new \InvalidArgumentException("Unsupported AST inline node for Pandoc JSON: {$node->type}"),
         };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function imageLabelInlines(AstNode $node): array
+    {
+        if ($node->children !== []) {
+            return $node->children;
+        }
+
+        return $this->textInlines((string) $node->attr('alt', ''));
     }
 
     /**
