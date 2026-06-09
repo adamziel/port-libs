@@ -2485,6 +2485,7 @@ final class Html5DomFragment
         string $name,
         string $value,
         string $tagName,
+        \DOMElement $element,
         array &$diagnostics
     ): array {
         $attribute = strtolower($name);
@@ -2502,26 +2503,26 @@ final class Html5DomFragment
         }
 
         if (!in_array($state, $allowedStates, true)) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => $tagName,
                 'attribute' => $attribute,
                 'value' => $state,
                 'reason' => 'invalid-image-resource-policy-metadata',
-            ];
+            ], $element);
 
             return [];
         }
 
         $metadataAttribute = 'data-pandoc-image-' . $attribute;
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'image-resource-policy-review',
             'tag' => $tagName,
             'attribute' => $attribute,
             'metadataAttribute' => $metadataAttribute,
             'state' => $state,
             'reason' => 'image-resource-policy-preserved-as-review-metadata',
-        ];
+        ], $element);
 
         return [$metadataAttribute => $state];
     }
@@ -4762,6 +4763,7 @@ final class Html5DomFragment
                     $name,
                     $value,
                     $tagName,
+                    $element,
                     $diagnostics
                 );
                 foreach ($imageResourcePolicyMetadata as $metadataName => $metadataValue) {

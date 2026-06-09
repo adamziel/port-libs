@@ -4227,6 +4227,50 @@ return [
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove live or unsafe source content: ' . $blocked);
         }
     },
+    'adds source line metadata to image resource policy diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<figure>\n"
+            . "<img src=\"./hero.jpg\" loading=\" Lazy \" decoding=\"ASYNC\" fetchpriority=\"HIGH\" crossorigin=\"\" alt=\"Hero\">\n"
+            . "<img src=\"./bad.jpg\" loading=\"soon\" decoding=\"fast\" fetchpriority=\"urgent\" crossorigin=\"credentialed\" alt=\"Bad\">\n"
+            . '</figure>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/image-resource-policy-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $imagePolicyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $reason = (string) ($diagnostic['reason'] ?? '');
+
+                return $code === 'image-resource-policy-review'
+                    || ($code === 'unsafe-attribute' && $reason === 'invalid-image-resource-policy-metadata');
+            }
+        ));
+
+        $t->same('<figure>' . "\n"
+            . '<img src="https://source.example.test/import/posts/hero.jpg" data-pandoc-image-loading="lazy" data-pandoc-image-decoding="async" data-pandoc-image-fetchpriority="high" data-pandoc-image-crossorigin="anonymous" alt="Hero">' . "\n"
+            . '<img src="https://source.example.test/import/posts/bad.jpg" alt="Bad">' . "\n"
+            . '</figure>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/image-resource-policy-lines-review.html', $document->children[0]->attr('part'));
+        $t->same(8, count($imagePolicyDiagnostics));
+        $t->same(
+            ['loading', 'decoding', 'fetchpriority', 'crossorigin', 'loading', 'decoding', 'fetchpriority', 'crossorigin'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $imagePolicyDiagnostics)
+        );
+        $t->same(
+            ['image-resource-policy-review', 'image-resource-policy-review', 'image-resource-policy-review', 'image-resource-policy-review', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $imagePolicyDiagnostics)
+        );
+        $t->same([2, 2, 2, 2, 3, 3, 3, 3], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $imagePolicyDiagnostics));
+        $t->true(!str_contains($html, ' loading='), 'Expected live loading attributes to stay stripped');
+        $t->true(!str_contains($html, ' urgent'), 'Expected invalid fetchpriority source value to stay diagnostic-only');
+        $t->true(!str_contains($blocks, 'credentialed'), 'Expected invalid crossorigin source value to stay diagnostic-only');
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'
