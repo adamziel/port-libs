@@ -187,6 +187,7 @@ final class PandocFormatRegistry
         '.ms' => 'ms',
         '.roff' => 'ms',
         '.[1-9]' => 'man',
+        '.[1-9][a-z]+' => 'man',
     ];
 
     /** @var list<string> */
@@ -638,7 +639,7 @@ final class PandocFormatRegistry
             $normalized = '.' . $normalized;
         }
 
-        if (preg_match('/^\.[1-9]$/', $normalized) === 1) {
+        if (preg_match('/^\.[1-9](?:[a-z]+)?$/', $normalized) === 1) {
             return 'man';
         }
 

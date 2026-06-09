@@ -93,6 +93,7 @@ return [
             '.ms' => 'ms',
             '.roff' => 'ms',
             '.[1-9]' => 'man',
+            '.[1-9][a-z]+' => 'man',
         ], PandocFormatRegistry::roffManualExtensionInference());
 
         $inputSupport = PandocFormatRegistry::roffManualInputSupport();
@@ -173,6 +174,7 @@ return [
             '.ms' => 'ms',
             '.roff' => 'ms',
             '.[1-9]' => 'man',
+            '.[1-9][a-z]+' => 'man',
         ], $packet['extensionInference']);
         $t->same(['ms', 'man'], $packet['extensionInferredFormats']);
         $t->same(['mdoc'], $packet['nonExtensionInferredFormats']);
@@ -191,7 +193,7 @@ return [
             'inputStatus' => 'unsupported',
             'outputStatus' => 'unsupported',
             'extensionInferred' => true,
-            'extensions' => ['.[1-9]'],
+            'extensions' => ['.[1-9]', '.[1-9][a-z]+'],
             'inputImplementation' => '',
             'outputImplementation' => '',
         ], $packet['formats']['man']);
@@ -222,6 +224,28 @@ return [
             $t->same('', $review['inputImplementation'], "Roff manual review packet {$format} must not register an input implementation");
             $t->same('', $review['outputImplementation'], "Roff manual review packet {$format} must not register an output implementation");
         }
+    },
+    'tracks roff manual section suffix extension inference without reader parity' => static function (TestRunner $t): void {
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.3p'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('3P'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.5ssl'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('7tcl'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.9x'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3-p'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3.1'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3_foo'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.10ssl'));
+
+        $t->same(['ms', 'man'], PandocFormatRegistry::roffManualFormatsWithExtensionInference());
+        $t->same(['mdoc'], PandocFormatRegistry::roffManualFormatsWithoutExtensionInference());
+
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+        $t->same(['.[1-9]', '.[1-9][a-z]+'], $packet['formats']['man']['extensions']);
+        $t->same('unsupported', $packet['formats']['man']['inputStatus']);
+        $t->same('unsupported', $packet['formats']['man']['outputStatus']);
+        $t->same('', $packet['formats']['man']['inputImplementation']);
+        $t->same('', $packet['formats']['man']['outputImplementation']);
+        $t->same(false, $packet['formats']['mdoc']['extensionInferred']);
     },
     'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
         $t->same([
