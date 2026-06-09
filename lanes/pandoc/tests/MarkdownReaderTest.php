@@ -12908,6 +12908,56 @@ HTML;
         $t->contains('<!-- wp:html -->' . "\n" . '<!review' . "\n" . 'data-source="batch-59">', $blocks);
         $t->contains('<p>After <strong>lowercase</strong> declarations.</p>', $blocks);
     },
+    'maps commonmark interrupting raw html block boundaries after paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Lead paragraph before raw comment.',
+            '<!-- reviewer *note*',
+            'still raw -->',
+            'After **comment**.',
+            '',
+            'Lead paragraph before script.',
+            '<script type="text/plain">',
+            'if (a < b) { document.write("*raw*"); }',
+            '</script>',
+            '# Parsed after script',
+            '',
+            'Lead paragraph before div.',
+            '<div data-review="raw-boundary">',
+            '**raw div** body',
+            '',
+            'Tail **paragraph**.',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(9, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Lead paragraph before raw comment.', $document->children[0]->attr('text'));
+        $t->same('raw_html', $document->children[1]->type);
+        $t->same("<!-- reviewer *note*\nstill raw -->", $document->children[1]->attr('html'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[2]->children));
+        $t->same('raw_html', $document->children[4]->type);
+        $t->same("<script type=\"text/plain\">\nif (a < b) { document.write(\"*raw*\"); }\n</script>", $document->children[4]->attr('html'));
+        $t->same('heading', $document->children[5]->type);
+        $t->same('Parsed after script', $document->children[5]->attr('text'));
+        $t->same('raw_html', $document->children[7]->type);
+        $t->same("<div data-review=\"raw-boundary\">\n**raw div** body", $document->children[7]->attr('html'));
+        $t->same('paragraph', $document->children[8]->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $document->children[8]->children));
+        $t->contains('<!-- wp:html -->' . "\n" . '<!-- reviewer *note*' . "\n" . 'still raw -->', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<script type="text/plain">' . "\n" . 'if (a < b) { document.write("*raw*"); }', $blocks);
+        $t->contains('<h1 id="parsed-after-script">Parsed after script</h1>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<div data-review="raw-boundary">' . "\n" . '**raw div** body', $blocks);
+        $t->contains('<p>Tail <strong>paragraph</strong>.</p>', $blocks);
+
+        $genericTagLine = (new MarkdownReader())->read("Paragraph before generic tag\n<custom-review>\ncontinuation");
+        $t->same(1, count($genericTagLine->children));
+        $t->same('paragraph', $genericTagLine->children[0]->type);
+        $t->same(
+            'Paragraph before generic tag <custom-review> continuation',
+            $genericTagLine->children[0]->attr('text')
+        );
+    },
     'maps commonmark pre raw html blocks to closing-tag boundaries' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<pre data-source="commonmark-raw">',

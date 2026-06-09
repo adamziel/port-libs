@@ -13227,6 +13227,7 @@ final class MarkdownReader
             'details',
             'dialog',
             'dir',
+            'div',
             'dl',
             'dt',
             'fieldset',
