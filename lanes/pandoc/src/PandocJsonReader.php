@@ -125,6 +125,10 @@ final class PandocJsonReader
 
     private function readMetaValue(mixed $value): mixed
     {
+        if (!$this->looksLikeMetaConstructor($value)) {
+            return $this->readPlainMetaValue($value);
+        }
+
         [$tag, $content] = $this->tagged($value, 'meta value');
 
         return match ($tag) {
@@ -136,6 +140,46 @@ final class PandocJsonReader
             'MetaMap' => ['type' => 'map', 'items' => $this->readMetaMap($this->objectContent($content, 'MetaMap'))],
             default => throw new \InvalidArgumentException("Unsupported Pandoc meta constructor: {$tag}"),
         };
+    }
+
+    private function looksLikeMetaConstructor(mixed $value): bool
+    {
+        return is_array($value)
+            && !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && (array_key_exists('c', $value) || str_starts_with($value['t'], 'Meta'));
+    }
+
+    private function readPlainMetaValue(mixed $value): mixed
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_array($value)) {
+            if (array_is_list($value)) {
+                return [
+                    'type' => 'list',
+                    'items' => array_map(fn (mixed $item): mixed => $this->readMetaValue($item), $value),
+                ];
+            }
+
+            return [
+                'type' => 'map',
+                'items' => $this->readMetaMap($value),
+            ];
+        }
+
+        throw new \InvalidArgumentException('Pandoc meta value must be a tagged object or JSON-compatible scalar, list, or object');
     }
 
     /**

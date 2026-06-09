@@ -157,6 +157,61 @@ return [
         ]);
         $t->same('literal-key', $modernUnMetaKey->attr('meta')['unMeta']);
     },
+    'reads simplified pandoc json metadata values as compatible meta constructors' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Plain'],
+                    ['t' => 'Space'],
+                    ['t' => 'Emph', 'c' => [
+                        ['t' => 'Str', 'c' => 'metadata'],
+                    ]],
+                ]],
+                'source' => 'json-sidecar',
+                'draft' => false,
+                'priority' => 3,
+                'review' => [
+                    'queue' => 'wp-import',
+                    'nullable' => null,
+                    'flags' => ['needs-alt-text', true, 2],
+                    'ticket' => ['t' => 'plain-ticket'],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'packet'],
+                ]],
+            ],
+        ]);
+
+        $meta = $document->attr('meta');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+        $roundTripMeta = $roundTrip->attr('meta');
+
+        $t->same('inlines', $meta['title']['type']);
+        $t->same('emph', $meta['title']['children'][2]->type);
+        $t->same('json-sidecar', $meta['source']);
+        $t->same(false, $meta['draft']);
+        $t->same('3', $meta['priority']);
+        $t->same('map', $meta['review']['type']);
+        $t->same('wp-import', $meta['review']['items']['queue']);
+        $t->same('', $meta['review']['items']['nullable']);
+        $t->same(['needs-alt-text', true, '2'], $meta['review']['items']['flags']['items']);
+        $t->same('plain-ticket', $meta['review']['items']['ticket']['items']['t']);
+        $t->same('MetaString', $encoded['meta']['source']['t']);
+        $t->same('MetaBool', $encoded['meta']['draft']['t']);
+        $t->same('MetaString', $encoded['meta']['priority']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['t']);
+        $t->same('MetaList', $encoded['meta']['review']['c']['flags']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['c']['ticket']['t']);
+        $t->same('plain-ticket', $roundTripMeta['review']['items']['ticket']['items']['t']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
