@@ -13933,6 +13933,35 @@ XML;
         $t->contains('<p>Before <iframe id="source-frame" loading="lazy" src="https://example.test/imports/embed.html" title="Source preview"></iframe> after.</p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document iframe should not be dropped from the paragraph');
     },
+    'maps upstream html reader input controls as raw review markup' => static function (TestRunner $t): void {
+        $input = '<input type="text" name="reviewer" value="Ada" data-source="batch-42">';
+        $blockDocument = (new MarkdownReader())->read($input . "\n\nAfter the reviewer input.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($input, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the reviewer input.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $input, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;input'), 'Standalone input source should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . '<input type="hidden" name="source-id" value="42" data-source="batch-42">'
+            . ' after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineInput = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<input data-source="batch-42" name="source-id" type="hidden" value="42">', $inlineInput->attr('html'));
+        $t->contains('<p>Before <input data-source="batch-42" name="source-id" type="hidden" value="42"> after.</p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document input should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
