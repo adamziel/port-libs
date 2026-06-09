@@ -4210,7 +4210,7 @@ final class MathTexConverter
     private function parseExtensibleArrowCommand(string $source, int &$offset, string $command): string
     {
         $below = $this->parseOptionalNonEmptyBracketArgument($source, $offset, $command . ' lower label');
-        $above = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' upper label');
+        $above = $this->parseRequiredTexToken($source, $offset, $command . ' upper label');
         $arrow = '<mo stretchy="true">' . $this->esc(self::EXTENSIBLE_ARROW_COMMANDS[$command]) . '</mo>';
 
         if ($below !== null) {
@@ -4603,7 +4603,7 @@ final class MathTexConverter
     private function parseArrowAccentCommand(string $source, int &$offset, string $command): string
     {
         $spec = self::ARROW_ACCENT_COMMANDS[$command];
-        $base = $this->parseRequiredNonEmptyGroup($source, $offset, $command . ' base');
+        $base = $this->parseRequiredTexToken($source, $offset, $command . ' base');
         $arrow = '<mo stretchy="true">' . $this->esc($spec['glyph']) . '</mo>';
 
         if ($spec['position'] === 'over') {

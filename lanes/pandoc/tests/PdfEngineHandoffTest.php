@@ -4139,6 +4139,186 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfNameTrees']);
     },
 
+    'fake runner summarizes bounded pdf name tree limits policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/name-tree-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Names 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Dests 9 0 R /Templates 18 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Kids [10 0 R 11 0 R] /Limits [(appendix) (intro)] >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Limits [(appendix) (appendix)] /Names [(appendix) [4 0 R /Fit]] >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Limits [(intro) (intro)] /Names [(intro) 12 0 R] >>',
+            'endobj',
+            '12 0 obj',
+            '[3 0 R /FitH 720]',
+            'endobj',
+            '18 0 obj',
+            '<< /Kids [19 0 R 20 0 R] /Limits [(cover) (summary)] >>',
+            'endobj',
+            '19 0 obj',
+            '<< /Limits [(cover) (cover)] /Names [(summary) 21 0 R] >>',
+            'endobj',
+            '20 0 obj',
+            '<< /Limits [(appendix) (summary)] /Names [(appendix) 22 0 R] >>',
+            'endobj',
+            '21 0 obj',
+            '<< /Type /Template /Name (summary) >>',
+            'endobj',
+            '22 0 obj',
+            '<< /Type /Template /Name (appendix) >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/name-tree-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/name-tree-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'category' => 'Dests',
+                'source' => 'catalog.Names.Dests',
+                'reviewStatus' => 'ok',
+                'entryCount' => 2,
+                'kidCount' => 2,
+                'limits' => ['appendix', 'intro'],
+                'issues' => [],
+                'nodes' => [
+                    [
+                        'source' => 'catalog.Names.Dests',
+                        'object' => '9 0 R',
+                        'kind' => 'root',
+                        'entryCount' => 0,
+                        'names' => [],
+                        'kidCount' => 2,
+                        'limits' => ['appendix', 'intro'],
+                        'reviewStatus' => 'ok',
+                        'issues' => [],
+                    ],
+                    [
+                        'source' => 'catalog.Names.Dests.Kids.10 0 R',
+                        'object' => '10 0 R',
+                        'kind' => 'kid',
+                        'entryCount' => 1,
+                        'names' => ['appendix'],
+                        'kidCount' => 0,
+                        'limits' => ['appendix', 'appendix'],
+                        'reviewStatus' => 'ok',
+                        'issues' => [],
+                    ],
+                    [
+                        'source' => 'catalog.Names.Dests.Kids.11 0 R',
+                        'object' => '11 0 R',
+                        'kind' => 'kid',
+                        'entryCount' => 1,
+                        'names' => ['intro'],
+                        'kidCount' => 0,
+                        'limits' => ['intro', 'intro'],
+                        'reviewStatus' => 'ok',
+                        'issues' => [],
+                    ],
+                ],
+            ],
+            [
+                'category' => 'Templates',
+                'source' => 'catalog.Names.Templates',
+                'reviewStatus' => 'review',
+                'entryCount' => 2,
+                'kidCount' => 2,
+                'limits' => ['cover', 'summary', 'appendix'],
+                'issues' => [
+                    'kid-limits-outside-parent',
+                    'kid-limits-overlap-or-unsorted',
+                    'names-outside-limits',
+                ],
+                'nodes' => [
+                    [
+                        'source' => 'catalog.Names.Templates',
+                        'object' => '18 0 R',
+                        'kind' => 'root',
+                        'entryCount' => 0,
+                        'names' => [],
+                        'kidCount' => 2,
+                        'limits' => ['cover', 'summary'],
+                        'reviewStatus' => 'review',
+                        'issues' => [
+                            'kid-limits-outside-parent',
+                            'kid-limits-overlap-or-unsorted',
+                        ],
+                    ],
+                    [
+                        'source' => 'catalog.Names.Templates.Kids.19 0 R',
+                        'object' => '19 0 R',
+                        'kind' => 'kid',
+                        'entryCount' => 1,
+                        'names' => ['summary'],
+                        'kidCount' => 0,
+                        'limits' => ['cover', 'cover'],
+                        'reviewStatus' => 'review',
+                        'issues' => ['names-outside-limits'],
+                    ],
+                    [
+                        'source' => 'catalog.Names.Templates.Kids.20 0 R',
+                        'object' => '20 0 R',
+                        'kind' => 'kid',
+                        'entryCount' => 1,
+                        'names' => ['appendix'],
+                        'kidCount' => 0,
+                        'limits' => ['appendix', 'summary'],
+                        'reviewStatus' => 'ok',
+                        'issues' => [],
+                    ],
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfNameTreePolicies']);
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->contains('pdf-byte-name-tree-policies:2', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy:Dests:ok', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy:Templates:review', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-nodes:6', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-review:1', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-issues:3', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-issue:kid-limits-outside-parent:1', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-issue:kid-limits-overlap-or-unsorted:1', $diagnostics);
+        $t->contains('pdf-byte-name-tree-policy-issue:names-outside-limits:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfNameTreePolicies']);
+    },
+
     'fake runner extracts bounded pdf destination fit option metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/dest-options.pdf']);

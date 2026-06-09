@@ -1576,6 +1576,8 @@ return [
         $harpoonArrowMathml = $converter->texToMathMl('P \\xleftharpoonup{\\text{pull}} Q + R \\xrightharpoondown[low]{high} S');
         $accessibleAliasMathml = $converter->texToAccessibleMathMl('A \\xhookrightarrow[\\text{map}]{f} B');
         $accentArrowMathml = $converter->texToMathMl('\\overrightarrow{AB}_i + \\underleftarrow{\\operatorname{media}} + \\overleftrightarrow{x+y}');
+        $tokenArrowMathml = $converter->texToMathMl('\\xrightarrow\\alpha p_i + \\xleftarrow[\\text{low}]\\beta m_i + \\xhookrightarrow[map] f q', true);
+        $tokenAccentArrowMathml = $converter->texToMathMl('\\overrightarrow A_i + \\underrightarrow\\operatorname{media} + \\overleftrightarrow x+y');
 
         $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $xArrowMathml);
         $t->contains('<munderover><mo stretchy="true">→</mo><mtext>review</mtext><mi>publish</mi></munderover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mover><mo stretchy="true">←</mo><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mover><msub><mi>m</mi><mi>i</mi></msub>', $xArrowMathml);
@@ -1589,6 +1591,14 @@ return [
         $t->contains('intent="row(a,underover(right_hook_arrow,map,f),b)"', $accessibleAliasMathml);
         $t->contains('<msub><mover accent="true"><mrow><mi>A</mi><mi>B</mi></mrow><mo stretchy="true">→</mo></mover><mi>i</mi></msub>', $accentArrowMathml);
         $t->contains('<munder accentunder="true"><mi>media</mi><mo stretchy="true">←</mo></munder><mo>+</mo><mover accent="true"><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow><mo stretchy="true">↔</mo></mover>', $accentArrowMathml);
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $tokenArrowMathml);
+        $t->contains('<mover><mo stretchy="true">→</mo><mi>α</mi></mover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><munderover><mo stretchy="true">←</mo><mtext>low</mtext><mi>β</mi></munderover><msub><mi>m</mi><mi>i</mi></msub>', $tokenArrowMathml);
+        $t->contains('<munderover><mo stretchy="true">↪</mo><mrow><mi>m</mi><mi>a</mi><mi>p</mi></mrow><mi>f</mi></munderover><mi>q</mi>', $tokenArrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\xrightarrow\\alpha p_i + \\xleftarrow[\\text{low}]\\beta m_i + \\xhookrightarrow[map] f q</annotation>', $tokenArrowMathml);
+        $t->contains('<msub><mover accent="true"><mi>A</mi><mo stretchy="true">→</mo></mover><mi>i</mi></msub><mo>+</mo><munder accentunder="true"><mi>media</mi><mo stretchy="true">→</mo></munder><mo>+</mo><mover accent="true"><mi>x</mi><mo stretchy="true">↔</mo></mover><mo>+</mo><mi>y</mi>', $tokenAccentArrowMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\overrightarrow A_i + \\underrightarrow\\operatorname{media} + \\overleftrightarrow x+y</annotation>', $tokenAccentArrowMathml);
+        $t->true(!str_contains($tokenArrowMathml . $tokenAccentArrowMathml, '<mi>\\xrightarrow</mi>'));
+        $t->true(!str_contains($tokenArrowMathml . $tokenAccentArrowMathml, '<mi>\\overrightarrow</mi>'));
     },
     'converts bounded tex matrix and aligned environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();

@@ -326,6 +326,7 @@ final class PdfEngineHandoff
      *     pdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     pdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     pdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
+     *     pdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     pdfUriBase: string|null,
      *     pdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     pdfNeedsRendering: bool|null,
@@ -787,6 +788,7 @@ final class PdfEngineHandoff
         $pdfNamedDestinations = [];
         $pdfDestinationOptions = [];
         $pdfNameTrees = [];
+        $pdfNameTreePolicies = [];
         $pdfUriBase = null;
         $pdfViewerPreferences = [];
         $pdfNeedsRendering = null;
@@ -907,6 +909,7 @@ final class PdfEngineHandoff
                 $pdfNamedDestinations = $pdfInspection['namedDestinations'];
                 $pdfDestinationOptions = $pdfInspection['destinationOptions'];
                 $pdfNameTrees = $pdfInspection['nameTrees'];
+                $pdfNameTreePolicies = $pdfInspection['nameTreePolicies'];
                 $pdfUriBase = $pdfInspection['uriBase'];
                 $pdfViewerPreferences = $pdfInspection['viewerPreferences'];
                 $pdfNeedsRendering = $pdfInspection['needsRendering'];
@@ -1884,6 +1887,45 @@ final class PdfEngineHandoff
                     }
                     if ($nameTreeKidCount > 0) {
                         $diagnostics[] = 'pdf-byte-name-tree-kids:' . $nameTreeKidCount;
+                    }
+                }
+                if ($pdfNameTreePolicies !== []) {
+                    $diagnostics[] = 'pdf-byte-name-tree-policies:' . count($pdfNameTreePolicies);
+                    $nameTreePolicyNodes = 0;
+                    $nameTreePolicyReviewCount = 0;
+                    $nameTreePolicyIssues = [];
+                    foreach ($pdfNameTreePolicies as $policy) {
+                        $category = is_string($policy['category'] ?? null) && $policy['category'] !== ''
+                            ? $policy['category']
+                            : 'unknown';
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $diagnostics[] = 'pdf-byte-name-tree-policy:' . $category . ':' . $reviewStatus;
+                        if ($reviewStatus !== 'ok') {
+                            $nameTreePolicyReviewCount++;
+                        }
+                        $nodes = is_array($policy['nodes'] ?? null) ? $policy['nodes'] : [];
+                        $nameTreePolicyNodes += count($nodes);
+                        foreach ($policy['issues'] ?? [] as $issue) {
+                            if (!is_string($issue) || $issue === '') {
+                                continue;
+                            }
+                            $nameTreePolicyIssues[$issue] = ($nameTreePolicyIssues[$issue] ?? 0) + 1;
+                        }
+                    }
+                    if ($nameTreePolicyNodes > 0) {
+                        $diagnostics[] = 'pdf-byte-name-tree-policy-nodes:' . $nameTreePolicyNodes;
+                    }
+                    if ($nameTreePolicyReviewCount > 0) {
+                        $diagnostics[] = 'pdf-byte-name-tree-policy-review:' . $nameTreePolicyReviewCount;
+                    }
+                    if ($nameTreePolicyIssues !== []) {
+                        ksort($nameTreePolicyIssues);
+                        $diagnostics[] = 'pdf-byte-name-tree-policy-issues:' . array_sum($nameTreePolicyIssues);
+                        foreach ($nameTreePolicyIssues as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-name-tree-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfUriBase !== null) {
@@ -3174,6 +3216,7 @@ final class PdfEngineHandoff
             'pdfNamedDestinations' => $pdfNamedDestinations,
             'pdfDestinationOptions' => $pdfDestinationOptions,
             'pdfNameTrees' => $pdfNameTrees,
+            'pdfNameTreePolicies' => $pdfNameTreePolicies,
             'pdfUriBase' => $pdfUriBase,
             'pdfViewerPreferences' => $pdfViewerPreferences,
             'pdfNeedsRendering' => $pdfNeedsRendering,
@@ -3315,6 +3358,7 @@ final class PdfEngineHandoff
      *     finalPdfNamedDestinations: list<array{name:string, source:string, target:string|null, pageObject:string|null, fit:string|null}>,
      *     finalPdfDestinationOptions: list<array{source:string, name:string|null, pageObject:string|null, target:string|null, fit:string|null, arguments:list<float|null>, left:float|null, top:float|null, right:float|null, bottom:float|null, zoom:float|null}>,
      *     finalPdfNameTrees: list<array{category:string, source:string, entryCount:int, names:list<string>, valueKinds:array<string, int>, valueReferences:list<string>, kidCount:int, limits:list<string>}>,
+     *     finalPdfNameTreePolicies: list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>,
      *     finalPdfUriBase: string|null,
      *     finalPdfViewerPreferences: array<string, bool|int|string|list<int>|list<string>>,
      *     finalPdfNeedsRendering: bool|null,
@@ -3568,6 +3612,7 @@ final class PdfEngineHandoff
             'finalPdfNamedDestinations' => is_array($finalRun) && is_array($finalRun['pdfNamedDestinations'] ?? null) ? $finalRun['pdfNamedDestinations'] : [],
             'finalPdfDestinationOptions' => is_array($finalRun) && is_array($finalRun['pdfDestinationOptions'] ?? null) ? $finalRun['pdfDestinationOptions'] : [],
             'finalPdfNameTrees' => is_array($finalRun) && is_array($finalRun['pdfNameTrees'] ?? null) ? $finalRun['pdfNameTrees'] : [],
+            'finalPdfNameTreePolicies' => is_array($finalRun) && is_array($finalRun['pdfNameTreePolicies'] ?? null) ? $finalRun['pdfNameTreePolicies'] : [],
             'finalPdfUriBase' => is_array($finalRun) && is_string($finalRun['pdfUriBase'] ?? null) ? $finalRun['pdfUriBase'] : null,
             'finalPdfViewerPreferences' => is_array($finalRun) && is_array($finalRun['pdfViewerPreferences'] ?? null) ? $finalRun['pdfViewerPreferences'] : [],
             'finalPdfNeedsRendering' => is_array($finalRun) && is_bool($finalRun['pdfNeedsRendering'] ?? null) ? $finalRun['pdfNeedsRendering'] : null,
@@ -4873,6 +4918,7 @@ final class PdfEngineHandoff
             'namedDestinations' => $this->extractPdfNamedDestinations($pdfBytes, $catalog),
             'destinationOptions' => $this->extractPdfDestinationOptions($pdfBytes, $catalog),
             'nameTrees' => $this->extractPdfNameTrees($pdfBytes, $catalog),
+            'nameTreePolicies' => $this->extractPdfNameTreePolicies($pdfBytes, $catalog),
             'uriBase' => $this->extractPdfUriBase($pdfBytes, $catalog),
             'viewerPreferences' => $this->extractPdfViewerPreferences($pdfBytes, $catalog),
             'needsRendering' => $this->extractPdfNeedsRendering($catalog),
@@ -8616,6 +8662,267 @@ final class PdfEngineHandoff
                 $depth + 1
             );
         }
+    }
+
+    /**
+     * @return list<array{category:string, source:string, reviewStatus:string, entryCount:int, kidCount:int, limits:list<string>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}>}>
+     */
+    private function extractPdfNameTreePolicies(string $pdfBytes, ?string $catalog): array
+    {
+        if ($catalog === null || !str_contains($catalog, '/Names')) {
+            return [];
+        }
+
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $names = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($catalog, 'Names'), $objects);
+        if ($names['dictionary'] === null) {
+            return [];
+        }
+
+        $policies = [];
+        foreach ($this->extractPdfTopLevelDictionaryEntries($names['dictionary']) as $entry) {
+            if (in_array($entry['key'], ['Kids', 'Limits', 'Names', 'Type'], true)) {
+                continue;
+            }
+
+            $root = $this->resolvePdfDictionaryValue($entry['value'], $objects);
+            if ($root['dictionary'] === null) {
+                continue;
+            }
+
+            $nodes = [];
+            $visited = [];
+            $rootObject = null;
+            if (is_string($root['object']) && $root['object'] !== 'inline') {
+                $visited[$this->pdfReferenceKey($root['object'])] = true;
+                $rootObject = $root['object'];
+            }
+
+            $this->collectPdfNameTreePolicyNodes(
+                $nodes,
+                'catalog.Names.' . $entry['key'],
+                $rootObject,
+                'root',
+                $root['dictionary'],
+                $objects,
+                $visited,
+                0
+            );
+
+            $issues = [];
+            $limits = [];
+            $entryCount = 0;
+            $kidCount = 0;
+            foreach ($nodes as $node) {
+                $entryCount += $node['entryCount'];
+                $kidCount += $node['kidCount'];
+                foreach ($node['limits'] as $limit) {
+                    $limits[] = $limit;
+                }
+                foreach ($node['issues'] as $issue) {
+                    $issues[] = $issue;
+                }
+            }
+
+            $issues = $this->uniqueStrings($issues);
+            sort($issues);
+
+            $policies[] = [
+                'category' => $entry['key'],
+                'source' => 'catalog.Names.' . $entry['key'],
+                'reviewStatus' => $issues === [] ? 'ok' : 'review',
+                'entryCount' => $entryCount,
+                'kidCount' => $kidCount,
+                'limits' => $this->uniqueStrings($limits),
+                'issues' => $issues,
+                'nodes' => $nodes,
+            ];
+        }
+
+        usort($policies, static fn (array $a, array $b): int => $a['category'] <=> $b['category']);
+
+        return $policies;
+    }
+
+    /**
+     * @param list<array{source:string, object:string|null, kind:string, entryCount:int, names:list<string>, kidCount:int, limits:list<string>, reviewStatus:string, issues:list<string>}> $nodes
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfNameTreePolicyNodes(
+        array &$nodes,
+        string $source,
+        ?string $object,
+        string $kind,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $nameKeys = $this->extractPdfNameTreeNameKeys($dictionary);
+        $limits = $this->extractPdfNameTreeLimitValues($dictionary);
+        $limitValues = $limits ?? [];
+        $kids = $this->extractPdfReferenceArray($dictionary, 'Kids');
+        $issues = $this->pdfNameTreeNodeLimitIssues($nameKeys, $limits);
+        $parentLimitsValid = count($limitValues) === 2
+            && strcmp($limitValues[0], $limitValues[1]) <= 0;
+
+        $previousKidUpper = null;
+        foreach ($kids as $kidReference) {
+            $kidDictionary = $objects[$kidReference] ?? null;
+            if ($kidDictionary === null) {
+                $issues[] = 'kid-reference-missing';
+                continue;
+            }
+
+            $kidLimits = $this->extractPdfNameTreeLimitValues($kidDictionary);
+            if ($kidLimits === null || count($kidLimits) !== 2) {
+                $issues[] = 'kid-limits-missing';
+            } elseif (strcmp($kidLimits[0], $kidLimits[1]) > 0) {
+                $issues[] = 'kid-limits-out-of-order';
+            } else {
+                if (
+                    $parentLimitsValid
+                    && (strcmp($kidLimits[0], $limitValues[0]) < 0 || strcmp($kidLimits[1], $limitValues[1]) > 0)
+                ) {
+                    $issues[] = 'kid-limits-outside-parent';
+                }
+                if ($previousKidUpper !== null && strcmp($previousKidUpper, $kidLimits[0]) >= 0) {
+                    $issues[] = 'kid-limits-overlap-or-unsorted';
+                }
+                $previousKidUpper = $kidLimits[1];
+            }
+        }
+
+        $issues = $this->uniqueStrings($issues);
+        sort($issues);
+        $nodes[] = [
+            'source' => $source,
+            'object' => $object,
+            'kind' => $kind,
+            'entryCount' => count($nameKeys),
+            'names' => array_slice($nameKeys, 0, 128),
+            'kidCount' => count($kids),
+            'limits' => $limitValues,
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+        ];
+
+        foreach ($kids as $kidReference) {
+            if (isset($visited[$kidReference]) || !isset($objects[$kidReference])) {
+                continue;
+            }
+
+            $visited[$kidReference] = true;
+            $this->collectPdfNameTreePolicyNodes(
+                $nodes,
+                $source . '.Kids.' . $this->formatPdfIndirectReference($kidReference),
+                $this->formatPdfIndirectReference($kidReference),
+                'kid',
+                $objects[$kidReference],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPdfNameTreeNameKeys(string $dictionary): array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array === null) {
+            return [];
+        }
+
+        $names = [];
+        $values = $this->pdfTopLevelArrayValues($array);
+        for ($index = 0; $index + 1 < count($values); $index += 2) {
+            $name = $values[$index];
+            if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                continue;
+            }
+
+            $nameValue = trim($name['value']);
+            if ($nameValue !== '') {
+                $names[] = $nameValue;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function extractPdfNameTreeLimitValues(string $dictionary): ?array
+    {
+        $array = $this->extractPdfArrayValue($dictionary, 'Limits');
+        if ($array === null) {
+            return null;
+        }
+
+        $limits = [];
+        foreach ($this->pdfTopLevelArrayValues($array) as $value) {
+            if (!in_array($value['kind'], ['literal', 'hex', 'name'], true)) {
+                continue;
+            }
+
+            $limit = trim($value['value']);
+            if ($limit !== '') {
+                $limits[] = $limit;
+            }
+        }
+
+        return $limits;
+    }
+
+    /**
+     * @param list<string>|null $limits
+     * @return list<string>
+     */
+    private function pdfNameTreeNodeLimitIssues(array $names, ?array $limits): array
+    {
+        if ($limits === null) {
+            return [];
+        }
+
+        if (count($limits) !== 2) {
+            return ['invalid-limits'];
+        }
+
+        $issues = [];
+        if (strcmp($limits[0], $limits[1]) > 0) {
+            $issues[] = 'limits-out-of-order';
+        }
+
+        if ($names !== []) {
+            $sortedNames = $names;
+            sort($sortedNames);
+            $firstName = $sortedNames[0];
+            $lastName = $sortedNames[count($sortedNames) - 1];
+            if (strcmp($firstName, $limits[0]) < 0 || strcmp($lastName, $limits[1]) > 0) {
+                $issues[] = 'names-outside-limits';
+            }
+        }
+
+        return $issues;
+    }
+
+    private function formatPdfIndirectReference(string $reference): string
+    {
+        $reference = $this->pdfReferenceKey($reference);
+        if (preg_match('/\A(\d+)\s+(\d+)\z/', $reference, $matches) === 1) {
+            return $matches[1] . ' ' . $matches[2] . ' R';
+        }
+
+        return $reference;
     }
 
     /**
