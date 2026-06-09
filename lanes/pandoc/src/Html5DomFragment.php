@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2468,6 +2468,62 @@ final class Html5DomFragment
         return $foreignContext === null
             && $name === 'referrerpolicy'
             && in_array(strtolower($tagName), ['a', 'img'], true);
+    }
+
+    private static function isHtmlImageResourcePolicyAttribute(string $tagName, string $name, ?string $foreignContext): bool
+    {
+        return $foreignContext === null
+            && strtolower($tagName) === 'img'
+            && in_array(strtolower($name), ['crossorigin', 'decoding', 'fetchpriority', 'loading'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlImageResourcePolicyAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        $allowedStates = match ($attribute) {
+            'crossorigin' => ['anonymous', 'use-credentials'],
+            'decoding' => ['async', 'sync', 'auto'],
+            'fetchpriority' => ['high', 'low', 'auto'],
+            'loading' => ['eager', 'lazy'],
+            default => [],
+        };
+        if ($attribute === 'crossorigin' && $state === '') {
+            $state = 'anonymous';
+        }
+
+        if (!in_array($state, $allowedStates, true)) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => $attribute,
+                'value' => $state,
+                'reason' => 'invalid-image-resource-policy-metadata',
+            ];
+
+            return [];
+        }
+
+        $metadataAttribute = 'data-pandoc-image-' . $attribute;
+        $diagnostics[] = [
+            'code' => 'image-resource-policy-review',
+            'tag' => $tagName,
+            'attribute' => $attribute,
+            'metadataAttribute' => $metadataAttribute,
+            'state' => $state,
+            'reason' => 'image-resource-policy-preserved-as-review-metadata',
+        ];
+
+        return [$metadataAttribute => $state];
     }
 
     /**
@@ -4697,6 +4753,19 @@ final class Html5DomFragment
                 if ($referrerPolicy !== null) {
                     $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
                     self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, strtolower($tagName));
+                }
+                continue;
+            }
+
+            if ($mode === 'html' && self::isHtmlImageResourcePolicyAttribute($tagName, $name, $foreignContext)) {
+                $imageResourcePolicyMetadata = self::normalizeHtmlImageResourcePolicyAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $diagnostics
+                );
+                foreach ($imageResourcePolicyMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
                 }
                 continue;
             }

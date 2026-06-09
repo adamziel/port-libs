@@ -4151,6 +4151,82 @@ return [
         $t->true(!str_contains($html, 'bad policy'), 'Expected invalid referrer policy values to stay hidden');
         $t->true(!str_contains($blocks, ' referrerpolicy='), 'Expected WordPress blocks to omit live referrerpolicy attributes');
     },
+    'converts image resource policy hints into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<figure>'
+            . '<img src="./hero.jpg" loading=" Lazy " decoding="ASYNC" fetchpriority="HIGH" crossorigin="" data-pandoc-image-loading="source-spoof" alt="Hero">'
+            . '<img src="./eager.jpg" loading="eager" decoding="sync" fetchpriority="low" crossorigin="use-credentials" alt="Eager">'
+            . '<img src="./auto.jpg" decoding="auto" fetchpriority="auto" crossorigin="anonymous" alt="Auto">'
+            . '<img src="./bad.jpg" loading="soon" decoding="fast" fetchpriority="urgent" crossorigin="credentialed" alt="Bad">'
+            . '</figure>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/image-resource-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<figure>'
+            . '<img src="https://source.example.test/import/posts/hero.jpg" data-pandoc-image-loading="lazy" data-pandoc-image-decoding="async" data-pandoc-image-fetchpriority="high" data-pandoc-image-crossorigin="anonymous" alt="Hero">'
+            . '<img src="https://source.example.test/import/posts/eager.jpg" data-pandoc-image-loading="eager" data-pandoc-image-decoding="sync" data-pandoc-image-fetchpriority="low" data-pandoc-image-crossorigin="use-credentials" alt="Eager">'
+            . '<img src="https://source.example.test/import/posts/auto.jpg" data-pandoc-image-decoding="auto" data-pandoc-image-fetchpriority="auto" data-pandoc-image-crossorigin="anonymous" alt="Auto">'
+            . '<img src="https://source.example.test/import/posts/bad.jpg" alt="Bad">'
+            . '</figure>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $diagnosticCounts = array_count_values($policyDiagnostics);
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('', $fragment->textContent());
+        $t->same(['figure', 'img'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['crossorigin', 'data-pandoc-image-loading', 'decoding', 'fetchpriority', 'loading'], $summary['filteredAttributes']);
+        $t->same(18, $summary['diagnostics']);
+        $t->same(11, $diagnosticCounts['image-resource-policy-review'] ?? 0);
+        $t->same(5, $diagnosticCounts['unsafe-attribute'] ?? 0);
+        $t->same(1, $diagnosticCounts['blocked-tag'] ?? 0);
+        $t->same('figure', $nodes[0]['name']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/hero.jpg',
+            'data-pandoc-image-loading' => 'lazy',
+            'data-pandoc-image-decoding' => 'async',
+            'data-pandoc-image-fetchpriority' => 'high',
+            'data-pandoc-image-crossorigin' => 'anonymous',
+            'alt' => 'Hero',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/eager.jpg',
+            'data-pandoc-image-loading' => 'eager',
+            'data-pandoc-image-decoding' => 'sync',
+            'data-pandoc-image-fetchpriority' => 'low',
+            'data-pandoc-image-crossorigin' => 'use-credentials',
+            'alt' => 'Eager',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/auto.jpg',
+            'data-pandoc-image-decoding' => 'auto',
+            'data-pandoc-image-fetchpriority' => 'auto',
+            'data-pandoc-image-crossorigin' => 'anonymous',
+            'alt' => 'Auto',
+        ], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/bad.jpg',
+            'alt' => 'Bad',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same('/migration/image-resource-policy-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' loading=', ' decoding=', ' fetchpriority=', ' crossorigin=', 'source-spoof', 'soon', 'urgent', 'credentialed'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected image resource policy sanitizer to remove live or unsafe source content: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to remove live or unsafe source content: ' . $blocked);
+        }
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'

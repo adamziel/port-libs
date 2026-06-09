@@ -178,6 +178,10 @@ final class CslStyle
         'issue|short' => ['single' => 'no.', 'multiple' => 'nos.'],
         'number|long' => ['single' => 'number', 'multiple' => 'numbers'],
         'number|short' => ['single' => 'no.', 'multiple' => 'nos.'],
+        'printing-number|long' => ['single' => 'printing number', 'multiple' => 'printing numbers'],
+        'printing-number|short' => ['single' => 'printing no.', 'multiple' => 'printing nos.'],
+        'supplement-number|long' => ['single' => 'supplement number', 'multiple' => 'supplement numbers'],
+        'supplement-number|short' => ['single' => 'supp. no.', 'multiple' => 'supp. nos.'],
         'edition|long' => ['single' => 'edition', 'multiple' => 'editions'],
         'edition|short' => ['single' => 'ed.', 'multiple' => 'eds.'],
         'version|long' => ['single' => 'version', 'multiple' => 'versions'],
@@ -1694,7 +1698,9 @@ final class CslStyle
             'section',
             'part-number',
             'part',
+            'printing-number',
             'supplement',
+            'supplement-number',
             'version',
         ];
     }

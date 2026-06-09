@@ -19976,6 +19976,129 @@ XML);
         $t->contains('<dt>Review Board v. Archive Desk 2025</dt><dd>Review Board v. Archive Desk :: Migration Review Court; Appeals Board :: Migration Review Court; Appeals Board</dd>', $blocks);
         $t->contains('<dt>Plain Source 2024</dt><dd>Plain Source</dd>', $blocks);
     },
+    'renders bounded csl printing and supplement number variables' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'printing-source',
+                'type' => 'book',
+                'title' => 'Second Printing Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'printing-number' => '2',
+                'supplement-number' => '1',
+            ],
+            [
+                'id' => 'range-source',
+                'type' => 'report',
+                'title' => 'Range Supplement Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'printingNumber' => '3-4',
+                'supplementNumber' => '2-3',
+            ],
+            [
+                'id' => 'named-source',
+                'type' => 'report',
+                'title' => 'Named Supplement Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'printing-number' => 'advance press',
+                'supplement' => 'legacy appendix',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Printing Supplement Number Review</title>
+    <id>https://example.test/styles/bounded-printing-supplement-number-review</id>
+    <updated>2026-06-09T03:37:51+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <choose>
+          <if is-numeric="printing-number supplement-number" match="all">
+            <group delimiter=" ">
+              <label variable="printing-number" form="short"/>
+              <number variable="printing-number" form="ordinal"/>
+              <label variable="supplement-number" form="short"/>
+              <number variable="supplement-number" form="roman"/>
+            </group>
+          </if>
+          <else>
+            <group delimiter=" ">
+              <text variable="printing-number" prefix="printing "/>
+              <text variable="supplement-number" prefix="supplement "/>
+            </group>
+          </else>
+        </choose>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="printing-number" plural="contextual"/>
+        <text variable="printing-number" form="long-ordinal"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="supplement-number" plural="contextual"/>
+        <text variable="supplement-number" form="roman"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $children = $summary['citationRendering'][0]['children'] ?? [];
+        $branches = $children[1]['branches'] ?? [];
+        $numericBranchChildren = $branches[0]['children'][0]['children'] ?? [];
+        $bibliographyPrinting = $summary['bibliographyRendering'][1]['children'] ?? [];
+        $bibliographySupplement = $summary['bibliographyRendering'][2]['children'] ?? [];
+        $t->same('Bounded Printing Supplement Number Review', $summary['title'] ?? null);
+        $t->same(['printing-number', 'supplement-number'], $branches[0]['isNumeric'] ?? null);
+        $t->same('all', $branches[0]['match'] ?? null);
+        $t->same('printing-number', $numericBranchChildren[0]['variable'] ?? null);
+        $t->same('short', $numericBranchChildren[0]['form'] ?? null);
+        $t->same('printing-number', $numericBranchChildren[1]['variable'] ?? null);
+        $t->same('ordinal', $numericBranchChildren[1]['form'] ?? null);
+        $t->same('supplement-number', $numericBranchChildren[2]['variable'] ?? null);
+        $t->same('short', $numericBranchChildren[2]['form'] ?? null);
+        $t->same('supplement-number', $numericBranchChildren[3]['variable'] ?? null);
+        $t->same('roman', $numericBranchChildren[3]['form'] ?? null);
+        $t->same('printing-number', $bibliographyPrinting[0]['variable'] ?? null);
+        $t->same('long-ordinal', $bibliographyPrinting[1]['form'] ?? null);
+        $t->same('supplement-number', $bibliographySupplement[0]['variable'] ?? null);
+        $t->same('roman', $bibliographySupplement[1]['form'] ?? null);
+        $t->same('2', $processor->item('printing-source')['printingNumber'] ?? null);
+        $t->same('1', $processor->item('printing-source')['supplementNumber'] ?? null);
+        $t->same('legacy appendix', $processor->item('named-source')['supplementNumber'] ?? null);
+
+        $t->same('(Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii; Roe printing advance press supplement legacy appendix)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'printing-source', 'text' => '[@printing-source]']),
+            new AstNode('citation', ['id' => 'range-source', 'text' => '[@range-source]']),
+            new AstNode('citation', ['id' => 'named-source', 'text' => '[@named-source]']),
+        ]));
+        $t->same('Second Printing Packet :: printing number second :: supplement number i', $processor->renderBibliographyEntry('printing-source'));
+        $t->same('Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii', $processor->renderBibliographyEntry('range-source'));
+        $t->same('Named Supplement Packet :: printing number advance press :: supplement number legacy appendix', $processor->renderBibliographyEntry('named-source'));
+
+        $document = (new MarkdownReader())->read('Printing metadata [@printing-source; @range-source; @named-source] stays reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Printing metadata (Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii; Roe printing advance press supplement legacy appendix) stays reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Second Printing Packet :: printing number second :: supplement number i</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: printing number advance press :: supplement number legacy appendix</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
