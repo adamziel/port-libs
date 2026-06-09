@@ -9805,6 +9805,45 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown raw attribute code spans and fenced blocks' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'Raw attributes: `**kept**`{=markdown} and `<span>drop</span>`{=html}.',
+            "```{=markdown}\n> reviewer raw block\n```",
+            "```{=html}\n<aside>drop</aside>\n```",
+        ]));
+        $paragraph = $document->children[0];
+        $markdownRaw = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlRaw = $paragraph->children[3] ?? new AstNode('missing');
+        $markdownBlock = $document->children[1] ?? new AstNode('missing');
+        $htmlBlock = $document->children[2] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_inline', 'text', 'raw_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('markdown', $markdownRaw->attr('format'));
+        $t->same('**kept**', $markdownRaw->attr('text'));
+        $t->same('html', $htmlRaw->attr('format'));
+        $t->same('<span>drop</span>', $htmlRaw->attr('text'));
+        $t->same('raw_block', $markdownBlock->type);
+        $t->same('markdown', $markdownBlock->attr('format'));
+        $t->same('> reviewer raw block', $markdownBlock->attr('text'));
+        $t->same('raw_block', $htmlBlock->type);
+        $t->same('html', $htmlBlock->attr('format'));
+        $t->same('<aside>drop</aside>', $htmlBlock->attr('text'));
+        $t->same(implode("\n\n", [
+            'Raw attributes: **kept** and .',
+            '> reviewer raw block',
+        ]), (new MarkdownWriter())->write($document));
+
+        $ordinary = (new MarkdownReader())->read('`ordinary`{.php data-source="batch-raw"} and `literal`{=html .mixed}');
+        $ordinaryParagraph = $ordinary->children[0];
+        $t->same('code', $ordinaryParagraph->children[0]->type);
+        $t->same(['php'], $ordinaryParagraph->children[0]->attr('classes'));
+        $t->same(['data-source' => 'batch-raw'], $ordinaryParagraph->children[0]->attr('attributes'));
+        $t->same('code', $ordinaryParagraph->children[2]->type);
+        $t->same('literal', $ordinaryParagraph->children[2]->attr('text'));
+        $t->same(['mixed'], $ordinaryParagraph->children[2]->attr('classes'));
+        $t->same(null, $ordinaryParagraph->children[2]->attr('format'));
+    },
     'maps upstream markdown writer markdown family raw formats' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

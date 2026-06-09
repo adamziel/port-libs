@@ -7868,6 +7868,16 @@ final class MarkdownReader
         $count = count($lines);
         while ($cursor < $count) {
             if ($this->isClosingCodeFence($lines[$cursor], $fenceChar, $fenceLength)) {
+                $rawFormat = $this->rawFormatAttributeSpec($info);
+                if ($rawFormat !== null) {
+                    $index = $cursor;
+
+                    return new AstNode('raw_block', [
+                        'format' => $rawFormat,
+                        'text' => implode("\n", $content),
+                    ]);
+                }
+
                 $attrs = $this->parseCodeInfo($info);
                 $attrs['text'] = implode("\n", $content);
                 if ($info !== '') {
@@ -7880,6 +7890,16 @@ final class MarkdownReader
 
             $content[] = $this->stripFenceContentIndent($lines[$cursor], $indent);
             $cursor++;
+        }
+
+        $rawFormat = $this->rawFormatAttributeSpec($info);
+        if ($rawFormat !== null) {
+            $index = $cursor - 1;
+
+            return new AstNode('raw_block', [
+                'format' => $rawFormat,
+                'text' => implode("\n", $content),
+            ]);
         }
 
         $attrs = $this->parseCodeInfo($info);
@@ -13999,6 +14019,16 @@ final class MarkdownReader
         return $attrs;
     }
 
+    private function rawFormatAttributeSpec(string $source): ?string
+    {
+        $source = trim($source);
+        if (preg_match('/^\{=([A-Za-z][A-Za-z0-9_.+-]*)\}$/', $source, $m) !== 1) {
+            return null;
+        }
+
+        return strtolower($m[1]);
+    }
+
     /**
      * @param list<string> $lines
      */
@@ -14404,6 +14434,17 @@ final class MarkdownReader
                         $code = substr($code, 1, -1);
                     }
                     $next = $end + $tickCount;
+                    $rawAttribute = $this->tryParseRawInlineAttributeSpec($text, $next);
+                    if ($rawAttribute !== null) {
+                        $this->flushText($buffer, $nodes);
+                        $nodes[] = new AstNode('raw_inline', [
+                            'format' => $rawAttribute['format'],
+                            'text' => $code,
+                        ]);
+                        $offset = $rawAttribute['next'];
+                        continue;
+                    }
+
                     $attrs = ['text' => $code];
                     $attribute = $this->tryParseInlineAttributeSpec($text, $next);
                     $literalAttribute = null;
@@ -15562,6 +15603,31 @@ final class MarkdownReader
 
         return [
             'attrs' => $this->markdownAttributeAstAttrs($id, $classes, $attributes),
+            'next' => $end + 1,
+        ];
+    }
+
+    /**
+     * @return array{format:string, next:int}|null
+     */
+    private function tryParseRawInlineAttributeSpec(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $end = $this->findUnescapedCharacter($text, '}', $offset + 1);
+        if ($end === null) {
+            return null;
+        }
+
+        $format = $this->rawFormatAttributeSpec(substr($text, $offset, $end - $offset + 1));
+        if ($format === null) {
+            return null;
+        }
+
+        return [
+            'format' => $format,
             'next' => $end + 1,
         ];
     }
