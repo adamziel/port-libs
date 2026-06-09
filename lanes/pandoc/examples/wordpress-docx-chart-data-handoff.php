@@ -72,6 +72,33 @@ XML],
   <c:clrMapOvr>
     <a:overrideClrMapping bg1="lt1" tx1="dk1" accent1="accent3" accent2="accent4" hlink="hlink" folHlink="folHlink"/>
   </c:clrMapOvr>
+  <c:chart>
+    <c:title>
+      <c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Quarterly migration revenue</a:t></a:r></a:p></c:rich></c:tx>
+    </c:title>
+    <c:plotArea>
+      <c:barChart>
+        <c:ser>
+          <c:idx val="0"/>
+          <c:order val="0"/>
+          <c:tx><c:v>North region</c:v></c:tx>
+        </c:ser>
+        <c:ser>
+          <c:idx val="1"/>
+          <c:order val="1"/>
+          <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>South region</c:v></c:pt></c:strCache></c:strRef></c:tx>
+        </c:ser>
+      </c:barChart>
+      <c:catAx>
+        <c:axId val="10"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title>
+      </c:catAx>
+      <c:valAx>
+        <c:axId val="20"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
+      </c:valAx>
+    </c:plotArea>
+  </c:chart>
   <c:externalData r:id="rIdChartWorkbook">
     <c:autoUpdate val="0"/>
   </c:externalData>
@@ -108,6 +135,15 @@ if (in_array('--self-test', $argv, true)) {
     if (($attrs['data-docx-chart-color-map-accent-1'] ?? null) !== 'accent3') {
         throw new RuntimeException('DOCX chart embedded-data example did not expose chart color mapping metadata');
     }
+    if (($attrs['data-docx-chart-title'] ?? null) !== 'Quarterly migration revenue') {
+        throw new RuntimeException('DOCX chart embedded-data example did not expose chart title metadata');
+    }
+    if (($attrs['data-docx-chart-series-2-name'] ?? null) !== 'South region') {
+        throw new RuntimeException('DOCX chart embedded-data example did not expose chart series metadata');
+    }
+    if (($attrs['data-docx-chart-axis-1-title'] ?? null) !== 'Quarter') {
+        throw new RuntimeException('DOCX chart embedded-data example did not expose chart axis title metadata');
+    }
     if (($attrs['data-docx-chart-style-target-part'] ?? null) !== '/word/charts/style1.xml') {
         throw new RuntimeException('DOCX chart embedded-data example did not resolve the chart style part');
     }
@@ -123,8 +159,14 @@ if (in_array('--self-test', $argv, true)) {
     if (($attrs['data-docx-chart-external-data-bytes'] ?? null) !== '13') {
         throw new RuntimeException('DOCX chart embedded-data example did not expose workbook byte count');
     }
-    if (!str_contains($blocks, 'class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"')) {
+    if (!str_contains($blocks, 'class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-title docx-chart-series docx-chart-axis-title docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"')) {
         throw new RuntimeException('DOCX chart embedded-data example did not render the WordPress review class');
+    }
+    if (!str_contains($blocks, 'data-docx-chart-title="Quarterly migration revenue"')) {
+        throw new RuntimeException('DOCX chart embedded-data example did not render chart title metadata');
+    }
+    if (!str_contains($blocks, 'data-docx-chart-axis-2-title="Revenue"')) {
+        throw new RuntimeException('DOCX chart embedded-data example did not render chart axis metadata');
     }
     if (!str_contains($blocks, 'data-docx-chart-style-target-part="/word/charts/style1.xml"')) {
         throw new RuntimeException('DOCX chart embedded-data example did not render chart style metadata');

@@ -269,6 +269,16 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $wrappedNestedReviewPacket = (new DocTemplate())->renderWrapped(
+        '<p>$^$Note: $~$media links layout status$~$</p>',
+        [],
+        18,
+    );
+    if ($wrappedNestedReviewPacket !== "<p>Note: media\n   links layout\n   status</p>") {
+        fwrite(STDERR, "Unexpected doctemplate nested wrapping output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);

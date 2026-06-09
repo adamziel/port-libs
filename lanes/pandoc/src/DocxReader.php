@@ -8141,6 +8141,7 @@ final class DocxReader
         }
 
         $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartStyleAndColorAttrs($chartRoot));
+        $attrs = $this->mergeNodeMetadataAttrs($attrs, $this->chartTextMetadataAttrs($chartRoot));
 
         $externalData = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'externalData');
         $relationshipPart = OpcRelationships::relationshipPartNameForSource($chartTargetPart);
@@ -8308,6 +8309,188 @@ final class DocxReader
             'classes' => array_values(array_unique($attrs['classes'])),
             'attributes' => $attrs['attributes'],
         ];
+    }
+
+    /**
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function chartTextMetadataAttrs(\DOMElement $chartRoot): array
+    {
+        $attrs = [
+            'classes' => [],
+            'attributes' => [],
+        ];
+
+        $chart = $this->firstDescendantElement($chartRoot, self::DRAWINGML_CHART_NS, 'chart');
+        if ($chart instanceof \DOMElement) {
+            $title = $this->firstChildElement($chart, self::DRAWINGML_CHART_NS, 'title');
+            if ($title instanceof \DOMElement) {
+                $titleText = $this->chartTextValue($title);
+                if ($titleText !== '') {
+                    $attrs['classes'][] = 'docx-chart-title';
+                    $attrs['attributes']['data-docx-chart-title'] = $this->boundedTextPreview($titleText);
+                }
+            }
+        }
+
+        $series = $this->chartSeriesMetadata($chartRoot);
+        if ($series !== []) {
+            $attrs['classes'][] = 'docx-chart-series';
+            $attrs['attributes']['data-docx-chart-series-count'] = (string) count($series);
+            foreach ($series as $index => $item) {
+                $prefix = 'data-docx-chart-series-' . ($index + 1);
+                foreach (['index', 'order', 'name'] as $key) {
+                    if (isset($item[$key]) && $item[$key] !== '') {
+                        $attrs['attributes'][$prefix . '-' . $key] = $item[$key];
+                    }
+                }
+            }
+        }
+
+        $axes = $this->chartAxisTitleMetadata($chartRoot);
+        if ($axes !== []) {
+            $attrs['classes'][] = 'docx-chart-axis-title';
+            $attrs['attributes']['data-docx-chart-axis-title-count'] = (string) count($axes);
+            foreach ($axes as $index => $item) {
+                $prefix = 'data-docx-chart-axis-' . ($index + 1);
+                foreach (['type', 'id', 'title'] as $key) {
+                    if (isset($item[$key]) && $item[$key] !== '') {
+                        $attrs['attributes'][$prefix . '-' . $key] = $item[$key];
+                    }
+                }
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($attrs['classes'])),
+            'attributes' => $attrs['attributes'],
+        ];
+    }
+
+    /**
+     * @return list<array{index?:string, order?:string, name?:string}>
+     */
+    private function chartSeriesMetadata(\DOMElement $chartRoot): array
+    {
+        $series = [];
+        foreach ($chartRoot->getElementsByTagNameNS(self::DRAWINGML_CHART_NS, 'ser') as $seriesElement) {
+            if (!$seriesElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $item = [];
+            $idx = $this->firstChildElement($seriesElement, self::DRAWINGML_CHART_NS, 'idx');
+            if ($idx instanceof \DOMElement && trim($idx->getAttribute('val')) !== '') {
+                $item['index'] = trim($idx->getAttribute('val'));
+            }
+
+            $order = $this->firstChildElement($seriesElement, self::DRAWINGML_CHART_NS, 'order');
+            if ($order instanceof \DOMElement && trim($order->getAttribute('val')) !== '') {
+                $item['order'] = trim($order->getAttribute('val'));
+            }
+
+            $name = $this->chartTextValue($seriesElement);
+            if ($name !== '') {
+                $item['name'] = $this->boundedTextPreview($name);
+            }
+
+            if ($item !== []) {
+                $series[] = $item;
+            }
+        }
+
+        return array_slice($series, 0, 9);
+    }
+
+    /**
+     * @return list<array{type:string, id?:string, title:string}>
+     */
+    private function chartAxisTitleMetadata(\DOMElement $chartRoot): array
+    {
+        $axes = [];
+        foreach ($this->drawingDescendantElementsByLocalNames($chartRoot, ['catAx', 'dateAx', 'valAx', 'serAx']) as $axis) {
+            if ($axis->namespaceURI !== self::DRAWINGML_CHART_NS) {
+                continue;
+            }
+
+            $title = $this->firstChildElement($axis, self::DRAWINGML_CHART_NS, 'title');
+            if (!$title instanceof \DOMElement) {
+                continue;
+            }
+
+            $titleText = $this->chartTextValue($title);
+            if ($titleText === '') {
+                continue;
+            }
+
+            $item = [
+                'type' => (string) $axis->localName,
+                'title' => $this->boundedTextPreview($titleText),
+            ];
+            $axisId = $this->firstChildElement($axis, self::DRAWINGML_CHART_NS, 'axId');
+            if ($axisId instanceof \DOMElement && trim($axisId->getAttribute('val')) !== '') {
+                $item['id'] = trim($axisId->getAttribute('val'));
+            }
+
+            $axes[] = $item;
+        }
+
+        return array_slice($axes, 0, 9);
+    }
+
+    private function chartTextValue(\DOMElement $container): string
+    {
+        $textContainer = $container;
+        if ($container->namespaceURI !== self::DRAWINGML_CHART_NS || $container->localName !== 'tx') {
+            $tx = $this->firstChildElement($container, self::DRAWINGML_CHART_NS, 'tx');
+            if ($tx instanceof \DOMElement) {
+                $textContainer = $tx;
+            }
+        }
+
+        $rich = $this->firstDescendantElement($textContainer, self::DRAWINGML_CHART_NS, 'rich');
+        if ($rich instanceof \DOMElement) {
+            $richText = $this->drawingTextFromContainer($rich);
+            if ($richText !== '') {
+                return $richText;
+            }
+        }
+
+        $value = $this->firstDescendantElement($textContainer, self::DRAWINGML_CHART_NS, 'v');
+        if ($value instanceof \DOMElement) {
+            return $this->chartNormalizeText($value->textContent ?? '');
+        }
+
+        return '';
+    }
+
+    private function drawingTextFromContainer(\DOMElement $container): string
+    {
+        $paragraphs = [];
+        foreach ($container->getElementsByTagNameNS(self::DRAWINGML_MAIN_NS, 'p') as $paragraph) {
+            if (!$paragraph instanceof \DOMElement) {
+                continue;
+            }
+
+            $parts = [];
+            foreach ($paragraph->getElementsByTagNameNS(self::DRAWINGML_MAIN_NS, 't') as $text) {
+                if ($text instanceof \DOMElement) {
+                    $parts[] = $text->textContent ?? '';
+                }
+            }
+
+            $paragraphText = $this->chartNormalizeText(implode('', $parts));
+            if ($paragraphText !== '') {
+                $paragraphs[] = $paragraphText;
+            }
+        }
+
+        return implode(' ', $paragraphs);
+    }
+
+    private function chartNormalizeText(string $text): string
+    {
+        return trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text);
     }
 
     private function chartExternalDataAutoUpdate(\DOMElement $externalData): ?string

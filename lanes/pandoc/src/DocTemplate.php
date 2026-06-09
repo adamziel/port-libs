@@ -8,6 +8,7 @@ final class DocTemplate
 {
     private const MAX_PARTIAL_DEPTH = 50;
     private const BREAKABLE_SPACE_MARKER = "\x1F";
+    private const BREAKABLE_SPACE_INDENT_MARKER = "\x1E";
     private const MAX_FILESYSTEM_RESOURCE_FILES = 512;
     private const MAX_FILESYSTEM_RESOURCE_BYTES = 1048576;
     private const MAX_FILESYSTEM_RESOURCE_TOTAL_BYTES = 4194304;
@@ -6279,7 +6280,7 @@ CSS;
 
         $leftBorder = is_string($args[1] ?? null) ? $args[1] : '';
         $rightBorder = is_string($args[2] ?? null) ? $args[2] : '';
-        $lines = preg_split('/\r\n|\n|\r/', str_replace(self::BREAKABLE_SPACE_MARKER, ' ', $value === null ? '' : (string) $value));
+        $lines = preg_split('/\r\n|\n|\r/', $this->replaceBreakableSpaceMarkers($value === null ? '' : (string) $value, ' '));
         if ($lines === false) {
             $lines = [$value === null ? '' : (string) $value];
         }
@@ -6410,7 +6411,7 @@ CSS;
         }
 
         if (is_string($value)) {
-            return rtrim($value, "\r\n" . self::BREAKABLE_SPACE_MARKER);
+            return $this->chompBreakableText($value);
         }
 
         return $value;
@@ -6428,7 +6429,7 @@ CSS;
         }
 
         if (is_string($value)) {
-            return str_replace(self::BREAKABLE_SPACE_MARKER, ' ', $value);
+            return $this->replaceBreakableSpaceMarkers($value, ' ');
         }
 
         return $value;
@@ -6644,6 +6645,7 @@ CSS;
     private function appendRenderedChunk(string &$output, string $chunk, ?int &$explicitNestColumn, bool $templateText = false): void
     {
         if ($explicitNestColumn !== null) {
+            $activeNestColumn = $explicitNestColumn;
             if (strpbrk($chunk, "\r\n") !== false) {
                 if ($templateText) {
                     [$chunk, $stillNested] = $this->nestTemplateTextChunk($chunk, $explicitNestColumn);
@@ -6653,6 +6655,10 @@ CSS;
                 } else {
                     $chunk = $this->nestMultiline($chunk, str_repeat(' ', $explicitNestColumn));
                 }
+            }
+
+            if (str_contains($chunk, self::BREAKABLE_SPACE_MARKER)) {
+                $chunk = $this->annotateBreakableSpaceIndent($chunk, $activeNestColumn);
             }
 
             $output .= $chunk;
@@ -6789,29 +6795,113 @@ CSS;
         }
     }
 
+    private function annotateBreakableSpaceIndent(string $value, int $indent): string
+    {
+        $marker = self::BREAKABLE_SPACE_MARKER;
+        $indentMarker = self::BREAKABLE_SPACE_INDENT_MARKER . $indent . ';';
+        $output = '';
+        $offset = 0;
+        $length = strlen($value);
+
+        while ($offset < $length) {
+            $markerOffset = strpos($value, $marker, $offset);
+            if ($markerOffset === false) {
+                $output .= substr($value, $offset);
+                break;
+            }
+
+            $output .= substr($value, $offset, $markerOffset - $offset + 1);
+            $afterMarker = $markerOffset + 1;
+            if (!$this->readBreakableSpaceIndent($value, $afterMarker)[1]) {
+                $output .= $indentMarker;
+            }
+
+            $offset = $afterMarker;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{0:?int, 1:bool, 2:int}
+     */
+    private function readBreakableSpaceIndent(string $value, int $offset): array
+    {
+        if (($value[$offset] ?? '') !== self::BREAKABLE_SPACE_INDENT_MARKER) {
+            return [null, false, $offset];
+        }
+
+        $start = $offset + 1;
+        $end = strpos($value, ';', $start);
+        if ($end === false) {
+            return [null, false, $offset];
+        }
+
+        $digits = substr($value, $start, $end - $start);
+        if ($digits === '' || !ctype_digit($digits)) {
+            return [null, false, $offset];
+        }
+
+        return [(int) $digits, true, $end + 1];
+    }
+
+    private function replaceBreakableSpaceMarkers(string $value, string $replacement): string
+    {
+        return preg_replace(
+            '/' . preg_quote(self::BREAKABLE_SPACE_MARKER, '/') . '(?:' . preg_quote(self::BREAKABLE_SPACE_INDENT_MARKER, '/') . '[0-9]+;)?/',
+            $replacement,
+            $value,
+        ) ?? $value;
+    }
+
+    private function chompBreakableText(string $value): string
+    {
+        return preg_replace(
+            '/(?:\r\n|\n|\r|' . preg_quote(self::BREAKABLE_SPACE_MARKER, '/') . '(?:' . preg_quote(self::BREAKABLE_SPACE_INDENT_MARKER, '/') . '[0-9]+;)?)++$/',
+            '',
+            $value,
+        ) ?? $value;
+    }
+
     private function wrapBreakableSpaces(string $value, int $lineLength): string
     {
         if (!str_contains($value, self::BREAKABLE_SPACE_MARKER)) {
             return $value;
         }
 
-        $parts = explode(self::BREAKABLE_SPACE_MARKER, $value);
         $output = '';
         $column = 0;
+        $offset = 0;
+        $length = strlen($value);
 
-        foreach ($parts as $index => $part) {
-            if ($index > 0) {
-                $nextWidth = $this->leadingSegmentWidth($part);
-                if ($column > 0 && $column + 1 + $nextWidth > $lineLength) {
-                    $output .= "\n";
-                    $column = 0;
-                } elseif ($column > 0) {
-                    $output .= ' ';
-                    $column++;
-                }
+        while ($offset < $length) {
+            $markerOffset = strpos($value, self::BREAKABLE_SPACE_MARKER, $offset);
+            if ($markerOffset === false) {
+                $this->appendWrappedSegment($output, $column, substr($value, $offset));
+                break;
             }
 
-            $this->appendWrappedSegment($output, $column, $part);
+            $this->appendWrappedSegment($output, $column, substr($value, $offset, $markerOffset - $offset));
+            [$continuationIndent, $_hasIndent, $afterMarker] = $this->readBreakableSpaceIndent($value, $markerOffset + 1);
+            $nextMarker = strpos($value, self::BREAKABLE_SPACE_MARKER, $afterMarker);
+            $part = $nextMarker === false
+                ? substr($value, $afterMarker)
+                : substr($value, $afterMarker, $nextMarker - $afterMarker);
+            $nextWidth = $this->leadingSegmentWidth($part);
+
+            if ($column > 0 && $column + 1 + $nextWidth > $lineLength) {
+                $output .= "\n";
+                $column = 0;
+                if ($continuationIndent !== null && $continuationIndent > 0) {
+                    $output .= str_repeat(' ', $continuationIndent);
+                    $column = $continuationIndent;
+                }
+            } elseif ($column > 0) {
+                $output .= ' ';
+                $column++;
+            }
+
+            $offset = $afterMarker;
         }
 
         return $output;

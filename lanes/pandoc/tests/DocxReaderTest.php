@@ -467,6 +467,44 @@ $drawingPlaceholderChartXml = <<<'XML'
   <c:clrMapOvr>
     <a:overrideClrMapping bg1="lt1" tx1="dk1" accent1="accent3" accent2="accent4" hlink="hlink" folHlink="folHlink"/>
   </c:clrMapOvr>
+  <c:chart>
+    <c:title>
+      <c:tx>
+        <c:rich>
+          <a:bodyPr/>
+          <a:lstStyle/>
+          <a:p><a:r><a:t>Quarterly migration revenue</a:t></a:r></a:p>
+        </c:rich>
+      </c:tx>
+    </c:title>
+    <c:plotArea>
+      <c:barChart>
+        <c:ser>
+          <c:idx val="0"/>
+          <c:order val="0"/>
+          <c:tx><c:v>North region</c:v></c:tx>
+        </c:ser>
+        <c:ser>
+          <c:idx val="1"/>
+          <c:order val="1"/>
+          <c:tx>
+            <c:strRef>
+              <c:f>Sheet1!$B$1</c:f>
+              <c:strCache><c:pt idx="0"><c:v>South region</c:v></c:pt></c:strCache>
+            </c:strRef>
+          </c:tx>
+        </c:ser>
+      </c:barChart>
+      <c:catAx>
+        <c:axId val="10"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title>
+      </c:catAx>
+      <c:valAx>
+        <c:axId val="20"/>
+        <c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
+      </c:valAx>
+    </c:plotArea>
+  </c:chart>
   <c:externalData r:id="rIdChartWorkbook">
     <c:autoUpdate val="0"/>
   </c:externalData>
@@ -5396,6 +5434,9 @@ return [
             'docx-drawing-chart',
             'docx-chart-style',
             'docx-chart-override-color-mapping',
+            'docx-chart-title',
+            'docx-chart-series',
+            'docx-chart-axis-title',
             'docx-chart-style-part',
             'docx-chart-color-style-part',
             'docx-chart-embedded-data',
@@ -5424,6 +5465,21 @@ return [
         $t->same('accent4', $chartAttributes['data-docx-chart-color-map-accent-2']);
         $t->same('hlink', $chartAttributes['data-docx-chart-color-map-hyperlink']);
         $t->same('folHlink', $chartAttributes['data-docx-chart-color-map-followed-hyperlink']);
+        $t->same('Quarterly migration revenue', $chartAttributes['data-docx-chart-title']);
+        $t->same('2', $chartAttributes['data-docx-chart-series-count']);
+        $t->same('0', $chartAttributes['data-docx-chart-series-1-index']);
+        $t->same('0', $chartAttributes['data-docx-chart-series-1-order']);
+        $t->same('North region', $chartAttributes['data-docx-chart-series-1-name']);
+        $t->same('1', $chartAttributes['data-docx-chart-series-2-index']);
+        $t->same('1', $chartAttributes['data-docx-chart-series-2-order']);
+        $t->same('South region', $chartAttributes['data-docx-chart-series-2-name']);
+        $t->same('2', $chartAttributes['data-docx-chart-axis-title-count']);
+        $t->same('catAx', $chartAttributes['data-docx-chart-axis-1-type']);
+        $t->same('10', $chartAttributes['data-docx-chart-axis-1-id']);
+        $t->same('Quarter', $chartAttributes['data-docx-chart-axis-1-title']);
+        $t->same('valAx', $chartAttributes['data-docx-chart-axis-2-type']);
+        $t->same('20', $chartAttributes['data-docx-chart-axis-2-id']);
+        $t->same('Revenue', $chartAttributes['data-docx-chart-axis-2-title']);
         $t->same('rIdChartStyle', $chartAttributes['data-docx-chart-style-relationship-id']);
         $t->same('http://schemas.microsoft.com/office/2011/relationships/chartStyle', $chartAttributes['data-docx-chart-style-relationship-type']);
         $t->same('/word/charts/style1.xml', $chartAttributes['data-docx-chart-style-target-part']);
@@ -5465,10 +5521,13 @@ return [
         $t->same('/word/diagrams/colors1.xml', $diagramAttributes['data-docx-diagram-colors-target-part']);
         $t->same('.', $paragraph->children[4]->attr('text'));
 
-        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-style .docx-chart-override-color-mapping .docx-chart-style-part .docx-chart-color-style-part .docx-chart-embedded-data', $markdown);
+        $t->contains('[DOCX chart: Quarterly sales chart]{.docx-drawing-placeholder .docx-drawing-chart .docx-chart-style .docx-chart-override-color-mapping .docx-chart-title .docx-chart-series .docx-chart-axis-title .docx-chart-style-part .docx-chart-color-style-part .docx-chart-embedded-data', $markdown);
         $t->contains('data-docx-relationship-id="rIdChart"', $markdown);
         $t->contains('data-docx-chart-style-val="201"', $markdown);
         $t->contains('data-docx-chart-color-map-accent-1="accent3"', $markdown);
+        $t->contains('data-docx-chart-title="Quarterly migration revenue"', $markdown);
+        $t->contains('data-docx-chart-series-1-name="North region"', $markdown);
+        $t->contains('data-docx-chart-axis-2-title="Revenue"', $markdown);
         $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $markdown);
         $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $markdown);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $markdown);
@@ -5476,10 +5535,13 @@ return [
         $t->contains('[DOCX diagram: Review workflow diagram]{.docx-drawing-placeholder .docx-drawing-diagram', $markdown);
         $t->contains('data-docx-diagram-data-id="rIdDiagramData"', $markdown);
 
-        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"', $blocks);
+        $t->contains('<span class="docx-drawing-placeholder docx-drawing-chart docx-chart-style docx-chart-override-color-mapping docx-chart-title docx-chart-series docx-chart-axis-title docx-chart-style-part docx-chart-color-style-part docx-chart-embedded-data"', $blocks);
         $t->contains('data-docx-relationship-id="rIdChart"', $blocks);
         $t->contains('data-docx-chart-style-val="201"', $blocks);
         $t->contains('data-docx-chart-color-map-accent-1="accent3"', $blocks);
+        $t->contains('data-docx-chart-title="Quarterly migration revenue"', $blocks);
+        $t->contains('data-docx-chart-series-2-name="South region"', $blocks);
+        $t->contains('data-docx-chart-axis-1-title="Quarter"', $blocks);
         $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $blocks);
         $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $blocks);
         $t->contains('data-docx-chart-external-data-id="rIdChartWorkbook"', $blocks);
@@ -5531,6 +5593,39 @@ return [
         $t->contains('data-docx-chart-color-map-accent-1="accent3"', $blocks);
         $t->contains('data-docx-chart-style-target-part="/word/charts/style1.xml"', $blocks);
         $t->contains('data-docx-chart-color-style-target-part="/word/charts/colors1.xml"', $blocks);
+    },
+    'preserves DOCX chart title series and axis labels as reviewer metadata' => static function (TestRunner $t) use ($buildDrawingPlaceholderPackage): void {
+        $result = (new DocxReader())->readPackage($buildDrawingPlaceholderPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $chart = $document->children[0]->children[1];
+        $classes = $chart->attr('classes');
+        $t->true(is_array($classes) && in_array('docx-chart-title', $classes, true), 'Chart placeholder should expose chart title metadata');
+        $t->true(is_array($classes) && in_array('docx-chart-series', $classes, true), 'Chart placeholder should expose chart series metadata');
+        $t->true(is_array($classes) && in_array('docx-chart-axis-title', $classes, true), 'Chart placeholder should expose chart axis title metadata');
+
+        $attrs = $chart->attr('attributes');
+        $t->same('Quarterly migration revenue', $attrs['data-docx-chart-title']);
+        $t->same('2', $attrs['data-docx-chart-series-count']);
+        $t->same('North region', $attrs['data-docx-chart-series-1-name']);
+        $t->same('South region', $attrs['data-docx-chart-series-2-name']);
+        $t->same('2', $attrs['data-docx-chart-axis-title-count']);
+        $t->same('catAx', $attrs['data-docx-chart-axis-1-type']);
+        $t->same('Quarter', $attrs['data-docx-chart-axis-1-title']);
+        $t->same('valAx', $attrs['data-docx-chart-axis-2-type']);
+        $t->same('Revenue', $attrs['data-docx-chart-axis-2-title']);
+
+        $t->contains('data-docx-chart-title="Quarterly migration revenue"', $markdown);
+        $t->contains('data-docx-chart-series-count="2"', $markdown);
+        $t->contains('data-docx-chart-series-2-name="South region"', $markdown);
+        $t->contains('data-docx-chart-axis-title-count="2"', $markdown);
+        $t->contains('data-docx-chart-axis-1-title="Quarter"', $markdown);
+
+        $t->contains('data-docx-chart-title="Quarterly migration revenue"', $blocks);
+        $t->contains('data-docx-chart-series-1-name="North region"', $blocks);
+        $t->contains('data-docx-chart-axis-2-title="Revenue"', $blocks);
     },
     'preserves DOCX DrawingML shape text as reviewer spans' => static function (TestRunner $t) use ($buildDrawingTextPackage): void {
         $document = (new DocxReader())->readDocument($buildDrawingTextPackage());

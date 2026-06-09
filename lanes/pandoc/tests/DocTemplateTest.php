@@ -716,6 +716,37 @@ TPL;
         ]), $output);
     },
 
+    'wraps explicit nested pandoc doctemplate breakable spaces with continuation indentation' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $output = $renderer->renderWrapped(
+            '<p>$^$Note: $~$media links layout status$~$</p>',
+            [],
+            18,
+        );
+
+        $t->same(implode("\n", [
+            '<p>Note: media',
+            '   links layout',
+            '   status</p>',
+        ]), $output);
+
+        $partialOutput = $renderer->renderWrapped(
+            '<aside>$^$${ review-line() }</aside>',
+            [],
+            18,
+            [
+                'review-line' => '$~$media links layout status$~$',
+            ],
+        );
+
+        $t->same(implode("\n", [
+            '<aside>media links',
+            '       layout',
+            '       status</aside>',
+        ]), $partialOutput);
+    },
+
     'inherits pandoc doctemplate breakable spaces into partial resources' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
         $template = <<<'TPL'
