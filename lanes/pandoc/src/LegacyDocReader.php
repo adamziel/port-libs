@@ -6980,6 +6980,9 @@ final class LegacyDocReader
         }
 
         $type = self::u16($bytes, $offset);
+        if (self::u16($bytes, $offset + 2) !== 0) {
+            throw new \RuntimeException('Legacy DOC OLE property value contains nonzero typed-value padding');
+        }
         $valueOffset = $offset + 4;
 
         return match ($type) {

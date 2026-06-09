@@ -323,6 +323,21 @@ $typedPropertySet = static function (array $properties) use ($u32, $typedI2): st
         . $u32(48)
         . $set;
 };
+$propertySetValueOffset = static function (string $propertySet, int $propertyId): int {
+    $sectionOffset = 48;
+    $propertyCount = unpack('Vvalue', substr($propertySet, $sectionOffset + 4, 4))['value'];
+    for ($index = 0; $index < $propertyCount; $index++) {
+        $entryOffset = $sectionOffset + 8 + ($index * 8);
+        $id = unpack('Vvalue', substr($propertySet, $entryOffset, 4))['value'];
+        if ($id === $propertyId) {
+            $relativeOffset = unpack('Vvalue', substr($propertySet, $entryOffset + 4, 4))['value'];
+
+            return $sectionOffset + $relativeOffset;
+        }
+    }
+
+    throw new RuntimeException('Legacy DOC handoff fixture property not found');
+};
 $typedPropertySetStream = static function (array $sets) use ($typedPropertySet, $u32): string {
     $descriptorOffset = 28 + (count($sets) * 20);
     $descriptors = '';
@@ -1942,6 +1957,21 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Legacy DOC handoff self-test accepted duplicate OLE property-set identifiers');
     } catch (RuntimeException $exception) {
         if (!str_contains($exception->getMessage(), 'duplicate property identifiers')) {
+            throw $exception;
+        }
+    }
+    $dirtyTypedPaddingDoc = substr_replace(
+        $docBytes,
+        $u16(1),
+        $summaryInfoOffset + $propertySetValueOffset($streams["\x05SummaryInformation"], 2) + 2,
+        2
+    );
+    try {
+        (new LegacyDocReader())->readBytes($dirtyTypedPaddingDoc);
+
+        throw new RuntimeException('Legacy DOC handoff self-test accepted nonzero OLE typed-value padding');
+    } catch (RuntimeException $exception) {
+        if (!str_contains($exception->getMessage(), 'nonzero typed-value padding')) {
             throw $exception;
         }
     }

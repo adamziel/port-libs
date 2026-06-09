@@ -4325,6 +4325,47 @@ return [
             ])));
         }
     },
+    'rejects nonzero legacy DOC OLE typed-value padding before metadata exposure' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $typedI4, $u16): void {
+        $reader = new LegacyDocReader();
+        $validPropertySet = $typedPropertySet([
+            2 => $typedLpstr('Safe review title'),
+            4 => $typedLpstr('Migration Desk'),
+            14 => $typedI4(3),
+        ]);
+        $propertyValueOffset = static function (string $propertySet, int $propertyId): int {
+            $sectionOffset = 48;
+            $propertyCount = unpack('Vvalue', substr($propertySet, $sectionOffset + 4, 4))['value'];
+            for ($index = 0; $index < $propertyCount; $index++) {
+                $entryOffset = $sectionOffset + 8 + ($index * 8);
+                $id = unpack('Vvalue', substr($propertySet, $entryOffset, 4))['value'];
+                if ($id === $propertyId) {
+                    $relativeOffset = unpack('Vvalue', substr($propertySet, $entryOffset + 4, 4))['value'];
+
+                    return $sectionOffset + $relativeOffset;
+                }
+            }
+
+            throw new RuntimeException('Unable to locate OLE property-set fixture property');
+        };
+
+        foreach ([
+            'codepage property padding' => [1, 1],
+            'title LPSTR padding' => [2, 2],
+            'page-count integer padding' => [14, 3],
+        ] as $_label => [$propertyId, $padding]) {
+            $summaryInformation = substr_replace(
+                $validPropertySet,
+                $u16((int) $padding),
+                $propertyValueOffset($validPropertySet, (int) $propertyId) + 2,
+                2
+            );
+
+            $t->throws(\RuntimeException::class, static fn (): array => $reader->readBytes($buildCfb([
+                'WordDocument' => $buildSimpleWordDocument("Malformed typed-property padding packet\r"),
+                "\x05SummaryInformation" => $summaryInformation,
+            ])));
+        }
+    },
     'extracts legacy DOC reserved hyperlink custom properties as metadata-only review data' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedDictionary, $typedLpstr, $typedI2, $typedBool, $typedUnicodeBlob, $typedHyperlinks, $typedBlob, $typedI4, $u32): void {
         $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
         $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');

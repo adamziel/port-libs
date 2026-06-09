@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 06:39:24 UTC",
-    "sourceCommit": "2064614c1652ecc07df919dcfa86b0419a6fceb3",
-    "sourceCommitShort": "2064614c1652",
+    "generated": "2026-06-09 06:40:17 UTC",
+    "sourceCommit": "2946c04e656b6db3d80ead21855ed36e391688cf",
+    "sourceCommitShort": "2946c04e656b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "2064614c1652ecc07df919dcfa86b0419a6fceb3",
-    "dashboardCommitShort": "2064614c1652",
+    "dashboardCommit": "2946c04e656b6db3d80ead21855ed36e391688cf",
+    "dashboardCommitShort": "2946c04e656b",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2847",
-            "coverage": "2,847 / 2,276 (125.1%)",
+            "mapped": "2848",
+            "coverage": "2,848 / 2,276 (125.1%)",
             "mapPercent": "125.1%",
             "unmapped": "0",
-            "php": "2,463 pass / 0 fail",
+            "php": "2,464 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC OPC XML relationships current-base signature transform...",
+            "audit": "2026-06-09 UTC Legacy DOC/CFB current-base typed-property padding sli...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For OPC follow-up, choose a non-overlapping native gap such a...",
-            "remainingGate": "No new native support component is needed for this OPC XML relationsh...",
+            "nextTarget": "For Legacy DOC/CFB follow-up, choose a non-overlapping native...",
+            "remainingGate": "No new native support component is needed for this Legacy DOC/CFB slice.",
             "commit": "pending fast ba..."
         },
         {
