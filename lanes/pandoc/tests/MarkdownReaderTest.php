@@ -13228,6 +13228,44 @@ HTML;
         $t->contains('<span class="emoji" data-emoji="-1">' . "\u{1F44E}" . '</span>', $blocks);
         $t->contains(':unknown-import-emoji:.', $blocks);
     },
+    'maps pandoc markdown review status emoji aliases through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $aliases = [
+            'heavy_check_mark' => "\u{2714}\u{FE0F}",
+            'information_source' => "\u{2139}\u{FE0F}",
+            'bug' => "\u{1F41B}",
+            'fire' => "\u{1F525}",
+            'sparkles' => "\u{2728}",
+            'zap' => "\u{26A1}",
+        ];
+        $markdown = 'Review status ' . implode(' ', array_map(static fn (string $alias): string => ':' . $alias . ':', array_keys($aliases))) . ' :unknown-status-emoji:.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $emojiNodes = [];
+        foreach ($paragraph->children as $child) {
+            if ($child->type === 'span' && $child->attr('classes') === ['emoji']) {
+                $emojiNodes[] = $child;
+            }
+        }
+        $unknown = $paragraph->children[array_key_last($paragraph->children)];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(array_keys($aliases), array_map(
+            static fn (AstNode $node): string => (string) ($node->attr('attributes')['data-emoji'] ?? ''),
+            $emojiNodes
+        ));
+        foreach ($aliases as $alias => $glyph) {
+            $matchingNodes = array_values(array_filter(
+                $emojiNodes,
+                static fn (AstNode $node): bool => ($node->attr('attributes')['data-emoji'] ?? null) === $alias
+            ));
+            $t->same(1, count($matchingNodes));
+            $t->same($glyph, $matchingNodes[0]->children[0]->attr('text'));
+            $t->contains('<span class="emoji" data-emoji="' . $alias . '">' . $glyph . '</span>', $blocks);
+        }
+        $t->same(' :unknown-status-emoji:.', $unknown->attr('text'));
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+        $t->contains(':unknown-status-emoji:.', $blocks);
+    },
     'maps upstream markdown github wiki link extension cases' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '[[https://example.org]]',
