@@ -2898,6 +2898,66 @@ return [
         json_encode($associations, JSON_THROW_ON_ERROR);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports source header abbreviation writer handoff diagnostics' => static function (TestRunner $t) use ($buildAbbreviatedHeaderDocument): void {
+        $table = $buildAbbreviatedHeaderDocument()->children[0];
+        $markdownDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'pipe-table');
+        $asciidocDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'asciidoctor');
+        $latexDiagnostics = TableGeometry::writerDowngradeDiagnostics($table, 'xelatex');
+        $packet = TableGeometry::reviewPacket($table, [
+            'idPrefix' => 'Abbr Grid',
+            'writers' => ['pipe-table', 'asciidoctor', 'xelatex', 'wordpress'],
+        ]);
+
+        $t->same([
+            'markdown-table-source-attributes-require-raw-html',
+            'markdown-header-abbreviation-require-raw-html',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $markdownDiagnostics));
+        $t->same([
+            'asciidoc-table-source-attributes-require-raw-html',
+            'asciidoc-header-abbreviation-review-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $asciidocDiagnostics));
+        $t->same([
+            'latex-table-source-attributes-review-required',
+            'latex-header-abbreviation-review-required',
+        ], array_map(static fn (array $diagnostic): string => $diagnostic['code'], $latexDiagnostics));
+        $t->same([], TableGeometry::writerDowngradeDiagnostics($table, 'wordpress'));
+        $t->same($asciidocDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'adoc'));
+        $t->same($latexDiagnostics, TableGeometry::writerDowngradeDiagnostics($table, 'tex'));
+
+        $diagnostic = $markdownDiagnostics[1] ?? [];
+        $t->same('markdown', $diagnostic['writer'] ?? null);
+        $t->same('header-abbreviation', $diagnostic['reason'] ?? null);
+        $t->same('raw-html-table-header-abbr', $diagnostic['requiredFeature'] ?? null);
+        $t->same('html-table-abbr', $diagnostic['source'] ?? null);
+        $t->same('Abbreviated header review grid', $diagnostic['caption'] ?? null);
+        $t->same(2, $diagnostic['headerAbbreviationCount'] ?? null);
+        $t->same(true, $diagnostic['hasHeaderAbbreviations'] ?? null);
+        $t->same(['Doc', 'St'], $diagnostic['abbreviations'] ?? null);
+        $t->same(2, count($diagnostic['headerCells'] ?? []));
+        $t->same('source-document', $diagnostic['headerCells'][0]['id'] ?? null);
+        $t->same('Doc', $diagnostic['headerCells'][0]['abbr'] ?? null);
+        $t->same('abbr-grid-head-r1c2', $diagnostic['headerCells'][1]['id'] ?? null);
+        $t->same('St', $diagnostic['headerCells'][1]['abbr'] ?? null);
+
+        $t->same($markdownDiagnostics, $packet['writerDowngrades']['markdown'] ?? null);
+        $t->same($asciidocDiagnostics, $packet['writerDowngrades']['asciidoc'] ?? null);
+        $t->same($latexDiagnostics, $packet['writerDowngrades']['latex'] ?? null);
+        $t->same([], $packet['writerDowngrades']['wordpress'] ?? null);
+        $t->same(6, $packet['summary']['writerDowngradeCount'] ?? null);
+        $t->same([
+            'markdown-table-source-attributes-require-raw-html',
+            'markdown-header-abbreviation-require-raw-html',
+            'asciidoc-table-source-attributes-require-raw-html',
+            'asciidoc-header-abbreviation-review-required',
+            'latex-table-source-attributes-review-required',
+            'latex-header-abbreviation-review-required',
+        ], $packet['summary']['writerDowngradeCodes'] ?? null);
+        $t->same(['asciidoc', 'latex', 'markdown'], $packet['summary']['writerDowngradeWriters'] ?? null);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+        json_encode($markdownDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($asciidocDiagnostics, JSON_THROW_ON_ERROR);
+        json_encode($latexDiagnostics, JSON_THROW_ON_ERROR);
+    },
     'honors source scope and headers attributes in table accessibility packets' => static function (TestRunner $t) use ($buildSourceScopedHeaderDocument): void {
         $document = $buildSourceScopedHeaderDocument();
         $table = $document->children[0];

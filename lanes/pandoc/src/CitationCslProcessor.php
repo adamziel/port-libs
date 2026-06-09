@@ -4541,9 +4541,37 @@ final class CitationCslProcessor
             'source' => $this->normalizeSortText((string) ($item['source'] ?? '')),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
+            'page', 'page-first', 'number', 'edition', 'volume', 'issue', 'chapter-number', 'number-of-pages',
+            'number-of-volumes', 'collection-number', 'section', 'part-number', 'part', 'printing-number',
+            'supplement', 'supplement-number', 'version' => $this->numberVariableSortValue($item, $variable, $scope),
             'id' => $this->normalizeSortText((string) $item['id']),
             default => $this->normalizeSortText($fallback),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function numberVariableSortValue(array $item, string $variable, string $scope): string
+    {
+        $value = trim(preg_replace('/\s+/u', ' ', $this->renderVariableValue($item, $variable, $scope)) ?? '');
+        if ($value === '') {
+            return '';
+        }
+
+        if (!$this->cslNumberValueIsNumeric($value)) {
+            return 'T|' . $this->normalizeSortText($value);
+        }
+
+        preg_match_all('/\d+/u', $value, $matches);
+        $numbers = $matches[0] ?? [];
+        if ($numbers === []) {
+            return 'T|' . $this->normalizeSortText($value);
+        }
+
+        $parts = array_map(static fn (string $number): string => sprintf('%012d', (int) $number), $numbers);
+
+        return 'N|' . implode('|', $parts);
     }
 
     /**

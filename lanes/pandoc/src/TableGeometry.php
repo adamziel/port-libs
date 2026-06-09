@@ -5936,6 +5936,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
@@ -6021,6 +6022,7 @@ final class TableGeometry
                     array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
                     array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+                    array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
                     array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
                 }
@@ -6122,6 +6124,7 @@ final class TableGeometry
             array_push($diagnostics, ...self::tableDirectionWriterDiagnostics($table, $writer, $coverage));
             array_push($diagnostics, ...self::rowHeaderWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::sourceHeaderWriterDiagnostics($table, $writer, $idPrefix));
+            array_push($diagnostics, ...self::headerAbbreviationWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::headerAxisWriterDiagnostics($table, $writer, $idPrefix));
             array_push($diagnostics, ...self::tableBodyHeadRowWriterDiagnostics($table, $writer));
         }
@@ -6297,6 +6300,96 @@ final class TableGeometry
             'hasSourceHeaderOverrides' => (bool) ($summary['hasSourceHeaderOverrides'] ?? false),
             'cells' => self::sourceHeaderReferenceCells($associations),
         ]];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function headerAbbreviationWriterDiagnostics(AstNode $table, string $writer, ?string $idPrefix = null): array
+    {
+        $requirements = [
+            'markdown' => ['markdown-header-abbreviation-require-raw-html', 'raw-html-table-header-abbr'],
+            'asciidoc' => ['asciidoc-header-abbreviation-review-required', 'header-abbreviation-review'],
+            'latex' => ['latex-header-abbreviation-review-required', 'table-header-abbreviation-comments'],
+        ];
+        if (!isset($requirements[$writer])) {
+            return [];
+        }
+
+        $associations = self::headerAssociations($table, $idPrefix ?? self::reviewPacketIdPrefix($table, []));
+        $summary = is_array($associations['summary'] ?? null) ? $associations['summary'] : [];
+        $abbreviationCount = (int) ($summary['headerAbbreviationCount'] ?? 0);
+        if ($abbreviationCount <= 0) {
+            return [];
+        }
+
+        $headerCells = self::headerAbbreviationCells($associations);
+        [$code, $requiredFeature] = $requirements[$writer];
+
+        return [[
+            'code' => $code,
+            'writer' => $writer,
+            'reason' => 'header-abbreviation',
+            'requiredFeature' => $requiredFeature,
+            'source' => 'html-table-abbr',
+            'caption' => (string) $table->attr('caption', ''),
+            'headerAbbreviationCount' => $abbreviationCount,
+            'hasHeaderAbbreviations' => (bool) ($summary['hasHeaderAbbreviations'] ?? false),
+            'abbreviations' => array_values(array_unique(array_map(
+                static fn (array $cell): string => (string) ($cell['abbr'] ?? ''),
+                $headerCells
+            ))),
+            'headerCells' => $headerCells,
+        ]];
+    }
+
+    /**
+     * @param array<string, mixed> $associations
+     * @return list<array<string, mixed>>
+     */
+    private static function headerAbbreviationCells(array $associations): array
+    {
+        $cells = [];
+        $headerCells = is_array($associations['headerCells'] ?? null) ? $associations['headerCells'] : [];
+        foreach ($headerCells as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $abbr = trim((string) ($record['abbr'] ?? ''));
+            if ($abbr === '') {
+                continue;
+            }
+
+            $cell = [];
+            foreach (['key', 'section', 'rowRole', 'id', 'scope', 'text'] as $key) {
+                $value = trim((string) ($record[$key] ?? ''));
+                if ($value !== '') {
+                    $cell[$key] = $value;
+                }
+            }
+
+            foreach (['row', 'column', 'sourceCell', 'sourceColumn', 'colspan', 'rowspan'] as $key) {
+                if (isset($record[$key]) && is_numeric($record[$key])) {
+                    $cell[$key] = (int) $record[$key];
+                }
+            }
+
+            $columns = self::intList($record['columns'] ?? []);
+            if ($columns !== []) {
+                $cell['columns'] = $columns;
+            }
+
+            $axis = self::stringList($record['axis'] ?? []);
+            if ($axis !== []) {
+                $cell['axis'] = $axis;
+            }
+
+            $cell['abbr'] = $abbr;
+            $cells[] = $cell;
+        }
+
+        return $cells;
     }
 
     /**

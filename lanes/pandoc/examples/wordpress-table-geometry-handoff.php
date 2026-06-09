@@ -2328,6 +2328,18 @@ if (($argv[1] ?? '') === '--self-test') {
     }
 
     $abbreviatedHeaderPacket = TableGeometry::reviewPacket($abbreviatedHeaderTable, ['idPrefix' => 'Abbr Grid']);
+    $abbreviatedHeaderWriterPacket = TableGeometry::reviewPacket($abbreviatedHeaderTable, [
+        'idPrefix' => 'Abbr Grid',
+        'writers' => ['markdown', 'asciidoc', 'latex', 'wordpress'],
+    ]);
+    $abbreviationDiagnostics = [];
+    foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+        $matches = array_values(array_filter(
+            $abbreviatedHeaderWriterPacket['writerDowngrades'][$writer] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'header-abbreviation'
+        ));
+        $abbreviationDiagnostics[$writer] = $matches[0] ?? [];
+    }
     if (
         ($abbreviatedHeaderPacket['headerAssociations']['summary']['headerAbbreviationCount'] ?? null) !== 2
         || ($abbreviatedHeaderPacket['summary']['headerAbbreviationCount'] ?? null) !== 2
@@ -2341,6 +2353,15 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('Table geometry self-test missing source header abbreviation records');
     }
+    if (
+        ($abbreviationDiagnostics['markdown']['code'] ?? null) !== 'markdown-header-abbreviation-require-raw-html'
+        || ($abbreviationDiagnostics['markdown']['abbreviations'] ?? null) !== ['Doc', 'St']
+        || ($abbreviationDiagnostics['asciidoc']['code'] ?? null) !== 'asciidoc-header-abbreviation-review-required'
+        || ($abbreviationDiagnostics['latex']['code'] ?? null) !== 'latex-header-abbreviation-review-required'
+        || ($abbreviatedHeaderWriterPacket['writerDowngrades']['wordpress'] ?? null) !== []
+    ) {
+        throw new RuntimeException('Table geometry self-test missing source header abbreviation writer metadata');
+    }
     if (!str_contains($blocks, '<th scope="col" id="abbr-document-source" abbr="Doc" style="text-align:left">Document</th>')) {
         throw new RuntimeException('Table geometry self-test missing source HTML header abbreviation output');
     }
@@ -2348,6 +2369,7 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing source AST header abbreviation output');
     }
     json_encode($abbreviatedHeaderPacket, JSON_THROW_ON_ERROR);
+    json_encode($abbreviatedHeaderWriterPacket, JSON_THROW_ON_ERROR);
 
     $sourceShiftTable = null;
     foreach ($document->children as $node) {

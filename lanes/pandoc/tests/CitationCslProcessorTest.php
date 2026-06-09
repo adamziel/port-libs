@@ -20200,6 +20200,112 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: printing number advance press :: supplement number legacy appendix</dd>', $blocks);
     },
+    'sorts bounded csl numeric variables as integers for citation and bibliography keys' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'volume-ten',
+                'type' => 'book',
+                'title' => 'Tenth Volume Packet',
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'volume' => '10',
+            ],
+            [
+                'id' => 'volume-two',
+                'type' => 'book',
+                'title' => 'Second Volume Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'volume' => '2',
+            ],
+            [
+                'id' => 'volume-range',
+                'type' => 'book',
+                'title' => 'Range Volume Packet',
+                'author' => [
+                    ['family' => 'Diaz', 'given' => 'Dee'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'volume' => '2-3',
+            ],
+            [
+                'id' => 'volume-special',
+                'type' => 'book',
+                'title' => 'Special Volume Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Vic'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'volume' => 'Special edition',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Numeric Sort Review</title>
+    <id>https://example.test/styles/bounded-numeric-sort-review</id>
+    <updated>2026-06-09T03:55:25+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="volume"/>
+    </sort>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" ">
+        <label variable="volume" form="short"/>
+        <number variable="volume"/>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="volume"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="volume" form="short"/>
+        <number variable="volume"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same([['sort' => 'ascending', 'variable' => 'volume']], $summary['citationSort'] ?? null);
+        $t->same([['sort' => 'ascending', 'variable' => 'volume']], $summary['bibliographySort'] ?? null);
+        $t->same('(vol. 2 Second Volume Packet; vols. 2-3 Range Volume Packet; vol. 10 Tenth Volume Packet; vol. Special edition Special Volume Packet)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'volume-ten', 'text' => '[@volume-ten]']),
+            new AstNode('citation', ['id' => 'volume-two', 'text' => '[@volume-two]']),
+            new AstNode('citation', ['id' => 'volume-range', 'text' => '[@volume-range]']),
+            new AstNode('citation', ['id' => 'volume-special', 'text' => '[@volume-special]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Volume review cites [@volume-ten; @volume-two; @volume-range; @volume-special] before import.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $markdown = (new MarkdownWriter())->write($processed);
+        $twoPos = strpos($markdown, 'Second Volume Packet :: vol. 2');
+        $rangePos = strpos($markdown, 'Range Volume Packet :: vols. 2-3');
+        $tenPos = strpos($markdown, 'Tenth Volume Packet :: vol. 10');
+        $specialPos = strpos($markdown, 'Special Volume Packet :: vol. Special edition');
+        $t->true(is_int($twoPos) && is_int($rangePos) && is_int($tenPos) && is_int($specialPos), 'Numeric sort bibliography entries should be present');
+        $t->true($twoPos < $rangePos && $rangePos < $tenPos && $tenPos < $specialPos, 'CSL numeric variable sort should compare numeric values before normalized text fallbacks');
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Volume review cites (vol. 2 Second Volume Packet; vols. 2-3 Range Volume Packet; vol. 10 Tenth Volume Packet; vol. Special edition Special Volume Packet) before import.</p>', $blocks);
+        $twoBlock = strpos($blocks, '<dt>Ng 2025</dt><dd>Second Volume Packet :: vol. 2</dd>');
+        $rangeBlock = strpos($blocks, '<dt>Diaz 2024</dt><dd>Range Volume Packet :: vols. 2-3</dd>');
+        $tenBlock = strpos($blocks, '<dt>Zed 2026</dt><dd>Tenth Volume Packet :: vol. 10</dd>');
+        $specialBlock = strpos($blocks, '<dt>Vale 2023</dt><dd>Special Volume Packet :: vol. Special edition</dd>');
+        $t->true(is_int($twoBlock) && is_int($rangeBlock) && is_int($tenBlock) && is_int($specialBlock), 'WordPress numeric sort bibliography entries should be present');
+        $t->true($twoBlock < $rangeBlock && $rangeBlock < $tenBlock && $tenBlock < $specialBlock, 'WordPress bibliography handoff should preserve CSL numeric sort order');
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
