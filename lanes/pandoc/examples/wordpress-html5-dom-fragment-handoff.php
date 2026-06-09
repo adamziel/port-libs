@@ -89,7 +89,7 @@ $source = <<<HTML
   <figure align="right" aria-describedby="cover-caption" data-pandoc-figure-caption="source-spoof"><img src=" cover.png&#13;" srcset=" h&#9;ttps://cdn.example.test/cover.png?x=1&amp;y=2 01.00x, cover.png 1x, ../media/cover@2x.png 2x, javascript:alert(1) 3x" loading=" Lazy " decoding="ASYNC" fetchpriority="HIGH" crossorigin="" data-pandoc-image-loading="source-spoof" alt="Cover"><figcaption id="cover-caption">Cover image</figcaption></figure>
   <video autoplay controls loop muted playsinline preload="metadata" crossorigin="" controlslist="nodownload nofullscreen" width="0640" height="0360" poster="./media/trailer.jpg" data-pandoc-media-controls="source-spoof"><source src="./media/trailer.mp4" type="video/mp4">Media trailer fallback</video>
   <audio controls preload="none" crossorigin="use-credentials" src="./media/interview.mp3">Audio interview fallback</audio>
-  <figure><img src="./floorplan.png" usemap="#review-map" alt="Review floor plan"><map name="review-map"><area shape="rect" coords="0,0,120,80" href="./map/lead.html" alt="Mapped lead" target="_blank"><area shape="star" coords="1,2,bad" href="java&#10;script:alert(1)" alt="Bad map region"></map></figure>
+  <figure><img src="./floorplan.png" usemap="#review-map" alt="Review floor plan"><map name="review-map"><area shape="rect" coords="0,0,120,80" href="./map/lead.html" alt="Mapped lead" target="_blank"><area shape="star" coords="1,2,bad" href="./map/metadata.html" alt="Map metadata"><area shape="star" coords="1,2,bad" href="java&#10;script:alert(1)" alt="Bad map region"></map></figure>
   <picture><source srcset="data:image/png;base64,iVBORw0KGgo= 1x, data:text/html;base64,PHNjcmlwdD4= 2x" type="image/png"><source srcset="hero.avif 1x, javascript:alert(1) 2x" media="(min-width: 48em)" type="image/avif"><source srcset="./metadata-only.webp 1x" media="screen and (background:url(javascript:alert(1)))" sizes="(min-width: 40em) calc(50vw + url(javascript:alert(1)))" type="image/webp"><source srcset="mailto:bad@example.test 1x" media="(max-width: 47em)"><img src="fallback.jpg" srcset="fallback.jpg 1x" sizes="(min-width: 30em) calc(100vw + url(javascript:alert(1)))" alt="Responsive cover"></picture>
   <p><img src="data:image/png;base64,iVBORw0KGgo=" alt="Inline raster"><img src="data:text/html;base64,PHNjcmlwdD4=" alt="HTML data"></p>
   <datalist id="review-suggestions" data-pandoc-datalist-id="source-spoof"><option label="Reviewer suggested tag" value="tag-42"></option><option>Legacy taxonomy</option><option value="private-token"></option></datalist>
@@ -106,7 +106,7 @@ $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
 $blocks = (new WordPressBlockWriter())->write($document);
 
 if (($argv[1] ?? '') === '--self-test') {
-    foreach (['Language: en-US', 'Direction: ltr', 'Base target: _blank', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Application name: Legacy CMS Import', 'Theme color: #0a84ff', 'Color scheme: light dark only', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'policy source', 'Editable migration note', 'Focusable source', 'Bad focus', 'Localized migration note', 'ARIA migration note', 'Custom gallery', 'Custom paragraph', 'Published', 'June 8, 2026', 'two hours', 'legacy date', 'Metric', 'Legacy SKU', 'Quality', 'half done', 'total due', 'invalid metric', 'Revision', 'added reviewer note', 'removed unsafe note', 'Imported pull quote', 'inline source', 'unsafe source', 'Ruby note', '漢(Kan ji)Hancharacter', 'Math source', 'Shadow root: open', 'fallback slot', 'shadow source', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Portal preview', 'Portal fallback', 'portal fallback source', 'Unsafe portal fallback', 'Loose imported caption', 'Loose imported head', 'Loose imported total', 'Loose imported row', 'Loose imported cell', 'Loose imported header', 'Cover image', 'Media trailer fallback', 'Audio interview fallback', 'Mapped lead', 'Datalist suggestions: Reviewer suggested tag; Legacy taxonomy', 'Import settings', 'Form group note', 'Save settings', 'Form submission: post', 'Send review', 'Preview packet', 'Image submit', 'Select: Ready for import', 'Draft review', 'Ready for import', 'Publish now', 'Clear draft', 'Bad button'] as $textSnippet) {
+    foreach (['Language: en-US', 'Direction: ltr', 'Base target: _blank', 'Template fallback note', 'Title: Legacy post title & review packet', 'Charset: windows-1252', 'Charset: shift_jis', 'Description: Legacy import packet for reviewer handoff', 'Author: Migration Desk', 'Keywords: wordpress, html import', 'Generator: Legacy CMS', 'Application name: Legacy CMS Import', 'Theme color: #0a84ff', 'Color scheme: light dark only', 'Content security policy: default-src \'self\'; img-src https: data:; script-src \'none\'', 'Referrer policy: strict-origin-when-cross-origin', 'Open Graph title: Legacy social title', 'Open Graph description: Legacy social description', 'Article published time: 2026-06-06T10:00:00Z', 'Twitter title: Reviewer social card', 'Open Graph image', 'Canonical source', 'Spanish source', 'Shortlink', 'Author source', 'Reuse terms', 'Help source', 'Chapter anchor', 'Refresh target', 'Imported source packet', 'AT&T <review> text', 'source note', 'policy source', 'Editable migration note', 'Focusable source', 'Bad focus', 'Localized migration note', 'ARIA migration note', 'Custom gallery', 'Custom paragraph', 'Published', 'June 8, 2026', 'two hours', 'legacy date', 'Metric', 'Legacy SKU', 'Quality', 'half done', 'total due', 'invalid metric', 'Revision', 'added reviewer note', 'removed unsafe note', 'Imported pull quote', 'inline source', 'unsafe source', 'Ruby note', '漢(Kan ji)Hancharacter', 'Math source', 'Shadow root: open', 'fallback slot', 'shadow source', 'Collapsed migration notes', 'Hidden packet', 'details source', 'Open import note', 'Visible disclosure text', 'Hidden migration note', 'hidden source', 'Search reveal import note', 'Popover migration note', 'popover source', 'Popover control source', 'Embedded srcdoc packet', 'frame note', 'Embedded frame source', 'Portal preview', 'Portal fallback', 'portal fallback source', 'Unsafe portal fallback', 'Loose imported caption', 'Loose imported head', 'Loose imported total', 'Loose imported row', 'Loose imported cell', 'Loose imported header', 'Cover image', 'Media trailer fallback', 'Audio interview fallback', 'Mapped lead', 'Map metadata', 'Datalist suggestions: Reviewer suggested tag; Legacy taxonomy', 'Import settings', 'Form group note', 'Save settings', 'Form submission: post', 'Send review', 'Preview packet', 'Image submit', 'Select: Ready for import', 'Draft review', 'Ready for import', 'Publish now', 'Clear draft', 'Bad button'] as $textSnippet) {
         if (!str_contains($fragment->textContent(), $textSnippet)) {
             throw new RuntimeException('HTML5 DOM fragment self-test missing reviewer text: ' . $textSnippet);
         }
@@ -180,6 +180,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<video data-pandoc-media-autoplay="true" data-pandoc-media-controls="true" data-pandoc-media-loop="true" data-pandoc-media-muted="true" data-pandoc-media-playsinline="true" data-pandoc-media-preload="metadata" data-pandoc-media-crossorigin="anonymous" data-pandoc-media-controlslist="nodownload nofullscreen" data-pandoc-media-width="640" data-pandoc-media-height="360" poster="https://source.example.test/import/posts/media/trailer.jpg"><source src="https://source.example.test/import/posts/media/trailer.mp4" type="video/mp4">Media trailer fallback</video>',
         '<audio data-pandoc-media-controls="true" data-pandoc-media-preload="none" data-pandoc-media-crossorigin="use-credentials" src="https://source.example.test/import/posts/media/interview.mp3">Audio interview fallback</audio>',
         '<img src="https://source.example.test/import/posts/floorplan.png" usemap="#review-map" alt="Review floor plan"><a href="https://source.example.test/import/posts/map/lead.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-shape="rect" data-pandoc-image-map-coords="0,0,120,80" data-pandoc-image-map-alt="Mapped lead">Mapped lead</a>',
+        '<a href="https://source.example.test/import/posts/map/metadata.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Map metadata">Map metadata</a>',
         '<source srcset="data:image/png;base64,iVBORw0KGgo= 1x" type="image/png">',
         '<source srcset="https://source.example.test/import/posts/hero.avif 1x" media="(min-width: 48em)" type="image/avif">',
         '<source srcset="https://source.example.test/import/posts/metadata-only.webp 1x" type="image/webp">',
@@ -238,6 +239,33 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ($urlRepairDiagnostics as $diagnostic) {
         if (($diagnostic['line'] ?? 0) <= 0) {
             throw new RuntimeException('Expected URL repair diagnostics to include source line metadata');
+        }
+    }
+    $referrerPolicyDiagnostics = array_values(array_filter(
+        $fragment->diagnostics(),
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'referrer-policy-review'
+            && in_array((string) ($diagnostic['tag'] ?? ''), ['a', 'iframe', 'portal'], true)
+    ));
+    if ($referrerPolicyDiagnostics === []) {
+        throw new RuntimeException('Expected referrer policy diagnostics for source line metadata review');
+    }
+    foreach ($referrerPolicyDiagnostics as $diagnostic) {
+        if (($diagnostic['line'] ?? 0) <= 0) {
+            throw new RuntimeException('Expected referrer policy diagnostics to include source line metadata');
+        }
+    }
+    $imageMapDiagnostics = array_values(array_filter(
+        $fragment->diagnostics(),
+        static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'unsafe-attribute'
+            && ($diagnostic['tag'] ?? '') === 'area'
+            && in_array((string) ($diagnostic['attribute'] ?? ''), ['shape', 'coords'], true)
+    ));
+    if ($imageMapDiagnostics === []) {
+        throw new RuntimeException('Expected image map helper diagnostics for source line metadata review');
+    }
+    foreach ($imageMapDiagnostics as $diagnostic) {
+        if (($diagnostic['line'] ?? 0) <= 0) {
+            throw new RuntimeException('Expected image map helper diagnostics to include source line metadata');
         }
     }
     $reviewStateDiagnostics = array_values(array_filter(

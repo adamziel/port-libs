@@ -438,6 +438,7 @@ final class Html5DomFragment
                 $srcdocNodes = self::normalizeHtmlSrcdocAttribute(
                     $node->getAttribute('srcdoc'),
                     $diagnostics,
+                    $node,
                     $baseUrl
                 );
                 if ($srcdocNodes !== []) {
@@ -2609,8 +2610,12 @@ final class Html5DomFragment
      * @param list<array<string, mixed>> $diagnostics
      * @return list<array<string, mixed>>
      */
-    private static function normalizeHtmlSrcdocAttribute(string $srcdoc, array &$diagnostics, ?string $baseUrl): array
-    {
+    private static function normalizeHtmlSrcdocAttribute(
+        string $srcdoc,
+        array &$diagnostics,
+        \DOMElement $element,
+        ?string $baseUrl
+    ): array {
         $srcdoc = trim($srcdoc);
         if ($srcdoc === '') {
             return [];
@@ -2621,12 +2626,12 @@ final class Html5DomFragment
             $srcdocDiagnostics = [];
             $dom = self::loadHtmlDocument($srcdoc, $srcdocDiagnostics);
         } catch (\InvalidArgumentException $error) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'invalid-srcdoc',
                 'tag' => 'iframe',
                 'attribute' => 'srcdoc',
                 'message' => $error->getMessage(),
-            ];
+            ], $element);
 
             return [];
         }
@@ -2638,12 +2643,12 @@ final class Html5DomFragment
 
         $wrapper = self::htmlWrapper($dom);
         if (!$wrapper instanceof \DOMElement) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'invalid-srcdoc',
                 'tag' => 'iframe',
                 'attribute' => 'srcdoc',
                 'message' => 'Unable to parse iframe srcdoc wrapper',
-            ];
+            ], $element);
 
             return [];
         }
@@ -2855,11 +2860,12 @@ final class Html5DomFragment
             $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
                 $element->getAttribute('referrerpolicy'),
                 'portal',
-                $diagnostics
+                $diagnostics,
+                $element
             );
             if ($referrerPolicy !== null) {
                 $attrs['data-pandoc-portal-referrerpolicy'] = $referrerPolicy;
-                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'portal');
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'portal', $element);
             }
         }
 
@@ -2881,7 +2887,7 @@ final class Html5DomFragment
     private static function addIframePolicyReviewAttributes(\DOMElement $element, array &$attrs, array &$diagnostics): void
     {
         if ($element->hasAttribute('sandbox')) {
-            $sandbox = self::normalizeIframeSandboxAttribute($element->getAttribute('sandbox'), $diagnostics);
+            $sandbox = self::normalizeIframeSandboxAttribute($element->getAttribute('sandbox'), $diagnostics, $element);
             if ($sandbox !== null) {
                 $attrs['data-pandoc-iframe-sandbox'] = $sandbox;
             }
@@ -2897,7 +2903,8 @@ final class Html5DomFragment
         if ($element->hasAttribute('referrerpolicy')) {
             $referrerPolicy = self::normalizeIframeReferrerPolicyAttribute(
                 $element->getAttribute('referrerpolicy'),
-                $diagnostics
+                $diagnostics,
+                $element
             );
             if ($referrerPolicy !== null) {
                 $attrs['data-pandoc-iframe-referrerpolicy'] = $referrerPolicy;
@@ -2912,8 +2919,11 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeIframeSandboxAttribute(string $value, array &$diagnostics): ?string
-    {
+    private static function normalizeIframeSandboxAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
         $trimmed = strtolower(trim(str_replace("\0", '', $value)));
         if ($trimmed === '') {
             return '';
@@ -2948,12 +2958,12 @@ final class Html5DomFragment
                 continue;
             }
             if (!isset($allowedTokens[$token])) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'iframe',
                     'attribute' => 'sandbox',
                     'token' => $token,
-                ];
+                ], $element);
                 continue;
             }
             if (!in_array($token, $normalized, true)) {
@@ -2987,16 +2997,23 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeIframeReferrerPolicyAttribute(string $value, array &$diagnostics): ?string
-    {
-        return self::normalizeHtmlReferrerPolicyAttribute($value, 'iframe', $diagnostics);
+    private static function normalizeIframeReferrerPolicyAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        return self::normalizeHtmlReferrerPolicyAttribute($value, 'iframe', $diagnostics, $element);
     }
 
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlReferrerPolicyAttribute(string $value, string $tagName, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlReferrerPolicyAttribute(
+        string $value,
+        string $tagName,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
         $policy = strtolower(self::cleanHtmlMetadataAttribute($value));
         if (in_array($policy, [
             'no-referrer',
@@ -3011,12 +3028,12 @@ final class Html5DomFragment
             return $policy;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unsafe-attribute',
             'tag' => $tagName,
             'attribute' => 'referrerpolicy',
             'value' => $policy,
-        ];
+        ], $element);
 
         return null;
     }
@@ -3024,14 +3041,17 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function addHtmlReferrerPolicyReviewDiagnostic(array &$diagnostics, string $tagName): void
-    {
-        $diagnostics[] = [
+    private static function addHtmlReferrerPolicyReviewDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        \DOMElement $element
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'referrer-policy-review',
             'tag' => $tagName,
             'attribute' => 'referrerpolicy',
             'reason' => 'referrer-policy-preserved-as-review-metadata',
-        ];
+        ], $element);
     }
 
     private static function isHtmlElementReferrerPolicyAttribute(string $tagName, string $name, ?string $foreignContext): bool
@@ -4015,14 +4035,14 @@ final class Html5DomFragment
         }
 
         if ($element->hasAttribute('shape')) {
-            $shape = self::normalizeHtmlAreaShapeAttribute($element->getAttribute('shape'), $diagnostics);
+            $shape = self::normalizeHtmlAreaShapeAttribute($element->getAttribute('shape'), $diagnostics, $element);
             if ($shape !== null) {
                 $attrs['data-pandoc-image-map-shape'] = $shape;
             }
         }
 
         if ($element->hasAttribute('coords')) {
-            $coords = self::normalizeHtmlAreaCoordsAttribute($element->getAttribute('coords'), $diagnostics);
+            $coords = self::normalizeHtmlAreaCoordsAttribute($element->getAttribute('coords'), $diagnostics, $element);
             if ($coords !== null) {
                 $attrs['data-pandoc-image-map-coords'] = $coords;
             }
@@ -4056,11 +4076,12 @@ final class Html5DomFragment
             $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
                 $element->getAttribute('referrerpolicy'),
                 'area',
-                $diagnostics
+                $diagnostics,
+                $element
             );
             if ($referrerPolicy !== null) {
                 $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
-                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'area');
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'area', $element);
             }
         }
 
@@ -4103,8 +4124,11 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlAreaShapeAttribute(string $value, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlAreaShapeAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
         $shape = strtolower(self::cleanHtmlMetadataAttribute($value));
         if ($shape === '') {
             return null;
@@ -4114,12 +4138,12 @@ final class Html5DomFragment
             return $shape;
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unsafe-attribute',
             'tag' => 'area',
             'attribute' => 'shape',
             'value' => $shape,
-        ];
+        ], $element);
 
         return null;
     }
@@ -4127,8 +4151,11 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlAreaCoordsAttribute(string $value, array &$diagnostics): ?string
-    {
+    private static function normalizeHtmlAreaCoordsAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
         $cleaned = trim(str_replace("\0", '', $value));
         if ($cleaned === '') {
             return null;
@@ -4143,12 +4170,12 @@ final class Html5DomFragment
         foreach ($parts as $part) {
             $coord = self::normalizeHtmlAreaCoord((string) $part);
             if ($coord === null) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
                     'tag' => 'area',
                     'attribute' => 'coords',
                     'value' => $cleaned,
-                ];
+                ], $element);
 
                 return null;
             }
@@ -4240,11 +4267,12 @@ final class Html5DomFragment
             $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute(
                 $element->getAttribute('referrerpolicy'),
                 'link',
-                $diagnostics
+                $diagnostics,
+                $element
             );
             if ($referrerPolicy !== null) {
                 $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
-                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'link');
+                self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, 'link', $element);
             }
         }
 
@@ -5508,10 +5536,10 @@ final class Html5DomFragment
             }
 
             if ($mode === 'html' && self::isHtmlElementReferrerPolicyAttribute($tagName, $name, $foreignContext)) {
-                $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute($value, strtolower($tagName), $diagnostics);
+                $referrerPolicy = self::normalizeHtmlReferrerPolicyAttribute($value, strtolower($tagName), $diagnostics, $element);
                 if ($referrerPolicy !== null) {
                     $attrs['data-pandoc-referrerpolicy'] = $referrerPolicy;
-                    self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, strtolower($tagName));
+                    self::addHtmlReferrerPolicyReviewDiagnostic($diagnostics, strtolower($tagName), $element);
                 }
                 continue;
             }

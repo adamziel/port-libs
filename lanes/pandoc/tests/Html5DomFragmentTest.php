@@ -4829,6 +4829,105 @@ return [
         $t->true(!str_contains($html, 'javascript:'), 'Expected active URL schemes to stay diagnostic-only');
         $t->true(!str_contains($blocks, 'java&#10;script'), 'Expected WordPress blocks to omit active split-scheme URL sources');
     },
+    'adds source line metadata to iframe referrer and image map helper diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<iframe src=\"./frame.html\" title=\"Policy\" sandbox=\"allow-scripts bad-token\" referrerpolicy=\"bad policy\"></iframe>\n"
+            . "<a href=\"./packet.html\" referrerpolicy=\"strict-origin\">packet</a>\n"
+            . "<img src=\"./cover.png\" referrerpolicy=\"no-referrer\" alt=\"Cover\">\n"
+            . "<map name=\"review-map\"><area shape=\"star\" coords=\"1, two, 3\" href=\"./map.html\" alt=\"Map\" referrerpolicy=\"origin\"></map>\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-map-diagnostic-lines-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $diagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $tag = (string) ($diagnostic['tag'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return (
+                    $code === 'referrer-policy-review'
+                    || ($code === 'unsafe-attribute' && in_array($attribute, ['sandbox', 'referrerpolicy', 'shape', 'coords'], true))
+                ) && in_array($tag, ['iframe', 'a', 'img', 'area'], true);
+            }
+        ));
+        $astDiagnostics = array_values(array_filter(
+            $document->children[0]->attr('diagnostics'),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $tag = (string) ($diagnostic['tag'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return (
+                    $code === 'referrer-policy-review'
+                    || ($code === 'unsafe-attribute' && in_array($attribute, ['sandbox', 'referrerpolicy', 'shape', 'coords'], true))
+                ) && in_array($tag, ['iframe', 'a', 'img', 'area'], true);
+            }
+        ));
+        $invalidSrcdocFragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<iframe srcdoc=\"&lt;!DOCTYPE html&gt;&lt;p&gt;unsafe&lt;/p&gt;\" src=\"./fallback.html\" title=\"Fallback frame\"></iframe>\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $invalidSrcdocDocument = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $invalidSrcdocFragment->toRawHtmlAst(['part' => '/migration/iframe-srcdoc-diagnostic-lines-review.html']),
+        ]);
+        $invalidSrcdocDiagnostics = array_values(array_filter(
+            $invalidSrcdocFragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'invalid-srcdoc'
+        ));
+        $invalidSrcdocAstDiagnostics = array_values(array_filter(
+            $invalidSrcdocDocument->children[0]->attr('diagnostics'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'invalid-srcdoc'
+        ));
+
+        $t->contains('<a href="https://source.example.test/import/posts/frame.html" data-pandoc-iframe-src="true" title="Policy" data-pandoc-iframe-sandbox="allow-scripts">Policy</a>', $html);
+        $t->contains('<a href="https://source.example.test/import/posts/packet.html" data-pandoc-referrerpolicy="strict-origin">packet</a>', $html);
+        $t->contains('<img src="https://source.example.test/import/posts/cover.png" data-pandoc-referrerpolicy="no-referrer" alt="Cover">', $html);
+        $t->contains('<a href="https://source.example.test/import/posts/map.html" data-pandoc-image-map-area="true" data-pandoc-image-map-name="review-map" data-pandoc-image-map-alt="Map" data-pandoc-referrerpolicy="origin">Map</a>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/iframe-map-diagnostic-lines-review.html', $document->children[0]->attr('part'));
+        $t->same(7, count($diagnostics));
+        $t->same(
+            ['unsafe-attribute', 'unsafe-attribute', 'referrer-policy-review', 'referrer-policy-review', 'unsafe-attribute', 'unsafe-attribute', 'referrer-policy-review'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $diagnostics)
+        );
+        $t->same(
+            ['iframe', 'iframe', 'a', 'img', 'area', 'area', 'area'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $diagnostics)
+        );
+        $t->same(
+            ['sandbox', 'referrerpolicy', 'referrerpolicy', 'referrerpolicy', 'shape', 'coords', 'referrerpolicy'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $diagnostics)
+        );
+        $t->same([2, 2, 3, 4, 5, 5, 5], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $diagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $astDiagnostics)
+        );
+        $t->contains('<a href="https://source.example.test/import/posts/fallback.html" data-pandoc-iframe-src="true" title="Fallback frame">Fallback frame</a>', $invalidSrcdocFragment->serialize());
+        $t->same(1, count($invalidSrcdocDiagnostics));
+        $t->same([2], array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $invalidSrcdocDiagnostics));
+        $t->same(
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $invalidSrcdocDiagnostics),
+            array_map(static fn (array $diagnostic): ?int => $diagnostic['line'] ?? null, $invalidSrcdocAstDiagnostics)
+        );
+        $t->true(!str_contains($invalidSrcdocFragment->serialize(), '<!DOCTYPE'), 'Expected invalid srcdoc declaration to stay diagnostic-only');
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe elements to become inert review links or dropped srcdoc content');
+        $t->true(!str_contains($html, '<map'), 'Expected map wrapper to be stripped');
+        $t->true(!str_contains($html, '<area'), 'Expected area element to become inert review link');
+        $t->true(!str_contains($html, 'bad-token'), 'Expected invalid iframe sandbox token to stay diagnostic-only');
+        $t->true(!str_contains($html, 'bad policy'), 'Expected invalid iframe referrer policy to stay diagnostic-only');
+        $t->true(!str_contains($html, 'data-pandoc-image-map-shape'), 'Expected invalid area shape to stay diagnostic-only');
+        $t->true(!str_contains($html, 'data-pandoc-image-map-coords'), 'Expected invalid area coords to stay diagnostic-only');
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'
