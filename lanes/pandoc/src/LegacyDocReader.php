@@ -7547,11 +7547,19 @@ final class LegacyDocReader
                     return [];
                 }
 
-                $name = rtrim($this->decodeUtf16Le(substr($bytes, $cursor, $byteLength)), "\0");
+                $rawName = substr($bytes, $cursor, $byteLength);
+                if (!str_ends_with($rawName, "\0\0")) {
+                    throw new \RuntimeException('Legacy DOC custom property dictionary Unicode name is not null-terminated');
+                }
+
+                $name = rtrim($this->decodeUtf16Le($rawName), "\0");
                 $cursor += $byteLength;
                 $padding = (4 - ($byteLength % 4)) % 4;
                 if ($cursor + $padding > $limit) {
                     return [];
+                }
+                if ($padding > 0 && substr($bytes, $cursor, $padding) !== str_repeat("\0", $padding)) {
+                    throw new \RuntimeException('Legacy DOC custom property dictionary Unicode name padding is not zeroed');
                 }
                 $cursor += $padding;
             } else {
@@ -7559,11 +7567,16 @@ final class LegacyDocReader
                     return [];
                 }
 
-                $name = $this->decodeCodePageString(substr($bytes, $cursor, $nameLength), $codepage);
+                $rawName = substr($bytes, $cursor, $nameLength);
+                if (!str_ends_with($rawName, "\0")) {
+                    throw new \RuntimeException('Legacy DOC custom property dictionary name is not null-terminated');
+                }
+
+                $name = $this->decodeCodePageString($rawName, $codepage);
                 $cursor += $nameLength;
             }
 
-            $normalizedName = strtolower($name);
+            $normalizedName = function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name);
             if (isset($dictionary[$propertyId]) || isset($seenNames[$normalizedName])) {
                 throw new \RuntimeException('Legacy DOC custom property dictionary contains duplicate entries');
             }

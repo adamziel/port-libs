@@ -674,6 +674,16 @@ $typedDictionary = static function (array $names): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedUnicodeDictionary = static function (array $names) use ($utf16le): string {
+    $raw = pack('V', count($names));
+    foreach ($names as $propertyId => $name) {
+        $bytes = $utf16le((string) $name . "\0");
+        $raw .= pack('V', (int) $propertyId) . pack('V', intdiv(strlen($bytes), 2)) . $bytes;
+        $raw = str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+    }
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedPropertySet = static function (array $properties) use ($u32, $typedI2): string {
     if (!array_key_exists(1, $properties)) {
         $properties = [1 => $typedI2(1252)] + $properties;
@@ -4006,6 +4016,65 @@ return [
             'Review Timestamp' => '2024-03-04T05:06:07Z',
         ], $metadata['customProperties']);
         $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+    },
+    'extracts and validates legacy DOC CP_WINUNICODE custom property dictionaries' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedUnicodeDictionary, $typedDictionary, $typedLpwstr, $typedI2, $typedI4, $utf16le): void {
+        $docSummaryFmtid = hex2bin('02d5cdd59c2e1b10939708002b2cf9ae');
+        $userDefinedFmtid = hex2bin('05d5cdd59c2e1b10939708002b2cf9ae');
+        if (!is_string($docSummaryFmtid) || !is_string($userDefinedFmtid)) {
+            throw new RuntimeException('Unable to build OLE property-set FMTID fixtures');
+        }
+
+        $buildDocBytes = static function (string $dictionary, int $codepage) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySetStream, $typedLpwstr, $typedI2, $typedI4, $docSummaryFmtid, $userDefinedFmtid): string {
+            return $buildCfb([
+                'WordDocument' => $buildSimpleWordDocument("Unicode dictionary packet\r"),
+                "\x05DocumentSummaryInformation" => $typedPropertySetStream([
+                    [
+                        'fmtid' => $docSummaryFmtid,
+                        'properties' => [],
+                    ],
+                    [
+                        'fmtid' => $userDefinedFmtid,
+                        'properties' => [
+                            0 => $dictionary,
+                            1 => $typedI2($codepage),
+                            2 => $typedLpwstr('review-α'),
+                            3 => $typedI4(17),
+                        ],
+                    ],
+                ]),
+            ]);
+        };
+
+        $unicodeDictionary = $typedUnicodeDictionary([
+            2 => 'QA Ω',
+            3 => 'Review №',
+        ]);
+        $result = (new LegacyDocReader())->readBytes($buildDocBytes($unicodeDictionary, 1200));
+        $metadata = $result['metadata'];
+
+        $t->same([
+            'QA Ω' => 'review-α',
+            'Review №' => 17,
+        ], $metadata['customProperties']);
+        $t->same($metadata['customProperties'], $result['document']->attr('meta')['customProperties']);
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('Unicode dictionary packet', $blocks);
+        $t->true(!str_contains($blocks, 'review-α'), 'Custom property values must stay metadata-only in WordPress blocks');
+        $t->true(!str_contains($blocks, 'Review №'), 'Custom property names must stay metadata-only in WordPress blocks');
+
+        $dirtyUnicodePadding = substr_replace($unicodeDictionary, "\x01", 22, 1);
+        $unterminatedUnicodeName = substr_replace($unicodeDictionary, $utf16le('X'), 20, 2);
+        $ansiDictionary = $typedDictionary([2 => 'Review Flag']);
+        $unterminatedAnsiName = substr_replace($ansiDictionary, 'X', 4 + 8 + strlen('Review Flag'), 1);
+
+        foreach ([
+            'dirty Unicode dictionary-name padding' => [$dirtyUnicodePadding, 1200],
+            'unterminated Unicode dictionary name' => [$unterminatedUnicodeName, 1200],
+            'unterminated ANSI dictionary name' => [$unterminatedAnsiName, 1252],
+        ] as $_label => [$dictionary, $codepage]) {
+            $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildDocBytes($dictionary, $codepage)));
+        }
     },
     'rejects malformed legacy DOC OLE property-set directories before metadata exposure' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $typedPropertySet, $typedLpstr, $u32): void {
         $reader = new LegacyDocReader();

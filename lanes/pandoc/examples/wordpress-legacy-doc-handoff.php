@@ -206,6 +206,12 @@ $typedLpstr = static function (string $value): string {
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
 };
+$typedLpwstr = static function (string $value) use ($utf16le): string {
+    $bytes = $utf16le($value . "\0");
+    $raw = pack('v', 0x001f) . "\0\0" . pack('V', intdiv(strlen($bytes), 2)) . $bytes;
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
 $typedI2 = static fn (int $value): string => pack('v', 0x0002) . "\0\0" . pack('v', $value) . "\0\0";
 $typedI4 = static fn (int $value): string => pack('v', 0x0003) . "\0\0" . pack('V', $value);
 $typedBool = static fn (bool $value): string => pack('v', 0x000b) . "\0\0" . pack('v', $value ? 0xffff : 0) . "\0\0";
@@ -279,6 +285,16 @@ $typedDictionary = static function (array $names): string {
     foreach ($names as $propertyId => $name) {
         $bytes = (string) $name . "\0";
         $raw .= pack('V', (int) $propertyId) . pack('V', strlen($bytes)) . $bytes;
+    }
+
+    return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
+};
+$typedUnicodeDictionary = static function (array $names) use ($utf16le): string {
+    $raw = pack('V', count($names));
+    foreach ($names as $propertyId => $name) {
+        $bytes = $utf16le((string) $name . "\0");
+        $raw .= pack('V', (int) $propertyId) . pack('V', intdiv(strlen($bytes), 2)) . $bytes;
+        $raw = str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
     }
 
     return str_pad($raw, (int) (ceil(strlen($raw) / 4) * 4), "\0");
@@ -1425,7 +1441,7 @@ $streams = [
         [
             'fmtid' => $userDefinedFmtid,
             'properties' => [
-                0 => $typedDictionary([
+                0 => $typedUnicodeDictionary([
                     2 => 'MigrationBatch',
                     3 => 'Needs Review',
                     4 => 'Source Id',
@@ -1437,9 +1453,10 @@ $streams = [
                     10 => 'Review Date',
                     11 => '_PID_LINKBASE',
                     12 => '_PID_HLINKS',
+                    13 => 'QA Ω',
                 ]),
-                1 => $typedI2(1252),
-                2 => $typedLpstr('legacy-doc-42'),
+                1 => $typedI2(1200),
+                2 => $typedLpwstr('legacy-doc-42'),
                 3 => $typedBool(true),
                 4 => $typedI4(4242),
                 5 => $typedUi8Parts(1705032704, 1),
@@ -1467,6 +1484,7 @@ $streams = [
                         'location' => '',
                     ],
                 ]),
+                13 => $typedLpwstr('unicode-review-α'),
             ],
         ],
     ]),
@@ -1962,7 +1980,13 @@ if (($argv[1] ?? '') === '--self-test') {
     if (count($signatureVariables) !== 1 || ($signatureVariables[0]['name'] ?? '') !== 'Sign' || ($signatureVariables[0]['redacted'] ?? null) !== true || isset($signatureVariables[0]['value'])) {
         throw new RuntimeException('Legacy DOC handoff self-test exposed StwUser signature variable bytes');
     }
-    if (str_contains($summary['wordpressBlocks'], 'legacy-doc-42') || str_contains($summary['wordpressBlocks'], 'needs editorial review') || str_contains($summary['wordpressBlocks'], 'opaque signature blob')) {
+    if (
+        str_contains($summary['wordpressBlocks'], 'legacy-doc-42')
+        || str_contains($summary['wordpressBlocks'], 'unicode-review-α')
+        || str_contains($summary['wordpressBlocks'], 'QA Ω')
+        || str_contains($summary['wordpressBlocks'], 'needs editorial review')
+        || str_contains($summary['wordpressBlocks'], 'opaque signature blob')
+    ) {
         throw new RuntimeException('Legacy DOC handoff self-test rendered StwUser metadata into blocks');
     }
     if (($summary['metadata']['saveHistoryCount'] ?? null) !== 2 || count($summary['saveHistory'] ?? []) !== 2) {
@@ -2383,6 +2407,7 @@ if (($argv[1] ?? '') === '--self-test') {
         'Confidence Score' => 0.875,
         'Invoice Total' => '1234.5678',
         'Review Date' => '2024-01-18T12:00:00Z',
+        'QA Ω' => 'unicode-review-α',
     ]) {
         throw new RuntimeException('Legacy DOC handoff self-test missing user-defined custom properties');
     }
