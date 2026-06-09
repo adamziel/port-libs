@@ -16,6 +16,9 @@ final class MarkdownReader
     /** @var array<string, string> */
     private array $footnoteDefinitions = [];
 
+    /** @var array<string, string> */
+    private array $abbreviationDefinitions = [];
+
     /** @var array<string, int> */
     private array $exampleReferences = [];
 
@@ -115,6 +118,7 @@ final class MarkdownReader
         $lines = preg_split('/\R/u', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
+        $previousAbbreviationDefinitions = $this->abbreviationDefinitions;
         $previousExampleReferences = $this->exampleReferences;
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
         $previousRawTexMacros = $this->rawTexMacros;
@@ -124,12 +128,14 @@ final class MarkdownReader
             [$lines, $yamlMetadata] = $this->extractYamlMetadataBlocks($lines);
         }
         [$lines, $titleBlock] = $this->extractTitleBlock($lines);
+        [$lines, $abbreviations] = $this->extractAbbreviationDefinitions($lines);
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
         [$exampleReferences, $exampleNumbersByLine] = $this->collectNumberedExampleReferences($lines);
         [$markdownHeadingIds, $implicitHeadingReferences] = $this->collectMarkdownHeadingReferences($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $implicitHeadingReferences, $references);
         $this->footnoteDefinitions = array_replace($previousFootnoteDefinitions, $footnotes);
+        $this->abbreviationDefinitions = $this->sortedAbbreviationDefinitions(array_replace($previousAbbreviationDefinitions, $abbreviations));
         $this->exampleReferences = array_replace($previousExampleReferences, $exampleReferences);
         $this->exampleNumbersByLine = $exampleNumbersByLine;
         if ($yamlMetadata !== null) {
@@ -375,6 +381,7 @@ final class MarkdownReader
         $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
+        $this->abbreviationDefinitions = $previousAbbreviationDefinitions;
         $this->exampleReferences = $previousExampleReferences;
         $this->exampleNumbersByLine = $previousExampleNumbersByLine;
         $this->rawTexMacros = $previousRawTexMacros;
@@ -7408,6 +7415,60 @@ final class MarkdownReader
     private function isAbbreviationDefinitionLine(string $line): bool
     {
         return preg_match('/^ {0,3}\*\[[^\]\r\n]+\]:[ \t]*(.*)$/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:list<string>, 1:array<string, string>}
+     */
+    private function extractAbbreviationDefinitions(array $lines): array
+    {
+        $content = [];
+        $abbreviations = [];
+        $fenceChar = null;
+        $fenceLength = 0;
+
+        foreach ($lines as $line) {
+            if ($fenceChar !== null) {
+                $content[] = $line;
+                if ($this->isClosingCodeFence($line, $fenceChar, $fenceLength)) {
+                    $fenceChar = null;
+                    $fenceLength = 0;
+                }
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}(`{3,}|~{3,})/', $line, $fence) === 1) {
+                $fenceChar = $fence[1][0];
+                $fenceLength = strlen($fence[1]);
+                $content[] = $line;
+                continue;
+            }
+
+            if (preg_match('/^ {0,3}\*\[([^\]\r\n]+)\]:[ \t]*(\S.*)?$/u', $line, $m) === 1) {
+                $term = trim($this->decodeHtmlEntities($m[1]));
+                $title = trim($this->decodeHtmlEntities($m[2] ?? ''));
+                if ($term !== '' && $title !== '') {
+                    $abbreviations[$term] = $title;
+                    continue;
+                }
+            }
+
+            $content[] = $line;
+        }
+
+        return [$content, $this->sortedAbbreviationDefinitions($abbreviations)];
+    }
+
+    /**
+     * @param array<string, string> $definitions
+     * @return array<string, string>
+     */
+    private function sortedAbbreviationDefinitions(array $definitions): array
+    {
+        uksort($definitions, static fn (string $left, string $right): int => strlen($right) <=> strlen($left) ?: strcmp($left, $right));
+
+        return $definitions;
     }
 
     /**
@@ -14964,6 +15025,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $abbreviation = $this->tryParseAbbreviation($text, $offset);
+            if ($abbreviation !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $abbreviation['node'];
+                $offset = $abbreviation['next'];
+                continue;
+            }
+
             $exampleReference = $this->tryParseNumberedExampleReference($text, $offset);
             if ($exampleReference !== null) {
                 $buffer .= $exampleReference['text'];
@@ -15922,6 +15991,55 @@ final class MarkdownReader
             ),
             'next' => $offset + strlen($m[0]),
         ];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseAbbreviation(string $text, int $offset): ?array
+    {
+        if ($this->abbreviationDefinitions === [] || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        foreach ($this->abbreviationDefinitions as $term => $title) {
+            $length = strlen($term);
+            if ($length === 0 || substr($text, $offset, $length) !== $term) {
+                continue;
+            }
+
+            if (!$this->abbreviationBoundaryMatches($text, $offset, $term)) {
+                continue;
+            }
+
+            return [
+                'node' => new AstNode(
+                    'span',
+                    $this->markdownAttributeAstAttrs(null, ['abbr'], ['title' => $title]),
+                    [new AstNode('text', ['text' => $term])]
+                ),
+                'next' => $offset + $length,
+            ];
+        }
+
+        return null;
+    }
+
+    private function abbreviationBoundaryMatches(string $text, int $offset, string $term): bool
+    {
+        $length = strlen($term);
+        if (preg_match('/\A[\pL\pN]/u', $term) === 1 && $this->hasWordCharacterBeforeOffset($text, $offset)) {
+            return false;
+        }
+
+        if (
+            preg_match('/[\pL\pN]\z/u', $term) === 1
+            && preg_match('/\A[\pL\pN]/u', substr($text, $offset + $length)) === 1
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

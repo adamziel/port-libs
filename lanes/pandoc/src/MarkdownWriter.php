@@ -22,6 +22,9 @@ final class MarkdownWriter
     private array $referenceTargetLabels = [];
 
     /** @var array<string, string> */
+    private array $abbreviationDefinitions = [];
+
+    /** @var array<string, string> */
     private array $yamlMetadataExplicitCollectionTags = [];
 
     /** @var array<string, string> */
@@ -55,6 +58,7 @@ final class MarkdownWriter
         $this->referenceLabelUses = [];
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
+        $this->abbreviationDefinitions = [];
         $this->yamlMetadataExplicitCollectionTags = [];
         $this->yamlMetadataExplicitScalarTags = [];
         $this->yamlMetadataStandaloneCommentsByPath = [];
@@ -1846,6 +1850,13 @@ final class MarkdownWriter
             return ':' . $emojiAlias . ':';
         }
 
+        $abbreviation = $this->markdownAbbreviation($node, $content);
+        if ($abbreviation !== null) {
+            $this->abbreviationDefinitions[$abbreviation['term']] = $abbreviation['title'];
+
+            return $content;
+        }
+
         if ($this->isMarkdownMarkSpan($node, $content)) {
             return '==' . $content . '==';
         }
@@ -1853,6 +1864,37 @@ final class MarkdownWriter
         $attrs = $this->renderLinkAttributes($node);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
+    }
+
+    /**
+     * @return array{term:string, title:string}|null
+     */
+    private function markdownAbbreviation(AstNode $node, string $content): ?array
+    {
+        $attrs = $this->linkAttrTuple($node);
+        if (
+            $attrs['id'] !== ''
+            || $attrs['classes'] !== ['abbr']
+            || count($attrs['attributes']) !== 1
+            || !isset($attrs['attributes']['title'])
+        ) {
+            return null;
+        }
+
+        $term = $this->plainInlineText($node->children);
+        $title = trim((string) $attrs['attributes']['title']);
+        if (
+            $term === ''
+            || $title === ''
+            || str_contains($term, "\n")
+            || str_contains($term, ']')
+            || str_contains($title, "\n")
+            || $content !== $this->escapeText($term)
+        ) {
+            return null;
+        }
+
+        return ['term' => $term, 'title' => $title];
     }
 
     private function isMarkdownMarkSpan(AstNode $node, string $content): bool
@@ -2361,11 +2403,13 @@ final class MarkdownWriter
     private function pendingDefinitionBlocks(): array
     {
         $blocks = [];
-        while ($this->notes !== [] || $this->references !== []) {
+        while ($this->notes !== [] || $this->references !== [] || $this->abbreviationDefinitions !== []) {
             $notes = $this->notes;
             $references = $this->references;
+            $abbreviations = $this->abbreviationDefinitions;
             $this->notes = [];
             $this->references = [];
+            $this->abbreviationDefinitions = [];
 
             foreach ($notes as $note) {
                 $blocks[] = $this->renderNoteDefinition($note['number'], $note['node']);
@@ -2377,6 +2421,14 @@ final class MarkdownWriter
             }
             if ($referenceDefinitions !== []) {
                 $blocks[] = implode("\n", $referenceDefinitions);
+            }
+
+            $abbreviationDefinitions = [];
+            foreach ($abbreviations as $term => $title) {
+                $abbreviationDefinitions[] = $this->renderAbbreviationDefinition($term, $title);
+            }
+            if ($abbreviationDefinitions !== []) {
+                $blocks[] = implode("\n", $abbreviationDefinitions);
             }
         }
 
@@ -2414,6 +2466,14 @@ final class MarkdownWriter
             . $this->renderLinkDestination($reference['url'])
             . $title
             . ($attrs === '' ? '' : ' ' . $attrs);
+    }
+
+    private function renderAbbreviationDefinition(string $term, string $title): string
+    {
+        $term = trim(preg_replace('/\s+/', ' ', $term) ?? $term);
+        $title = trim(preg_replace('/\s+/', ' ', $title) ?? $title);
+
+        return '*[' . $term . ']: ' . $title;
     }
 
     private function canRenderAutolink(AstNode $node): bool

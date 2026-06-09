@@ -69,7 +69,7 @@ return [
     },
     'maps pandoc markdown abbreviation definitions as skipped extension keys' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
-            'Imported HTML and CSS terms stay in body text.',
+            'Imported document terms stay in body text.',
             '',
             '*[HTML]: Hypertext Markup Language',
             '*[CSS]: Cascading Style Sheets',
@@ -85,11 +85,11 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same(['paragraph', 'paragraph', 'code_block', 'code_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
-        $t->same('Imported HTML and CSS terms stay in body text.', $document->children[0]->attr('text'));
+        $t->same('Imported document terms stay in body text.', $document->children[0]->attr('text'));
         $t->same('After abbreviation definitions.', $document->children[1]->attr('text'));
         $t->same('*[CODE]: indented code stays literal', $document->children[2]->attr('text'));
         $t->same('*[FENCE]: fenced code stays literal', $document->children[3]->attr('text'));
-        $t->contains('<p>Imported HTML and CSS terms stay in body text.</p>', $blocks);
+        $t->contains('<p>Imported document terms stay in body text.</p>', $blocks);
         $t->contains('<p>After abbreviation definitions.</p>', $blocks);
         $t->contains('<code>*[CODE]: indented code stays literal</code>', $blocks);
         $t->contains('<code>*[FENCE]: fenced code stays literal</code>', $blocks);
@@ -8366,6 +8366,47 @@ MD;
             '  ok',
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
+    },
+    'maps pandoc markdown abbreviation definitions through reader writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = implode("\n", [
+            'Import HTML and PDF/UA notes, not XHTMLish strings.',
+            '',
+            '*[HTML]: HyperText Markup Language',
+            '*[PDF/UA]: PDF Universal Accessibility',
+            '',
+            '```',
+            '*[SQL]: Structured Query Language',
+            '```',
+            '',
+            'SQL stays literal outside the fenced definition.',
+        ]);
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $html = $paragraph->children[1] ?? new AstNode('missing');
+        $pdfUa = $paragraph->children[3] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'span', 'text', 'span', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same(['abbr'], $html->attr('classes'));
+        $t->same(['title' => 'HyperText Markup Language'], $html->attr('attributes'));
+        $t->same('HTML', $html->children[0]->attr('text'));
+        $t->same(['abbr'], $pdfUa->attr('classes'));
+        $t->same(['title' => 'PDF Universal Accessibility'], $pdfUa->attr('attributes'));
+        $t->same('PDF/UA', $pdfUa->children[0]->attr('text'));
+        $t->same('Import HTML and PDF/UA notes, not XHTMLish strings.', $paragraph->attr('text'));
+        $t->same('code_block', $document->children[1]->type);
+        $t->same('*[SQL]: Structured Query Language', $document->children[1]->attr('text'));
+        $t->same('SQL stays literal outside the fenced definition.', $document->children[2]->attr('text'));
+        $t->contains('<span class="abbr" title="HyperText Markup Language">HTML</span>', $blocks);
+        $t->contains('<span class="abbr" title="PDF Universal Accessibility">PDF/UA</span>', $blocks);
+        $t->true(!str_contains($blocks, '<span class="abbr" title="Structured Query Language">SQL</span>'), 'Fenced abbreviation definitions must not leak into following prose');
+        $t->same(implode("\n\n", [
+            'Import HTML and PDF/UA notes, not XHTMLish strings.',
+            '    *[SQL]: Structured Query Language',
+            'SQL stays literal outside the fenced definition.',
+            '*[HTML]: HyperText Markup Language' . "\n" . '*[PDF/UA]: PDF Universal Accessibility',
+        ]), (new MarkdownWriter())->write($document));
     },
     'maps upstream markdown writer heading attributes' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
