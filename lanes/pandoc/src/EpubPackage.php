@@ -877,6 +877,10 @@ final class EpubPackage
         $missingPrimaryItemLabelCount = 0;
         $missingOrderedListSectionCount = 0;
         $untypedSectionCount = 0;
+        $missingItemLabelCount = 0;
+        $emptyItemLabelCount = 0;
+        $missingItemHrefCount = 0;
+        $itemDiagnosticCount = 0;
 
         if ($documentPresent && $sections === []) {
             $diagnostics[] = [
@@ -1034,6 +1038,24 @@ final class EpubPackage
                     'message' => 'EPUB navigation section has no resolved navigation items',
                 ];
             }
+
+            $missingItemLabelCount += is_int($section['missingItemLabelCount'] ?? null) ? $section['missingItemLabelCount'] : 0;
+            $emptyItemLabelCount += is_int($section['emptyItemLabelCount'] ?? null) ? $section['emptyItemLabelCount'] : 0;
+            $missingItemHrefCount += is_int($section['missingItemHrefCount'] ?? null) ? $section['missingItemHrefCount'] : 0;
+
+            foreach (is_array($section['itemDiagnostics'] ?? null) ? $section['itemDiagnostics'] : [] as $itemDiagnostic) {
+                if (!is_array($itemDiagnostic)) {
+                    continue;
+                }
+
+                ++$itemDiagnosticCount;
+                $diagnostics[] = [
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                ] + $itemDiagnostic;
+            }
         }
 
         $duplicatePrimaryTypeCount = 0;
@@ -1081,6 +1103,10 @@ final class EpubPackage
             'missingPrimaryItemLabelCount' => $missingPrimaryItemLabelCount,
             'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
             'untypedSectionCount' => $untypedSectionCount,
+            'missingItemLabelCount' => $missingItemLabelCount,
+            'emptyItemLabelCount' => $emptyItemLabelCount,
+            'missingItemHrefCount' => $missingItemHrefCount,
+            'itemDiagnosticCount' => $itemDiagnosticCount,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -2705,7 +2731,10 @@ final class EpubPackage
             $types = self::epubTypes($node);
             $directList = self::firstChildElement($node, 'ol');
             $list = $directList ?? self::firstDescendantElement($node, 'ol');
-            $entries = $list instanceof \DOMElement ? self::parseNavList($list, $navPartName, 1) : [];
+            $listReport = $list instanceof \DOMElement
+                ? self::parseNavListReport($list, $navPartName, 1)
+                : self::emptyNavListReport();
+            $entries = $listReport['entries'];
             $label = self::navSectionLabel($node);
             $section = [
                 'id' => self::emptyToNull($node->getAttribute('id')),
@@ -2716,6 +2745,12 @@ final class EpubPackage
                 'hidden' => self::elementHidden($node),
                 'hasOrderedList' => $directList instanceof \DOMElement,
                 'itemCount' => count($entries),
+                'rawItemCount' => $listReport['rawItemCount'],
+                'missingItemLabelCount' => $listReport['missingLabelCount'],
+                'emptyItemLabelCount' => $listReport['emptyLabelCount'],
+                'missingItemHrefCount' => $listReport['missingHrefCount'],
+                'itemDiagnostics' => $listReport['diagnostics'],
+                'itemDiagnosticCount' => count($listReport['diagnostics']),
                 'partName' => $navPartName,
                 'entries' => $entries,
             ];
@@ -2742,14 +2777,86 @@ final class EpubPackage
      */
     private static function parseNavList(\DOMElement $list, string $navPartName, int $depth): array
     {
+        return self::parseNavListReport($list, $navPartName, $depth)['entries'];
+    }
+
+    /**
+     * @return array{
+     *     entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
+     *     rawItemCount:int,
+     *     missingLabelCount:int,
+     *     emptyLabelCount:int,
+     *     missingHrefCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function emptyNavListReport(): array
+    {
+        return [
+            'entries' => [],
+            'rawItemCount' => 0,
+            'missingLabelCount' => 0,
+            'emptyLabelCount' => 0,
+            'missingHrefCount' => 0,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
+     *     rawItemCount:int,
+     *     missingLabelCount:int,
+     *     emptyLabelCount:int,
+     *     missingHrefCount:int,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function parseNavListReport(\DOMElement $list, string $navPartName, int $depth, int &$itemIndex = 0): array
+    {
         $entries = [];
+        $rawItemCount = 0;
+        $missingLabelCount = 0;
+        $emptyLabelCount = 0;
+        $missingHrefCount = 0;
+        $diagnostics = [];
+
         foreach (self::childElements($list, 'li') as $li) {
             $labelElement = self::firstChildElement($li, 'a') ?? self::firstChildElement($li, 'span');
+            $currentItemIndex = $itemIndex++;
+            ++$rawItemCount;
+
             if ($labelElement instanceof \DOMElement) {
                 $href = $labelElement->localName === 'a' && $labelElement->hasAttribute('href')
                     ? $labelElement->getAttribute('href')
                     : null;
                 $label = self::normalizeText($labelElement->textContent);
+
+                if ($label === '') {
+                    ++$emptyLabelCount;
+                    $diagnostics[] = [
+                        'type' => 'empty-nav-item-label',
+                        'itemIndex' => $currentItemIndex,
+                        'depth' => $depth,
+                        'itemId' => self::emptyToNull($li->getAttribute('id')),
+                        'labelElement' => $labelElement->localName,
+                        'labelId' => self::emptyToNull($labelElement->getAttribute('id')),
+                        'href' => $href,
+                        'message' => 'EPUB navigation list item label is empty',
+                    ];
+                }
+                if ($labelElement->localName === 'a' && ($href === null || trim($href) === '')) {
+                    ++$missingHrefCount;
+                    $diagnostics[] = [
+                        'type' => 'missing-nav-item-href',
+                        'itemIndex' => $currentItemIndex,
+                        'depth' => $depth,
+                        'itemId' => self::emptyToNull($li->getAttribute('id')),
+                        'label' => $label,
+                        'labelId' => self::emptyToNull($labelElement->getAttribute('id')),
+                        'message' => 'EPUB navigation link item is missing an href target',
+                    ];
+                }
 
                 if ($label !== '' || ($href !== null && $href !== '')) {
                     $entries[] = [
@@ -2760,14 +2867,36 @@ final class EpubPackage
                         'playOrder' => null,
                     ];
                 }
+            } else {
+                ++$missingLabelCount;
+                $diagnostics[] = [
+                    'type' => 'missing-nav-item-label',
+                    'itemIndex' => $currentItemIndex,
+                    'depth' => $depth,
+                    'itemId' => self::emptyToNull($li->getAttribute('id')),
+                    'message' => 'EPUB navigation list item is missing a direct a or span label',
+                ];
             }
 
             foreach (self::childElements($li, 'ol') as $nestedList) {
-                array_push($entries, ...self::parseNavList($nestedList, $navPartName, $depth + 1));
+                $nestedReport = self::parseNavListReport($nestedList, $navPartName, $depth + 1, $itemIndex);
+                array_push($entries, ...$nestedReport['entries']);
+                $rawItemCount += $nestedReport['rawItemCount'];
+                $missingLabelCount += $nestedReport['missingLabelCount'];
+                $emptyLabelCount += $nestedReport['emptyLabelCount'];
+                $missingHrefCount += $nestedReport['missingHrefCount'];
+                array_push($diagnostics, ...$nestedReport['diagnostics']);
             }
         }
 
-        return $entries;
+        return [
+            'entries' => $entries,
+            'rawItemCount' => $rawItemCount,
+            'missingLabelCount' => $missingLabelCount,
+            'emptyLabelCount' => $emptyLabelCount,
+            'missingHrefCount' => $missingHrefCount,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

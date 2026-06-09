@@ -1772,9 +1772,14 @@ XML;
         $summary = $epub->summary();
 
         $t->same(false, $validation['valid']);
-        $t->same(['missing-primary-nav-item-label', 'missing-primary-nav-item-label'], array_column($validation['diagnostics'], 'type'));
-        $t->same(2, $navigation['diagnosticCount']);
-        $t->same(2, $navigation['documentDiagnosticCount']);
+        $t->same([
+            'missing-primary-nav-item-label',
+            'empty-nav-item-label',
+            'missing-primary-nav-item-label',
+            'empty-nav-item-label',
+        ], array_column($validation['diagnostics'], 'type'));
+        $t->same(4, $navigation['diagnosticCount']);
+        $t->same(4, $navigation['documentDiagnosticCount']);
         $t->same(3, $navigation['entryCount']);
         $t->same(3, $navigation['localTargetCount']);
         $t->same(0, $navigation['missingTargetCount']);
@@ -1793,7 +1798,7 @@ XML;
         $t->same('/EPUB/chapter1.xhtml', $tocDiagnostic['target']);
         $t->same(1, $tocDiagnostic['depth']);
 
-        $pageDiagnostic = $documentDiagnostics['diagnostics'][1];
+        $pageDiagnostic = $documentDiagnostics['diagnostics'][2];
         $t->same('print-pages', $pageDiagnostic['sectionId']);
         $t->same(['page-list'], $pageDiagnostic['sectionTypes']);
         $t->same('/EPUB/chapter1.xhtml#page-1', $pageDiagnostic['target']);
@@ -1850,9 +1855,9 @@ XML;
         $summary = $epub->summary();
 
         $t->same(false, $validation['valid']);
-        $t->same(['missing-nav-entry-label'], array_column($validation['diagnostics'], 'type'));
-        $t->same(1, $navigation['diagnosticCount']);
-        $t->same(1, $navigation['documentDiagnosticCount']);
+        $t->same(['missing-nav-entry-label', 'empty-nav-item-label'], array_column($validation['diagnostics'], 'type'));
+        $t->same(2, $navigation['diagnosticCount']);
+        $t->same(2, $navigation['documentDiagnosticCount']);
         $t->same(2, $navigation['entryCount']);
         $t->same(2, $navigation['localTargetCount']);
         $t->same(0, $navigation['missingTargetCount']);
@@ -1870,6 +1875,82 @@ XML;
         $t->same('chapter1.xhtml#cover', $entryDiagnostic['href']);
         $t->same('/EPUB/chapter1.xhtml#cover', $entryDiagnostic['target']);
         $t->same(1, $entryDiagnostic['depth']);
+        $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
+    },
+
+    'reports compact EPUB nav item diagnostics for validation handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $opfWithNavItemDiagnostics = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:nav-item-diagnostics</dc:identifier>
+    <dc:title>Navigation item diagnostics</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-09T20:58:30Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>
+XML;
+        $navWithItemDiagnostics = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li id="empty-label"><a id="empty-label-link" href="chapter1.xhtml"> </a></li>
+        <li id="missing-href"><a id="missing-href-link">Untargeted chapter</a></li>
+        <li id="missing-label"><ol><li><a href="chapter2.xhtml">Nested recovery</a></li></ol></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNavItemDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithItemDiagnostics],
+            ['name' => 'EPUB/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter 1</h1></body></html>'],
+            ['name' => 'EPUB/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Chapter 2</h1></body></html>'],
+        ]));
+        $validation = $epub->validationReport();
+        $navigation = $validation['navigation'];
+        $documentDiagnostics = $navigation['documentDiagnostics'];
+        $section = $epub->navigationSections()[0];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same([
+            'missing-primary-nav-item-label',
+            'empty-nav-item-label',
+            'missing-nav-item-href',
+            'missing-nav-item-label',
+        ], array_column($validation['diagnostics'], 'type'));
+        $t->same(3, $navigation['entryCount']);
+        $t->same(2, $navigation['localTargetCount']);
+        $t->same(4, $navigation['documentDiagnosticCount']);
+        $t->same(4, $section['rawItemCount']);
+        $t->same(1, $section['emptyItemLabelCount']);
+        $t->same(1, $section['missingItemHrefCount']);
+        $t->same(1, $section['missingItemLabelCount']);
+        $t->same(3, $section['itemDiagnosticCount']);
+        $t->same(1, $documentDiagnostics['missingPrimaryItemLabelCount']);
+        $t->same(1, $documentDiagnostics['emptyItemLabelCount']);
+        $t->same(1, $documentDiagnostics['missingItemHrefCount']);
+        $t->same(1, $documentDiagnostics['missingItemLabelCount']);
+        $t->same(3, $documentDiagnostics['itemDiagnosticCount']);
+        $t->same('empty-label', $documentDiagnostics['diagnostics'][1]['itemId']);
+        $t->same('empty-label-link', $documentDiagnostics['diagnostics'][1]['labelId']);
+        $t->same('Untargeted chapter', $documentDiagnostics['diagnostics'][2]['label']);
+        $t->same('missing-label', $documentDiagnostics['diagnostics'][3]['itemId']);
         $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
     },
 
