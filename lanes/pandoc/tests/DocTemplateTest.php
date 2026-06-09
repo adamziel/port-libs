@@ -2086,11 +2086,11 @@ HTML,
     'renders bounded pandoc default plain template resource' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 
-        $t->same('Plain review body', $renderer->renderResource('templates/default', [], [
+        $t->same("Plain review body\n", $renderer->renderResource('templates/default', [], [
             'body' => 'Plain review body',
         ], null, 'plain'));
 
-        $t->same("Direct plain body\n", $renderer->renderResource('templates/default.plain', [], [
+        $t->same("Direct plain body\n\n", $renderer->renderResource('templates/default.plain', [], [
             'body' => "Direct plain body\n\n",
         ]));
 
@@ -2099,6 +2099,29 @@ HTML,
         ], [
             'body' => 'plain',
         ], null, 'plain'));
+    },
+
+    'renders pandoc default plain title include and toc hooks' => static function (TestRunner $t): void {
+        $plain = (new DocTemplate())->renderResource('templates/default', [], [
+            'titleblock' => "Plain Review Packet\n===================",
+            'header-includes' => ['Plain header metadata'],
+            'include-before' => ['Before plain import'],
+            'toc' => true,
+            'table-of-contents' => 'Plain contents',
+            'body' => 'Plain body handoff',
+            'include-after' => ['After plain import'],
+        ], null, 'plain');
+
+        foreach ([
+            "Plain Review Packet\n===================",
+            'Plain header metadata',
+            'Before plain import',
+            'Plain contents',
+            'Plain body handoff',
+            'After plain import',
+        ] as $needle) {
+            $t->contains($needle, $plain);
+        }
     },
 
     'renders bounded pandoc default ansi and bibliography template resources' => static function (TestRunner $t): void {

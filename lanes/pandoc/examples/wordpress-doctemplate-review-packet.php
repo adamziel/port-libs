@@ -879,11 +879,26 @@ HTML,
     }
 
     $plainFallback = (new DocTemplate())->renderResource('templates/default', [], [
+        'titleblock' => "Plain Review Packet\n===================",
+        'header-includes' => ['Plain header metadata'],
+        'include-before' => ['Before plain import'],
+        'toc' => true,
+        'table-of-contents' => 'Plain contents',
         'body' => "Plain text review packet\n\n",
+        'include-after' => ['After plain import'],
     ], null, 'plain');
-    if ($plainFallback !== "Plain text review packet\n") {
-        fwrite(STDERR, "Missing expected doctemplate plain default fallback\n");
-        exit(1);
+    foreach ([
+        "Plain Review Packet\n===================",
+        'Plain header metadata',
+        'Before plain import',
+        'Plain contents',
+        "Plain text review packet\n",
+        'After plain import',
+    ] as $needle) {
+        if (!str_contains($plainFallback, $needle)) {
+            fwrite(STDERR, "Missing expected doctemplate plain default fallback: {$needle}\n");
+            exit(1);
+        }
     }
 
     $ansiFallback = (new DocTemplate())->renderResource('templates/default', [], [

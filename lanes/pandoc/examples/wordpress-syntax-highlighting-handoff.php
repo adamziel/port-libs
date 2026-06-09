@@ -520,6 +520,12 @@ if (!$fortranCodeBlock instanceof PortLibs\Pandoc\AstNode || $fortranCodeBlock->
 }
 $fortran = $highlighter->highlightCodeBlock($fortranCodeBlock, 'zenburn');
 $fortranWordpressBlock = $highlighter->wordpressHtmlBlock($fortranCodeBlock, 'zenburn');
+$dCodeBlock = $document->children[83] ?? null;
+if (!$dCodeBlock instanceof PortLibs\Pandoc\AstNode || $dCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a D review module code block');
+}
+$d = $highlighter->highlightCodeBlock($dCodeBlock, 'haddock');
+$dWordpressBlock = $highlighter->wordpressHtmlBlock($dCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2267,6 +2273,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($fortranWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
         throw new RuntimeException('Expected Fortran WordPress style metadata');
     }
+    if (($d['language'] ?? '') !== 'd') {
+        throw new RuntimeException('Expected D language alias handoff');
+    }
+    if (($d['requestedLanguage'] ?? '') !== 'd') {
+        throw new RuntimeException('Expected D requested-language metadata');
+    }
+    if (($d['lineNumbering']['start'] ?? null) !== 1320) {
+        throw new RuntimeException('Expected D line-number start handoff');
+    }
+    if (!str_contains($d['html'], '<span class="kw">module</span> <span class="va">wp</span><span class="op">.</span><span class="va">review</span><span class="op">.</span><span class="va">packet</span><span class="op">;</span>')) {
+        throw new RuntimeException('Expected D module token handoff');
+    }
+    if (!str_contains($d['html'], '<span class="ot">@safe</span> <span class="kw">pure</span> <span class="dt">string</span> <span class="fu">normalizedTitle</span>')) {
+        throw new RuntimeException('Expected D attribute and function token handoff');
+    }
+    if (!str_contains($d['html'], '<span class="kw">return</span> <span class="fu">format</span><span class="op">!</span><span class="st">&quot;Import %s&quot;</span>')) {
+        throw new RuntimeException('Expected D template function token handoff');
+    }
+    if (!str_contains($dWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected D WordPress style metadata');
+    }
+    if (!str_contains($dWordpressBlock, '<span class="kw">struct</span> <span class="dt">ReviewPacket</span>')) {
+        throw new RuntimeException('Expected D struct token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2368,6 +2398,7 @@ echo "justHighlightedHtml:\n" . $just['html'] . "\n";
 echo "protobufHighlightedHtml:\n" . $protobuf['html'] . "\n";
 echo "tclHighlightedHtml:\n" . $tcl['html'] . "\n";
 echo "lineHighlightHighlightedHtml:\n" . $lineHighlight['html'] . "\n";
+echo "dHighlightedHtml:\n" . $d['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2440,4 +2471,5 @@ echo "justWordpressBlock:\n" . $justWordpressBlock . "\n";
 echo "protobufWordpressBlock:\n" . $protobufWordpressBlock . "\n";
 echo "tclWordpressBlock:\n" . $tclWordpressBlock . "\n";
 echo "lineHighlightWordpressBlock:\n" . $lineHighlightWordpressBlock . "\n";
+echo "dWordpressBlock:\n" . $dWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

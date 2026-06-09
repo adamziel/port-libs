@@ -84,8 +84,12 @@ final class SyntaxHighlighter
         'containerfile' => 'dockerfile',
         'css' => 'css',
         'csv' => 'csv',
+        'd' => 'd',
         'dart' => 'dart',
         'dartlang' => 'dart',
+        'dlang' => 'd',
+        'd-language' => 'd',
+        'd-source' => 'd',
         'diff' => 'diff',
         'docker' => 'dockerfile',
         'dockerfile' => 'dockerfile',
@@ -795,6 +799,7 @@ final class SyntaxHighlighter
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
             'csv' => $this->tokenizeDelimitedText($code, ','),
+            'd' => $this->tokenizeD($code),
             'dart' => $this->tokenizeDart($code),
             'diff' => $this->tokenizeDiff($code),
             'dot' => $this->tokenizeDot($code),
@@ -1263,6 +1268,31 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|>>>?=?|<<=?|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|\\.\\.\\.|[{}()[\\];,.+*\\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeD(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\/\\+[\\s\\S]*?\\+\\//'],
+            ['comment', '/^\\/\\*[\\s\\S]*?\\*\\//'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^`[^`]*`/s'],
+            ['string', '/^(?:r|x|q)?"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^@[A-Za-z_][A-Za-z0-9_]*/'],
+            ['preprocessor', '/^#[A-Za-z_][A-Za-z0-9_]*/'],
+            ['keyword', '/^\\b(?:abstract|alias|align|asm|assert|auto|body|break|case|cast|catch|class|const|continue|debug|default|delegate|delete|deprecated|do|else|enum|export|extern|final|finally|foreach|foreach_reverse|function|goto|if|immutable|import|in|inout|interface|invariant|is|lazy|macro|mixin|module|new|nothrow|out|override|package|pragma|private|protected|public|pure|ref|return|scope|shared|static|struct|super|switch|synchronized|template|this|throw|try|typeof|union|unittest|version|while|with|__gshared|__traits)\\b/'],
+            ['constant', '/^\\b(?:__DATE__|__FILE__|__FUNCTION__|__LINE__|__MODULE__|__PRETTY_FUNCTION__|__TIME__|__TIMESTAMP__|false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:Object|Throwable|Exception|string|wstring|dstring|bool|byte|ubyte|short|ushort|int|uint|long|ulong|cent|ucent|float|double|real|ifloat|idouble|ireal|cfloat|cdouble|creal|char|wchar|dchar|void|size_t|ptrdiff_t)\\b/'],
+            ['number', '/^\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?:[uU]?[lL]?|[fFL])?\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*(?=\\s*(?:[<({.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*(?:!\\s*(?:"[^"\\n]*"|[A-Za-z_][A-Za-z0-9_]*|\\([^\\)\\n]*\\))\\s*\\(|\\())/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|\\.\\.|=>|==|!=|<=|>=|&&|\\|\\||<<|>>|\\+\\+|--|[{}()[\\];,.+*\\/%=!<>?:&|^~$-])/'],
         ]);
     }
 

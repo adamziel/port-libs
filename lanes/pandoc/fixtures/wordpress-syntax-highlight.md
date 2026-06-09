@@ -1572,3 +1572,25 @@ contains
   end function normalized_title
 end module wp_import_review
 ```
+
+``` {.d #d-review .numberLines startFrom=1320}
+// D WordPress import review helper
+module wp.review.packet;
+
+import std.algorithm : strip;
+import std.format : format;
+
+@safe pure string normalizedTitle(ReviewPacket packet)
+{
+    immutable title = packet.title.strip;
+    if (title.length == 0) {
+        return format!"Import %s"(packet.sourceId);
+    }
+    return title;
+}
+
+struct ReviewPacket {
+    ulong sourceId;
+    string title;
+}
+```

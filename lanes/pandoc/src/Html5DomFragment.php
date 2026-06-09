@@ -4718,6 +4718,16 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && self::isHtmlResponsiveImageMetadataAttribute($tagName, $name)) {
+                $metadataValue = self::normalizeHtmlResponsiveImageMetadataAttribute($value, $tagName, $name, $diagnostics);
+                if ($metadataValue === null) {
+                    continue;
+                }
+
+                $attrs[$name] = $metadataValue;
+                continue;
+            }
+
             if ($mode === 'html' && strtolower($name) === 'rel') {
                 $rel = self::normalizeHtmlRelAttribute($value, $tagName, $diagnostics);
                 if ($rel === null) {
@@ -7051,6 +7061,39 @@ final class Html5DomFragment
         }
 
         return $normalized === [] ? null : implode(' ', $normalized);
+    }
+
+    private static function isHtmlResponsiveImageMetadataAttribute(string $tagName, string $name): bool
+    {
+        $tag = strtolower($tagName);
+        $attribute = strtolower($name);
+
+        return ($tag === 'source' && in_array($attribute, ['media', 'sizes'], true))
+            || ($tag === 'img' && $attribute === 'sizes');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeHtmlResponsiveImageMetadataAttribute(
+        string $value,
+        string $tagName,
+        string $name,
+        array &$diagnostics
+    ): ?string {
+        $normalized = self::normalizeReviewableHtmlStyleValue($value);
+        if ($normalized === null) {
+            $diagnostics[] = [
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => strtolower($name),
+                'reason' => 'invalid-responsive-source-metadata',
+            ];
+
+            return null;
+        }
+
+        return $normalized === '' ? null : $normalized;
     }
 
     private static function isUrlAttribute(string $name): bool

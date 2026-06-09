@@ -4326,6 +4326,72 @@ return [
         $t->true(!str_contains($html, 'mailto:bad@example.test'), 'Expected non-fetch picture source candidate to be stripped');
         $t->true(!str_contains($html, '(max-width: 47em)'), 'Expected empty unsafe source branch to be pruned');
     },
+    'filters unsafe responsive image media and sizes metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<picture data-review="responsive-metadata">'
+            . '<source srcset="./safe.avif 1x" media=" (min-width: 48em) " sizes=" (min-width: 48em) 50vw , 100vw " type="image/avif">'
+            . '<source srcset="./unsafe-media.webp 1x" media="screen and (background: url(javascript:alert(1)))" sizes="(min-width: 40em) calc(50vw + 2rem)" type="image/webp">'
+            . '<source srcset="./unsafe-sizes.jpg 1x" media="(orientation: landscape)" sizes="(min-width: 40em) calc(50vw + url(javascript:alert(1)))" type="image/jpeg">'
+            . '<img src="./fallback.jpg" srcset="./fallback.jpg 1x" sizes="(min-width: 30em) calc(100vw + url(javascript:alert(1)))" alt="Fallback">'
+            . '</picture>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/responsive-source-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<picture data-review="responsive-metadata">'
+            . '<source srcset="https://source.example.test/import/posts/safe.avif 1x" media="(min-width: 48em)" sizes="(min-width: 48em) 50vw, 100vw" type="image/avif">'
+            . '<source srcset="https://source.example.test/import/posts/unsafe-media.webp 1x" sizes="(min-width: 40em) calc(50vw + 2rem)" type="image/webp">'
+            . '<source srcset="https://source.example.test/import/posts/unsafe-sizes.jpg 1x" media="(orientation: landscape)" type="image/jpeg">'
+            . '<img src="https://source.example.test/import/posts/fallback.jpg" srcset="https://source.example.test/import/posts/fallback.jpg 1x" alt="Fallback">'
+            . '</picture>';
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['img', 'picture', 'source'], $summary['elementNames']);
+        $t->same([], $summary['blockedTags']);
+        $t->same(['media', 'sizes'], $summary['filteredAttributes']);
+        $t->same(['unsafe-attribute', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same('picture', $nodes[0]['name']);
+        $t->same(4, count($nodes[0]['children']));
+        $t->same([
+            'srcset' => 'https://source.example.test/import/posts/safe.avif 1x',
+            'media' => '(min-width: 48em)',
+            'sizes' => '(min-width: 48em) 50vw, 100vw',
+            'type' => 'image/avif',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'srcset' => 'https://source.example.test/import/posts/unsafe-media.webp 1x',
+            'sizes' => '(min-width: 40em) calc(50vw + 2rem)',
+            'type' => 'image/webp',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'srcset' => 'https://source.example.test/import/posts/unsafe-sizes.jpg 1x',
+            'media' => '(orientation: landscape)',
+            'type' => 'image/jpeg',
+        ], $nodes[0]['children'][2]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/fallback.jpg',
+            'srcset' => 'https://source.example.test/import/posts/fallback.jpg 1x',
+            'alt' => 'Fallback',
+        ], $nodes[0]['children'][3]['attrs']);
+        $t->same('/migration/responsive-source-metadata-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe responsive source media and sizes metadata to be stripped');
+        $t->true(!str_contains($html, 'background:'), 'Expected CSS-like media URL metadata to stay out of review HTML');
+        $t->true(!str_contains($html, 'url('), 'Expected CSS URL tokens to stay out of source size metadata');
+        $t->true(str_contains($html, 'unsafe-media.webp'), 'Expected otherwise valid source candidates to remain reviewable after media metadata filtering');
+        $t->true(str_contains($html, 'unsafe-sizes.jpg'), 'Expected otherwise valid source candidates to remain reviewable after sizes metadata filtering');
+    },
     'converts portal sources and drops orphan source sets before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

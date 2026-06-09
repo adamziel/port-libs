@@ -38,6 +38,10 @@ return [
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('dartlang'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('flutter'));
         $t->same('dart', SyntaxHighlighter::normalizeLanguage('language-dartlang'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('D'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('dlang'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('d-source'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('language-d-language'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('fish-shell'));
         $t->same('fish', SyntaxHighlighter::normalizeLanguage('language-fish'));
@@ -4051,6 +4055,53 @@ return [
         $t->same('fortran', $directFortran['language']);
         $t->same('fortran-free', $directFortran['requestedLanguage']);
         $t->contains('<span class="kw">subroutine</span> <span class="fu">queue</span><span class="op">(</span><span class="va">packet</span><span class="op">);</span> <span class="kw">call</span> <span class="fu">normalize_title</span><span class="op">(</span><span class="va">packet</span><span class="op">);</span> <span class="kw">end</span> <span class="kw">subroutine</span> <span class="va">queue</span>', $directFortran['html']);
+    },
+    'highlights d review modules with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[83] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a D review module code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directD = $highlighter->highlight(
+            '@safe string queue(ReviewPacket packet) { return format!"Import %s"(packet.sourceId); }',
+            'dlang'
+        );
+
+        $t->same('d', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('d'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('dlang'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('d-source'));
+        $t->same('d', SyntaxHighlighter::normalizeLanguage('language-d-language'));
+        $t->same('d', $highlighted['language']);
+        $t->same('d', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1320, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource d numberLines"><code class="sourceCode d" style="counter-reset: source-line 1319;">', $highlighted['html']);
+        $t->contains('<span id="d-review-1320"><a href="#d-review-1320"></a><span class="co">// D WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="va">wp</span><span class="op">.</span><span class="va">review</span><span class="op">.</span><span class="va">packet</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">std</span><span class="op">.</span><span class="va">algorithm</span> <span class="op">:</span> <span class="va">strip</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="ot">@safe</span> <span class="kw">pure</span> <span class="dt">string</span> <span class="fu">normalizedTitle</span><span class="op">(</span><span class="dt">ReviewPacket</span> <span class="va">packet</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">immutable</span> <span class="va">title</span> <span class="op">=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="va">strip</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="va">title</span><span class="op">.</span><span class="va">length</span> <span class="op">==</span> <span class="dv">0</span><span class="op">)</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">format</span><span class="op">!</span><span class="st">&quot;Import %s&quot;</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">sourceId</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">struct</span> <span class="dt">ReviewPacket</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="dt">ulong</span> <span class="va">sourceId</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="kw">struct</span> <span class="dt">ReviewPacket</span>', $wordpressBlock);
+        $t->same('d', $directD['language']);
+        $t->same('dlang', $directD['requestedLanguage']);
+        $t->contains('<span class="ot">@safe</span> <span class="dt">string</span> <span class="fu">queue</span><span class="op">(</span><span class="dt">ReviewPacket</span> <span class="va">packet</span><span class="op">)</span>', $directD['html']);
+        $t->contains('<span class="kw">return</span> <span class="fu">format</span><span class="op">!</span><span class="st">&quot;Import %s&quot;</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">sourceId</span><span class="op">);</span>', $directD['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

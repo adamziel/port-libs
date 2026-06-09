@@ -614,6 +614,27 @@ return [
         $t->contains('<h1 id="dos-855">DOS 855</h1>', $blocks);
         $t->contains('<p>Редактор привет; Ёлка; Љљ Њњ; box │─┌; №§.</p>', $blocks);
     },
+    'decodes ibm737 dos greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# DOS 737\n\n\x84\xA2\xA2\x9E\xA4\xA0\xA1\xE1 CP737: \x98\x99\x9A\x9B\x9C; \xEA\xEB\xEC\xED\xEE\xEF\xF0; box \xB3\xC4\xDA; math \xF1\xF2\xF3; \xFF.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cp737');
+        $document = (new MarkdownReader())->readBytes($bytes, 'csibm737');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D\x8E\x8F\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9A\x9B\x9C\x9D\x9E\x9F\xE0\xE1\xE2\xE3\xE4\xE5\xE6\xE7\xE8\xE9\xEA\xEB\xEC\xED\xEE\xEF\xF0", 'dos737');
+
+        $t->same('ibm737', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# DOS 737\n\nΕλληνικά CP737: αβγδε; ΆΈΉΊΌΎΏ; box │─┌; math ±≥≤; \u{00A0}.", $decoded['text']);
+        $t->same('ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθωάέήϊίόύϋώΆΈΉΊΌΎΏ', $specials['text']);
+        $t->same('ibm737', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same(['encoding' => 'ibm737', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('DOS 737', $document->children[0]->attr('text'));
+        $t->same("Ελληνικά CP737: αβγδε; ΆΈΉΊΌΎΏ; box │─┌; math ±≥≤; \u{00A0}.", $document->children[1]->attr('text'));
+        $t->same(53, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(71, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="dos-737">DOS 737</h1>', $blocks);
+        $t->contains("<p>Ελληνικά CP737: αβγδε; ΆΈΉΊΌΎΏ; box │─┌; math ±≥≤; \u{00A0}.</p>", $blocks);
+    },
     'decodes ibm869 dos greek source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \xA8\xE5\xE5\xE1\xE7\xE3\xE4\x9B\n\n\xCF\xF2\xE7\xEE\x9B\xE4\xEE\xE1\xED \xAB\xEA\xE1\xD8\x9E\xAF; \x86\x88\x8D\x8F\x90\x92\x95\x98; \xDA\xC4\xBF.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp869');
