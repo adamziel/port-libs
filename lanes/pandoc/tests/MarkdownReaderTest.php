@@ -16577,6 +16577,34 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $shadow, $blocks);
         $t->true(!str_contains($blocks, '&lt;feDropShadow'), 'Standalone SVG feDropShadow should not be escaped into reviewer text');
     },
+    'maps upstream html reader svg feBlend fragments as raw review markup' => static function (TestRunner $t): void {
+        $blend = '<feBlend mode="multiply" data-source="batch-62"></feBlend>';
+        $document = (new MarkdownReader())->read($blend . "\n\nAfter the blend.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($blend, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the blend.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $blend, $blocks);
+        $t->true(!str_contains($blocks, '&lt;feBlend'), 'Standalone SVG feBlend should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg feComposite fragments as raw review markup' => static function (TestRunner $t): void {
+        $composite = '<feComposite operator="over" data-source="batch-62"></feComposite>';
+        $document = (new MarkdownReader())->read($composite . "\n\nAfter the composite.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($composite, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the composite.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $composite, $blocks);
+        $t->true(!str_contains($blocks, '&lt;feComposite'), 'Standalone SVG feComposite should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
