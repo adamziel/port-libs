@@ -6263,6 +6263,9 @@ final class TableGeometry
             'tableBorderCollapseAttributeCount' => count(is_array($tableBorderCollapse['attributes'] ?? null) ? $tableBorderCollapse['attributes'] : []),
             'hasTableBorderPresentation' => $tableBorderPresentation !== [],
             'tableBorderColor' => (string) ($tableBorderPresentation['borderColor'] ?? ''),
+            'tableBorderColorSource' => (string) ($tableBorderPresentation['borderColorSource'] ?? ''),
+            'tableLegacyBorderColor' => (string) ($tableBorderPresentation['legacyBorderColor'] ?? ''),
+            'tableCssBorderColor' => (string) ($tableBorderPresentation['cssBorderColor'] ?? ''),
             'tableBorderStyle' => (string) ($tableBorderPresentation['borderStyle'] ?? ''),
             'tableBorderWidth' => (string) ($tableBorderPresentation['borderWidth'] ?? ''),
             'tableBorderPresentationAttributeCount' => count(is_array($tableBorderPresentation['attributes'] ?? null) ? $tableBorderPresentation['attributes'] : []),
@@ -10375,7 +10378,7 @@ final class TableGeometry
             'attributes' => $tableBorderPresentation['attributes'] ?? [],
             'sourceAttributes' => $tableBorderPresentation['sourceAttributes'] ?? [],
         ];
-        foreach (['borderColor', 'borderStyle', 'borderWidth'] as $key) {
+        foreach (['borderColor', 'borderColorSource', 'legacyBorderColor', 'cssBorderColor', 'borderStyle', 'borderWidth'] as $key) {
             if (isset($tableBorderPresentation[$key]) && trim((string) $tableBorderPresentation[$key]) !== '') {
                 $diagnostic[$key] = (string) $tableBorderPresentation[$key];
             }
@@ -12317,7 +12320,7 @@ final class TableGeometry
     }
 
     /**
-     * @return array{source:string,attributes:array<string, string>,borderColor?:string,borderStyle?:string,borderWidth?:string,sourceAttributes?:array<string, mixed>}
+     * @return array{source:string,attributes:array<string, string>,borderColor?:string,borderColorSource?:string,legacyBorderColor?:string,cssBorderColor?:string,borderStyle?:string,borderWidth?:string,sourceAttributes?:array<string, mixed>}
      */
     private static function tableBorderPresentationMetadata(AstNode $table): array
     {
@@ -12329,15 +12332,19 @@ final class TableGeometry
             }
         }
 
-        if (!array_key_exists('style', $attributes)) {
-            return [];
+        $recordAttributes = [];
+        $legacyBorderColor = '';
+        if (array_key_exists('bordercolor', $attributes)) {
+            $legacyBorderColor = self::normalizeTableBackgroundColorAttribute((string) $attributes['bordercolor']);
+            if ($legacyBorderColor !== '') {
+                $recordAttributes['bordercolor'] = $legacyBorderColor;
+            }
         }
 
-        $style = (string) $attributes['style'];
-        $recordAttributes = [];
-        $borderColor = self::normalizeTableBorderColorStyleAttribute($style);
-        if ($borderColor !== '') {
-            $recordAttributes['border-color'] = $borderColor;
+        $style = (string) ($attributes['style'] ?? '');
+        $cssBorderColor = self::normalizeTableBorderColorStyleAttribute($style);
+        if ($cssBorderColor !== '') {
+            $recordAttributes['border-color'] = $cssBorderColor;
         }
 
         $borderStyle = self::normalizeTableBorderStyleStyleAttribute($style);
@@ -12355,12 +12362,21 @@ final class TableGeometry
         }
 
         ksort($recordAttributes);
+        $borderColor = $cssBorderColor !== '' ? $cssBorderColor : $legacyBorderColor;
+        $borderColorSource = $cssBorderColor !== '' ? 'style' : ($legacyBorderColor !== '' ? 'bordercolor' : '');
         $record = [
             'source' => 'html-table-border-presentation',
             'attributes' => $recordAttributes,
         ];
         if ($borderColor !== '') {
             $record['borderColor'] = $borderColor;
+            $record['borderColorSource'] = $borderColorSource;
+        }
+        if ($legacyBorderColor !== '') {
+            $record['legacyBorderColor'] = $legacyBorderColor;
+        }
+        if ($cssBorderColor !== '') {
+            $record['cssBorderColor'] = $cssBorderColor;
         }
         if ($borderStyle !== '') {
             $record['borderStyle'] = $borderStyle;

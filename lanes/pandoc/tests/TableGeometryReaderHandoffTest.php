@@ -2574,6 +2574,116 @@ HTML;
         json_encode($packet, JSON_THROW_ON_ERROR);
         json_encode($downgradePacket, JSON_THROW_ON_ERROR);
     },
+    'normalizes legacy html table bordercolor metadata for geometry handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="legacy-bordercolor-grid" data-source="html-reader" bordercolor="#936">
+<caption>Legacy bordercolor review</caption>
+<tbody>
+<tr><td>Posts</td><td>Ready</td></tr>
+</tbody>
+</table>
+<table id="mixed-bordercolor-grid" bordercolor="#993366" style="border-color: #336699; border-style: solid">
+<tbody>
+<tr><td>Media</td><td>Review</td></tr>
+</tbody>
+</table>
+<table id="invalid-bordercolor-grid" bordercolor="expression(alert(1))">
+<tbody>
+<tr><td>Invalid</td><td>Dropped</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $tables = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'table'
+        ));
+        $legacyTable = $tables[0] ?? null;
+        $mixedTable = $tables[1] ?? null;
+        $invalidTable = $tables[2] ?? null;
+        $t->true($legacyTable instanceof AstNode);
+        $t->true($mixedTable instanceof AstNode);
+        $t->true($invalidTable instanceof AstNode);
+        if (!$legacyTable instanceof AstNode || !$mixedTable instanceof AstNode || !$invalidTable instanceof AstNode) {
+            return;
+        }
+
+        $legacyPacket = $legacyTable->attr('tableGeometry');
+        $mixedPacket = $mixedTable->attr('tableGeometry');
+        $invalidPacket = $invalidTable->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $downgradePacket = TableGeometry::reviewPacket($legacyTable, [
+            'accessibility' => false,
+            'writers' => ['markdown', 'asciidoc', 'latex'],
+        ]);
+        $diagnostics = [];
+        foreach (['markdown', 'asciidoc', 'latex'] as $writer) {
+            $matches = array_values(array_filter(
+                $downgradePacket['writerDowngrades'][$writer] ?? [],
+                static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? null) === 'table-border-presentation'
+            ));
+            $diagnostics[$writer] = $matches[0] ?? [];
+        }
+
+        $t->same(true, is_array($legacyPacket));
+        $legacyPacket = is_array($legacyPacket) ? $legacyPacket : [];
+        $t->same('html-table-border-presentation', $legacyPacket['tableBorderPresentation']['source'] ?? null);
+        $t->same(['bordercolor' => '#993366'], $legacyPacket['tableBorderPresentation']['attributes'] ?? null);
+        $t->same('#993366', $legacyPacket['tableBorderPresentation']['borderColor'] ?? null);
+        $t->same('bordercolor', $legacyPacket['tableBorderPresentation']['borderColorSource'] ?? null);
+        $t->same('#993366', $legacyPacket['tableBorderPresentation']['legacyBorderColor'] ?? null);
+        $t->same('#936', $legacyPacket['tableBorderPresentation']['sourceAttributes']['htmlAttributes']['bordercolor'] ?? null);
+        $t->same(true, $legacyPacket['summary']['hasTableBorderPresentation'] ?? null);
+        $t->same('#993366', $legacyPacket['summary']['tableBorderColor'] ?? null);
+        $t->same('bordercolor', $legacyPacket['summary']['tableBorderColorSource'] ?? null);
+        $t->same('#993366', $legacyPacket['summary']['tableLegacyBorderColor'] ?? null);
+        $t->same('', $legacyPacket['summary']['tableCssBorderColor'] ?? null);
+        $t->same(1, $legacyPacket['summary']['tableBorderPresentationAttributeCount'] ?? null);
+
+        $t->same(true, is_array($mixedPacket));
+        $mixedPacket = is_array($mixedPacket) ? $mixedPacket : [];
+        $t->same([
+            'border-color' => '#336699',
+            'border-style' => 'solid',
+            'bordercolor' => '#993366',
+        ], $mixedPacket['tableBorderPresentation']['attributes'] ?? null);
+        $t->same('#336699', $mixedPacket['tableBorderPresentation']['borderColor'] ?? null);
+        $t->same('style', $mixedPacket['tableBorderPresentation']['borderColorSource'] ?? null);
+        $t->same('#993366', $mixedPacket['tableBorderPresentation']['legacyBorderColor'] ?? null);
+        $t->same('#336699', $mixedPacket['tableBorderPresentation']['cssBorderColor'] ?? null);
+        $t->same('solid', $mixedPacket['tableBorderPresentation']['borderStyle'] ?? null);
+        $t->same(3, $mixedPacket['summary']['tableBorderPresentationAttributeCount'] ?? null);
+
+        $t->same(true, is_array($invalidPacket));
+        $invalidPacket = is_array($invalidPacket) ? $invalidPacket : [];
+        $t->true(!array_key_exists('tableBorderPresentation', $invalidPacket));
+        $t->same(false, $invalidPacket['summary']['hasTableBorderPresentation'] ?? null);
+
+        $t->same([
+            'markdown-table-border-presentation-requires-raw-html',
+            'asciidoc-table-border-presentation-review-required',
+            'latex-table-border-presentation-review-required',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), [
+            $diagnostics['markdown'],
+            $diagnostics['asciidoc'],
+            $diagnostics['latex'],
+        ]));
+        $t->same('raw-html-table-border-presentation', $diagnostics['markdown']['requiredFeature'] ?? null);
+        $t->same('html-table-border-presentation', $diagnostics['markdown']['source'] ?? null);
+        $t->same('bordercolor', $diagnostics['markdown']['borderColorSource'] ?? null);
+        $t->same('#993366', $diagnostics['markdown']['legacyBorderColor'] ?? null);
+        $t->same(['bordercolor' => '#993366'], $diagnostics['markdown']['attributes'] ?? null);
+
+        $t->contains('<table id="legacy-bordercolor-grid" data-source="html-reader">', $blocks);
+        $t->contains('<table id="mixed-bordercolor-grid" style="border-color:#336699; border-style:solid">', $blocks);
+        $t->true(!str_contains($blocks, 'bordercolor='));
+        $t->true(!str_contains($blocks, 'expression('));
+        json_encode($legacyPacket, JSON_THROW_ON_ERROR);
+        json_encode($mixedPacket, JSON_THROW_ON_ERROR);
+        json_encode($invalidPacket, JSON_THROW_ON_ERROR);
+        json_encode($downgradePacket, JSON_THROW_ON_ERROR);
+    },
     'normalizes legacy html table placement alignment for geometry and wordpress handoff' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="placement-align-grid" data-source="html-reader" align="center">

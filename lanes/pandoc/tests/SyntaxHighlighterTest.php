@@ -281,6 +281,9 @@ return [
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('shell'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('console'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('language-sh'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('zsh'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('zshrc'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('language-zsh-script'));
         $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('shell-session'));
         $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('shellsession'));
         $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('bash-session'));
@@ -3333,6 +3336,43 @@ return [
         $t->same('bash', $console['language']);
         $t->same('console', $console['requestedLanguage']);
         $t->contains('<span class="fu">printf</span> <span class="st">&quot;%s\\n&quot;</span> <span class="st">&quot;$title&quot;</span>', $console['html']);
+    },
+    'highlights zsh review snippets through bounded shell handoff' => static function (TestRunner $t): void {
+        $codeBlock = new AstNode('code_block', [
+            'id' => 'zsh-review',
+            'classes' => ['sourceCode', 'zsh', 'numberLines'],
+            'attributes' => ['startFrom' => '64'],
+            'text' => implode("\n", [
+                '#!/usr/bin/env zsh',
+                'autoload -Uz colors',
+                'title=${1:-Untitled}',
+                'print -r "$title"',
+                'wp post meta update 42 _review "$title"',
+            ]),
+        ]);
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $direct = $highlighter->highlight('print -r "$title"', 'language-zsh-script');
+
+        $t->same('zsh', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('zsh'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('zshrc'));
+        $t->same('bash', SyntaxHighlighter::normalizeLanguage('language-zsh-script'));
+        $t->same('bash', $highlighted['language']);
+        $t->same('zsh', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(64, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource zsh numberLines"><code class="sourceCode bash" style="counter-reset: source-line 63;">', $highlighted['html']);
+        $t->contains('<span id="zsh-review-64"><a href="#zsh-review-64"></a><span class="kw">#!/usr/bin/env zsh</span></span>', $highlighted['html']);
+        $t->contains('<span class="fu">autoload</span> <span class="op">-Uz</span> <span class="va">colors</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">=</span><span class="va">${1:-Untitled}</span>', $highlighted['html']);
+        $t->contains('<span class="fu">print</span> <span class="op">-r</span> <span class="st">&quot;$title&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">wp</span> <span class="va">post</span> <span class="va">meta</span> <span class="va">update</span> <span class="dv">42</span> <span class="va">_review</span> <span class="st">&quot;$title&quot;</span>', $highlighted['html']);
+        $t->same('bash', $direct['language']);
+        $t->same('language-zsh-script', $direct['requestedLanguage']);
+        $t->contains('<pre class="sourceCode bash"><code class="sourceCode bash"><span class="fu">print</span> <span class="op">-r</span> <span class="st">&quot;$title&quot;</span></code></pre>', $direct['html']);
     },
     'highlights shell session transcripts with prompt and output handoff' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');

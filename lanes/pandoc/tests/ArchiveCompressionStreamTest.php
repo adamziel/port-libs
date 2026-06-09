@@ -1573,6 +1573,92 @@ return [
         ));
     },
 
+    'preflights tar checksum link target provenance without extracting link entries' => static function (TestRunner $t) use ($rawTarHeader, $rewriteTarHeaderFields, $paxPayload): void {
+        $targetName = 'packet/target.md';
+        $headerLinkTarget = $targetName;
+        $paxLinkTarget = 'packet/pax-target.md';
+        $gnuLongLinkTarget = 'packet/' . str_repeat('gnu-link-target-', 7) . 'target.md';
+        $headerLink = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/header-hard-link.md', '1', '', 1780479100, false),
+            [
+                157 => str_pad($headerLinkTarget, 100, "\0"),
+            ]
+        );
+        $paxHeader = $rawTarHeader('PaxHeaders/link-target', 'x', $paxPayload([
+            'path' => 'packet/pax-symlink.md',
+            'linkpath' => $paxLinkTarget,
+        ]), 1780479101, false);
+        $paxLink = $rawTarHeader('placeholder-pax-link.md', '2', '', 1780479102, false);
+        $gnuLongLink = $rawTarHeader('././@LongLink', 'K', $gnuLongLinkTarget . "\0", 1780479103, false);
+        $gnuLink = $rewriteTarHeaderFields(
+            $rawTarHeader('packet/gnu-symlink.md', '2', '', 1780479104, false),
+            [
+                157 => str_pad('packet/header-placeholder.md', 100, "\0"),
+            ]
+        );
+        $archiveBytes = $rawTarHeader($targetName, '0', "# Link target\n", 1780479099, false)
+            . $headerLink
+            . $paxHeader
+            . $paxLink
+            . $gnuLongLink
+            . $gnuLink
+            . str_repeat("\0", 1024);
+        $gzipBytes = GzipStream::build($archiveBytes, [
+            'filename' => 'wordpress-tar-link-provenance.tar',
+            'comment' => 'TAR link target checksum provenance',
+        ]);
+
+        $inspection = ArchiveCompressionStream::inspectTarChecksumPolicy(
+            $gzipBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($archiveBytes)
+        );
+        $entries = $inspection['entries'];
+
+        $t->same('tar-checksum-policy', $inspection['type']);
+        $t->same(ArchiveCompressionStream::FORMAT_GZIP_TAR, $inspection['format']);
+        $t->same(6, $inspection['headerRecordCount']);
+        $t->same(4, $inspection['entryCount']);
+        $t->same(2, $inspection['metadataRecordCount']);
+        $t->same('wordpress-tar-link-provenance.tar', $inspection['stream']['members'][0]['filename']);
+        $t->same('TAR link target checksum provenance', $inspection['stream']['members'][0]['comment']);
+        $t->same([
+            'regular-file',
+            'hard-link',
+            'pax-local',
+            'symbolic-link',
+            'gnu-long-link',
+            'symbolic-link',
+        ], array_column($entries, 'role'));
+        $t->same([
+            $targetName,
+            'packet/header-hard-link.md',
+            'PaxHeaders/link-target',
+            'packet/pax-symlink.md',
+            '././@LongLink',
+            'packet/gnu-symlink.md',
+        ], array_column($entries, 'name'));
+        $t->same(null, $entries[0]['linkTarget']);
+        $t->same(null, $entries[0]['linkTargetSource']);
+        $t->same($headerLinkTarget, $entries[1]['linkTarget']);
+        $t->same('header-linkname', $entries[1]['linkTargetSource']);
+        $t->same(strlen($headerLinkTarget), $entries[1]['linkTargetSize']);
+        $t->same(['linkpath', 'path'], $entries[2]['paxHeaderKeys']);
+        $t->same(null, $entries[2]['linkTarget']);
+        $t->same($paxLinkTarget, $entries[3]['linkTarget']);
+        $t->same('pax-linkpath', $entries[3]['linkTargetSource']);
+        $t->same(strlen($paxLinkTarget), $entries[3]['linkTargetSize']);
+        $t->same('pax-path', $entries[3]['nameSource']);
+        $t->same('gnu-long-link', $entries[4]['metadataKind']);
+        $t->same($gnuLongLinkTarget, $entries[4]['metadataValue']);
+        $t->same(strlen($gnuLongLinkTarget), $entries[4]['metadataValueSize']);
+        $t->same($gnuLongLinkTarget, $entries[5]['linkTarget']);
+        $t->same('gnu-long-link', $entries[5]['linkTargetSource']);
+        $t->same(strlen($gnuLongLinkTarget), $entries[5]['linkTargetSize']);
+        $t->same('accepted-checksum-provenance', $entries[5]['policy']);
+        $t->true(!array_key_exists('archive', $inspection));
+    },
+
     'reads legacy tar contiguous file entries as regular package files' => static function (TestRunner $t) use ($rawTarHeader): void {
         $documentBytes = "# Legacy contiguous TAR entry\n\nReady for WordPress archive review.\n";
         $archiveBytes = $rawTarHeader('packet/legacy-contiguous.md', '7', $documentBytes, 1780479069);

@@ -444,6 +444,10 @@ final class SyntaxHighlighter
         'xslt' => 'xslt',
         'yaml' => 'yaml',
         'yml' => 'yaml',
+        'z-shell' => 'bash',
+        'zsh' => 'bash',
+        'zsh-script' => 'bash',
+        'zshrc' => 'bash',
     ];
 
     private const SUPPORTED_STYLES = [
@@ -4056,7 +4060,7 @@ final class SyntaxHighlighter
             ['keyword', '/^\\b(?:case|do|done|elif|else|esac|fi|for|function|if|in|then|while)\\b/'],
             ['constant', '/^\\b(?:false|true)\\b/'],
             ['number', '/^\\b\\d+(?:\\.\\d+)?\\b/'],
-            ['function', '/^\\b(?:awk|basename|cat|cd|chmod|chown|composer|cp|curl|dirname|echo|env|find|getopts|grep|jq|make|mkdir|mv|npm|php|printf|read|rm|rsync|sed|set|sh|sort|tar|tee|test|touch|tr|wp)(?=\\s|$|[;&|<>])/'],
+            ['function', '/^\\b(?:autoload|awk|basename|cat|cd|chmod|chown|composer|cp|curl|dirname|echo|emulate|env|find|getopts|grep|jq|make|mkdir|mv|npm|php|print|printf|read|rm|rsync|sed|set|setopt|sh|sort|tar|tee|test|touch|tr|wp|zstyle)(?=\\s|$|[;&|<>])/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*\\b/'],
             ['operator', '/^(?:\\$\\(|\\)\\)|;;|&&|\\|\\||>>|[{}()[\\];|&<>=$])/'],
         ], $tokens);

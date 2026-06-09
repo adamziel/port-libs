@@ -250,6 +250,9 @@ final class TarArchive
      *         role:string,
      *         typeFlag:string,
      *         nameSource:string,
+     *         linkTarget:?string,
+     *         linkTargetSource:?string,
+     *         linkTargetSize:?int,
      *         headerOffset:int,
      *         dataOffset:int,
      *         recordEndOffset:int,
@@ -464,9 +467,15 @@ final class TarArchive
                 throw new \RuntimeException('TAR GNU long-link metadata is not followed by a link entry');
             }
 
+            $recordMetadata = [];
             if ($typeFlag === self::TYPE_HARD_LINK || $typeFlag === self::TYPE_SYMBOLIC_LINK) {
                 $linkTarget = self::resolvedLinkTargetFromHeader($header, $metadataHeaders, $pendingGnuLongLink);
+                $linkTargetSource = self::resolvedLinkTargetSourceFromHeader($metadataHeaders, $pendingGnuLongLink);
                 self::assertSafePath($linkTarget, 'TAR link target');
+                $recordMetadata = [
+                    'linkTarget' => $linkTarget,
+                    'linkTargetSource' => $linkTargetSource,
+                ];
             }
 
             $entryCount++;
@@ -480,7 +489,8 @@ final class TarArchive
                 $name,
                 self::checksumPolicyTypeName($typeFlag),
                 $typeFlag,
-                $nameSource
+                $nameSource,
+                $recordMetadata
             );
             $pendingPaxHeaders = [];
             $pendingGnuLongName = null;
@@ -3043,6 +3053,9 @@ final class TarArchive
      *     role:string,
      *     typeFlag:string,
      *     nameSource:string,
+     *     linkTarget:?string,
+     *     linkTargetSource:?string,
+     *     linkTargetSize:?int,
      *     headerOffset:int,
      *     dataOffset:int,
      *     recordEndOffset:int,
@@ -3084,12 +3097,17 @@ final class TarArchive
         $metadataKind = is_string($metadata['metadataKind'] ?? null) ? $metadata['metadataKind'] : null;
         $metadataValue = is_string($metadata['metadataValue'] ?? null) ? $metadata['metadataValue'] : null;
         $paxHeaderKeys = is_array($metadata['paxHeaderKeys'] ?? null) ? array_values($metadata['paxHeaderKeys']) : [];
+        $linkTarget = is_string($metadata['linkTarget'] ?? null) ? $metadata['linkTarget'] : null;
+        $linkTargetSource = is_string($metadata['linkTargetSource'] ?? null) ? $metadata['linkTargetSource'] : null;
 
         return [
             'name' => $name,
             'role' => $role,
             'typeFlag' => $typeFlag,
             'nameSource' => $nameSource,
+            'linkTarget' => $linkTarget,
+            'linkTargetSource' => $linkTargetSource,
+            'linkTargetSize' => $linkTarget === null ? null : strlen($linkTarget),
             'headerOffset' => $headerOffset,
             'dataOffset' => $dataOffset,
             'recordEndOffset' => $recordEndOffset,
