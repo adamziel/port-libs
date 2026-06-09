@@ -86,6 +86,9 @@ final class SyntaxHighlighter
         'cmd-exe' => 'batch',
         'comma-separated-values' => 'csv',
         'console' => 'bash',
+        'coq' => 'coq',
+        'coq-script' => 'coq',
+        'coqdoc' => 'coq',
         'containerfile' => 'dockerfile',
         'css' => 'css',
         'csv' => 'csv',
@@ -226,6 +229,7 @@ final class SyntaxHighlighter
         'graphql-query' => 'graphql',
         'graphql-schema' => 'graphql',
         'graphqls' => 'graphql',
+        'gallina' => 'coq',
         'markdown' => 'markdown',
         'gnu-octave' => 'matlab',
         'mariadb' => 'sql',
@@ -324,6 +328,8 @@ final class SyntaxHighlighter
         'ractive' => 'mustache',
         'reason' => 'ocaml',
         'reasonml' => 'ocaml',
+        'rocq' => 'coq',
+        'rocq-prover' => 'coq',
         'rdf' => 'xml',
         'rss' => 'xml',
         'r-script' => 'r',
@@ -841,6 +847,7 @@ final class SyntaxHighlighter
             'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
             'commonlisp' => $this->tokenizeCommonLisp($code),
+            'coq' => $this->tokenizeCoq($code),
             'crystal' => $this->tokenizeCrystal($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
@@ -3533,6 +3540,29 @@ final class SyntaxHighlighter
             ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d[\\d_]*)?)\\b/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
             ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|\\+\\+|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeCoq(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\(\\*[\\s\\S]*?\\*\\)/'],
+            ['attribute', '/^#\\[[^\\]\\n]*(?:\\][ \\t]*#\\[[^\\]\\n]*)*\\]/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['keyword', '/^\\b(?:Abort|About|Admitted|Arguments|Axiom|Check|Class|Close|CoFixpoint|CoInductive|Compute|Context|Corollary|Create|Defined|Definition|Delimit|Derive|End|Eval|Example|Export|Fact|Fixpoint|From|Global|Hint|Hypotheses|Hypothesis|Import|Implicit|Inductive|Instance|Lemma|Let|Load|Local|Locate|Ltac|Module|Notation|Opaque|Open|Parameter|Parameters|Print|Program|Proof|Proposition|Qed|Record|Remark|Require|Resolve|Rewrite|Scope|Search|Section|Set|Theorem|Transparent|Unset|Variable|Variables)\\b/'],
+            ['keyword', '/^\\b(?:as|at|by|cofix|else|end|exists|fix|forall|fun|if|in|let|match|rec|return|struct|then|using|where|with)\\b/'],
+            ['function', '/^\\b(?:apply|assumption|auto|cbn|destruct|discriminate|eapply|exact|exists|induction|intro|intros|lia|now|refine|reflexivity|rewrite|simpl|split|subst|unfold)\\b/'],
+            ['constant', '/^\\b(?:False|I|None|O|S|Some|True|conj|eq_refl|false|left|nil|or_introl|or_intror|right|tt|true)\\b/'],
+            ['datatype', '/^\\b(?:Empty_set|Prop|Set|Type|bool|list|nat|option|prod|sig|string|unit)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?:\\.[A-Z][A-Za-z0-9_\']*)*\\b/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*(?:\\(|:=))/'],
+            ['attribute', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*:)/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?)\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:<->|->|=>|:=|::|\\/\\\\|\\\\\\/|<=|>=|<>|==|[{}()[\\];,.+*\\/%=$<>:|&?!_\\-])/'],
         ]);
     }
 

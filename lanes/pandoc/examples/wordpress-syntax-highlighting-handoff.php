@@ -574,6 +574,12 @@ if (!$idrisCodeBlock instanceof PortLibs\Pandoc\AstNode || $idrisCodeBlock->type
 }
 $idris = $highlighter->highlightCodeBlock($idrisCodeBlock, 'zenburn');
 $idrisWordpressBlock = $highlighter->wordpressHtmlBlock($idrisCodeBlock, 'zenburn');
+$coqCodeBlock = $document->children[92] ?? null;
+if (!$coqCodeBlock instanceof PortLibs\Pandoc\AstNode || $coqCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Coq proof review code block');
+}
+$coq = $highlighter->highlightCodeBlock($coqCodeBlock, 'tango');
+$coqWordpressBlock = $highlighter->wordpressHtmlBlock($coqCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2546,6 +2552,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($idrisWordpressBlock, '<span class="cn">Right</span> <span class="va">packet</span>')) {
         throw new RuntimeException('Expected Idris constructor token handoff');
     }
+    if (($coq['language'] ?? '') !== 'coq') {
+        throw new RuntimeException('Expected Coq language alias handoff');
+    }
+    if (($coq['requestedLanguage'] ?? '') !== 'coq') {
+        throw new RuntimeException('Expected Coq requested-language metadata');
+    }
+    if (($coq['lineNumbering']['start'] ?? null) !== 1510) {
+        throw new RuntimeException('Expected Coq line-number start handoff');
+    }
+    if (!str_contains($coq['html'], '<span class="kw">From</span> <span class="dt">Coq</span> <span class="kw">Require</span> <span class="kw">Import</span>')) {
+        throw new RuntimeException('Expected Coq import vernacular token handoff');
+    }
+    if (!str_contains($coq['html'], '<span class="kw">Theorem</span> <span class="ot">normalize_title_idempotent</span>')) {
+        throw new RuntimeException('Expected Coq theorem token handoff');
+    }
+    if (!str_contains($coqWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected Coq WordPress style metadata');
+    }
+    if (!str_contains($coqWordpressBlock, '<span class="kw">Qed</span><span class="op">.</span>')) {
+        throw new RuntimeException('Expected Coq proof terminator token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2656,6 +2683,7 @@ echo "shellSessionHighlightedHtml:\n" . $shellSession['html'] . "\n";
 echo "nimHighlightedHtml:\n" . $nim['html'] . "\n";
 echo "vHighlightedHtml:\n" . $v['html'] . "\n";
 echo "idrisHighlightedHtml:\n" . $idris['html'] . "\n";
+echo "coqHighlightedHtml:\n" . $coq['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2737,4 +2765,5 @@ echo "shellSessionWordpressBlock:\n" . $shellSessionWordpressBlock . "\n";
 echo "nimWordpressBlock:\n" . $nimWordpressBlock . "\n";
 echo "vWordpressBlock:\n" . $vWordpressBlock . "\n";
 echo "idrisWordpressBlock:\n" . $idrisWordpressBlock . "\n";
+echo "coqWordpressBlock:\n" . $coqWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -1793,3 +1793,28 @@ queueReview raw =
   let packet = MkReviewPacket 42 (Just raw) ["core/paragraph"] in
       Right packet
 ```
+
+``` {.coq #coq-review .numberLines startFrom=1510}
+(* Coq WordPress import proof review *)
+From Coq Require Import Strings.String Lists.List.
+Import ListNotations.
+
+Record review_packet := {
+  source_id : nat;
+  title : string;
+  blocks : list string
+}.
+
+Definition normalize_title (packet : review_packet) : string :=
+  match String.length (title packet) with
+  | O => "Untitled"
+  | S _ => title packet
+  end.
+
+Theorem normalize_title_idempotent :
+  forall packet, normalize_title packet = normalize_title packet.
+Proof.
+  intros packet.
+  reflexivity.
+Qed.
+```

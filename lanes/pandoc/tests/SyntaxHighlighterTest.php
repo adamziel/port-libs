@@ -150,6 +150,11 @@ return [
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljs'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('edn'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('language-clj'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('coq'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('coq-script'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('gallina'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('rocq'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('language-rocq-prover'));
         $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('common-lisp'));
         $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('commonlisp'));
         $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('lisp'));
@@ -4578,6 +4583,53 @@ return [
         $t->same('idris2', $directIdris['requestedLanguage']);
         $t->contains('<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directIdris['html']);
         $t->contains('<span class="cn">Right</span> <span class="va">packet</span>', $directIdris['html']);
+    },
+    'highlights coq proof review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[92] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Coq proof review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directCoq = $highlighter->highlight(
+            "Theorem review_title : forall title : string, title = title.\nProof. intros title; reflexivity. Qed.\n",
+            'rocq'
+        );
+
+        $t->same('coq', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('coq'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('gallina'));
+        $t->same('coq', SyntaxHighlighter::normalizeLanguage('rocq-prover'));
+        $t->same('coq', $highlighted['language']);
+        $t->same('coq', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1510, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource coq numberLines"><code class="sourceCode coq" style="counter-reset: source-line 1509;">', $highlighted['html']);
+        $t->contains('<span id="coq-review-1510"><a href="#coq-review-1510"></a><span class="co">(* Coq WordPress import proof review *)</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">From</span> <span class="dt">Coq</span> <span class="kw">Require</span> <span class="kw">Import</span> <span class="dt">Strings.String</span> <span class="dt">Lists.List</span><span class="op">.</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Record</span> <span class="fu">review_packet</span> <span class="op">:=</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="ot">source_id</span> <span class="op">:</span> <span class="dt">nat</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Definition</span> <span class="fu">normalize_title</span> <span class="op">(</span><span class="ot">packet</span> <span class="op">:</span> <span class="va">review_packet</span><span class="op">)</span> <span class="op">:</span> <span class="dt">string</span> <span class="op">:=</span>', $highlighted['html']);
+        $t->contains('<span class="kw">match</span> <span class="dt">String</span><span class="op">.</span><span class="fu">length</span> <span class="op">(</span><span class="va">title</span> <span class="va">packet</span><span class="op">)</span> <span class="kw">with</span>', $highlighted['html']);
+        $t->contains('<span class="op">|</span> <span class="cn">O</span> <span class="op">=&gt;</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Theorem</span> <span class="ot">normalize_title_idempotent</span> <span class="op">:</span>', $highlighted['html']);
+        $t->contains('<span class="fu">intros</span> <span class="va">packet</span><span class="op">.</span>', $highlighted['html']);
+        $t->contains('<span class="fu">reflexivity</span><span class="op">.</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="kw">Qed</span><span class="op">.</span>', $wordpressBlock);
+        $t->same('coq', $directCoq['language']);
+        $t->same('rocq', $directCoq['requestedLanguage']);
+        $t->contains('<span class="kw">Theorem</span> <span class="ot">review_title</span> <span class="op">:</span> <span class="kw">forall</span> <span class="ot">title</span> <span class="op">:</span> <span class="dt">string</span>', $directCoq['html']);
+        $t->contains('<span class="kw">Proof</span><span class="op">.</span> <span class="fu">intros</span> <span class="va">title</span><span class="op">;</span> <span class="fu">reflexivity</span><span class="op">.</span> <span class="kw">Qed</span><span class="op">.</span>', $directCoq['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
