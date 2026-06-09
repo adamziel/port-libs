@@ -7808,7 +7808,21 @@ final class CitationCslProcessor
             return '';
         }
 
+        $form = strtolower(trim((string) ($element['form'] ?? '')));
+        $datePartsSelection = strtolower(trim((string) ($element['datePartsSelection'] ?? '')));
         $dateParts = $element['dateParts'] ?? [];
+        if ($form === 'text' || $form === 'numeric') {
+            return $this->renderDateForm(
+                $date,
+                $form,
+                $scope,
+                $variable,
+                $datePartsSelection,
+                is_array($dateParts) ? $dateParts : [],
+                $item
+            );
+        }
+
         if (is_array($dateParts) && $dateParts !== []) {
             return $this->renderSelectedDateParts(
                 $date,
@@ -7818,12 +7832,6 @@ final class CitationCslProcessor
                 (string) ($element['delimiter'] ?? ''),
                 $item
             );
-        }
-
-        $form = strtolower(trim((string) ($element['form'] ?? '')));
-        $datePartsSelection = strtolower(trim((string) ($element['datePartsSelection'] ?? '')));
-        if ($form === 'text' || $form === 'numeric') {
-            return $this->renderDateForm($date, $form, $scope, $variable, $datePartsSelection);
         }
 
         if ($datePartsSelection !== '') {
@@ -9737,7 +9745,7 @@ final class CitationCslProcessor
     /**
      * @param array{year:?int, parts:list<int>, display:string, literal:string, openEnded?:string, rangeParts?:list<list<int>>} $date
      */
-    private function renderDateForm(array $date, string $form, string $scope, string $variable, string $datePartsSelection = ''): string
+    private function renderDateForm(array $date, string $form, string $scope, string $variable, string $datePartsSelection = '', array $datePartOverrides = [], array $item = []): string
     {
         $rangeParts = is_array($date['rangeParts'] ?? null) ? $date['rangeParts'] : [];
         $singleParts = is_array($date['parts'] ?? null) ? $date['parts'] : [];
@@ -9747,16 +9755,19 @@ final class CitationCslProcessor
 
         $parts = $rangeParts !== [] ? $rangeParts : [$singleParts];
         $season = is_int($date['season'] ?? null) && $datePartsSelection !== 'year' ? (int) $date['season'] : null;
+        $overrideSpecs = $this->localizedDatePartOverrideSpecs($datePartOverrides);
         $values = [];
+        $selectedParts = [];
         foreach ($parts as $dateParts) {
             if (!is_array($dateParts)) {
                 continue;
             }
 
             $dateParts = $this->dateFormPartsForSelection($dateParts, $datePartsSelection);
+            $selectedParts[] = $dateParts;
             $value = $form === 'numeric'
-                ? $this->renderNumericDateFormParts($dateParts, $season)
-                : $this->renderTextDateFormParts($dateParts, $season);
+                ? $this->renderNumericDateFormParts($dateParts, $season, $overrideSpecs, $item)
+                : $this->renderTextDateFormParts($dateParts, $season, $overrideSpecs, $item);
             if ($value !== '') {
                 $values[] = $value;
             }
@@ -9766,7 +9777,11 @@ final class CitationCslProcessor
             return '';
         }
 
-        return $this->applyOpenEndedDateBoundary(implode('/', array_values(array_unique($values))), $date);
+        $rangeDelimiter = $overrideSpecs !== []
+            ? $this->dateRangeDelimiter($selectedParts, array_values($overrideSpecs))
+            : '/';
+
+        return $this->applyOpenEndedDateBoundary(implode($rangeDelimiter, array_values(array_unique($values))), $date);
     }
 
     /**
@@ -9802,7 +9817,7 @@ final class CitationCslProcessor
     /**
      * @param list<int> $parts
      */
-    private function renderTextDateFormParts(array $parts, ?int $season = null): string
+    private function renderTextDateFormParts(array $parts, ?int $season = null, array $overrideSpecs = [], array $item = []): string
     {
         $year = $parts[0] ?? null;
         if ($year === null) {
@@ -9811,7 +9826,7 @@ final class CitationCslProcessor
 
         $month = $parts[1] ?? null;
         $day = $parts[2] ?? null;
-        $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        $yearText = $this->renderLocalizedDatePartFromParts($parts, 'year', 'long', $overrideSpecs, $item);
         if ($season !== null && $month === null) {
             $seasonText = $this->localizedSeasonName($season);
 
@@ -9822,7 +9837,7 @@ final class CitationCslProcessor
             return $yearText;
         }
 
-        $monthText = $this->formatCslDateMonthPart((int) $month, 'long');
+        $monthText = $this->renderLocalizedDatePartFromParts($parts, 'month', 'long', $overrideSpecs, $item);
         if ($monthText === '') {
             return $yearText;
         }
@@ -9831,13 +9846,13 @@ final class CitationCslProcessor
             return $monthText . ' ' . $yearText;
         }
 
-        return $monthText . ' ' . $this->formatCslDateDayPart((int) $day, 'numeric') . ', ' . $yearText;
+        return $monthText . ' ' . $this->renderLocalizedDatePartFromParts($parts, 'day', 'numeric', $overrideSpecs, $item) . ', ' . $yearText;
     }
 
     /**
      * @param list<int> $parts
      */
-    private function renderNumericDateFormParts(array $parts, ?int $season = null): string
+    private function renderNumericDateFormParts(array $parts, ?int $season = null, array $overrideSpecs = [], array $item = []): string
     {
         $year = $parts[0] ?? null;
         if ($year === null) {
@@ -9846,7 +9861,7 @@ final class CitationCslProcessor
 
         $month = $parts[1] ?? null;
         $day = $parts[2] ?? null;
-        $yearText = $this->formatCslDateYearPart((int) $year, 'long');
+        $yearText = $this->renderLocalizedDatePartFromParts($parts, 'year', 'long', $overrideSpecs, $item);
         if ($season !== null && $month === null) {
             $seasonText = $this->localizedSeasonName($season);
 
@@ -9857,12 +9872,62 @@ final class CitationCslProcessor
             return $yearText;
         }
 
-        $monthText = $this->formatCslDateMonthPart((int) $month, 'numeric');
+        $monthText = $this->renderLocalizedDatePartFromParts($parts, 'month', 'numeric', $overrideSpecs, $item);
         if ($day === null) {
             return $monthText . '/' . $yearText;
         }
 
-        return $monthText . '/' . $this->formatCslDateDayPart((int) $day, 'numeric') . '/' . $yearText;
+        return $monthText . '/' . $this->renderLocalizedDatePartFromParts($parts, 'day', 'numeric', $overrideSpecs, $item) . '/' . $yearText;
+    }
+
+    /**
+     * @param list<array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}|string> $datePartOverrides
+     * @return array<string, array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}>
+     */
+    private function localizedDatePartOverrideSpecs(array $datePartOverrides): array
+    {
+        $specs = [];
+        foreach ($this->normalizedDatePartRenderingSpecs($datePartOverrides) as $spec) {
+            $spec['prefix'] = '';
+            $spec['suffix'] = '';
+            $specs[$spec['name']] = $spec;
+        }
+
+        return $specs;
+    }
+
+    /**
+     * @param list<int> $parts
+     * @param array<string, array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}> $overrideSpecs
+     * @param array<string, mixed> $item
+     */
+    private function renderLocalizedDatePartFromParts(array $parts, string $name, string $defaultForm, array $overrideSpecs, array $item): string
+    {
+        return $this->renderDatePartValue(
+            $parts,
+            $this->localizedDatePartSpec($name, $defaultForm, $overrideSpecs),
+            $item
+        );
+    }
+
+    /**
+     * @param array<string, array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}> $overrideSpecs
+     * @return array{name:string, prefix:string, suffix:string, form:string, rangeDelimiter:string, stripPeriods:bool, textCase:string}
+     */
+    private function localizedDatePartSpec(string $name, string $defaultForm, array $overrideSpecs): array
+    {
+        $override = $overrideSpecs[$name] ?? [];
+        $form = strtolower(trim((string) ($override['form'] ?? '')));
+
+        return [
+            'name' => $name,
+            'prefix' => '',
+            'suffix' => '',
+            'form' => $form !== '' ? $form : $defaultForm,
+            'rangeDelimiter' => (string) ($override['rangeDelimiter'] ?? ''),
+            'stripPeriods' => ($override['stripPeriods'] ?? false) === true,
+            'textCase' => strtolower(trim((string) ($override['textCase'] ?? ''))),
+        ];
     }
 
     private function localizedSeasonName(int $season): string

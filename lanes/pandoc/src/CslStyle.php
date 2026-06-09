@@ -1513,8 +1513,8 @@ final class CslStyle
             throw new \InvalidArgumentException('CSL ' . $scope . ' date element must declare a variable');
         }
 
-        $form = strtolower(trim($date->getAttribute('form')));
-        if ($form !== '' && !in_array($form, ['text', 'numeric'], true)) {
+        $dateForm = strtolower(trim($date->getAttribute('form')));
+        if ($dateForm !== '' && !in_array($dateForm, ['text', 'numeric'], true)) {
             throw new \InvalidArgumentException('CSL ' . $scope . ' date form must be text or numeric');
         }
 
@@ -1530,16 +1530,16 @@ final class CslStyle
                 throw new \InvalidArgumentException('CSL ' . $scope . ' date-part name must be year, month, or day');
             }
 
-            $form = strtolower(trim($datePart->getAttribute('form')));
-            if ($form !== '' && !self::datePartFormIsSupported($name, $form)) {
-                throw new \InvalidArgumentException('CSL ' . $scope . ' date-part ' . $name . ' form is not supported: ' . $form);
+            $partForm = strtolower(trim($datePart->getAttribute('form')));
+            if ($partForm !== '' && !self::datePartFormIsSupported($name, $partForm)) {
+                throw new \InvalidArgumentException('CSL ' . $scope . ' date-part ' . $name . ' form is not supported: ' . $partForm);
             }
 
             $dateParts[] = [
                 'name' => $name,
                 'prefix' => self::optionalAttribute($datePart, 'prefix'),
                 'suffix' => self::optionalAttribute($datePart, 'suffix'),
-                'form' => $form,
+                'form' => $partForm,
                 'rangeDelimiter' => self::optionalAttribute($datePart, 'range-delimiter'),
                 'stripPeriods' => self::booleanRenderingAttribute($datePart, 'strip-periods', false, $scope),
                 'textCase' => self::textCaseAttribute($datePart, $scope),
@@ -1551,7 +1551,7 @@ final class CslStyle
             'prefix' => self::optionalAttribute($date, 'prefix'),
             'suffix' => self::optionalAttribute($date, 'suffix'),
             'variable' => $variable,
-            'form' => $form,
+            'form' => $dateForm,
             'datePartsSelection' => $datePartsSelection,
             'delimiter' => self::optionalAttribute($date, 'delimiter'),
             'dateParts' => $dateParts,
