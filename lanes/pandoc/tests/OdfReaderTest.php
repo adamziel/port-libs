@@ -495,6 +495,82 @@ XML;
         $t->same('DuplicateTemplate', $diagnosticsByCode['odf-table-template-duplicate-name'][0]['tableTemplateName']);
         $t->same('DuplicateMaster', $diagnosticsByCode['odf-master-page-duplicate-name'][0]['masterPageName']);
     },
+    'reports ODT content style-use diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithMissingStyleUses = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:automatic-styles>
+    <style:style style:name="ExistingParagraph" style:family="paragraph"/>
+    <text:list-style style:name="ExistingList">
+      <text:list-level-style-bullet text:level="1" text:bullet-char="*"/>
+    </text:list-style>
+    <table:table-template table:name="ExistingTemplate"/>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:p text:style-name="MissingParagraph">Broken paragraph <text:span text:style-name="MissingText">span</text:span> and <text:a xlink:href="https://example.test/source" text:style-name="MissingLink" text:visited-style-name="MissingVisited">link</text:a>.</text:p>
+      <text:list text:style-name="MissingList">
+        <text:list-item><text:p>Missing list style item.</text:p></text:list-item>
+      </text:list>
+      <text:section text:style-name="MissingSection">
+        <text:p>Section remains visible.</text:p>
+      </text:section>
+      <draw:frame draw:style-name="MissingFrame">
+        <draw:text-box><text:p>Frame text.</text:p></draw:text-box>
+      </draw:frame>
+      <table:table table:style-name="MissingTable" table:template-name="MissingTemplate">
+        <table:table-column table:style-name="MissingColumn" table:default-cell-style-name="MissingColumnDefault"/>
+        <table:table-row table:style-name="MissingRow" table:default-cell-style-name="MissingRowDefault">
+          <table:table-cell table:style-name="MissingCell"><text:p>Cell text.</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+      <text:p text:style-name="ExistingParagraph">Known styles stay quiet.</text:p>
+      <text:list text:style-name="ExistingList">
+        <text:list-item><text:p>Known list style stays quiet.</text:p></text:list-item>
+      </text:list>
+      <table:table table:template-name="ExistingTemplate">
+        <table:table-row><table:table-cell><text:p>Known template stays quiet.</text:p></table:table-cell></table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithMissingStyleUses));
+        $styleReport = $result['importReport']['styles'];
+        $diagnostics = $styleReport['diagnostics'];
+        $diagnosticsByReference = [];
+        foreach ($diagnostics as $diagnostic) {
+            foreach (['styleName', 'visitedStyleName', 'listStyleName', 'tableTemplateName', 'defaultCellStyleName'] as $referenceKey) {
+                if (isset($diagnostic[$referenceKey])) {
+                    $diagnosticsByReference[$diagnostic[$referenceKey]] = $diagnostic;
+                }
+            }
+        }
+
+        $t->same(14, $styleReport['diagnosticCount']);
+        $t->same([
+            'odf-content-missing-list-style' => 1,
+            'odf-content-missing-style' => 12,
+            'odf-content-missing-table-template' => 1,
+        ], $styleReport['diagnosticCodeCounts']);
+        $t->same('content.xml', $diagnosticsByReference['MissingParagraph']['sourcePart']);
+        $t->same('text:p', $diagnosticsByReference['MissingParagraph']['element']);
+        $t->same('text:style-name', $diagnosticsByReference['MissingParagraph']['attribute']);
+        $t->same('text:a', $diagnosticsByReference['MissingLink']['element']);
+        $t->same('text:style-name', $diagnosticsByReference['MissingLink']['attribute']);
+        $t->same('text:a', $diagnosticsByReference['MissingVisited']['element']);
+        $t->same('text:visited-style-name', $diagnosticsByReference['MissingVisited']['attribute']);
+        $t->same('text:list', $diagnosticsByReference['MissingList']['element']);
+        $t->same('table:default-cell-style-name', $diagnosticsByReference['MissingRowDefault']['attribute']);
+        $t->same('table:table', $diagnosticsByReference['MissingTemplate']['element']);
+        $t->same('table:template-name', $diagnosticsByReference['MissingTemplate']['attribute']);
+    },
     'preserves ODT manifest version and preferred view mode provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPreferredViewModes = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',

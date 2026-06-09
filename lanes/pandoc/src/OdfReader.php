@@ -102,7 +102,10 @@ final class OdfReader
         $content = $this->readContent($package, $styleCatalog, $metadata, $settings);
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
-        $styleDiagnostics = $this->styleDiagnostics($styleCatalog);
+        $styleDiagnostics = array_merge(
+            $this->styleDiagnostics($styleCatalog),
+            $content['styleReferenceDiagnostics']
+        );
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
 
@@ -509,7 +512,7 @@ final class OdfReader
     /**
      * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $styleCatalog
      * @param array<string, mixed> $settings
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>, styleReferenceDiagnostics:list<array<string, mixed>>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog, array $metadata, array $settings): array
     {
@@ -549,6 +552,7 @@ final class OdfReader
             'automaticStyleCount' => count($contentStyles['styles']) + count($contentStyles['listStyles']) + count($contentStyles['dataStyles']) + count($contentStyles['tableTemplates']) + count($contentStyles['pageLayouts']) + count($contentStyles['masterPages']),
             'trackedChanges' => array_values($this->trackedChanges),
             'contentDeclarations' => $this->contentDeclarations,
+            'styleReferenceDiagnostics' => $this->contentStyleReferenceDiagnostics($text, $styleCatalog),
         ];
     }
 
@@ -9854,6 +9858,170 @@ final class OdfReader
             'expectedFamily' => $expectedFamily,
             'actualFamily' => $actualFamily,
         ];
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $catalog
+     * @return list<array<string, mixed>>
+     */
+    private function contentStyleReferenceDiagnostics(\DOMElement $text, array $catalog): array
+    {
+        $diagnostics = [];
+        $seen = [];
+        $this->appendContentStyleReferenceDiagnostics($diagnostics, $seen, $text, $catalog);
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, true> $seen
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>, diagnostics:list<array<string, mixed>>} $catalog
+     */
+    private function appendContentStyleReferenceDiagnostics(array &$diagnostics, array &$seen, \DOMElement $element, array $catalog): void
+    {
+        if ($this->isElement($element, self::TEXT_NS, 'list')) {
+            $this->appendMissingContentReferenceDiagnostic(
+                $diagnostics,
+                $seen,
+                'odf-content-missing-list-style',
+                $element,
+                'text:style-name',
+                'listStyleName',
+                self::attr($element, self::TEXT_NS, 'style-name'),
+                $catalog['listStyles']
+            );
+        } else {
+            foreach ([
+                'style-name' => 'styleName',
+                'visited-style-name' => 'visitedStyleName',
+                'citation-style-name' => 'citationStyleName',
+                'citation-body-style-name' => 'citationBodyStyleName',
+                'default-style-name' => 'defaultStyleName',
+            ] as $attributeName => $referenceKey) {
+                $this->appendMissingContentReferenceDiagnostic(
+                    $diagnostics,
+                    $seen,
+                    'odf-content-missing-style',
+                    $element,
+                    'text:' . $attributeName,
+                    $referenceKey,
+                    self::attr($element, self::TEXT_NS, $attributeName),
+                    $catalog['styles']
+                );
+            }
+        }
+
+        foreach (['style-name' => 'styleName', 'default-cell-style-name' => 'defaultCellStyleName'] as $attributeName => $referenceKey) {
+            $this->appendMissingContentReferenceDiagnostic(
+                $diagnostics,
+                $seen,
+                'odf-content-missing-style',
+                $element,
+                'table:' . $attributeName,
+                $referenceKey,
+                self::attr($element, self::TABLE_NS, $attributeName),
+                $catalog['styles']
+            );
+        }
+
+        $this->appendMissingContentReferenceDiagnostic(
+            $diagnostics,
+            $seen,
+            'odf-content-missing-table-template',
+            $element,
+            'table:template-name',
+            'tableTemplateName',
+            self::attr($element, self::TABLE_NS, 'template-name'),
+            $catalog['tableTemplates']
+        );
+        $this->appendMissingContentReferenceDiagnostic(
+            $diagnostics,
+            $seen,
+            'odf-content-missing-style',
+            $element,
+            'draw:style-name',
+            'styleName',
+            self::attr($element, self::DRAW_NS, 'style-name'),
+            $catalog['styles']
+        );
+        $this->appendMissingContentReferenceDiagnostic(
+            $diagnostics,
+            $seen,
+            'odf-content-missing-style',
+            $element,
+            'chart:style-name',
+            'styleName',
+            self::attr($element, self::CHART_NS, 'style-name'),
+            $catalog['styles']
+        );
+        $this->appendMissingContentReferenceDiagnostic(
+            $diagnostics,
+            $seen,
+            'odf-content-missing-data-style',
+            $element,
+            'style:data-style-name',
+            'dataStyleName',
+            self::attr($element, self::STYLE_NS, 'data-style-name'),
+            $catalog['dataStyles']
+        );
+
+        foreach (self::childElements($element) as $child) {
+            $this->appendContentStyleReferenceDiagnostics($diagnostics, $seen, $child, $catalog);
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, true> $seen
+     * @param array<string, mixed> $targets
+     */
+    private function appendMissingContentReferenceDiagnostic(
+        array &$diagnostics,
+        array &$seen,
+        string $code,
+        \DOMElement $element,
+        string $attribute,
+        string $referenceKey,
+        string $referenceName,
+        array $targets
+    ): void {
+        if ($referenceName === '' || isset($targets[$referenceName])) {
+            return;
+        }
+
+        $elementName = $this->odfElementName($element);
+        $seenKey = $code . "\0" . $elementName . "\0" . $attribute . "\0" . $referenceName;
+        if (isset($seen[$seenKey])) {
+            return;
+        }
+
+        $seen[$seenKey] = true;
+        $diagnostics[] = [
+            'code' => $code,
+            'sourcePart' => 'content.xml',
+            'element' => $elementName,
+            'attribute' => $attribute,
+            $referenceKey => $referenceName,
+        ];
+    }
+
+    private function odfElementName(\DOMElement $element): string
+    {
+        $prefix = match ($element->namespaceURI) {
+            self::OFFICE_NS => 'office',
+            self::TEXT_NS => 'text',
+            self::STYLE_NS => 'style',
+            self::TABLE_NS => 'table',
+            self::DRAW_NS => 'draw',
+            self::FORM_NS => 'form',
+            self::SVG_NS => 'svg',
+            self::SCRIPT_NS => 'script',
+            self::CHART_NS => 'chart',
+            default => '',
+        };
+
+        return $prefix === '' ? $element->localName : $prefix . ':' . $element->localName;
     }
 
     /**
