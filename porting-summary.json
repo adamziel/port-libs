@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 08:58:28 UTC",
-    "sourceCommit": "7d9b889a63de97e40af9c46c50a86e88a0f0b215",
-    "sourceCommitShort": "7d9b889a63de",
+    "generated": "2026-06-09 09:02:54 UTC",
+    "sourceCommit": "ef7854f4c93dd53672be8ab54ee23c7787c14ca6",
+    "sourceCommitShort": "ef7854f4c93d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7d9b889a63de97e40af9c46c50a86e88a0f0b215",
-    "dashboardCommitShort": "7d9b889a63de",
+    "dashboardCommit": "ef7854f4c93dd53672be8ab54ee23c7787c14ca6",
+    "dashboardCommitShort": "ef7854f4c93d",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,11 +137,11 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,551 pass / 0 fail",
-            "phase": "native PHP Pandoc upstream-runner dependency audit; Cabal dry-run com...",
-            "audit": "2026-06-09 UTC isolated pandoc-upstream-runner-deps current-base slic...",
-            "currentWork": "Pandoc upstream-runner dependency audit now blocks Cabal plan activation if runner-te...",
-            "nextTarget": "For upstream-runner deps follow-up, keep the next slice stati...",
+            "php": "2,553 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; embed and param object...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-embed-param-object current-base s...",
+            "currentWork": "Pandoc HTML reader object-tag review now preserves embed and param tags in standalone...",
+            "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
         },
