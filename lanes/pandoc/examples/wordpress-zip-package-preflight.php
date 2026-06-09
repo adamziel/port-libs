@@ -2172,6 +2172,83 @@ $buildDuplicateExtraFieldBackedPackage = static function () use ($crc32): string
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildRawExtraFieldPolicyBackedPackage = static function () use ($crc32): string {
+    $duplicateExtra = pack('vva*', 0xcafe, strlen('first-review'), 'first-review')
+        . pack('vva*', 0xcafe, strlen('second-review'), 'second-review');
+    $entries = [
+        [
+            'name' => 'word/media/raw-duplicate-extra-review.bin',
+            'data' => "Raw duplicate ZIP extra field metadata should stay visible before instantiation\n",
+            'centralExtra' => $duplicateExtra,
+            'localExtra' => $duplicateExtra,
+        ],
+        [
+            'name' => 'word/media/raw-split-extra-review.bin',
+            'data' => "Raw central/local ZIP extra-field ids should stay visible before instantiation\n",
+            'centralExtra' => pack('vva*', 0xbeef, strlen('central-only'), 'central-only'),
+            'localExtra' => pack('vva*', 0xfeed, strlen('local-only'), 'local-only'),
+        ],
+        [
+            'name' => 'word/media/raw-value-extra-review.bin',
+            'data' => "Raw central/local ZIP extra-field values should stay visible before instantiation\n",
+            'centralExtra' => pack('vva*', 0xf00d, strlen('central'), 'central'),
+            'localExtra' => pack('vva*', 0xf00d, strlen('local'), 'local'),
+        ],
+    ];
+    $body = '';
+    $central = '';
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'];
+        $crc = $crc32($data);
+        $localExtra = $entry['localExtra'];
+        $centralExtra = $entry['centralExtra'];
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0840,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            strlen($localExtra)
+        );
+        $body .= $name . $localExtra . $data;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0840,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($name),
+            strlen($centralExtra),
+            0,
+            0,
+            0,
+            0x81a40000,
+            $localHeaderOffset
+        );
+        $central .= $name . $centralExtra;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), 0);
+};
 $buildUnixOwnerBackedPackage = static function () use ($crc32, $buildUnixOwnerExtra): string {
     $name = 'word/media/unix-owner-review.txt';
     $data = "Unix UID/GID owner metadata should stay reviewable\n";
@@ -3367,6 +3444,9 @@ try {
 } catch (RuntimeException $exception) {
     $duplicateExtraFieldRejected = str_contains($exception->getMessage(), 'duplicate extra field ids');
 }
+$rawExtraFieldPolicyBytes = $buildRawExtraFieldPolicyBackedPackage();
+$rawExtraFieldPolicyPreflight = ZipPackage::extraFieldPolicyPreflight($rawExtraFieldPolicyBytes);
+$rawExtraFieldPolicyStrictPreflight = ZipPackage::rawStrictImportPreflight($rawExtraFieldPolicyBytes, 4096, 100.0, 4096);
 $extraFieldIdMismatchPackage = ZipPackage::fromString($buildExtraFieldIdMismatchBackedPackage());
 $extraFieldIdMismatchPreflight = $extraFieldIdMismatchPackage->extraFieldPreflight();
 $extraFieldIdMismatchRejected = false;
@@ -5365,6 +5445,25 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawExtraFieldPolicyPreflight['entryCount'] ?? null) !== 3
+        || ($rawExtraFieldPolicyPreflight['duplicateExtraFieldEntryCount'] ?? null) !== 1
+        || ($rawExtraFieldPolicyPreflight['duplicateEntries'][0]['duplicateCentralExtraFieldIds'][0] ?? null) !== 0xcafe
+        || ($rawExtraFieldPolicyPreflight['duplicateEntries'][0]['duplicateLocalExtraFieldIds'][0] ?? null) !== 0xcafe
+        || ($rawExtraFieldPolicyPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 1
+        || ($rawExtraFieldPolicyPreflight['mismatchedEntries'][0]['centralOnlyExtraFieldIds'][0] ?? null) !== 0xbeef
+        || ($rawExtraFieldPolicyPreflight['mismatchedEntries'][0]['localOnlyExtraFieldIds'][0] ?? null) !== 0xfeed
+        || ($rawExtraFieldPolicyPreflight['mismatchedExtraFieldValueEntryCount'] ?? null) !== 1
+        || ($rawExtraFieldPolicyPreflight['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds'][0] ?? null) !== 0xf00d
+        || ($rawExtraFieldPolicyStrictPreflight['extraFields'] ?? null) !== $rawExtraFieldPolicyPreflight
+        || !in_array('extra-field-policy-issues', $rawExtraFieldPolicyStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('duplicate-extra-field-ids', $rawExtraFieldPolicyStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('central-local-extra-field-id-mismatch', $rawExtraFieldPolicyStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('central-local-extra-field-value-mismatch', $rawExtraFieldPolicyStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw ZIP extra-field policy to be reported before media import instantiation');
+    }
+
+    if (
         !$extraFieldIdMismatchRejected
         || ($extraFieldIdMismatchPreflight['mismatchedExtraFieldEntryCount'] ?? null) !== 1
         || ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? null) !== 'word/media/split-extra-review.bin'
@@ -6922,6 +7021,8 @@ echo 'zipUnixOwnerExtraFieldUidGid='
     . "\n";
 echo 'zipDuplicateExtraFieldPolicy=' . ($duplicateExtraFieldRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipDuplicateExtraFieldEntry=' . ($duplicateExtraFieldPreflight['duplicateEntries'][0]['name'] ?? 'none') . "\n";
+echo 'zipRawExtraFieldPolicyIssues=' . implode(',', $rawExtraFieldPolicyPreflight['issues']) . "\n";
+echo 'zipRawExtraFieldStrictDiagnostics=' . implode(',', $rawExtraFieldPolicyStrictPreflight['diagnostics']) . "\n";
 echo 'zipExtraFieldIdMismatchPolicy=' . ($extraFieldIdMismatchRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipExtraFieldIdMismatchEntry=' . ($extraFieldIdMismatchPreflight['mismatchedEntries'][0]['name'] ?? 'none') . "\n";
 echo 'zipExtraFieldValueMismatchPolicy=' . ($extraFieldValueMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

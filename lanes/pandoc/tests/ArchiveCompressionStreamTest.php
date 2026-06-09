@@ -9686,6 +9686,198 @@ return [
         ));
     },
 
+    'preflights lz4 data frame count and decoded byte limits before package handoff' => static function (TestRunner $t): void {
+        $manifestBytes = '{"source":"lz4-frame-limits","target":"wordpress"}';
+        $contentBytes = "# LZ4 frame limits\n\nReady for bounded WordPress archive review.\n";
+        $archive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => $manifestBytes,
+            ],
+            [
+                'name' => 'packet/content.md',
+                'data' => $contentBytes,
+            ],
+        ]);
+        $tarBytes = $archive->bytes();
+        $firstLength = 512;
+        $secondLength = 1536;
+        $thirdOffset = $firstLength + $secondLength;
+        $thresholdBytes = 1024;
+        $metadata = 'wordpress-lz4-frame-limit';
+        $reviewMetadata = 'oversized-decoded-frame-review';
+        $stream = Lz4Frame::skippableFrame($metadata, 8)
+            . Lz4Frame::build(substr($tarBytes, 0, $firstLength), [
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ])
+            . Lz4Frame::skippableFrame($reviewMetadata, 9)
+            . Lz4Frame::build(substr($tarBytes, $firstLength, $secondLength), [
+                'blockChecksum' => true,
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ])
+            . Lz4Frame::build(substr($tarBytes, $thirdOffset), [
+                'contentChecksum' => true,
+                'contentSize' => true,
+            ]);
+
+        $reviewPolicy = ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            2,
+            $thresholdBytes,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+        $withinPolicy = ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            3,
+            $secondLength,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        );
+
+        $t->same('archive-lz4-data-frame-limit-policy', $reviewPolicy['type']);
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_TAR, $reviewPolicy['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_TAR, $reviewPolicy['format']);
+        $t->same(strlen($stream), $reviewPolicy['compressedSize']);
+        $t->same(strlen($tarBytes), $reviewPolicy['decodedPackageSize']);
+        $t->same('package', $reviewPolicy['packageStatus']);
+        $t->same(null, $reviewPolicy['packageError']);
+        $t->same(2, $reviewPolicy['entryCount']);
+        $t->same(['packet/manifest.json', 'packet/content.md'], $reviewPolicy['entryNames']);
+        $t->same(5, $reviewPolicy['frameCount']);
+        $t->same(3, $reviewPolicy['dataFrameCount']);
+        $t->same(2, $reviewPolicy['skippableFrameCount']);
+        $t->same(2, $reviewPolicy['maxDataFrameCount']);
+        $t->same(1, $reviewPolicy['countOverLimitDataFrameCount']);
+        $t->same(2, $reviewPolicy['firstCountOverLimitDataFrameIndex']);
+        $t->same($thresholdBytes, $reviewPolicy['maxFrameDecodedBytes']);
+        $t->same(1, $reviewPolicy['byteOverLimitFrameCount']);
+        $t->same(1, $reviewPolicy['firstByteOverLimitDataFrameIndex']);
+        $t->same($secondLength, $reviewPolicy['largestFrameDecodedSize']);
+        $t->same('review-before-conversion', $reviewPolicy['handoffPolicy']);
+        $t->same('lz4-data-frame-limit-review', $reviewPolicy['extractionPolicy']);
+        $t->same([
+            'lz4-data-frame-count-exceeds-threshold',
+            'lz4-data-frame-byte-limit-exceeds-threshold',
+        ], $reviewPolicy['diagnostics']);
+
+        $t->same('skippable', $reviewPolicy['frames'][0]['type']);
+        $t->same(0, $reviewPolicy['frames'][0]['frameIndex']);
+        $t->same(8, $reviewPolicy['frames'][0]['id']);
+        $t->same(strlen($metadata), $reviewPolicy['frames'][0]['payloadSize']);
+        $t->same(hash('sha256', $metadata), $reviewPolicy['frames'][0]['payloadSha256']);
+        $t->same($metadata, $reviewPolicy['frames'][0]['payloadPreview']);
+        $t->same('metadata-only-no-extraction', $reviewPolicy['frames'][0]['policy']);
+        $t->same(false, array_key_exists('data', $reviewPolicy['frames'][0]));
+
+        $t->same('frame', $reviewPolicy['frames'][1]['type']);
+        $t->same(1, $reviewPolicy['frames'][1]['frameIndex']);
+        $t->same(0, $reviewPolicy['frames'][1]['dataFrameIndex']);
+        $t->same($firstLength, $reviewPolicy['frames'][1]['contentSize']);
+        $t->same($firstLength, $reviewPolicy['frames'][1]['decodedSize']);
+        $t->same(0, $reviewPolicy['frames'][1]['decodedDataOffset']);
+        $t->same($firstLength, $reviewPolicy['frames'][1]['decodedDataEndOffset']);
+        $t->same(false, $reviewPolicy['frames'][1]['countOverLimit']);
+        $t->same(false, $reviewPolicy['frames'][1]['decodedBytesOverLimit']);
+        $t->same('metadata-only-no-extraction', $reviewPolicy['frames'][1]['policy']);
+        $t->same([], $reviewPolicy['frames'][1]['diagnostics']);
+        $t->same(false, array_key_exists('data', $reviewPolicy['frames'][1]));
+
+        $t->same('skippable', $reviewPolicy['frames'][2]['type']);
+        $t->same(2, $reviewPolicy['frames'][2]['frameIndex']);
+        $t->same(9, $reviewPolicy['frames'][2]['id']);
+        $t->same(strlen($reviewMetadata), $reviewPolicy['frames'][2]['payloadSize']);
+        $t->same($reviewMetadata, $reviewPolicy['frames'][2]['payloadPreview']);
+
+        $t->same('frame', $reviewPolicy['frames'][3]['type']);
+        $t->same(3, $reviewPolicy['frames'][3]['frameIndex']);
+        $t->same(1, $reviewPolicy['frames'][3]['dataFrameIndex']);
+        $t->same($secondLength, $reviewPolicy['frames'][3]['contentSize']);
+        $t->same($secondLength, $reviewPolicy['frames'][3]['decodedSize']);
+        $t->same($firstLength, $reviewPolicy['frames'][3]['decodedDataOffset']);
+        $t->same($thirdOffset, $reviewPolicy['frames'][3]['decodedDataEndOffset']);
+        $t->same(false, $reviewPolicy['frames'][3]['countOverLimit']);
+        $t->same(true, $reviewPolicy['frames'][3]['decodedBytesOverLimit']);
+        $t->same('review-before-conversion', $reviewPolicy['frames'][3]['policy']);
+        $t->same(['lz4-data-frame-byte-limit-over-limit'], $reviewPolicy['frames'][3]['diagnostics']);
+
+        $t->same('frame', $reviewPolicy['frames'][4]['type']);
+        $t->same(4, $reviewPolicy['frames'][4]['frameIndex']);
+        $t->same(2, $reviewPolicy['frames'][4]['dataFrameIndex']);
+        $t->same(strlen($tarBytes) - $thirdOffset, $reviewPolicy['frames'][4]['decodedSize']);
+        $t->same($thirdOffset, $reviewPolicy['frames'][4]['decodedDataOffset']);
+        $t->same(strlen($tarBytes), $reviewPolicy['frames'][4]['decodedDataEndOffset']);
+        $t->same(true, $reviewPolicy['frames'][4]['countOverLimit']);
+        $t->same(false, $reviewPolicy['frames'][4]['decodedBytesOverLimit']);
+        $t->same('review-before-conversion', $reviewPolicy['frames'][4]['policy']);
+        $t->same(['lz4-data-frame-count-over-limit'], $reviewPolicy['frames'][4]['diagnostics']);
+
+        $t->same('within-thresholds', $withinPolicy['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $withinPolicy['extractionPolicy']);
+        $t->same(0, $withinPolicy['countOverLimitDataFrameCount']);
+        $t->same(0, $withinPolicy['byteOverLimitFrameCount']);
+        $t->same([], $withinPolicy['diagnostics']);
+        $t->same(['metadata-only-no-extraction', 'metadata-only-no-extraction', 'metadata-only-no-extraction'], array_column(array_filter(
+            $withinPolicy['frames'],
+            static fn (array $frame): bool => ($frame['type'] ?? null) === 'frame'
+        ), 'policy'));
+        $t->same($contentBytes, ArchiveCompressionStream::openTar(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes),
+            strlen($manifestBytes) + strlen($contentBytes)
+        )->read('/packet/content.md'));
+
+        $zipPackage = ZipPackage::fromParts([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types><Default Extension="xml" ContentType="application/xml"/></Types>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>LZ4 frame ZIP policy</w:p></w:body></w:document>',
+            ],
+        ]);
+        $zipBytes = $zipPackage->bytes();
+        $zipPolicy = ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            Lz4Frame::build($zipBytes, ['contentChecksum' => true, 'contentSize' => true]),
+            ArchiveCompressionStream::FORMAT_LZ4_ZIP,
+            1,
+            strlen($zipBytes),
+            strlen($zipBytes)
+        );
+        $t->same(ArchiveCompressionStream::PACKAGE_KIND_ZIP, $zipPolicy['expectedKind']);
+        $t->same(ArchiveCompressionStream::FORMAT_LZ4_ZIP, $zipPolicy['format']);
+        $t->same('package', $zipPolicy['packageStatus']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $zipPolicy['entryNames']);
+        $t->same('within-thresholds', $zipPolicy['handoffPolicy']);
+        $t->same(false, isset($zipPolicy['frames'][0]['data']));
+
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            $stream,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            2,
+            $thresholdBytes
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            0,
+            $thresholdBytes
+        ));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectLz4DataFrameLimitPolicy(
+            $stream,
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            2,
+            0
+        ));
+    },
+
     'rejects malformed lz4 frame descriptors checksums and limits' => static function (TestRunner $t) use ($lz4HeaderChecksum): void {
         $valid = Lz4Frame::build('review source', [
             'blockChecksum' => true,

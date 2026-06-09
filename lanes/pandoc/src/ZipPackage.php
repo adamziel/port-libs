@@ -3275,6 +3275,225 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory and local-header extra-field ids before package
+     * instantiation, without invoking semantic extra-field decoders. This keeps
+     * duplicate and central/local mismatch diagnostics available when a
+     * separate ZIP policy blocks object construction first.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     extraFieldEntryCount:int,
+     *     duplicateExtraFieldEntryCount:int,
+     *     duplicateCentralExtraFieldEntryCount:int,
+     *     duplicateLocalExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldEntryCount:int,
+     *     mismatchedExtraFieldValueEntryCount:int,
+     *     centralOnlyExtraFieldEntryCount:int,
+     *     localOnlyExtraFieldEntryCount:int,
+     *     localHeaderUnavailableEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     issueEntries:list<array<string, mixed>>,
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     valueMismatchedEntries:list<array<string, mixed>>,
+     *     localHeaderUnavailableEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function extraFieldPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before extra-field ids can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issueEntries = [];
+        $duplicateEntries = [];
+        $mismatchedEntries = [];
+        $valueMismatchedEntries = [];
+        $localHeaderUnavailableEntries = [];
+        $extraFieldEntryCount = 0;
+        $duplicateCentralExtraFieldEntryCount = 0;
+        $duplicateLocalExtraFieldEntryCount = 0;
+        $centralOnlyExtraFieldEntryCount = 0;
+        $localOnlyExtraFieldEntryCount = 0;
+        $issues = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $centralSummary = self::extraFieldStructureSummary($centralExtraFieldData, 'central');
+            $localHeader = self::localHeaderMetadataForStructurePolicy($bytes, $localHeaderOffset);
+            $localSummary = self::extraFieldStructureSummary($localHeader['extraFieldData'], 'local');
+            $centralFields = $centralSummary['isWellFormed']
+                ? self::rawExtraFieldsForPolicy($centralExtraFieldData, "central extra fields for {$decodedName['text']}")
+                : [];
+            $localFields = ($localHeader['available'] && $localSummary['isWellFormed'])
+                ? self::rawExtraFieldsForPolicy($localHeader['extraFieldData'], "local extra fields for {$decodedName['text']}")
+                : [];
+            $centralExtraFieldIds = array_map(static fn (array $field): int => $field['id'], $centralFields);
+            $localExtraFieldIds = array_map(static fn (array $field): int => $field['id'], $localFields);
+            $duplicateCentralExtraFieldIds = self::duplicateIntegerValues($centralExtraFieldIds);
+            $duplicateLocalExtraFieldIds = self::duplicateIntegerValues($localExtraFieldIds);
+            $centralOnlyExtraFieldIds = $localHeader['available']
+                ? self::integerValuesOnlyIn($centralExtraFieldIds, $localExtraFieldIds)
+                : [];
+            $localOnlyExtraFieldIds = $localHeader['available']
+                ? self::integerValuesOnlyIn($localExtraFieldIds, $centralExtraFieldIds)
+                : [];
+            $mismatchedExtraFieldValueIds = $localHeader['available']
+                ? self::mismatchedExtraFieldValueIds($centralFields, $localFields)
+                : [];
+            $entryIssues = [];
+
+            if ($duplicateCentralExtraFieldIds !== []) {
+                $entryIssues[] = 'duplicate-central-extra-field-ids';
+                ++$duplicateCentralExtraFieldEntryCount;
+            }
+            if ($duplicateLocalExtraFieldIds !== []) {
+                $entryIssues[] = 'duplicate-local-extra-field-ids';
+                ++$duplicateLocalExtraFieldEntryCount;
+            }
+            if ($centralOnlyExtraFieldIds !== []) {
+                $entryIssues[] = 'central-only-extra-field-ids';
+                ++$centralOnlyExtraFieldEntryCount;
+            }
+            if ($localOnlyExtraFieldIds !== []) {
+                $entryIssues[] = 'local-only-extra-field-ids';
+                ++$localOnlyExtraFieldEntryCount;
+            }
+            if ($mismatchedExtraFieldValueIds !== []) {
+                $entryIssues[] = 'central-local-extra-field-value-mismatch';
+            }
+            if (!$localHeader['available']) {
+                $entryIssues[] = 'extra-field-local-header-unavailable';
+            }
+
+            if ($centralExtraFieldIds !== [] || $localExtraFieldIds !== [] || !$localHeader['available']) {
+                ++$extraFieldEntryCount;
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'localHeaderAvailable' => $localHeader['available'],
+                'localHeaderError' => $localHeader['error'],
+                'centralExtraFieldLength' => $extraLength,
+                'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'centralExtraFieldIds' => $centralExtraFieldIds,
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+                'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+                'hasDuplicateExtraFieldIds' => $duplicateCentralExtraFieldIds !== [] || $duplicateLocalExtraFieldIds !== [],
+                'hasMismatchedExtraFieldIds' => $centralOnlyExtraFieldIds !== [] || $localOnlyExtraFieldIds !== [],
+                'hasMismatchedExtraFieldValues' => $mismatchedExtraFieldValueIds !== [],
+                'policy' => $entryIssues === [] ? 'metadata' : 'blocked',
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+
+            if ($entryIssues !== []) {
+                $issueEntries[] = $entry;
+                $issues = array_values(array_unique(array_merge($issues, $entryIssues)));
+            }
+            if ($duplicateCentralExtraFieldIds !== [] || $duplicateLocalExtraFieldIds !== []) {
+                $duplicateEntries[] = $entry;
+            }
+            if ($centralOnlyExtraFieldIds !== [] || $localOnlyExtraFieldIds !== []) {
+                $mismatchedEntries[] = $entry;
+            }
+            if ($mismatchedExtraFieldValueIds !== []) {
+                $valueMismatchedEntries[] = $entry;
+            }
+            if (!$localHeader['available']) {
+                $localHeaderUnavailableEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'duplicateExtraFieldEntryCount' => count($duplicateEntries),
+            'duplicateCentralExtraFieldEntryCount' => $duplicateCentralExtraFieldEntryCount,
+            'duplicateLocalExtraFieldEntryCount' => $duplicateLocalExtraFieldEntryCount,
+            'mismatchedExtraFieldEntryCount' => count($mismatchedEntries),
+            'mismatchedExtraFieldValueEntryCount' => count($valueMismatchedEntries),
+            'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
+            'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
+            'localHeaderUnavailableEntryCount' => count($localHeaderUnavailableEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'issueEntries' => $issueEntries,
+            'duplicateEntries' => $duplicateEntries,
+            'mismatchedEntries' => $mismatchedEntries,
+            'valueMismatchedEntries' => $valueMismatchedEntries,
+            'localHeaderUnavailableEntries' => $localHeaderUnavailableEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * Classify platform metadata entries that should not be imported as
      * document content or package assets.
      *
@@ -6634,6 +6853,7 @@ final class ZipPackage
      *     externalAttributes:?array<string, mixed>,
      *     platformMetadata:?array<string, mixed>,
      *     extraFieldStructure:?array<string, mixed>,
+     *     extraFields:?array<string, mixed>,
      *     unicodeExtraFields:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
@@ -6741,6 +6961,7 @@ final class ZipPackage
                 'externalAttributes' => null,
                 'platformMetadata' => null,
                 'extraFieldStructure' => null,
+                'extraFields' => null,
                 'unicodeExtraFields' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
@@ -6771,6 +6992,7 @@ final class ZipPackage
         $externalAttributes = null;
         $platformMetadata = null;
         $extraFieldStructure = null;
+        $extraFields = null;
         $unicodeExtraFields = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
@@ -6896,6 +7118,24 @@ final class ZipPackage
                 $addDiagnostics($extraFieldStructure['issues']);
             }
 
+            $extraFields = $runPreflight(
+                'extra-field-policy',
+                static fn (): array => self::extraFieldPolicyPreflight($bytes)
+            );
+            if ($extraFields !== null && !$extraFields['isSupportedByBoundedReader']) {
+                $addDiagnostic('extra-field-policy-issues');
+                if ($extraFields['duplicateExtraFieldEntryCount'] > 0) {
+                    $addDiagnostic('duplicate-extra-field-ids');
+                }
+                if ($extraFields['mismatchedExtraFieldEntryCount'] > 0) {
+                    $addDiagnostic('central-local-extra-field-id-mismatch');
+                }
+                if ($extraFields['mismatchedExtraFieldValueEntryCount'] > 0) {
+                    $addDiagnostic('central-local-extra-field-value-mismatch');
+                }
+                $addDiagnostics($extraFields['issues']);
+            }
+
             $unicodeExtraFields = $runPreflight(
                 'unicode-extra-field-policy',
                 static fn (): array => self::unicodeExtraFieldPolicyPreflight($bytes)
@@ -6959,6 +7199,7 @@ final class ZipPackage
             ?? $externalAttributes['entryCount']
             ?? $platformMetadata['entryCount']
             ?? $extraFieldStructure['entryCount']
+            ?? $extraFields['entryCount']
             ?? $unicodeExtraFields['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
@@ -6997,6 +7238,7 @@ final class ZipPackage
             'externalAttributes' => $externalAttributes,
             'platformMetadata' => $platformMetadata,
             'extraFieldStructure' => $extraFieldStructure,
+            'extraFields' => $extraFields,
             'unicodeExtraFields' => $unicodeExtraFields,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,

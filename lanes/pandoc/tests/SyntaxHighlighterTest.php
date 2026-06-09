@@ -33,6 +33,11 @@ return [
         $t->same('idris', SyntaxHighlighter::normalizeLanguage('idr'));
         $t->same('idris', SyntaxHighlighter::normalizeLanguage('idris2'));
         $t->same('idris', SyntaxHighlighter::normalizeLanguage('language-idris-source'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('agda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('agda2'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('lagda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('literate-agda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('language-agda-source'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('patch'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('unified-diff'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Dockerfile'));
@@ -4630,6 +4635,60 @@ return [
         $t->same('rocq', $directCoq['requestedLanguage']);
         $t->contains('<span class="kw">Theorem</span> <span class="ot">review_title</span> <span class="op">:</span> <span class="kw">forall</span> <span class="ot">title</span> <span class="op">:</span> <span class="dt">string</span>', $directCoq['html']);
         $t->contains('<span class="kw">Proof</span><span class="op">.</span> <span class="fu">intros</span> <span class="va">title</span><span class="op">;</span> <span class="fu">reflexivity</span><span class="op">.</span> <span class="kw">Qed</span><span class="op">.</span>', $directCoq['html']);
+    },
+    'highlights agda proof review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[93] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Agda proof review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'espresso');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'espresso');
+        $directAgda = $highlighter->highlight(
+            'module Review where' . "\n" . 'postulate normalizeTitle : ReviewPacket -> String',
+            'lagda'
+        );
+
+        $t->same('agda', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('agda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('agda2'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('lagda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('literate-agda'));
+        $t->same('agda', SyntaxHighlighter::normalizeLanguage('language-agda-source'));
+        $t->same('agda', $highlighted['language']);
+        $t->same('agda', $highlighted['requestedLanguage']);
+        $t->same('espresso', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1535, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource agda numberLines"><code class="sourceCode agda" style="counter-reset: source-line 1534;">', $highlighted['html']);
+        $t->contains('<span id="agda-review-1535"><a href="#agda-review-1535"></a><span class="co">-- Agda WordPress import proof review</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">WP.Import.Review</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="pp">{-# OPTIONS --safe #-}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">open</span> <span class="kw">import</span> <span class="dt">Agda.Builtin.Nat</span> <span class="kw">using</span> <span class="op">(</span><span class="dt">Nat</span><span class="op">;</span> <span class="cn">zero</span><span class="op">;</span> <span class="cn">suc</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">record</span> <span class="dt">ReviewPacket</span> <span class="op">:</span> <span class="dt">Set</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="kw">constructor</span> <span class="fu">mkReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">field</span>', $highlighted['html']);
+        $t->contains('<span class="fu">sourceId</span> <span class="op">:</span> <span class="dt">Nat</span>', $highlighted['html']);
+        $t->contains('<span class="fu">title</span> <span class="op">:</span> <span class="dt">Maybe</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="va">packet</span> <span class="kw">with</span> <span class="dt">ReviewPacket</span><span class="op">.</span><span class="fu">title</span> <span class="va">packet</span>', $highlighted['html']);
+        $t->contains('<span class="op">...</span> <span class="op">|</span> <span class="cn">just</span> <span class="va">raw</span> <span class="op">=</span> <span class="va">raw</span>', $highlighted['html']);
+        $t->contains('<span class="op">...</span> <span class="op">|</span> <span class="cn">nothing</span> <span class="op">=</span> <span class="st">&quot;Untitled&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">postulate</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalizeTitleIdempotent</span> <span class="op">:</span> <span class="op">(</span><span class="fu">packet</span> <span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="fu">normalizeTitle</span> <span class="va">packet</span> <span class="op">==</span> <span class="fu">normalizeTitle</span> <span class="va">packet</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="espresso">', $wordpressBlock);
+        $t->contains('<span class="fu">normalizeTitleIdempotent</span>', $wordpressBlock);
+        $t->same('agda', $directAgda['language']);
+        $t->same('lagda', $directAgda['requestedLanguage']);
+        $t->contains('<span class="kw">module</span> <span class="dt">Review</span> <span class="kw">where</span>', $directAgda['html']);
+        $t->contains('<span class="kw">postulate</span> <span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directAgda['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

@@ -1003,6 +1003,196 @@ final class ArchiveCompressionStream
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     expectedKind:string,
+     *     format:string,
+     *     compressedSize:int,
+     *     decodedPackageSize:int,
+     *     packageStatus:string,
+     *     packageError:?string,
+     *     entryCount:int,
+     *     entryNames:list<string>,
+     *     frameCount:int,
+     *     dataFrameCount:int,
+     *     skippableFrameCount:int,
+     *     maxDataFrameCount:int,
+     *     countOverLimitDataFrameCount:int,
+     *     firstCountOverLimitDataFrameIndex:?int,
+     *     maxFrameDecodedBytes:int,
+     *     byteOverLimitFrameCount:int,
+     *     firstByteOverLimitDataFrameIndex:?int,
+     *     largestFrameDecodedSize:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     diagnostics:list<string>,
+     *     frames:list<array<string, mixed>>
+     * }
+     */
+    public static function inspectLz4DataFrameLimitPolicy(
+        string $bytes,
+        string $format,
+        int $maxDataFrameCount,
+        int $maxFrameDecodedBytes,
+        ?int $maxUncompressedBytes = null,
+        ?int $maxUnpackedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+        self::assertLimit($maxUnpackedBytes, 'archive stream max unpacked byte limit');
+        if ($maxDataFrameCount <= 0) {
+            throw new \RuntimeException('LZ4 data frame-count policy threshold must be positive');
+        }
+
+        if ($maxFrameDecodedBytes <= 0) {
+            throw new \RuntimeException('LZ4 data frame decoded byte-limit threshold must be positive');
+        }
+
+        $expectedKind = match ($format) {
+            self::FORMAT_LZ4_TAR => self::PACKAGE_KIND_TAR,
+            self::FORMAT_LZ4_ZIP => self::PACKAGE_KIND_ZIP,
+            default => throw new \RuntimeException("LZ4 data frame limit policy requires an LZ4 archive stream format: {$format}"),
+        };
+
+        $rawFrames = Lz4Frame::frames($bytes, $maxUncompressedBytes);
+        $decodedBytes = '';
+        foreach ($rawFrames as $frame) {
+            if (($frame['type'] ?? null) === 'frame') {
+                $decodedBytes .= (string) $frame['data'];
+            }
+        }
+
+        $package = self::archivePackageBoundarySummary(
+            $decodedBytes,
+            $expectedKind,
+            $maxUnpackedBytes,
+            'LZ4 data frame limit'
+        );
+
+        $frames = [];
+        $dataFrameIndex = 0;
+        $skippableFrameCount = 0;
+        $countOverLimitDataFrameCount = 0;
+        $firstCountOverLimitDataFrameIndex = null;
+        $byteOverLimitFrameCount = 0;
+        $firstByteOverLimitDataFrameIndex = null;
+        $largestFrameDecodedSize = 0;
+
+        foreach ($rawFrames as $frameIndex => $frame) {
+            if (($frame['type'] ?? null) === 'skippable') {
+                $payload = (string) ($frame['data'] ?? '');
+                $frames[] = [
+                    'type' => 'skippable',
+                    'frameIndex' => $frameIndex,
+                    'id' => (int) $frame['id'],
+                    'payloadSize' => strlen($payload),
+                    'payloadSha256' => hash('sha256', $payload),
+                    'payloadPreview' => self::boundedPrintablePreview($payload, 64),
+                    'frameOffset' => (int) $frame['frameOffset'],
+                    'frameSize' => (int) $frame['frameSize'],
+                    'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                    'policy' => 'metadata-only-no-extraction',
+                    'diagnostics' => [],
+                ];
+                $skippableFrameCount++;
+                continue;
+            }
+
+            if (($frame['type'] ?? null) !== 'frame') {
+                throw new \RuntimeException('Unexpected LZ4 frame metadata record');
+            }
+
+            $decodedSize = strlen((string) $frame['data']);
+            $largestFrameDecodedSize = max($largestFrameDecodedSize, $decodedSize);
+            $countOverLimit = $dataFrameIndex >= $maxDataFrameCount;
+            $decodedBytesOverLimit = $decodedSize > $maxFrameDecodedBytes;
+            $frameDiagnostics = [];
+
+            if ($countOverLimit) {
+                $frameDiagnostics[] = 'lz4-data-frame-count-over-limit';
+                $countOverLimitDataFrameCount++;
+                if ($firstCountOverLimitDataFrameIndex === null) {
+                    $firstCountOverLimitDataFrameIndex = $dataFrameIndex;
+                }
+            }
+
+            if ($decodedBytesOverLimit) {
+                $frameDiagnostics[] = 'lz4-data-frame-byte-limit-over-limit';
+                $byteOverLimitFrameCount++;
+                if ($firstByteOverLimitDataFrameIndex === null) {
+                    $firstByteOverLimitDataFrameIndex = $dataFrameIndex;
+                }
+            }
+
+            $frames[] = [
+                'type' => 'frame',
+                'frameIndex' => $frameIndex,
+                'dataFrameIndex' => $dataFrameIndex,
+                'contentSize' => $frame['contentSize'],
+                'dictionaryId' => $frame['dictionaryId'],
+                'blockMaxSize' => (int) $frame['blockMaxSize'],
+                'blockIndependent' => (bool) $frame['blockIndependent'],
+                'blockChecksum' => (bool) $frame['blockChecksum'],
+                'contentChecksum' => (bool) $frame['contentChecksum'],
+                'blockCount' => (int) $frame['blockCount'],
+                'blockTypes' => $frame['blockTypes'],
+                'compressedSize' => (int) $frame['compressedSize'],
+                'decodedSize' => $decodedSize,
+                'decodedDataOffset' => (int) $frame['decodedDataOffset'],
+                'decodedDataEndOffset' => (int) $frame['decodedDataEndOffset'],
+                'frameOffset' => (int) $frame['frameOffset'],
+                'frameSize' => (int) $frame['frameSize'],
+                'nextFrameOffset' => (int) $frame['nextFrameOffset'],
+                'countOverLimit' => $countOverLimit,
+                'decodedBytesOverLimit' => $decodedBytesOverLimit,
+                'policy' => $frameDiagnostics === [] ? 'metadata-only-no-extraction' : 'review-before-conversion',
+                'diagnostics' => $frameDiagnostics,
+            ];
+            $dataFrameIndex++;
+        }
+
+        $diagnostics = [];
+        if ($package['status'] !== 'package') {
+            $diagnostics[] = 'lz4-combined-package-decode-failed';
+        }
+
+        if ($countOverLimitDataFrameCount > 0) {
+            $diagnostics[] = 'lz4-data-frame-count-exceeds-threshold';
+        }
+
+        if ($byteOverLimitFrameCount > 0) {
+            $diagnostics[] = 'lz4-data-frame-byte-limit-exceeds-threshold';
+        }
+
+        return [
+            'type' => 'archive-lz4-data-frame-limit-policy',
+            'expectedKind' => $expectedKind,
+            'format' => $format,
+            'compressedSize' => strlen($bytes),
+            'decodedPackageSize' => strlen($decodedBytes),
+            'packageStatus' => $package['status'],
+            'packageError' => $package['error'],
+            'entryCount' => $package['entryCount'],
+            'entryNames' => $package['entryNames'],
+            'frameCount' => count($rawFrames),
+            'dataFrameCount' => $dataFrameIndex,
+            'skippableFrameCount' => $skippableFrameCount,
+            'maxDataFrameCount' => $maxDataFrameCount,
+            'countOverLimitDataFrameCount' => $countOverLimitDataFrameCount,
+            'firstCountOverLimitDataFrameIndex' => $firstCountOverLimitDataFrameIndex,
+            'maxFrameDecodedBytes' => $maxFrameDecodedBytes,
+            'byteOverLimitFrameCount' => $byteOverLimitFrameCount,
+            'firstByteOverLimitDataFrameIndex' => $firstByteOverLimitDataFrameIndex,
+            'largestFrameDecodedSize' => $largestFrameDecodedSize,
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === []
+                ? 'metadata-only-no-extraction'
+                : 'lz4-data-frame-limit-review',
+            'diagnostics' => $diagnostics,
+            'frames' => $frames,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function inspectGzipTarRecordBoundaryPolicy(

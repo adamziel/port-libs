@@ -69,7 +69,7 @@ $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($do
 
 if (($argv[1] ?? '') === '--self-test') {
     $dash = "\u{2013}";
-    $expectedCitation = '<p>Page ranges cite (Smith | pp. 321' . $dash . '328 | pp. 321' . $dash . '28, 100' . $dash . '104, 107' . $dash . '8, 1496' . $dash . '1504, A-D) for imported source packet review.</p>';
+    $expectedCitation = '<p>Page ranges cite (Smith | pp. 321' . $dash . '28 | pp. 321' . $dash . '28, 100' . $dash . '104, 107' . $dash . '8, 1496' . $dash . '1504, A-D) for imported source packet review.</p>';
     $expectedBibliography = '<dt>Smith 2026</dt><dd>Page Range Source. pp. 321' . $dash . '28, 100' . $dash . '104, 107' . $dash . '8, 1496' . $dash . '1504, A-D.</dd>';
     foreach ([$expectedCitation, $expectedBibliography] as $snippet) {
         if (!str_contains($blocks, $snippet)) {

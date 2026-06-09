@@ -1818,3 +1818,28 @@ Proof.
   reflexivity.
 Qed.
 ```
+
+``` {.agda #agda-review .numberLines startFrom=1535}
+-- Agda WordPress import proof review
+module WP.Import.Review where
+
+{-# OPTIONS --safe #-}
+
+open import Agda.Builtin.Nat using (Nat; zero; suc)
+open import Agda.Builtin.String using (String)
+open import Agda.Builtin.Maybe using (Maybe; just; nothing)
+
+record ReviewPacket : Set where
+  constructor mkReviewPacket
+  field
+    sourceId : Nat
+    title : Maybe String
+
+normalizeTitle : ReviewPacket -> String
+normalizeTitle packet with ReviewPacket.title packet
+... | just raw = raw
+... | nothing = "Untitled"
+
+postulate
+  normalizeTitleIdempotent : (packet : ReviewPacket) -> normalizeTitle packet == normalizeTitle packet
+```

@@ -580,6 +580,12 @@ if (!$coqCodeBlock instanceof PortLibs\Pandoc\AstNode || $coqCodeBlock->type !==
 }
 $coq = $highlighter->highlightCodeBlock($coqCodeBlock, 'tango');
 $coqWordpressBlock = $highlighter->wordpressHtmlBlock($coqCodeBlock, 'tango');
+$agdaCodeBlock = $document->children[93] ?? null;
+if (!$agdaCodeBlock instanceof PortLibs\Pandoc\AstNode || $agdaCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Agda proof review code block');
+}
+$agda = $highlighter->highlightCodeBlock($agdaCodeBlock, 'espresso');
+$agdaWordpressBlock = $highlighter->wordpressHtmlBlock($agdaCodeBlock, 'espresso');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2572,6 +2578,24 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($coqWordpressBlock, '<span class="kw">Qed</span><span class="op">.</span>')) {
         throw new RuntimeException('Expected Coq proof terminator token handoff');
+    }
+    if (($agda['language'] ?? '') !== 'agda') {
+        throw new RuntimeException('Expected Agda language alias handoff');
+    }
+    if (($agda['lineNumbering']['start'] ?? null) !== 1535) {
+        throw new RuntimeException('Expected Agda line-number start handoff');
+    }
+    if (!str_contains($agda['html'], '<span class="kw">open</span> <span class="kw">import</span> <span class="dt">Agda.Builtin.Nat</span>')) {
+        throw new RuntimeException('Expected Agda import token handoff');
+    }
+    if (!str_contains($agda['html'], '<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>')) {
+        throw new RuntimeException('Expected Agda type signature token handoff');
+    }
+    if (!str_contains($agdaWordpressBlock, '<style data-pandoc-highlight-style="espresso">')) {
+        throw new RuntimeException('Expected Agda WordPress style metadata');
+    }
+    if (!str_contains($agdaWordpressBlock, '<span class="kw">postulate</span>')) {
+        throw new RuntimeException('Expected Agda postulate token handoff');
     }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');

@@ -7107,6 +7107,8 @@ return [
         $t->same(0, $safeRaw['archiveExtraDataRecords']['archiveExtraDataRecordCount']);
         $t->same(true, $safeRaw['extraFieldStructure']['isSupportedByBoundedReader']);
         $t->same(0, $safeRaw['extraFieldStructure']['issueEntryCount']);
+        $t->same(true, $safeRaw['extraFields']['isSupportedByBoundedReader']);
+        $t->same(0, $safeRaw['extraFields']['duplicateExtraFieldEntryCount']);
         $t->same(0, $safeRaw['zip64ExtraFields']['zip64ExtraFieldEntryCount']);
         $t->same(0, $safeRaw['dataDescriptors']['mismatchedDescriptorEntryCount']);
         $t->same(true, $safeRaw['strictImport']['isValid']);
@@ -7312,6 +7314,91 @@ return [
         $t->contains('extra-field-structure-issues', implode(',', $rawStrict['diagnostics']));
         $t->contains('central-extra-field-truncated-payload', implode(',', $rawStrict['diagnostics']));
         $t->contains('local-extra-field-truncated-header', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
+    'preflights raw zip extra field id policy before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $duplicateExtra = pack('vva*', 0xcafe, strlen('first'), 'first')
+            . pack('vva*', 0xcafe, strlen('second'), 'second');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/media/duplicate-extra.bin',
+                'data' => "duplicate extra field ids should stay visible before instantiation\n",
+                'centralExtra' => $duplicateExtra,
+                'localExtra' => $duplicateExtra,
+                'centralFlags' => 0x0840,
+                'localFlags' => 0x0840,
+            ],
+            [
+                'name' => 'word/media/split-extra.bin',
+                'data' => "central/local extra field id splits should stay visible\n",
+                'centralExtra' => pack('vva*', 0xbeef, strlen('central-only'), 'central-only'),
+                'localExtra' => pack('vva*', 0xfeed, strlen('local-only'), 'local-only'),
+                'centralFlags' => 0x0840,
+                'localFlags' => 0x0840,
+            ],
+            [
+                'name' => 'word/media/value-extra.bin',
+                'data' => "central/local extra field value splits should stay visible\n",
+                'centralExtra' => pack('vva*', 0xf00d, strlen('central'), 'central'),
+                'localExtra' => pack('vva*', 0xf00d, strlen('local'), 'local'),
+                'centralFlags' => 0x0840,
+                'localFlags' => 0x0840,
+            ],
+        ]);
+
+        $summary = ZipPackage::extraFieldPolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['extraFieldEntryCount']);
+        $t->same(3, count($summary['issueEntries']));
+        $t->same(1, $summary['duplicateExtraFieldEntryCount']);
+        $t->same(1, $summary['duplicateCentralExtraFieldEntryCount']);
+        $t->same(1, $summary['duplicateLocalExtraFieldEntryCount']);
+        $t->same(1, $summary['mismatchedExtraFieldEntryCount']);
+        $t->same(1, $summary['mismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $summary['centralOnlyExtraFieldEntryCount']);
+        $t->same(1, $summary['localOnlyExtraFieldEntryCount']);
+        $t->same(0, $summary['localHeaderUnavailableEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'duplicate-central-extra-field-ids',
+            'duplicate-local-extra-field-ids',
+            'central-only-extra-field-ids',
+            'local-only-extra-field-ids',
+            'central-local-extra-field-value-mismatch',
+        ], $summary['issues']);
+
+        $duplicateEntry = $summary['duplicateEntries'][0];
+        $t->same('word/media/duplicate-extra.bin', $duplicateEntry['name']);
+        $t->same([0xcafe, 0xcafe], $duplicateEntry['centralExtraFieldIds']);
+        $t->same([0xcafe, 0xcafe], $duplicateEntry['localExtraFieldIds']);
+        $t->same([0xcafe], $duplicateEntry['duplicateCentralExtraFieldIds']);
+        $t->same([0xcafe], $duplicateEntry['duplicateLocalExtraFieldIds']);
+        $t->same(true, $duplicateEntry['hasDuplicateExtraFieldIds']);
+        $t->same('blocked', $duplicateEntry['policy']);
+
+        $mismatchEntry = $summary['mismatchedEntries'][0];
+        $t->same('word/media/split-extra.bin', $mismatchEntry['name']);
+        $t->same([0xbeef], $mismatchEntry['centralOnlyExtraFieldIds']);
+        $t->same([0xfeed], $mismatchEntry['localOnlyExtraFieldIds']);
+        $t->same(true, $mismatchEntry['hasMismatchedExtraFieldIds']);
+
+        $valueEntry = $summary['valueMismatchedEntries'][0];
+        $t->same('word/media/value-extra.bin', $valueEntry['name']);
+        $t->same([0xf00d], $valueEntry['mismatchedExtraFieldValueIds']);
+        $t->same(true, $valueEntry['hasMismatchedExtraFieldValues']);
+
+        $t->same($summary, $rawStrict['extraFields']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->contains('extra-field-policy-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('duplicate-extra-field-ids', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-local-extra-field-id-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-local-extra-field-value-mismatch', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },

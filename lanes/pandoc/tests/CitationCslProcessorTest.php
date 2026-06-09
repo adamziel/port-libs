@@ -14343,7 +14343,7 @@ XML
         $cluster = $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'page-range-source', 'text' => '[@page-range-source]', 'locator' => 'pp. 321-328']),
         ]);
-        $t->same('(Smith | pp. 321–328 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D)', $cluster);
+        $t->same('(Smith | pp. 321–28 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D)', $cluster);
         $t->same('Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.', $processor->renderBibliographyEntry('page-range-source'));
 
         $expanded = $processor->withCslStyle(
@@ -14386,7 +14386,7 @@ XML
 
         $document = (new MarkdownReader())->read('Page range packet [@page-range-source, pp. 321-328] keeps CSL collapsing reviewable.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>Page range packet (Smith | pp. 321–328 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D) keeps CSL collapsing reviewable.</p>', $blocks);
+        $t->contains('<p>Page range packet (Smith | pp. 321–28 | pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D) keeps CSL collapsing reviewable.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Page Range Source. pp. 321–28, 415–532, 100–104, 107–8, 1496–1504, A-D.</dd>', $blocks);
 
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([])->withCslStyle(
@@ -14397,6 +14397,63 @@ XML
 </style>
 XML
         ));
+    },
+    'applies bounded csl page range formats to page locators only' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'page-locator-source',
+                'type' => 'article-journal',
+                'title' => 'Locator Page Range Source',
+                'container-title' => 'Review Journal',
+                'author' => [
+                    ['family' => 'Diaz', 'given' => 'Mara'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" page-range-format="minimal-two">
+  <info>
+    <title>Page Locator Range Review Style</title>
+    <id>https://example.test/styles/page-locator-range-review</id>
+    <updated>2026-06-09T05:59:07+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('minimal-two', $summary['pageRangeFormat'] ?? null);
+
+        $t->same('(Diaz | pp. 321–28)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'page-locator-source', 'text' => '[@page-locator-source]', 'locator' => 'pp. 321-328']),
+        ]));
+        $t->same('(Diaz | secs. 321–328)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'page-locator-source', 'text' => '[@page-locator-source]', 'locator' => 'sec. 321-328']),
+        ]));
+
+        $document = (new MarkdownReader())->read('Locator review cites [@page-locator-source, pp. 321-328; @page-locator-source, sec. 321-328].');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Locator review cites (Diaz | pp. 321–28; Diaz | secs. 321–328).</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Diaz, Mara. Locator Page Range Source.</dd>', $blocks);
     },
     'applies bounded csl number rendering forms for page issue and edition variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

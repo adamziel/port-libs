@@ -8499,7 +8499,7 @@ final class CitationCslProcessor
         $normalized = strtolower(trim($variable));
 
         return match ($normalized) {
-            'locator' => $this->formatCslLocatorRanges($this->citationLocatorParts($citation)['value']),
+            'locator' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
             'citation-number' => $this->citationNumberValue($item, $citation),
             'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation, $item),
             'id', 'citation-key' => (string) $item['id'],
@@ -9060,6 +9060,23 @@ final class CitationCslProcessor
         }
 
         return preg_replace('/(?<=[\p{L}\p{N}])\s*[-\x{2010}-\x{2015}]\s*(?=[\p{L}\p{N}])/u', "\u{2013}", $value) ?? $value;
+    }
+
+    /**
+     * @param array{label:string, value:string} $locator
+     */
+    private function formatCslLocatorValue(array $locator): string
+    {
+        $value = $locator['value'];
+        if ($value === '') {
+            return '';
+        }
+
+        if ($locator['label'] === 'page' && $this->style->pageRangeFormat() !== '') {
+            return $this->formatCslPageRanges($value);
+        }
+
+        return $this->formatCslLocatorRanges($value);
     }
 
     private function formatCslPageRanges(string $value): string

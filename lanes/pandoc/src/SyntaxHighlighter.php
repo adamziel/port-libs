@@ -41,6 +41,10 @@ final class SyntaxHighlighter
     ];
 
     private const LANGUAGE_ALIASES = [
+        'agda' => 'agda',
+        'agda2' => 'agda',
+        'agda-lang' => 'agda',
+        'agda-source' => 'agda',
         'apache' => 'apache',
         'apache-conf' => 'apache',
         'apache-config' => 'apache',
@@ -201,9 +205,13 @@ final class SyntaxHighlighter
         'latex' => 'tex',
         'lhs' => 'haskell',
         'html-liquid' => 'liquid',
+        'lagda' => 'agda',
+        'lagda-md' => 'agda',
+        'lagda-tex' => 'agda',
         'less' => 'less',
         'less-css' => 'less',
         'lesscss' => 'less',
+        'literate-agda' => 'agda',
         'literate-haskell' => 'haskell',
         'literatehaskell' => 'haskell',
         'liquid' => 'liquid',
@@ -837,6 +845,7 @@ final class SyntaxHighlighter
     private function tokenize(string $code, string $language): array
     {
         return match ($language) {
+            'agda' => $this->tokenizeAgda($code),
             'apache' => $this->tokenizeApacheConfig($code),
             'asciidoc' => $this->tokenizeAsciiDoc($code),
             'awk' => $this->tokenizeAwk($code),
@@ -3498,6 +3507,29 @@ final class SyntaxHighlighter
             ['variable', '/^\b_[A-Za-z0-9_\']*\b/'],
             ['variable', '/^\b[a-z_][A-Za-z0-9_\']*\b/'],
             ['operator', '/^(?:->|=>|\|>|@@|::|:=|==|!=|<>|<=|>=|&&|\|\||\?\?|[{}()[\];,.+*\/%=!<>?:&|^~-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeAgda(string $code): array
+    {
+        return $this->scan($code, [
+            ['preprocessor', '/^\\{-#\\s*[A-Z][A-Za-z0-9_-]*(?:\\s+[^#\\n][\\s\\S]*?)?#-\\}/'],
+            ['comment', '/^\\{-[\\s\\S]*?-\\}/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['keyword', '/^\\b(?:abstract|as|constructor|data|field|forall|hiding|import|in|infix|infixl|infixr|instance|let|macro|module|mutual|open|pattern|postulate|primitive|private|public|record|renaming|rewrite|syntax|using|variable|where|with)\\b/'],
+            ['constant', '/^\\b(?:false|just|nothing|suc|true|zero)\\b/'],
+            ['datatype', '/^\\b(?:Bool|Char|IO|Level|List|Maybe|Nat|Prop|Set|String|Unit)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?:\\.[A-Z][A-Za-z0-9_\']*)*\\b/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\'-]*(?=\\s*:)/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\'-]*(?=\\s+(?!(?:as|hiding|import|in|renaming|using|where|with)\\b)(?:[A-Za-z_(\\"\\d]))/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?)\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\'-]*\\b/'],
+            ['operator', '/^(?:\\.\\.\\.|=>|->|<-|::|==|\\/=|>=|<=|\\+\\+|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
         ]);
     }
 
