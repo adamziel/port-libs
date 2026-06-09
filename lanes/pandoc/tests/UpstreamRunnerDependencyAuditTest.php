@@ -640,7 +640,23 @@ $cliSourceArtifacts = static function (): array {
     return $files;
 };
 
-$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true, ?string $serverPackage = null, ?string $cliPackage = null) use ($pandocCabal, $luaCabal, $serverCabal, $cliCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $cliSourceArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
+$formatRegistrySourceArtifacts = static function (): array {
+    $files = [];
+    foreach (UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceArtifacts() as $relativePath => $kind) {
+        if ($kind === 'directory') {
+            $files[$relativePath . '/.audit-keep'] = 'format registry source fixture present';
+            continue;
+        }
+
+        $files[$relativePath] = implode("\n", array_values(
+            UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceSemantics()[$relativePath] ?? []
+        ));
+    }
+
+    return $files;
+};
+
+$requiredFiles = static function (string $project, ?string $pandocPackage = null, ?string $luaPackage = null, bool $includeRunnerArtifacts = true, ?string $serverPackage = null, ?string $cliPackage = null) use ($pandocCabal, $luaCabal, $serverCabal, $cliCabal, $runnerArtifacts, $luaLibraryArtifacts, $benchmarkArtifacts, $cliSourceArtifacts, $formatRegistrySourceArtifacts, $testPandocEntryPoint, $luaEntryPoint): array {
     $files = [
         'cabal.project' => $project,
         'pandoc.cabal' => $pandocPackage ?? $pandocCabal(),
@@ -653,6 +669,7 @@ $requiredFiles = static function (string $project, ?string $pandocPackage = null
 
     $files = array_merge($files, $luaLibraryArtifacts());
     $files = array_merge($files, $cliSourceArtifacts());
+    $files = array_merge($files, $formatRegistrySourceArtifacts());
 
     if ($includeRunnerArtifacts) {
         $files = array_merge($files, $runnerArtifacts(), $benchmarkArtifacts());
@@ -1048,6 +1065,23 @@ return [
         $t->same(
             array_keys(UpstreamRunnerDependencyAudit::expectedBenchmarkEntrySourceSemantics()['benchmark:benchmark-pandoc']['requiredSnippets']),
             $audit['benchmarkEntrySourceClosure']['present']['benchmark:benchmark-pandoc']['matchedSnippets']
+        );
+        $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceArtifacts()), $audit['formatRegistrySourceClosure']['present']);
+        $t->same([], $audit['formatRegistrySourceClosure']['missing']);
+        $t->same([], $audit['formatRegistrySourceClosure']['wrongType']);
+        $t->same([], $audit['formatRegistrySourceClosure']['emptyFiles']);
+        $t->same([], $audit['formatRegistrySourceClosure']['missingSemantics']);
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceSemantics()['src/Text/Pandoc/Readers.hs']),
+            $audit['formatRegistrySourceClosure']['presentSemantics']['src/Text/Pandoc/Readers.hs']
+        );
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceSemantics()['src/Text/Pandoc/Writers.hs']),
+            $audit['formatRegistrySourceClosure']['presentSemantics']['src/Text/Pandoc/Writers.hs']
+        );
+        $t->same(
+            array_keys(UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceSemantics()['src/Text/Pandoc/Format.hs']),
+            $audit['formatRegistrySourceClosure']['presentSemantics']['src/Text/Pandoc/Format.hs']
         );
         $t->same(UpstreamRunnerDependencyAudit::expectedBenchmarkCommonImports()['benchmark:benchmark-pandoc'], $audit['benchmarkDependencyClosure']['present']['benchmark:benchmark-pandoc']['commonImports']);
         $t->same([], $audit['benchmarkDependencyClosure']['present']['benchmark:benchmark-pandoc']['unresolvedCommonImports']);
@@ -4504,6 +4538,97 @@ return [
         $t->contains('maps writers from registry into benchmark group', $blocked);
         $t->contains('maps readers from registry into benchmark group', $blocked);
         $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
+    'blocks roff manual format registry source drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['src/Text/Pandoc/Readers.hs'] = str_replace(
+            [
+                ', readMan',
+                'import Text.Pandoc.Readers.Man',
+                '("man" , TextReader readMan)',
+            ],
+            [
+                ', readMdoc',
+                'import Text.Pandoc.Readers.Mdoc',
+                '("mdoc" , TextReader readMdoc)',
+            ],
+            $files['src/Text/Pandoc/Readers.hs']
+        );
+        $files['src/Text/Pandoc/Writers.hs'] = str_replace(
+            [
+                ', writeMan',
+                ', writeMs',
+                'import Text.Pandoc.Writers.Man',
+                'import Text.Pandoc.Writers.Ms',
+                '("man" , TextWriter writeMan)',
+                '("ms" , TextWriter writeMs)',
+            ],
+            [
+                ', writeMarkdown',
+                ', writeMarkdownStrict',
+                'import Text.Pandoc.Writers.Markdown',
+                'import Text.Pandoc.Writers.Markdown',
+                '("markdown" , TextWriter writeMarkdown)',
+                '("markdown_strict" , TextWriter writeMarkdown)',
+            ],
+            $files['src/Text/Pandoc/Writers.hs']
+        );
+        $files['src/Text/Pandoc/Format.hs'] = str_replace(
+            [
+                '".ms" -> defFlavor "ms"',
+                '".roff" -> defFlavor "ms"',
+                '[\'.\',y] | y `elem` [\'1\'..\'9\'] -> defFlavor "man"',
+            ],
+            [
+                '".me" -> defFlavor "ms"',
+                '".tr" -> defFlavor "troff"',
+                '[\'.\',y] | y == \'0\' -> defFlavor "man"',
+            ],
+            $files['src/Text/Pandoc/Format.hs']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same(array_keys(UpstreamRunnerDependencyAudit::expectedFormatRegistrySourceArtifacts()), $audit['formatRegistrySourceClosure']['present']);
+        $t->same([], $audit['formatRegistrySourceClosure']['missing']);
+        $t->same([], $audit['formatRegistrySourceClosure']['wrongType']);
+        $t->same([], $audit['formatRegistrySourceClosure']['emptyFiles']);
+        $t->same([
+            'exports roff man reader',
+            'imports roff man reader module',
+            'registers man reader format',
+        ], $audit['formatRegistrySourceClosure']['missingSemantics']['src/Text/Pandoc/Readers.hs']);
+        $t->same([
+            'exports roff man writer',
+            'exports roff ms writer',
+            'imports roff man writer module',
+            'imports roff ms writer module',
+            'registers man writer format',
+            'registers ms writer format',
+        ], $audit['formatRegistrySourceClosure']['missingSemantics']['src/Text/Pandoc/Writers.hs']);
+        $t->same([
+            'infers ms format from dot-ms files',
+            'infers ms format from dot-roff files',
+            'infers man format from numeric manual suffixes',
+        ], $audit['formatRegistrySourceClosure']['missingSemantics']['src/Text/Pandoc/Format.hs']);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing Pandoc roff/manual format registry source semantics', $blocked);
+        $t->contains('registers man reader format', $blocked);
+        $t->contains('registers ms writer format', $blocked);
+        $t->contains('infers man format from numeric manual suffixes', $blocked);
+        $t->contains('Pandoc format registry source artifacts', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
     'blocks benchmark utf8 decode and mismatch error source drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
