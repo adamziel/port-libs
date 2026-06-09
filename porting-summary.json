@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 09:12:04 UTC",
-    "sourceCommit": "ee15f3c46cdb745a43b684c9368a8af82a120caa",
-    "sourceCommitShort": "ee15f3c46cdb",
+    "generated": "2026-06-09 09:18:04 UTC",
+    "sourceCommit": "904ead57d97427e19b0e0ba42208b574afd83ed6",
+    "sourceCommitShort": "904ead57d974",
     "sourceBranch": "unknown",
-    "dashboardCommit": "ee15f3c46cdb745a43b684c9368a8af82a120caa",
-    "dashboardCommitShort": "ee15f3c46cdb",
+    "dashboardCommit": "904ead57d97427e19b0e0ba42208b574afd83ed6",
+    "dashboardCommitShort": "904ead57d974",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,560 pass / 0 fail",
-            "phase": "native PHP Pandoc HTML5 reader review markup; audio, video, and image...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-media-map current-base slice on a...",
-            "currentWork": "Pandoc HTML reader review now preserves audio/video media containers and image-map co...",
+            "php": "2,565 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; disclosure, template, c...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-disclosure-template current-base...",
+            "currentWork": "Pandoc HTML reader review now preserves details disclosures, dialog prompts, template...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
