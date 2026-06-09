@@ -20966,6 +20966,92 @@ XML);
         $t->contains('<p>Supplemental periodical source [journal supplement | Supplemental Import Notes | Journal of Migration Review | S1 | S3-S9 | Published as online supplement] keeps journal-article routing stable.</p>', $blocks);
         $t->contains('<dt>Roe 2026</dt><dd>journal supplement :: Supplemental Import Notes :: Journal of Migration Review :: S1 :: S3-S9 :: Published as online supplement</dd>', $blocks);
     },
+    'maps biblatex periodical issue entries to csl article journal conditionals' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@periodical{review-issue,
+  editor       = {Curator, Eli},
+  title        = {Migration Review Issue},
+  journaltitle = {Journal of Migration Review},
+  date         = {2026},
+  number       = {42},
+  pages        = {1--96},
+  note         = {Complete issue queued for import}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('review-issue', $items[0]['id'] ?? null);
+        $t->same('article-journal', $items[0]['type'] ?? null);
+        $t->same('periodical', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('Journal of Migration Review', $items[0]['container-title'] ?? null);
+        $t->same('42', $items[0]['issue'] ?? null);
+        $t->same('1-96', $items[0]['page'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Periodical Issue Type Review</title>
+    <id>https://example.test/styles/bounded-periodical-type-review</id>
+    <updated>2026-06-09T05:01:11+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if type="article-journal">
+          <group delimiter=" | ">
+            <text value="periodical issue"/>
+            <text variable="title"/>
+            <text variable="container-title"/>
+            <text variable="issue"/>
+            <text variable="page"/>
+            <text variable="note"/>
+          </group>
+        </if>
+        <else>
+          <text value="fallback"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <choose>
+        <if type="article-journal">
+          <group delimiter=" :: ">
+            <text value="periodical issue"/>
+            <text variable="title"/>
+            <text variable="container-title"/>
+            <text variable="issue"/>
+            <text variable="page"/>
+            <text variable="note"/>
+          </group>
+        </if>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('review-issue');
+        $t->same('Bounded Periodical Issue Type Review', $summary['title'] ?? null);
+        $t->same(['article-journal'], $summary['citationRendering'][0]['branches'][0]['types'] ?? null);
+        $t->same('article-journal', $item['type'] ?? null);
+        $t->same('periodical', $item['raw']['rawBibtex']['type'] ?? null);
+        $t->same('42', $item['issue'] ?? null);
+
+        $t->same('[periodical issue | Migration Review Issue | Journal of Migration Review | 42 | 1-96 | Complete issue queued for import]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'review-issue', 'text' => '[@review-issue]']),
+        ]));
+        $t->same('periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import', $processor->renderBibliographyEntry('review-issue'));
+
+        $document = (new MarkdownReader())->read('Periodical issue source [@review-issue] keeps journal-article routing stable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Periodical issue source [periodical issue | Migration Review Issue | Journal of Migration Review | 42 | 1-96 | Complete issue queued for import] keeps journal-article routing stable.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>periodical issue :: Migration Review Issue :: Journal of Migration Review :: 42 :: 1-96 :: Complete issue queued for import</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

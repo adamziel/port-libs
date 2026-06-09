@@ -1287,7 +1287,7 @@ final class BibtexCslParser
     private static function cslType(string $type): string
     {
         return match (strtolower($type)) {
-            'article', 'suppperiodical' => 'article-journal',
+            'article', 'periodical', 'suppperiodical' => 'article-journal',
             'inproceedings', 'conference' => 'paper-conference',
             'bookinbook', 'inbook', 'incollection', 'suppbook', 'suppcollection' => 'chapter',
             'inreference' => 'entry-encyclopedia',
