@@ -1,0 +1,499 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class XmlHtmlDomFragment
+{
+    /** @var list<string> */
+    private const HTML_VOID_ELEMENTS = [
+        'area',
+        'base',
+        'br',
+        'col',
+        'embed',
+        'hr',
+        'img',
+        'input',
+        'link',
+        'meta',
+        'param',
+        'source',
+        'track',
+        'wbr',
+    ];
+
+    /** @var list<string> */
+    private const HTML_BOOLEAN_ATTRIBUTES = [
+        'allowfullscreen',
+        'async',
+        'autofocus',
+        'autoplay',
+        'checked',
+        'controls',
+        'default',
+        'defer',
+        'disabled',
+        'formnovalidate',
+        'hidden',
+        'ismap',
+        'itemscope',
+        'loop',
+        'multiple',
+        'muted',
+        'nomodule',
+        'novalidate',
+        'open',
+        'playsinline',
+        'readonly',
+        'required',
+        'reversed',
+        'selected',
+    ];
+
+    /** @var list<string> */
+    private const HTML_ACTIVE_ELEMENTS = [
+        'applet',
+        'base',
+        'embed',
+        'frame',
+        'frameset',
+        'iframe',
+        'link',
+        'meta',
+        'object',
+        'script',
+        'style',
+        'template',
+    ];
+
+    /** @var list<string> */
+    private const URL_ATTRIBUTES = [
+        'action',
+        'cite',
+        'formaction',
+        'href',
+        'poster',
+        'src',
+        'xlink:href',
+    ];
+
+    /**
+     * @param list<array<string, string>> $diagnostics
+     */
+    private function __construct(
+        private readonly string $format,
+        private readonly AstNode $fragment,
+        private readonly array $diagnostics,
+    ) {
+    }
+
+    public static function parseHtml(string $html): self
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_COMPACT
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$loaded) {
+            throw new \InvalidArgumentException('Unable to parse HTML fragment');
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            throw new \InvalidArgumentException('Parsed HTML fragment did not contain a body element');
+        }
+
+        $diagnostics = [];
+        $children = self::domChildrenToFragmentNodes($body, true, $diagnostics);
+
+        return new self('html', new AstNode('dom_fragment', ['format' => 'html'], $children), $diagnostics);
+    }
+
+    public static function parseXml(string $xml): self
+    {
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY)\b/i', $xml) === 1) {
+            throw new \InvalidArgumentException('XML fragments with DOCTYPE or ENTITY declarations are not supported');
+        }
+
+        if (preg_match('/<\?xml\b/i', $xml) === 1) {
+            throw new \InvalidArgumentException('XML declaration is not allowed inside a fragment');
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $loaded = $dom->loadXML(
+            '<pandoc-fragment>' . $xml . '</pandoc-fragment>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_COMPACT
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            throw new \InvalidArgumentException('Unable to parse XML fragment');
+        }
+
+        $diagnostics = [];
+        $children = self::domChildrenToFragmentNodes($dom->documentElement, false, $diagnostics);
+
+        return new self('xml', new AstNode('dom_fragment', ['format' => 'xml'], $children), $diagnostics);
+    }
+
+    public function fragment(): AstNode
+    {
+        return $this->fragment;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    public function children(): array
+    {
+        return $this->fragment->children;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    public function diagnostics(): array
+    {
+        return $this->diagnostics;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function elementNames(): array
+    {
+        $names = [];
+        self::collectElementNames($this->fragment->children, $names);
+
+        return $names;
+    }
+
+    public function textContent(): string
+    {
+        return self::nodeTextContent($this->fragment);
+    }
+
+    public function serializeHtml(): string
+    {
+        return self::serializeNodesAsHtml($this->fragment->children);
+    }
+
+    public function serializeXml(): string
+    {
+        return self::serializeNodesAsXml($this->fragment->children);
+    }
+
+    public function serialize(): string
+    {
+        return $this->format === 'xml' ? $this->serializeXml() : $this->serializeHtml();
+    }
+
+    /**
+     * @param list<array<string, string>> $diagnostics
+     * @return list<AstNode>
+     */
+    private static function domChildrenToFragmentNodes(\DOMNode $parent, bool $html, array &$diagnostics): array
+    {
+        $children = [];
+        foreach ($parent->childNodes as $node) {
+            $fragmentNode = self::domNodeToFragmentNode($node, $html, $diagnostics);
+            if ($fragmentNode instanceof AstNode) {
+                $children[] = $fragmentNode;
+            }
+        }
+
+        return $children;
+    }
+
+    /**
+     * @param list<array<string, string>> $diagnostics
+     */
+    private static function domNodeToFragmentNode(\DOMNode $node, bool $html, array &$diagnostics): ?AstNode
+    {
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            $text = $node->wholeText;
+
+            return $text === '' ? null : new AstNode('dom_text', ['text' => $text]);
+        }
+
+        if ($node instanceof \DOMComment) {
+            return new AstNode('dom_comment', ['text' => $node->data]);
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return null;
+        }
+
+        $name = $html ? strtolower($node->localName) : $node->nodeName;
+        if ($html && in_array($name, self::HTML_ACTIVE_ELEMENTS, true)) {
+            $diagnostics[] = [
+                'code' => 'dropped-active-element',
+                'element' => $name,
+            ];
+
+            return null;
+        }
+
+        $attrs = self::domElementAttributes($node, $html, $name, $diagnostics);
+        $children = self::domChildrenToFragmentNodes($node, $html, $diagnostics);
+
+        return new AstNode('dom_element', [
+            'name' => $name,
+            'attributes' => $attrs,
+        ], $children);
+    }
+
+    /**
+     * @param list<array<string, string>> $diagnostics
+     * @return array<string, string|bool>
+     */
+    private static function domElementAttributes(\DOMElement $element, bool $html, string $elementName, array &$diagnostics): array
+    {
+        $attrs = [];
+        if (!$html) {
+            foreach (self::namespaceAttributesForElement($element) as $name => $value) {
+                $attrs[$name] = $value;
+            }
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $name = $html ? strtolower($attribute->nodeName) : $attribute->nodeName;
+            $value = $attribute->value;
+
+            if ($html && str_starts_with($name, 'on')) {
+                $diagnostics[] = [
+                    'code' => 'dropped-event-attribute',
+                    'element' => $elementName,
+                    'attribute' => $name,
+                ];
+                continue;
+            }
+
+            if ($html && in_array($name, self::URL_ATTRIBUTES, true) && self::isUnsafeUrl($value)) {
+                $diagnostics[] = [
+                    'code' => 'dropped-unsafe-url',
+                    'element' => $elementName,
+                    'attribute' => $name,
+                ];
+                continue;
+            }
+
+            if ($html && $name === 'style' && self::isUnsafeStyle($value)) {
+                $diagnostics[] = [
+                    'code' => 'dropped-unsafe-style',
+                    'element' => $elementName,
+                    'attribute' => $name,
+                ];
+                continue;
+            }
+
+            $attrs[$name] = $html && in_array($name, self::HTML_BOOLEAN_ATTRIBUTES, true) ? true : $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function namespaceAttributesForElement(\DOMElement $element): array
+    {
+        $attrs = [];
+        $elementPrefix = $element->prefix;
+        if ($element->namespaceURI !== null && $elementPrefix !== '') {
+            $parentNamespace = $element->parentNode instanceof \DOMElement
+                ? $element->parentNode->lookupNamespaceURI($elementPrefix)
+                : null;
+            if ($parentNamespace !== $element->namespaceURI) {
+                $attrs['xmlns:' . $elementPrefix] = $element->namespaceURI;
+            }
+        } elseif ($element->namespaceURI !== null && $elementPrefix === '') {
+            $parentNamespace = $element->parentNode instanceof \DOMElement
+                ? $element->parentNode->lookupNamespaceURI(null)
+                : null;
+            if ($parentNamespace !== $element->namespaceURI) {
+                $attrs['xmlns'] = $element->namespaceURI;
+            }
+        }
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr || $attribute->prefix === '' || $attribute->namespaceURI === null) {
+                continue;
+            }
+
+            $name = 'xmlns:' . $attribute->prefix;
+            if (isset($attrs[$name])) {
+                continue;
+            }
+
+            $parentNamespace = $element->parentNode instanceof \DOMElement
+                ? $element->parentNode->lookupNamespaceURI($attribute->prefix)
+                : null;
+            if ($parentNamespace !== $attribute->namespaceURI) {
+                $attrs[$name] = $attribute->namespaceURI;
+            }
+        }
+
+        return $attrs;
+    }
+
+    private static function isUnsafeUrl(string $value): bool
+    {
+        $normalized = strtolower((string) preg_replace('/[\x00-\x20]+/', '', html_entity_decode($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')));
+        if ($normalized === '' || !str_contains($normalized, ':')) {
+            return false;
+        }
+
+        [$scheme] = explode(':', $normalized, 2);
+
+        return in_array($scheme, ['data', 'javascript', 'vbscript'], true);
+    }
+
+    private static function isUnsafeStyle(string $value): bool
+    {
+        $normalized = strtolower((string) preg_replace('/\s+/', '', html_entity_decode($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8')));
+
+        return str_contains($normalized, 'expression(')
+            || str_contains($normalized, 'javascript:')
+            || str_contains($normalized, 'vbscript:');
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function collectElementNames(array $nodes, array &$names): void
+    {
+        foreach ($nodes as $node) {
+            if ($node->type === 'dom_element') {
+                $names[] = (string) $node->attr('name', '');
+            }
+            self::collectElementNames($node->children, $names);
+        }
+    }
+
+    private static function nodeTextContent(AstNode $node): string
+    {
+        if ($node->type === 'dom_text') {
+            return (string) $node->attr('text', '');
+        }
+
+        $text = '';
+        foreach ($node->children as $child) {
+            $text .= self::nodeTextContent($child);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function serializeNodesAsHtml(array $nodes): string
+    {
+        return implode('', array_map(self::serializeNodeAsHtml(...), $nodes));
+    }
+
+    private static function serializeNodeAsHtml(AstNode $node): string
+    {
+        if ($node->type === 'dom_text') {
+            return htmlspecialchars((string) $node->attr('text', ''), ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+        }
+
+        if ($node->type === 'dom_comment') {
+            $text = str_replace('--', '- -', (string) $node->attr('text', ''));
+            if (str_ends_with($text, '-')) {
+                $text .= ' ';
+            }
+
+            return '<!--' . $text . '-->';
+        }
+
+        if ($node->type !== 'dom_element') {
+            return '';
+        }
+
+        $name = strtolower((string) $node->attr('name', ''));
+        $start = '<' . $name . self::serializeAttributes($node->attr('attributes', []), true) . '>';
+        if ($node->children === [] && in_array($name, self::HTML_VOID_ELEMENTS, true)) {
+            return $start;
+        }
+
+        return $start . self::serializeNodesAsHtml($node->children) . '</' . $name . '>';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private static function serializeNodesAsXml(array $nodes): string
+    {
+        return implode('', array_map(self::serializeNodeAsXml(...), $nodes));
+    }
+
+    private static function serializeNodeAsXml(AstNode $node): string
+    {
+        if ($node->type === 'dom_text') {
+            return htmlspecialchars((string) $node->attr('text', ''), ENT_NOQUOTES | ENT_SUBSTITUTE | ENT_XML1, 'UTF-8');
+        }
+
+        if ($node->type === 'dom_comment') {
+            $text = str_replace('--', '- -', (string) $node->attr('text', ''));
+            if (str_ends_with($text, '-')) {
+                $text .= ' ';
+            }
+
+            return '<!--' . $text . '-->';
+        }
+
+        if ($node->type !== 'dom_element') {
+            return '';
+        }
+
+        $name = (string) $node->attr('name', '');
+        $start = '<' . $name . self::serializeAttributes($node->attr('attributes', []), false);
+        if ($node->children === []) {
+            return $start . '/>';
+        }
+
+        return $start . '>' . self::serializeNodesAsXml($node->children) . '</' . $name . '>';
+    }
+
+    /**
+     * @param mixed $attributes
+     */
+    private static function serializeAttributes(mixed $attributes, bool $html): string
+    {
+        if (!is_array($attributes)) {
+            return '';
+        }
+
+        $serialized = '';
+        foreach ($attributes as $name => $value) {
+            $name = (string) $name;
+            if ($value === true && $html) {
+                $serialized .= ' ' . $name;
+                continue;
+            }
+
+            $escaped = htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE | ($html ? ENT_HTML5 : ENT_XML1), 'UTF-8');
+            $serialized .= ' ' . $name . '="' . $escaped . '"';
+        }
+
+        return $serialized;
+    }
+}

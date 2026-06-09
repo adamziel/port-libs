@@ -59,6 +59,7 @@ final class OdfReader
      *     metadata:array<string, mixed>,
      *     manifest:list<array<string, mixed>>,
      *     styles:array<string, mixed>,
+     *     fontFaces:array<string, mixed>,
      *     listStyles:array<string, mixed>,
      *     tableTemplates:array<string, mixed>,
      *     pageLayouts:array<string, mixed>,
@@ -98,6 +99,10 @@ final class OdfReader
                 'count' => count($styleCatalog['styles']),
                 'items' => array_values($styleCatalog['styles']),
             ],
+            'fontFaces' => [
+                'count' => count($styleCatalog['fontFaces']),
+                'items' => array_values($styleCatalog['fontFaces']),
+            ],
             'listStyles' => [
                 'count' => count($styleCatalog['listStyles']),
                 'items' => array_values($styleCatalog['listStyles']),
@@ -127,6 +132,7 @@ final class OdfReader
             'metadata' => $metadata,
             'manifest' => $manifest,
             'styles' => $styleCatalog['styles'],
+            'fontFaces' => $styleCatalog['fontFaces'],
             'listStyles' => $styleCatalog['listStyles'],
             'tableTemplates' => $styleCatalog['tableTemplates'],
             'pageLayouts' => $styleCatalog['pageLayouts'],
@@ -155,6 +161,8 @@ final class OdfReader
                     'pageLayoutCount' => count($styleCatalog['pageLayouts']),
                     'masterPageCount' => count($styleCatalog['masterPages']),
                     'tableTemplateCount' => count($styleCatalog['tableTemplates']),
+                    'fontFaceCount' => count($styleCatalog['fontFaces']),
+                    'fontFaces' => array_values($styleCatalog['fontFaces']),
                     'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
                 ],
                 'listStyles' => [
@@ -386,12 +394,13 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
     private function readStyles(ZipPackage $package): array
     {
         $catalog = [
             'styles' => [],
+            'fontFaces' => [],
             'listStyles' => [],
             'tableTemplates' => [],
             'pageLayouts' => [],
@@ -414,8 +423,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
-     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $styleCatalog
+     * @return array{blocks:list<AstNode>, styleCatalog:array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}, automaticStyleCount:int, trackedChanges:list<array<string, mixed>>, contentDeclarations:array<string, mixed>}
      */
     private function readContent(ZipPackage $package, array $styleCatalog): array
     {
@@ -429,7 +438,7 @@ final class OdfReader
             throw new \InvalidArgumentException('ODT content.xml must use office:document-content as its root element');
         }
 
-        $contentStyles = $this->styleCollectionsFromRoot($root);
+        $contentStyles = $this->styleCollectionsFromRoot($root, $styleCatalog['fontFaces']);
         $this->mergeStyleCollections($styleCatalog, $contentStyles);
         $body = self::firstChildElement($root, 'body', self::OFFICE_NS);
         $text = $body instanceof \DOMElement ? self::firstChildElement($body, 'text', self::OFFICE_NS) : null;
@@ -7445,10 +7454,13 @@ final class OdfReader
     }
 
     /**
-     * @return array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
+     * @param array<string, array<string, mixed>> $inheritedFontFaces
+     * @return array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>}
      */
-    private function styleCollectionsFromRoot(\DOMElement $root): array
+    private function styleCollectionsFromRoot(\DOMElement $root, array $inheritedFontFaces = []): array
     {
+        $fontFaces = array_replace($inheritedFontFaces, $this->fontFaceDeclarations($root));
+
         $styles = [];
         foreach ($root->getElementsByTagNameNS(self::STYLE_NS, 'style') as $style) {
             if (!$style instanceof \DOMElement) {
@@ -7458,7 +7470,7 @@ final class OdfReader
             if ($name === '') {
                 continue;
             }
-            $styles[$name] = $this->styleDefinition($style);
+            $styles[$name] = $this->styleDefinition($style, $fontFaces);
         }
 
         $listStyles = [];
@@ -7511,6 +7523,7 @@ final class OdfReader
 
         return [
             'styles' => $styles,
+            'fontFaces' => $fontFaces,
             'listStyles' => $listStyles,
             'tableTemplates' => $tableTemplates,
             'pageLayouts' => $pageLayouts,
@@ -7519,9 +7532,39 @@ final class OdfReader
     }
 
     /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function fontFaceDeclarations(\DOMElement $root): array
+    {
+        $container = self::firstChildElement($root, 'font-face-decls', self::OFFICE_NS);
+        if (!$container instanceof \DOMElement) {
+            return [];
+        }
+
+        $fontFaces = [];
+        foreach (self::childElements($container, 'font-face', self::STYLE_NS) as $fontFace) {
+            $name = self::attr($fontFace, self::STYLE_NS, 'name');
+            if ($name === '') {
+                continue;
+            }
+
+            $fontFaces[$name] = self::withoutEmpty([
+                'name' => $name,
+                'fontFamily' => self::nullable(self::attr($fontFace, self::SVG_NS, 'font-family')),
+                'fontFamilyGeneric' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-family-generic')),
+                'fontPitch' => self::nullable(strtolower(self::attr($fontFace, self::STYLE_NS, 'font-pitch'))),
+                'fontCharset' => self::nullable(self::attr($fontFace, self::STYLE_NS, 'font-charset')),
+            ]);
+        }
+
+        return $fontFaces;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $fontFaces
      * @return array<string, mixed>
      */
-    private function styleDefinition(\DOMElement $style): array
+    private function styleDefinition(\DOMElement $style, array $fontFaces = []): array
     {
         $definition = [
             'name' => self::attr($style, self::STYLE_NS, 'name'),
@@ -7539,7 +7582,7 @@ final class OdfReader
 
         $textProperties = self::firstChildElement($style, 'text-properties', self::STYLE_NS);
         if ($textProperties instanceof \DOMElement) {
-            $definition['textProperties'] = $this->textProperties($textProperties);
+            $definition['textProperties'] = $this->textProperties($textProperties, $fontFaces);
         }
 
         $paragraphProperties = self::firstChildElement($style, 'paragraph-properties', self::STYLE_NS);
@@ -7747,9 +7790,10 @@ final class OdfReader
     }
 
     /**
-     * @return array<string, bool|string|null>
+     * @param array<string, array<string, mixed>> $fontFaces
+     * @return array<string, mixed>
      */
-    private function textProperties(\DOMElement $properties): array
+    private function textProperties(\DOMElement $properties, array $fontFaces = []): array
     {
         $fontWeight = strtolower(self::attr($properties, self::FO_NS, 'font-weight'));
         $fontStyle = strtolower(self::attr($properties, self::FO_NS, 'font-style'));
@@ -7757,8 +7801,28 @@ final class OdfReader
         $strikeout = strtolower(self::attr($properties, self::STYLE_NS, 'text-line-through-style'));
         $variant = strtolower(self::attr($properties, self::FO_NS, 'font-variant'));
         $position = strtolower(self::attr($properties, self::STYLE_NS, 'text-position'));
+        $fontName = self::attr($properties, self::STYLE_NS, 'font-name');
+        $directPitch = strtolower(self::attr($properties, self::STYLE_NS, 'font-pitch'));
 
         $result = [];
+        if ($fontName !== '') {
+            $result['fontName'] = $fontName;
+            if (isset($fontFaces[$fontName])) {
+                $result['fontFace'] = $fontFaces[$fontName];
+            }
+        }
+
+        $fontPitch = $directPitch;
+        if ($fontPitch === '' && $fontName !== '' && isset($fontFaces[$fontName]['fontPitch'])) {
+            $fontPitch = strtolower((string) $fontFaces[$fontName]['fontPitch']);
+        }
+        if ($fontPitch !== '') {
+            $result['fontPitch'] = $fontPitch;
+            if ($fontPitch === 'fixed') {
+                $result['fixedPitch'] = true;
+            }
+        }
+
         if ($fontWeight === 'bold' || preg_match('/^[1-9]00$/', $fontWeight) === 1) {
             $result['bold'] = true;
         }
@@ -7944,13 +8008,16 @@ final class OdfReader
     }
 
     /**
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
-     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $target
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $source
      */
     private function mergeStyleCollections(array &$target, array $source): void
     {
         foreach ($source['styles'] as $name => $style) {
             $target['styles'][$name] = $style;
+        }
+        foreach ($source['fontFaces'] as $name => $fontFace) {
+            $target['fontFaces'][$name] = $fontFace;
         }
         foreach ($source['listStyles'] as $name => $style) {
             $target['listStyles'][$name] = $style;

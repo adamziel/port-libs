@@ -2055,6 +2055,83 @@ XML;
         $t->contains('<span style="font-variant:small-caps"><strong><span data-odf-style-name="NumericBoldSmallCaps">Source Title</span></strong></span>', $blocksHtml);
         $t->contains('<del><span data-odf-style-name="DraftStrike">draft copy</span></del>', $blocksHtml);
     },
+    'maps ODT font face pitch declarations into style review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $stylesWithFontFaces = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="LiberationMono" svg:font-family="'Liberation Mono'" style:font-family-generic="modern" style:font-pitch="fixed"/>
+    <style:font-face style:name="SourceSerif" svg:font-family="'Source Serif 4'" style:font-family-generic="roman" style:font-pitch="variable"/>
+  </office:font-face-decls>
+  <office:styles>
+    <style:style style:name="FixedPitchSource" style:family="text">
+      <style:text-properties style:font-name="LiberationMono"/>
+    </style:style>
+    <style:style style:name="DirectPitchSource" style:family="text">
+      <style:text-properties style:font-name="SourceSerif" style:font-pitch="fixed"/>
+    </style:style>
+  </office:styles>
+</office:document-styles>
+XML;
+        $contentWithAutomaticFontPitch = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:automatic-styles>
+    <style:style style:name="AutomaticFixedPitchSource" style:family="text">
+      <style:text-properties style:font-name="LiberationMono"/>
+    </style:style>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:p>Review <text:span text:style-name="FixedPitchSource">wp_cli</text:span>, <text:span text:style-name="DirectPitchSource">shortcode</text:span>, and <text:span text:style-name="AutomaticFixedPitchSource">auto style</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithAutomaticFontPitch, null, $stylesWithFontFaces));
+        $paragraph = $result['document']->children[0];
+
+        $t->same('Review wp_cli, shortcode, and auto style.', $paragraph->attr('text'));
+        $t->same(2, $result['document']->attr('fontFaces')['count']);
+        $t->same(2, $result['importReport']['styles']['fontFaceCount']);
+        $t->same('fixed', $result['fontFaces']['LiberationMono']['fontPitch']);
+        $t->same('modern', $result['fontFaces']['LiberationMono']['fontFamilyGeneric']);
+        $t->same("'Liberation Mono'", $result['fontFaces']['LiberationMono']['fontFamily']);
+        $t->same('variable', $result['fontFaces']['SourceSerif']['fontPitch']);
+
+        $fixedProperties = $result['styles']['FixedPitchSource']['textProperties'];
+        $directProperties = $result['styles']['DirectPitchSource']['textProperties'];
+        $automaticProperties = $result['styles']['AutomaticFixedPitchSource']['textProperties'];
+        $t->same('LiberationMono', $fixedProperties['fontName']);
+        $t->same('fixed', $fixedProperties['fontPitch']);
+        $t->same(true, $fixedProperties['fixedPitch']);
+        $t->same("'Liberation Mono'", $fixedProperties['fontFace']['fontFamily']);
+        $t->same('SourceSerif', $directProperties['fontName']);
+        $t->same('fixed', $directProperties['fontPitch']);
+        $t->same('variable', $directProperties['fontFace']['fontPitch']);
+        $t->same('fixed', $automaticProperties['fontPitch']);
+
+        $fixedSpan = $paragraph->children[1];
+        $directSpan = $paragraph->children[3];
+        $automaticSpan = $paragraph->children[5];
+        $t->same('span', $fixedSpan->type);
+        $t->same('FixedPitchSource', $fixedSpan->attr('styleName'));
+        $t->same('wp_cli', $fixedSpan->children[0]->attr('text'));
+        $t->same('DirectPitchSource', $directSpan->attr('styleName'));
+        $t->same('AutomaticFixedPitchSource', $automaticSpan->attr('styleName'));
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[wp_cli]{data-odf-style-name="FixedPitchSource"}', $markdown);
+        $t->contains('[auto style]{data-odf-style-name="AutomaticFixedPitchSource"}', $markdown);
+        $t->contains('<span data-odf-style-name="FixedPitchSource">wp_cli</span>', $blocksHtml);
+        $t->contains('<span data-odf-style-name="AutomaticFixedPitchSource">auto style</span>', $blocksHtml);
+    },
     'maps ODT ruby annotations into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithRuby = <<<'XML'
 <office:document-content

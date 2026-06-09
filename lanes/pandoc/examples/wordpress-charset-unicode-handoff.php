@@ -168,6 +168,9 @@ $macTurkishText = (string) $macTurkishSource->children[1]->attr('text');
 $tis620Bytes = "# \xE4\xB7\xC2\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3.";
 $tis620Source = (new MarkdownReader())->readBytes($tis620Bytes, 'tis-620');
 $tis620Text = (string) $tis620Source->children[1]->attr('text');
+$macThaiBytes = "# Mac Thai\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3; \x80\x81 \x8Dtext\x8E \xDD \xDF20; \xDB\xDC.";
+$macThaiSource = (new MarkdownReader())->readBytes($macThaiBytes, 'x-mac-thai');
+$macThaiText = (string) $macThaiSource->children[1]->attr('text');
 $shiftJisBytes = (string) hex2bin('23208c7689e60a0a967b95b682c694bc8a70b6c0b6c581418adb874094678160fbfc8de88142');
 $shiftJisSource = (new MarkdownReader())->readBytes($shiftJisBytes, 'windows-31j');
 $shiftJisText = (string) $shiftJisSource->children[1]->attr('text');
@@ -780,6 +783,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($tis620Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($tis620Text)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Thai source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macThaiText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macThaiSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macThaiText)])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Shift_JIS source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $shiftJisText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($shiftJisText) . '/' . UnicodeText::displayWidth($shiftJisText, 'wide')])]),
@@ -1282,6 +1290,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>TIS-620 source</td><td>เนื้อหา เอกสาร.</td><td>tis-620:13</td>')) {
         throw new RuntimeException('charset handoff self-test missing TIS-620 Thai decode audit row');
+    }
+    if (($macThaiSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-thai') {
+        throw new RuntimeException('charset handoff self-test missing Mac Thai source encoding');
+    }
+    if (!str_contains($blocks, "<td>Mac Thai source</td><td>เนื้อหา เอกสาร; «» “text” – ฿20; \u{FEFF}\u{200B}.</td><td>mac-thai:32</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Mac Thai decode audit row');
     }
     if (($shiftJisSource->attr('sourceEncoding')['encoding'] ?? '') !== 'shift_jis') {
         throw new RuntimeException('charset handoff self-test missing Shift_JIS source encoding');

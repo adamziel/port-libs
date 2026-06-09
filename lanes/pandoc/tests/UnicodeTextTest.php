@@ -522,6 +522,32 @@ return [
         $t->contains('<h1 id="mac-croatian">Mac Croatian</h1>', $blocks);
         $t->contains('<p>Novinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.</p>', $blocks);
     },
+    'decodes mac thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# Mac Thai\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3; \x80\x81 \x8Dtext\x8E \xDD \xDF20; \xDB\xDC.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-thai');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macthai');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $specials = UnicodeText::decodeBytes("\x80\x81\x82\x8D\x8E\x91\x9D\x9E\xA0\xDB\xDC\xDD\xDE\xDF\xE0\xE6\xE7\xE8\xED\xEE\xEF\xF0\xF9\xFA\xFB", 'mac-thai');
+        $repaired = UnicodeText::decodeBytes("A\x90B\x9FC\xFCD\xFDE\xFEF\xFFG", 'mac-thai');
+        $macRomanComparison = UnicodeText::decodeBytes("\x80\x81\x8D\x8E\xDB\xDC\xDD", 'macintosh');
+
+        $t->same('mac-thai', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# Mac Thai\n\nเนื้อหา เอกสาร; «» “text” – ฿20; \u{FEFF}\u{200B}.", $decoded['text']);
+        $t->same("«»…“”•‘’\u{00A0}\u{FEFF}\u{200B}–—฿เๆ็่ํ™๏๐๙®©", $specials['text']);
+        $t->same('mac-thai', $specials['encoding']);
+        $t->same(0, $specials['repairs']);
+        $t->same("A\u{FFFD}B\u{FFFD}C\u{FFFD}D\u{FFFD}E\u{FFFD}F\u{FFFD}G", $repaired['text']);
+        $t->same('mac-thai', $repaired['encoding']);
+        $t->same(6, $repaired['repairs']);
+        $t->same('ÄÅçé€‹›', $macRomanComparison['text']);
+        $t->same(['encoding' => 'mac-thai', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('Mac Thai', $document->children[0]->attr('text'));
+        $t->same("เนื้อหา เอกสาร; «» “text” – ฿20; \u{FEFF}\u{200B}.", $document->children[1]->attr('text'));
+        $t->same(32, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->contains('<h1 id="mac-thai">Mac Thai</h1>', $blocks);
+        $t->contains("<p>เนื้อหา เอกสาร; «» “text” – ฿20; \u{FEFF}\u{200B}.</p>", $blocks);
+    },
     'decodes ibm866 dos cyrillic source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# \x88\xAC\xAF\xAE\xE0\xE2\n\n\x90\xA5\xA4\xA0\xAA\xE2\xAE\xE0 \xAF\xE0\xA8\xA2\xA5\xE2; \xF0\xAB\xAA\xA0 \xFC 7; \xB3\xC4\xDA.";
         $decoded = UnicodeText::decodeBytes($bytes, 'cp866');

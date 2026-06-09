@@ -30,6 +30,10 @@ final class PdfEngineHandoff
     private const XMP_PDF_A_EXTENSION_NAMESPACE = 'http://www.aiim.org/pdfa/ns/extension/';
     private const XMP_PDF_A_SCHEMA_NAMESPACE = 'http://www.aiim.org/pdfa/ns/schema#';
     private const XMP_PDF_A_PROPERTY_NAMESPACE = 'http://www.aiim.org/pdfa/ns/property#';
+    private const XMP_MEDIA_MANAGEMENT_NAMESPACE = 'http://ns.adobe.com/xap/1.0/mm/';
+    private const XMP_RESOURCE_REF_NAMESPACE = 'http://ns.adobe.com/xap/1.0/sType/ResourceRef#';
+    private const XMP_RESOURCE_EVENT_NAMESPACE = 'http://ns.adobe.com/xap/1.0/sType/ResourceEvent#';
+    private const XMP_RDF_NAMESPACE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 
     /**
      * @var array<string, array{family:string, intermediate:string, extension:string, defaultArgs:list<string>}>
@@ -1579,6 +1583,18 @@ final class PdfEngineHandoff
                         }
                         if (is_string($pdfXmpMetadata['source'] ?? null) && $pdfXmpMetadata['source'] !== '') {
                             $diagnostics[] = 'pdf-byte-xmp-source';
+                        }
+                        if (is_string($pdfXmpMetadata['originalDocumentId'] ?? null) && $pdfXmpMetadata['originalDocumentId'] !== '') {
+                            $diagnostics[] = 'pdf-byte-xmp-original-document-id';
+                        }
+                        if (is_string($pdfXmpMetadata['renditionClass'] ?? null) && $pdfXmpMetadata['renditionClass'] !== '') {
+                            $diagnostics[] = 'pdf-byte-xmp-rendition-class:' . $pdfXmpMetadata['renditionClass'];
+                        }
+                        if (isset($pdfXmpMetadata['derivedFrom']) && is_array($pdfXmpMetadata['derivedFrom']) && $pdfXmpMetadata['derivedFrom'] !== []) {
+                            $diagnostics[] = 'pdf-byte-xmp-derived-from';
+                        }
+                        if (isset($pdfXmpMetadata['history']) && is_array($pdfXmpMetadata['history']) && $pdfXmpMetadata['history'] !== []) {
+                            $diagnostics[] = 'pdf-byte-xmp-history:' . count($pdfXmpMetadata['history']);
                         }
                         if (isset($pdfXmpMetadata['pdfaIdentification']) && is_array($pdfXmpMetadata['pdfaIdentification'])) {
                             $part = is_string($pdfXmpMetadata['pdfaIdentification']['part'] ?? null)
@@ -6169,6 +6185,9 @@ final class PdfEngineHandoff
         if ($extensionSchemas !== []) {
             $metadata['pdfaExtensionSchemas'] = $extensionSchemas;
         }
+        foreach ($this->xmpMediaManagementMetadata($xml) as $key => $value) {
+            $metadata[$key] = $value;
+        }
 
         return $metadata;
     }
@@ -6302,6 +6321,179 @@ final class PdfEngineHandoff
         );
 
         return $properties;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function xmpMediaManagementMetadata(string $xml): array
+    {
+        if (
+            !str_contains($xml, self::XMP_MEDIA_MANAGEMENT_NAMESPACE)
+            && !str_contains($xml, 'xmpMM:')
+            && !str_contains($xml, 'DerivedFrom')
+            && !str_contains($xml, 'History')
+        ) {
+            return [];
+        }
+
+        $metadata = [];
+        foreach ([
+            'originalDocumentId' => 'OriginalDocumentID',
+            'renditionClass' => 'RenditionClass',
+            'renditionParams' => 'RenditionParams',
+            'versionId' => 'VersionID',
+        ] as $target => $name) {
+            $value = $this->xmpNamespaceScalarText($xml, self::XMP_MEDIA_MANAGEMENT_NAMESPACE, $name, ['xmpMM']);
+            if ($value !== null && $value !== '') {
+                $metadata[$target] = $value;
+            }
+        }
+
+        $dom = $this->loadXmpDom($xml);
+        if ($dom === null) {
+            return $metadata;
+        }
+
+        $derivedFrom = $this->xmpMediaManagementDerivedFrom($dom);
+        if ($derivedFrom !== []) {
+            $metadata['derivedFrom'] = $derivedFrom;
+        }
+
+        $history = $this->xmpMediaManagementHistory($dom);
+        if ($history !== []) {
+            $metadata['history'] = $history;
+        }
+
+        return $metadata;
+    }
+
+    private function loadXmpDom(string $xml): ?\DOMDocument
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $previous = libxml_use_internal_errors(true);
+        try {
+            $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_COMPACT);
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        return $loaded ? $dom : null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function xmpMediaManagementDerivedFrom(\DOMDocument $dom): array
+    {
+        $node = $this->firstXmpElement($dom, self::XMP_MEDIA_MANAGEMENT_NAMESPACE, 'DerivedFrom');
+        if ($node === null) {
+            return [];
+        }
+
+        $derivedFrom = [];
+        foreach ([
+            'documentId' => 'documentID',
+            'instanceId' => 'instanceID',
+            'originalDocumentId' => 'originalDocumentID',
+            'renditionClass' => 'renditionClass',
+            'renditionParams' => 'renditionParams',
+            'manager' => 'manager',
+            'managerVariant' => 'managerVariant',
+            'managerTo' => 'managerTo',
+            'managerUi' => 'managerUI',
+        ] as $target => $name) {
+            $value = $this->xmpStructuredPropertyText($node, self::XMP_RESOURCE_REF_NAMESPACE, $name);
+            if ($value !== null && $value !== '') {
+                $derivedFrom[$target] = $value;
+            }
+        }
+
+        return $derivedFrom;
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function xmpMediaManagementHistory(\DOMDocument $dom): array
+    {
+        $historyNode = $this->firstXmpElement($dom, self::XMP_MEDIA_MANAGEMENT_NAMESPACE, 'History');
+        if ($historyNode === null) {
+            return [];
+        }
+
+        $events = [];
+        foreach ($historyNode->getElementsByTagNameNS(self::XMP_RDF_NAMESPACE, 'li') as $eventNode) {
+            if (!$eventNode instanceof \DOMElement) {
+                continue;
+            }
+
+            $event = [];
+            foreach ([
+                'action' => 'action',
+                'instanceId' => 'instanceID',
+                'when' => 'when',
+                'softwareAgent' => 'softwareAgent',
+                'changed' => 'changed',
+                'parameters' => 'parameters',
+            ] as $target => $name) {
+                $value = $this->xmpStructuredPropertyText($eventNode, self::XMP_RESOURCE_EVENT_NAMESPACE, $name);
+                if ($value !== null && $value !== '') {
+                    $event[$target] = $value;
+                }
+            }
+
+            if ($event !== []) {
+                $events[] = $event;
+            }
+            if (count($events) >= 64) {
+                break;
+            }
+        }
+
+        return $events;
+    }
+
+    private function firstXmpElement(\DOMDocument $dom, string $namespaceUri, string $localName): ?\DOMElement
+    {
+        foreach ($dom->getElementsByTagNameNS($namespaceUri, $localName) as $node) {
+            if ($node instanceof \DOMElement) {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    private function xmpStructuredPropertyText(\DOMElement $element, string $namespaceUri, string $localName): ?string
+    {
+        $attribute = $element->getAttributeNS($namespaceUri, $localName);
+        if ($attribute !== '') {
+            return $this->normalizeXmpText($attribute);
+        }
+        $attribute = $element->getAttribute($localName);
+        if ($attribute !== '') {
+            return $this->normalizeXmpText($attribute);
+        }
+
+        foreach ($element->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && $child->namespaceURI === $namespaceUri
+                && $child->localName === $localName
+            ) {
+                return $this->normalizeXmpText($child->textContent);
+            }
+        }
+
+        foreach ($this->xmpDescendantElements($element, $namespaceUri, $localName) as $descendant) {
+            return $this->normalizeXmpText($descendant->textContent);
+        }
+
+        return null;
     }
 
     /**

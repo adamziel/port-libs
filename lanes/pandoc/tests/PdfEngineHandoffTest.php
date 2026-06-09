@@ -2756,6 +2756,123 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfXmpMetadata']);
     },
 
+    'fake runner extracts bounded xmp media management provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xmp-mm.pdf']);
+        $xmp = implode("\n", [
+            '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+            '<rdf:Description xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:stRef="http://ns.adobe.com/xap/1.0/sType/ResourceRef#" xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" xmpMM:DocumentID="uuid:review-output" xmpMM:InstanceID="uuid:review-output-v2" xmpMM:OriginalDocumentID="uuid:legacy-source" xmpMM:RenditionClass="proof:pdf" xmpMM:RenditionParams="engine=xelatex;profile=wordpress-review" xmpMM:VersionID="2">',
+            '<xmpMM:DerivedFrom rdf:parseType="Resource">',
+            '<stRef:documentID>uuid:legacy-source</stRef:documentID>',
+            '<stRef:instanceID>uuid:legacy-source-v5</stRef:instanceID>',
+            '<stRef:originalDocumentID>uuid:legacy-original</stRef:originalDocumentID>',
+            '<stRef:renditionClass>draft:docx</stRef:renditionClass>',
+            '<stRef:renditionParams>source=import-review</stRef:renditionParams>',
+            '<stRef:manager>WordPress importer</stRef:manager>',
+            '<stRef:managerVariant>block-review</stRef:managerVariant>',
+            '<stRef:managerTo>wp:post:42</stRef:managerTo>',
+            '<stRef:managerUI>review-panel</stRef:managerUI>',
+            '</xmpMM:DerivedFrom>',
+            '<xmpMM:History>',
+            '<rdf:Seq>',
+            '<rdf:li rdf:parseType="Resource"><stEvt:action>converted</stEvt:action><stEvt:instanceID>uuid:review-output-v1</stEvt:instanceID><stEvt:when>2026-06-09T01:49:07Z</stEvt:when><stEvt:softwareAgent>Pandoc PHP fake runner</stEvt:softwareAgent><stEvt:changed>/metadata /pages</stEvt:changed><stEvt:parameters>engine=xelatex</stEvt:parameters></rdf:li>',
+            '<rdf:li stEvt:action="saved" stEvt:instanceID="uuid:review-output-v2" stEvt:when="2026-06-09T01:50:12Z" stEvt:softwareAgent="WordPress review queue" stEvt:changed="/status" stEvt:parameters="no-execute=true" />',
+            '</rdf:Seq>',
+            '</xmpMM:History>',
+            '</rdf:Description>',
+            '</rdf:RDF>',
+            '</x:xmpmeta>',
+            '<?xpacket end="w"?>',
+        ]);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Metadata 9 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Metadata /Subtype /XML /Length ' . strlen($xmp) . ' >>',
+            'stream',
+            $xmp,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/xmp-mm.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/xmp-mm.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'packetBytes' => strlen($xmp),
+            'packetSha256' => hash('sha256', $xmp),
+            'documentId' => 'uuid:review-output',
+            'instanceId' => 'uuid:review-output-v2',
+            'originalDocumentId' => 'uuid:legacy-source',
+            'renditionClass' => 'proof:pdf',
+            'renditionParams' => 'engine=xelatex;profile=wordpress-review',
+            'versionId' => '2',
+            'derivedFrom' => [
+                'documentId' => 'uuid:legacy-source',
+                'instanceId' => 'uuid:legacy-source-v5',
+                'originalDocumentId' => 'uuid:legacy-original',
+                'renditionClass' => 'draft:docx',
+                'renditionParams' => 'source=import-review',
+                'manager' => 'WordPress importer',
+                'managerVariant' => 'block-review',
+                'managerTo' => 'wp:post:42',
+                'managerUi' => 'review-panel',
+            ],
+            'history' => [
+                [
+                    'action' => 'converted',
+                    'instanceId' => 'uuid:review-output-v1',
+                    'when' => '2026-06-09T01:49:07Z',
+                    'softwareAgent' => 'Pandoc PHP fake runner',
+                    'changed' => '/metadata /pages',
+                    'parameters' => 'engine=xelatex',
+                ],
+                [
+                    'action' => 'saved',
+                    'instanceId' => 'uuid:review-output-v2',
+                    'when' => '2026-06-09T01:50:12Z',
+                    'softwareAgent' => 'WordPress review queue',
+                    'changed' => '/status',
+                    'parameters' => 'no-execute=true',
+                ],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfXmpMetadata']);
+        $t->contains('pdf-byte-xmp-metadata:10', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-original-document-id', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-rendition-class:proof:pdf', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-derived-from', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-xmp-history:2', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfXmpMetadata']);
+    },
+
     'fake runner extracts bounded pdfx xmp identification from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfx-xmp.pdf']);
