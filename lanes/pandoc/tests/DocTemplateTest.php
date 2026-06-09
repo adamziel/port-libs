@@ -4984,6 +4984,50 @@ TPL;
         );
     },
 
+    'rejects malformed pandoc doctemplate separator payloads with extra closing brackets' => static function (TestRunner $t) use ($expectTemplateErrorContains): void {
+        $renderer = new DocTemplate();
+
+        $t->same('Sources: media[ links[ layout', $renderer->render('Sources: $sources[[ ]$', [
+            'sources' => ['media', 'links', 'layout'],
+        ]));
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('Sources: $sources[a]b]$', [
+                'sources' => ['media', 'links'],
+            ]),
+            'Malformed doctemplate separator in sources[a]b] at <template>:1:10',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('Rows: ${ components/row()[a]b] }', [], [
+                'components/row' => '$it$',
+            ]),
+            'Malformed doctemplate separator in components/row()[a]b] at <template>:1:7',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->render('Rows: ${ sources:components/row()[a]b] }', [
+                'sources' => ['media'],
+            ], [
+                'components/row' => '$it$',
+            ]),
+            'Malformed doctemplate separator in components/row()[a]b] at <template>:1:7',
+        );
+
+        $expectTemplateErrorContains(
+            $t,
+            static fn (): string => $renderer->renderResource('review-packets/review.html', [
+                'review-packets/review.html' => "Intro\nSources: " . '${ sources[a]b] }',
+            ], [
+                'sources' => ['media'],
+            ]),
+            'Malformed doctemplate separator in sources[a]b] at review-packets/review.html:2:10',
+        );
+    },
+
     'returns pandoc doctemplate loop literal at partial nesting limit' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
 

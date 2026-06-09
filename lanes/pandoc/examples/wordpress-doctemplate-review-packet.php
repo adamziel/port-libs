@@ -1701,6 +1701,17 @@ HTML);
     }
 
     try {
+        (new DocTemplate())->render('Broken: $reviewSources[a]b]$', $context);
+        fwrite(STDERR, "Expected doctemplate malformed separator rejection\n");
+        exit(1);
+    } catch (\UnexpectedValueException $exception) {
+        if (!str_contains($exception->getMessage(), 'Malformed doctemplate separator in reviewSources[a]b] at <template>:1:9')) {
+            fwrite(STDERR, "Unexpected doctemplate malformed separator diagnostic: {$exception->getMessage()}\n");
+            exit(1);
+        }
+    }
+
+    try {
         (new DocTemplate())->render('Broken: $review-id', ['review-id' => 'PR-42']);
         fwrite(STDERR, "Expected unclosed doctemplate dollar directive rejection\n");
         exit(1);

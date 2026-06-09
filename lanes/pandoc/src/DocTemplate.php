@@ -5763,6 +5763,9 @@ CSS;
 
             $separator = substr($suffix, 1, $separatorEnd - 1);
             $suffix = substr($suffix, $separatorEnd + 1);
+            if ($suffix !== '' && $suffix[0] !== '/') {
+                throw new \UnexpectedValueException("Malformed doctemplate separator in {$expression}");
+            }
         }
 
         if ($suffix !== '' && $suffix[0] !== '/') {
@@ -5861,13 +5864,22 @@ CSS;
             throw new \UnexpectedValueException("Doctemplate variable separators must follow pipe suffixes in {$expression}");
         }
 
+        $separator = $trailingSeparator ?? (array_key_exists(2, $matches) ? $matches[2] : null);
+        $this->validateSeparatorPayload($separator, $expression);
         $this->validateVariableName($name, $expression);
 
         return [
             'name' => $name,
-            'separator' => $trailingSeparator ?? (array_key_exists(2, $matches) ? $matches[2] : null),
+            'separator' => $separator,
             'pipes' => $this->parsePipeSpecs($parts, $expression),
         ];
+    }
+
+    private function validateSeparatorPayload(?string $separator, string $expression): void
+    {
+        if ($separator !== null && str_contains($separator, ']')) {
+            throw new \UnexpectedValueException("Malformed doctemplate separator in {$expression}");
+        }
     }
 
     /**
