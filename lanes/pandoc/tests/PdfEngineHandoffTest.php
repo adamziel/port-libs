@@ -8005,6 +8005,96 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfSignatureSeedValues']);
     },
 
+    'fake runner extracts bounded pdf signature lock policy metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signature-lock-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.approval) /SV 11 0 R /Lock 12 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.witness) /SV << /LockDocument /FormFillingAndAnnotations >> /Lock << /Type /SigFieldLock /Action /All >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R] /SigFlags 3 >>',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /SV /Ff 4 /LockDocument /NoChanges >>',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /SigFieldLock /Action /Include /Fields [(review.total) (reviewer.name)] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signature-lock-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signature-lock-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            [
+                'fieldName' => 'review.approval',
+                'fieldObject' => '4 0 R',
+                'seedValueObject' => '11 0 R',
+                'seedLockDocument' => 'NoChanges',
+                'fieldLockObject' => '12 0 R',
+                'fieldLockType' => 'SigFieldLock',
+                'fieldLockAction' => 'Include',
+                'fieldLockFields' => ['review.total', 'reviewer.name'],
+                'reviewStatus' => 'review',
+                'issues' => ['seed-lock-no-changes-overrides-field-list'],
+            ],
+            [
+                'fieldName' => 'review.witness',
+                'fieldObject' => '5 0 R',
+                'seedValueObject' => 'inline',
+                'seedLockDocument' => 'FormFillingAndAnnotations',
+                'fieldLockObject' => 'inline',
+                'fieldLockType' => 'SigFieldLock',
+                'fieldLockAction' => 'All',
+                'fieldLockFields' => [],
+                'reviewStatus' => 'ok',
+                'issues' => [],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureLockPolicies']);
+        $t->contains('pdf-byte-signature-lock-policies:2', $diagnostics);
+        $t->contains('pdf-byte-signature-lock-seed:NoChanges:1', $diagnostics);
+        $t->contains('pdf-byte-signature-lock-seed:FormFillingAndAnnotations:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-lock-action:All:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-lock-action:Include:1', $diagnostics);
+        $t->contains('pdf-byte-signature-field-lock-fields:2', $diagnostics);
+        $t->contains('pdf-byte-signature-lock-policy-status:ok:1', $diagnostics);
+        $t->contains('pdf-byte-signature-lock-policy-status:review:1', $diagnostics);
+        $t->contains('pdf-byte-signature-lock-policy-issue:seed-lock-no-changes-overrides-field-list:1', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureLockPolicies']);
+    },
+
     'fake runner summarizes bounded pdf signature byte range policy from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signed-byte-ranges.pdf']);

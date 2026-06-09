@@ -815,6 +815,7 @@ final class PdfEngineHandoff
         $pdfSignatureByteRangePolicy = [];
         $pdfSignatureRevisionMetadata = [];
         $pdfSignatureSeedValues = [];
+        $pdfSignatureLockPolicies = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -934,6 +935,7 @@ final class PdfEngineHandoff
                 $pdfSignatureByteRangePolicy = $pdfInspection['signatureByteRangePolicy'];
                 $pdfSignatureRevisionMetadata = $pdfInspection['signatureRevisionMetadata'];
                 $pdfSignatureSeedValues = $pdfInspection['signatureSeedValues'];
+                $pdfSignatureLockPolicies = $pdfInspection['signatureLockPolicies'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2515,6 +2517,60 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-seed-add-rev-info:' . $addRevInfoCount;
                     }
                 }
+                if ($pdfSignatureLockPolicies !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-lock-policies:' . count($pdfSignatureLockPolicies);
+                    $seedLockDocuments = [];
+                    $fieldLockActions = [];
+                    $fieldLockFieldCount = 0;
+                    $statusCounts = [];
+                    $issueCounts = [];
+                    foreach ($pdfSignatureLockPolicies as $policy) {
+                        $seedLockDocument = is_string($policy['seedLockDocument'] ?? null) ? $policy['seedLockDocument'] : '';
+                        if ($seedLockDocument !== '') {
+                            $seedLockDocuments[$seedLockDocument] = ($seedLockDocuments[$seedLockDocument] ?? 0) + 1;
+                        }
+
+                        $fieldLockAction = is_string($policy['fieldLockAction'] ?? null) ? $policy['fieldLockAction'] : '';
+                        if ($fieldLockAction !== '') {
+                            $fieldLockActions[$fieldLockAction] = ($fieldLockActions[$fieldLockAction] ?? 0) + 1;
+                        }
+
+                        if (isset($policy['fieldLockFields']) && is_array($policy['fieldLockFields'])) {
+                            $fieldLockFieldCount += count($policy['fieldLockFields']);
+                        }
+
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+
+                        foreach (($policy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+
+                    ksort($seedLockDocuments);
+                    foreach ($seedLockDocuments as $seedLockDocument => $seedLockCount) {
+                        $diagnostics[] = 'pdf-byte-signature-lock-seed:' . $seedLockDocument . ':' . $seedLockCount;
+                    }
+                    ksort($fieldLockActions);
+                    foreach ($fieldLockActions as $fieldLockAction => $fieldLockCount) {
+                        $diagnostics[] = 'pdf-byte-signature-field-lock-action:' . $fieldLockAction . ':' . $fieldLockCount;
+                    }
+                    if ($fieldLockFieldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-field-lock-fields:' . $fieldLockFieldCount;
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $policyStatus => $statusCount) {
+                        $diagnostics[] = 'pdf-byte-signature-lock-policy-status:' . $policyStatus . ':' . $statusCount;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $issueCount) {
+                        $diagnostics[] = 'pdf-byte-signature-lock-policy-issue:' . $issue . ':' . $issueCount;
+                    }
+                }
                 if ($pdfSignatureByteRangePolicy !== []) {
                     $diagnostics[] = 'pdf-byte-signature-byte-range-policy:' . count($pdfSignatureByteRangePolicy);
                     $statusCounts = [];
@@ -3146,6 +3202,7 @@ final class PdfEngineHandoff
             'pdfSignatureByteRangePolicy' => $pdfSignatureByteRangePolicy,
             'pdfSignatureRevisionMetadata' => $pdfSignatureRevisionMetadata,
             'pdfSignatureSeedValues' => $pdfSignatureSeedValues,
+            'pdfSignatureLockPolicies' => $pdfSignatureLockPolicies,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -3539,6 +3596,7 @@ final class PdfEngineHandoff
             'finalPdfSignatureByteRangePolicy' => is_array($finalRun) && is_array($finalRun['pdfSignatureByteRangePolicy'] ?? null) ? $finalRun['pdfSignatureByteRangePolicy'] : [],
             'finalPdfSignatureRevisionMetadata' => is_array($finalRun) && is_array($finalRun['pdfSignatureRevisionMetadata'] ?? null) ? $finalRun['pdfSignatureRevisionMetadata'] : [],
             'finalPdfSignatureSeedValues' => is_array($finalRun) && is_array($finalRun['pdfSignatureSeedValues'] ?? null) ? $finalRun['pdfSignatureSeedValues'] : [],
+            'finalPdfSignatureLockPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureLockPolicies'] ?? null) ? $finalRun['pdfSignatureLockPolicies'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -4725,6 +4783,7 @@ final class PdfEngineHandoff
         $optionalContent = $this->extractPdfOptionalContent($pdfBytes, $catalog);
         $signatures = $this->extractPdfSignatures($pdfBytes, $catalog);
         $signatureSeedValues = $this->extractPdfSignatureSeedValues($pdfBytes, $catalog);
+        $signatureLockPolicies = $this->extractPdfSignatureLockPolicies($pdfBytes, $catalog);
         $catalogPermissions = $this->extractPdfCatalogPermissions($pdfBytes, $catalog);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
@@ -4842,6 +4901,7 @@ final class PdfEngineHandoff
             'signatureByteRangePolicy' => $this->summarizePdfSignatureByteRangePolicy($signatures, $catalogPermissions, strlen($pdfBytes)),
             'signatureRevisionMetadata' => $this->summarizePdfSignatureRevisionMetadata($signatures, $catalogPermissions, $trailerRevisions, $pdfBytes),
             'signatureSeedValues' => $signatureSeedValues,
+            'signatureLockPolicies' => $signatureLockPolicies,
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -12663,6 +12723,144 @@ final class PdfEngineHandoff
             'timestampRequired' => $timestampDictionary !== null && (($this->extractPdfIntegerToken($timestampDictionary, 'Ff') ?? 0) & 1) !== 0,
             'addRevInfo' => $this->extractPdfBooleanToken($dictionary, 'AddRevInfo'),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function extractPdfSignatureLockPolicies(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $policies = [];
+        $visitedFields = [];
+        $acroForm = $this->extractPdfAcroFormDictionary($pdfBytes, $catalog);
+
+        if ($acroForm !== null) {
+            foreach ($this->extractPdfReferenceArray($acroForm, 'Fields') as $reference) {
+                $this->collectPdfSignatureLockPolicyFields($policies, $objects, $reference, $visitedFields, 0);
+            }
+        }
+
+        foreach ($objects as $reference => $body) {
+            if ($this->extractPdfNameToken($body, 'FT') === 'Sig'
+                && ($this->extractPdfValueForName($body, 'SV') !== null || $this->extractPdfValueForName($body, 'Lock') !== null)
+            ) {
+                $this->addPdfSignatureLockPolicyFromField($policies, $reference . ' R', $body, $objects);
+            }
+        }
+
+        $policies = array_values($policies);
+        usort(
+            $policies,
+            static fn (array $a, array $b): int => [
+                $a['fieldName'] ?? '',
+                $a['fieldObject'] ?? '',
+                $a['seedValueObject'] ?? '',
+                $a['fieldLockObject'] ?? '',
+            ] <=> [
+                $b['fieldName'] ?? '',
+                $b['fieldObject'] ?? '',
+                $b['seedValueObject'] ?? '',
+                $b['fieldLockObject'] ?? '',
+            ]
+        );
+
+        return $policies;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $policies
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfSignatureLockPolicyFields(array &$policies, array $objects, string $reference, array &$visited, int $depth): void
+    {
+        if ($depth > 16 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+
+        $visited[$reference] = true;
+        $body = $objects[$reference];
+        $this->addPdfSignatureLockPolicyFromField($policies, $reference . ' R', $body, $objects);
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfSignatureLockPolicyFields($policies, $objects, $kidReference, $visited, $depth + 1);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $policies
+     * @param array<string, string> $objects
+     */
+    private function addPdfSignatureLockPolicyFromField(array &$policies, string $fieldReference, string $fieldDictionary, array $objects): void
+    {
+        if ($this->extractPdfNameToken($fieldDictionary, 'FT') !== 'Sig') {
+            return;
+        }
+
+        $seedValue = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($fieldDictionary, 'SV'), $objects);
+        $fieldLock = $this->resolvePdfDictionaryValue($this->extractPdfValueForName($fieldDictionary, 'Lock'), $objects);
+        $seedDictionary = $seedValue['dictionary'];
+        $fieldLockDictionary = $fieldLock['dictionary'];
+        $seedLockDocument = $seedDictionary === null ? null : $this->extractPdfNameToken($seedDictionary, 'LockDocument');
+        if ($seedLockDocument === null && $fieldLockDictionary === null) {
+            return;
+        }
+
+        $fieldName = $this->extractPdfStringOrNameValue($fieldDictionary, 'T')
+            ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TU')
+            ?? $this->extractPdfStringOrNameValue($fieldDictionary, 'TM');
+        $fieldLockAction = $fieldLockDictionary === null ? null : $this->extractPdfNameToken($fieldLockDictionary, 'Action');
+        $fieldLockFields = $fieldLockDictionary === null ? [] : $this->extractPdfStringArrayValue($fieldLockDictionary, 'Fields');
+        $issues = $this->pdfSignatureLockPolicyIssues($seedLockDocument, $fieldLockAction, $fieldLockFields);
+
+        $policy = [
+            'fieldName' => $fieldName === '' ? null : $fieldName,
+            'fieldObject' => $fieldReference,
+            'seedValueObject' => $seedDictionary === null ? null : $seedValue['object'],
+            'seedLockDocument' => $seedLockDocument,
+            'fieldLockObject' => $fieldLockDictionary === null ? null : $fieldLock['object'],
+            'fieldLockType' => $fieldLockDictionary === null ? null : $this->extractPdfNameToken($fieldLockDictionary, 'Type'),
+            'fieldLockAction' => $fieldLockAction,
+            'fieldLockFields' => $fieldLockFields,
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+        ];
+        $key = ($policy['fieldObject'] ?? '') . "\0" . ($policy['seedValueObject'] ?? '') . "\0" . ($policy['fieldLockObject'] ?? '');
+        $policies[$key] = $policy;
+    }
+
+    /**
+     * @param list<string> $fieldLockFields
+     * @return list<string>
+     */
+    private function pdfSignatureLockPolicyIssues(?string $seedLockDocument, ?string $fieldLockAction, array $fieldLockFields): array
+    {
+        $issues = [];
+        if ($seedLockDocument !== null
+            && !in_array($seedLockDocument, ['NoChanges', 'FormFilling', 'FormFillingAndAnnotations'], true)
+        ) {
+            $issues[] = 'seed-lock-unknown-document-policy';
+        }
+
+        if ($fieldLockAction !== null && !in_array($fieldLockAction, ['All', 'Include', 'Exclude'], true)) {
+            $issues[] = 'field-lock-unknown-action';
+        }
+        if (($fieldLockAction === 'Include' || $fieldLockAction === 'Exclude') && $fieldLockFields === []) {
+            $issues[] = 'field-lock-missing-fields';
+        }
+        if ($fieldLockAction === null && $fieldLockFields !== []) {
+            $issues[] = 'field-lock-missing-action';
+        }
+        if ($seedLockDocument === 'NoChanges'
+            && $fieldLockAction !== null
+            && $fieldLockAction !== 'All'
+            && $fieldLockFields !== []
+        ) {
+            $issues[] = 'seed-lock-no-changes-overrides-field-list';
+        }
+
+        return $issues;
     }
 
     /**
