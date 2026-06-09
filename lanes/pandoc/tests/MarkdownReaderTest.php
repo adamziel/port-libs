@@ -12718,6 +12718,41 @@ HTML;
         $t->contains('<!-- wp:html -->' . "\n" . '</custom-review>', $blocks);
         $t->contains('<p><a href="http://foo.bar.baz">http://foo.bar.baz</a></p>', $blocks);
     },
+    'maps commonmark processing declaration and cdata raw html boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<?review import',
+            'raw processing *stays raw*',
+            '?>',
+            '',
+            '<!REVIEW',
+            'data-source="batch-58">',
+            '',
+            '<![CDATA[',
+            'Raw <source> & **markdown** stays raw.',
+            ']]>',
+            '',
+            '## Parsed after raw boundary',
+        ]));
+        $processingInstruction = $document->children[0];
+        $declaration = $document->children[1];
+        $cdata = $document->children[2];
+        $heading = $document->children[3];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('raw_html', $processingInstruction->type);
+        $t->same("<?review import\nraw processing *stays raw*\n?>", $processingInstruction->attr('html'));
+        $t->same('raw_html', $declaration->type);
+        $t->same("<!REVIEW\ndata-source=\"batch-58\">", $declaration->attr('html'));
+        $t->same('raw_html', $cdata->type);
+        $t->same("<![CDATA[\nRaw <source> & **markdown** stays raw.\n]]>", $cdata->attr('html'));
+        $t->same('heading', $heading->type);
+        $t->same('Parsed after raw boundary', $heading->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<?review import' . "\n" . 'raw processing *stays raw*', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<!REVIEW' . "\n" . 'data-source="batch-58">', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<![CDATA[' . "\n" . 'Raw <source> & **markdown** stays raw.', $blocks);
+        $t->contains('<h2 id="parsed-after-raw-boundary">Parsed after raw boundary</h2>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');

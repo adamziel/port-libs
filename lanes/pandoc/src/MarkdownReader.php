@@ -8173,6 +8173,18 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
+        if (preg_match('/^ {0,3}<\?/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, '?>');
+        }
+
+        if (preg_match('/^ {0,3}<![A-Z]/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, '>');
+        }
+
+        if (preg_match('/^ {0,3}<!\[CDATA\[/', $line) === 1) {
+            return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
+        }
+
         if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)(?:\s+[^>]*)?\/?>/i', $line, $m) === 1) {
             $tag = strtolower($m[1]);
             if ($this->isCommonMarkBlankTerminatedRawHtmlTag($tag)) {
@@ -13050,6 +13062,28 @@ final class MarkdownReader
         while ($cursor < $count) {
             $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
             if (str_contains($lines[$cursor], '-->')) {
+                break;
+            }
+            $cursor++;
+        }
+
+        $index = min($cursor, $count - 1);
+
+        return new AstNode('raw_html', ['html' => implode("\n", $content)]);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function readRawHtmlUntilMarker(array $lines, int &$index, string $marker): AstNode
+    {
+        $content = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $this->normalizeRawHtmlLine($lines[$cursor]);
+            $content[] = $line;
+            if (str_contains($line, $marker)) {
                 break;
             }
             $cursor++;
