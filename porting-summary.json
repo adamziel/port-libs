@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:55:54 UTC",
-    "sourceCommit": "4695b1b90f0e4b31fb388d5228d7976c231b2205",
-    "sourceCommitShort": "4695b1b90f0e",
+    "generated": "2026-06-09 07:58:13 UTC",
+    "sourceCommit": "a7de43edc118edef016effe7d717cf0aedfe9ac9",
+    "sourceCommitShort": "a7de43edc118",
     "sourceBranch": "unknown",
-    "dashboardCommit": "4695b1b90f0e4b31fb388d5228d7976c231b2205",
-    "dashboardCommitShort": "4695b1b90f0e",
+    "dashboardCommit": "a7de43edc118edef016effe7d717cf0aedfe9ac9",
+    "dashboardCommitShort": "a7de43edc118",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2894",
-            "coverage": "2,894 / 2,276 (127.2%)",
+            "mapped": "2895",
+            "coverage": "2,895 / 2,276 (127.2%)",
             "mapPercent": "127.2%",
             "unmapped": "0",
-            "php": "2,522 pass / 0 fail",
+            "php": "2,523 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC YAML metadata current-base invalid explicit-key block...",
+            "audit": "2026-06-09 UTC legacy DOC/CFB current-base FFData Data-stream linkage...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For YAML metadata follow-up, choose a non-overlapping native...",
-            "remainingGate": "No new native support component is needed for this YAML metadata slice.",
+            "nextTarget": "For legacy DOC/CFB follow-up, choose a non-overlapping native...",
+            "remainingGate": "No new native support component is needed for this legacy DOC/CFB slice.",
             "commit": "pending fast ba..."
         },
         {

@@ -202,8 +202,11 @@ final class LegacyDocReader
     /** @var list<array<string,mixed>> */
     private array $activeListOverrides = [];
 
+    /** @var array<int,array<string,mixed>> */
+    private array $activeFormFieldDataReferences = [];
+
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, formFieldDataReferences:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
     public function readBytes(string $bytes): array
     {
@@ -211,7 +214,7 @@ final class LegacyDocReader
     }
 
     /**
-     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
+     * @return array{document:AstNode, metadata:array<string,mixed>, streams:list<string>, streamDirectory:list<array<string,mixed>>, directoryEntries:list<array<string,mixed>>, fib:array<string,mixed>, subdocuments:list<array<string,mixed>>, headerFooterStories:list<array<string,mixed>>, styles:list<array<string,mixed>>, formattingRuns:list<array<string,mixed>>, listFormats:list<array<string,mixed>>, listOverrides:list<array<string,mixed>>, sections:list<array<string,mixed>>, bookmarks:list<array<string,mixed>>, footnotes:list<array<string,mixed>>, endnotes:list<array<string,mixed>>, comments:list<array<string,mixed>>, commentAuthors:list<array<string,mixed>>, revisionAuthors:list<array<string,mixed>>, captionDefinitions:list<array<string,mixed>>, autoCaptionRules:list<array<string,mixed>>, fieldCharacters:list<array<string,mixed>>, fields:list<array<string,mixed>>, fieldStories:list<array<string,mixed>>, formFieldDataReferences:list<array<string,mixed>>, embeddedObjects:list<array<string,mixed>>, embeddedObjectReferences:list<array<string,mixed>>, pictureReferences:list<array<string,mixed>>, macroProjects:list<array<string,mixed>>, associatedStrings:list<array<string,mixed>>, documentProperties:array<string,mixed>, documentVariables:list<array<string,mixed>>, saveHistory:list<array<string,mixed>>, externalFileReferences:list<array<string,mixed>>, subdocumentReferences:list<array<string,mixed>>, mailMergeSettings:array<string,mixed>, routeSlip:array<string,mixed>}
      */
     public function readCompoundFile(CompoundFileBinary $compoundFile): array
     {
@@ -513,6 +516,13 @@ final class LegacyDocReader
                 $metadata['fieldStories'] = $fieldStories;
             }
         }
+        $fileCharacterRanges = $this->textFileCharacterRanges($textResult, $fib);
+        $formFieldDataReferences = $this->formFieldDataReferenceReport($fields, $formattingRuns, $dataStream, $fileCharacterRanges);
+        if ($formFieldDataReferences !== []) {
+            $metadata['formFieldDataReferenceCount'] = count($formFieldDataReferences);
+            $metadata['formFieldDataReferences'] = $formFieldDataReferences;
+            $metadata['formFieldDataExtractionPolicy'] = 'metadata-only-native-review';
+        }
         $embeddedObjects = $this->embeddedObjectReport($compoundFile);
         if ($embeddedObjects !== []) {
             $metadata['embeddedObjectCount'] = count($embeddedObjects);
@@ -532,7 +542,7 @@ final class LegacyDocReader
             $embeddedObjectReferences,
             $formattingRuns,
             $dataStream,
-            $this->textFileCharacterRanges($textResult, $fib)
+            $fileCharacterRanges
         );
         if ($pictureReferences !== []) {
             $metadata['pictureReferenceCount'] = count($pictureReferences);
@@ -572,6 +582,7 @@ final class LegacyDocReader
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
+            'formFieldDataReferences' => $formFieldDataReferences,
             'embeddedObjects' => $embeddedObjects,
             'embeddedObjectReferences' => $embeddedObjectReferences,
             'pictureReferences' => $pictureReferences,
@@ -590,10 +601,12 @@ final class LegacyDocReader
         $previousExternalFileReferences = $this->activeExternalFileReferences;
         $previousListFormats = $this->activeListFormats;
         $previousListOverrides = $this->activeListOverrides;
+        $previousFormFieldDataReferences = $this->activeFormFieldDataReferences;
         $this->activeAssociatedStrings = $associatedStrings;
         $this->activeExternalFileReferences = $externalFileReferences;
         $this->activeListFormats = $listFormats;
         $this->activeListOverrides = $listOverrides;
+        $this->activeFormFieldDataReferences = $this->formFieldDataReferencesByBeginCp($formFieldDataReferences);
         try {
             $documentChildren = $this->paragraphNodes(
                 $textResult['text'],
@@ -607,6 +620,7 @@ final class LegacyDocReader
             $this->activeExternalFileReferences = $previousExternalFileReferences;
             $this->activeListFormats = $previousListFormats;
             $this->activeListOverrides = $previousListOverrides;
+            $this->activeFormFieldDataReferences = $previousFormFieldDataReferences;
         }
 
         return [
@@ -634,6 +648,7 @@ final class LegacyDocReader
             'fieldCharacters' => $fieldCharacters,
             'fields' => $fields,
             'fieldStories' => $fieldStories,
+            'formFieldDataReferences' => $formFieldDataReferences,
             'embeddedObjects' => $embeddedObjects,
             'embeddedObjectReferences' => $embeddedObjectReferences,
             'pictureReferences' => $pictureReferences,
@@ -1571,10 +1586,10 @@ final class LegacyDocReader
     /**
      * @return list<AstNode>
      */
-    private function inlineNodes(string $text): array
+    private function inlineNodes(string $text, int $segmentStartCp = 0): array
     {
         if (strpbrk($text, "\x13\x14\x15") !== false) {
-            return $this->fieldAwareInlineNodes($text);
+            return $this->fieldAwareInlineNodes($text, $segmentStartCp);
         }
 
         return $this->plainInlineNodes($text);
@@ -1583,7 +1598,7 @@ final class LegacyDocReader
     /**
      * @return list<AstNode>
      */
-    private function fieldAwareInlineNodes(string $text): array
+    private function fieldAwareInlineNodes(string $text, int $segmentStartCp = 0): array
     {
         $parts = preg_split('/([\x13\x14\x15])/', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
         if (!is_array($parts)) {
@@ -1592,6 +1607,7 @@ final class LegacyDocReader
 
         $nodes = [];
         $fieldStack = [];
+        $localCp = 0;
         foreach ($parts as $part) {
             if ($part === '') {
                 continue;
@@ -1606,7 +1622,9 @@ final class LegacyDocReader
                     'resultText' => '',
                     'resultNodes' => [],
                     'collectingResult' => false,
+                    'beginCp' => $segmentStartCp + $localCp,
                 ];
+                $localCp++;
                 continue;
             }
 
@@ -1619,6 +1637,8 @@ final class LegacyDocReader
                     throw new \RuntimeException('Legacy DOC field contains duplicate separators');
                 }
                 $fieldStack[$fieldIndex]['collectingResult'] = true;
+                $fieldStack[$fieldIndex]['separatorCp'] = $segmentStartCp + $localCp;
+                $localCp++;
                 continue;
             }
 
@@ -1627,7 +1647,9 @@ final class LegacyDocReader
                     throw new \RuntimeException('Legacy DOC field end appears outside a field');
                 }
                 $field = array_pop($fieldStack);
+                $field['endCp'] = $segmentStartCp + $localCp;
                 $fieldNodes = $this->fieldResultNodes($field);
+                $localCp++;
                 if ($fieldStack === []) {
                     array_push($nodes, ...$fieldNodes);
                     continue;
@@ -1645,6 +1667,7 @@ final class LegacyDocReader
 
             if ($fieldStack === []) {
                 array_push($nodes, ...$this->plainInlineNodes($part));
+                $localCp += $this->textCharacterLength($part);
                 continue;
             }
 
@@ -1655,6 +1678,7 @@ final class LegacyDocReader
             } else {
                 $fieldStack[$fieldIndex]['instruction'] .= $part;
             }
+            $localCp += $this->textCharacterLength($part);
         }
 
         if ($fieldStack !== []) {
@@ -1665,15 +1689,16 @@ final class LegacyDocReader
     }
 
     /**
-     * @param array{instruction:string,resultText:string,resultNodes:list<AstNode>,collectingResult:bool} $field
+     * @param array{instruction:string,resultText:string,resultNodes:list<AstNode>,collectingResult:bool,beginCp?:int,separatorCp?:int,endCp?:int} $field
      * @return list<AstNode>
      */
     private function fieldResultNodes(array $field): array
     {
         $resultNodes = $field['resultNodes'];
         $resultText = $field['resultText'];
+        $beginCp = isset($field['beginCp']) ? (int) $field['beginCp'] : null;
         if ($resultNodes === []) {
-            $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText);
+            $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText, $beginCp);
             if ($attrs !== null && ($attrs['attributes']['data-legacy-doc-field'] ?? '') === 'set') {
                 return [new AstNode('span', $attrs, [])];
             }
@@ -1686,7 +1711,7 @@ final class LegacyDocReader
             return [new AstNode('link', $attrs, $resultNodes)];
         }
 
-        $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText);
+        $attrs = $this->fieldSpanAttrs($field['instruction'], $resultText, $beginCp);
         if ($attrs !== null) {
             return [new AstNode('span', $attrs, $resultNodes)];
         }
@@ -1749,7 +1774,7 @@ final class LegacyDocReader
     /**
      * @return array{classes:list<string>,attributes:array<string,string>}|null
      */
-    private function fieldSpanAttrs(string $instruction, string $result = ''): ?array
+    private function fieldSpanAttrs(string $instruction, string $result = '', ?int $beginCp = null): ?array
     {
         $tokens = $this->fieldInstructionTokens($instruction);
         if ($tokens === []) {
@@ -1776,6 +1801,9 @@ final class LegacyDocReader
             }
             if ($fieldName === 'FORMCHECKBOX') {
                 $attributes['data-legacy-doc-form-field-checked'] = $this->formCheckboxResultIsChecked($result) ? 'true' : 'false';
+            }
+            if ($beginCp !== null && isset($this->activeFormFieldDataReferences[$beginCp])) {
+                $attributes += $this->formFieldDataReferenceAttributes($this->activeFormFieldDataReferences[$beginCp]);
             }
 
             return [
@@ -3533,7 +3561,7 @@ final class LegacyDocReader
     ): array
     {
         if ($noteReferences === [] && $objectReferences === [] && $pictureReferences === []) {
-            return $this->inlineNodes($text);
+            return $this->inlineNodes($text, $segmentStartCp);
         }
 
         $chars = $this->unicodeCharacters($text);
@@ -3577,7 +3605,7 @@ final class LegacyDocReader
             $candidates[] = ['kind' => 'picture', 'reference' => $pictureReference, 'referenceCp' => $referenceCp];
         }
         if ($candidates === []) {
-            return $this->inlineNodes($text);
+            return $this->inlineNodes($text, $segmentStartCp);
         }
 
         usort(
@@ -3596,7 +3624,10 @@ final class LegacyDocReader
             if ($localCp > $cursor) {
                 array_push(
                     $nodes,
-                    ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor, $localCp - $cursor)))
+                    ...$this->inlineNodes(
+                        $this->charactersToString(array_slice($chars, $cursor, $localCp - $cursor)),
+                        $segmentStartCp + $cursor
+                    )
                 );
             }
 
@@ -3620,10 +3651,16 @@ final class LegacyDocReader
         }
 
         if ($cursor < $segmentLength) {
-            array_push($nodes, ...$this->inlineNodes($this->charactersToString(array_slice($chars, $cursor))));
+            array_push(
+                $nodes,
+                ...$this->inlineNodes(
+                    $this->charactersToString(array_slice($chars, $cursor)),
+                    $segmentStartCp + $cursor
+                )
+            );
         }
 
-        return $nodes === [] ? $this->inlineNodes($text) : $nodes;
+        return $nodes === [] ? $this->inlineNodes($text, $segmentStartCp) : $nodes;
     }
 
     /**
@@ -3806,6 +3843,234 @@ final class LegacyDocReader
         }
 
         return $references;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $fields
+     * @param list<array<string,mixed>> $formattingRuns
+     * @param list<array<string,int>> $fileCharacterRanges
+     * @return list<array<string,mixed>>
+     */
+    private function formFieldDataReferenceReport(array $fields, array $formattingRuns, ?string $dataStream, array $fileCharacterRanges): array
+    {
+        $fieldTypeMap = [
+            'formtext' => 'text',
+            'formcheckbox' => 'checkbox',
+            'formdropdown' => 'dropdown',
+        ];
+
+        $references = [];
+        foreach ($fields as $field) {
+            $fieldType = (string) ($field['type'] ?? '');
+            if (!isset($fieldTypeMap[$fieldType]) || (string) ($field['story'] ?? 'main') !== 'main') {
+                continue;
+            }
+
+            $beginCp = (int) ($field['beginCp'] ?? -1);
+            if ($beginCp < 0) {
+                continue;
+            }
+
+            $pictureData = $this->pictureDataForReferenceCp($formattingRuns, $fileCharacterRanges, $beginCp);
+            if ($pictureData === null) {
+                continue;
+            }
+            if ($dataStream === null) {
+                throw new \RuntimeException('Legacy DOC form-field CHPX metadata references a missing Data stream');
+            }
+
+            $dataStreamOffset = (int) ($pictureData['dataStreamOffset'] ?? -1);
+            if ($dataStreamOffset < 0 || $dataStreamOffset > strlen($dataStream)) {
+                throw new \RuntimeException('Legacy DOC form-field CHPX metadata points outside the Data stream');
+            }
+
+            $formFieldData = $this->decodeFormFieldDataFromDataStream($dataStream, $dataStreamOffset);
+            $expectedType = $fieldTypeMap[$fieldType];
+            if (($formFieldData['fieldType'] ?? null) !== $expectedType) {
+                throw new \RuntimeException('Legacy DOC FFData field type does not match the Plcfld form field type');
+            }
+
+            $reference = [
+                'type' => 'form-field-data',
+                'fieldIndex' => (int) ($field['index'] ?? (count($references) + 1)),
+                'fieldType' => $fieldType,
+                'fieldTypeCode' => (int) ($field['typeCode'] ?? -1),
+                'formFieldType' => $expectedType,
+                'beginCp' => $beginCp,
+                'endCp' => (int) ($field['endCp'] ?? $beginCp),
+                'source' => 'chpx-data-stream',
+                'sourceSprms' => is_array($pictureData['sourceSprms'] ?? null)
+                    ? array_values(array_map(static fn (mixed $value): string => (string) $value, $pictureData['sourceSprms']))
+                    : [],
+                'dataStreamOffset' => $dataStreamOffset,
+                'dataStreamByteCount' => (int) ($formFieldData['byteCount'] ?? 0),
+                'availableDataBytes' => strlen($dataStream) - $dataStreamOffset,
+                'hasSpecialCharacterFormatting' => ($pictureData['hasSpecialCharacterFormatting'] ?? false) === true,
+                'isBinaryData' => ($pictureData['isBinaryData'] ?? false) === true,
+                'dataStreamKind' => (string) ($pictureData['dataStreamKind'] ?? 'binary-data'),
+                'extractionPolicy' => 'metadata-only-native-review',
+                'canExposeBytes' => false,
+                'formFieldData' => $formFieldData,
+            ];
+            if (($formFieldData['name'] ?? '') !== '') {
+                $reference['name'] = (string) $formFieldData['name'];
+            }
+            if (($formFieldData['entryMacro'] ?? '') !== '' || ($formFieldData['exitMacro'] ?? '') !== '') {
+                $reference['macroPolicy'] = 'disabled-native-review';
+            }
+
+            $references[] = $reference;
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $references
+     * @return array<int,array<string,mixed>>
+     */
+    private function formFieldDataReferencesByBeginCp(array $references): array
+    {
+        $byBeginCp = [];
+        foreach ($references as $reference) {
+            if (!isset($reference['beginCp'])) {
+                continue;
+            }
+
+            $byBeginCp[(int) $reference['beginCp']] = $reference;
+        }
+
+        return $byBeginCp;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function decodeFormFieldDataFromDataStream(string $dataStream, int $offset): array
+    {
+        if ($offset < 0 || $offset >= strlen($dataStream)) {
+            throw new \RuntimeException('Legacy DOC FFData Data stream offset points outside the Data stream');
+        }
+
+        $available = substr($dataStream, $offset);
+        $byteCount = $this->formFieldDataByteCount($available);
+
+        return $this->decodeFormFieldData(substr($available, 0, $byteCount));
+    }
+
+    private function formFieldDataByteCount(string $bytes): int
+    {
+        if (strlen($bytes) < 10) {
+            throw new \RuntimeException('Legacy DOC FFData Data stream payload is truncated');
+        }
+
+        $cursor = 4;
+        $bits = self::u16($bytes, $cursor);
+        $cursor += 2;
+        $fieldTypeCode = $bits & 0x0003;
+        if ($fieldTypeCode > 2) {
+            throw new \RuntimeException('Legacy DOC FFData Data stream payload field type is unsupported');
+        }
+
+        $cursor += 4;
+        if ($cursor > strlen($bytes)) {
+            throw new \RuntimeException('Legacy DOC FFData Data stream payload is truncated');
+        }
+
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData field name', 20);
+        if ($fieldTypeCode === 0) {
+            $this->readLegacyDocXstz($bytes, $cursor, 'FFData default textbox text', 255);
+        } else {
+            if ($cursor + 2 > strlen($bytes)) {
+                throw new \RuntimeException('Legacy DOC FFData default state is truncated');
+            }
+            $cursor += 2;
+        }
+
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData textbox format', 64);
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData help text', 255);
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData status text', 138);
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData entry macro', 32);
+        $this->readLegacyDocXstz($bytes, $cursor, 'FFData exit macro', 32);
+        if ($fieldTypeCode === 2) {
+            $this->readLegacyDocUnicodeSttbStrings($bytes, $cursor, 'FFData dropdown list', 25, 255);
+        }
+
+        return $cursor;
+    }
+
+    /**
+     * @param array<string,mixed> $reference
+     * @return array<string,string>
+     */
+    private function formFieldDataReferenceAttributes(array $reference): array
+    {
+        $formFieldData = is_array($reference['formFieldData'] ?? null) ? $reference['formFieldData'] : [];
+        $attributes = [
+            'data-legacy-doc-form-field-data-source' => (string) ($reference['source'] ?? 'chpx-data-stream'),
+            'data-legacy-doc-form-field-data-stream-offset' => (string) ((int) ($reference['dataStreamOffset'] ?? 0)),
+            'data-legacy-doc-form-field-data-byte-count' => (string) ((int) ($reference['dataStreamByteCount'] ?? ($formFieldData['byteCount'] ?? 0))),
+            'data-legacy-doc-form-field-data-available-bytes' => (string) ((int) ($reference['availableDataBytes'] ?? 0)),
+            'data-legacy-doc-form-field-data-policy' => (string) ($reference['extractionPolicy'] ?? 'metadata-only-native-review'),
+            'data-legacy-doc-form-field-can-expose-bytes' => ($reference['canExposeBytes'] ?? false) === true ? 'true' : 'false',
+        ];
+
+        if (is_array($reference['sourceSprms'] ?? null) && $reference['sourceSprms'] !== []) {
+            $attributes['data-legacy-doc-form-field-source-sprms'] = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $reference['sourceSprms']));
+        }
+
+        foreach ([
+            'name' => 'data-legacy-doc-form-field-name',
+            'fieldType' => 'data-legacy-doc-form-field-ffdata-type',
+            'textType' => 'data-legacy-doc-form-field-text-type',
+            'defaultText' => 'data-legacy-doc-form-field-default-text',
+            'textFormat' => 'data-legacy-doc-form-field-text-format',
+            'helpText' => 'data-legacy-doc-form-field-help-text',
+            'statusText' => 'data-legacy-doc-form-field-status-text',
+            'entryMacro' => 'data-legacy-doc-form-field-entry-macro',
+            'exitMacro' => 'data-legacy-doc-form-field-exit-macro',
+            'checkboxState' => 'data-legacy-doc-form-field-checkbox-state',
+            'defaultDropDownItem' => 'data-legacy-doc-form-field-default-item',
+            'selectedDropDownItem' => 'data-legacy-doc-form-field-selected-item',
+        ] as $sourceKey => $attributeName) {
+            if (($formFieldData[$sourceKey] ?? '') !== '') {
+                $attributes[$attributeName] = (string) $formFieldData[$sourceKey];
+            }
+        }
+
+        foreach ([
+            'maxLength' => 'data-legacy-doc-form-field-max-length',
+            'checkboxSizeHalfPoints' => 'data-legacy-doc-form-field-checkbox-size-half-points',
+            'defaultSelectedIndex' => 'data-legacy-doc-form-field-default-selected-index',
+            'selectedIndex' => 'data-legacy-doc-form-field-selected-index',
+            'dropDownItemCount' => 'data-legacy-doc-form-field-item-count',
+        ] as $sourceKey => $attributeName) {
+            if (array_key_exists($sourceKey, $formFieldData) && $formFieldData[$sourceKey] !== null) {
+                $attributes[$attributeName] = (string) ((int) $formFieldData[$sourceKey]);
+            }
+        }
+
+        foreach ([
+            'protected' => 'data-legacy-doc-form-field-protected',
+            'recalculateOnExit' => 'data-legacy-doc-form-field-recalculate-on-exit',
+            'defaultChecked' => 'data-legacy-doc-form-field-default-checked',
+            'checked' => 'data-legacy-doc-form-field-checked',
+            'checkboxAutoSize' => 'data-legacy-doc-form-field-checkbox-auto-size',
+            'selectionUndefined' => 'data-legacy-doc-form-field-selection-undefined',
+        ] as $sourceKey => $attributeName) {
+            if (array_key_exists($sourceKey, $formFieldData)) {
+                $attributes[$attributeName] = $formFieldData[$sourceKey] === true ? 'true' : 'false';
+            }
+        }
+
+        if (is_array($formFieldData['dropDownItems'] ?? null) && $formFieldData['dropDownItems'] !== []) {
+            $attributes['data-legacy-doc-form-field-items'] = implode('; ', array_map(static fn (mixed $value): string => (string) $value, $formFieldData['dropDownItems']));
+        }
+        if (($formFieldData['entryMacro'] ?? '') !== '' || ($formFieldData['exitMacro'] ?? '') !== '') {
+            $attributes['data-legacy-doc-form-field-macro-policy'] = 'disabled-native-review';
+        }
+
+        return $attributes;
     }
 
     /**

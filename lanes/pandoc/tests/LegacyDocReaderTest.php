@@ -1920,6 +1920,98 @@ $buildPictureDataFormattingDocStreams = static function (int $picLocation = 8) u
     ];
 };
 
+$buildFormFieldDataFormattingDocStreams = static function (?string $ffDataOverride = null, int $dataOffset = 11) use ($buildSimpleWordDocument, $ffData, $plcfldMom, $u16, $u32): array {
+    $fieldBegin = "\x13";
+    $fieldSeparator = "\x14";
+    $fieldEnd = "\x15";
+    $text = 'Review '
+        . $fieldBegin . ' FORMTEXT \* MERGEFORMAT ' . $fieldSeparator . 'pending review' . $fieldEnd
+        . " for publication.\r";
+    $beginCp = strpos($text, $fieldBegin);
+    $separatorCp = strpos($text, $fieldSeparator);
+    $endCp = strpos($text, $fieldEnd);
+    if (!is_int($beginCp) || !is_int($separatorCp) || !is_int($endCp)) {
+        throw new RuntimeException('Unable to locate legacy DOC form field fixture characters');
+    }
+
+    $formFieldData = $ffDataOverride ?? $ffData([
+        'fieldType' => 'text',
+        'name' => 'PublicationState',
+        'defaultText' => 'Review',
+        'textFormat' => 'Title Case',
+        'helpText' => 'Choose the WordPress publication state.',
+        'statusText' => 'Legacy DOC form field metadata for import review.',
+        'entryMacro' => 'DoNotRunEntry',
+        'exitMacro' => 'DoNotRunExit',
+        'maxLength' => 40,
+        'hasOwnHelpText' => true,
+        'hasOwnStatusText' => true,
+        'protected' => true,
+        'recalculateOnExit' => true,
+    ]);
+    $dataStream = str_repeat('D', $dataOffset)
+        . $formFieldData
+        . 'trailing-picture-or-ole-bytes-not-exposed';
+
+    $wordDocument = $buildSimpleWordDocument($text);
+    $textStartFc = 512;
+    $beginStartFc = $textStartFc + $beginCp;
+    $beginEndFc = $beginStartFc + 1;
+    $textEndFc = $textStartFc + strlen($text);
+
+    $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $chpxFkpOffset = $chpxFkpPage * 512;
+    $formFieldGrpprl = $u16(0x0855) . "\x01"
+        . $u16(0x6a03) . $u32($dataOffset)
+        . $u16(0x0806) . "\x01";
+    $formFieldChpxOffset = 64;
+    $chpxFkp = str_repeat("\0", 512);
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        $u32($textStartFc) . $u32($beginStartFc) . $u32($beginEndFc) . $u32($textEndFc),
+        0,
+        16
+    );
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        "\0" . chr(intdiv($formFieldChpxOffset, 2)) . "\0",
+        16,
+        3
+    );
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($formFieldGrpprl)) . $formFieldGrpprl, $formFieldChpxOffset, 1 + strlen($formFieldGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(3), 511, 1);
+    $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
+
+    $fieldTable = $plcfldMom([
+        ['cp' => $beginCp, 'character' => 0x13, 'typeCode' => 0x46],
+        ['cp' => $separatorCp, 'character' => 0x14],
+        ['cp' => $endCp, 'character' => 0x15],
+    ], strlen($text));
+    $plcBteChpx = $u32($textStartFc)
+        . $u32($beginStartFc)
+        . $u32($beginEndFc)
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $tableStream = $fieldTable . $plcBteChpx;
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x011a, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($fieldTable)), 0x011e, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $tableStream,
+        'Data' => $dataStream,
+        'beginCp' => $beginCp,
+        'separatorCp' => $separatorCp,
+        'endCp' => $endCp,
+        'dataOffset' => $dataOffset,
+        'ffDataByteCount' => strlen($formFieldData),
+    ];
+};
+
 $listLevel = static function (
     int $level,
     int $startAt,
@@ -6443,6 +6535,99 @@ return [
             'defaultText' => 'value',
         ]), 0, -1);
         $t->throws(\RuntimeException::class, static fn (): array => $reader->decodeFormFieldData($truncated));
+    },
+    'links legacy DOC form fields to CHPX FFData Data stream metadata without exposing bytes' => static function (TestRunner $t) use ($buildCfb, $buildFormFieldDataFormattingDocStreams, $ffData): void {
+        $fixture = $buildFormFieldDataFormattingDocStreams();
+        $result = (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $fixture['WordDocument'],
+            '0Table' => $fixture['0Table'],
+            'Data' => $fixture['Data'],
+        ]));
+        $metadata = $result['metadata'];
+        $document = $result['document'];
+        $references = $result['formFieldDataReferences'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, $metadata['formFieldDataReferenceCount']);
+        $t->same('metadata-only-native-review', $metadata['formFieldDataExtractionPolicy']);
+        $t->same($references, $metadata['formFieldDataReferences']);
+        $t->same($references, $document->attr('formFieldDataReferences'));
+        $t->same(1, count($references));
+
+        $reference = $references[0];
+        $t->same('form-field-data', $reference['type']);
+        $t->same('formtext', $reference['fieldType']);
+        $t->same('text', $reference['formFieldType']);
+        $t->same(0x46, $reference['fieldTypeCode']);
+        $t->same($fixture['beginCp'], $reference['beginCp']);
+        $t->same($fixture['endCp'], $reference['endCp']);
+        $t->same('chpx-data-stream', $reference['source']);
+        $t->same(['sprmCFSpec', 'sprmCPicLocation', 'sprmCFData'], $reference['sourceSprms']);
+        $t->same($fixture['dataOffset'], $reference['dataStreamOffset']);
+        $t->same($fixture['ffDataByteCount'], $reference['dataStreamByteCount']);
+        $t->same(strlen((string) $fixture['Data']) - (int) $fixture['dataOffset'], $reference['availableDataBytes']);
+        $t->same(false, $reference['canExposeBytes']);
+        $t->same('metadata-only-native-review', $reference['extractionPolicy']);
+        $t->same('disabled-native-review', $reference['macroPolicy']);
+
+        $formFieldData = $reference['formFieldData'];
+        $t->same('PublicationState', $formFieldData['name']);
+        $t->same('Review', $formFieldData['defaultText']);
+        $t->same('Title Case', $formFieldData['textFormat']);
+        $t->same('Choose the WordPress publication state.', $formFieldData['helpText']);
+        $t->same('Legacy DOC form field metadata for import review.', $formFieldData['statusText']);
+        $t->same('DoNotRunEntry', $formFieldData['entryMacro']);
+        $t->same('DoNotRunExit', $formFieldData['exitMacro']);
+        $t->same(40, $formFieldData['maxLength']);
+        $t->same(true, $formFieldData['protected']);
+        $t->same(true, $formFieldData['recalculateOnExit']);
+
+        $paragraph = $document->children[0];
+        $formField = $paragraph->children[1];
+        $attributes = $formField->attr('attributes');
+        $t->same('span', $formField->type);
+        $t->same('formtext', $attributes['data-legacy-doc-field']);
+        $t->same('PublicationState', $attributes['data-legacy-doc-form-field-name']);
+        $t->same('Review', $attributes['data-legacy-doc-form-field-default-text']);
+        $t->same('Title Case', $attributes['data-legacy-doc-form-field-text-format']);
+        $t->same('40', $attributes['data-legacy-doc-form-field-max-length']);
+        $t->same('Choose the WordPress publication state.', $attributes['data-legacy-doc-form-field-help-text']);
+        $t->same('Legacy DOC form field metadata for import review.', $attributes['data-legacy-doc-form-field-status-text']);
+        $t->same('DoNotRunEntry', $attributes['data-legacy-doc-form-field-entry-macro']);
+        $t->same('DoNotRunExit', $attributes['data-legacy-doc-form-field-exit-macro']);
+        $t->same('disabled-native-review', $attributes['data-legacy-doc-form-field-macro-policy']);
+        $t->same('false', $attributes['data-legacy-doc-form-field-can-expose-bytes']);
+        $t->same((string) $fixture['dataOffset'], $attributes['data-legacy-doc-form-field-data-stream-offset']);
+        $t->same((string) $fixture['ffDataByteCount'], $attributes['data-legacy-doc-form-field-data-byte-count']);
+        $t->same('sprmCFSpec sprmCPicLocation sprmCFData', $attributes['data-legacy-doc-form-field-source-sprms']);
+        $t->same('pending review', $formField->children[0]->attr('text'));
+
+        $t->contains('data-legacy-doc-form-field-data-source="chpx-data-stream"', $blocks);
+        $t->contains('data-legacy-doc-form-field-name="PublicationState"', $blocks);
+        $t->contains('data-legacy-doc-form-field-default-text="Review"', $blocks);
+        $t->contains('data-legacy-doc-form-field-macro-policy="disabled-native-review"', $blocks);
+        $t->contains('>pending review</span>', $blocks);
+        $t->true(!str_contains($blocks, 'trailing-picture-or-ole-bytes-not-exposed'), 'Legacy DOC Data stream bytes should stay out of WordPress blocks');
+        $t->true(!str_contains(strip_tags($blocks), 'FORMTEXT'), 'Legacy DOC form field instructions should not render as visible text');
+
+        $mismatchedFixture = $buildFormFieldDataFormattingDocStreams($ffData([
+            'fieldType' => 'checkbox',
+            'name' => 'WrongType',
+            'defaultStateCode' => 1,
+            'currentStateCode' => 1,
+        ]));
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $mismatchedFixture['WordDocument'],
+            '0Table' => $mismatchedFixture['0Table'],
+            'Data' => $mismatchedFixture['Data'],
+        ])));
+
+        $missingDataFixture = $fixture;
+        unset($missingDataFixture['Data']);
+        $t->throws(\RuntimeException::class, static fn (): array => (new LegacyDocReader())->readBytes($buildCfb([
+            'WordDocument' => $missingDataFixture['WordDocument'],
+            '0Table' => $missingDataFixture['0Table'],
+        ])));
     },
     'extracts legacy DOC Plcfld field tables for form-field handoff metadata' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument, $plcfldMom, $u32): void {
         $fieldBegin = "\x13";
