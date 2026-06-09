@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(audio|button|canvas|datalist|details|dialog|fieldset|form|iframe|label|legend|map|meter|object|optgroup|option|output|picture|progress|script|style|select|template|textarea|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(article|aside|audio|button|canvas|datalist|details|dialog|fieldset|figcaption|figure|footer|form|header|iframe|label|legend|main|map|meter|nav|object|optgroup|option|output|picture|progress|script|section|style|select|template|textarea|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 

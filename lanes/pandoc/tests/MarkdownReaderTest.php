@@ -14862,6 +14862,132 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $option, $blocks);
         $t->true(!str_contains($blocks, '&lt;option'), 'Standalone option control should not be escaped into reviewer text');
     },
+    'maps upstream html reader article containers as raw review markup' => static function (TestRunner $t): void {
+        $article = '<article data-source="batch-53"><h2>Imported story</h2><p>Keep editorial markup.</p></article>';
+        $document = (new MarkdownReader())->read($article . "\n\nAfter the article.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($article, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the article.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $article, $blocks);
+        $t->true(!str_contains($blocks, '&lt;article'), 'Standalone article container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader section containers as raw review markup' => static function (TestRunner $t): void {
+        $section = '<section id="migration-review" data-source="batch-53"><p>Review packet body.</p></section>';
+        $document = (new MarkdownReader())->read($section . "\n\nAfter the section.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($section, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the section.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $section, $blocks);
+        $t->true(!str_contains($blocks, '&lt;section'), 'Standalone section container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader main containers as raw review markup' => static function (TestRunner $t): void {
+        $main = '<main id="content" data-source="batch-53"><p>Main imported content.</p></main>';
+        $document = (new MarkdownReader())->read($main . "\n\nAfter the main region.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($main, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the main region.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $main, $blocks);
+        $t->true(!str_contains($blocks, '&lt;main'), 'Standalone main container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader nav containers as raw review markup' => static function (TestRunner $t): void {
+        $nav = '<nav aria-label="Source links" data-source="batch-53"><a href="/one">One</a></nav>';
+        $document = (new MarkdownReader())->read($nav . "\n\nAfter the nav.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($nav, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the nav.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $nav, $blocks);
+        $t->true(!str_contains($blocks, '&lt;nav'), 'Standalone nav container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader aside containers as raw review markup' => static function (TestRunner $t): void {
+        $aside = '<aside data-source="batch-53"><p>Imported sidebar note.</p></aside>';
+        $document = (new MarkdownReader())->read($aside . "\n\nAfter the aside.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($aside, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the aside.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $aside, $blocks);
+        $t->true(!str_contains($blocks, '&lt;aside'), 'Standalone aside container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader header containers as raw review markup' => static function (TestRunner $t): void {
+        $header = '<header data-source="batch-53"><h1>Source heading</h1></header>';
+        $document = (new MarkdownReader())->read($header . "\n\nAfter the header.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($header, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the header.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $header, $blocks);
+        $t->true(!str_contains($blocks, '&lt;header'), 'Standalone header container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader footer containers as raw review markup' => static function (TestRunner $t): void {
+        $footer = '<footer data-source="batch-53"><p>Imported footer credits.</p></footer>';
+        $document = (new MarkdownReader())->read($footer . "\n\nAfter the footer.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($footer, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the footer.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $footer, $blocks);
+        $t->true(!str_contains($blocks, '&lt;footer'), 'Standalone footer container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader figure containers as raw review markup' => static function (TestRunner $t): void {
+        $figure = '<figure data-source="batch-53"><img src="chart.png" alt="Chart"><figcaption>Chart caption</figcaption></figure>';
+        $document = (new MarkdownReader())->read($figure . "\n\nAfter the figure.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($figure, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the figure.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $figure, $blocks);
+        $t->true(!str_contains($blocks, '&lt;figure'), 'Standalone figure container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader figcaption containers as raw review markup' => static function (TestRunner $t): void {
+        $figcaption = '<figcaption data-source="batch-53">Standalone source caption</figcaption>';
+        $document = (new MarkdownReader())->read($figcaption . "\n\nAfter the figcaption.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($figcaption, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the figcaption.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $figcaption, $blocks);
+        $t->true(!str_contains($blocks, '&lt;figcaption'), 'Standalone figcaption container should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
