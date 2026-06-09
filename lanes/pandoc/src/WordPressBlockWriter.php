@@ -2853,7 +2853,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'title', 'xml:lang'], true);
+            || in_array($name, ['cite', 'class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function renderHtmlWriterAttrs(AstNode $node, bool $includeIdentity): string
@@ -2908,7 +2908,7 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'xml:lang'], true);
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'xml:lang'], true);
     }
 
     private function renderMathInline(AstNode $node): string

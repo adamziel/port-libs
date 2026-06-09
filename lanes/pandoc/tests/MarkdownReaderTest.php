@@ -17343,6 +17343,85 @@ XML;
         $t->true(!str_contains($blocks, 'onmouseover'), 'Unsafe inline event handlers should not survive role attribute handoff');
         $t->true(!str_contains($blocks, 'style='), 'Unsafe inline style attributes should not survive role attribute handoff');
     },
+    'writes wordpress html writer translate attributes' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('heading', [
+                'level' => 3,
+                'id' => 'translate-heading',
+                'attributes' => [
+                    'data-pandoc-translate-source' => 'html-writer',
+                    'translate' => 'no',
+                    'style' => 'display:none',
+                ],
+            ], [new AstNode('text', ['text' => 'Translation metadata'])]),
+            new AstNode('code_block', [
+                'id' => 'translate-code',
+                'classes' => ['html'],
+                'attributes' => [
+                    'data-startfrom' => '3',
+                    'translate' => 'yes',
+                    'onclick' => 'alert(1)',
+                ],
+                'text' => '<p>copy</p>',
+            ]),
+            new AstNode('paragraph', [
+                'attributes' => [
+                    'translate' => 'yes',
+                ],
+            ], [
+                new AstNode('span', [
+                    'attributes' => [
+                        'data-inline' => 'span',
+                        'translate' => 'no',
+                        'onfocus' => 'alert(1)',
+                    ],
+                ], [new AstNode('text', ['text' => 'label'])]),
+                new AstNode('space'),
+                new AstNode('code', [
+                    'attributes' => [
+                        'translate' => 'no',
+                    ],
+                    'text' => 'sku-42',
+                ]),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => '/review',
+                    'attributes' => [
+                        'translate' => 'yes',
+                    ],
+                ], [new AstNode('text', ['text' => 'review'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => 'media/label.png',
+                    'alt' => 'Localized label',
+                    'attributes' => [
+                        'translate' => 'no',
+                    ],
+                ]),
+            ]),
+            new AstNode('table', [
+                'id' => 'translate-table',
+                'attributes' => [
+                    'translate' => 'no',
+                ],
+            ], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Do not translate'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<h3 id="translate-heading" data-pandoc-translate-source="html-writer" translate="no">Translation metadata</h3>', $blocks);
+        $t->contains('<pre class="wp-block-code html" id="translate-code" data-startfrom="3" translate="yes"><code class="language-html">&lt;p&gt;copy&lt;/p&gt;</code></pre>', $blocks);
+        $t->contains('<p translate="yes"><span data-inline="span" translate="no">label</span> <code translate="no">sku-42</code> <a href="/review" translate="yes">review</a> <img src="media/label.png" alt="Localized label" translate="no"/></p>', $blocks);
+        $t->contains('<table id="translate-table" translate="no">', $blocks);
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe code-block event handlers should not survive translate attribute handoff');
+        $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe inline event handlers should not survive translate attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes should not survive translate attribute handoff');
+    },
     'escapes wordpress block inline html while preserving marks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Use **<unsafe>** and `x < y`.');
         $blocks = (new WordPressBlockWriter())->write($document);
