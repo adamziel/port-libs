@@ -2592,6 +2592,64 @@ return [
             $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
         }
     },
+    'merges resolved microdata itemref properties into scoped item summaries before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Event" itemref="venue sponsor embedded missing-id">'
+            . '<h1 itemprop="name">Launch review</h1>'
+            . '<section id="embedded" itemprop="performer" itemscope itemtype="https://schema.org/Person"><span itemprop="name">In-tree performer</span></section>'
+            . '</article>'
+            . '<p id="venue" itemprop="location"><span itemprop="name">Town Hall</span><span itemprop="address">1 Review Way</span></p>'
+            . '<aside id="sponsor" itemprop="sponsor" itemscope itemtype="https://schema.org/Organization"><span itemprop="name">Open Source Guild</span></aside>',
+            'https://source.example.test/import/events/launch.html'
+        );
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-itemref-properties-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $itemRefPropertyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-itemref-property-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-ref="venue sponsor embedded missing-id" data-pandoc-microdata-ref-count="4" data-pandoc-microdata-ref-resolved="venue sponsor embedded" data-pandoc-microdata-ref-resolved-count="3" data-pandoc-microdata-ref-missing="missing-id" data-pandoc-microdata-ref-missing-count="1" data-pandoc-microdata-properties="name performer location address sponsor" data-pandoc-microdata-property-count="6" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="2">'
+            . '<h1 data-pandoc-microdata-property="name" data-pandoc-microdata-value="Launch review">Launch review</h1>'
+            . '<section id="embedded" data-pandoc-microdata-property="performer" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Person" data-pandoc-microdata-properties="name" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="In-tree performer">In-tree performer</span></section>'
+            . '</article>'
+            . '<p id="venue" data-pandoc-microdata-property="location" data-pandoc-microdata-value="Town Hall1 Review Way"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Town Hall">Town Hall</span><span data-pandoc-microdata-property="address" data-pandoc-microdata-value="1 Review Way">1 Review Way</span></p>'
+            . '<aside id="sponsor" data-pandoc-microdata-property="sponsor" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Organization" data-pandoc-microdata-properties="name" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Open Source Guild">Open Source Guild</span></aside>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Launch reviewIn-tree performerTown Hall1 Review WayOpen Source Guild', $fragment->textContent());
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Event',
+            'data-pandoc-microdata-ref' => 'venue sponsor embedded missing-id',
+            'data-pandoc-microdata-ref-count' => '4',
+            'data-pandoc-microdata-ref-resolved' => 'venue sponsor embedded',
+            'data-pandoc-microdata-ref-resolved-count' => '3',
+            'data-pandoc-microdata-ref-missing' => 'missing-id',
+            'data-pandoc-microdata-ref-missing-count' => '1',
+            'data-pandoc-microdata-properties' => 'name performer location address sponsor',
+            'data-pandoc-microdata-property-count' => '6',
+            'data-pandoc-microdata-value-count' => '4',
+            'data-pandoc-microdata-nested-item-count' => '2',
+        ], $nodes[0]['attrs']);
+        $t->same(1, count($itemRefPropertyDiagnostics));
+        $t->same(4, $itemRefPropertyDiagnostics[0]['referenceCount']);
+        $t->same(2, $itemRefPropertyDiagnostics[0]['mergedReferenceCount']);
+        $t->same(4, $itemRefPropertyDiagnostics[0]['propertyCount']);
+        $t->same(3, $itemRefPropertyDiagnostics[0]['valueCount']);
+        $t->same(1, $itemRefPropertyDiagnostics[0]['nestedItemCount']);
+        $t->same('/migration/microdata-itemref-properties-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/events/launch.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' itemscope', ' itemtype=', ' itemref=', ' itemprop='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
+        }
+    },
     'adds source line metadata to semantic metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             "<article itemscope itemtype=\"./types/Local javascript:alert(1)\" itemid=\"./articles/42\" itemref=\"headline bad<tag\">\n"

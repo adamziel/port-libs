@@ -133,14 +133,16 @@ final class Html5DomFragment
         $resolvedBaseUrl = self::resolveFragmentBaseUrl($wrapper, $baseUrl, $diagnostics);
         $documentMetadataNodes = self::htmlDocumentElementMetadataNodes($html, $diagnostics);
         $baseTargetMetadataNodes = self::htmlBaseTargetMetadataNodes($wrapper, $diagnostics);
+        $nodes = [
+            ...$documentMetadataNodes,
+            ...$baseTargetMetadataNodes,
+            ...self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
+        ];
+        self::markHtmlMicrodataItemRefPropertySummaryMetadata($nodes, $diagnostics);
 
         return new self(
             'html',
-            [
-                ...$documentMetadataNodes,
-                ...$baseTargetMetadataNodes,
-                ...self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $resolvedBaseUrl),
-            ],
+            $nodes,
             $diagnostics,
             $resolvedBaseUrl
         );
@@ -8261,6 +8263,189 @@ final class Html5DomFragment
         }
 
         return $ids;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataItemRefPropertySummaryMetadata(array &$nodes, array &$diagnostics): void
+    {
+        $nodesById = [];
+        self::collectHtmlNormalizedNodesById($nodes, $nodesById);
+        if ($nodesById === []) {
+            return;
+        }
+
+        self::markHtmlMicrodataItemRefPropertySummaryMetadataInNodes($nodes, $nodesById, $diagnostics);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param array<string, array<string, mixed>> $nodesById
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataItemRefPropertySummaryMetadataInNodes(
+        array &$nodes,
+        array $nodesById,
+        array &$diagnostics
+    ): void {
+        foreach ($nodes as &$node) {
+            if (($node['type'] ?? '') !== 'element') {
+                continue;
+            }
+
+            self::mergeHtmlMicrodataItemRefPropertySummary($node, $nodesById, $diagnostics);
+            if (is_array($node['children'] ?? null)) {
+                self::markHtmlMicrodataItemRefPropertySummaryMetadataInNodes($node['children'], $nodesById, $diagnostics);
+            }
+        }
+        unset($node);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, array<string, mixed>> $nodesById
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function mergeHtmlMicrodataItemRefPropertySummary(
+        array &$node,
+        array $nodesById,
+        array &$diagnostics
+    ): void {
+        $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
+        if (!isset($attrs['data-pandoc-microdata-scope'], $attrs['data-pandoc-microdata-ref'])) {
+            return;
+        }
+
+        $references = self::splitHtmlSemanticTokens((string) $attrs['data-pandoc-microdata-ref']);
+        if ($references === []) {
+            return;
+        }
+
+        $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+        $descendantIds = self::htmlNormalizedElementIdSet($children);
+        $referencedNodes = [];
+        $mergedReferences = [];
+        foreach ($references as $reference) {
+            if (isset($descendantIds[$reference]) || !isset($nodesById[$reference])) {
+                continue;
+            }
+
+            $referencedNodes[] = $nodesById[$reference];
+            $mergedReferences[] = $reference;
+        }
+        if ($referencedNodes === []) {
+            return;
+        }
+
+        $summary = self::htmlMicrodataItemPropertySummary($referencedNodes);
+        if ($summary['propertyCount'] === 0) {
+            return;
+        }
+
+        $properties = self::splitHtmlSemanticTokens((string) ($attrs['data-pandoc-microdata-properties'] ?? ''));
+        foreach ($summary['properties'] as $property) {
+            if (!in_array($property, $properties, true)) {
+                $properties[] = $property;
+            }
+        }
+        if ($properties !== []) {
+            $propertyMetadata = implode(' ', $properties);
+            if (strlen($propertyMetadata) <= 512) {
+                $attrs['data-pandoc-microdata-properties'] = $propertyMetadata;
+            }
+        }
+
+        $attrs['data-pandoc-microdata-property-count'] = (string) (
+            self::htmlMicrodataMetadataCounter($attrs, 'data-pandoc-microdata-property-count')
+            + $summary['propertyCount']
+        );
+
+        $valueCount = self::htmlMicrodataMetadataCounter($attrs, 'data-pandoc-microdata-value-count')
+            + $summary['valueCount'];
+        if ($valueCount > 0) {
+            $attrs['data-pandoc-microdata-value-count'] = (string) $valueCount;
+        }
+
+        $nestedItemCount = self::htmlMicrodataMetadataCounter($attrs, 'data-pandoc-microdata-nested-item-count')
+            + $summary['nestedItemCount'];
+        if ($nestedItemCount > 0) {
+            $attrs['data-pandoc-microdata-nested-item-count'] = (string) $nestedItemCount;
+        }
+
+        $node['attrs'] = $attrs;
+        $diagnostics[] = self::diagnosticWithNormalizedNodeLine([
+            'code' => 'microdata-itemref-property-review',
+            'tag' => (string) ($node['name'] ?? ''),
+            'attribute' => 'itemref',
+            'metadataAttribute' => 'data-pandoc-microdata-properties',
+            'referenceCount' => count($references),
+            'mergedReferenceCount' => count($mergedReferences),
+            'propertyCount' => $summary['propertyCount'],
+            'valueCount' => $summary['valueCount'],
+            'nestedItemCount' => $summary['nestedItemCount'],
+            'reason' => 'microdata-itemref-properties-preserved-as-review-metadata',
+        ], $node);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param array<string, array<string, mixed>> $nodesById
+     */
+    private static function collectHtmlNormalizedNodesById(array $nodes, array &$nodesById): void
+    {
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') !== 'element') {
+                continue;
+            }
+
+            $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
+            $id = $attrs['id'] ?? null;
+            if (is_string($id) && $id !== '' && !isset($nodesById[$id])) {
+                $nodesById[$id] = $node;
+            }
+
+            if (is_array($node['children'] ?? null)) {
+                self::collectHtmlNormalizedNodesById($node['children'], $nodesById);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return array<string, true>
+     */
+    private static function htmlNormalizedElementIdSet(array $nodes): array
+    {
+        $ids = [];
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') !== 'element') {
+                continue;
+            }
+
+            $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
+            $id = $attrs['id'] ?? null;
+            if (is_string($id) && $id !== '') {
+                $ids[$id] = true;
+            }
+
+            if (is_array($node['children'] ?? null)) {
+                $ids += self::htmlNormalizedElementIdSet($node['children']);
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private static function htmlMicrodataMetadataCounter(array $attrs, string $name): int
+    {
+        $value = $attrs[$name] ?? null;
+
+        return is_string($value) && ctype_digit($value) ? (int) $value : 0;
     }
 
     /**
