@@ -32,6 +32,9 @@ final class PlainWriter
      *     overColumnLineCount:int,
      *     maxOverColumnDisplayWidth:int,
      *     hardBreakCount:int,
+     *     lineFeedBreakCount:int,
+     *     lineSeparatorBreakCount:int,
+     *     paragraphSeparatorBreakCount:int,
      *     softBreakOpportunityCount:int,
      *     tabBreakOpportunityCount:int,
      *     maxTabDisplayAdvance:int,
@@ -50,6 +53,9 @@ final class PlainWriter
      *       overColumnLineCount:int,
      *       maxOverColumnDisplayWidth:int,
      *       wrapped:bool,
+     *       lineFeedBreakCount:int,
+     *       lineSeparatorBreakCount:int,
+     *       paragraphSeparatorBreakCount:int,
      *       tabBreakOpportunityCount:int,
      *       maxTabDisplayAdvance:int,
      *       zeroWidthSpaceBreakOpportunityCount:int,
@@ -78,6 +84,9 @@ final class PlainWriter
         $overColumnLineCount = 0;
         $maxOverColumnDisplayWidth = 0;
         $hardBreakCount = 0;
+        $lineFeedBreakCount = 0;
+        $lineSeparatorBreakCount = 0;
+        $paragraphSeparatorBreakCount = 0;
         $softBreakOpportunityCount = 0;
         $tabBreakOpportunityCount = 0;
         $maxTabDisplayAdvance = 0;
@@ -121,6 +130,9 @@ final class PlainWriter
             $opportunities = UnicodeText::lineBreakOpportunities($source, $ambiguousWidth);
             $typeCounts = $this->lineBreakOpportunityTypeCounts($opportunities['opportunities']);
             $hardBreakCount += $opportunities['hardBreakCount'];
+            $lineFeedBreakCount += $typeCounts['lineFeed'];
+            $lineSeparatorBreakCount += $typeCounts['lineSeparator'];
+            $paragraphSeparatorBreakCount += $typeCounts['paragraphSeparator'];
             $softBreakOpportunityCount += $opportunities['softBreakCount'];
             $tabBreakOpportunityCount += $typeCounts['tab'];
             $maxTabDisplayAdvance = max($maxTabDisplayAdvance, $typeCounts['maxTabDisplayAdvance']);
@@ -140,6 +152,9 @@ final class PlainWriter
                 'overColumnLineCount' => $overColumn['count'],
                 'maxOverColumnDisplayWidth' => $overColumn['maxDisplayWidth'],
                 'wrapped' => $wrapped,
+                'lineFeedBreakCount' => $typeCounts['lineFeed'],
+                'lineSeparatorBreakCount' => $typeCounts['lineSeparator'],
+                'paragraphSeparatorBreakCount' => $typeCounts['paragraphSeparator'],
                 'tabBreakOpportunityCount' => $typeCounts['tab'],
                 'maxTabDisplayAdvance' => $typeCounts['maxTabDisplayAdvance'],
                 'zeroWidthSpaceBreakOpportunityCount' => $typeCounts['zeroWidthSpace'],
@@ -163,6 +178,9 @@ final class PlainWriter
                 'overColumnLineCount' => $overColumnLineCount,
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
                 'hardBreakCount' => $hardBreakCount,
+                'lineFeedBreakCount' => $lineFeedBreakCount,
+                'lineSeparatorBreakCount' => $lineSeparatorBreakCount,
+                'paragraphSeparatorBreakCount' => $paragraphSeparatorBreakCount,
                 'softBreakOpportunityCount' => $softBreakOpportunityCount,
                 'tabBreakOpportunityCount' => $tabBreakOpportunityCount,
                 'maxTabDisplayAdvance' => $maxTabDisplayAdvance,
@@ -204,11 +222,14 @@ final class PlainWriter
 
     /**
      * @param list<array{type:string, column?:int, columnAfter?:int}> $opportunities
-     * @return array{tab:int, maxTabDisplayAdvance:int, zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
+     * @return array{lineFeed:int, lineSeparator:int, paragraphSeparator:int, tab:int, maxTabDisplayAdvance:int, zeroWidthSpace:int, softHyphen:int, visibleBreakAfter:int}
      */
     private function lineBreakOpportunityTypeCounts(array $opportunities): array
     {
         $counts = [
+            'lineFeed' => 0,
+            'lineSeparator' => 0,
+            'paragraphSeparator' => 0,
             'tab' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpace' => 0,
@@ -218,6 +239,9 @@ final class PlainWriter
 
         foreach ($opportunities as $opportunity) {
             $key = match ($opportunity['type']) {
+                'line-feed' => 'lineFeed',
+                'line-separator' => 'lineSeparator',
+                'paragraph-separator' => 'paragraphSeparator',
                 'tab' => 'tab',
                 'zero-width-space' => 'zeroWidthSpace',
                 'soft-hyphen' => 'softHyphen',

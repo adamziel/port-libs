@@ -57,6 +57,9 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'lineFeedBreakCount' => 0,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -95,6 +98,9 @@ return [
             'overColumnLineCount' => 2,
             'maxOverColumnDisplayWidth' => 33,
             'wrapped' => false,
+            'lineFeedBreakCount' => 2,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -131,6 +137,9 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'lineFeedBreakCount' => 1,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
             'tabBreakOpportunityCount' => 3,
             'maxTabDisplayAdvance' => 3,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -184,6 +193,9 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'lineFeedBreakCount' => 1,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 0,
@@ -225,6 +237,9 @@ return [
             'overColumnLineCount' => 0,
             'maxOverColumnDisplayWidth' => 0,
             'wrapped' => true,
+            'lineFeedBreakCount' => 0,
+            'lineSeparatorBreakCount' => 0,
+            'paragraphSeparatorBreakCount' => 0,
             'tabBreakOpportunityCount' => 0,
             'maxTabDisplayAdvance' => 0,
             'zeroWidthSpaceBreakOpportunityCount' => 1,
@@ -232,6 +247,46 @@ return [
             'visibleBreakAfterOpportunityCount' => 1,
             'protectedSeparatorCount' => 0,
             'lineEndingNormalizationCount' => 0,
+        ], $result['diagnostics']['blocks'][0]);
+    },
+    'reports unicode hard separator counts in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha\u{2028}Beta Gamma\u{2029}Delta\r\nEpsilon"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 20]))->writeWithDiagnostics($document);
+
+        $t->same("Alpha\nBeta Gamma\nDelta\nEpsilon", $result['text']);
+        $t->same(1, $result['diagnostics']['blockCount']);
+        $t->same(1, $result['diagnostics']['wrappedBlockCount']);
+        $t->same(4, $result['diagnostics']['outputLineCount']);
+        $t->same(10, $result['diagnostics']['maxOutputDisplayWidth']);
+        $t->same(3, $result['diagnostics']['hardBreakCount']);
+        $t->same(1, $result['diagnostics']['lineFeedBreakCount']);
+        $t->same(1, $result['diagnostics']['lineSeparatorBreakCount']);
+        $t->same(1, $result['diagnostics']['paragraphSeparatorBreakCount']);
+        $t->same(1, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['lineEndingNormalizationCount']);
+        $t->same([
+            'blockIndex' => 0,
+            'blockType' => 'code_block',
+            'sourceLineCount' => 2,
+            'outputLineCount' => 4,
+            'maxSourceDisplayWidth' => 20,
+            'maxOutputDisplayWidth' => 10,
+            'overColumnLineCount' => 0,
+            'maxOverColumnDisplayWidth' => 0,
+            'wrapped' => true,
+            'lineFeedBreakCount' => 1,
+            'lineSeparatorBreakCount' => 1,
+            'paragraphSeparatorBreakCount' => 1,
+            'tabBreakOpportunityCount' => 0,
+            'maxTabDisplayAdvance' => 0,
+            'zeroWidthSpaceBreakOpportunityCount' => 0,
+            'softHyphenBreakOpportunityCount' => 0,
+            'visibleBreakAfterOpportunityCount' => 0,
+            'protectedSeparatorCount' => 0,
+            'lineEndingNormalizationCount' => 1,
         ], $result['diagnostics']['blocks'][0]);
     },
 ];
