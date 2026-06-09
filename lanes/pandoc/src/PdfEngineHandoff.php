@@ -362,6 +362,7 @@ final class PdfEngineHandoff
      *     pdfSignatureLockPolicies: list<array<string, mixed>>,
      *     pdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     pdfSignatureAppearanceByteRanges: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     pdfSignatureAppearancePolicy: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int|null, pageObject:string|null, annotationObject:string|null, selectedState:string|null, normalAppearanceCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, streamBytes:int, coveredAppearanceCount:int, reviewStatus:string, issues:list<string>}>,
      *     pdfDocumentSecurityStore: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
@@ -831,6 +832,7 @@ final class PdfEngineHandoff
         $pdfSignatureLockPolicies = [];
         $pdfSignatureFieldMdpPolicies = [];
         $pdfSignatureAppearanceByteRanges = [];
+        $pdfSignatureAppearancePolicy = [];
         $pdfDocumentSecurityStore = [];
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
@@ -958,6 +960,7 @@ final class PdfEngineHandoff
                 $pdfSignatureLockPolicies = $pdfInspection['signatureLockPolicies'];
                 $pdfSignatureFieldMdpPolicies = $pdfInspection['signatureFieldMdpPolicies'];
                 $pdfSignatureAppearanceByteRanges = $pdfInspection['signatureAppearanceByteRanges'];
+                $pdfSignatureAppearancePolicy = $pdfInspection['signatureAppearancePolicy'];
                 $pdfDocumentSecurityStore = $pdfInspection['documentSecurityStore'];
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
@@ -2926,6 +2929,37 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-signature-appearance-covered-streams:' . $coveredStreams;
                     }
                 }
+                if ($pdfSignatureAppearancePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-signature-appearance-policy:' . count($pdfSignatureAppearancePolicy);
+                    $statusCounts = [];
+                    $issueCounts = [];
+                    $coveredAppearanceCount = 0;
+                    foreach ($pdfSignatureAppearancePolicy as $appearancePolicy) {
+                        $reviewStatus = is_string($appearancePolicy['reviewStatus'] ?? null) && $appearancePolicy['reviewStatus'] !== ''
+                            ? $appearancePolicy['reviewStatus']
+                            : 'unknown';
+                        $statusCounts[$reviewStatus] = ($statusCounts[$reviewStatus] ?? 0) + 1;
+                        $coveredAppearanceCount += is_int($appearancePolicy['coveredAppearanceCount'] ?? null)
+                            ? $appearancePolicy['coveredAppearanceCount']
+                            : 0;
+                        foreach (($appearancePolicy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    ksort($statusCounts);
+                    foreach ($statusCounts as $reviewStatus => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-policy-status:' . $reviewStatus . ':' . $count;
+                    }
+                    ksort($issueCounts);
+                    foreach ($issueCounts as $issue => $count) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-policy-issue:' . $issue . ':' . $count;
+                    }
+                    if ($coveredAppearanceCount > 0) {
+                        $diagnostics[] = 'pdf-byte-signature-appearance-policy-covered:' . $coveredAppearanceCount;
+                    }
+                }
                 if ($pdfDocumentSecurityStore !== []) {
                     $diagnostics[] = 'pdf-byte-dss';
                     $dssCerts = is_array($pdfDocumentSecurityStore['certs'] ?? null) ? $pdfDocumentSecurityStore['certs'] : [];
@@ -3513,6 +3547,7 @@ final class PdfEngineHandoff
             'pdfSignatureLockPolicies' => $pdfSignatureLockPolicies,
             'pdfSignatureFieldMdpPolicies' => $pdfSignatureFieldMdpPolicies,
             'pdfSignatureAppearanceByteRanges' => $pdfSignatureAppearanceByteRanges,
+            'pdfSignatureAppearancePolicy' => $pdfSignatureAppearancePolicy,
             'pdfDocumentSecurityStore' => $pdfDocumentSecurityStore,
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
@@ -3661,6 +3696,7 @@ final class PdfEngineHandoff
      *     finalPdfSignatureLockPolicies: list<array<string, mixed>>,
      *     finalPdfSignatureFieldMdpPolicies: list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     finalPdfSignatureAppearanceByteRanges: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     finalPdfSignatureAppearancePolicy: list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int|null, pageObject:string|null, annotationObject:string|null, selectedState:string|null, normalAppearanceCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, streamBytes:int, coveredAppearanceCount:int, reviewStatus:string, issues:list<string>}>,
      *     finalPdfDocumentSecurityStore: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
@@ -3923,6 +3959,7 @@ final class PdfEngineHandoff
             'finalPdfSignatureLockPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureLockPolicies'] ?? null) ? $finalRun['pdfSignatureLockPolicies'] : [],
             'finalPdfSignatureFieldMdpPolicies' => is_array($finalRun) && is_array($finalRun['pdfSignatureFieldMdpPolicies'] ?? null) ? $finalRun['pdfSignatureFieldMdpPolicies'] : [],
             'finalPdfSignatureAppearanceByteRanges' => is_array($finalRun) && is_array($finalRun['pdfSignatureAppearanceByteRanges'] ?? null) ? $finalRun['pdfSignatureAppearanceByteRanges'] : [],
+            'finalPdfSignatureAppearancePolicy' => is_array($finalRun) && is_array($finalRun['pdfSignatureAppearancePolicy'] ?? null) ? $finalRun['pdfSignatureAppearancePolicy'] : [],
             'finalPdfDocumentSecurityStore' => is_array($finalRun) && is_array($finalRun['pdfDocumentSecurityStore'] ?? null) ? $finalRun['pdfDocumentSecurityStore'] : [],
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
@@ -5055,6 +5092,7 @@ final class PdfEngineHandoff
      *     signatureLockPolicies:list<array<string, mixed>>,
      *     signatureFieldMdpPolicies:list<array{source:string, permission:string|null, fieldName:string|null, fieldObject:string|null, signatureObject:string|null, transformAction:string|null, transformFields:list<string>, fieldLockObject:string|null, fieldLockAction:string|null, fieldLockFields:list<string>, matchedFieldLock:bool, reviewStatus:string, issues:list<string>}>,
      *     signatureAppearanceByteRanges:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, appearanceObjectOffset:int|null, appearanceObjectBytes:int|null, appearanceStreamOffset:int|null, appearanceStreamBytes:int|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}>,
+     *     signatureAppearancePolicy:list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int|null, pageObject:string|null, annotationObject:string|null, selectedState:string|null, normalAppearanceCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, streamBytes:int, coveredAppearanceCount:int, reviewStatus:string, issues:list<string>}>,
      *     documentSecurityStore:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
@@ -5122,6 +5160,7 @@ final class PdfEngineHandoff
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
         $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
+        $signatureAppearancePolicy = $this->summarizePdfSignatureAppearancePolicy($signatures, $annotationAppearances, $signatureAppearanceByteRanges);
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $streamFilterPolicy = $this->summarizePdfStreamFilterPolicy(
             $xrefStreams,
@@ -5256,6 +5295,7 @@ final class PdfEngineHandoff
             'signatureLockPolicies' => $signatureLockPolicies,
             'signatureFieldMdpPolicies' => $signatureFieldMdpPolicies,
             'signatureAppearanceByteRanges' => $signatureAppearanceByteRanges,
+            'signatureAppearancePolicy' => $signatureAppearancePolicy,
             'documentSecurityStore' => $this->extractPdfDocumentSecurityStore($pdfBytes, $catalog),
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
@@ -14859,6 +14899,181 @@ final class PdfEngineHandoff
         );
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null}> $signatures
+     * @param list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}> $annotationAppearances
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int, pageObject:string|null, annotationObject:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, objectCoveredBySignature:bool|null, streamCoveredBySignature:bool|null, reviewStatus:string, issues:list<string>}> $signatureAppearanceByteRanges
+     * @return list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, page:int|null, pageObject:string|null, annotationObject:string|null, selectedState:string|null, normalAppearanceCount:int, appearanceStates:list<string>, appearanceObjects:list<string>, streamBytes:int, coveredAppearanceCount:int, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfSignatureAppearancePolicy(array $signatures, array $annotationAppearances, array $signatureAppearanceByteRanges): array
+    {
+        if ($signatures === []) {
+            return [];
+        }
+
+        $summaries = [];
+        foreach ($signatures as $signature) {
+            $matchingAppearances = [];
+            $normalAppearances = [];
+            foreach ($annotationAppearances as $appearance) {
+                if (($appearance['subtype'] ?? null) !== 'Widget') {
+                    continue;
+                }
+                if (!$this->pdfSignatureMatchesAppearance($signature, $appearance)) {
+                    continue;
+                }
+
+                $matchingAppearances[] = $appearance;
+                if (($appearance['appearance'] ?? null) === 'N') {
+                    $normalAppearances[] = $appearance;
+                }
+            }
+
+            $anchor = $normalAppearances[0] ?? ($matchingAppearances[0] ?? null);
+            $appearanceStates = [];
+            $appearanceObjects = [];
+            $streamBytes = 0;
+            $hasStateDictionary = false;
+            $selectedState = null;
+            $missingStream = false;
+            $streamSkipped = false;
+
+            foreach ($normalAppearances as $appearance) {
+                if (is_string($appearance['stateName'] ?? null) && $appearance['stateName'] !== '') {
+                    $hasStateDictionary = true;
+                    $appearanceStates[] = $appearance['stateName'];
+                }
+                if (is_string($appearance['selectedState'] ?? null) && $appearance['selectedState'] !== '') {
+                    $selectedState = $appearance['selectedState'];
+                }
+                if (is_string($appearance['appearanceObject'] ?? null) && $appearance['appearanceObject'] !== '') {
+                    $appearanceObjects[] = $appearance['appearanceObject'];
+                }
+                if (is_int($appearance['streamBytes'] ?? null)) {
+                    $streamBytes += $appearance['streamBytes'];
+                } else {
+                    $missingStream = true;
+                }
+                if (is_string($appearance['streamSkipped'] ?? null) && $appearance['streamSkipped'] !== '') {
+                    $streamSkipped = true;
+                }
+            }
+
+            $appearanceStates = array_values(array_unique($appearanceStates));
+            sort($appearanceStates);
+            $appearanceObjects = array_values(array_unique($appearanceObjects));
+            usort($appearanceObjects, fn (string $left, string $right): int => $this->pdfReferenceSortKey($left) <=> $this->pdfReferenceSortKey($right));
+            $coveredAppearanceCount = $this->countCoveredPdfSignatureNormalAppearances($signature, $signatureAppearanceByteRanges);
+            $issues = [];
+            if ($matchingAppearances === []) {
+                $issues[] = 'missing-signature-widget-appearance';
+            } elseif ($normalAppearances === []) {
+                $issues[] = 'missing-normal-appearance';
+            }
+            if ($normalAppearances !== [] && $hasStateDictionary && $selectedState === null) {
+                $issues[] = 'missing-selected-state';
+            }
+            if ($normalAppearances !== [] && $hasStateDictionary && $selectedState !== null && !in_array($selectedState, $appearanceStates, true)) {
+                $issues[] = 'selected-state-appearance-missing';
+            }
+            if ($normalAppearances !== [] && $missingStream) {
+                $issues[] = 'missing-appearance-stream';
+            }
+            if ($normalAppearances !== [] && $streamSkipped) {
+                $issues[] = 'appearance-stream-skipped';
+            }
+            if ($normalAppearances !== [] && $coveredAppearanceCount < count($normalAppearances)) {
+                $issues[] = 'appearance-not-covered-by-signature';
+            }
+
+            $summaries[] = [
+                'fieldName' => is_string($signature['fieldName'] ?? null) && $signature['fieldName'] !== '' ? $signature['fieldName'] : null,
+                'fieldObject' => is_string($signature['fieldObject'] ?? null) && $signature['fieldObject'] !== '' ? $signature['fieldObject'] : null,
+                'signatureObject' => is_string($signature['signatureObject'] ?? null) && $signature['signatureObject'] !== '' ? $signature['signatureObject'] : null,
+                'page' => is_array($anchor) && is_int($anchor['page'] ?? null) ? $anchor['page'] : null,
+                'pageObject' => is_array($anchor) && is_string($anchor['pageObject'] ?? null) && $anchor['pageObject'] !== '' ? $anchor['pageObject'] : null,
+                'annotationObject' => is_array($anchor) && is_string($anchor['annotationObject'] ?? null) && $anchor['annotationObject'] !== '' ? $anchor['annotationObject'] : null,
+                'selectedState' => $selectedState,
+                'normalAppearanceCount' => count($normalAppearances),
+                'appearanceStates' => $appearanceStates,
+                'appearanceObjects' => $appearanceObjects,
+                'streamBytes' => $streamBytes,
+                'coveredAppearanceCount' => $coveredAppearanceCount,
+                'reviewStatus' => $this->pdfSignatureAppearancePolicyReviewStatus($issues),
+                'issues' => $issues,
+            ];
+        }
+
+        usort(
+            $summaries,
+            static fn (array $a, array $b): int => [
+                $a['fieldName'] ?? '',
+                $a['fieldObject'] ?? '',
+                $a['signatureObject'] ?? '',
+            ] <=> [
+                $b['fieldName'] ?? '',
+                $b['fieldObject'] ?? '',
+                $b['signatureObject'] ?? '',
+            ]
+        );
+
+        return $summaries;
+    }
+
+    /**
+     * @param array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null} $signature
+     * @param list<array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null, appearance:string, streamCoveredBySignature:bool|null, reviewStatus:string}> $signatureAppearanceByteRanges
+     */
+    private function countCoveredPdfSignatureNormalAppearances(array $signature, array $signatureAppearanceByteRanges): int
+    {
+        $count = 0;
+        foreach ($signatureAppearanceByteRanges as $appearanceRange) {
+            if (($appearanceRange['appearance'] ?? null) !== 'N') {
+                continue;
+            }
+            if (!$this->pdfSignatureAppearanceRangeMatchesSignature($signature, $appearanceRange)) {
+                continue;
+            }
+            if (($appearanceRange['reviewStatus'] ?? null) === 'covered' && ($appearanceRange['streamCoveredBySignature'] ?? null) === true) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null} $signature
+     * @param array{fieldName:string|null, fieldObject:string|null, signatureObject:string|null} $appearanceRange
+     */
+    private function pdfSignatureAppearanceRangeMatchesSignature(array $signature, array $appearanceRange): bool
+    {
+        foreach (['fieldObject', 'signatureObject', 'fieldName'] as $key) {
+            $left = is_string($signature[$key] ?? null) && $signature[$key] !== '' ? $signature[$key] : null;
+            $right = is_string($appearanceRange[$key] ?? null) && $appearanceRange[$key] !== '' ? $appearanceRange[$key] : null;
+            if ($left !== null && $right !== null && $left !== $right) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $issues
+     */
+    private function pdfSignatureAppearancePolicyReviewStatus(array $issues): string
+    {
+        if ($issues === []) {
+            return 'ok';
+        }
+        if (in_array('missing-signature-widget-appearance', $issues, true) || in_array('missing-normal-appearance', $issues, true)) {
+            return 'missing';
+        }
+
+        return 'review';
     }
 
     private function pdfSignatureMatchesAppearance(array $signature, array $appearance): bool

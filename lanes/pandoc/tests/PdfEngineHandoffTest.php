@@ -9317,6 +9317,152 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfSignatureAppearanceByteRanges']);
     },
 
+    'fake runner summarizes pdf visual signature appearance policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/signature-appearance-policy.pdf']);
+        $signatureBytes = hex2bin('3082010A0282010100AABBCC') ?: '';
+        $signatureHex = strtoupper(bin2hex($signatureBytes));
+        $visibleAppearanceBytes = "q 0 0 1 rg 12 12 84 24 re f Q\n";
+        $unselectedAppearanceBytes = "q 1 0 0 rg 12 12 84 24 re f Q\n";
+        $buildPdf = static function (int $byteRangeLength) use ($signatureHex, $visibleAppearanceBytes, $unselectedAppearanceBytes): string {
+            return implode("\n", [
+                '%PDF-1.7',
+                '1 0 obj',
+                '<< /Type /Catalog /Pages 2 0 R /AcroForm 7 0 R >>',
+                'endobj',
+                '2 0 obj',
+                '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+                'endobj',
+                '3 0 obj',
+                '<< /Type /Page /Parent 2 0 R /Annots [8 0 R 9 0 R 12 0 R] >>',
+                'endobj',
+                '7 0 obj',
+                '<< /Fields [8 0 R 9 0 R 12 0 R] /SigFlags 3 >>',
+                'endobj',
+                '8 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.visible) /V 18 0 R /AS /Signed /AP << /N << /Signed 10 0 R >> >> >>',
+                'endobj',
+                '9 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.unselected) /V 19 0 R /AP << /N << /Signed 11 0 R >> >> >>',
+                'endobj',
+                '10 0 obj',
+                '<< /Type /XObject /Subtype /Form /BBox [0 0 108 48] /Length ' . strlen($visibleAppearanceBytes) . ' >>',
+                'stream',
+                $visibleAppearanceBytes,
+                'endstream',
+                'endobj',
+                '11 0 obj',
+                '<< /Type /XObject /Subtype /Form /BBox [0 0 108 48] /Length ' . strlen($unselectedAppearanceBytes) . ' >>',
+                'stream',
+                $unselectedAppearanceBytes,
+                'endstream',
+                'endobj',
+                '12 0 obj',
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (review.invisible) /V 20 0 R >>',
+                'endobj',
+                '18 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /ByteRange [0 ' . $byteRangeLength . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                '19 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /ByteRange [0 ' . $byteRangeLength . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                '20 0 obj',
+                '<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /ETSI.CAdES.detached /Name (Migration Desk) /ByteRange [0 ' . $byteRangeLength . '] /Contents <' . $signatureHex . '> >>',
+                'endobj',
+                'trailer',
+                '<< /Root 1 0 R >>',
+                'startxref',
+                '2048',
+                '%%EOF',
+                '',
+            ]);
+        };
+        $pdfBytes = $buildPdf(0);
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            $next = $buildPdf(strlen($pdfBytes));
+            if (strlen($next) === strlen($pdfBytes)) {
+                $pdfBytes = $next;
+                break;
+            }
+            $pdfBytes = $next;
+        }
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/signature-appearance-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/signature-appearance-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'fieldName' => 'review.invisible',
+                'fieldObject' => '12 0 R',
+                'signatureObject' => '20 0 R',
+                'page' => null,
+                'pageObject' => null,
+                'annotationObject' => null,
+                'selectedState' => null,
+                'normalAppearanceCount' => 0,
+                'appearanceStates' => [],
+                'appearanceObjects' => [],
+                'streamBytes' => 0,
+                'coveredAppearanceCount' => 0,
+                'reviewStatus' => 'missing',
+                'issues' => ['missing-signature-widget-appearance'],
+            ],
+            [
+                'fieldName' => 'review.unselected',
+                'fieldObject' => '9 0 R',
+                'signatureObject' => '19 0 R',
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '9 0 R',
+                'selectedState' => null,
+                'normalAppearanceCount' => 1,
+                'appearanceStates' => ['Signed'],
+                'appearanceObjects' => ['11 0 R'],
+                'streamBytes' => strlen($unselectedAppearanceBytes),
+                'coveredAppearanceCount' => 1,
+                'reviewStatus' => 'review',
+                'issues' => ['missing-selected-state'],
+            ],
+            [
+                'fieldName' => 'review.visible',
+                'fieldObject' => '8 0 R',
+                'signatureObject' => '18 0 R',
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'annotationObject' => '8 0 R',
+                'selectedState' => 'Signed',
+                'normalAppearanceCount' => 1,
+                'appearanceStates' => ['Signed'],
+                'appearanceObjects' => ['10 0 R'],
+                'streamBytes' => strlen($visibleAppearanceBytes),
+                'coveredAppearanceCount' => 1,
+                'reviewStatus' => 'ok',
+                'issues' => [],
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfSignatureAppearancePolicy']);
+        $t->contains('pdf-byte-signature-appearance-policy:3', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-status:missing:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-status:ok:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-status:review:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-issue:missing-selected-state:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-issue:missing-signature-widget-appearance:1', $diagnostics);
+        $t->contains('pdf-byte-signature-appearance-policy-covered:2', $diagnostics);
+        $t->same($expected, $sequence['finalPdfSignatureAppearancePolicy']);
+    },
+
     'fake runner maps pdf signatures to incremental trailer revisions' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/incremental-signature.pdf']);
