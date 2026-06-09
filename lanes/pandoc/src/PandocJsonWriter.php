@@ -271,12 +271,190 @@ final class PandocJsonWriter
             'code' => ['t' => 'Code', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'math' => ['t' => 'Math', 'c' => [$this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath'), (string) $node->attr('text', '')]],
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
+            'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
+            'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
             'link' => ['t' => 'Link', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
             'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
             'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
             default => throw new \InvalidArgumentException("Unsupported AST inline node for Pandoc JSON: {$node->type}"),
         };
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @param list<AstNode> $sourceInlines
+     * @return array<string, mixed>
+     */
+    private function writeCiteInline(array $citations, array $sourceInlines): array
+    {
+        if ($citations === []) {
+            throw new \InvalidArgumentException('Citation group must contain at least one citation');
+        }
+
+        return [
+            't' => 'Cite',
+            'c' => [
+                array_map(fn (AstNode $citation): array => $this->writeCitationRecord($citation), $citations),
+                $this->writeInlines($sourceInlines),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     */
+    private function writeCitationRecord(AstNode $citation): array
+    {
+        if ($citation->type !== 'citation') {
+            throw new \InvalidArgumentException('Citation group entries must be citation AST nodes');
+        }
+
+        $id = (string) $citation->attr('id', '');
+        if ($id === '') {
+            throw new \InvalidArgumentException('Citation node must contain an id for Pandoc JSON');
+        }
+
+        return [
+            'citationId' => $id,
+            'citationPrefix' => $this->writeInlines($this->citationAffixInlines($citation, 'prefix')),
+            'citationSuffix' => $this->writeInlines($this->citationSuffixInlines($citation)),
+            'citationMode' => $this->enum($this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
+            'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
+            'citationHash' => (int) $citation->attr('citationHash', 0),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationSuffixInlines(AstNode $citation): array
+    {
+        $suffix = $this->citationAffixInlines($citation, 'suffix');
+        if ($suffix !== []) {
+            return $suffix;
+        }
+
+        return $this->citationAffixInlines($citation, 'locator');
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationAffixInlines(AstNode $citation, string $name): array
+    {
+        $value = $citation->attr($name, '');
+        if ($value instanceof AstNode) {
+            return [$value];
+        }
+
+        if (is_array($value) && $this->allAstNodes($value)) {
+            return array_values($value);
+        }
+
+        if (is_scalar($value)) {
+            return $this->textInlines(trim((string) $value));
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationSourceInlines(AstNode $node): array
+    {
+        if ($node->type === 'citation' && $node->children !== [] && $this->allInlineNodes($node->children)) {
+            return $node->children;
+        }
+
+        $text = (string) $node->attr('text', '');
+        if ($text === '' && $node->type === 'citation_group') {
+            $text = '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationSourceText($citation), $this->citationGroupChildren($node))) . ']';
+        } elseif ($text === '' && $node->type === 'citation') {
+            $text = $this->citationSourceText($node);
+        }
+
+        return $this->textInlines($text);
+    }
+
+    private function citationSourceText(AstNode $citation): string
+    {
+        $id = (string) $citation->attr('id', '');
+        $mode = (string) $citation->attr('mode', 'normal');
+        $prefix = $this->plainInlineText($this->citationAffixInlines($citation, 'prefix'));
+        $suffix = $this->plainInlineText($this->citationSuffixInlines($citation));
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefix === '' ? $token : $prefix . ' ' . $token;
+
+        return $suffix === '' ? $text : $text . ', ' . $suffix;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationGroupChildren(AstNode $node): array
+    {
+        $children = [];
+        foreach ($node->children as $child) {
+            if ($child->type !== 'citation') {
+                throw new \InvalidArgumentException('Citation group entries must be citation AST nodes');
+            }
+            $children[] = $child;
+        }
+
+        return $children;
+    }
+
+    private function citationModeConstructor(string $mode): string
+    {
+        return match ($mode) {
+            'author_in_text' => 'AuthorInText',
+            'suppress_author' => 'SuppressAuthor',
+            default => 'NormalCitation',
+        };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textInlines(string $text): array
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            return [new AstNode('text', ['text' => $text])];
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            $inlines[] = preg_match('/^\s+$/u', $part) === 1
+                ? new AstNode('space')
+                : new AstNode('text', ['text' => $part]);
+        }
+
+        return $inlines;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainInlineText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= match ($node->type) {
+                'text', 'code', 'math' => (string) $node->attr('text', ''),
+                'space', 'softbreak', 'linebreak' => ' ',
+                default => $this->plainInlineText($node->children),
+            };
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**
@@ -427,6 +605,8 @@ final class PandocJsonWriter
             'raw_tex',
             'raw_markdown',
             'raw_inline',
+            'citation',
+            'citation_group',
             'link',
             'image',
             'note',

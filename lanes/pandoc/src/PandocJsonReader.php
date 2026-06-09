@@ -264,6 +264,7 @@ final class PandocJsonReader
             'Code' => $this->readCodeInline($content),
             'Math' => $this->readMathInline($content),
             'RawInline' => $this->readRawInline($content),
+            'Cite' => $this->readCiteInline($content),
             'Link' => $this->readTargetInline('link', $content),
             'Image' => $this->readTargetInline('image', $content),
             'Note' => new AstNode('note', [], $this->readBlocks($this->listContent($content, 'Note'))),
@@ -323,6 +324,101 @@ final class PandocJsonReader
         }
 
         return new AstNode('raw_inline', $attrs);
+    }
+
+    private function readCiteInline(mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Cite');
+        $records = $this->listContent($tuple[0], 'Cite citation records');
+        if ($records === []) {
+            throw new \InvalidArgumentException('Cite must contain at least one citation record');
+        }
+
+        $sourceInlines = $this->readInlines($this->listContent($tuple[1], 'Cite source inlines'));
+        $sourceText = $this->plainText($sourceInlines);
+        $citations = array_map(fn (mixed $record): AstNode => $this->readCitationRecord($record), $records);
+        if (count($citations) === 1) {
+            $attrs = $citations[0]->attrs;
+            if ($sourceText !== '') {
+                $attrs['text'] = $sourceText;
+            }
+
+            return new AstNode('citation', $attrs, $sourceInlines);
+        }
+
+        return new AstNode(
+            'citation_group',
+            $sourceText === '' ? [] : ['text' => $sourceText],
+            $citations
+        );
+    }
+
+    private function readCitationRecord(mixed $record): AstNode
+    {
+        if (!is_array($record) || array_is_list($record)) {
+            throw new \InvalidArgumentException('Cite citation record must be an object');
+        }
+
+        $id = $record['citationId'] ?? null;
+        if (!is_string($id) || trim($id) === '') {
+            throw new \InvalidArgumentException('Cite citation record must contain a non-empty citationId');
+        }
+
+        $prefix = $this->readInlines($this->listContent($record['citationPrefix'] ?? [], 'Cite citationPrefix'));
+        $suffix = $this->readInlines($this->listContent($record['citationSuffix'] ?? [], 'Cite citationSuffix'));
+        $mode = $this->readCitationMode($record['citationMode'] ?? ['t' => 'NormalCitation']);
+        $attrs = [
+            'id' => $id,
+            'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
+            'mode' => $mode,
+        ];
+        if ($prefix !== []) {
+            $attrs['prefix'] = $prefix;
+        }
+        if ($suffix !== []) {
+            $attrs['suffix'] = $suffix;
+        }
+
+        if (array_key_exists('citationNoteNum', $record)) {
+            if (!is_int($record['citationNoteNum'])) {
+                throw new \InvalidArgumentException('Cite citationNoteNum must be an integer');
+            }
+            $attrs['citationNoteNum'] = $record['citationNoteNum'];
+        }
+        if (array_key_exists('citationHash', $record)) {
+            if (!is_int($record['citationHash'])) {
+                throw new \InvalidArgumentException('Cite citationHash must be an integer');
+            }
+            $attrs['citationHash'] = $record['citationHash'];
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $attrs['text']]),
+        ]);
+    }
+
+    private function readCitationMode(mixed $value): string
+    {
+        return match ($this->enumTag($value, 'citation mode')) {
+            'NormalCitation' => 'normal',
+            'AuthorInText' => 'author_in_text',
+            'SuppressAuthor' => 'suppress_author',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc citation mode'),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $prefix
+     * @param list<AstNode> $suffix
+     */
+    private function citationRecordSourceText(string $id, string $mode, array $prefix, array $suffix): string
+    {
+        $prefixText = $this->plainText($prefix);
+        $suffixText = $this->plainText($suffix);
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefixText === '' ? $token : $prefixText . ' ' . $token;
+
+        return $suffixText === '' ? $text : $text . ', ' . $suffixText;
     }
 
     private function readTargetInline(string $type, mixed $content): AstNode

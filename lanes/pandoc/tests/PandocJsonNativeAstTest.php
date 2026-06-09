@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -258,15 +259,184 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
     },
+    'round trips pandoc json cite inlines with csl metadata for wordpress handoff' => static function (TestRunner $t): void {
+        $packet = [
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Archive'],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [
+                            [
+                                'citationId' => 'smith1899',
+                                'citationPrefix' => [
+                                    ['t' => 'Str', 'c' => 'see'],
+                                ],
+                                'citationSuffix' => [
+                                    ['t' => 'Str', 'c' => 'p.'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => '7'],
+                                ],
+                                'citationMode' => ['t' => 'NormalCitation'],
+                                'citationNoteNum' => 0,
+                                'citationHash' => 1889,
+                            ],
+                            [
+                                'citationId' => 'wp-team',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [
+                                    ['t' => 'Str', 'c' => 'ch.'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => '2'],
+                                ],
+                                'citationMode' => ['t' => 'AuthorInText'],
+                                'citationNoteNum' => 0,
+                                'citationHash' => 2024,
+                            ],
+                            [
+                                'citationId' => 'missing-source',
+                                'citationPrefix' => [
+                                    ['t' => 'Str', 'c' => 'compare'],
+                                ],
+                                'citationSuffix' => [],
+                                'citationMode' => ['t' => 'SuppressAuthor'],
+                                'citationNoteNum' => 0,
+                                'citationHash' => 0,
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => '[see'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@smith1899,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'p.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '7;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@wp-team,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'ch.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '2;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'compare'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '-@missing-source]'],
+                        ],
+                    ]],
+                    ['t' => 'Str', 'c' => '.'],
+                ]],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $document = $reader->readPacket($packet);
+        $cluster = $document->children[0]->children[2];
+
+        $t->same('citation_group', $cluster->type);
+        $t->same('[see @smith1899, p. 7; @wp-team, ch. 2; compare -@missing-source]', $cluster->attr('text'));
+        $t->same(['citation', 'citation', 'citation'], array_map(static fn (AstNode $node): string => $node->type, $cluster->children));
+        $t->same('smith1899', $cluster->children[0]->attr('id'));
+        $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
+        $t->same('p.', $cluster->children[0]->attr('suffix')[0]->attr('text'));
+        $t->same('7', $cluster->children[0]->attr('suffix')[2]->attr('text'));
+        $t->same(1889, $cluster->children[0]->attr('citationHash'));
+        $t->same('author_in_text', $cluster->children[1]->attr('mode'));
+        $t->same('suppress_author', $cluster->children[2]->attr('mode'));
+        $t->same('compare -@missing-source', $cluster->children[2]->attr('text'));
+
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith1899',
+                'type' => 'book',
+                'title' => 'Migration Patterns',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[1899]]],
+            ],
+            [
+                'id' => 'wp-team',
+                'type' => 'webpage',
+                'title' => 'Reviewer Log',
+                'author' => [
+                    ['literal' => 'WordPress Migration Team'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ]);
+        $processed = $processor->apply($document);
+        $processedCluster = $processed->children[0]->children[2];
+
+        $t->same('(see Smith 1899, p. 7; WordPress Migration Team (2024, ch. 2); compare -@missing-source)', $processedCluster->attr('rendered'));
+        $t->same(['missing-source'], $processedCluster->attr('missingCslItems'));
+        $t->same(['smith1899', 'wp-team', 'missing-source'], $processor->citationIds($document));
+        $t->same(['missing-source'], $processor->missingCitationIds($document));
+
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Archive (see Smith 1899, p. 7; WordPress Migration Team (2024, ch. 2); compare -@missing-source).</p>', $blocks);
+        $t->contains('<dt>Smith 1899</dt><dd>Smith, Ada. Migration Patterns. 1899.</dd>', $blocks);
+        $t->contains('<dt>WordPress Migration Team 2024</dt><dd>WordPress Migration Team. Reviewer Log. 2024.</dd>', $blocks);
+
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+        $encodedCite = $encoded['blocks'][0]['c'][2];
+        $roundTripCluster = $roundTrip->children[0]->children[2];
+        $t->same('Cite', $encodedCite['t']);
+        $t->same('smith1899', $encodedCite['c'][0][0]['citationId']);
+        $t->same('NormalCitation', $encodedCite['c'][0][0]['citationMode']['t']);
+        $t->same('AuthorInText', $encodedCite['c'][0][1]['citationMode']['t']);
+        $t->same('SuppressAuthor', $encodedCite['c'][0][2]['citationMode']['t']);
+        $t->same('see', $encodedCite['c'][0][0]['citationPrefix'][0]['c']);
+        $t->same('ch.', $encodedCite['c'][0][1]['citationSuffix'][0]['c']);
+        $t->same('citation_group', $roundTripCluster->type);
+        $t->same('wp-team', $roundTripCluster->children[1]->attr('id'));
+        $t->same('missing-source', $roundTripCluster->children[2]->attr('id'));
+    },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();
+        $citePacket = static fn (array $records): array => [
+            'blocks' => [[
+                't' => 'Para',
+                'c' => [[
+                    't' => 'Cite',
+                    'c' => [$records, []],
+                ]],
+            ]],
+        ];
 
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->read('{"meta":{}}'));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket(['blocks' => [['t' => 'Table', 'c' => []]]]));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([])));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([[
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+        ]])));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([[
+            'citationId' => 'bad',
+            'citationPrefix' => 'see',
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+        ]])));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([[
+            'citationId' => 'bad',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NarrativeCitation'],
+        ]])));
+        $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([[
+            'citationId' => 'bad',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation'],
+            'citationHash' => 'hash',
+        ]])));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket(['pandoc-api-version' => ['1'], 'blocks' => []]));
         $t->throws(InvalidArgumentException::class, static fn (): string => $writer->write(new AstNode('paragraph')));
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('table')])));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [new AstNode('paragraph', [], [new AstNode('citation')])])));
     },
     'renders wordpress blocks from pandoc json filter input' => static function (TestRunner $t): void {
         $json = <<<'JSON'
