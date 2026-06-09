@@ -2339,7 +2339,7 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author">'
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article https://source.example.test/import/posts/types/Local" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline author" data-pandoc-microdata-properties="headline schema:name" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
             . '<h1 data-pandoc-microdata-property="headline schema:name" data-pandoc-microdata-value="Title">Title</h1>'
             . '<a data-pandoc-rdfa-property="schema:url og:url" data-pandoc-rdfa-typeof="schema:Article https://schema.org/NewsArticle" data-pandoc-rdfa-about="https://source.example.test/import/posts/post.html#article" data-pandoc-rdfa-resource="https://source.example.test/import/posts/canonical.html" data-pandoc-rdfa-vocab="https://schema.org/" data-pandoc-rdfa-prefix="schema: https://schema.org/ og: https://ogp.me/ns#" href="https://source.example.test/import/posts/canonical.html">Canonical</a>'
             . '<span data-pandoc-rdfa-property="og:title">Social</span></article>';
@@ -2374,6 +2374,7 @@ return [
             'unsafe-url',
             'unsafe-attribute',
             'semantic-metadata-review',
+            'microdata-item-review',
         ], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
         $t->same([
@@ -2381,6 +2382,9 @@ return [
             'data-pandoc-microdata-type' => 'https://schema.org/Article https://source.example.test/import/posts/types/Local',
             'data-pandoc-microdata-id' => 'https://source.example.test/import/posts/articles/42',
             'data-pandoc-microdata-ref' => 'headline author',
+            'data-pandoc-microdata-properties' => 'headline schema:name',
+            'data-pandoc-microdata-property-count' => '2',
+            'data-pandoc-microdata-value-count' => '2',
         ], $nodes[0]['attrs']);
         $t->same([
             'data-pandoc-microdata-property' => 'headline schema:name',
@@ -2430,7 +2434,7 @@ return [
             static fn (string $code): bool => $code !== 'libxml-repair'
         ));
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article">'
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Article" data-pandoc-microdata-properties="headline url image datePublished wordCount ratingValue description author" data-pandoc-microdata-property-count="8" data-pandoc-microdata-value-count="7" data-pandoc-microdata-nested-item-count="1">'
             . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Review title"> Review title </h1>'
             . '<a data-pandoc-microdata-property="url" href="https://source.example.test/import/posts/posts/42.html" data-pandoc-microdata-value="https://source.example.test/import/posts/posts/42.html">Permalink</a>'
             . '<img data-pandoc-microdata-property="image" src="https://source.example.test/import/posts/cover.jpg" alt="Cover" data-pandoc-microdata-value="https://source.example.test/import/posts/cover.jpg">'
@@ -2438,7 +2442,7 @@ return [
             . '<data data-pandoc-microdata-property="wordCount" data-pandoc-data-value="1250" data-pandoc-microdata-value="1250">1,250 words</data>'
             . '<meter data-pandoc-microdata-property="ratingValue" data-pandoc-meter-value="0.75" data-pandoc-meter-min="0" data-pandoc-meter-max="1" data-pandoc-microdata-value="0.75">Rating</meter>'
             . '<span data-pandoc-microdata-property="description" data-pandoc-microdata-value="Summary with emphasis"> Summary <em>with emphasis</em> </span>'
-            . '<section data-pandoc-microdata-property="author" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Person"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Ada Lovelace">Ada Lovelace</span></section>'
+            . '<section data-pandoc-microdata-property="author" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Person" data-pandoc-microdata-properties="name" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1"><span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Ada Lovelace">Ada Lovelace</span></section>'
             . '</article>';
 
         $t->same($expected, $html);
@@ -2447,7 +2451,7 @@ return [
         $t->same(' Review title PermalinkJune 91,250 wordsRating Summary with emphasis Ada Lovelace', $fragment->textContent());
         $t->same(['a', 'article', 'data', 'em', 'h1', 'img', 'meter', 'section', 'span', 'time'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
-        $t->same(26, count($policyDiagnostics));
+        $t->same(28, count($policyDiagnostics));
         $t->same(8, count(array_filter(
             $policyDiagnostics,
             static fn (string $code): bool => $code === 'microdata-value-review'
@@ -2455,6 +2459,10 @@ return [
         $t->same([
             'data-pandoc-microdata-scope' => 'true',
             'data-pandoc-microdata-type' => 'https://schema.org/Article',
+            'data-pandoc-microdata-properties' => 'headline url image datePublished wordCount ratingValue description author',
+            'data-pandoc-microdata-property-count' => '8',
+            'data-pandoc-microdata-value-count' => '7',
+            'data-pandoc-microdata-nested-item-count' => '1',
         ], $nodes[0]['attrs']);
         $t->same('Review title', $nodes[0]['children'][0]['attrs']['data-pandoc-microdata-value']);
         $t->same('https://source.example.test/import/posts/posts/42.html', $nodes[0]['children'][1]['attrs']['data-pandoc-microdata-value']);
@@ -2464,12 +2472,72 @@ return [
         $t->same('0.75', $nodes[0]['children'][5]['attrs']['data-pandoc-microdata-value']);
         $t->same('Summary with emphasis', $nodes[0]['children'][6]['attrs']['data-pandoc-microdata-value']);
         $t->true(!array_key_exists('data-pandoc-microdata-value', $nodes[0]['children'][7]['attrs']));
+        $t->same('name', $nodes[0]['children'][7]['attrs']['data-pandoc-microdata-properties']);
+        $t->same('1', $nodes[0]['children'][7]['attrs']['data-pandoc-microdata-property-count']);
+        $t->same('1', $nodes[0]['children'][7]['attrs']['data-pandoc-microdata-value-count']);
         $t->same('Ada Lovelace', $nodes[0]['children'][7]['children'][0]['attrs']['data-pandoc-microdata-value']);
         $t->same('/migration/microdata-value-review.html', $document->children[0]->attr('part'));
         $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
         foreach ([' itemprop=', ' itemscope', ' itemtype=', ' datetime=', ' value=', ' min=', ' max='] as $sourceAttribute) {
             $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata/value attribute to be replaced: ' . $sourceAttribute);
             $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata/value attribute: ' . $sourceAttribute);
+        }
+    },
+    'summarizes scoped microdata properties without crossing nested item boundaries' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article itemscope itemtype="https://schema.org/Event">'
+            . '<h1 itemprop="name alternateName">Launch review</h1>'
+            . '<section itemprop="location" itemscope itemtype="https://schema.org/Place">'
+            . '<span itemprop="name">Main Hall</span><span itemprop="address">1 Review Way</span></section>'
+            . '<p><span itemprop="startDate">2026-06-09</span><span itemprop="startDate">2026-06-10</span></p>'
+            . '</article>',
+            'https://source.example.test/import/events/launch.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/microdata-item-summary-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $itemDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'microdata-item-review'
+        ));
+
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Event" data-pandoc-microdata-properties="name alternateName location startDate" data-pandoc-microdata-property-count="5" data-pandoc-microdata-value-count="4" data-pandoc-microdata-nested-item-count="1">'
+            . '<h1 data-pandoc-microdata-property="name alternateName" data-pandoc-microdata-value="Launch review">Launch review</h1>'
+            . '<section data-pandoc-microdata-property="location" data-pandoc-microdata-scope="true" data-pandoc-microdata-type="https://schema.org/Place" data-pandoc-microdata-properties="name address" data-pandoc-microdata-property-count="2" data-pandoc-microdata-value-count="2">'
+            . '<span data-pandoc-microdata-property="name" data-pandoc-microdata-value="Main Hall">Main Hall</span><span data-pandoc-microdata-property="address" data-pandoc-microdata-value="1 Review Way">1 Review Way</span></section>'
+            . '<p><span data-pandoc-microdata-property="startDate" data-pandoc-microdata-value="2026-06-09">2026-06-09</span><span data-pandoc-microdata-property="startDate" data-pandoc-microdata-value="2026-06-10">2026-06-10</span></p>'
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('Launch reviewMain Hall1 Review Way2026-06-092026-06-10', $fragment->textContent());
+        $t->same(['article', 'h1', 'p', 'section', 'span'], $summary['elementNames']);
+        $t->same(2, count($itemDiagnostics));
+        $t->same([
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Event',
+            'data-pandoc-microdata-properties' => 'name alternateName location startDate',
+            'data-pandoc-microdata-property-count' => '5',
+            'data-pandoc-microdata-value-count' => '4',
+            'data-pandoc-microdata-nested-item-count' => '1',
+        ], $nodes[0]['attrs']);
+        $t->same([
+            'data-pandoc-microdata-property' => 'location',
+            'data-pandoc-microdata-scope' => 'true',
+            'data-pandoc-microdata-type' => 'https://schema.org/Place',
+            'data-pandoc-microdata-properties' => 'name address',
+            'data-pandoc-microdata-property-count' => '2',
+            'data-pandoc-microdata-value-count' => '2',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same('/migration/microdata-item-summary-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/events/launch.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' itemscope', ' itemtype=', ' itemprop='] as $sourceAttribute) {
+            $t->true(!str_contains($html, $sourceAttribute), 'Expected source microdata attribute to be replaced: ' . $sourceAttribute);
+            $t->true(!str_contains($blocks, $sourceAttribute), 'Expected WordPress blocks to omit source microdata attribute: ' . $sourceAttribute);
         }
     },
     'adds source line metadata to semantic metadata diagnostics before WordPress handoff' => static function (TestRunner $t): void {
@@ -2517,7 +2585,7 @@ return [
             }
         ));
 
-        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline">' . "\n"
+        $expected = '<article data-pandoc-microdata-scope="true" data-pandoc-microdata-id="https://source.example.test/import/posts/articles/42" data-pandoc-microdata-ref="headline" data-pandoc-microdata-properties="headline" data-pandoc-microdata-property-count="1" data-pandoc-microdata-value-count="1">' . "\n"
             . '<h1 data-pandoc-microdata-property="headline" data-pandoc-microdata-value="Title">Title</h1>' . "\n"
             . '<a data-pandoc-rdfa-property="schema:url" data-pandoc-rdfa-about="https://source.example.test/import/posts/article" data-pandoc-rdfa-prefix="schema: https://source.example.test/import/posts/schema" href="https://source.example.test/import/posts/canonical.html">Canonical</a>' . "\n"
             . '</article>';

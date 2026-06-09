@@ -647,6 +647,7 @@ final class Html5DomFragment
         }
         if ($mode === 'html' && $elementForeignContext === null) {
             self::markHtmlMicrodataValueMetadata($node, $name, $attrs, $children, $diagnostics);
+            self::markHtmlMicrodataItemSummaryMetadata($node, $name, $attrs, $children, $diagnostics);
         }
 
         $element = [
@@ -8122,6 +8123,105 @@ final class Html5DomFragment
             'metadataAttribute' => 'data-pandoc-microdata-value',
             'reason' => 'microdata-item-value-preserved-as-review-metadata',
         ], $element);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param list<array<string, mixed>> $children
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function markHtmlMicrodataItemSummaryMetadata(
+        \DOMElement $element,
+        string $tagName,
+        array &$attrs,
+        array $children,
+        array &$diagnostics
+    ): void {
+        if (!array_key_exists('data-pandoc-microdata-scope', $attrs)) {
+            return;
+        }
+
+        $summary = self::htmlMicrodataItemPropertySummary($children);
+        if ($summary['properties'] === []) {
+            return;
+        }
+
+        $properties = implode(' ', $summary['properties']);
+        if (strlen($properties) <= 512) {
+            $attrs['data-pandoc-microdata-properties'] = $properties;
+        }
+        $attrs['data-pandoc-microdata-property-count'] = (string) $summary['propertyCount'];
+        if ($summary['valueCount'] > 0) {
+            $attrs['data-pandoc-microdata-value-count'] = (string) $summary['valueCount'];
+        }
+        if ($summary['nestedItemCount'] > 0) {
+            $attrs['data-pandoc-microdata-nested-item-count'] = (string) $summary['nestedItemCount'];
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'microdata-item-review',
+            'tag' => $tagName,
+            'attribute' => 'itemscope',
+            'metadataAttribute' => 'data-pandoc-microdata-properties',
+            'reason' => 'microdata-item-property-summary-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return array{properties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int}
+     */
+    private static function htmlMicrodataItemPropertySummary(array $nodes): array
+    {
+        $summary = [
+            'properties' => [],
+            'propertyCount' => 0,
+            'valueCount' => 0,
+            'nestedItemCount' => 0,
+        ];
+        self::collectHtmlMicrodataItemPropertySummary($nodes, $summary);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @param array{properties:list<string>, propertyCount:int, valueCount:int, nestedItemCount:int} $summary
+     */
+    private static function collectHtmlMicrodataItemPropertySummary(array $nodes, array &$summary): void
+    {
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? '') !== 'element') {
+                continue;
+            }
+
+            $attrs = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
+            $hasProperty = isset($attrs['data-pandoc-microdata-property']);
+            $propertyCount = 0;
+            if ($hasProperty) {
+                foreach (self::splitHtmlSemanticTokens((string) $attrs['data-pandoc-microdata-property']) as $property) {
+                    if (!in_array($property, $summary['properties'], true)) {
+                        $summary['properties'][] = $property;
+                    }
+                    ++$propertyCount;
+                    ++$summary['propertyCount'];
+                }
+                if (isset($attrs['data-pandoc-microdata-value'])) {
+                    $summary['valueCount'] += $propertyCount;
+                }
+            }
+
+            if (isset($attrs['data-pandoc-microdata-scope'])) {
+                if ($hasProperty) {
+                    ++$summary['nestedItemCount'];
+                }
+                continue;
+            }
+
+            if (is_array($node['children'] ?? null)) {
+                self::collectHtmlMicrodataItemPropertySummary($node['children'], $summary);
+            }
+        }
     }
 
     /**
