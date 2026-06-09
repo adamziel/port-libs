@@ -15288,6 +15288,76 @@ XML;
         $t->contains('<slot', $inlineSlot->attr('html'));
         $t->contains('name="summary"', $inlineSlot->attr('html'));
     },
+    'maps upstream html reader address containers as raw review markup' => static function (TestRunner $t): void {
+        $address = '<address data-source="batch-56">Imported by <a href="mailto:desk@example.test">Desk</a></address>';
+        $document = (new MarkdownReader())->read($address . "\n\nAfter the address.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($address, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the address.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $address, $blocks);
+        $t->true(!str_contains($blocks, '&lt;address'), 'Standalone address container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader hgroup containers as raw review markup' => static function (TestRunner $t): void {
+        $hgroup = '<hgroup data-source="batch-56"><h1>Source title</h1><p>Imported subtitle</p></hgroup>';
+        $document = (new MarkdownReader())->read($hgroup . "\n\nAfter the heading group.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($hgroup, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the heading group.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $hgroup, $blocks);
+        $t->true(!str_contains($blocks, '&lt;hgroup'), 'Standalone hgroup container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader menu containers as raw review markup' => static function (TestRunner $t): void {
+        $menu = '<menu type="toolbar" data-source="batch-56"><li><button>Approve</button></li></menu>';
+        $document = (new MarkdownReader())->read($menu . "\n\nAfter the menu.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($menu, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the menu.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $menu, $blocks);
+        $t->true(!str_contains($blocks, '&lt;menu'), 'Standalone menu container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader summary containers as raw review markup' => static function (TestRunner $t): void {
+        $summary = '<summary data-source="batch-56">Open import details</summary>';
+        $document = (new MarkdownReader())->read($summary . "\n\nAfter the summary.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($summary, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the summary.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $summary, $blocks);
+        $t->true(!str_contains($blocks, '&lt;summary'), 'Standalone summary container should not be escaped into reviewer text');
+    },
+    'maps upstream html reader search containers as raw review markup' => static function (TestRunner $t): void {
+        $search = '<search data-source="batch-56"><form action="/find"><input name="q" value="source"></form></search>';
+        $document = (new MarkdownReader())->read($search . "\n\nAfter the search container.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($search, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the search container.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $search, $blocks);
+        $t->true(!str_contains($blocks, '&lt;search'), 'Standalone search container should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

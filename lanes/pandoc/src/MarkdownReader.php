@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(abbr|article|aside|audio|bdi|bdo|button|canvas|cite|data|datalist|details|dfn|dialog|fieldset|figcaption|figure|footer|form|header|iframe|label|legend|main|map|mark|meter|nav|object|optgroup|option|output|picture|progress|rp|rt|ruby|script|section|slot|small|style|select|template|textarea|time|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(abbr|address|article|aside|audio|bdi|bdo|button|canvas|cite|data|datalist|details|dfn|dialog|fieldset|figcaption|figure|footer|form|header|hgroup|iframe|label|legend|main|map|mark|menu|meter|nav|object|optgroup|option|output|picture|progress|rp|rt|ruby|script|search|section|slot|small|style|select|summary|template|textarea|time|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['abbr', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'cite', 'data', 'datalist', 'details', 'dfn', 'dialog', 'embed', 'fieldset', 'form', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'mark', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'rp', 'rt', 'ruby', 'select', 'slot', 'small', 'source', 'template', 'textarea', 'time', 'track', 'var', 'video', 'wbr'], true)) {
+        if (in_array($name, ['abbr', 'address', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'cite', 'data', 'datalist', 'details', 'dfn', 'dialog', 'embed', 'fieldset', 'form', 'hgroup', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'mark', 'menu', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'rp', 'rt', 'ruby', 'search', 'select', 'slot', 'small', 'source', 'summary', 'template', 'textarea', 'time', 'track', 'var', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 
