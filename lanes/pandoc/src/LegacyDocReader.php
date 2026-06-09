@@ -1802,6 +1802,7 @@ final class LegacyDocReader
         $fieldNames = [
             'PAGE' => 'page',
             'NUMPAGES' => 'numpages',
+            'SECTION' => 'section',
             'SECTIONPAGES' => 'sectionpages',
             'DATE' => 'date',
             'TIME' => 'time',

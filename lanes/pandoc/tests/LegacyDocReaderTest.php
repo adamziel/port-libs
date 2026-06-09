@@ -5743,6 +5743,10 @@ return [
                 . $fieldBegin . ' PAGE \* Arabic ' . $fieldSeparator . '7' . $fieldEnd
                 . ' of '
                 . $fieldBegin . ' NUMPAGES \* Arabic ' . $fieldSeparator . '12' . $fieldEnd
+                . ', section '
+                . $fieldBegin . ' SECTION \* Arabic ' . $fieldSeparator . '3' . $fieldEnd
+                . ' of '
+                . $fieldBegin . ' SECTIONPAGES \* Arabic ' . $fieldSeparator . '4' . $fieldEnd
                 . ' updated '
                 . $fieldBegin . ' DATE \@ "MMMM d, yyyy" ' . $fieldSeparator . 'June 5, 2026' . $fieldEnd
                 . ".\r"
@@ -5766,16 +5770,38 @@ return [
         $t->same('numpages', $pageCount->attr('attributes')['data-legacy-doc-field']);
         $t->same('12', $pageCount->children[0]->attr('text'));
 
-        $date = $paragraph->children[5];
+        $section = $paragraph->children[5];
+        $t->same('span', $section->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-field-section'], $section->attr('classes'));
+        $t->same('section', $section->attr('attributes')['data-legacy-doc-field']);
+        $t->same('SECTION \* Arabic', $section->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('Arabic', $section->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('3', $section->children[0]->attr('text'));
+
+        $sectionPages = $paragraph->children[7];
+        $t->same('span', $sectionPages->type);
+        $t->same(['legacy-doc-field', 'legacy-doc-field-sectionpages'], $sectionPages->attr('classes'));
+        $t->same('sectionpages', $sectionPages->attr('attributes')['data-legacy-doc-field']);
+        $t->same('SECTIONPAGES \* Arabic', $sectionPages->attr('attributes')['data-legacy-doc-field-instruction']);
+        $t->same('Arabic', $sectionPages->attr('attributes')['data-legacy-doc-field-format']);
+        $t->same('4', $sectionPages->children[0]->attr('text'));
+
+        $date = $paragraph->children[9];
         $t->same('date', $date->attr('attributes')['data-legacy-doc-field']);
         $t->same('DATE \@ "MMMM d, yyyy"', $date->attr('attributes')['data-legacy-doc-field-instruction']);
         $t->same('MMMM d, yyyy', $date->attr('attributes')['data-legacy-doc-field-format']);
         $t->same('June 5, 2026', $date->children[0]->attr('text'));
 
         $t->contains('Page [7]{.legacy-doc-field .legacy-doc-field-page data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \\\\* Arabic" data-legacy-doc-field-format="Arabic"} of', $markdown);
+        $t->contains('section [3]{.legacy-doc-field .legacy-doc-field-section data-legacy-doc-field="section" data-legacy-doc-field-instruction="SECTION \\\\* Arabic" data-legacy-doc-field-format="Arabic"} of [4]{.legacy-doc-field .legacy-doc-field-sectionpages data-legacy-doc-field="sectionpages"', $markdown);
         $t->contains('updated [June 5, 2026]{.legacy-doc-field .legacy-doc-field-date data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \\\\@ \\"MMMM d, yyyy\\"" data-legacy-doc-field-format="MMMM d, yyyy"}.', $markdown);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-page" data-legacy-doc-field="page" data-legacy-doc-field-instruction="PAGE \* Arabic" data-legacy-doc-field-format="Arabic">7</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-field-section" data-legacy-doc-field="section" data-legacy-doc-field-instruction="SECTION \* Arabic" data-legacy-doc-field-format="Arabic">3</span>', $blocks);
+        $t->contains('<span class="legacy-doc-field legacy-doc-field-sectionpages" data-legacy-doc-field="sectionpages" data-legacy-doc-field-instruction="SECTIONPAGES \* Arabic" data-legacy-doc-field-format="Arabic">4</span>', $blocks);
         $t->contains('<span class="legacy-doc-field legacy-doc-field-date" data-legacy-doc-field="date" data-legacy-doc-field-instruction="DATE \@ &quot;MMMM d, yyyy&quot;" data-legacy-doc-field-format="MMMM d, yyyy">June 5, 2026</span>', $blocks);
+        foreach (['PAGE', 'NUMPAGES', 'SECTION', 'SECTIONPAGES', 'DATE'] as $instruction) {
+            $t->true(!str_contains(strip_tags($blocks), $instruction), 'Legacy DOC pagination/date field instructions should not render as visible text');
+        }
     },
     'preserves legacy DOC form-field provenance around displayed results' => static function (TestRunner $t) use ($buildCfb, $buildSimpleWordDocument): void {
         $fieldBegin = "\x13";
