@@ -368,6 +368,91 @@ HTML;
         $t->contains('<tbody data-section="body"><tr><th colspan="2">Posts and pages</th><td>Ready</td></tr><tr><th colspan="2">Media assets</th><td>Review</td></tr></tbody>', $blocks);
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'reports row-head columns per html tbody group in writer handoff' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="multi-rowhead-grid" data-source="html-reader">
+<caption>Multiple body row-head review</caption>
+<thead>
+<tr><th>Group</th><th>Item</th><th>Status</th></tr>
+</thead>
+<tbody id="posts-body">
+<tr><th colspan="2">Posts</th><td>Ready</td></tr>
+<tr><th colspan="2">Pages</th><td>Review</td></tr>
+</tbody>
+<tbody id="media-body">
+<tr><th>Images</th><td>7</td><td>Review</td></tr>
+<tr><th>Video</th><td>2</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $firstBody = $table->children[1] ?? null;
+        $secondBody = $table->children[2] ?? null;
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(2, $firstBody instanceof AstNode ? $firstBody->attr('rowHeadColumns') : null);
+        $t->same(1, $secondBody instanceof AstNode ? $secondBody->attr('rowHeadColumns') : null);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(['head', 'body', 'body1'], array_map(static fn (array $section): string => $section['section'], $packet['rowGroups'] ?? []));
+        $t->same([2, 1], array_map(static fn (array $section): int => $section['rowHeadColumns'], array_slice($packet['rowGroups'] ?? [], 1)));
+        $t->same(2, $packet['summary']['rowHeadGroupCount'] ?? null);
+        $t->same(2, $packet['summary']['maxRowHeadColumns'] ?? null);
+        $t->same(['body', 'body1'], $packet['summary']['rowHeadSections'] ?? null);
+        $t->same([2, 1], $packet['summary']['rowHeadColumnCounts'] ?? null);
+        $t->same(true, $packet['summary']['hasDifferingRowHeadColumns'] ?? null);
+        $t->same([
+            [
+                'section' => 'body',
+                'rowRange' => [1, 3],
+                'rowCount' => 2,
+                'rowRole' => 'body',
+                'rowHeadColumns' => 2,
+                'bodyIndex' => 0,
+                'bodyOrdinal' => 0,
+            ],
+            [
+                'section' => 'body1',
+                'rowRange' => [3, 5],
+                'rowCount' => 2,
+                'rowRole' => 'body',
+                'rowHeadColumns' => 1,
+                'bodyIndex' => 1,
+                'bodyOrdinal' => 1,
+            ],
+        ], $packet['summary']['rowHeadGroupRanges'] ?? null);
+
+        $markdownBodyDiagnostics = array_values(array_filter(
+            $packet['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-table-bodies-flattened'
+        ));
+        $t->same(1, count($markdownBodyDiagnostics));
+        $markdownBodyDiagnostic = $markdownBodyDiagnostics[0] ?? [];
+        $t->same([2, 1], $markdownBodyDiagnostic['bodySectionRowHeadColumns'] ?? null);
+        $t->same(['body', 'body1'], $markdownBodyDiagnostic['rowHeadBodySections'] ?? null);
+        $t->same([2, 1], $markdownBodyDiagnostic['rowHeadColumnCounts'] ?? null);
+        $t->same(2, $markdownBodyDiagnostic['rowHeadGroupCount'] ?? null);
+        $t->same(2, $markdownBodyDiagnostic['maxRowHeadColumns'] ?? null);
+        $t->same(true, $markdownBodyDiagnostic['hasDifferingRowHeadColumns'] ?? null);
+        $t->same($packet['summary']['rowHeadGroupRanges'] ?? null, $markdownBodyDiagnostic['rowHeadSectionRanges'] ?? null);
+
+        $asciidocBodyDiagnostics = array_values(array_filter(
+            TableGeometry::writerDowngradeDiagnostics($table, 'asciidoc'),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'asciidoc-table-bodies-review-required'
+        ));
+        $t->same(1, count($asciidocBodyDiagnostics));
+        $t->same([2, 1], ($asciidocBodyDiagnostics[0] ?? [])['bodySectionRowHeadColumns'] ?? null);
+        $t->same($packet['summary']['rowHeadGroupRanges'] ?? null, ($asciidocBodyDiagnostics[0] ?? [])['rowHeadSectionRanges'] ?? null);
+
+        $t->contains('<tbody id="posts-body"><tr><th colspan="2">Posts</th><td>Ready</td></tr><tr><th colspan="2">Pages</th><td>Review</td></tr></tbody>', $blocks);
+        $t->contains('<tbody id="media-body"><tr><th>Images</th><td>7</td><td>Review</td></tr><tr><th>Video</th><td>2</td><td>Ready</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'expands html rowspan zero through the current tbody geometry group' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">

@@ -18701,6 +18701,125 @@ XML);
         $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. First Note Source A.</dd>', $blocks);
     },
+    'renders bounded csl first reference note numbers in note bibliography handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'source-a',
+                'type' => 'report',
+                'title' => 'First Note Source A',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'source-b',
+                'type' => 'report',
+                'title' => 'First Note Source B',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'source-c',
+                'type' => 'report',
+                'title' => 'Later Note Source C',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="note" default-locale="en-US">
+  <info>
+    <title>Bounded First Reference Note Bibliography Review</title>
+    <id>https://example.test/styles/bounded-first-reference-note-bibliography-review</id>
+    <updated>2026-06-09T04:06:57+00:00</updated>
+  </info>
+  <macro name="source-key">
+    <group delimiter=" ">
+      <names variable="author"/>
+      <date variable="issued"><date-part name="year"/></date>
+    </group>
+  </macro>
+  <macro name="first-note">
+    <group delimiter=" ">
+      <text value="first-note"/>
+      <number variable="first-reference-note-number" form="ordinal"/>
+      <text variable="first-reference-note-number" prefix="raw "/>
+    </group>
+  </macro>
+  <citation>
+    <layout delimiter="; ">
+      <choose>
+        <if position="subsequent" match="any">
+          <group delimiter=" ">
+            <text macro="first-note"/>
+            <text macro="source-key"/>
+          </group>
+        </if>
+        <else>
+          <text macro="source-key"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="author"/>
+    </sort>
+    <layout delimiter=". " suffix=".">
+      <text macro="first-note"/>
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('first-note', $summary['bibliographyRendering'][0]['macro'] ?? null);
+        $bibliographyChildren = $summary['macros']['first-note'][0]['children'] ?? [];
+        $t->same('first-reference-note-number', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('ordinal', $bibliographyChildren[1]['form'] ?? null);
+        $t->same('first-reference-note-number', $bibliographyChildren[2]['variable'] ?? null);
+
+        $document = (new MarkdownReader())->read(
+            'Initial source note.[^a]'
+            . "\n\n" . 'Bridge source note.[^b]'
+            . "\n\n" . 'Repeated source note.[^c]'
+            . "\n\n" . '[^a]: Initial footnote cites [@source-a].'
+            . "\n\n" . '[^b]: Bridge footnote cites [@source-b].'
+            . "\n\n" . '[^c]: Repeated footnote cites [@source-a, p. 9; @source-c].'
+        );
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+
+        $citations = [];
+        $collectCitations = static function (AstNode $node) use (&$collectCitations, &$citations): void {
+            if ($node->type === 'citation') {
+                $citations[] = $node;
+            }
+
+            foreach ($node->children as $child) {
+                $collectCitations($child);
+            }
+        };
+        $collectCitations($processed);
+
+        $t->same(4, count($citations));
+        $t->same(1, $citations[0]->attr('cslFirstReferenceNoteNumber'));
+        $t->same(2, $citations[1]->attr('cslFirstReferenceNoteNumber'));
+        $t->same(1, $citations[2]->attr('cslFirstReferenceNoteNumber'));
+        $t->same(3, $citations[3]->attr('cslFirstReferenceNoteNumber'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<li id="fn-3"><p>Repeated footnote cites first-note 1st raw 1 Smith 2026, p. 9; Roe 2024.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>first-note 2nd raw 2. Ng, Nia. First Note Source B.</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>first-note 3rd raw 3. Roe, Pat. Later Note Source C.</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>first-note 1st raw 1. Smith, Ada. First Note Source A.</dd>', $blocks);
+    },
     'applies bounded csl part number labels and text forms' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

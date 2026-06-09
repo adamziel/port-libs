@@ -1635,6 +1635,24 @@ foreach ($graph->preflightTargetsForSource($documentPart) as $target) {
     ];
 }
 
+$internalSourceReferences = [];
+foreach ($graph->preflightInternalTargetReferences($documentPart) as $reference) {
+    if (!$reference['sameSourceReference'] || $reference['target'] === $reference['targetPart']) {
+        continue;
+    }
+
+    $internalSourceReferences[] = [
+        'id' => $reference['id'],
+        'target' => $reference['target'],
+        'targetPart' => $reference['targetPart'],
+        'targetQuery' => $reference['targetQuery'],
+        'targetFragment' => $reference['targetFragment'],
+        'sameSourceReference' => $reference['sameSourceReference'],
+        'contentType' => $reference['contentType'],
+        'issues' => $reference['issues'],
+    ];
+}
+
 $relationshipSelector = $graph->preflightRelationshipSelector(
     $documentPart,
     ['rIdHero', 'rIdReviewer', 'rIdMissingSelector'],
@@ -2529,18 +2547,7 @@ $summary = [
         'embeddedObjectParts' => $embeddedObjectParts,
         'nestedEmbeddedOfficeDocuments' => $nestedEmbeddedOfficeDocuments,
         'nestedEmbeddedRelationshipClosures' => $nestedEmbeddedRelationshipClosures,
-        'internalSourceReferences' => array_values(array_map(
-            static fn (array $target): array => [
-                'id' => $target['id'],
-                'target' => $target['target'],
-                'targetPart' => $target['targetPart'],
-                'contentType' => $target['contentType'],
-                'issues' => $target['issues'],
-            ],
-            array_filter($relationshipPreflight, static fn (array $target): bool => $target['external'] === false
-                && $target['targetPart'] === $documentPart
-                && $target['target'] !== $documentPart)
-        )),
+        'internalSourceReferences' => $internalSourceReferences,
         'mediaReferenceProvenance' => array_values(array_map(
             static fn (array $part): array => [
                 'partName' => $part['partName'],
@@ -2926,9 +2933,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['relationships']['rIdInternalReviewState']['contentType'] ?? null) !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'
         || ($summary['wordpressImport']['internalSourceReferences'][0]['id'] ?? null) !== 'rIdInternalBookmark'
         || ($summary['wordpressImport']['internalSourceReferences'][0]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['targetQuery'] ?? null) !== null
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['targetFragment'] ?? null) !== 'review-bookmark'
+        || ($summary['wordpressImport']['internalSourceReferences'][0]['sameSourceReference'] ?? null) !== true
         || ($summary['wordpressImport']['internalSourceReferences'][0]['issues'] ?? null) !== []
         || ($summary['wordpressImport']['internalSourceReferences'][1]['id'] ?? null) !== 'rIdInternalReviewState'
         || ($summary['wordpressImport']['internalSourceReferences'][1]['targetPart'] ?? null) !== '/word/document.xml'
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['targetQuery'] ?? null) !== 'review=ready'
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['targetFragment'] ?? null) !== 'packet'
+        || ($summary['wordpressImport']['internalSourceReferences'][1]['sameSourceReference'] ?? null) !== true
         || ($summary['wordpressImport']['internalSourceReferences'][1]['issues'] ?? null) !== []
         || ($summary['packageConsistency']['valid'] ?? null) !== false
         || ($summary['packageConsistency']['packagePartsValid'] ?? null) !== false

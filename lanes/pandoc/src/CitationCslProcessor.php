@@ -394,6 +394,7 @@ final class CitationCslProcessor
     {
         $ids = $this->uniqueKnownCitationIds($document);
         $yearSuffixes = $this->yearSuffixesForIds($ids);
+        $firstReferenceNoteNumbers = $this->firstReferenceNoteNumbersForDocument($document);
         $ids = array_values(array_filter(
             $this->sortBibliographyIds($ids),
             fn (string $id): bool => !$this->itemSkipsBibliography($id)
@@ -410,7 +411,7 @@ final class CitationCslProcessor
             ], [
                 new AstNode('text', ['text' => $headingText]),
             ]),
-            $this->bibliographyDefinitionList($ids, $yearSuffixes),
+            $this->bibliographyDefinitionList($ids, $yearSuffixes, $firstReferenceNoteNumbers),
         ];
     }
 
@@ -779,8 +780,9 @@ final class CitationCslProcessor
     /**
      * @param list<string> $ids
      * @param array<string, string> $yearSuffixes
+     * @param array<string, string> $firstReferenceNoteNumbers
      */
-    public function bibliographyDefinitionList(array $ids, array $yearSuffixes = []): AstNode
+    public function bibliographyDefinitionList(array $ids, array $yearSuffixes = [], array $firstReferenceNoteNumbers = []): AstNode
     {
         if ($yearSuffixes === []) {
             $yearSuffixes = $this->yearSuffixesForIds($ids);
@@ -790,13 +792,15 @@ final class CitationCslProcessor
         $items = [];
         $bibliographyState = $this->emptyBibliographySubstitutionState();
         foreach ($ids as $id) {
-            $item = $this->itemsById[$id] ?? null;
+            $canonicalId = $this->canonicalCitationId($id);
+            $item = $this->itemsById[$canonicalId] ?? null;
             if ($item === null) {
                 continue;
             }
 
-            $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? '');
-            $item = $this->itemWithCitationNumber($item, $citationNumbers[$this->canonicalCitationId($id)] ?? '');
+            $item = $this->itemWithYearSuffix($item, $yearSuffixes[$id] ?? $yearSuffixes[$canonicalId] ?? '');
+            $item = $this->itemWithCitationNumber($item, $citationNumbers[$canonicalId] ?? '');
+            $item = $this->itemWithFirstReferenceNoteNumber($item, $firstReferenceNoteNumbers[$canonicalId] ?? $firstReferenceNoteNumbers[$id] ?? '');
             $label = $this->citationLabel($item);
             $this->resetBibliographySubstitutionEntry($bibliographyState);
             $entry = $this->renderBibliographyEntryForItem($item, $bibliographyState);
@@ -3774,6 +3778,46 @@ final class CitationCslProcessor
         return $ids;
     }
 
+    /**
+     * @return array<string, string>
+     */
+    private function firstReferenceNoteNumbersForDocument(AstNode $document): array
+    {
+        $numbers = [];
+        $this->collectFirstReferenceNoteNumbers($document, $numbers);
+
+        return $numbers;
+    }
+
+    /**
+     * @param array<string, string> $numbers
+     */
+    private function collectFirstReferenceNoteNumbers(AstNode $node, array &$numbers): void
+    {
+        if ($node->type === 'citation') {
+            $id = (string) $node->attr('id', '');
+            $canonicalId = $this->canonicalCitationId($id);
+            if ($id !== '' && isset($this->itemsById[$canonicalId])) {
+                foreach (['cslFirstReferenceNoteNumber', 'firstReferenceNoteNumber'] as $attribute) {
+                    $number = self::positiveIntegerString($node->attr($attribute, ''));
+                    if ($number === '') {
+                        continue;
+                    }
+
+                    if (!isset($numbers[$canonicalId]) || (int) $number < (int) $numbers[$canonicalId]) {
+                        $numbers[$canonicalId] = $number;
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectFirstReferenceNoteNumbers($child, $numbers);
+        }
+    }
+
     private function canonicalCitationId(string $id): string
     {
         return $this->canonicalIdsById[$id] ?? $id;
@@ -4233,6 +4277,22 @@ final class CitationCslProcessor
         return [
             ...$item,
             'citationNumber' => $number,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function itemWithFirstReferenceNoteNumber(array $item, string $number): array
+    {
+        if ($number === '') {
+            return $item;
+        }
+
+        return [
+            ...$item,
+            'firstReferenceNoteNumber' => $number,
         ];
     }
 
@@ -8316,7 +8376,7 @@ final class CitationCslProcessor
         return match ($normalized) {
             'locator' => $this->formatCslLocatorRanges($this->citationLocatorParts($citation)['value']),
             'citation-number' => $this->citationNumberValue($item, $citation),
-            'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation),
+            'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation, $item),
             'id', 'citation-key' => (string) $item['id'],
             'type' => (string) $item['type'],
             'source' => (string) ($item['source'] ?? ''),
@@ -8752,21 +8812,38 @@ final class CitationCslProcessor
         return $this->citationNumberForId((string) ($item['id'] ?? ''));
     }
 
-    private function firstReferenceNoteNumberValue(?AstNode $citation): string
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function firstReferenceNoteNumberValue(?AstNode $citation, array $item = []): string
     {
-        if (!$citation instanceof AstNode) {
-            return '';
+        if ($citation instanceof AstNode) {
+            foreach (['cslFirstReferenceNoteNumber', 'firstReferenceNoteNumber'] as $attribute) {
+                $number = self::positiveIntegerString($citation->attr($attribute, ''));
+                if ($number !== '') {
+                    return $number;
+                }
+            }
         }
 
-        foreach (['cslFirstReferenceNoteNumber', 'firstReferenceNoteNumber'] as $attribute) {
-            $value = $citation->attr($attribute, '');
-            if (is_int($value) && $value >= 1) {
-                return (string) $value;
+        foreach (['firstReferenceNoteNumber', 'cslFirstReferenceNoteNumber', 'first-reference-note-number'] as $field) {
+            $number = self::positiveIntegerString($item[$field] ?? null);
+            if ($number !== '') {
+                return $number;
             }
+        }
 
-            if (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1 && (int) $value >= 1) {
-                return (string) ((int) $value);
-            }
+        return '';
+    }
+
+    private static function positiveIntegerString(mixed $value): string
+    {
+        if (is_int($value) && $value >= 1) {
+            return (string) $value;
+        }
+
+        if (is_string($value) && preg_match('/^\d+$/', trim($value)) === 1 && (int) $value >= 1) {
+            return (string) ((int) $value);
         }
 
         return '';
@@ -8791,7 +8868,7 @@ final class CitationCslProcessor
         }
 
         if ($normalized === 'first-reference-note-number') {
-            return $this->firstReferenceNoteNumberValue($citation) !== '';
+            return $this->firstReferenceNoteNumberValue($citation, $item) !== '';
         }
 
         if ($normalized === 'year-suffix') {

@@ -5556,6 +5556,10 @@ final class TableGeometry
             'bodyHeadRowGroupCount' => $rowGroupSummary['bodyHeadRowGroupCount'],
             'rowHeadGroupCount' => $rowGroupSummary['rowHeadGroupCount'],
             'maxRowHeadColumns' => $rowGroupSummary['maxRowHeadColumns'],
+            'rowHeadSections' => $rowGroupSummary['rowHeadSections'],
+            'rowHeadColumnCounts' => $rowGroupSummary['rowHeadColumnCounts'],
+            'rowHeadGroupRanges' => $rowGroupSummary['rowHeadGroupRanges'],
+            'hasDifferingRowHeadColumns' => $rowGroupSummary['hasDifferingRowHeadColumns'],
             'headerLikeRowCount' => $rowGroupSummary['headerLikeRowCount'],
             'dataLikeRowCount' => $rowGroupSummary['dataLikeRowCount'],
             'maxRowGroupRowCount' => $rowGroupSummary['maxRowGroupRowCount'],
@@ -5721,6 +5725,10 @@ final class TableGeometry
      *     bodyHeadRowGroupCount:int,
      *     rowHeadGroupCount:int,
      *     maxRowHeadColumns:int,
+     *     rowHeadSections:list<string>,
+     *     rowHeadColumnCounts:list<int>,
+     *     rowHeadGroupRanges:list<array{section:string,rowRange:list<int>,rowCount:int,rowRole:string,rowHeadColumns:int,bodyIndex:int,bodyOrdinal:int}>,
+     *     hasDifferingRowHeadColumns:bool,
      *     headerLikeRowCount:int,
      *     dataLikeRowCount:int,
      *     maxRowGroupRowCount:int,
@@ -5741,6 +5749,9 @@ final class TableGeometry
         $bodyHeadRowGroupCount = 0;
         $rowHeadGroupCount = 0;
         $maxRowHeadColumns = 0;
+        $rowHeadSections = [];
+        $rowHeadColumnCounts = [];
+        $rowHeadGroupRanges = [];
         $headerLikeRowCount = 0;
         $dataLikeRowCount = 0;
         $maxRowGroupRowCount = 0;
@@ -5799,6 +5810,9 @@ final class TableGeometry
                 if ($groupRowHeadColumns > 0) {
                     $rowHeadGroupCount++;
                     $maxRowHeadColumns = max($maxRowHeadColumns, $groupRowHeadColumns);
+                    $rowHeadSections[] = $section;
+                    $rowHeadColumnCounts[] = $groupRowHeadColumns;
+                    $rowHeadGroupRanges[] = self::rowHeadGroupRangeRecord($rowGroup);
                 }
                 continue;
             }
@@ -5821,6 +5835,10 @@ final class TableGeometry
             'bodyHeadRowGroupCount' => $bodyHeadRowGroupCount,
             'rowHeadGroupCount' => $rowHeadGroupCount,
             'maxRowHeadColumns' => $maxRowHeadColumns,
+            'rowHeadSections' => $rowHeadSections,
+            'rowHeadColumnCounts' => $rowHeadColumnCounts,
+            'rowHeadGroupRanges' => $rowHeadGroupRanges,
+            'hasDifferingRowHeadColumns' => count(array_unique($rowHeadColumnCounts)) > 1,
             'headerLikeRowCount' => $headerLikeRowCount,
             'dataLikeRowCount' => $dataLikeRowCount,
             'maxRowGroupRowCount' => $maxRowGroupRowCount,
@@ -8937,6 +8955,9 @@ final class TableGeometry
             return [];
         }
 
+        $columnCount = self::columnCount($table);
+        $rowGroups = self::rowGroups($table, $columnCount);
+        $rowGroupSummary = self::rowGroupSummary($rowGroups);
         $sectionSummary = self::tableSectionSummary($table);
         if (($sectionSummary['bodyCount'] ?? 0) <= 1) {
             return [];
@@ -8953,6 +8974,26 @@ final class TableGeometry
             $bodySectionRowCounts[] = max(0, (int) ($section['rowCount'] ?? 0));
         }
 
+        $bodySectionRowHeadColumns = [];
+        $rowHeadBodySections = [];
+        $rowHeadColumnCounts = [];
+        $rowHeadSectionRanges = [];
+        foreach ($rowGroups as $rowGroup) {
+            if (($rowGroup['kind'] ?? '') !== 'table-body') {
+                continue;
+            }
+
+            $rowHeadColumns = max(0, (int) ($rowGroup['rowHeadColumns'] ?? 0));
+            $bodySectionRowHeadColumns[] = $rowHeadColumns;
+            if ($rowHeadColumns <= 0) {
+                continue;
+            }
+
+            $rowHeadBodySections[] = (string) ($rowGroup['section'] ?? '');
+            $rowHeadColumnCounts[] = $rowHeadColumns;
+            $rowHeadSectionRanges[] = self::rowHeadGroupRangeRecord($rowGroup);
+        }
+
         [$code, $requiredFeature] = $requirements[$writer];
 
         return [[
@@ -8963,7 +9004,7 @@ final class TableGeometry
             'source' => 'pandoc-table-bodies',
             'caption' => (string) $table->attr('caption', ''),
             'hasCaption' => trim((string) $table->attr('caption', '')) !== '',
-            'columnCount' => self::columnCount($table),
+            'columnCount' => $columnCount,
             'sectionCount' => $sectionSummary['sectionCount'],
             'rowCount' => $sectionSummary['rowCount'],
             'bodyCount' => $sectionSummary['bodyCount'],
@@ -8972,6 +9013,13 @@ final class TableGeometry
             'footRowCount' => $sectionSummary['footRowCount'],
             'bodySections' => $bodySections,
             'bodySectionRowCounts' => $bodySectionRowCounts,
+            'bodySectionRowHeadColumns' => $bodySectionRowHeadColumns,
+            'rowHeadBodySections' => $rowHeadBodySections,
+            'rowHeadColumnCounts' => $rowHeadColumnCounts,
+            'rowHeadGroupCount' => (int) $rowGroupSummary['rowHeadGroupCount'],
+            'maxRowHeadColumns' => (int) $rowGroupSummary['maxRowHeadColumns'],
+            'hasDifferingRowHeadColumns' => (bool) $rowGroupSummary['hasDifferingRowHeadColumns'],
+            'rowHeadSectionRanges' => $rowHeadSectionRanges,
             'sectionRanges' => $sectionSummary['sectionRanges'],
             'bodySectionRanges' => self::sectionRangeRecordsByRole($sectionSummary, 'body'),
             'sections' => $sectionSummary['sections'],
@@ -9190,6 +9238,19 @@ final class TableGeometry
             'rowCount' => max(0, (int) ($rowGroup['rowCount'] ?? 0)),
             'rowRole' => $rowRole,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $rowGroup
+     * @return array<string, mixed>
+     */
+    private static function rowHeadGroupRangeRecord(array $rowGroup): array
+    {
+        return array_replace(self::rowGroupWriterRangeRecord($rowGroup, 'body'), [
+            'rowHeadColumns' => max(0, (int) ($rowGroup['rowHeadColumns'] ?? 0)),
+            'bodyIndex' => max(0, (int) ($rowGroup['bodyIndex'] ?? $rowGroup['bodyOrdinal'] ?? 0)),
+            'bodyOrdinal' => max(0, (int) ($rowGroup['bodyOrdinal'] ?? $rowGroup['bodyIndex'] ?? 0)),
+        ]);
     }
 
     private static function normalizeWriterName(string $writer): string

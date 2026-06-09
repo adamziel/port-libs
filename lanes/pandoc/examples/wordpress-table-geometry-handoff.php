@@ -37,6 +37,26 @@ $visualRowHeadColspanTables = array_values(array_filter(
     $visualRowHeadColspanDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$multiBodyRowHeadDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="multi-rowhead-grid" data-source="html-reader">
+<caption>Multiple body row-head review</caption>
+<thead>
+<tr><th>Group</th><th>Item</th><th>Status</th></tr>
+</thead>
+<tbody id="posts-body">
+<tr><th colspan="2">Posts</th><td>Ready</td></tr>
+<tr><th colspan="2">Pages</th><td>Review</td></tr>
+</tbody>
+<tbody id="media-body">
+<tr><th>Images</th><td>7</td><td>Review</td></tr>
+<tr><th>Video</th><td>2</td><td>Ready</td></tr>
+</tbody>
+</table>
+HTML);
+$multiBodyRowHeadTables = array_values(array_filter(
+    $multiBodyRowHeadDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $rowspanZeroDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">
 <tbody id="posts-body">
@@ -1517,6 +1537,7 @@ $document = new AstNode('document', [], [
     ...$directionalityTables,
     ...$readerHandoffTables,
     ...$visualRowHeadColspanTables,
+    ...$multiBodyRowHeadTables,
     ...$captionSourceTables,
     ...$axisSourceTables,
     ...$captionMetadataTables,
@@ -3550,6 +3571,41 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Table geometry self-test missing visual row-head colspan WordPress output');
     }
     json_encode($visualRowHeadColspanPacket, JSON_THROW_ON_ERROR);
+
+    $multiBodyRowHeadTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('caption') === 'Multiple body row-head review') {
+            $multiBodyRowHeadTable = $node;
+            break;
+        }
+    }
+    $multiBodyRowHeadPacket = $multiBodyRowHeadTable instanceof AstNode ? $multiBodyRowHeadTable->attr('tableGeometry') : null;
+    $multiBodyRowHeadMarkdownDiagnostics = is_array($multiBodyRowHeadPacket)
+        ? array_values(array_filter(
+            $multiBodyRowHeadPacket['writerDowngrades']['markdown'] ?? [],
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? null) === 'markdown-table-bodies-flattened'
+        ))
+        : [];
+    if (
+        !is_array($multiBodyRowHeadPacket)
+        || ($multiBodyRowHeadPacket['summary']['rowHeadSections'] ?? null) !== ['body', 'body1']
+        || ($multiBodyRowHeadPacket['summary']['rowHeadColumnCounts'] ?? null) !== [2, 1]
+        || ($multiBodyRowHeadPacket['summary']['hasDifferingRowHeadColumns'] ?? null) !== true
+        || ($multiBodyRowHeadPacket['summary']['rowHeadGroupRanges'][0]['rowHeadColumns'] ?? null) !== 2
+        || ($multiBodyRowHeadPacket['summary']['rowHeadGroupRanges'][1]['bodyOrdinal'] ?? null) !== 1
+        || ($multiBodyRowHeadMarkdownDiagnostics[0]['bodySectionRowHeadColumns'] ?? null) !== [2, 1]
+        || ($multiBodyRowHeadMarkdownDiagnostics[0]['rowHeadBodySections'] ?? null) !== ['body', 'body1']
+        || ($multiBodyRowHeadMarkdownDiagnostics[0]['hasDifferingRowHeadColumns'] ?? null) !== true
+    ) {
+        throw new RuntimeException('Table geometry self-test missing multiple body row-head handoff metadata');
+    }
+    if (
+        !str_contains($blocks, '<tbody id="posts-body"><tr><th colspan="2">Posts</th><td>Ready</td></tr><tr><th colspan="2">Pages</th><td>Review</td></tr></tbody>')
+        || !str_contains($blocks, '<tbody id="media-body"><tr><th>Images</th><td>7</td><td>Review</td></tr><tr><th>Video</th><td>2</td><td>Ready</td></tr></tbody>')
+    ) {
+        throw new RuntimeException('Table geometry self-test missing multiple body row-head WordPress output');
+    }
+    json_encode($multiBodyRowHeadPacket, JSON_THROW_ON_ERROR);
 
     $captionSourceTable = null;
     foreach ($document->children as $node) {

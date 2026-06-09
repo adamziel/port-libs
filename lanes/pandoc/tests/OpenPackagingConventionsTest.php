@@ -1291,6 +1291,38 @@ XML;
         $t->same(true, $preflight['rIdReviewerState']['exists']);
         $t->same(true, $preflight['rIdReviewerState']['valid']);
 
+        $internalReferences = [];
+        foreach ($graph->preflightInternalTargetReferences('/word/document.xml') as $reference) {
+            $internalReferences[$reference['id']] = $reference;
+        }
+
+        $t->same(['rIdBookmark', 'rIdReviewerState', 'rIdStyles'], array_keys($internalReferences));
+        $t->same('/word/document.xml', $internalReferences['rIdBookmark']['source']);
+        $t->same('/word/document.xml#review-bookmark', $internalReferences['rIdBookmark']['target']);
+        $t->same('/word/document.xml', $internalReferences['rIdBookmark']['targetPart']);
+        $t->same(null, $internalReferences['rIdBookmark']['targetQuery']);
+        $t->same('review-bookmark', $internalReferences['rIdBookmark']['targetFragment']);
+        $t->same(true, $internalReferences['rIdBookmark']['sameSourceReference']);
+        $t->same(true, $internalReferences['rIdBookmark']['valid']);
+        $t->same([], $internalReferences['rIdBookmark']['issues']);
+        $t->same('/word/document.xml?review=ready#packet', $internalReferences['rIdReviewerState']['target']);
+        $t->same('/word/document.xml', $internalReferences['rIdReviewerState']['targetPart']);
+        $t->same('review=ready', $internalReferences['rIdReviewerState']['targetQuery']);
+        $t->same('packet', $internalReferences['rIdReviewerState']['targetFragment']);
+        $t->same(true, $internalReferences['rIdReviewerState']['sameSourceReference']);
+        $t->same('/word/styles.xml', $internalReferences['rIdStyles']['targetPart']);
+        $t->same(null, $internalReferences['rIdStyles']['targetQuery']);
+        $t->same(null, $internalReferences['rIdStyles']['targetFragment']);
+        $t->same(false, $internalReferences['rIdStyles']['sameSourceReference']);
+
+        $customXmlReferences = $graph->preflightInternalTargetReferences(
+            '/word/document.xml',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml'
+        );
+        $t->same(['rIdReviewerState'], array_column($customXmlReferences, 'id'));
+        $t->same('review=ready', $customXmlReferences[0]['targetQuery']);
+        $t->same('packet', $customXmlReferences[0]['targetFragment']);
+
         $closureById = [];
         foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
             $closureById[$target['id']] = $target;
@@ -1305,6 +1337,79 @@ XML;
         $rootRelationships = new OpcRelationships('/');
         $rootRelationships->add(new OpcRelationship('rIdFragment', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml', '#root-fragment'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $rootRelationships->resolveTarget('rIdFragment'));
+    },
+    'preflights OPC internal relationship target query and fragment metadata for importer review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdBookmark" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="#review-bookmark"/>
+  <Relationship Id="rIdReviewState" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="?review=ready#packet"/>
+  <Relationship Id="rIdStylesQuery" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?theme=light"/>
+  <Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+  <Relationship Id="rIdEscape" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../evil.xml?x=1#bad"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+        ]));
+
+        $references = [];
+        foreach ($graph->preflightInternalTargetReferences('/word/document.xml') as $reference) {
+            $references[$reference['id']] = $reference;
+        }
+
+        $t->same(['rIdBookmark', 'rIdReviewState', 'rIdStylesQuery', 'rIdEscape'], array_keys($references));
+        $t->same('/word/document.xml#review-bookmark', $references['rIdBookmark']['target']);
+        $t->same('/word/document.xml', $references['rIdBookmark']['targetPart']);
+        $t->same(null, $references['rIdBookmark']['targetQuery']);
+        $t->same('review-bookmark', $references['rIdBookmark']['targetFragment']);
+        $t->same(true, $references['rIdBookmark']['sameSourceReference']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $references['rIdBookmark']['contentType']);
+        $t->same('/word/document.xml?review=ready#packet', $references['rIdReviewState']['target']);
+        $t->same('/word/document.xml', $references['rIdReviewState']['targetPart']);
+        $t->same('review=ready', $references['rIdReviewState']['targetQuery']);
+        $t->same('packet', $references['rIdReviewState']['targetFragment']);
+        $t->same(true, $references['rIdReviewState']['sameSourceReference']);
+        $t->same('/word/styles.xml?theme=light', $references['rIdStylesQuery']['target']);
+        $t->same('/word/styles.xml', $references['rIdStylesQuery']['targetPart']);
+        $t->same('theme=light', $references['rIdStylesQuery']['targetQuery']);
+        $t->same(null, $references['rIdStylesQuery']['targetFragment']);
+        $t->same(false, $references['rIdStylesQuery']['sameSourceReference']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $references['rIdStylesQuery']['contentType']);
+        $t->same('../../evil.xml?x=1#bad', $references['rIdEscape']['target']);
+        $t->same(null, $references['rIdEscape']['targetPart']);
+        $t->same(null, $references['rIdEscape']['targetQuery']);
+        $t->same(null, $references['rIdEscape']['targetFragment']);
+        $t->same(false, $references['rIdEscape']['sameSourceReference']);
+        $t->same(null, $references['rIdEscape']['exists']);
+        $t->same(false, $references['rIdEscape']['valid']);
+        $t->same(['invalid-target', 'internal-target-package-root-traversal'], $references['rIdEscape']['issues']);
+
+        $customXmlReferences = $graph->preflightInternalTargetReferences(
+            '/word/document.xml',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml'
+        );
+        $t->same(['rIdReviewState'], array_column($customXmlReferences, 'id'));
+        $t->same([], $graph->preflightInternalTargetReferences('/word/missing.xml'));
     },
     'resolves percent encoded OPC relationship target paths to package parts' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
         $documentRelationshipsXml = <<<'XML'

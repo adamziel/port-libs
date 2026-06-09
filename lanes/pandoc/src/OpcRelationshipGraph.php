@@ -870,6 +870,49 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, exists:?bool, relationshipPartTarget:bool, valid:bool, issues:list<string>}>
+     */
+    public function preflightInternalTargetReferences(string $sourcePartName = '/', ?string $relationshipType = null): array
+    {
+        $sourcePartName = $this->relationshipSourceNameForEquivalent($sourcePartName);
+        $references = [];
+
+        foreach ($this->preflightTargetsForSource($sourcePartName, $relationshipType) as $target) {
+            if ($target['external']) {
+                continue;
+            }
+
+            $targetPart = self::targetPartFromPreflightTarget($target);
+            $suffix = $targetPart === null
+                ? ['query' => null, 'fragment' => null]
+                : self::targetQueryAndFragment($target['target']);
+
+            $references[] = [
+                'source' => $sourcePartName,
+                'id' => $target['id'],
+                'type' => $target['type'],
+                'relationshipTypeKind' => $target['relationshipTypeKind'],
+                'relationshipTypeScheme' => $target['relationshipTypeScheme'],
+                'relationshipTypeValid' => $target['relationshipTypeValid'],
+                'relationshipTypeIssues' => $target['relationshipTypeIssues'],
+                'target' => $target['target'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $suffix['query'],
+                'targetFragment' => $suffix['fragment'],
+                'sameSourceReference' => $targetPart !== null
+                    && self::partNameEquivalenceKey($targetPart) === self::partNameEquivalenceKey($sourcePartName),
+                'contentType' => $target['contentType'],
+                'exists' => $target['exists'],
+                'relationshipPartTarget' => $target['relationshipPartTarget'],
+                'valid' => $target['valid'],
+                'issues' => $target['issues'],
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
      * @return list<array{source:string, sourceExists:bool, sourceContentType:?string, relationshipPartName:string, relationshipPartExists:bool, relationshipPartContentType:?string, relationshipPartLoaded:bool, relationshipPartLoadAction:?string, relationshipPartLoadReason:?string, relationshipPartIssues:list<string>, relationshipCount:int, internalCount:int, externalCount:int, validTargetCount:int, invalidTargetCount:int, relationshipTypes:list<string>, targetParts:list<string>, contentTypes:list<string>, externalTargets:list<string>, missingTargetParts:list<string>, issues:list<string>, valid:bool}>
      */
     public function relationshipSourceInventory(): array
@@ -5377,5 +5420,34 @@ final class OpcRelationshipGraph
         }
 
         return OpcPackagePath::stripQueryAndFragment($target['target']);
+    }
+
+    /**
+     * @return array{query:?string, fragment:?string}
+     */
+    private static function targetQueryAndFragment(string $target): array
+    {
+        $suffixOffset = strcspn($target, '?#');
+        $suffix = substr($target, $suffixOffset);
+        if ($suffix === '') {
+            return ['query' => null, 'fragment' => null];
+        }
+
+        $query = null;
+        $fragment = null;
+        $queryPosition = strpos($suffix, '?');
+        $fragmentPosition = strpos($suffix, '#');
+
+        if ($queryPosition !== false) {
+            $queryStart = $queryPosition + 1;
+            $queryEnd = $fragmentPosition === false ? strlen($suffix) : $fragmentPosition;
+            $query = substr($suffix, $queryStart, $queryEnd - $queryStart);
+        }
+
+        if ($fragmentPosition !== false) {
+            $fragment = substr($suffix, $fragmentPosition + 1);
+        }
+
+        return ['query' => $query, 'fragment' => $fragment];
     }
 }
