@@ -246,7 +246,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -2828,6 +2828,184 @@ final class Html5DomFragment
         return [$metadataAttribute => $state];
     }
 
+    private static function isHtmlMediaResourcePolicyAttribute(string $tagName, string $name, ?string $foreignContext): bool
+    {
+        return $foreignContext === null
+            && in_array(strtolower($tagName), ['audio', 'video'], true)
+            && in_array(strtolower($name), [
+                'autoplay',
+                'controls',
+                'controlslist',
+                'crossorigin',
+                'disablepictureinpicture',
+                'disableremoteplayback',
+                'height',
+                'loop',
+                'muted',
+                'playsinline',
+                'preload',
+                'width',
+            ], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlMediaResourcePolicyAttribute(
+        string $name,
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics
+    ): array {
+        $attribute = strtolower($name);
+        $state = strtolower(self::cleanHtmlMetadataAttribute($value));
+
+        if (in_array($attribute, ['autoplay', 'controls', 'disablepictureinpicture', 'disableremoteplayback', 'loop', 'muted', 'playsinline'], true)) {
+            $metadataAttribute = 'data-pandoc-media-' . $attribute;
+            self::addHtmlMediaResourcePolicyReviewDiagnostic($diagnostics, $element, $tagName, $attribute, $metadataAttribute, 'true');
+
+            return [$metadataAttribute => 'true'];
+        }
+
+        if ($attribute === 'preload') {
+            if ($state === '') {
+                $state = 'auto';
+            }
+            if (!in_array($state, ['auto', 'metadata', 'none'], true)) {
+                self::addHtmlInvalidMediaResourcePolicyDiagnostic($diagnostics, $element, $tagName, $attribute, $state);
+
+                return [];
+            }
+
+            $metadataAttribute = 'data-pandoc-media-preload';
+            self::addHtmlMediaResourcePolicyReviewDiagnostic($diagnostics, $element, $tagName, $attribute, $metadataAttribute, $state);
+
+            return [$metadataAttribute => $state];
+        }
+
+        if ($attribute === 'crossorigin') {
+            if ($state === '') {
+                $state = 'anonymous';
+            }
+            if (!in_array($state, ['anonymous', 'use-credentials'], true)) {
+                self::addHtmlInvalidMediaResourcePolicyDiagnostic($diagnostics, $element, $tagName, $attribute, $state);
+
+                return [];
+            }
+
+            $metadataAttribute = 'data-pandoc-media-crossorigin';
+            self::addHtmlMediaResourcePolicyReviewDiagnostic($diagnostics, $element, $tagName, $attribute, $metadataAttribute, $state);
+
+            return [$metadataAttribute => $state];
+        }
+
+        if ($attribute === 'controlslist') {
+            $controls = self::normalizeHtmlMediaControlsListAttribute($value);
+            if ($controls === null) {
+                self::addHtmlInvalidMediaResourcePolicyDiagnostic($diagnostics, $element, $tagName, $attribute, $state);
+
+                return [];
+            }
+
+            $metadataAttribute = 'data-pandoc-media-controlslist';
+            self::addHtmlMediaResourcePolicyReviewDiagnostic($diagnostics, $element, $tagName, $attribute, $metadataAttribute, $controls);
+
+            return [$metadataAttribute => $controls];
+        }
+
+        $dimension = self::normalizeHtmlMediaDimensionAttribute($value);
+        if ($dimension === null) {
+            self::addHtmlInvalidMediaResourcePolicyDiagnostic($diagnostics, $element, $tagName, $attribute, $state);
+
+            return [];
+        }
+
+        $metadataAttribute = 'data-pandoc-media-' . $attribute;
+        self::addHtmlMediaResourcePolicyReviewDiagnostic($diagnostics, $element, $tagName, $attribute, $metadataAttribute, $dimension);
+
+        return [$metadataAttribute => $dimension];
+    }
+
+    private static function normalizeHtmlMediaControlsListAttribute(string $value): ?string
+    {
+        $tokens = preg_split('/[\x00-\x20]+/', strtolower(trim(str_replace("\0", '', $value))), -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($tokens) || $tokens === []) {
+            return null;
+        }
+
+        $allowed = [
+            'nodownload' => true,
+            'nofullscreen' => true,
+            'noremoteplayback' => true,
+        ];
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if (!isset($allowed[$token])) {
+                return null;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return implode(' ', $normalized);
+    }
+
+    private static function normalizeHtmlMediaDimensionAttribute(string $value): ?string
+    {
+        $dimension = self::cleanHtmlMetadataAttribute($value);
+        if ($dimension === '' || preg_match('/^[0-9]+$/', $dimension) !== 1) {
+            return null;
+        }
+
+        $dimension = ltrim($dimension, '0');
+
+        return $dimension === '' ? '0' : $dimension;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlMediaResourcePolicyReviewDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $tagName,
+        string $attributeName,
+        string $metadataAttribute,
+        string $state
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'media-resource-policy-review',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'metadataAttribute' => $metadataAttribute,
+            'state' => $state,
+            'reason' => 'media-resource-policy-preserved-as-review-metadata',
+        ], $element);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlInvalidMediaResourcePolicyDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $tagName,
+        string $attributeName,
+        string $state
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => $tagName,
+            'attribute' => $attributeName,
+            'value' => $state,
+            'reason' => 'invalid-media-resource-policy-metadata',
+        ], $element);
+    }
+
     /**
      * @param array<string, mixed> $element
      * @param list<array<string, mixed>> $diagnostics
@@ -5077,6 +5255,20 @@ final class Html5DomFragment
                     $diagnostics
                 );
                 foreach ($imageResourcePolicyMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
+            if ($mode === 'html' && self::isHtmlMediaResourcePolicyAttribute($tagName, $name, $foreignContext)) {
+                $mediaResourcePolicyMetadata = self::normalizeHtmlMediaResourcePolicyAttribute(
+                    $name,
+                    $value,
+                    $tagName,
+                    $element,
+                    $diagnostics
+                );
+                foreach ($mediaResourcePolicyMetadata as $metadataName => $metadataValue) {
                     $attrs[$metadataName] = $metadataValue;
                 }
                 continue;

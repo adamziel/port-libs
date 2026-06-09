@@ -1340,7 +1340,7 @@ return [
         $t->true(!str_contains($html, 'data:image/svg+xml'), 'Expected SVG data images to be stripped from img src');
         $t->true(!str_contains($html, '<a href="data:'), 'Expected data URLs to remain blocked for navigational links');
     },
-    'serializes html5 boolean attributes without redundant values for review media' => static function (TestRunner $t): void {
+    'converts html5 media booleans into inert reviewer metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<details open="open"><summary>Review packet</summary>'
             . '<video controls="" muted playsinline loop poster="/media/cover.jpg"><source src="/media/review.mp4" type="video/mp4"></video>'
@@ -1353,23 +1353,24 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<details open><summary>Review packet</summary><video controls muted playsinline loop poster="/media/cover.jpg"><source src="/media/review.mp4" type="video/mp4"></video></details>';
+        $expected = '<details open><summary>Review packet</summary><video data-pandoc-media-controls="true" data-pandoc-media-muted="true" data-pandoc-media-playsinline="true" data-pandoc-media-loop="true" poster="/media/cover.jpg"><source src="/media/review.mp4" type="video/mp4"></video></details>';
         $t->same($expected, $fragment->serialize());
         $t->contains($expected, $blocks);
         $t->same(['details', 'source', 'summary', 'video'], $summary['elementNames']);
         $t->same([], $summary['blockedTags']);
-        $t->same([], $summary['filteredAttributes']);
+        $t->same(['controls', 'loop', 'muted', 'playsinline'], $summary['filteredAttributes']);
         $t->same(['open' => 'open'], $nodes[0]['attrs']);
         $t->same([
-            'controls' => '',
-            'muted' => '',
-            'playsinline' => '',
-            'loop' => '',
+            'data-pandoc-media-controls' => 'true',
+            'data-pandoc-media-muted' => 'true',
+            'data-pandoc-media-playsinline' => 'true',
+            'data-pandoc-media-loop' => 'true',
             'poster' => '/media/cover.jpg',
         ], $nodes[0]['children'][1]['attrs']);
         $t->same('/migration/media-review.html', $document->children[0]->attr('part'));
         $t->true(!str_contains($fragment->serialize(), 'open="open"'), 'Expected open to serialize as an HTML5 boolean attribute');
-        $t->true(!str_contains($fragment->serialize(), 'controls=""'), 'Expected controls to serialize as an HTML5 boolean attribute');
+        $t->true(!str_contains($fragment->serialize(), ' controls'), 'Expected live media controls to move into inert metadata');
+        $t->true(!str_contains($fragment->serialize(), ' muted'), 'Expected live media muted state to move into inert metadata');
     },
     'normalizes media track caption metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -1389,12 +1390,12 @@ return [
         ]);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $expected = '<video controls poster="https://source.example.test/import/posts/cover.jpg">'
+        $expected = '<video data-pandoc-media-controls="true" poster="https://source.example.test/import/posts/cover.jpg">'
             . '<source src="https://source.example.test/import/posts/review.mp4" type="video/mp4">'
             . '<track src="https://source.example.test/import/posts/captions/en.vtt" kind="captions" srclang="en-US" label="English captions" default>'
             . '<track kind="metadata" srclang="x-review" label="Bad source">'
             . '<track src="https://source.example.test/import/posts/captions/bad.vtt" label="Bad metadata">'
-            . '</video><audio controls><track src="https://source.example.test/import/posts/audio/es.vtt" kind="subtitles" srclang="es-419" label="Spanish subtitles"></audio>';
+            . '</video><audio data-pandoc-media-controls="true"><track src="https://source.example.test/import/posts/audio/es.vtt" kind="subtitles" srclang="es-419" label="Spanish subtitles"></audio>';
         $policyDiagnostics = array_values(array_filter(
             $fragment->diagnosticCodes(),
             static fn (string $code): bool => $code !== 'libxml-repair'
@@ -1406,11 +1407,11 @@ return [
         $t->same('', $fragment->textContent());
         $t->same(['audio', 'source', 'track', 'video'], $summary['elementNames']);
         $t->same(['base'], $summary['blockedTags']);
-        $t->same(['kind', 'src', 'srclang'], $summary['filteredAttributes']);
-        $t->same(['blocked-tag', 'unsafe-url', 'unsafe-attribute', 'unsafe-attribute'], $policyDiagnostics);
+        $t->same(['controls', 'kind', 'src', 'srclang'], $summary['filteredAttributes']);
+        $t->same(['blocked-tag', 'media-resource-policy-review', 'unsafe-url', 'unsafe-attribute', 'unsafe-attribute', 'media-resource-policy-review'], $policyDiagnostics);
         $t->same('video', $nodes[0]['name']);
         $t->same([
-            'controls' => '',
+            'data-pandoc-media-controls' => 'true',
             'poster' => 'https://source.example.test/import/posts/cover.jpg',
         ], $nodes[0]['attrs']);
         $t->same([
@@ -1430,6 +1431,7 @@ return [
             'label' => 'Bad metadata',
         ], $nodes[0]['children'][3]['attrs']);
         $t->same('audio', $nodes[1]['name']);
+        $t->same(['data-pandoc-media-controls' => 'true'], $nodes[1]['attrs']);
         $t->same([
             'src' => 'https://source.example.test/import/posts/audio/es.vtt',
             'kind' => 'subtitles',
@@ -1444,6 +1446,133 @@ return [
         $t->true(!str_contains($html, 'transcript'), 'Expected non-HTML track kind values to be stripped');
         $t->true(!str_contains($html, 'bad&lt;tag'), 'Expected malformed track language tags to be stripped');
         $t->true(!str_contains($html, 'javascript:'), 'Expected unsafe caption source URL to be stripped');
+    },
+    'converts audio and video resource policy into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<article>'
+            . '<video autoplay controls loop muted playsinline preload=" Metadata " crossorigin="" controlslist="nodownload nofullscreen nodownload" disablepictureinpicture disableremoteplayback width="0640" height="0360" poster="./poster.jpg" data-pandoc-media-controls="source-spoof"><source src="./intro.mp4" type="video/mp4">Trailer fallback</video>'
+            . '<audio controls preload="none" crossorigin="use-credentials" src="./audio.mp3">Audio fallback</audio>'
+            . '<video preload="soon" crossorigin="credentialed" controlslist="nodownload bad-token" width="-1" height="bad" src="./bad.mp4">Bad metadata</video>'
+            . '</article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/media-resource-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+        $mediaDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $reason = (string) ($diagnostic['reason'] ?? '');
+
+                return $code === 'media-resource-policy-review'
+                    || ($code === 'unsafe-attribute' && $reason === 'invalid-media-resource-policy-metadata');
+            }
+        ));
+
+        $expected = '<article>'
+            . '<video data-pandoc-media-autoplay="true" data-pandoc-media-controls="true" data-pandoc-media-loop="true" data-pandoc-media-muted="true" data-pandoc-media-playsinline="true" data-pandoc-media-preload="metadata" data-pandoc-media-crossorigin="anonymous" data-pandoc-media-controlslist="nodownload nofullscreen" data-pandoc-media-disablepictureinpicture="true" data-pandoc-media-disableremoteplayback="true" data-pandoc-media-width="640" data-pandoc-media-height="360" poster="https://source.example.test/import/posts/poster.jpg"><source src="https://source.example.test/import/posts/intro.mp4" type="video/mp4">Trailer fallback</video>'
+            . '<audio data-pandoc-media-controls="true" data-pandoc-media-preload="none" data-pandoc-media-crossorigin="use-credentials" src="https://source.example.test/import/posts/audio.mp3">Audio fallback</audio>'
+            . '<video src="https://source.example.test/import/posts/bad.mp4">Bad metadata</video>'
+            . '</article>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Trailer fallbackAudio fallbackBad metadata', $fragment->textContent());
+        $t->same(['article', 'audio', 'source', 'video'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same([
+            'autoplay',
+            'controls',
+            'controlslist',
+            'crossorigin',
+            'data-pandoc-media-controls',
+            'disablepictureinpicture',
+            'disableremoteplayback',
+            'height',
+            'loop',
+            'muted',
+            'playsinline',
+            'preload',
+            'width',
+        ], $summary['filteredAttributes']);
+        $t->same(27, $summary['diagnostics']);
+        $t->same(22, count($policyDiagnostics));
+        $t->same(20, count($mediaDiagnostics));
+        $t->same('article', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-media-autoplay' => 'true',
+            'data-pandoc-media-controls' => 'true',
+            'data-pandoc-media-loop' => 'true',
+            'data-pandoc-media-muted' => 'true',
+            'data-pandoc-media-playsinline' => 'true',
+            'data-pandoc-media-preload' => 'metadata',
+            'data-pandoc-media-crossorigin' => 'anonymous',
+            'data-pandoc-media-controlslist' => 'nodownload nofullscreen',
+            'data-pandoc-media-disablepictureinpicture' => 'true',
+            'data-pandoc-media-disableremoteplayback' => 'true',
+            'data-pandoc-media-width' => '640',
+            'data-pandoc-media-height' => '360',
+            'poster' => 'https://source.example.test/import/posts/poster.jpg',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/intro.mp4',
+            'type' => 'video/mp4',
+        ], $nodes[0]['children'][0]['children'][0]['attrs']);
+        $t->same([
+            'data-pandoc-media-controls' => 'true',
+            'data-pandoc-media-preload' => 'none',
+            'data-pandoc-media-crossorigin' => 'use-credentials',
+            'src' => 'https://source.example.test/import/posts/audio.mp3',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same(['src' => 'https://source.example.test/import/posts/bad.mp4'], $nodes[0]['children'][2]['attrs']);
+        $t->same('/migration/media-resource-policy-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        $t->same(
+            ['autoplay', 'controls', 'loop', 'muted', 'playsinline', 'preload', 'crossorigin', 'controlslist', 'disablepictureinpicture', 'disableremoteplayback', 'width', 'height', 'controls', 'preload', 'crossorigin', 'preload', 'crossorigin', 'controlslist', 'width', 'height'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $mediaDiagnostics)
+        );
+        $t->same(
+            [
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'media-resource-policy-review',
+                'unsafe-attribute',
+                'unsafe-attribute',
+                'unsafe-attribute',
+                'unsafe-attribute',
+                'unsafe-attribute',
+            ],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $mediaDiagnostics)
+        );
+        foreach ($mediaDiagnostics as $diagnostic) {
+            $t->true(($diagnostic['line'] ?? 0) > 0, 'Expected media resource policy diagnostics to include source line metadata');
+        }
+        foreach ([' autoplay', ' controls', ' loop', ' muted', ' playsinline', ' preload=', ' crossorigin=', ' controlslist=', ' disablepictureinpicture', ' disableremoteplayback', ' width=', ' height=', 'source-spoof', 'credentialed', 'bad-token', 'soon'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected live or unsafe media policy source content to stay out of review HTML: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected live or unsafe media policy source content to stay out of WordPress blocks: ' . $blocked);
+        }
     },
     'converts live editing attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
@@ -4992,7 +5121,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $expected = '<article>'
-            . '<video controls><source src="https://source.example.test/import/posts/movie.mp4" type="video/mp4"><source type="video/webm"></video>'
+            . '<video data-pandoc-media-controls="true"><source src="https://source.example.test/import/posts/movie.mp4" type="video/mp4"><source type="video/webm"></video>'
             . '<a href="https://source.example.test/import/posts/portal/review.html" data-pandoc-portal-src="true" title="Portal preview" data-pandoc-portal-referrerpolicy="strict-origin">Portal preview</a>'
             . '<p>Portal fallback</p><p>Bad fallback</p>'
             . '</article>';
@@ -5006,10 +5135,11 @@ return [
         $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
         $t->same(['a', 'article', 'p', 'source', 'video'], $summary['elementNames']);
         $t->same(['base', 'portal', 'source'], $summary['blockedTags']);
-        $t->same(['referrerpolicy', 'src', 'srcset'], $summary['filteredAttributes']);
+        $t->same(['controls', 'referrerpolicy', 'src', 'srcset'], $summary['filteredAttributes']);
         $t->same([
             'blocked-tag',
             'unsafe-url',
+            'media-resource-policy-review',
             'unsafe-url',
             'blocked-tag',
             'portal-source-review',
@@ -5020,6 +5150,7 @@ return [
         ], $policyDiagnostics);
         $t->same('article', $nodes[0]['name']);
         $t->same('video', $nodes[0]['children'][0]['name']);
+        $t->same(['data-pandoc-media-controls' => 'true'], $nodes[0]['children'][0]['attrs']);
         $t->same(2, count($nodes[0]['children'][0]['children']));
         $t->same([
             'src' => 'https://source.example.test/import/posts/movie.mp4',
