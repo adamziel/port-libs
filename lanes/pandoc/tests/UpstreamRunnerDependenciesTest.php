@@ -88,9 +88,10 @@ return [
         $t->same('1b684f1e06fc1093d20c1a2d474f4c3fdf2f65bd', $pins['citeproc']['commit']);
         $t->contains('pandoc-shared-zip-package-core', implode(',', $support));
         $t->contains('pandoc-pdf-engine-handoff-core', implode(',', $support));
-        $t->same(17, count($support));
+        $t->contains('pandoc-media-bag-core', implode(',', $support));
+        $t->same(18, count($support));
         $t->same(5, $summary['projectPinCount']);
-        $t->same(17, $summary['supportComponentCount']);
+        $t->same(18, $summary['supportComponentCount']);
         $t->same(8, $summary['requiredFileCount']);
         $t->same(3, $summary['solverTargetCount']);
         $t->same(2, $summary['testSuiteCount']);

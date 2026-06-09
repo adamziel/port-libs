@@ -46,6 +46,7 @@ final class UpstreamRunnerDependencies
         'pandoc-table-geometry-core',
         'pandoc-archive-compression-streams',
         'pandoc-pdf-engine-handoff-core',
+        'pandoc-media-bag-core',
     ];
 
     /**
