@@ -328,6 +328,46 @@ HTML;
         $t->true(!str_contains($blocks, 'onclick='), 'Unsafe caption event attributes must not render');
         json_encode($packet, JSON_THROW_ON_ERROR);
     },
+    'counts html row header colspans as visual row-head columns' => static function (TestRunner $t): void {
+        $html = <<<'HTML'
+<table id="visual-rowhead-grid" data-source="html-reader">
+<caption>Visual row head review</caption>
+<thead>
+<tr><th colspan="2">Source</th><th>Status</th></tr>
+</thead>
+<tbody data-section="body">
+<tr><th colspan="2">Posts and pages</th><td>Ready</td></tr>
+<tr><th colspan="2">Media assets</th><td>Review</td></tr>
+</tbody>
+</table>
+HTML;
+
+        $document = (new MarkdownReader())->read($html);
+        $table = $document->children[0];
+        $body = $table->children[1] ?? null;
+        $packet = $table->attr('tableGeometry');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same('table_body', $body?->type ?? null);
+        $t->same(3, TableGeometry::columnCount($table));
+        $t->same(2, $body instanceof AstNode ? $body->attr('rowHeadColumns') : null);
+        $t->same(true, is_array($packet));
+        $packet = is_array($packet) ? $packet : [];
+        $t->same(2, $packet['rowGroups'][1]['rowHeadColumns'] ?? null);
+        $t->same(2, $packet['summary']['maxRowHeadColumns'] ?? null);
+        $t->same(1, $packet['summary']['rowHeadGroupCount'] ?? null);
+        $t->same('Posts and pages', $packet['coverage'][2]['text'] ?? null);
+        $t->same([0, 1], $packet['coverage'][2]['columns'] ?? null);
+        $t->same(2, $packet['coverage'][2]['colspan'] ?? null);
+        $t->same(2, $packet['coverage'][2]['rowHeadColumns'] ?? null);
+        $t->same(true, $packet['coverage'][2]['headerCell'] ?? null);
+        $t->same('Ready', $packet['coverage'][3]['text'] ?? null);
+        $t->same([2], $packet['coverage'][3]['columns'] ?? null);
+        $t->same(false, $packet['coverage'][3]['headerCell'] ?? null);
+        $t->contains('<tbody data-section="body"><tr><th colspan="2">Posts and pages</th><td>Ready</td></tr><tr><th colspan="2">Media assets</th><td>Review</td></tr></tbody>', $blocks);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'expands html rowspan zero through the current tbody geometry group' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">

@@ -21,6 +21,22 @@ $readerHandoffTables = array_values(array_filter(
     $readerHandoffDocument->children,
     static fn (AstNode $node): bool => $node->type === 'table'
 ));
+$visualRowHeadColspanDocument = (new MarkdownReader())->read(<<<'HTML'
+<table id="visual-rowhead-grid" data-source="html-reader">
+<caption>Visual row head review</caption>
+<thead>
+<tr><th colspan="2">Source</th><th>Status</th></tr>
+</thead>
+<tbody data-section="body">
+<tr><th colspan="2">Posts and pages</th><td>Ready</td></tr>
+<tr><th colspan="2">Media assets</th><td>Review</td></tr>
+</tbody>
+</table>
+HTML);
+$visualRowHeadColspanTables = array_values(array_filter(
+    $visualRowHeadColspanDocument->children,
+    static fn (AstNode $node): bool => $node->type === 'table'
+));
 $rowspanZeroDocument = (new MarkdownReader())->read(<<<'HTML'
 <table id="rowspan-zero-grid" data-source="html-reader">
 <tbody id="posts-body">
@@ -1453,6 +1469,7 @@ $document = new AstNode('document', [], [
     ...$placementAlignmentTables,
     ...$directionalityTables,
     ...$readerHandoffTables,
+    ...$visualRowHeadColspanTables,
     ...$captionSourceTables,
     ...$axisSourceTables,
     ...$captionMetadataTables,
@@ -3401,6 +3418,29 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($blocks, '<figcaption class="wp-element-caption">Reader packet import metrics</figcaption>')) {
         throw new RuntimeException('Table geometry self-test missing Markdown reader table WordPress output');
     }
+
+    $visualRowHeadColspanTable = null;
+    foreach ($document->children as $node) {
+        if ($node->type === 'table' && $node->attr('caption') === 'Visual row head review') {
+            $visualRowHeadColspanTable = $node;
+            break;
+        }
+    }
+    $visualRowHeadColspanPacket = $visualRowHeadColspanTable instanceof AstNode ? $visualRowHeadColspanTable->attr('tableGeometry') : null;
+    if (
+        !is_array($visualRowHeadColspanPacket)
+        || ($visualRowHeadColspanPacket['rowGroups'][1]['rowHeadColumns'] ?? null) !== 2
+        || ($visualRowHeadColspanPacket['summary']['maxRowHeadColumns'] ?? null) !== 2
+        || ($visualRowHeadColspanPacket['summary']['rowHeadGroupCount'] ?? null) !== 1
+        || ($visualRowHeadColspanPacket['coverage'][2]['columns'] ?? null) !== [0, 1]
+        || ($visualRowHeadColspanPacket['coverage'][3]['columns'] ?? null) !== [2]
+    ) {
+        throw new RuntimeException('Table geometry self-test missing visual row-head colspan metadata');
+    }
+    if (!str_contains($blocks, '<tbody data-section="body"><tr><th colspan="2">Posts and pages</th><td>Ready</td></tr><tr><th colspan="2">Media assets</th><td>Review</td></tr></tbody>')) {
+        throw new RuntimeException('Table geometry self-test missing visual row-head colspan WordPress output');
+    }
+    json_encode($visualRowHeadColspanPacket, JSON_THROW_ON_ERROR);
 
     $captionSourceTable = null;
     foreach ($document->children as $node) {

@@ -8717,7 +8717,11 @@ final class MarkdownReader
                 if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
                     break;
                 }
-                $count++;
+                $colspan = $cell->attr('colspan', 1);
+                $visualSpan = is_int($colspan) || (is_string($colspan) && ctype_digit($colspan))
+                    ? max(1, (int) $colspan)
+                    : 1;
+                $count += $visualSpan;
             }
 
             $minimum = $minimum === null ? $count : min($minimum, $count);
