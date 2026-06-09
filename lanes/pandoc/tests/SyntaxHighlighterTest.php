@@ -59,6 +59,11 @@ return [
         $t->same('fortran', SyntaxHighlighter::normalizeLanguage('fortran-fixed'));
         $t->same('fortran', SyntaxHighlighter::normalizeLanguage('f90'));
         $t->same('fortran', SyntaxHighlighter::normalizeLanguage('language-f08'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('fsharp'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('F#'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('fs'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('fsx'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('language-fsharp-source'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('sed'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('gsed'));
         $t->same('sed', SyntaxHighlighter::normalizeLanguage('gnu-sed'));
@@ -4847,6 +4852,58 @@ return [
         $t->same('purescript', $directPureScript['requestedLanguage']);
         $t->contains('<span class="fu">normalizeTitle</span> <span class="op">::</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directPureScript['html']);
         $t->contains('<span class="fu">normalizeTitle</span> <span class="va">packet</span> <span class="op">=</span> <span class="fu">fromMaybe</span> <span class="st">&quot;Untitled&quot;</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span>', $directPureScript['html']);
+    },
+    'highlights fsharp review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[95] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an F# review code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'kate');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'kate');
+        $directFSharp = $highlighter->highlight(
+            'let normalizeTitle (packet: ReviewPacket) = defaultArg packet.Title "Untitled"',
+            'F#'
+        );
+
+        $t->same('fsx', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('F#'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('fsx'));
+        $t->same('fsharp', SyntaxHighlighter::normalizeLanguage('language-fsharp-source'));
+        $t->same('fsharp', $highlighted['language']);
+        $t->same('fsx', $highlighted['requestedLanguage']);
+        $t->same('kate', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1585, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource fsx numberLines"><code class="sourceCode fsharp" style="counter-reset: source-line 1584;">', $highlighted['html']);
+        $t->contains('<span id="fsharp-review-1585"><a href="#fsharp-review-1585"></a><span class="co">// F# WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">WP</span><span class="op">.</span><span class="dt">Import</span><span class="op">.</span><span class="dt">Review</span>', $highlighted['html']);
+        $t->contains('<span class="kw">open</span> <span class="dt">System</span><span class="op">.</span><span class="dt">Text</span><span class="op">.</span><span class="dt">Json</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span> <span class="dt">ReviewPacket</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="ot">SourceId</span><span class="op">:</span> <span class="dt">int</span>', $highlighted['html']);
+        $t->contains('<span class="ot">Title</span><span class="op">:</span> <span class="dt">string</span> <span class="dt">option</span>', $highlighted['html']);
+        $t->contains('<span class="ot">[&lt;RequireQualifiedAccess&gt;]</span>', $highlighted['html']);
+        $t->contains('<span class="op">|</span> <span class="dt">Publish</span> <span class="kw">of</span> <span class="va">slug</span><span class="op">:</span> <span class="dt">string</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="fu">normalizeTitle</span> <span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span> <span class="op">=</span>', $highlighted['html']);
+        $t->contains('<span class="kw">match</span> <span class="va">packet</span><span class="op">.</span><span class="dt">Title</span> <span class="kw">with</span>', $highlighted['html']);
+        $t->contains('<span class="op">|</span> <span class="cn">Some</span> <span class="fu">title</span> <span class="kw">when</span> <span class="kw">not</span> <span class="op">(</span><span class="dt">String</span><span class="op">.</span><span class="dt">IsNullOrWhiteSpace</span> <span class="va">title</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="va">title</span><span class="op">.</span><span class="dt">Trim</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="op">|</span> <span class="va">_</span> <span class="op">-&gt;</span> <span class="st">$&quot;Import {packet.SourceId}&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">async</span> <span class="op">{</span>', $highlighted['html']);
+        $t->contains('<span class="va">packet</span><span class="op">.</span><span class="dt">Blocks</span> <span class="op">|&gt;</span> <span class="dt">List</span><span class="op">.</span><span class="fu">filter</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="op">{|</span> <span class="va">title</span> <span class="op">=</span> <span class="fu">normalizeTitle</span> <span class="va">packet</span><span class="op">;</span> <span class="va">blockCount</span> <span class="op">=</span> <span class="va">blocks</span><span class="op">.</span><span class="dt">Length</span> <span class="op">|}</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="kate">', $wordpressBlock);
+        $t->contains('<span class="kw">let</span> <span class="fu">queueReview</span>', $wordpressBlock);
+        $t->same('fsharp', $directFSharp['language']);
+        $t->same('F#', $directFSharp['requestedLanguage']);
+        $t->contains('<span class="kw">let</span> <span class="fu">normalizeTitle</span> <span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span>', $directFSharp['html']);
+        $t->contains('<span class="fu">defaultArg</span> <span class="va">packet</span><span class="op">.</span><span class="dt">Title</span> <span class="st">&quot;Untitled&quot;</span>', $directFSharp['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

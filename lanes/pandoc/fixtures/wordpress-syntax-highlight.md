@@ -1866,3 +1866,32 @@ normalizeTitle (ReviewPacket packet) =
 queueReview :: String -> Effect ReviewPacket
 queueReview raw = pure (ReviewPacket { sourceId: 42, title: Just raw, blocks: ["core/paragraph"] })
 ```
+
+``` {.fsx #fsharp-review .numberLines startFrom=1585}
+// F# WordPress import review helper
+module WP.Import.Review
+
+open System
+open System.Text.Json
+
+type ReviewPacket =
+    { SourceId: int
+      Title: string option
+      Blocks: string list }
+
+[<RequireQualifiedAccess>]
+type ReviewStatus =
+    | Draft
+    | Publish of slug: string
+
+let normalizeTitle (packet: ReviewPacket) =
+    match packet.Title with
+    | Some title when not (String.IsNullOrWhiteSpace title) -> title.Trim()
+    | _ -> $"Import {packet.SourceId}"
+
+let queueReview packet =
+    async {
+        let blocks = packet.Blocks |> List.filter (String.IsNullOrWhiteSpace >> not)
+        return {| title = normalizeTitle packet; blockCount = blocks.Length |}
+    }
+```

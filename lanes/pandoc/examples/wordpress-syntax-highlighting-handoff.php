@@ -592,6 +592,12 @@ if (!$purescriptCodeBlock instanceof PortLibs\Pandoc\AstNode || $purescriptCodeB
 }
 $purescript = $highlighter->highlightCodeBlock($purescriptCodeBlock, 'espresso');
 $purescriptWordpressBlock = $highlighter->wordpressHtmlBlock($purescriptCodeBlock, 'espresso');
+$fsharpCodeBlock = $document->children[95] ?? null;
+if (!$fsharpCodeBlock instanceof PortLibs\Pandoc\AstNode || $fsharpCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an F# review code block');
+}
+$fsharp = $highlighter->highlightCodeBlock($fsharpCodeBlock, 'kate');
+$fsharpWordpressBlock = $highlighter->wordpressHtmlBlock($fsharpCodeBlock, 'kate');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2624,6 +2630,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($purescriptWordpressBlock, '<span class="ot">blocks</span><span class="op">:</span> <span class="op">[</span><span class="st">&quot;core/paragraph&quot;</span><span class="op">]</span>')) {
         throw new RuntimeException('Expected PureScript record-literal token handoff');
     }
+    if (($fsharp['language'] ?? '') !== 'fsharp') {
+        throw new RuntimeException('Expected F# language alias handoff');
+    }
+    if (($fsharp['requestedLanguage'] ?? '') !== 'fsx') {
+        throw new RuntimeException('Expected F# requested-language metadata');
+    }
+    if (($fsharp['lineNumbering']['start'] ?? null) !== 1585) {
+        throw new RuntimeException('Expected F# line-number start handoff');
+    }
+    if (!str_contains($fsharp['html'], '<span class="kw">module</span> <span class="dt">WP</span><span class="op">.</span><span class="dt">Import</span><span class="op">.</span><span class="dt">Review</span>')) {
+        throw new RuntimeException('Expected F# module token handoff');
+    }
+    if (!str_contains($fsharp['html'], '<span class="kw">let</span> <span class="fu">normalizeTitle</span> <span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">)</span>')) {
+        throw new RuntimeException('Expected F# function definition token handoff');
+    }
+    if (!str_contains($fsharpWordpressBlock, '<style data-pandoc-highlight-style="kate">')) {
+        throw new RuntimeException('Expected F# WordPress style metadata');
+    }
+    if (!str_contains($fsharpWordpressBlock, '<span class="kw">return</span> <span class="op">{|</span> <span class="va">title</span> <span class="op">=</span> <span class="fu">normalizeTitle</span>')) {
+        throw new RuntimeException('Expected F# anonymous-record token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2737,6 +2764,7 @@ echo "idrisHighlightedHtml:\n" . $idris['html'] . "\n";
 echo "coqHighlightedHtml:\n" . $coq['html'] . "\n";
 echo "agdaHighlightedHtml:\n" . $agda['html'] . "\n";
 echo "purescriptHighlightedHtml:\n" . $purescript['html'] . "\n";
+echo "fsharpHighlightedHtml:\n" . $fsharp['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2821,4 +2849,5 @@ echo "idrisWordpressBlock:\n" . $idrisWordpressBlock . "\n";
 echo "coqWordpressBlock:\n" . $coqWordpressBlock . "\n";
 echo "agdaWordpressBlock:\n" . $agdaWordpressBlock . "\n";
 echo "purescriptWordpressBlock:\n" . $purescriptWordpressBlock . "\n";
+echo "fsharpWordpressBlock:\n" . $fsharpWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

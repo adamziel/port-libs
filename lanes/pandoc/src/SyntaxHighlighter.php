@@ -134,6 +134,14 @@ final class SyntaxHighlighter
         'fortran' => 'fortran',
         'fortran-fixed' => 'fortran',
         'fortran-free' => 'fortran',
+        'f#' => 'fsharp',
+        'f-sharp' => 'fsharp',
+        'fs' => 'fsharp',
+        'fsi' => 'fsharp',
+        'fsharp' => 'fsharp',
+        'fsharp-source' => 'fsharp',
+        'fsx' => 'fsharp',
+        'fsscript' => 'fsharp',
         'ftn' => 'fortran',
         'git-diff' => 'diff',
         'gawk' => 'awk',
@@ -876,6 +884,7 @@ final class SyntaxHighlighter
             'fennel' => $this->tokenizeFennel($code),
             'fish' => $this->tokenizeFish($code),
             'fortran' => $this->tokenizeFortran($code),
+            'fsharp' => $this->tokenizeFSharp($code),
             'go' => $this->tokenizeGo($code),
             'graphql' => $this->tokenizeGraphql($code),
             'groovy' => $this->tokenizeGroovy($code),
@@ -1704,6 +1713,32 @@ final class SyntaxHighlighter
             ['attribute', '/^\\b(?:access|action|advance|decimal|delim|encoding|errmsg|file|fmt|form|iostat|iomsg|kind|len|mold|pad|position|recl|source|stat|status|unit)\\b(?=\\s*=)/i'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|=>|==|\\/=|<=|>=|\\/\\/|\\*\\*|\\.(?:and|eq|eqv|ge|gt|le|lt|ne|neqv|not|or)\\.|[{}()[\\];,.+*\\/%=!<>?:&|^-])/i'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeFSharp(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\(\\*[\\s\\S]*?\\*\\)/'],
+            ['comment', '/^\\/\\/\\/[^\\n]*/'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', '/^(?:\\$@|@\\$|\\$|@)?"""[\\s\\S]*?"""/'],
+            ['string', '/^(?:\\$@|@\\$|\\$|@)?"(?:""|\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['attribute', '/^\\[<[^>\\n]+>\\]/'],
+            ['keyword', '/^\\b(?:abstract|and|as|assert|async|base|begin|class|default|delegate|do|done|downcast|elif|else|end|exception|extern|finally|for|fun|function|global|if|in|inherit|inline|interface|internal|lazy|let|match|member|module|mutable|namespace|new|not|of|open|or|override|private|public|rec|return|select|static|struct|then|to|try|type|upcast|use|val|void|when|while|with|yield)\\b/'],
+            ['constant', '/^\\b(?:Choice1Of2|Choice2Of2|Error|None|Ok|Some|false|null|true)\\b/'],
+            ['datatype', '/^\\b(?:Async|Choice|DateOnly|DateTime|Dictionary|Guid|JsonSerializer|Map|Option|Result|Seq|Set|String|Task|TimeOnly|Uri|bool|byte|char|decimal|double|float|float32|int|int16|int32|int64|list|obj|option|sbyte|seq|string|uint16|uint32|uint64|unit)\\b/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*|0[bB][01](?:_?[01])*|\\d(?:_?\\d)*(?:\\.\\d(?:_?\\d)*)?(?:[eE][+-]?\\d(?:_?\\d)*)?)(?:UL|ul|[fFmMlLyYuUnNsS])?\\b/'],
+            ['attribute', '/^\\b[A-Z][A-Za-z0-9_\']*(?=\\s*:)/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?=\\s*(?:[<({\\[.]|\\b))/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_\']*(?=\\s*(?:<[^>\\n]+>\\s*)?\\()/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_\']*(?=\\s+[A-Za-z_(])/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:\\[<|>\\]|\\{\\||\\|\\}|::|:=|->|<-|=>|\\|>|>>|<<|\\?\\?|\\?\\.|==|<>|<=|>=|&&|\\|\\||[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
         ]);
     }
 
