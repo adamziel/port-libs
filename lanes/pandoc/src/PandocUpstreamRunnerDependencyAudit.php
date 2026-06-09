@@ -12,8 +12,11 @@ final class PandocUpstreamRunnerDependencyAudit
 
     /** @var list<string> */
     private const REQUIRED_SOURCE_FILES = [
+        'cabal.project',
         'pandoc.cabal',
         'pandoc-lua-engine/pandoc-lua-engine.cabal',
+        'pandoc-server/pandoc-server.cabal',
+        'pandoc-cli/pandoc-cli.cabal',
         'test/test-pandoc.hs',
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
     ];
@@ -176,7 +179,7 @@ final class PandocUpstreamRunnerDependencyAudit
         if ($this->completeSourceRoot() === null) {
             return [
                 'hydrate Pandoc upstream checkout at the manifest commit',
-                'restore pandoc.cabal, pandoc-lua-engine cabal file, and both Tasty test entrypoints',
+                'restore cabal.project, Pandoc package manifests, and both Tasty test entrypoints',
                 'record ghc and cabal versions without running the Haskell runner',
             ];
         }
@@ -192,8 +195,9 @@ final class PandocUpstreamRunnerDependencyAudit
             'record a non-mutating Cabal dependency plan for test-pandoc and test-pandoc-lua-engine',
         ];
 
-        if ($this->stablePlanFiles() === []) {
-            $gate[] = 'capture the absence of cabal.project/cabal.project.freeze as an unpinned-plan risk';
+        $missingStablePlanFiles = array_values(array_diff(self::STABLE_PLAN_FILES, $this->stablePlanFiles()));
+        if ($missingStablePlanFiles !== []) {
+            $gate[] = 'capture absent stable Cabal plan files as an unpinned-plan risk: ' . implode(', ', $missingStablePlanFiles);
         }
 
         $gate[] = 'run any bounded Haskell executable build only in a separate explicitly authorized runner slice';

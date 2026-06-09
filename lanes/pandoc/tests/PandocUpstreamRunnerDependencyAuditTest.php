@@ -79,6 +79,42 @@ return [
         }
     },
 
+    'blocks partial upstream runner checkout without project package manifests' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile): void {
+        $root = $makeTempDir();
+        try {
+            $checkout = $root . '/cache/pandoc';
+            mkdir($checkout, 0777, true);
+            foreach ([
+                'pandoc.cabal',
+                'pandoc-lua-engine/pandoc-lua-engine.cabal',
+                'test/test-pandoc.hs',
+                'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+            ] as $relativePath) {
+                $writeFile($checkout, $relativePath);
+            }
+
+            $audit = PandocUpstreamRunnerDependencyAudit::fromLaneAndCacheRoots(
+                $root . '/lane',
+                $root . '/cache',
+                ['ghc' => '9.10.3', 'cabal' => '3.12.1.0']
+            );
+
+            $t->same(PandocUpstreamRunnerDependencyAudit::STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE, $audit->status());
+            $t->same(null, $audit->completeSourceRoot());
+            $t->same(false, $audit->hasHydratedCheckout());
+            $t->same([
+                'cabal.project',
+                'pandoc-server/pandoc-server.cabal',
+                'pandoc-cli/pandoc-cli.cabal',
+            ], $audit->missingSourceFiles());
+            $t->same([], $audit->missingRequiredTools());
+            $t->contains('Pandoc package manifests', implode("\n", $audit->activationGate()));
+            $t->contains('required Cabal files and Tasty test entrypoints', $audit->summary());
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'requires ghc and cabal before claiming a dependency-plan-ready checkout' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePandocRunnerSource): void {
         $root = $makeTempDir();
         try {
@@ -131,7 +167,7 @@ return [
         }
     },
 
-    'records unpinned-plan risk when cabal project files are absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePandocRunnerSource): void {
+    'records unpinned-plan risk when cabal project freeze is absent' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writePandocRunnerSource): void {
         $root = $makeTempDir();
         try {
             $checkout = $root . '/cache/pandoc';
@@ -146,8 +182,8 @@ return [
 
             $t->same(PandocUpstreamRunnerDependencyAudit::STATUS_READY_FOR_DEPENDENCY_PLAN, $audit->status());
             $t->same($checkout, $audit->completeSourceRoot());
-            $t->same([], $audit->stablePlanFiles());
-            $t->contains('absence of cabal.project/cabal.project.freeze', implode("\n", $audit->activationGate()));
+            $t->same(['cabal.project'], $audit->stablePlanFiles());
+            $t->contains('cabal.project.freeze', implode("\n", $audit->activationGate()));
             $t->contains('non-mutating Cabal dependency plan', $audit->summary());
         } finally {
             $removeTree($root);
