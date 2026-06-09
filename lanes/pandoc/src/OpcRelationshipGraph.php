@@ -3902,6 +3902,58 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{signaturePart:string, valid:bool, referenceCount:int, signedInfoReferenceCount:int, manifestReferenceCount:int, validDigestPolicyCount:int, invalidDigestPolicyCount:int, knownDigestAlgorithmCount:int, unknownDigestAlgorithmCount:int, missingDigestMethodCount:int, missingDigestValueCount:int, invalidDigestValueBase64Count:int, digestValueLengthMismatchCount:int, algorithmCounts:array<string, int>, profileCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, invalidReferences:list<array{section:string, referenceIndex:int, manifestId:?string, uri:?string, targetPart:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>}>, references:list<array{section:string, referenceIndex:int, manifestId:?string, uri:?string, targetPart:?string, digestAlgorithm:?string, digestAlgorithmKnown:?bool, digestAlgorithmProfile:?string, digestExpectedDecodedBytes:?int, digestValueDecodedBytes:?int, digestValueLengthValid:?bool, valid:bool, issues:list<string>}>}
+     */
+    public function digitalSignatureDigestPolicySummary(string $signaturePartName): array
+    {
+        $signaturePartName = OpcPackagePath::canonicalPartName($signaturePartName);
+        $summary = [
+            'signaturePart' => $signaturePartName,
+            'valid' => true,
+            'referenceCount' => 0,
+            'signedInfoReferenceCount' => 0,
+            'manifestReferenceCount' => 0,
+            'validDigestPolicyCount' => 0,
+            'invalidDigestPolicyCount' => 0,
+            'knownDigestAlgorithmCount' => 0,
+            'unknownDigestAlgorithmCount' => 0,
+            'missingDigestMethodCount' => 0,
+            'missingDigestValueCount' => 0,
+            'invalidDigestValueBase64Count' => 0,
+            'digestValueLengthMismatchCount' => 0,
+            'algorithmCounts' => [],
+            'profileCounts' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'invalidReferences' => [],
+            'references' => [],
+        ];
+
+        foreach ($this->preflightDigitalSignatureSignedInfoReferences($signaturePartName) as $reference) {
+            self::appendDigitalSignatureDigestPolicySummaryReference($summary, 'signed-info', $reference, null);
+        }
+
+        $metadata = $this->preflightDigitalSignatureMetadata($signaturePartName);
+        foreach ($metadata['objects'] as $object) {
+            foreach ($object['manifestReferences'] as $reference) {
+                self::appendDigitalSignatureDigestPolicySummaryReference(
+                    $summary,
+                    'manifest',
+                    $reference,
+                    $reference['manifestId'],
+                );
+            }
+        }
+
+        sort($summary['issues'], SORT_STRING);
+        ksort($summary['algorithmCounts'], SORT_STRING);
+        ksort($summary['profileCounts'], SORT_STRING);
+        ksort($summary['issueCounts'], SORT_STRING);
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{source:string, depth:int, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>
      */
     public function reachableTargetsForSource(string $sourcePartName = '/', ?string $relationshipType = null): array
@@ -4661,6 +4713,109 @@ final class OpcRelationshipGraph
             'issues' => $issues,
             'parseError' => $parseError,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $reference
+     */
+    private static function appendDigitalSignatureDigestPolicySummaryReference(
+        array &$summary,
+        string $section,
+        array $reference,
+        ?string $manifestId,
+    ): void {
+        $issuePrefix = $section === 'signed-info' ? 'signed-info-reference' : 'manifest-reference';
+        $issues = self::digitalSignatureDigestPolicyIssues($section, $reference);
+        $row = [
+            'section' => $section,
+            'referenceIndex' => $reference['referenceIndex'],
+            'manifestId' => $section === 'manifest' ? $manifestId : null,
+            'uri' => $reference['uri'] ?? null,
+            'targetPart' => $reference['targetPart'] ?? null,
+            'digestAlgorithm' => $reference['digestAlgorithm'] ?? null,
+            'digestAlgorithmKnown' => $reference['digestAlgorithmKnown'] ?? null,
+            'digestAlgorithmProfile' => $reference['digestAlgorithmProfile'] ?? null,
+            'digestExpectedDecodedBytes' => $reference['digestExpectedDecodedBytes'] ?? null,
+            'digestValueDecodedBytes' => $reference['digestValueDecodedBytes'] ?? null,
+            'digestValueLengthValid' => $reference['digestValueLengthValid'] ?? null,
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+
+        $summary['referenceCount']++;
+        if ($section === 'signed-info') {
+            $summary['signedInfoReferenceCount']++;
+        } else {
+            $summary['manifestReferenceCount']++;
+        }
+
+        if (is_string($row['digestAlgorithm']) && $row['digestAlgorithm'] !== '') {
+            $summary['algorithmCounts'][$row['digestAlgorithm']] = ($summary['algorithmCounts'][$row['digestAlgorithm']] ?? 0) + 1;
+        }
+        if (is_string($row['digestAlgorithmProfile']) && $row['digestAlgorithmProfile'] !== '') {
+            $summary['profileCounts'][$row['digestAlgorithmProfile']] = ($summary['profileCounts'][$row['digestAlgorithmProfile']] ?? 0) + 1;
+        }
+        if ($row['digestAlgorithmKnown'] === true) {
+            $summary['knownDigestAlgorithmCount']++;
+        } elseif ($row['digestAlgorithmKnown'] === false) {
+            $summary['unknownDigestAlgorithmCount']++;
+        }
+
+        if ($row['valid']) {
+            $summary['validDigestPolicyCount']++;
+        } else {
+            $summary['valid'] = false;
+            $summary['invalidDigestPolicyCount']++;
+            $summary['invalidReferences'][] = $row;
+        }
+        $summary['references'][] = $row;
+
+        if (in_array('missing-' . $issuePrefix . '-digest-method', $issues, true)) {
+            $summary['missingDigestMethodCount']++;
+        }
+        if (in_array('missing-' . $issuePrefix . '-digest-value', $issues, true)) {
+            $summary['missingDigestValueCount']++;
+        }
+        if (in_array('invalid-' . $issuePrefix . '-digest-value-base64', $issues, true)) {
+            $summary['invalidDigestValueBase64Count']++;
+        }
+        if (in_array('invalid-' . $issuePrefix . '-digest-value-length', $issues, true)) {
+            $summary['digestValueLengthMismatchCount']++;
+        }
+
+        foreach ($issues as $issue) {
+            $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+            self::appendUniqueString($summary['issues'], $issue);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $reference
+     * @return list<string>
+     */
+    private static function digitalSignatureDigestPolicyIssues(string $section, array $reference): array
+    {
+        $issuePrefix = $section === 'signed-info' ? 'signed-info-reference' : 'manifest-reference';
+        $issues = [];
+        foreach ($reference['issues'] ?? [] as $issue) {
+            if (!is_string($issue) || !str_contains($issue, $issuePrefix . '-digest')) {
+                continue;
+            }
+
+            self::appendUniqueString($issues, $issue);
+        }
+
+        if (($reference['digestAlgorithmKnown'] ?? null) === false) {
+            self::appendUniqueString($issues, 'unknown-' . $issuePrefix . '-digest-algorithm');
+        }
+        if (($reference['digestValueLengthValid'] ?? null) === false) {
+            self::appendUniqueString($issues, 'invalid-' . $issuePrefix . '-digest-value-length');
+        }
+
+        sort($issues, SORT_STRING);
+
+        return $issues;
     }
 
     /**

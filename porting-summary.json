@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 07:36:45 UTC",
-    "sourceCommit": "fec32e3bcafef623558ed5434ff9aa7044adaa71",
-    "sourceCommitShort": "fec32e3bcafe",
+    "generated": "2026-06-09 07:38:16 UTC",
+    "sourceCommit": "6e5c522842731006f89f6362115939afe9583ac0",
+    "sourceCommitShort": "6e5c52284273",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fec32e3bcafef623558ed5434ff9aa7044adaa71",
-    "dashboardCommitShort": "fec32e3bcafe",
+    "dashboardCommit": "6e5c522842731006f89f6362115939afe9583ac0",
+    "dashboardCommitShort": "6e5c52284273",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2881",
-            "coverage": "2,881 / 2,276 (126.6%)",
+            "mapped": "2882",
+            "coverage": "2,882 / 2,276 (126.6%)",
             "mapPercent": "126.6%",
             "unmapped": "0",
-            "php": "2,507 pass / 0 fail",
+            "php": "2,508 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC HTML reader iframe-control current-base slice on base...",
+            "audit": "2026-06-09 UTC OPC XML relationships current-base digest policy slice...",
             "currentWork": "Native Pandoc support includes accepted Markdown/HTML reader and writer evidence plus...",
-            "nextTarget": "For HTML reader follow-up, choose another non-overlapping nat...",
-            "remainingGate": "No new native support component is needed for this iframe-control slice.",
+            "nextTarget": "For OPC follow-up, choose a non-overlapping native gap such a...",
+            "remainingGate": "No new native support component is needed for this OPC XML relationsh...",
             "commit": "pending fast ba..."
         },
         {

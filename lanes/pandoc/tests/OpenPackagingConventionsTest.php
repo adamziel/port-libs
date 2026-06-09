@@ -3254,6 +3254,127 @@ XML;
         ));
         $t->same(true, $metadata['valid']);
     },
+    'summarizes OPC digital signature digest policy issues for import review' => static function (TestRunner $t): void {
+        $sha1Digest = base64_encode(str_repeat('s', 20));
+        $sha256Digest = base64_encode(str_repeat('d', 32));
+        $sha256ShortDigest = base64_encode(str_repeat('x', 20));
+        $unknownDigest = base64_encode('opaque-digest');
+
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>
+  <Override PartName="/_xmlsignatures/sig-digest-policy.xml" ContentType="application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml"/>
+</Types>
+XML;
+
+        $signatureXml = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+  <ds:SignedInfo>
+    <ds:Reference URI="/word/document.xml">
+      <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+      <ds:DigestValue>{$sha256Digest}</ds:DigestValue>
+    </ds:Reference>
+    <ds:Reference URI="/customXml/item1.xml">
+      <ds:DigestMethod Algorithm="urn:example:digest"/>
+      <ds:DigestValue>{$unknownDigest}</ds:DigestValue>
+    </ds:Reference>
+  </ds:SignedInfo>
+  <ds:Object Id="idPackageSignatureObject" MimeType="text/xml">
+    <ds:Manifest Id="manifestPackageParts">
+      <ds:Reference URI="/docProps/core.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/>
+        <ds:DigestValue>{$sha1Digest}</ds:DigestValue>
+      </ds:Reference>
+      <ds:Reference URI="/customXml/item1.xml">
+        <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <ds:DigestValue>{$sha256ShortDigest}</ds:DigestValue>
+      </ds:Reference>
+    </ds:Manifest>
+  </ds:Object>
+</ds:Signature>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"><Relationship Id="rIdDocument" Type="' . OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE . '" Target="word/document.xml"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'customXml/item1.xml', 'data' => '<item/>'],
+            ['name' => '_xmlsignatures/sig-digest-policy.xml', 'data' => $signatureXml],
+        ]));
+
+        $signedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-digest-policy.xml');
+        $metadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig-digest-policy.xml');
+        $summary = $graph->digitalSignatureDigestPolicySummary('/_xmlsignatures/sig-digest-policy.xml');
+
+        $t->same([true, true], array_map(
+            static fn (array $reference): bool => $reference['valid'],
+            $signedInfoReferences,
+        ));
+        $t->same(true, $metadata['valid']);
+        $t->same('/_xmlsignatures/sig-digest-policy.xml', $summary['signaturePart']);
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['referenceCount']);
+        $t->same(2, $summary['signedInfoReferenceCount']);
+        $t->same(2, $summary['manifestReferenceCount']);
+        $t->same(2, $summary['validDigestPolicyCount']);
+        $t->same(2, $summary['invalidDigestPolicyCount']);
+        $t->same(3, $summary['knownDigestAlgorithmCount']);
+        $t->same(1, $summary['unknownDigestAlgorithmCount']);
+        $t->same(0, $summary['missingDigestMethodCount']);
+        $t->same(0, $summary['missingDigestValueCount']);
+        $t->same(0, $summary['invalidDigestValueBase64Count']);
+        $t->same(1, $summary['digestValueLengthMismatchCount']);
+        $t->same([
+            'http://www.w3.org/2000/09/xmldsig#sha1' => 1,
+            'http://www.w3.org/2001/04/xmlenc#sha256' => 2,
+            'urn:example:digest' => 1,
+        ], $summary['algorithmCounts']);
+        $t->same([
+            'sha1' => 1,
+            'sha256' => 2,
+        ], $summary['profileCounts']);
+        $t->same([
+            'invalid-manifest-reference-digest-value-length' => 1,
+            'unknown-signed-info-reference-digest-algorithm' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'invalid-manifest-reference-digest-value-length',
+            'unknown-signed-info-reference-digest-algorithm',
+        ], $summary['issues']);
+        $t->same(4, count($summary['references']));
+        $t->same(2, count($summary['invalidReferences']));
+        $t->same(true, $summary['references'][0]['valid']);
+        $t->same([], $summary['references'][0]['issues']);
+        $t->same('signed-info', $summary['invalidReferences'][0]['section']);
+        $t->same(1, $summary['invalidReferences'][0]['referenceIndex']);
+        $t->same(null, $summary['invalidReferences'][0]['manifestId']);
+        $t->same('/customXml/item1.xml', $summary['invalidReferences'][0]['uri']);
+        $t->same('/customXml/item1.xml', $summary['invalidReferences'][0]['targetPart']);
+        $t->same('urn:example:digest', $summary['invalidReferences'][0]['digestAlgorithm']);
+        $t->same(false, $summary['invalidReferences'][0]['digestAlgorithmKnown']);
+        $t->same(null, $summary['invalidReferences'][0]['digestAlgorithmProfile']);
+        $t->same(null, $summary['invalidReferences'][0]['digestExpectedDecodedBytes']);
+        $t->same(strlen('opaque-digest'), $summary['invalidReferences'][0]['digestValueDecodedBytes']);
+        $t->same(null, $summary['invalidReferences'][0]['digestValueLengthValid']);
+        $t->same(['unknown-signed-info-reference-digest-algorithm'], $summary['invalidReferences'][0]['issues']);
+        $t->same('manifest', $summary['invalidReferences'][1]['section']);
+        $t->same(1, $summary['invalidReferences'][1]['referenceIndex']);
+        $t->same('manifestPackageParts', $summary['invalidReferences'][1]['manifestId']);
+        $t->same('/customXml/item1.xml', $summary['invalidReferences'][1]['uri']);
+        $t->same('/customXml/item1.xml', $summary['invalidReferences'][1]['targetPart']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $summary['invalidReferences'][1]['digestAlgorithm']);
+        $t->same(true, $summary['invalidReferences'][1]['digestAlgorithmKnown']);
+        $t->same('sha256', $summary['invalidReferences'][1]['digestAlgorithmProfile']);
+        $t->same(32, $summary['invalidReferences'][1]['digestExpectedDecodedBytes']);
+        $t->same(20, $summary['invalidReferences'][1]['digestValueDecodedBytes']);
+        $t->same(false, $summary['invalidReferences'][1]['digestValueLengthValid']);
+        $t->same(['invalid-manifest-reference-digest-value-length'], $summary['invalidReferences'][1]['issues']);
+    },
     'maps OPC signature canonicalization transform algorithms to reviewer profiles' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -2066,6 +2066,7 @@ foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOC
 $digitalSignatures = $graph->preflightDigitalSignatures();
 $digitalSignatureRelationshipRoles = $graph->preflightDigitalSignatureRelationshipRoles();
 $digitalSignatureMetadata = $graph->preflightDigitalSignatureMetadata('/_xmlsignatures/sig1.xml');
+$digitalSignatureDigestPolicySummary = $graph->digitalSignatureDigestPolicySummary('/_xmlsignatures/sig1.xml');
 $digitalSignatureSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig1.xml');
 $signatureEnvelopedSignedInfoReferences = $graph->preflightDigitalSignatureSignedInfoReferences('/_xmlsignatures/sig-enveloped-transform.xml');
 $encryptedPackages = $graph->preflightEncryptedPackages();
@@ -2502,6 +2503,7 @@ $summary = [
     ],
     'signatureRelationshipTransforms' => $signatureRelationshipTransforms,
     'signatureRelationshipTransformSummary' => $signatureRelationshipTransformSummary,
+    'digitalSignatureDigestPolicySummary' => $digitalSignatureDigestPolicySummary,
     'signatureRelationshipTransformGuards' => $signatureRelationshipTransformGuards,
     'signatureMissingRelationshipPartGuards' => $signatureMissingRelationshipPartGuards,
     'signatureRelationshipPartContentTypeGuards' => $signatureRelationshipPartContentTypeGuards,
@@ -2614,6 +2616,18 @@ $summary = [
             'selectedExternalTargets' => $signatureRelationshipTransformSummary['selectedExternalTargets'],
             'relationshipXmlSha256s' => $signatureRelationshipTransformSummary['relationshipXmlSha256s'],
             'issues' => $signatureRelationshipTransformSummary['issues'],
+        ],
+        'digitalSignatureDigestPolicy' => [
+            'valid' => $digitalSignatureDigestPolicySummary['valid'],
+            'referenceCount' => $digitalSignatureDigestPolicySummary['referenceCount'],
+            'signedInfoReferenceCount' => $digitalSignatureDigestPolicySummary['signedInfoReferenceCount'],
+            'manifestReferenceCount' => $digitalSignatureDigestPolicySummary['manifestReferenceCount'],
+            'invalidDigestPolicyCount' => $digitalSignatureDigestPolicySummary['invalidDigestPolicyCount'],
+            'unknownDigestAlgorithmCount' => $digitalSignatureDigestPolicySummary['unknownDigestAlgorithmCount'],
+            'digestValueLengthMismatchCount' => $digitalSignatureDigestPolicySummary['digestValueLengthMismatchCount'],
+            'issueCounts' => $digitalSignatureDigestPolicySummary['issueCounts'],
+            'issues' => $digitalSignatureDigestPolicySummary['issues'],
+            'invalidReferences' => $digitalSignatureDigestPolicySummary['invalidReferences'],
         ],
         'relationshipClosureReview' => [
             'source' => $relationshipSourceClosureSummary['source'],
@@ -4057,6 +4071,45 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['selectedExternalTargets'] ?? null) !== ['https://example.test/wp-admin/post.php?post=42&action=edit']
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['relationshipXmlSha256s'] ?? null) !== [$signatureRelationshipTransformXmlSha256]
         || ($summary['wordpressImport']['signatureRelationshipTransformSummary']['issues'] ?? null) !== []
+        || ($summary['digitalSignatureDigestPolicySummary']['valid'] ?? null) !== false
+        || ($summary['digitalSignatureDigestPolicySummary']['referenceCount'] ?? null) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['signedInfoReferenceCount'] ?? null) !== 2
+        || ($summary['digitalSignatureDigestPolicySummary']['manifestReferenceCount'] ?? null) !== 3
+        || ($summary['digitalSignatureDigestPolicySummary']['validDigestPolicyCount'] ?? null) !== 0
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidDigestPolicyCount'] ?? null) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['knownDigestAlgorithmCount'] ?? null) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['unknownDigestAlgorithmCount'] ?? null) !== 0
+        || ($summary['digitalSignatureDigestPolicySummary']['digestValueLengthMismatchCount'] ?? null) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['algorithmCounts'] ?? null) !== [
+            'http://www.w3.org/2000/09/xmldsig#sha1' => 1,
+            'http://www.w3.org/2001/04/xmlenc#sha256' => 4,
+        ]
+        || ($summary['digitalSignatureDigestPolicySummary']['issueCounts'] ?? null) !== [
+            'invalid-manifest-reference-digest-value-length' => 3,
+            'invalid-signed-info-reference-digest-value-length' => 2,
+        ]
+        || ($summary['digitalSignatureDigestPolicySummary']['issues'] ?? null) !== [
+            'invalid-manifest-reference-digest-value-length',
+            'invalid-signed-info-reference-digest-value-length',
+        ]
+        || count($summary['digitalSignatureDigestPolicySummary']['invalidReferences'] ?? []) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['section'] ?? null) !== 'signed-info'
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['referenceIndex'] ?? null) !== 0
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['uri'] ?? null) !== '/word/_rels/document.xml.rels?ContentType=application/vnd.openxmlformats-package.relationships+xml'
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['targetPart'] ?? null) !== '/word/_rels/document.xml.rels'
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['digestExpectedDecodedBytes'] ?? null) !== 32
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][0]['digestValueDecodedBytes'] ?? null) !== 5
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][4]['section'] ?? null) !== 'manifest'
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][4]['targetPart'] ?? null) !== '/word/media/hero image.PNG'
+        || ($summary['digitalSignatureDigestPolicySummary']['invalidReferences'][4]['digestValueDecodedBytes'] ?? null) !== 3
+        || ($summary['wordpressImport']['digitalSignatureDigestPolicy']['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['digitalSignatureDigestPolicy']['referenceCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['digitalSignatureDigestPolicy']['invalidDigestPolicyCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['digitalSignatureDigestPolicy']['digestValueLengthMismatchCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['digitalSignatureDigestPolicy']['issueCounts'] ?? null) !== [
+            'invalid-manifest-reference-digest-value-length' => 3,
+            'invalid-signed-info-reference-digest-value-length' => 2,
+        ]
         || count($summary['signatureRelationshipTransformGuards'] ?? []) !== 2
         || ($summary['signatureRelationshipTransformGuards'][0]['signaturePart'] ?? null) !== '/_xmlsignatures/sig-selector-shape.xml'
         || ($summary['signatureRelationshipTransformGuards'][0]['referenceUri'] ?? null) !== '/word/_rels/document.xml.rels'
