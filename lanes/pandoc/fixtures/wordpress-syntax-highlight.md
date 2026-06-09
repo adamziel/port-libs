@@ -1701,3 +1701,12 @@ module WPImport
   end
 end
 ```
+
+``` {.shell-session #shell-session-review .numberLines startFrom=1420}
+$ wp post list --post_type=post --format=ids
+42
+$ title=$(wp post get 42 --field=post_title)
+Legacy Review
+$ printf '%s\n' "$title"
+Legacy Review
+```

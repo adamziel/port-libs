@@ -2452,6 +2452,79 @@ $buildLocalHeaderNameMismatchBackedPackage = static function () use ($crc32): st
         . $central
         . pack('VvvvvVVv', 0x06054b50, 0, 0, 1, 1, strlen($central), strlen($body), 0);
 };
+$buildRawPlatformMetadataLocalHeaderMismatchBackedPackage = static function () use ($crc32): string {
+    $entries = [
+        [
+            'centralName' => 'word/document.xml',
+            'localName' => 'word/other.xml',
+            'data' => '<w:document><w:body><w:p>Raw sidecar review</w:p></w:body></w:document>',
+        ],
+        [
+            'centralName' => '__MACOSX/word/media/._review.png',
+            'data' => "AppleDouble sidecar should not import as document media\n",
+        ],
+        [
+            'centralName' => 'word/media/Thumbs.db',
+            'data' => "Windows thumbnail cache should not import as document media\n",
+        ],
+        [
+            'centralName' => 'word/media/review.png',
+            'data' => "Visible media that would otherwise import normally\n",
+        ],
+    ];
+    $body = '';
+    $central = '';
+
+    foreach ($entries as $entry) {
+        $centralName = $entry['centralName'];
+        $localName = $entry['localName'] ?? $centralName;
+        $data = $entry['data'];
+        $crc = $crc32($data);
+        $localHeaderOffset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($localName),
+            0
+        );
+        $body .= $localName . $data;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            0,
+            0,
+            0,
+            $crc,
+            strlen($data),
+            strlen($data),
+            strlen($centralName),
+            0,
+            0,
+            0,
+            0,
+            0x81a40000,
+            $localHeaderOffset
+        );
+        $central .= $centralName;
+    }
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), strlen($body), 0);
+};
 $buildLocalEntrySlackBackedPackage = static function () use ($crc32): string {
     $name = 'word/document.xml';
     $data = '<w:document><w:body><w:p>Hidden local bytes should stay blocked</w:p></w:body></w:document>';
@@ -3338,6 +3411,9 @@ try {
 } catch (RuntimeException $exception) {
     $windowsPlatformMetadataStrictRejected = str_contains($exception->getMessage(), 'platform-metadata-entries');
 }
+$rawPlatformMetadataMismatchBytes = $buildRawPlatformMetadataLocalHeaderMismatchBackedPackage();
+$rawPlatformMetadataPolicyPreflight = ZipPackage::platformMetadataPolicyPreflight($rawPlatformMetadataMismatchBytes);
+$rawPlatformMetadataStrictPreflight = ZipPackage::rawStrictImportPreflight($rawPlatformMetadataMismatchBytes, 4096, 100.0, 4096);
 $caseInsensitiveNameCollisionPackage = ZipPackage::fromParts([
     [
         'name' => 'word/document.xml',
@@ -5168,6 +5244,23 @@ if (in_array('--self-test', $argv, true)) {
     }
 
     if (
+        ($rawPlatformMetadataPolicyPreflight['platformMetadataEntryCount'] ?? null) !== 2
+        || ($rawPlatformMetadataPolicyPreflight['macosSidecarEntryCount'] ?? null) !== 1
+        || ($rawPlatformMetadataPolicyPreflight['appleDoubleEntryCount'] ?? null) !== 1
+        || ($rawPlatformMetadataPolicyPreflight['windowsSidecarEntryCount'] ?? null) !== 1
+        || ($rawPlatformMetadataPolicyPreflight['platformMetadataEntries'][0]['name'] ?? null) !== '__MACOSX/word/media/._review.png'
+        || ($rawPlatformMetadataPolicyPreflight['platformMetadataEntries'][0]['diagnostics'] ?? null) !== ['zip-macos-sidecar-entry', 'zip-appledouble-resource-entry']
+        || ($rawPlatformMetadataPolicyPreflight['platformMetadataEntries'][1]['name'] ?? null) !== 'word/media/Thumbs.db'
+        || ($rawPlatformMetadataStrictPreflight['canInstantiate'] ?? null) !== false
+        || ($rawPlatformMetadataStrictPreflight['platformMetadata'] ?? null) !== $rawPlatformMetadataPolicyPreflight
+        || !in_array('platform-metadata-entries', $rawPlatformMetadataStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('local-header-name-mismatch', $rawPlatformMetadataStrictPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawPlatformMetadataStrictPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw ZIP platform metadata policy to survive package instantiation failure');
+    }
+
+    if (
         !$caseInsensitiveNameCollisionRejected
         || !$caseInsensitiveNameCollisionStrictRejected
         || ($caseInsensitiveNameCollisionPreflight['collisionGroupCount'] ?? null) !== 1
@@ -6452,6 +6545,8 @@ echo 'zipWindowsPlatformMetadataPolicy=' . ($windowsPlatformMetadataRejected && 
 echo 'zipWindowsPlatformMetadataEntries=' . $windowsPlatformMetadataPreflight['platformMetadataEntryCount'] . "\n";
 echo 'zipWindowsPlatformMetadataSidecars=' . $windowsPlatformMetadataPreflight['windowsSidecarEntryCount'] . "\n";
 echo 'zipWindowsPlatformMetadataIssues=' . implode(',', $windowsPlatformMetadataPreflight['platformMetadataEntries'][0]['issues'] ?? []) . "\n";
+echo 'zipRawPlatformMetadataEntries=' . $rawPlatformMetadataPolicyPreflight['platformMetadataEntryCount'] . "\n";
+echo 'zipRawPlatformMetadataStrictDiagnostics=' . implode(',', $rawPlatformMetadataStrictPreflight['diagnostics']) . "\n";
 echo 'packageCaseInsensitiveNames.collisionEntryCount=' . $packageCaseInsensitiveNamePreflight['collisionEntryCount'] . "\n";
 echo 'packageArchive.eocdOffset=' . $packageArchivePreflight['eocdOffset'] . "\n";
 echo 'packageArchive.totalEntryCount=' . $packageArchivePreflight['totalEntryCount'] . "\n";

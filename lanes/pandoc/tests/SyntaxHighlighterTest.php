@@ -258,6 +258,10 @@ return [
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('shell'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('console'));
         $t->same('bash', SyntaxHighlighter::normalizeLanguage('language-sh'));
+        $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('shell-session'));
+        $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('shellsession'));
+        $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('bash-session'));
+        $t->same('shellsession', SyntaxHighlighter::normalizeLanguage('language-console-session'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('py3'));
         $t->same('python', SyntaxHighlighter::normalizeLanguage('python3'));
@@ -3181,6 +3185,45 @@ return [
         $t->same('bash', $console['language']);
         $t->same('console', $console['requestedLanguage']);
         $t->contains('<span class="fu">printf</span> <span class="st">&quot;%s\\n&quot;</span> <span class="st">&quot;$title&quot;</span>', $console['html']);
+    },
+    'highlights shell session transcripts with prompt and output handoff' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[88] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a shell-session transcript code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'tango');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'tango');
+        $directSession = $highlighter->highlight(
+            "reviewer@wp:/srv/site$ wp post get 42 --field=post_title\nLegacy Review",
+            'console-session'
+        );
+
+        $t->same('shell-session', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('shellsession', $highlighted['language']);
+        $t->same('shell-session', $highlighted['requestedLanguage']);
+        $t->same('tango', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1420, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource shell-session numberLines"><code class="sourceCode shellsession" style="counter-reset: source-line 1419;">', $highlighted['html']);
+        $t->contains('<span id="shell-session-review-1420"><a href="#shell-session-review-1420"></a><span class="re">$ </span><span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span> <span class="ot">--post_type</span><span class="op">=</span><span class="va">post</span> <span class="ot">--format</span><span class="op">=</span><span class="va">ids</span></span>', $highlighted['html']);
+        $t->contains('<span id="shell-session-review-1421"><a href="#shell-session-review-1421"></a><span class="in">42</span></span>', $highlighted['html']);
+        $t->contains('<span id="shell-session-review-1422"><a href="#shell-session-review-1422"></a><span class="re">$ </span><span class="va">title</span><span class="op">=$(</span><span class="fu">wp</span> <span class="va">post</span> <span class="va">get</span> <span class="dv">42</span> <span class="ot">--field</span><span class="op">=</span><span class="va">post_title</span><span class="op">)</span></span>', $highlighted['html']);
+        $t->contains('<span id="shell-session-review-1423"><a href="#shell-session-review-1423"></a><span class="in">Legacy Review</span></span>', $highlighted['html']);
+        $t->contains('<span id="shell-session-review-1424"><a href="#shell-session-review-1424"></a><span class="re">$ </span><span class="fu">printf</span> <span class="st">&#039;%s\\n&#039;</span> <span class="st">&quot;$title&quot;</span></span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
+        $t->contains('<span class="in">Legacy Review</span>', $wordpressBlock);
+        $t->same('shellsession', $directSession['language']);
+        $t->same('console-session', $directSession['requestedLanguage']);
+        $t->contains('<span class="re">reviewer@wp:/srv/site$ </span><span class="fu">wp</span> <span class="va">post</span> <span class="va">get</span> <span class="dv">42</span> <span class="ot">--field</span><span class="op">=</span><span class="va">post_title</span>', $directSession['html']);
+        $t->contains('<span class="in">Legacy Review</span>', $directSession['html']);
     },
     'highlights lua long bracket strings and comments for pandoc filters' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');

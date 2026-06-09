@@ -550,6 +550,12 @@ if (!$crystalCodeBlock instanceof PortLibs\Pandoc\AstNode || $crystalCodeBlock->
 }
 $crystal = $highlighter->highlightCodeBlock($crystalCodeBlock, 'espresso');
 $crystalWordpressBlock = $highlighter->wordpressHtmlBlock($crystalCodeBlock, 'espresso');
+$shellSessionCodeBlock = $document->children[88] ?? null;
+if (!$shellSessionCodeBlock instanceof PortLibs\Pandoc\AstNode || $shellSessionCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a shell-session transcript code block');
+}
+$shellSession = $highlighter->highlightCodeBlock($shellSessionCodeBlock, 'tango');
+$shellSessionWordpressBlock = $highlighter->wordpressHtmlBlock($shellSessionCodeBlock, 'tango');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2429,6 +2435,27 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($crystalWordpressBlock, '<span class="cn">STDERR</span><span class="op">.</span><span class="fu">puts</span>')) {
         throw new RuntimeException('Expected Crystal WordPress block token handoff');
     }
+    if (($shellSession['language'] ?? '') !== 'shellsession') {
+        throw new RuntimeException('Expected shell-session language handoff');
+    }
+    if (($shellSession['requestedLanguage'] ?? '') !== 'shell-session') {
+        throw new RuntimeException('Expected shell-session requested-language metadata');
+    }
+    if (($shellSession['lineNumbering']['start'] ?? null) !== 1420) {
+        throw new RuntimeException('Expected shell-session line-number start handoff');
+    }
+    if (!str_contains($shellSession['html'], '<span class="re">$ </span><span class="fu">wp</span> <span class="va">post</span> <span class="va">list</span>')) {
+        throw new RuntimeException('Expected shell-session prompt command token handoff');
+    }
+    if (!str_contains($shellSession['html'], '<span class="in">Legacy Review</span>')) {
+        throw new RuntimeException('Expected shell-session output token handoff');
+    }
+    if (!str_contains($shellSessionWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
+        throw new RuntimeException('Expected shell-session WordPress style metadata');
+    }
+    if (!str_contains($shellSessionWordpressBlock, '<span class="re">$ </span><span class="fu">printf</span>')) {
+        throw new RuntimeException('Expected shell-session WordPress command token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2535,6 +2562,7 @@ echo "commonLispHighlightedHtml:\n" . $commonLisp['html'] . "\n";
 echo "pascalHighlightedHtml:\n" . $pascal['html'] . "\n";
 echo "groovyHighlightedHtml:\n" . $groovy['html'] . "\n";
 echo "crystalHighlightedHtml:\n" . $crystal['html'] . "\n";
+echo "shellSessionHighlightedHtml:\n" . $shellSession['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2612,4 +2640,5 @@ echo "commonLispWordpressBlock:\n" . $commonLispWordpressBlock . "\n";
 echo "pascalWordpressBlock:\n" . $pascalWordpressBlock . "\n";
 echo "groovyWordpressBlock:\n" . $groovyWordpressBlock . "\n";
 echo "crystalWordpressBlock:\n" . $crystalWordpressBlock . "\n";
+echo "shellSessionWordpressBlock:\n" . $shellSessionWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

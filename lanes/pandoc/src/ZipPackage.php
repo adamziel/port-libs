@@ -2864,6 +2864,275 @@ final class ZipPackage
     }
 
     /**
+     * @return array{path:string,segments:list<string>,platform:?string,isMacosSidecar:bool,isAppleDouble:bool,isFinderMetadata:bool,isWindowsSidecar:bool,isWindowsThumbnailCache:bool,isWindowsDesktopIni:bool,issues:list<string>}
+     */
+    private static function classifyPlatformMetadataName(string $name): array
+    {
+        $path = rtrim($name, '/');
+        $segments = $path === '' ? [] : explode('/', $path);
+        $isMacosSidecar = false;
+        $isAppleDouble = false;
+        $isFinderMetadata = false;
+        $isWindowsThumbnailCache = false;
+        $isWindowsDesktopIni = false;
+
+        foreach ($segments as $index => $segment) {
+            $lowerSegment = strtolower($segment);
+
+            if ($index === 0 && $lowerSegment === '__macosx') {
+                $isMacosSidecar = true;
+            }
+
+            if (str_starts_with($segment, '._') && strlen($segment) > 2) {
+                $isAppleDouble = true;
+            }
+
+            if ($lowerSegment === '.ds_store') {
+                $isFinderMetadata = true;
+            }
+
+            if ($lowerSegment === 'thumbs.db') {
+                $isWindowsThumbnailCache = true;
+            }
+
+            if ($lowerSegment === 'desktop.ini') {
+                $isWindowsDesktopIni = true;
+            }
+        }
+
+        $issues = [];
+        if ($isMacosSidecar) {
+            $issues[] = 'macos-sidecar-entry';
+        }
+        if ($isAppleDouble) {
+            $issues[] = 'appledouble-resource-entry';
+        }
+        if ($isFinderMetadata) {
+            $issues[] = 'finder-metadata-entry';
+        }
+        if ($isWindowsThumbnailCache) {
+            $issues[] = 'windows-thumbnail-cache-entry';
+        }
+        if ($isWindowsDesktopIni) {
+            $issues[] = 'windows-desktop-ini-entry';
+        }
+
+        $isWindowsSidecar = $isWindowsThumbnailCache || $isWindowsDesktopIni;
+        $hasMacosMetadata = $isMacosSidecar || $isAppleDouble || $isFinderMetadata;
+        $platform = null;
+        if ($hasMacosMetadata && $isWindowsSidecar) {
+            $platform = 'mixed';
+        } elseif ($hasMacosMetadata) {
+            $platform = 'macos';
+        } elseif ($isWindowsSidecar) {
+            $platform = 'windows';
+        }
+
+        return [
+            'path' => $path,
+            'segments' => $segments,
+            'platform' => $platform,
+            'isMacosSidecar' => $isMacosSidecar,
+            'isAppleDouble' => $isAppleDouble,
+            'isFinderMetadata' => $isFinderMetadata,
+            'isWindowsSidecar' => $isWindowsSidecar,
+            'isWindowsThumbnailCache' => $isWindowsThumbnailCache,
+            'isWindowsDesktopIni' => $isWindowsDesktopIni,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * Classify platform metadata entries that should not be imported as
+     * document content or package assets.
+     *
+     * macOS archive tools commonly add __MACOSX directories, AppleDouble
+     * resource fork entries, and .DS_Store files. Windows Explorer can also
+     * leave Thumbs.db thumbnail caches and desktop.ini folder metadata in
+     * copied trees. These entries are valid ZIP members, so raw ZIP reading
+     * remains permissive, but office/package readers should review or reject
+     * them before mapping media/content.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     platformMetadataEntryCount:int,
+     *     macosSidecarEntryCount:int,
+     *     appleDoubleEntryCount:int,
+     *     finderMetadataEntryCount:int,
+     *     windowsSidecarEntryCount:int,
+     *     windowsThumbnailCacheEntryCount:int,
+     *     windowsDesktopIniEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     platformMetadataEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function platformMetadataPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before platform metadata entries can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $platformMetadataEntries = [];
+        $macosSidecarEntryCount = 0;
+        $appleDoubleEntryCount = 0;
+        $finderMetadataEntryCount = 0;
+        $windowsSidecarEntryCount = 0;
+        $windowsThumbnailCacheEntryCount = 0;
+        $windowsDesktopIniEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $name = $decodedName['text'];
+            $classification = self::classifyPlatformMetadataName($name);
+            $diagnostics = array_map(
+                static fn (string $issue): string => 'zip-' . $issue,
+                $classification['issues']
+            );
+            if ($classification['isMacosSidecar']) {
+                ++$macosSidecarEntryCount;
+            }
+            if ($classification['isAppleDouble']) {
+                ++$appleDoubleEntryCount;
+            }
+            if ($classification['isFinderMetadata']) {
+                ++$finderMetadataEntryCount;
+            }
+            if ($classification['isWindowsSidecar']) {
+                ++$windowsSidecarEntryCount;
+            }
+            if ($classification['isWindowsThumbnailCache']) {
+                ++$windowsThumbnailCacheEntryCount;
+            }
+            if ($classification['isWindowsDesktopIni']) {
+                ++$windowsDesktopIniEntryCount;
+            }
+
+            $entry = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'path' => $classification['path'],
+                'isDirectory' => str_ends_with($name, '/'),
+                'segments' => $classification['segments'],
+                'platform' => $classification['platform'],
+                'isMacosSidecar' => $classification['isMacosSidecar'],
+                'isAppleDouble' => $classification['isAppleDouble'],
+                'isFinderMetadata' => $classification['isFinderMetadata'],
+                'isWindowsSidecar' => $classification['isWindowsSidecar'],
+                'isWindowsThumbnailCache' => $classification['isWindowsThumbnailCache'],
+                'isWindowsDesktopIni' => $classification['isWindowsDesktopIni'],
+                'policy' => $diagnostics === [] ? 'metadata' : 'blocked',
+                'diagnostics' => $diagnostics,
+                'issues' => $classification['issues'],
+            ];
+            $entries[] = $entry;
+            if ($classification['issues'] !== []) {
+                $platformMetadataEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($platformMetadataEntries !== []) {
+            $issues[] = 'platform-metadata-entries';
+        }
+        if ($macosSidecarEntryCount > 0) {
+            $issues[] = 'macos-sidecar-entries';
+        }
+        if ($appleDoubleEntryCount > 0) {
+            $issues[] = 'appledouble-resource-entries';
+        }
+        if ($finderMetadataEntryCount > 0) {
+            $issues[] = 'finder-metadata-entries';
+        }
+        if ($windowsSidecarEntryCount > 0) {
+            $issues[] = 'windows-sidecar-entries';
+        }
+        if ($windowsThumbnailCacheEntryCount > 0) {
+            $issues[] = 'windows-thumbnail-cache-entries';
+        }
+        if ($windowsDesktopIniEntryCount > 0) {
+            $issues[] = 'windows-desktop-ini-entries';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'platformMetadataEntryCount' => count($platformMetadataEntries),
+            'macosSidecarEntryCount' => $macosSidecarEntryCount,
+            'appleDoubleEntryCount' => $appleDoubleEntryCount,
+            'finderMetadataEntryCount' => $finderMetadataEntryCount,
+            'windowsSidecarEntryCount' => $windowsSidecarEntryCount,
+            'windowsThumbnailCacheEntryCount' => $windowsThumbnailCacheEntryCount,
+            'windowsDesktopIniEntryCount' => $windowsDesktopIniEntryCount,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'platformMetadataEntries' => $platformMetadataEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * Classify platform metadata entries that should not be imported as
      * document content or package assets.
      *
@@ -2899,98 +3168,44 @@ final class ZipPackage
         $windowsDesktopIniEntryCount = 0;
 
         foreach ($this->entries as $entry) {
-            $path = rtrim($entry->name, '/');
-            $segments = $path === '' ? [] : explode('/', $path);
-            $isMacosSidecar = false;
-            $isAppleDouble = false;
-            $isFinderMetadata = false;
-            $isWindowsThumbnailCache = false;
-            $isWindowsDesktopIni = false;
-
-            foreach ($segments as $index => $segment) {
-                $lowerSegment = strtolower($segment);
-
-                if ($index === 0 && $lowerSegment === '__macosx') {
-                    $isMacosSidecar = true;
-                }
-
-                if (str_starts_with($segment, '._') && strlen($segment) > 2) {
-                    $isAppleDouble = true;
-                }
-
-                if ($lowerSegment === '.ds_store') {
-                    $isFinderMetadata = true;
-                }
-
-                if ($lowerSegment === 'thumbs.db') {
-                    $isWindowsThumbnailCache = true;
-                }
-
-                if ($lowerSegment === 'desktop.ini') {
-                    $isWindowsDesktopIni = true;
-                }
-            }
-
-            $issues = [];
-
-            if ($isMacosSidecar) {
-                $issues[] = 'macos-sidecar-entry';
+            $classification = self::classifyPlatformMetadataName($entry->name);
+            if ($classification['isMacosSidecar']) {
                 ++$macosSidecarEntryCount;
             }
-
-            if ($isAppleDouble) {
-                $issues[] = 'appledouble-resource-entry';
+            if ($classification['isAppleDouble']) {
                 ++$appleDoubleEntryCount;
             }
-
-            if ($isFinderMetadata) {
-                $issues[] = 'finder-metadata-entry';
+            if ($classification['isFinderMetadata']) {
                 ++$finderMetadataEntryCount;
             }
-
-            if ($isWindowsThumbnailCache) {
-                $issues[] = 'windows-thumbnail-cache-entry';
+            if ($classification['isWindowsThumbnailCache']) {
                 ++$windowsThumbnailCacheEntryCount;
             }
-
-            if ($isWindowsDesktopIni) {
-                $issues[] = 'windows-desktop-ini-entry';
+            if ($classification['isWindowsDesktopIni']) {
                 ++$windowsDesktopIniEntryCount;
             }
-
-            $isWindowsSidecar = $isWindowsThumbnailCache || $isWindowsDesktopIni;
-            if ($isWindowsSidecar) {
+            if ($classification['isWindowsSidecar']) {
                 ++$windowsSidecarEntryCount;
-            }
-
-            $hasMacosMetadata = $isMacosSidecar || $isAppleDouble || $isFinderMetadata;
-            $platform = null;
-            if ($hasMacosMetadata && $isWindowsSidecar) {
-                $platform = 'mixed';
-            } elseif ($hasMacosMetadata) {
-                $platform = 'macos';
-            } elseif ($isWindowsSidecar) {
-                $platform = 'windows';
             }
 
             $summary = [
                 'name' => $entry->name,
-                'path' => $path,
+                'path' => $classification['path'],
                 'isDirectory' => $entry->isDirectory(),
-                'segments' => $segments,
-                'platform' => $platform,
-                'isMacosSidecar' => $isMacosSidecar,
-                'isAppleDouble' => $isAppleDouble,
-                'isFinderMetadata' => $isFinderMetadata,
-                'isWindowsSidecar' => $isWindowsSidecar,
-                'isWindowsThumbnailCache' => $isWindowsThumbnailCache,
-                'isWindowsDesktopIni' => $isWindowsDesktopIni,
-                'issues' => $issues,
+                'segments' => $classification['segments'],
+                'platform' => $classification['platform'],
+                'isMacosSidecar' => $classification['isMacosSidecar'],
+                'isAppleDouble' => $classification['isAppleDouble'],
+                'isFinderMetadata' => $classification['isFinderMetadata'],
+                'isWindowsSidecar' => $classification['isWindowsSidecar'],
+                'isWindowsThumbnailCache' => $classification['isWindowsThumbnailCache'],
+                'isWindowsDesktopIni' => $classification['isWindowsDesktopIni'],
+                'issues' => $classification['issues'],
             ];
 
             $entries[] = $summary;
 
-            if ($issues !== []) {
+            if ($classification['issues'] !== []) {
                 $platformMetadataEntries[] = $summary;
             }
         }
@@ -5839,6 +6054,7 @@ final class ZipPackage
      *     compressionMethods:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
+     *     platformMetadata:?array<string, mixed>,
      *     unicodeExtraFields:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
@@ -5936,6 +6152,7 @@ final class ZipPackage
                 'compressionMethods' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
+                'platformMetadata' => null,
                 'unicodeExtraFields' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
@@ -5963,6 +6180,7 @@ final class ZipPackage
         $compressionMethods = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
+        $platformMetadata = null;
         $unicodeExtraFields = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
@@ -6063,6 +6281,14 @@ final class ZipPackage
                 $addDiagnostics($externalAttributes['issues']);
             }
 
+            $platformMetadata = $runPreflight(
+                'platform-metadata-policy',
+                static fn (): array => self::platformMetadataPolicyPreflight($bytes)
+            );
+            if ($platformMetadata !== null && !$platformMetadata['isSupportedByBoundedReader']) {
+                $addDiagnostics($platformMetadata['issues']);
+            }
+
             $unicodeExtraFields = $runPreflight(
                 'unicode-extra-field-policy',
                 static fn (): array => self::unicodeExtraFieldPolicyPreflight($bytes)
@@ -6123,6 +6349,7 @@ final class ZipPackage
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
+            ?? $platformMetadata['entryCount']
             ?? $unicodeExtraFields['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
@@ -6156,6 +6383,7 @@ final class ZipPackage
             'compressionMethods' => $compressionMethods,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
+            'platformMetadata' => $platformMetadata,
             'unicodeExtraFields' => $unicodeExtraFields,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,

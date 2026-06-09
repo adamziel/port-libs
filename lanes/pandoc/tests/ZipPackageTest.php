@@ -3529,6 +3529,96 @@ return [
         $t->same(0, $strictClean['platformMetadata']['windowsSidecarEntryCount']);
     },
 
+    'preflights raw zip platform metadata before package instantiation failure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $bytes = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/other.xml',
+                'data' => '<w:document><w:p>raw platform metadata review</w:p></w:document>',
+                'method' => 0,
+            ],
+            [
+                'name' => '__MACOSX/word/media/._review.png',
+                'data' => "AppleDouble sidecar should not be imported as document media\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/Thumbs.db',
+                'data' => "Windows thumbnail cache should not be imported as document media\n",
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "Visible media that would otherwise import normally\n",
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::platformMetadataPolicyPreflight($bytes);
+        $t->same(4, $summary['entryCount']);
+        $t->same(2, $summary['platformMetadataEntryCount']);
+        $t->same(1, $summary['macosSidecarEntryCount']);
+        $t->same(1, $summary['appleDoubleEntryCount']);
+        $t->same(0, $summary['finderMetadataEntryCount']);
+        $t->same(1, $summary['windowsSidecarEntryCount']);
+        $t->same(1, $summary['windowsThumbnailCacheEntryCount']);
+        $t->same(0, $summary['windowsDesktopIniEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(
+            [
+                'platform-metadata-entries',
+                'macos-sidecar-entries',
+                'appledouble-resource-entries',
+                'windows-sidecar-entries',
+                'windows-thumbnail-cache-entries',
+            ],
+            $summary['issues']
+        );
+        $t->same('__MACOSX/word/media/._review.png', $summary['platformMetadataEntries'][0]['name']);
+        $t->same('macos', $summary['platformMetadataEntries'][0]['platform']);
+        $t->same(['macos-sidecar-entry', 'appledouble-resource-entry'], $summary['platformMetadataEntries'][0]['issues']);
+        $t->same(['zip-macos-sidecar-entry', 'zip-appledouble-resource-entry'], $summary['platformMetadataEntries'][0]['diagnostics']);
+        $t->same('blocked', $summary['platformMetadataEntries'][0]['policy']);
+        $t->same('word/media/Thumbs.db', $summary['platformMetadataEntries'][1]['name']);
+        $t->same('windows', $summary['platformMetadataEntries'][1]['platform']);
+        $t->same(['windows-thumbnail-cache-entry'], $summary['platformMetadataEntries'][1]['issues']);
+        $t->same(['zip-windows-thumbnail-cache-entry'], $summary['platformMetadataEntries'][1]['diagnostics']);
+        $t->same('metadata', $summary['entries'][3]['policy']);
+        $t->same([], $summary['entries'][3]['issues']);
+
+        $rawStrict = ZipPackage::rawStrictImportPreflight($bytes, 4096, 100.0, 4096);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(true, str_contains((string) $rawStrict['instantiationError'], 'local header name'));
+        $t->same($summary, $rawStrict['platformMetadata']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same(true, in_array('platform-metadata-entries', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('macos-sidecar-entries', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('appledouble-resource-entries', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('windows-sidecar-entries', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('local-header-name-issues', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('local-header-name-mismatch', $rawStrict['diagnostics'], true));
+        $t->same(true, in_array('zip-package-instantiation-failed', $rawStrict['diagnostics'], true));
+        $t->same('word/document.xml', $rawStrict['localHeaderNames']['mismatchedEntries'][0]['centralName']);
+        $t->same('word/other.xml', $rawStrict['localHeaderNames']['mismatchedEntries'][0]['localName']);
+
+        $clean = ZipPackage::platformMetadataPolicyPreflight(ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>clean raw platform policy</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "Visible media without platform sidecars\n",
+                'compressionMethod' => 0,
+            ],
+        ])->bytes());
+        $t->same(2, $clean['entryCount']);
+        $t->same(0, $clean['platformMetadataEntryCount']);
+        $t->same(true, $clean['isSupportedByBoundedReader']);
+        $t->same([], $clean['issues']);
+    },
+
     'rejects stored zip entry size mismatches before package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $storedMedia = "stored reviewer media bytes\n";
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([

@@ -344,8 +344,13 @@ final class SyntaxHighlighter
         's' => 'r',
         'sh' => 'bash',
         'shell' => 'bash',
+        'bash-session' => 'shellsession',
+        'console-session' => 'shellsession',
         'shopify' => 'liquid',
         'stream-editor' => 'sed',
+        'shell-session' => 'shellsession',
+        'shellsession' => 'shellsession',
+        'sh-session' => 'shellsession',
         'shopify-liquid' => 'liquid',
         'sql' => 'sql',
         'sqlite' => 'sql',
@@ -879,6 +884,7 @@ final class SyntaxHighlighter
             'scala' => $this->tokenizeScala($code),
             'scheme' => $this->tokenizeScheme($code),
             'sed' => $this->tokenizeSed($code),
+            'shellsession' => $this->tokenizeShellSession($code),
             'sql' => $this->tokenizeSql($code),
             'swift' => $this->tokenizeSwift($code),
             'tcl' => $this->tokenizeTcl($code),
@@ -3845,6 +3851,54 @@ final class SyntaxHighlighter
         }
 
         return null;
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeShellSession(string $code): array
+    {
+        $tokens = [];
+        $offset = 0;
+        $length = strlen($code);
+
+        while ($offset < $length) {
+            $nextNewline = strpos($code, "\n", $offset);
+            if ($nextNewline === false) {
+                $line = substr($code, $offset);
+                $offset = $length;
+            } else {
+                $line = substr($code, $offset, $nextNewline - $offset);
+                $offset = $nextNewline + 1;
+            }
+
+            $this->tokenizeShellSessionLine($line, $tokens);
+            if ($nextNewline !== false) {
+                $this->appendToken($tokens, 'text', "\n");
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeShellSessionLine(string $line, array &$tokens): void
+    {
+        if ($line === '') {
+            return;
+        }
+
+        if (preg_match('/^([ \t]*(?:\\([^\\)\\n]+\\)[ \t]*)?(?:(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9_.-]+(?::[^$#\\n]*)?[#$]|[$#]|>)[ \t]?)(.*)$/', $line, $matches) === 1) {
+            $this->appendToken($tokens, 'region', $matches[1]);
+            if ($matches[2] !== '') {
+                $this->tokenizeBashLine($matches[2], $tokens);
+            }
+            return;
+        }
+
+        $this->appendToken($tokens, 'information', $line);
     }
 
     /**
