@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(abbr|address|article|aside|audio|bdi|bdo|button|canvas|cite|data|datalist|details|dfn|dialog|fieldset|figcaption|figure|footer|form|header|hgroup|iframe|label|legend|main|map|mark|math|menu|meter|nav|object|optgroup|option|output|picture|progress|rp|rt|ruby|script|search|section|slot|small|style|select|summary|svg|template|textarea|time|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(abbr|address|article|aside|audio|bdi|bdo|button|canvas|cite|data|datalist|defs|details|dfn|dialog|fieldset|figcaption|figure|footer|form|header|hgroup|iframe|label|legend|linearGradient|main|map|mark|math|menu|meter|nav|object|optgroup|option|output|path|picture|progress|rp|rt|ruby|script|search|section|slot|small|style|select|summary|svg|symbol|template|text|textarea|time|use|var|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['abbr', 'address', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'cite', 'data', 'datalist', 'details', 'dfn', 'dialog', 'embed', 'fieldset', 'form', 'hgroup', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'mark', 'math', 'menu', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'rp', 'rt', 'ruby', 'search', 'select', 'slot', 'small', 'source', 'summary', 'svg', 'template', 'textarea', 'time', 'track', 'var', 'video', 'wbr'], true)) {
+        if (in_array($name, ['abbr', 'address', 'area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'cite', 'data', 'datalist', 'defs', 'details', 'dfn', 'dialog', 'embed', 'fieldset', 'form', 'hgroup', 'iframe', 'input', 'label', 'legend', 'lineargradient', 'link', 'map', 'mark', 'math', 'menu', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'path', 'picture', 'progress', 'rp', 'rt', 'ruby', 'search', 'select', 'slot', 'small', 'source', 'summary', 'svg', 'symbol', 'template', 'text', 'textarea', 'time', 'track', 'use', 'var', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 

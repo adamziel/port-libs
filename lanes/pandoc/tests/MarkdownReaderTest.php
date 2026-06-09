@@ -15410,6 +15410,90 @@ XML;
         $t->contains('<p>Before <math', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before x=1'), 'HTML document MathML should not be flattened to plain paragraph text');
     },
+    'maps upstream html reader svg symbol fragments as raw review markup' => static function (TestRunner $t): void {
+        $symbol = '<symbol id="review-icon" viewBox="0 0 10 10" data-source="batch-58"><path d="M0 0L10 10"></path></symbol>';
+        $document = (new MarkdownReader())->read($symbol . "\n\nAfter the symbol.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($symbol, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the symbol.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $symbol, $blocks);
+        $t->true(!str_contains($blocks, '&lt;symbol'), 'Standalone SVG symbol should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg use fragments as raw review markup' => static function (TestRunner $t): void {
+        $use = '<use href="#review-icon" data-source="batch-58"></use>';
+        $document = (new MarkdownReader())->read($use . "\n\nAfter the use reference.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($use, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the use reference.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $use, $blocks);
+        $t->true(!str_contains($blocks, '&lt;use'), 'Standalone SVG use reference should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg defs fragments as raw review markup' => static function (TestRunner $t): void {
+        $defs = '<defs data-source="batch-58"><linearGradient id="review-gradient"><stop offset="0%"></stop></linearGradient></defs>';
+        $document = (new MarkdownReader())->read($defs . "\n\nAfter the defs.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($defs, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the defs.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $defs, $blocks);
+        $t->true(!str_contains($blocks, '&lt;defs'), 'Standalone SVG defs should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg linearGradient fragments as raw review markup' => static function (TestRunner $t): void {
+        $gradient = '<linearGradient id="review-gradient" data-source="batch-58"><stop offset="100%"></stop></linearGradient>';
+        $document = (new MarkdownReader())->read($gradient . "\n\nAfter the gradient.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($gradient, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the gradient.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $gradient, $blocks);
+        $t->true(!str_contains($blocks, '&lt;linearGradient'), 'Standalone SVG gradient should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg path fragments as raw review markup' => static function (TestRunner $t): void {
+        $path = '<path d="M0 0L10 10" data-source="batch-58"></path>';
+        $document = (new MarkdownReader())->read($path . "\n\nAfter the path.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($path, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the path.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $path, $blocks);
+        $t->true(!str_contains($blocks, '&lt;path'), 'Standalone SVG path should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg text fragments as raw review markup' => static function (TestRunner $t): void {
+        $text = '<text x="0" y="10" data-source="batch-58">Review label</text>';
+        $document = (new MarkdownReader())->read($text . "\n\nAfter the svg text.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($text, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the svg text.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $text, $blocks);
+        $t->true(!str_contains($blocks, '&lt;text'), 'Standalone SVG text should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
