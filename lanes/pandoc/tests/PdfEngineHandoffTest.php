@@ -2804,6 +2804,55 @@ MARKDOWN);
         $t->same('en-US', $sequence['finalPdfLanguage']);
     },
 
+    'fake runner extracts legacy pdfx document info identifiers from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfx-info.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Title (PDF/X handoff) /GTS_PDFXVersion (PDF/X-1a:2003) /GTS_PDFXConformance /PDF#2FX-1a#3A2003 >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R /Info 8 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/pdfx-info.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/pdfx-info.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'Title' => 'PDF/X handoff',
+            'GTS_PDFXVersion' => 'PDF/X-1a:2003',
+            'GTS_PDFXConformance' => 'PDF/X-1a:2003',
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfDocumentInfo']);
+        $t->contains('pdf-byte-document-info:3', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfDocumentInfo']);
+    },
+
     'fake runner decodes pdfdocencoding document info strings from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/pdfdocencoding-info.pdf']);

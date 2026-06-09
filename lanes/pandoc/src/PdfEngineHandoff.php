@@ -7214,6 +7214,12 @@ final class PdfEngineHandoff
         if ($trapped !== null && $trapped !== '') {
             $info['Trapped'] = $trapped;
         }
+        foreach (['GTS_PDFXVersion', 'GTS_PDFXConformance'] as $key) {
+            $value = $this->extractPdfStringOrNameValue($dictionary, $key);
+            if ($value !== null) {
+                $info[$key] = $value;
+            }
+        }
 
         return $info;
     }

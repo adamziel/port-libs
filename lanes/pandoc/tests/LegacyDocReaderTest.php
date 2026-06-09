@@ -2277,6 +2277,19 @@ return [
         $t->same(false, $compoundFile->hasStream('Notes'));
         $t->same('nested reviewer notes', $compoundFile->readStream('review/notes'));
     },
+    'looks up CFB nested stream paths with backslash separators for legacy DOC review' => static function (TestRunner $t) use ($buildCfb): void {
+        $bytes = $buildCfb([
+            'WordDocument' => 'root stream bytes',
+            'Review/Notes' => 'nested reviewer notes',
+        ]);
+        $compoundFile = CompoundFileBinary::fromBytes($bytes);
+
+        $t->true($compoundFile->hasStream('Review\\Notes'));
+        $t->true($compoundFile->hasStream('\\Review\\Notes'));
+        $t->same(21, $compoundFile->streamSize('REVIEW\\NOTES'));
+        $t->same('nested reviewer notes', $compoundFile->readStream('Review\\Notes'));
+        $t->same('nested reviewer notes', $compoundFile->readStream('\\review\\notes'));
+    },
     'looks up CFB Unicode stream paths case-insensitively for legacy DOC review' => static function (TestRunner $t) use ($buildCfb): void {
         $bytes = $buildCfb([
             'WordDocument' => 'root stream bytes',

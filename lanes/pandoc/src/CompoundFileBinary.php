@@ -962,7 +962,7 @@ final class CompoundFileBinary
 
     private static function normalizeName(string $name): string
     {
-        $name = ltrim($name, '/');
+        $name = str_replace('\\', '/', ltrim($name, '/\\'));
         if (function_exists('mb_strtolower')) {
             return mb_strtolower($name, 'UTF-8');
         }
