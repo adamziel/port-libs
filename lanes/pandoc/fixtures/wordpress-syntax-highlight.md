@@ -1594,3 +1594,28 @@ struct ReviewPacket {
     string title;
 }
 ```
+
+``` {.common-lisp #common-lisp-review .numberLines startFrom=1340}
+;;;; Common Lisp WordPress import review helper
+(defpackage #:wp-import.review
+  (:use #:cl)
+  (:export #:queue-review-packet))
+
+(in-package #:wp-import.review)
+
+(defstruct review-packet
+  source-id
+  title
+  blocks)
+
+(defun normalized-title (packet)
+  (let* ((title (string-trim " " (review-packet-title packet))))
+    (if (string= title "")
+        (format nil "Import ~A" (review-packet-source-id packet))
+        title)))
+
+(defun queue-review-packet (packet)
+  (list :source-id (review-packet-source-id packet)
+        :title (normalized-title packet)
+        :blocks (remove-if-not #'identity (review-packet-blocks packet))))
+```

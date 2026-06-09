@@ -1552,6 +1552,37 @@ XML;
     if (($result['document']->attr('mediaDurations')['overlaysById']['mo-chapter']['duration'] ?? null) !== '0:00:08.000') {
         throw new RuntimeException('Expected WordPress document handoff to expose EPUB media duration metadata');
     }
+    $manifestById = [];
+    foreach ($result['manifest'] as $manifestItem) {
+        $manifestById[$manifestItem['id']] = $manifestItem;
+    }
+    if (($manifestById['chapter']['byteSha256'] ?? null) !== hash('sha256', $chapterXhtml)) {
+        throw new RuntimeException('Expected EPUB OPF manifest chapter item to expose a package byte hash');
+    }
+    if (($manifestById['style']['byteSha256'] ?? null) !== hash('sha256', $reviewCss)) {
+        throw new RuntimeException('Expected EPUB OPF manifest stylesheet item to expose a package byte hash');
+    }
+    if (($manifestById['font-main']['byteSha256'] ?? null) !== null || ($manifestById['font-main']['encrypted'] ?? false) !== true) {
+        throw new RuntimeException('Expected encrypted EPUB OPF manifest font item to stay hash-free');
+    }
+    $manifestByteProvenance = $result['importReport']['manifest']['byteProvenance'] ?? [];
+    if (($manifestByteProvenance['itemCount'] ?? null) !== 17 || ($manifestByteProvenance['hashedItemCount'] ?? null) !== 15) {
+        throw new RuntimeException('Expected EPUB manifest byte-provenance report to summarize local hashed resources');
+    }
+    if (($manifestByteProvenance['encryptedItemCount'] ?? null) !== 1 || ($manifestByteProvenance['externalItemCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB manifest byte-provenance report to separate encrypted and remote resources');
+    }
+    if (($manifestByteProvenance['itemsById']['chapter']['byteSha256'] ?? null) !== hash('sha256', $chapterXhtml)) {
+        throw new RuntimeException('Expected EPUB import report to index manifest byte hashes by OPF id');
+    }
+    $encryptedManifestItem = $manifestByteProvenance['encryptedItems'][0] ?? [];
+    if (
+        ($encryptedManifestItem['id'] ?? null) !== 'font-main'
+        || !array_key_exists('byteSha256', $encryptedManifestItem)
+        || $encryptedManifestItem['byteSha256'] !== null
+    ) {
+        throw new RuntimeException('Expected EPUB import report to keep encrypted manifest resources hash-free');
+    }
     if (($result['importReport']['manifest']['externalItems'][0]['id'] ?? null) !== 'remote-audio-note') {
         throw new RuntimeException('Expected remote EPUB manifest resource to be reported separately from missing ZIP assets');
     }
@@ -1854,6 +1885,9 @@ echo 'spineMediaOverlayDuration=' . ($result['spine'][0]['mediaOverlayReference'
 echo 'spineMediaOverlayTextRefManifestId=' . ($result['spine'][0]['mediaOverlayReference']['textRefManifestId'] ?? '') . "\n";
 echo 'spineMediaOverlayTextRefSha256=' . ($result['spine'][0]['mediaOverlayReference']['textRefByteSha256'] ?? '') . "\n";
 echo 'remoteManifestResources=' . count($result['importReport']['manifest']['externalItems'] ?? []) . "\n";
+echo 'manifestByteProvenanceHashed=' . ($result['importReport']['manifest']['byteProvenance']['hashedItemCount'] ?? 0) . "\n";
+echo 'manifestChapterSha256=' . ($result['importReport']['manifest']['byteProvenance']['itemsById']['chapter']['byteSha256'] ?? '') . "\n";
+echo 'manifestEncryptedHashFree=' . ((($result['importReport']['manifest']['byteProvenance']['itemsById']['font-main']['byteSha256'] ?? null) === null) ? 'yes' : 'no') . "\n";
 echo 'manifestDuplicatePackageParts=' . implode(',', $result['importReport']['manifest']['duplicatePackageParts'] ?? []) . "\n";
 echo 'manifestDuplicatePackageDiagnostics=' . ($result['importReport']['manifest']['diagnosticCount'] ?? 0) . "\n";
 echo 'assets=' . count($result['assets']) . "\n";

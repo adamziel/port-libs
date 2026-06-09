@@ -3252,6 +3252,58 @@ XML;
         $t->same(2, count($result['document']->children));
         $t->contains('Chapter XHTML stays available', $result['document']->children[0]->attr('html'));
     },
+    'reports OPF manifest resource byte provenance for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $chapter1Xhtml, $encryptionXml): void {
+        $opfWithManifestResources = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+            . '<item id="remote-audio" href="https://cdn.example.test/audio/source-note.mp3" media-type="audio/mpeg"/>'
+            . '<item id="missing-audio" href="audio/missing.mp3" media-type="audio/mpeg"/>'
+            . '<item id="font-main" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithManifestResources,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+            ]
+        ));
+
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+
+        $t->same(hash('sha256', $chapter1Xhtml), $manifestById['chapter-1']['byteSha256']);
+        $t->same(strlen($chapter1Xhtml), $manifestById['chapter-1']['byteLength']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $manifestById['chapter-1']['crc32']);
+        $t->same(hash('sha256', 'body { color: #222; }'), $manifestById['style']['byteSha256']);
+        $t->same(hash('sha256', 'PNGDATA'), $manifestById['cover-image']['byteSha256']);
+        $t->same(null, $manifestById['remote-audio']['byteSha256']);
+        $t->same(null, $manifestById['missing-audio']['byteSha256']);
+        $t->same(true, $manifestById['font-main']['encrypted']);
+        $t->same(false, $manifestById['font-main']['canExposeBytes']);
+        $t->same(null, $manifestById['font-main']['byteSha256']);
+
+        $provenance = $result['importReport']['manifest']['byteProvenance'];
+        $t->same(true, $provenance['present']);
+        $t->same(9, $provenance['itemCount']);
+        $t->same(6, $provenance['hashedItemCount']);
+        $t->same(1, $provenance['encryptedItemCount']);
+        $t->same(1, $provenance['missingItemCount']);
+        $t->same(1, $provenance['externalItemCount']);
+        $t->same(hash('sha256', $chapter1Xhtml), $provenance['itemsById']['chapter-1']['byteSha256']);
+        $t->same(null, $provenance['itemsById']['remote-audio']['byteSha256']);
+        $t->same(null, $provenance['itemsById']['missing-audio']['byteSha256']);
+        $t->same(null, $provenance['itemsById']['font-main']['byteSha256']);
+        $t->same('/OEBPS/fonts/source.otf', $provenance['encryptedItems'][0]['part']);
+        $t->same('/OEBPS/audio/missing.mp3', $provenance['missingItems'][0]['part']);
+        $t->same('https://cdn.example.test/audio/source-note.mp3', $provenance['externalItems'][0]['target']);
+        $t->same($provenance['itemsById']['chapter-1'], $provenance['itemsByPart']['/OEBPS/text/chapter1.xhtml']);
+        $t->same($result['manifest'], $result['importReport']['manifest']['items']);
+    },
     'reports duplicate OPF manifest package parts for import preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithDuplicateTargets = str_replace(
             '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',

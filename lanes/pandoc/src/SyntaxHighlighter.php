@@ -69,6 +69,7 @@ final class SyntaxHighlighter
         'csharp' => 'csharp',
         'csx' => 'csharp',
         'cxx' => 'cpp',
+        'cl' => 'commonlisp',
         'clj' => 'clojure',
         'cljc' => 'clojure',
         'cljs' => 'clojure',
@@ -194,9 +195,13 @@ final class SyntaxHighlighter
         'literatehaskell' => 'haskell',
         'liquid' => 'liquid',
         'liquid-html' => 'liquid',
+        'lisp' => 'commonlisp',
+        'lsp' => 'commonlisp',
         'lua' => 'lua',
         'pandoc-lua' => 'lua',
         'commonmark' => 'markdown',
+        'common-lisp' => 'commonlisp',
+        'commonlisp' => 'commonlisp',
         'gfm' => 'markdown',
         'go' => 'go',
         'golang' => 'go',
@@ -796,6 +801,7 @@ final class SyntaxHighlighter
             'c', 'cpp' => $this->tokenizeC($code),
             'clojure' => $this->tokenizeClojure($code),
             'cmake' => $this->tokenizeCMake($code),
+            'commonlisp' => $this->tokenizeCommonLisp($code),
             'csharp' => $this->tokenizeCSharp($code),
             'css' => $this->tokenizeCss($code),
             'csv' => $this->tokenizeDelimitedText($code, ','),
@@ -3159,6 +3165,29 @@ final class SyntaxHighlighter
             ['datatype', '/^\\b[A-Z][A-Za-z0-9_.]*(?:\\/[A-Z][A-Za-z0-9_.]*)?\\b/'],
             ['variable', '/^[A-Za-z*!?+<>=_.$%&-][A-Za-z0-9*!?+<>=_.$%&\\/:-]*/'],
             ['operator', '/^(?:#\\{|#\\(|#\\[|~@|->>|->|::?|[{}()[\\]\'`~@^.,])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeCommonLisp(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#\\|[\\s\\S]*?\\|#/'],
+            ['comment', '/^;[^\\n]*/'],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['constant', '/^#\\\\(?:Space|Tab|Newline|Return|Backspace|Page|Rubout|[A-Za-z0-9_-]+)/i'],
+            ['constant', '/^#:[A-Za-z0-9*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['attribute', '/^:[A-Za-z0-9*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['variable', '/^\\*[A-Za-z0-9!?+<>=_.$%&~^\\/:-]+\\*/'],
+            ['constant', '/^(?:nil|t)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/i'],
+            ['datatype', '/^(?:array|bit-vector|boolean|character|condition|cons|fixnum|float|hash-table|integer|list|package|pathname|sequence|string|symbol|vector)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/i'],
+            ['keyword', '/^(?:block|case|catch|collect|cond|declare|defclass|defconstant|defgeneric|defmacro|defmethod|defpackage|defparameter|defstruct|deftype|defun|defvar|do|dolist|dotimes|flet|for|function|handler-bind|handler-case|if|in|in-package|labels|lambda|let\\*?|loop|macrolet|multiple-value-bind|progn|quote|return|return-from|setf|setq|tagbody|throw|unless|unwind-protect|when)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/i'],
+            ['function', '/^(?:append|apply|aref|car|cdr|concatenate|copy-list|error|find|format|funcall|getf|gethash|identity|length|list|make-[A-Za-z0-9*!?+<>=_.$%&~^\\/:-]+|mapcar|maphash|member|not|null|reduce|remove-if-not|review-packet-[A-Za-z0-9*!?+<>=_.$%&~^\\/:-]+|sort|string=|string-downcase|string-trim|write-line)(?=$|[^A-Za-z0-9*!?+<>=_.$%&~^\\/:-])/i'],
+            ['number', '/^-?(?:#x[0-9A-Fa-f]+|#b[01]+|#o[0-7]+|\\d+\\/\\d+|(?:\\d+\\.\\d*|\\.\\d+|\\d+)(?:[eEdDfFlLsS][+-]?\\d+)?)(?=$|[^A-Za-z0-9_])/'],
+            ['variable', '/^[A-Za-z0-9*!?+<>=_.$%&~^\\/:-][A-Za-z0-9*!?+<>=_.$%&~^\\/:-]*/'],
+            ['operator', '/^(?:#\\x27|#\\(|[,`\\x27()]|[\\[\\]{}])/'],
         ]);
     }
 

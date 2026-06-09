@@ -4137,6 +4137,7 @@ final class EpubReader
                     'exists' => false,
                     'byteLength' => null,
                     'crc32' => null,
+                    'byteSha256' => null,
                     'encrypted' => false,
                     'canExposeBytes' => false,
                     'encryption' => null,
@@ -4154,6 +4155,20 @@ final class EpubReader
             $fragmentFields = self::targetFragmentFields($target);
             $exists = $package->has($part);
             $entry = $exists ? $package->entry($part) : null;
+            $byteSha256 = null;
+            $diagnostics = [];
+            if ($exists) {
+                try {
+                    $byteSha256 = hash('sha256', $package->read($part));
+                } catch (\Throwable $exception) {
+                    $diagnostics[] = [
+                        'type' => 'manifest-resource-bytes-unavailable',
+                        'part' => $part,
+                        'message' => $exception->getMessage(),
+                    ];
+                }
+            }
+
             $manifest[$id] = [
                 'id' => $id,
                 'href' => $href,
@@ -4176,10 +4191,11 @@ final class EpubReader
                 'exists' => $exists,
                 'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'byteSha256' => $byteSha256,
                 'encrypted' => false,
                 'canExposeBytes' => true,
                 'encryption' => null,
-                'diagnostics' => [],
+                'diagnostics' => $diagnostics,
             ];
         }
 
@@ -4322,6 +4338,7 @@ final class EpubReader
             'itemsByPart' => $itemsByPart,
             'missingItems' => $missingItems,
             'externalItems' => $externalItems,
+            'byteProvenance' => self::manifestByteProvenanceReport($manifest),
             'duplicatePackagePartCount' => count($duplicateGroups),
             'duplicatePackageItemCount' => $duplicateItemCount,
             'duplicatePackageParts' => array_values(array_map(
@@ -4331,6 +4348,82 @@ final class EpubReader
             'duplicatePackagePartItems' => $duplicateGroups,
             'diagnostics' => $diagnostics,
             'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestByteProvenanceReport(array $manifest): array
+    {
+        $items = [];
+        $itemsById = [];
+        $itemsByPart = [];
+        $hashedItems = [];
+        $encryptedItems = [];
+        $missingItems = [];
+        $externalItems = [];
+
+        foreach ($manifest as $item) {
+            $id = (string) ($item['id'] ?? '');
+            $part = is_string($item['part'] ?? null) ? $item['part'] : null;
+            $byteSha256 = is_string($item['byteSha256'] ?? null) ? $item['byteSha256'] : null;
+            $summary = [
+                'id' => $id,
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                'part' => $part,
+                'external' => ($item['external'] ?? false) === true,
+                'exists' => ($item['exists'] ?? false) === true,
+                'mediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'byteLength' => is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null,
+                'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+                'byteSha256' => $byteSha256,
+                'encrypted' => self::isEncryptedManifestItem($item),
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'diagnosticCount' => count(is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : []),
+            ];
+
+            $items[] = $summary;
+            if ($id !== '') {
+                $itemsById[$id] = $summary;
+            }
+            if ($part !== null && $part !== '' && !isset($itemsByPart[$part])) {
+                $itemsByPart[$part] = $summary;
+            }
+            if ($byteSha256 !== null) {
+                $hashedItems[] = $summary;
+            }
+            if ($summary['encrypted']) {
+                $encryptedItems[] = $summary;
+            }
+            if (!$summary['external'] && !$summary['exists']) {
+                $missingItems[] = $summary;
+            }
+            if ($summary['external']) {
+                $externalItems[] = $summary;
+            }
+        }
+
+        ksort($itemsById, SORT_STRING);
+        ksort($itemsByPart, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'itemCount' => count($items),
+            'hashedItemCount' => count($hashedItems),
+            'encryptedItemCount' => count($encryptedItems),
+            'missingItemCount' => count($missingItems),
+            'externalItemCount' => count($externalItems),
+            'items' => $items,
+            'itemsById' => $itemsById,
+            'itemsByPart' => $itemsByPart,
+            'hashedItems' => $hashedItems,
+            'encryptedItems' => $encryptedItems,
+            'missingItems' => $missingItems,
+            'externalItems' => $externalItems,
         ];
     }
 
@@ -5574,6 +5667,7 @@ final class EpubReader
 
             $manifestById[$id]['encrypted'] = true;
             $manifestById[$id]['canExposeBytes'] = false;
+            $manifestById[$id]['byteSha256'] = null;
             $manifestById[$id]['encryption'] = [
                 'items' => $entries,
                 'algorithm' => $entries[0]['algorithm'] ?? null,

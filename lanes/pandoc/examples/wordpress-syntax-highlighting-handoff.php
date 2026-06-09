@@ -526,6 +526,12 @@ if (!$dCodeBlock instanceof PortLibs\Pandoc\AstNode || $dCodeBlock->type !== 'co
 }
 $d = $highlighter->highlightCodeBlock($dCodeBlock, 'haddock');
 $dWordpressBlock = $highlighter->wordpressHtmlBlock($dCodeBlock, 'haddock');
+$commonLispCodeBlock = $document->children[84] ?? null;
+if (!$commonLispCodeBlock instanceof PortLibs\Pandoc\AstNode || $commonLispCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Common Lisp review packet code block');
+}
+$commonLisp = $highlighter->highlightCodeBlock($commonLispCodeBlock, 'monochrome');
+$commonLispWordpressBlock = $highlighter->wordpressHtmlBlock($commonLispCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2297,6 +2303,33 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($dWordpressBlock, '<span class="kw">struct</span> <span class="dt">ReviewPacket</span>')) {
         throw new RuntimeException('Expected D struct token handoff');
     }
+    if (($commonLisp['language'] ?? '') !== 'commonlisp') {
+        throw new RuntimeException('Expected Common Lisp alias handoff');
+    }
+    if (($commonLisp['requestedLanguage'] ?? '') !== 'common-lisp') {
+        throw new RuntimeException('Expected Common Lisp requested-language metadata');
+    }
+    if (($commonLisp['lineNumbering']['start'] ?? null) !== 1340) {
+        throw new RuntimeException('Expected Common Lisp line-number start handoff');
+    }
+    if (!str_contains($commonLisp['html'], '<span class="op">(</span><span class="kw">defpackage</span> <span class="cn">#:wp-import.review</span>')) {
+        throw new RuntimeException('Expected Common Lisp package token handoff');
+    }
+    if (!str_contains($commonLisp['html'], '<span class="kw">defun</span> <span class="va">normalized-title</span>')) {
+        throw new RuntimeException('Expected Common Lisp defun token handoff');
+    }
+    if (!str_contains($commonLisp['html'], '<span class="fu">string-trim</span> <span class="st">&quot; &quot;</span>')) {
+        throw new RuntimeException('Expected Common Lisp string-trim token handoff');
+    }
+    if (!str_contains($commonLisp['html'], '<span class="fu">format</span> <span class="cn">nil</span> <span class="st">&quot;Import ~A&quot;</span>')) {
+        throw new RuntimeException('Expected Common Lisp nil constant and format token handoff');
+    }
+    if (!str_contains($commonLispWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Common Lisp WordPress style metadata');
+    }
+    if (!str_contains($commonLispWordpressBlock, '<span class="fu">remove-if-not</span> <span class="op">#&#039;</span><span class="fu">identity</span>')) {
+        throw new RuntimeException('Expected Common Lisp function quote token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2399,6 +2432,7 @@ echo "protobufHighlightedHtml:\n" . $protobuf['html'] . "\n";
 echo "tclHighlightedHtml:\n" . $tcl['html'] . "\n";
 echo "lineHighlightHighlightedHtml:\n" . $lineHighlight['html'] . "\n";
 echo "dHighlightedHtml:\n" . $d['html'] . "\n";
+echo "commonLispHighlightedHtml:\n" . $commonLisp['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2472,4 +2506,5 @@ echo "protobufWordpressBlock:\n" . $protobufWordpressBlock . "\n";
 echo "tclWordpressBlock:\n" . $tclWordpressBlock . "\n";
 echo "lineHighlightWordpressBlock:\n" . $lineHighlightWordpressBlock . "\n";
 echo "dWordpressBlock:\n" . $dWordpressBlock . "\n";
+echo "commonLispWordpressBlock:\n" . $commonLispWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

@@ -96,6 +96,9 @@ $macRomaniaText = (string) $macRomaniaSource->children[1]->attr('text');
 $macCroatianBytes = "# Mac Croatian\n\nNovinar \xD2\xA9ibenik\xD3 \xD1 \xC6evapi; \xAEupanija, \xB9uma, \xBEar; \xC6\xC8\xD0/\xE6\xE8\xF0.";
 $macCroatianSource = (new MarkdownReader())->readBytes($macCroatianBytes, 'x-mac-croatian');
 $macCroatianText = (string) $macCroatianSource->children[1]->attr('text');
+$macDingbatsBytes = "\x21\x22\x23 \x33\x34 \x48 \xA8\xAA\xAB \xAC\xB6\xBF \xD5\xD6\xD7 \xE0\xEF \x80.";
+$macDingbatsSource = (new MarkdownReader())->readBytes($macDingbatsBytes, 'x-mac-dingbats');
+$macDingbatsText = (string) $macDingbatsSource->children[0]->attr('text');
 $ibm855Bytes = "# DOS 855\n\n\xE2\xA8\xA6\xA0\xC6\xE5\xD6\xE1 \xD8\xE1\xB7\xEB\xA8\xE5; \x85\xD0\xC6\xA0; \x91\x90 \x93\x92; box \xB3\xC4\xDA; \xEF\xFD.";
 $ibm855Source = (new MarkdownReader())->readBytes($ibm855Bytes, 'cp855');
 $ibm855Text = (string) $ibm855Source->children[1]->attr('text');
@@ -669,6 +672,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macCroatianSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macCroatianText) . '/' . UnicodeText::displayWidth($macCroatianText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Mac Dingbats source'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $macDingbatsText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($macDingbatsSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($macDingbatsText) . '/' . UnicodeText::displayWidth($macDingbatsText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'IBM855 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $ibm855Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($ibm855Text) . '/' . UnicodeText::displayWidth($ibm855Text, 'wide')])]),
@@ -1162,6 +1170,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>Mac Croatian source</td><td>Novinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.</td><td>mac-croatian:57/61</td>')) {
         throw new RuntimeException('charset handoff self-test missing Mac Croatian decode audit row');
+    }
+    if (($macDingbatsSource->attr('sourceEncoding')['encoding'] ?? '') !== 'mac-dingbats') {
+        throw new RuntimeException('charset handoff self-test missing Mac Dingbats source encoding');
+    }
+    if (!str_contains($blocks, "<td>Mac Dingbats source</td><td>✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎</td><td>mac-dingbats:26/37</td>")) {
+        throw new RuntimeException('charset handoff self-test missing Mac Dingbats decode audit row');
     }
     if (($ibm855Source->attr('sourceEncoding')['encoding'] ?? '') !== 'ibm855') {
         throw new RuntimeException('charset handoff self-test missing IBM855 source encoding');

@@ -545,6 +545,30 @@ return [
         $t->contains('<h1 id="mac-croatian">Mac Croatian</h1>', $blocks);
         $t->contains('<p>Novinar “Šibenik” — Ćevapi; Županija, šuma, žar; ĆČĐ/ćčđ.</p>', $blocks);
     },
+    'decodes mac dingbats source bytes into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "\x21\x22\x23 \x33\x34 \x48 \xA8\xAA\xAB \xAC\xB6\xBF \xD5\xD6\xD7 \xE0\xEF \x80.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-dingbats');
+        $document = (new MarkdownReader())->readBytes($bytes, 'macdingbats');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $privateUse = UnicodeText::decodeBytes("\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8A\x8B\x8C\x8D", 'mac-dingbats');
+        $undefined = UnicodeText::decodeBytes("A\x8EB\xA0C\xF0D\xFFE", 'mac-dingbats');
+
+        $t->same('mac-dingbats', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎", $decoded['text']);
+        $t->same("\u{F8D7}\u{F8D8}\u{F8D9}\u{F8DA}\u{F8DB}\u{F8DC}\u{F8DD}\u{F8DE}\u{F8DF}\u{F8E0}\u{F8E1}\u{F8E2}\u{F8E3}\u{F8E4}", $privateUse['text']);
+        $t->same(14, UnicodeText::displayWidth($privateUse['text']));
+        $t->same(28, UnicodeText::displayWidth($privateUse['text'], 'wide'));
+        $t->same("✡\u{FFFD}✢\u{FFFD}✣\u{FFFD}✤\u{FFFD}✥", $undefined['text']);
+        $t->same(4, $undefined['repairs']);
+        $t->same(['encoding' => 'mac-dingbats', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same(1, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same("✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎", $document->children[0]->attr('text'));
+        $t->same(26, UnicodeText::displayWidth((string) $document->children[0]->attr('text')));
+        $t->same(37, UnicodeText::displayWidth((string) $document->children[0]->attr('text'), 'wide'));
+        $t->contains("<p>✁✂✃ ✓✔ ★ ♣♥♠ ①❶❿ →↔↕ ➠➯ \u{F8D7}✎</p>", $blocks);
+    },
     'decodes mac thai source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# Mac Thai\n\n\xE0\xB9\xD7\xE9\xCD\xCB\xD2 \xE0\xCD\xA1\xCA\xD2\xC3; \x80\x81 \x8Dtext\x8E \xDD \xDF20; \xDB\xDC.";
         $decoded = UnicodeText::decodeBytes($bytes, 'x-mac-thai');

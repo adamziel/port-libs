@@ -142,6 +142,10 @@ return [
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('cljs'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('edn'));
         $t->same('clojure', SyntaxHighlighter::normalizeLanguage('language-clj'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('common-lisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('commonlisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('lisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('language-cl'));
         $t->same('scala', SyntaxHighlighter::normalizeLanguage('scala'));
         $t->same('scala', SyntaxHighlighter::normalizeLanguage('sbt'));
         $t->same('scala', SyntaxHighlighter::normalizeLanguage('language-scala-sbt'));
@@ -4102,6 +4106,54 @@ return [
         $t->same('dlang', $directD['requestedLanguage']);
         $t->contains('<span class="ot">@safe</span> <span class="dt">string</span> <span class="fu">queue</span><span class="op">(</span><span class="dt">ReviewPacket</span> <span class="va">packet</span><span class="op">)</span>', $directD['html']);
         $t->contains('<span class="kw">return</span> <span class="fu">format</span><span class="op">!</span><span class="st">&quot;Import %s&quot;</span><span class="op">(</span><span class="va">packet</span><span class="op">.</span><span class="va">sourceId</span><span class="op">);</span>', $directD['html']);
+    },
+    'highlights common lisp review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[84] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Common Lisp review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directCommonLisp = $highlighter->highlight(
+            '(loop for block in blocks collect (normalized-title block))',
+            'cl'
+        );
+
+        $t->same('common-lisp', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('common-lisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('commonlisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('lisp'));
+        $t->same('commonlisp', SyntaxHighlighter::normalizeLanguage('language-cl'));
+        $t->same('commonlisp', $highlighted['language']);
+        $t->same('common-lisp', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1340, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource common-lisp numberLines"><code class="sourceCode commonlisp" style="counter-reset: source-line 1339;">', $highlighted['html']);
+        $t->contains('<span id="common-lisp-review-1340"><a href="#common-lisp-review-1340"></a><span class="co">;;;; Common Lisp WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">defpackage</span> <span class="cn">#:wp-import.review</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="ot">:use</span> <span class="cn">#:cl</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">in-package</span> <span class="cn">#:wp-import.review</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">defstruct</span> <span class="va">review-packet</span>', $highlighted['html']);
+        $t->contains('<span class="op">(</span><span class="kw">defun</span> <span class="va">normalized-title</span> <span class="op">(</span><span class="va">packet</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let*</span> <span class="op">((</span><span class="va">title</span> <span class="op">(</span><span class="fu">string-trim</span> <span class="st">&quot; &quot;</span> <span class="op">(</span><span class="fu">review-packet-title</span> <span class="va">packet</span><span class="op">))))</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="op">(</span><span class="fu">string=</span> <span class="va">title</span> <span class="st">&quot;&quot;</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="fu">format</span> <span class="cn">nil</span> <span class="st">&quot;Import ~A&quot;</span>', $highlighted['html']);
+        $t->contains('<span class="dt">list</span> <span class="ot">:source-id</span> <span class="op">(</span><span class="fu">review-packet-source-id</span> <span class="va">packet</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="ot">:blocks</span> <span class="op">(</span><span class="fu">remove-if-not</span> <span class="op">#&#039;</span><span class="fu">identity</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="kw">defun</span> <span class="va">queue-review-packet</span>', $wordpressBlock);
+        $t->same('commonlisp', $directCommonLisp['language']);
+        $t->same('cl', $directCommonLisp['requestedLanguage']);
+        $t->contains('<span class="kw">loop</span> <span class="kw">for</span> <span class="kw">block</span> <span class="kw">in</span> <span class="va">blocks</span> <span class="kw">collect</span>', $directCommonLisp['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

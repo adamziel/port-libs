@@ -10898,6 +10898,167 @@ XML
 XML
         ));
     },
+    'applies bounded csl default name variable terms for count labels' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'counted-author-packet',
+                'type' => 'report',
+                'title' => 'Counted Author Packet',
+                'author' => [
+                    ['family' => 'Cruz', 'given' => 'Ana'],
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'composer-packet',
+                'type' => 'song',
+                'title' => 'Composer Review Score',
+                'composer' => [
+                    ['family' => 'Morton', 'given' => 'Mia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+            [
+                'id' => 'container-author-packet',
+                'type' => 'chapter',
+                'title' => 'Container Author Chapter',
+                'container-author' => [
+                    ['family' => 'Container', 'given' => 'Casey'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+            ],
+            [
+                'id' => 'original-author-packet',
+                'type' => 'book',
+                'title' => 'Original Author Translation',
+                'original-author' => [
+                    ['family' => 'Original', 'given' => 'Ora'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Name Variable Term Review</title>
+    <id>https://example.test/styles/bounded-name-variable-term-review</id>
+    <updated>2026-06-09T02:39:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <choose>
+          <if variable="author">
+            <names variable="author">
+              <name form="count"/>
+              <label prefix=" "/>
+            </names>
+          </if>
+        </choose>
+        <names variable="composer">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". "/>
+        </names>
+        <names variable="container-author">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". "/>
+        </names>
+        <names variable="original-author">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". "/>
+        </names>
+        <text variable="title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <group delimiter=" | ">
+        <choose>
+          <if variable="author">
+            <names variable="author">
+              <name form="count"/>
+              <label prefix=" "/>
+            </names>
+          </if>
+        </choose>
+        <names variable="composer">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <names variable="container-author">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". " name-as-sort-order="all"/>
+        </names>
+        <names variable="original-author">
+          <label form="verb" suffix=" "/>
+          <name form="long" initialize-with=". " name-as-sort-order="all"/>
+        </names>
+      </group>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('count', $summary['citationRendering'][0]['children'][0]['branches'][0]['children'][0]['nameRendering']['form'] ?? null);
+        $t->same('verb', $summary['citationRendering'][0]['children'][1]['nameRendering']['label']['form'] ?? null);
+        $t->same('verb', $summary['bibliographyRendering'][0]['children'][2]['nameRendering']['label']['form'] ?? null);
+
+        $t->same('[2 | Counted Author Packet; composed by Morton | Composer Review Score; by Container | Container Author Chapter; by Original | Original Author Translation]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'counted-author-packet', 'text' => '[@counted-author-packet]']),
+            new AstNode('citation', ['id' => 'composer-packet', 'text' => '[@composer-packet]']),
+            new AstNode('citation', ['id' => 'container-author-packet', 'text' => '[@container-author-packet]']),
+            new AstNode('citation', ['id' => 'original-author-packet', 'text' => '[@original-author-packet]']),
+        ]));
+        $t->same('2 :: Counted Author Packet', $processor->renderBibliographyEntry('counted-author-packet'));
+        $t->same('composed by Morton, M. :: Composer Review Score', $processor->renderBibliographyEntry('composer-packet'));
+        $t->same('by Container, C. :: Container Author Chapter', $processor->renderBibliographyEntry('container-author-packet'));
+        $t->same('by Original, O. :: Original Author Translation', $processor->renderBibliographyEntry('original-author-packet'));
+
+        $localized = $processor->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <locale>
+    <terms>
+      <term name="author"><single>source author</single><multiple>source authors</multiple></term>
+    </terms>
+  </locale>
+  <citation>
+    <layout>
+      <names variable="author">
+        <name form="count"/>
+        <label prefix=" "/>
+      </names>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" ">
+      <names variable="author">
+        <name form="count"/>
+        <label prefix=" "/>
+      </names>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+        $t->same('2 source authors Counted Author Packet', $localized->renderBibliographyEntry('counted-author-packet'));
+
+        $document = (new MarkdownReader())->read('Role terms [@counted-author-packet; @composer-packet; @container-author-packet; @original-author-packet] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Role terms [2 | Counted Author Packet; composed by Morton | Composer Review Score; by Container | Container Author Chapter; by Original | Original Author Translation] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>2 2026</dt><dd>2 :: Counted Author Packet</dd>', $blocks);
+        $t->contains('<dt>Composer Review Score 2025</dt><dd>composed by Morton, M. :: Composer Review Score</dd>', $blocks);
+        $t->contains('<dt>Container Author Chapter 2024</dt><dd>by Container, C. :: Container Author Chapter</dd>', $blocks);
+        $t->contains('<dt>Original Author Translation 2023</dt><dd>by Original, O. :: Original Author Translation</dd>', $blocks);
+    },
     'applies bounded csl layout text date group and names rendering elements' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
