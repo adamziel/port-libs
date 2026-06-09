@@ -873,6 +873,15 @@ final class PandocFormatRegistry
      *     partialOutputFormats:list<string>,
      *     unsupportedInputFormats:list<string>,
      *     unsupportedOutputFormats:list<string>,
+     *     unsupportedFormatSummary:array{
+     *         anyUnsupported:list<string>,
+     *         unsupportedBoth:list<string>,
+     *         partialInputUnsupportedOutput:list<string>,
+     *         unsupportedInputOnly:list<string>,
+     *         unsupportedOutputOnly:list<string>,
+     *         noNativeReader:list<string>,
+     *         noNativeWriter:list<string>
+     *     },
      *     formats:array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, inputImplementation:string, outputImplementation:string}>
      * }
      */
@@ -913,7 +922,60 @@ final class PandocFormatRegistry
             'partialOutputFormats' => self::formatsWithStatus($outputSupport, 'partial'),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
+            'unsupportedFormatSummary' => self::richPackageUnsupportedFormatSummary(),
             'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     anyUnsupported:list<string>,
+     *     unsupportedBoth:list<string>,
+     *     partialInputUnsupportedOutput:list<string>,
+     *     unsupportedInputOnly:list<string>,
+     *     unsupportedOutputOnly:list<string>,
+     *     noNativeReader:list<string>,
+     *     noNativeWriter:list<string>
+     * }
+     */
+    public static function richPackageUnsupportedFormatSummary(): array
+    {
+        $directions = self::richPackageFormatDirections();
+        $anyUnsupported = [];
+        $unsupportedBoth = [];
+        $partialInputUnsupportedOutput = [];
+        $unsupportedInputOnly = [];
+        $unsupportedOutputOnly = [];
+
+        foreach ($directions as $format => $direction) {
+            $inputUnsupported = $direction['inputStatus'] === 'unsupported';
+            $outputUnsupported = $direction['outputStatus'] === 'unsupported';
+
+            if ($inputUnsupported || $outputUnsupported) {
+                $anyUnsupported[] = $format;
+            }
+            if ($inputUnsupported && $outputUnsupported) {
+                $unsupportedBoth[] = $format;
+            }
+            if ($direction['inputStatus'] === 'partial' && $outputUnsupported) {
+                $partialInputUnsupportedOutput[] = $format;
+            }
+            if ($direction['direction'] === 'input-only' && $inputUnsupported) {
+                $unsupportedInputOnly[] = $format;
+            }
+            if ($direction['direction'] === 'output-only' && $outputUnsupported) {
+                $unsupportedOutputOnly[] = $format;
+            }
+        }
+
+        return [
+            'anyUnsupported' => $anyUnsupported,
+            'unsupportedBoth' => $unsupportedBoth,
+            'partialInputUnsupportedOutput' => $partialInputUnsupportedOutput,
+            'unsupportedInputOnly' => $unsupportedInputOnly,
+            'unsupportedOutputOnly' => $unsupportedOutputOnly,
+            'noNativeReader' => self::unsupportedRichPackageInputFormats(),
+            'noNativeWriter' => self::unsupportedRichPackageOutputFormats(),
         ];
     }
 

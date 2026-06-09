@@ -524,6 +524,68 @@ return [
         $t->same('not-applicable', $packet['formats']['pdf']['inputStatus']);
         $t->same('unsupported', $packet['formats']['pdf']['outputStatus']);
     },
+    'summarizes rich package unsupported format surfaces without converter claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::richPackageUnsupportedFormatSummary();
+        $packet = PandocFormatRegistry::richPackageFormatReviewPacket();
+        $directions = PandocFormatRegistry::richPackageFormatDirections();
+
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same([
+            'docx',
+            'epub',
+            'ipynb',
+            'odt',
+            'pptx',
+            'xlsx',
+            'chunkedhtml',
+            'epub2',
+            'epub3',
+            'icml',
+            'opendocument',
+            'pdf',
+        ], $summary['anyUnsupported']);
+        $t->same(['ipynb', 'pptx'], $summary['unsupportedBoth']);
+        $t->same(['docx', 'epub', 'odt'], $summary['partialInputUnsupportedOutput']);
+        $t->same(['xlsx'], $summary['unsupportedInputOnly']);
+        $t->same(['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'], $summary['unsupportedOutputOnly']);
+        $t->same(PandocFormatRegistry::unsupportedRichPackageInputFormats(), $summary['noNativeReader']);
+        $t->same(PandocFormatRegistry::unsupportedRichPackageOutputFormats(), $summary['noNativeWriter']);
+
+        foreach ($summary['anyUnsupported'] as $format) {
+            $direction = $directions[$format];
+            $t->same(true, $direction['inputStatus'] === 'unsupported' || $direction['outputStatus'] === 'unsupported', "Rich package {$format} should have an unsupported surface");
+        }
+
+        foreach ($summary['partialInputUnsupportedOutput'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('partial', $review['inputStatus'], "Rich package {$format} should keep partial native input accounting");
+            $t->same('unsupported', $review['outputStatus'], "Rich package {$format} should keep unsupported output accounting");
+            $t->same(false, $review['inputImplementation'] === '', "Rich package {$format} should keep its existing partial reader class");
+            $t->same('', $review['outputImplementation'], "Rich package {$format} must not register a native writer");
+        }
+
+        foreach ($summary['unsupportedBoth'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('unsupported', $review['inputStatus'], "Rich package {$format} should not claim native reader parity");
+            $t->same('unsupported', $review['outputStatus'], "Rich package {$format} should not claim native writer parity");
+            $t->same('', $review['inputImplementation']);
+            $t->same('', $review['outputImplementation']);
+        }
+
+        $xlsx = $packet['formats']['xlsx'];
+        $t->same('input-only', $xlsx['direction']);
+        $t->same('unsupported', $xlsx['inputStatus']);
+        $t->same('not-applicable', $xlsx['outputStatus']);
+        $t->same('', $xlsx['inputImplementation']);
+
+        foreach ($summary['unsupportedOutputOnly'] as $format) {
+            $review = $packet['formats'][$format];
+            $t->same('output-only', $review['direction'], "Rich package {$format} should remain output-only");
+            $t->same('not-applicable', $review['inputStatus'], "Rich package {$format} should not appear as an input token");
+            $t->same('unsupported', $review['outputStatus'], "Rich package {$format} should keep unsupported output accounting");
+            $t->same('', $review['outputImplementation'], "Rich package {$format} must not register a native writer");
+        }
+    },
     'tracks wiki format input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
         $directions = PandocFormatRegistry::wikiFormatDirections();
         $inputFormats = PandocFormatRegistry::wikiInputFormats();
