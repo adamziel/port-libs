@@ -14278,6 +14278,107 @@ XML;
         $t->contains('<p>Before <param data-source="batch-47" name="movie" value="plugin.swf"></param></p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document param object tag should not be dropped from the paragraph');
     },
+    'maps upstream html reader object containers as raw review markup' => static function (TestRunner $t): void {
+        $object = '<object data="movie.swf" type="application/x-shockwave-flash" data-source="batch-48"><param name="movie" value="movie.swf"></object>';
+        $blockDocument = (new MarkdownReader())->read($object . "\n\nAfter the object container.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($object, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the object container.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $object, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;object'), 'Standalone object container should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $object
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineObject = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<object data="movie.swf" data-source="batch-48" type="application/x-shockwave-flash"><param name="movie" value="movie.swf"></param></object>', $inlineObject->attr('html'));
+        $t->contains('<p>Before <object data="movie.swf" data-source="batch-48" type="application/x-shockwave-flash"><param name="movie" value="movie.swf"></param></object></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document object container should not be dropped from the paragraph');
+    },
+    'maps upstream html reader area map tags as raw review markup' => static function (TestRunner $t): void {
+        $area = '<area shape="rect" coords="0,0,80,40" href="chapter.html" alt="Chapter" data-source="batch-48">';
+        $blockDocument = (new MarkdownReader())->read($area . "\n\nAfter the image map area.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($area, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the image map area.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $area, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;area'), 'Standalone area map tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $area
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineArea = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<area alt="Chapter" coords="0,0,80,40" data-source="batch-48" href="chapter.html" shape="rect">', $inlineArea->attr('html'));
+        $t->contains('<p>Before <area alt="Chapter" coords="0,0,80,40" data-source="batch-48" href="chapter.html" shape="rect"></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document area map tag should not be dropped from the paragraph');
+    },
+    'maps upstream html reader col tags as raw review markup' => static function (TestRunner $t): void {
+        $col = '<col span="2" class="wide" data-source="batch-48">';
+        $blockDocument = (new MarkdownReader())->read($col . "\n\nAfter the table column.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($col, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the table column.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $col, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;col'), 'Standalone col tag should not be escaped into reviewer text');
+    },
+    'maps upstream html reader wbr tags as raw review markup' => static function (TestRunner $t): void {
+        $wbr = '<wbr data-source="batch-48">';
+        $blockDocument = (new MarkdownReader())->read($wbr . "\n\nAfter the word-break hint.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($wbr, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the word-break hint.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $wbr, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;wbr'), 'Standalone wbr tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $wbr
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineWbr = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<wbr data-source="batch-48">', $inlineWbr->attr('html'));
+        $t->contains('<p>Before <wbr data-source="batch-48"></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document wbr tag should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

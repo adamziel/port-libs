@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(iframe|script|style|select)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(iframe|object|script|style|select)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -8161,7 +8161,7 @@ final class MarkdownReader
             return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
         }
 
-        if (preg_match('/^ {0,3}<(?:base|embed|hr|input|link|meta|param|source|track)(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if (preg_match('/^ {0,3}<(?:area|base|col|embed|hr|input|link|meta|param|source|track|wbr)(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['base', 'embed', 'iframe', 'input', 'link', 'meta', 'param', 'select', 'source', 'track'], true)) {
+        if (in_array($name, ['area', 'base', 'embed', 'iframe', 'input', 'link', 'meta', 'object', 'param', 'select', 'source', 'track', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 
