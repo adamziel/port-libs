@@ -79,6 +79,83 @@ return [
         $t->same('note', $note->type);
         $t->same('paragraph', $note->children[0]->type);
     },
+    'reads legacy pandoc json metadata envelopes into shared ast documents' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $wrappedPacket = [
+            'pandoc-api-version' => [1, 17, 0, 4],
+            'meta' => [
+                'unMeta' => [
+                    'title' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Legacy'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'Packet'],
+                    ]],
+                    'review' => ['t' => 'MetaMap', 'c' => [
+                        'queue' => ['t' => 'MetaString', 'c' => 'wp-import'],
+                        'blocked' => ['t' => 'MetaBool', 'c' => false],
+                    ]],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ];
+
+        $wrappedDocument = $reader->readPacket($wrappedPacket);
+        $wrappedMeta = $wrappedDocument->attr('meta');
+        $title = $wrappedMeta['title'];
+        $review = $wrappedMeta['review'];
+
+        $t->same([1, 17, 0, 4], $wrappedDocument->attr('pandocApiVersion'));
+        $t->same('inlines', $title['type']);
+        $t->same('Legacy', $title['children'][0]->attr('text'));
+        $t->same('Packet', $title['children'][2]->attr('text'));
+        $t->same('map', $review['type']);
+        $t->same('wp-import', $review['items']['queue']);
+        $t->same(false, $review['items']['blocked']);
+        $t->same('paragraph', $wrappedDocument->children[0]->type);
+        $t->same('Wrapped', $wrappedDocument->children[0]->children[0]->attr('text'));
+        $t->same('metadata', $wrappedDocument->children[0]->children[2]->attr('text'));
+
+        $legacyJson = json_encode([
+            [
+                'unMeta' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-filter'],
+                    'reviewers' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'Ada'],
+                        ['t' => 'MetaString', 'c' => 'Grace'],
+                    ]],
+                ],
+            ],
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Tuple'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'packet'],
+                ]],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $legacyDocument = $reader->read($legacyJson);
+        $legacyMeta = $legacyDocument->attr('meta');
+
+        $t->same('legacy-filter', $legacyMeta['source']);
+        $t->same('list', $legacyMeta['reviewers']['type']);
+        $t->same(['Ada', 'Grace'], $legacyMeta['reviewers']['items']);
+        $t->same('paragraph', $legacyDocument->children[0]->type);
+
+        $modernUnMetaKey = $reader->readPacket([
+            'meta' => [
+                'unMeta' => ['t' => 'MetaString', 'c' => 'literal-key'],
+            ],
+            'blocks' => [],
+        ]);
+        $t->same('literal-key', $modernUnMetaKey->attr('meta')['unMeta']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

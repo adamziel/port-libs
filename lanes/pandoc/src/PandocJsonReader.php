@@ -14,7 +14,7 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Invalid Pandoc JSON packet: ' . $exception->getMessage(), 0, $exception);
         }
 
-        if (!is_array($packet) || array_is_list($packet)) {
+        if (!is_array($packet)) {
             throw new \InvalidArgumentException('Pandoc JSON packet must be an object');
         }
 
@@ -22,10 +22,11 @@ final class PandocJsonReader
     }
 
     /**
-     * @param array<string, mixed> $packet
+     * @param array<array-key, mixed> $packet
      */
     public function readPacket(array $packet): AstNode
     {
+        $packet = $this->normalizePacket($packet);
         $blocks = $packet['blocks'] ?? null;
         if (!is_array($blocks) || !array_is_list($blocks)) {
             throw new \InvalidArgumentException('Pandoc JSON packet must contain a blocks array');
@@ -36,15 +37,58 @@ final class PandocJsonReader
             $attrs['pandocApiVersion'] = $this->readApiVersion($packet['pandoc-api-version']);
         }
 
-        $meta = $packet['meta'] ?? [];
-        if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
-            throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
-        }
+        $meta = $this->normalizeMeta($packet['meta'] ?? []);
         if ($meta !== []) {
             $attrs['meta'] = $this->readMetaMap($meta);
         }
 
         return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
+    }
+
+    /**
+     * @param array<array-key, mixed> $packet
+     * @return array<string, mixed>
+     */
+    private function normalizePacket(array $packet): array
+    {
+        if (!array_is_list($packet)) {
+            return $packet;
+        }
+
+        if (count($packet) !== 2) {
+            throw new \InvalidArgumentException('Pandoc JSON packet must be an object or legacy [meta, blocks] tuple');
+        }
+
+        return [
+            'meta' => $packet[0],
+            'blocks' => $packet[1],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function normalizeMeta(mixed $meta): array
+    {
+        if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
+            throw new \InvalidArgumentException('Pandoc JSON meta must be an object');
+        }
+
+        if (count($meta) === 1 && array_key_exists('unMeta', $meta) && !$this->isTaggedObject($meta['unMeta'])) {
+            $unMeta = $meta['unMeta'];
+            if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+                throw new \InvalidArgumentException('Pandoc JSON meta.unMeta must be an object');
+            }
+
+            return $unMeta;
+        }
+
+        return $meta;
+    }
+
+    private function isTaggedObject(mixed $value): bool
+    {
+        return is_array($value) && !array_is_list($value) && isset($value['t']) && is_string($value['t']);
     }
 
     /**
