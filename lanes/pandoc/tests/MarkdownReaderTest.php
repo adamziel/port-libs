@@ -14988,6 +14988,171 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $figcaption, $blocks);
         $t->true(!str_contains($blocks, '&lt;figcaption'), 'Standalone figcaption container should not be escaped into reviewer text');
     },
+    'maps upstream html reader ruby annotations as raw review markup' => static function (TestRunner $t): void {
+        $ruby = '<ruby data-source="batch-54">漢<rp>(</rp><rt>kan</rt><rp>)</rp></ruby>';
+        $document = (new MarkdownReader())->read($ruby . "\n\nAfter the ruby annotation.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($ruby, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the ruby annotation.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $ruby, $blocks);
+        $t->true(!str_contains($blocks, '&lt;ruby'), 'Standalone ruby annotation should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $ruby . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineRuby = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<ruby data-source="batch-54">', $inlineRuby->attr('html'));
+        $t->contains('<rt>kan</rt>', $inlineRuby->attr('html'));
+    },
+    'maps upstream html reader rt annotations as raw review markup' => static function (TestRunner $t): void {
+        $rt = '<rt data-source="batch-54">kan</rt>';
+        $document = (new MarkdownReader())->read($rt . "\n\nAfter the rt annotation.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($rt, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the rt annotation.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $rt, $blocks);
+        $t->true(!str_contains($blocks, '&lt;rt'), 'Standalone rt annotation should not be escaped into reviewer text');
+    },
+    'maps upstream html reader rp annotations as raw review markup' => static function (TestRunner $t): void {
+        $rp = '<rp data-source="batch-54">(</rp>';
+        $document = (new MarkdownReader())->read($rp . "\n\nAfter the rp annotation.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($rp, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the rp annotation.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $rp, $blocks);
+        $t->true(!str_contains($blocks, '&lt;rp'), 'Standalone rp annotation should not be escaped into reviewer text');
+    },
+    'maps upstream html reader bdi text as raw review markup' => static function (TestRunner $t): void {
+        $bdi = '<bdi dir="rtl" data-source="batch-54">مرحبا</bdi>';
+        $document = (new MarkdownReader())->read($bdi . "\n\nAfter the bdi text.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($bdi, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the bdi text.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $bdi, $blocks);
+        $t->true(!str_contains($blocks, '&lt;bdi'), 'Standalone bdi text should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $bdi . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineBdi = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<bdi', $inlineBdi->attr('html'));
+        $t->contains('dir="rtl"', $inlineBdi->attr('html'));
+    },
+    'maps upstream html reader bdo text as raw review markup' => static function (TestRunner $t): void {
+        $bdo = '<bdo dir="rtl" data-source="batch-54">abc</bdo>';
+        $document = (new MarkdownReader())->read($bdo . "\n\nAfter the bdo text.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($bdo, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the bdo text.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $bdo, $blocks);
+        $t->true(!str_contains($blocks, '&lt;bdo'), 'Standalone bdo text should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $bdo . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineBdo = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<bdo', $inlineBdo->attr('html'));
+        $t->contains('dir="rtl"', $inlineBdo->attr('html'));
+    },
+    'maps upstream html reader data values as raw review markup' => static function (TestRunner $t): void {
+        $data = '<data value="import-54" data-source="batch-54">Import 54</data>';
+        $document = (new MarkdownReader())->read($data . "\n\nAfter the data value.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($data, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the data value.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $data, $blocks);
+        $t->true(!str_contains($blocks, '&lt;data'), 'Standalone data value should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $data . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineData = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<data', $inlineData->attr('html'));
+        $t->contains('value="import-54"', $inlineData->attr('html'));
+    },
+    'maps upstream html reader time values as raw review markup' => static function (TestRunner $t): void {
+        $time = '<time datetime="2026-06-09" data-source="batch-54">June 9</time>';
+        $document = (new MarkdownReader())->read($time . "\n\nAfter the time value.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($time, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the time value.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $time, $blocks);
+        $t->true(!str_contains($blocks, '&lt;time'), 'Standalone time value should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $time . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineTime = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<time', $inlineTime->attr('html'));
+        $t->contains('datetime="2026-06-09"', $inlineTime->attr('html'));
+    },
+    'maps upstream html reader mark highlights as raw review markup' => static function (TestRunner $t): void {
+        $mark = '<mark data-source="batch-54">needs review</mark>';
+        $document = (new MarkdownReader())->read($mark . "\n\nAfter the mark highlight.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mark, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the mark highlight.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mark, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mark'), 'Standalone mark highlight should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read('<!doctype html><html><body><p>Before ' . $mark . '</p></body></html>');
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineMark = $paragraph->children[1] ?? new AstNode('missing');
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<mark data-source="batch-54">needs review</mark>', $inlineMark->attr('html'));
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

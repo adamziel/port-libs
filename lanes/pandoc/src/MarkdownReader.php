@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(article|aside|audio|button|canvas|datalist|details|dialog|fieldset|figcaption|figure|footer|form|header|iframe|label|legend|main|map|meter|nav|object|optgroup|option|output|picture|progress|script|section|style|select|template|textarea|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(article|aside|audio|bdi|bdo|button|canvas|data|datalist|details|dialog|fieldset|figcaption|figure|footer|form|header|iframe|label|legend|main|map|mark|meter|nav|object|optgroup|option|output|picture|progress|rp|rt|ruby|script|section|style|select|template|textarea|time|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['area', 'audio', 'base', 'button', 'canvas', 'datalist', 'details', 'dialog', 'embed', 'fieldset', 'form', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'select', 'source', 'template', 'textarea', 'track', 'video', 'wbr'], true)) {
+        if (in_array($name, ['area', 'audio', 'base', 'bdi', 'bdo', 'button', 'canvas', 'data', 'datalist', 'details', 'dialog', 'embed', 'fieldset', 'form', 'iframe', 'input', 'label', 'legend', 'link', 'map', 'mark', 'meta', 'meter', 'object', 'optgroup', 'option', 'output', 'param', 'picture', 'progress', 'rp', 'rt', 'ruby', 'select', 'source', 'template', 'textarea', 'time', 'track', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 

@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 09:44:30 UTC",
-    "sourceCommit": "c05b17fb9a176d8618f66ea7afd64efaa277ed70",
-    "sourceCommitShort": "c05b17fb9a17",
+    "generated": "2026-06-09 09:48:43 UTC",
+    "sourceCommit": "9cf4783ed4a9a1a3ae5589bd6f134b3eb10eaef2",
+    "sourceCommitShort": "9cf4783ed4a9",
     "sourceBranch": "unknown",
-    "dashboardCommit": "c05b17fb9a176d8618f66ea7afd64efaa277ed70",
-    "dashboardCommitShort": "c05b17fb9a17",
+    "dashboardCommit": "9cf4783ed4a9a1a3ae5589bd6f134b3eb10eaef2",
+    "dashboardCommitShort": "9cf4783ed4a9",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,586 pass / 0 fail",
-            "phase": "native PHP Pandoc HTML5 reader review markup; sectioning containers n...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-sectioning current-base slice on...",
-            "currentWork": "Pandoc HTML reader review now preserves sectioning containers including article, sect...",
+            "php": "2,594 pass / 0 fail",
+            "phase": "native PHP Pandoc HTML5 reader review markup; inline semantic wrapper...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-inline-semantics current-base sli...",
+            "currentWork": "Pandoc HTML reader review now preserves inline semantic wrappers including ruby, rt,...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."
