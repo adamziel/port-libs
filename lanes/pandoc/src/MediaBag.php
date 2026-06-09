@@ -155,8 +155,7 @@ final class MediaBag
                 return $image;
             }
 
-            $canonicalSource = self::canonicalizeSource($source);
-            $resource = $resources[$source] ?? $resources[$canonicalSource] ?? $resourcesByCanonicalSource[$canonicalSource] ?? null;
+            $resource = self::lookupResource($source, $resources, $resourcesByCanonicalSource);
             if ($resource !== null) {
                 $contents = is_array($resource)
                     ? (string) ($resource['contents'] ?? $resource['data'] ?? '')
@@ -303,6 +302,8 @@ final class MediaBag
             && preg_match('/\A[A-Za-z]:[\/\\\\]/', $path) !== 1
             && !str_contains($path, '..')
             && !str_contains($path, '%')
+            && !str_contains($path, '?')
+            && !str_contains($path, '#')
             && !self::isUri($path);
     }
 
@@ -393,6 +394,64 @@ final class MediaBag
         }
 
         return $canonical;
+    }
+
+    /**
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resources
+     * @param array<string, string|array{contents?:string, data?:string, mimeType?:string|null}> $resourcesByCanonicalSource
+     * @return string|array{contents?:string, data?:string, mimeType?:string|null}|null
+     */
+    private static function lookupResource(string $source, array $resources, array $resourcesByCanonicalSource): string|array|null
+    {
+        foreach (self::resourceLookupKeys($source) as $key) {
+            if (array_key_exists($key, $resources)) {
+                return $resources[$key];
+            }
+
+            $canonicalKey = self::canonicalizeSource($key);
+            if (array_key_exists($canonicalKey, $resources)) {
+                return $resources[$canonicalKey];
+            }
+            if (array_key_exists($canonicalKey, $resourcesByCanonicalSource)) {
+                return $resourcesByCanonicalSource[$canonicalKey];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function resourceLookupKeys(string $source): array
+    {
+        $keys = [$source, self::canonicalizeSource($source)];
+        $pathOnlySource = self::pathOnlyRelativeSource($source);
+        if ($pathOnlySource !== $source) {
+            $keys[] = $pathOnlySource;
+            $keys[] = self::canonicalizeSource($pathOnlySource);
+        }
+
+        return array_values(array_unique($keys));
+    }
+
+    private static function pathOnlyRelativeSource(string $source): string
+    {
+        if (str_starts_with($source, 'data:') || self::isUri($source)) {
+            return $source;
+        }
+
+        $queryPosition = strpos($source, '?');
+        $fragmentPosition = strpos($source, '#');
+        $positions = array_filter(
+            [$queryPosition, $fragmentPosition],
+            static fn (int|false $position): bool => $position !== false
+        );
+        if ($positions === []) {
+            return $source;
+        }
+
+        return substr($source, 0, min($positions));
     }
 
     private function placeholderFor(AstNode $image): AstNode

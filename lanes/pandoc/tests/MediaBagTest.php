@@ -160,6 +160,44 @@ return [
         ], $extracted['diagnostics']);
     },
 
+    'maps query and fragment media urls through path-only resource keys' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "<svg><text>review plot</text></svg>\n";
+        $source = 'assets/plots/figure.svg?download=1#review';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $source,
+                    'title' => 'Review plot',
+                ], [new AstNode('text', ['text' => 'Review plot'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'assets\\plots\\./figure.svg' => [
+                'contents' => $bytes,
+                'mimeType' => 'image/svg+xml',
+            ],
+        ]);
+        $directory = $bag->directory();
+        $expectedMediaPath = sha1($bytes) . '.svg';
+
+        $t->same(['media-resource-loaded:' . $source], $filled['diagnostics']);
+        $t->same(1, count($directory));
+        $t->same($source, $directory[0]['source']);
+        $t->same($expectedMediaPath, $directory[0]['path']);
+        $t->same('image/svg+xml', $directory[0]['mimeType']);
+        $t->true(!str_contains($directory[0]['path'], '?'), 'Media path must not preserve query delimiters');
+        $t->true(!str_contains($directory[0]['path'], '#'), 'Media path must not preserve fragment delimiters');
+
+        $extracted = $bag->extractMedia($filled['document'], 'review-media');
+        $mappedImage = $extracted['document']->children[0]->children[0];
+        $t->same('review-media/' . $expectedMediaPath, $mappedImage->attr('url'));
+        $t->same('review-media/' . $expectedMediaPath, $extracted['entries'][0]['path']);
+        $t->same($expectedMediaPath, $extracted['entries'][0]['mediaPath']);
+        $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
+    },
+
     'deletes mapped media resources by canonical source key' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $keptBytes = "kept vector bytes\n";
