@@ -2279,6 +2279,122 @@ final class TarArchive
     }
 
     /**
+     * @return array{
+     *     type:string,
+     *     entryCount:int,
+     *     scannedEntryCount:int,
+     *     headerRecordCount:int,
+     *     metadataRecordCount:int,
+     *     entryNames:list<string>,
+     *     hasDuplicateEntryNames:bool,
+     *     duplicateEntryNameGroupCount:int,
+     *     duplicateEntryNameEntryCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     diagnostics:list<string>,
+     *     duplicateEntryNameGroups:list<array{name:string, count:int, entryIndexes:list<int>, nameSources:list<string>, roles:list<string>, headerOffsets:list<int>}>,
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function duplicateEntryNamePreflight(string $bytes): array
+    {
+        $checksum = self::checksumPolicyPreflight($bytes);
+        $entries = [];
+        $entryNamesByName = [];
+        foreach ($checksum['entries'] as $record) {
+            if (($record['metadataKind'] ?? null) !== null) {
+                continue;
+            }
+
+            $entryIndex = count($entries);
+            $name = (string) $record['name'];
+            $entryNamesByName[$name][] = $entryIndex;
+            $entries[] = [
+                'entryIndex' => $entryIndex,
+                'name' => $name,
+                'role' => (string) $record['role'],
+                'typeFlag' => (string) $record['typeFlag'],
+                'nameSource' => (string) $record['nameSource'],
+                'headerOffset' => (int) $record['headerOffset'],
+                'dataOffset' => (int) $record['dataOffset'],
+                'payloadSize' => (int) $record['payloadSize'],
+                'recordEndOffset' => (int) $record['recordEndOffset'],
+                'hasDuplicateEntryName' => false,
+                'duplicateEntryIndexes' => [],
+                'issues' => [],
+            ];
+        }
+
+        $duplicateGroups = [];
+        $duplicateEntryIndexes = [];
+        foreach ($entryNamesByName as $name => $entryIndexes) {
+            if (count($entryIndexes) < 2) {
+                continue;
+            }
+
+            $duplicateGroups[] = [
+                'name' => $name,
+                'count' => count($entryIndexes),
+                'entryIndexes' => $entryIndexes,
+                'nameSources' => array_map(
+                    static fn (int $entryIndex): string => (string) $entries[$entryIndex]['nameSource'],
+                    $entryIndexes
+                ),
+                'roles' => array_map(
+                    static fn (int $entryIndex): string => (string) $entries[$entryIndex]['role'],
+                    $entryIndexes
+                ),
+                'headerOffsets' => array_map(
+                    static fn (int $entryIndex): int => (int) $entries[$entryIndex]['headerOffset'],
+                    $entryIndexes
+                ),
+            ];
+
+            foreach ($entryIndexes as $entryIndex) {
+                $duplicateEntryIndexes[$entryIndex] = $entryIndexes;
+            }
+        }
+
+        $duplicateEntries = [];
+        foreach ($entries as $entryIndex => $entry) {
+            $duplicateIndexes = $duplicateEntryIndexes[$entryIndex] ?? [];
+            if ($duplicateIndexes === []) {
+                continue;
+            }
+
+            $entries[$entryIndex]['hasDuplicateEntryName'] = true;
+            $entries[$entryIndex]['duplicateEntryIndexes'] = $duplicateIndexes;
+            $entries[$entryIndex]['issues'] = ['duplicate-tar-entry-name'];
+            $duplicateEntries[] = $entries[$entryIndex];
+        }
+
+        $diagnostics = $duplicateEntries === [] ? [] : ['duplicate-tar-entry-names'];
+
+        return [
+            'type' => 'tar-duplicate-entry-name-policy',
+            'entryCount' => count($entries),
+            'scannedEntryCount' => (int) $checksum['entryCount'],
+            'headerRecordCount' => (int) $checksum['headerRecordCount'],
+            'metadataRecordCount' => (int) $checksum['metadataRecordCount'],
+            'entryNames' => array_column($entries, 'name'),
+            'hasDuplicateEntryNames' => $duplicateEntries !== [],
+            'duplicateEntryNameGroupCount' => count($duplicateGroups),
+            'duplicateEntryNameEntryCount' => count($duplicateEntries),
+            'handoffPolicy' => $diagnostics === [] ? 'within-thresholds' : 'review-before-conversion',
+            'extractionPolicy' => $diagnostics === [] ? 'metadata-only-no-extraction' : 'tar-duplicate-entry-name-review',
+            'isSupportedByBoundedReader' => $diagnostics === [],
+            'issues' => $diagnostics,
+            'diagnostics' => $diagnostics,
+            'duplicateEntryNameGroups' => $duplicateGroups,
+            'duplicateEntries' => $duplicateEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @param list<array{name:string, data?:string, type?:string, modifiedAt?:int, accessedAt?:int, changedAt?:int, mode?:int, uid?:int, gid?:int, userName?:string, groupName?:string}> $entries
      * @param array{globalPaxHeaders?:array<string, string>} $options
      */

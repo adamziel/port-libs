@@ -7411,6 +7411,12 @@ final class DocxReader
             'DOCVARIABLE' => ['field' => 'docvariable', 'type' => 'document-variable'],
             'DOCPROPERTY' => ['field' => 'docproperty', 'type' => 'document-property'],
         ];
+        $generatedFieldNames = [
+            'TOC' => ['field' => 'toc', 'type' => 'table-of-contents'],
+            'INDEX' => ['field' => 'index', 'type' => 'document-index'],
+            'BIBLIOGRAPHY' => ['field' => 'bibliography', 'type' => 'bibliography'],
+            'CITATION' => ['field' => 'citation', 'type' => 'citation'],
+        ];
 
         $fieldName = strtoupper(array_shift($tokens));
         if ($fieldName === 'SEQ') {
@@ -7431,6 +7437,15 @@ final class DocxReader
             return $this->dataFieldSpanAttrs(
                 $dataFieldNames[$fieldName]['field'],
                 $dataFieldNames[$fieldName]['type'],
+                $tokens,
+                $instruction
+            );
+        }
+
+        if (isset($generatedFieldNames[$fieldName])) {
+            return $this->generatedFieldSpanAttrs(
+                $generatedFieldNames[$fieldName]['field'],
+                $generatedFieldNames[$fieldName]['type'],
                 $tokens,
                 $instruction
             );
@@ -7532,6 +7547,108 @@ final class DocxReader
             if ($afterText !== null) {
                 $classes[] = 'docx-data-field-after-text';
                 $attributes['data-docx-data-field-after-text'] = $afterText;
+            }
+        }
+
+        return [
+            'classes' => array_values(array_unique($classes)),
+            'attributes' => $attributes,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return array{classes:list<string>, attributes:array<string, string>}
+     */
+    private function generatedFieldSpanAttrs(string $fieldKey, string $generatedType, array $tokens, string $instruction): array
+    {
+        $classes = [
+            'docx-field',
+            'docx-field-' . $fieldKey,
+            'docx-generated-field',
+            'docx-generated-field-' . $fieldKey,
+        ];
+        $attributes = [
+            'data-docx-field' => $fieldKey,
+            'data-docx-field-instruction' => $this->normalizeFieldInstruction($instruction),
+            'data-docx-generated-field-type' => $generatedType,
+        ];
+
+        $target = $this->fieldTargetTokenSkippingSwitchValues($tokens, [
+            '*',
+            '@',
+            'b',
+            'c',
+            'd',
+            'e',
+            'f',
+            'g',
+            'k',
+            'l',
+            'n',
+            'o',
+            'p',
+            's',
+            't',
+            'v',
+            'z',
+        ]);
+        if ($target !== null && $target !== '') {
+            $attributes['data-docx-field-target'] = $target;
+        }
+
+        $format = $this->fieldFormatSwitchValue($tokens);
+        if ($format !== null && $format !== '') {
+            $attributes['data-docx-field-format'] = $format;
+        }
+
+        foreach ([
+            'b' => 'bookmark',
+            'c' => 'columns',
+            'd' => 'chapter-separator',
+            'e' => 'entry-separator',
+            'f' => 'entry-type',
+            'g' => 'glossary-separator',
+            'k' => 'see-separator',
+            'l' => 'locale-id',
+            'o' => 'outline-levels',
+            'p' => 'page-number-separator',
+            's' => 'sequence',
+            't' => 'style-levels',
+            'v' => 'citation-volume',
+        ] as $switch => $attributeSuffix) {
+            $value = $this->fieldSwitchValue($tokens, $switch);
+            if ($value !== null && $value !== '') {
+                $attributes['data-docx-field-' . $attributeSuffix] = $value;
+            }
+        }
+
+        $omitPageNumbers = $this->fieldOptionalSwitchValue($tokens, 'n');
+        if ($this->fieldHasSwitch($tokens, 'n')) {
+            $classes[] = 'docx-field-omit-page-numbers';
+            $attributes['data-docx-field-omit-page-numbers'] = 'true';
+            if ($omitPageNumbers !== null && $omitPageNumbers !== '') {
+                $attributes['data-docx-field-omit-page-number-levels'] = $omitPageNumbers;
+            }
+        }
+
+        if ($this->fieldHasSwitch($tokens, 'h')) {
+            $classes[] = 'docx-field-hyperlink';
+            $attributes['data-docx-field-hyperlink'] = 'true';
+        }
+
+        if ($this->fieldHasSwitch($tokens, 'u')) {
+            $classes[] = 'docx-field-outline-levels';
+            $attributes['data-docx-field-use-outline-levels'] = 'true';
+        }
+
+        if ($this->fieldHasSwitch($tokens, 'z')) {
+            $zValue = $this->fieldSwitchValue($tokens, 'z');
+            if ($fieldKey === 'toc' && ($zValue === null || $zValue === '')) {
+                $classes[] = 'docx-field-hide-web-layout';
+                $attributes['data-docx-field-hide-web-layout'] = 'true';
+            } elseif ($zValue !== null && $zValue !== '') {
+                $attributes['data-docx-field-language-id'] = $zValue;
             }
         }
 
@@ -7895,6 +8012,68 @@ final class DocxReader
             if ($switch === $switchName && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
                 return $tokens[$index + 1];
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldHasSwitch(array $tokens, string $switchName): bool
+    {
+        $switchName = strtolower($switchName);
+        foreach ($tokens as $token) {
+            if (str_starts_with($token, '\\') && strtolower(substr($token, 1)) === $switchName) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function fieldOptionalSwitchValue(array $tokens, string $switchName): ?string
+    {
+        $switchName = strtolower($switchName);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if (!str_starts_with($token, '\\') || strtolower(substr($token, 1)) !== $switchName) {
+                continue;
+            }
+
+            return isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')
+                ? $tokens[$index + 1]
+                : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @param list<string> $switchesWithValues
+     */
+    private function fieldTargetTokenSkippingSwitchValues(array $tokens, array $switchesWithValues): ?string
+    {
+        $switchesWithValues = array_fill_keys(array_map('strtolower', $switchesWithValues), true);
+        for ($index = 0, $count = count($tokens); $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($token === '') {
+                continue;
+            }
+
+            if (str_starts_with($token, '\\')) {
+                $switch = strtolower(substr($token, 1));
+                if (isset($switchesWithValues[$switch]) && isset($tokens[$index + 1]) && !str_starts_with($tokens[$index + 1], '\\')) {
+                    $index++;
+                }
+                continue;
+            }
+
+            return $token;
         }
 
         return null;

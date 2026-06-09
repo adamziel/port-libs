@@ -3621,6 +3621,50 @@ final class ArchiveCompressionStream
      *     uncompressedSize:int,
      *     type:string,
      *     entryCount:int,
+     *     scannedEntryCount:int,
+     *     headerRecordCount:int,
+     *     metadataRecordCount:int,
+     *     entryNames:list<string>,
+     *     hasDuplicateEntryNames:bool,
+     *     duplicateEntryNameGroupCount:int,
+     *     duplicateEntryNameEntryCount:int,
+     *     handoffPolicy:string,
+     *     extractionPolicy:string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     diagnostics:list<string>,
+     *     duplicateEntryNameGroups:list<array{name:string, count:int, entryIndexes:list<int>, nameSources:list<string>, roles:list<string>, headerOffsets:list<int>}>,
+     *     duplicateEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>,
+     *     stream:array<string, mixed>
+     * }
+     */
+    public static function inspectTarDuplicateEntryNamePolicy(
+        string $bytes,
+        string $format,
+        ?int $maxUncompressedBytes = null
+    ): array {
+        self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
+
+        $tarBytes = self::decodeTarBytes($bytes, $format, $maxUncompressedBytes);
+        $policy = TarArchive::duplicateEntryNamePreflight($tarBytes);
+
+        return [
+            'format' => $format,
+            'tarBytes' => $tarBytes,
+            'uncompressedSize' => strlen($tarBytes),
+        ] + $policy + [
+            'stream' => self::streamInspection($bytes, $format, $maxUncompressedBytes),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     format:string,
+     *     tarBytes:string,
+     *     uncompressedSize:int,
+     *     type:string,
+     *     entryCount:int,
      *     attributeEntryCount:int,
      *     modeFlagEntryCount:int,
      *     ownerMetadataEntryCount:int,

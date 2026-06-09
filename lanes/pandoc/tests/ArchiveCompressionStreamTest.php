@@ -5798,6 +5798,128 @@ return [
         ));
     },
 
+    'preflights duplicate tar member names across archive streams before archive exposure' => static function (TestRunner $t) use ($rawTarHeader, $paxPayload): void {
+        $tarBytes = $rawTarHeader('packet/manifest.json', '0', '{"source":"duplicate-tar-entry-name"}', 1780479101, false)
+            . $rawTarHeader('packet/review.md', '0', "# First review packet\n", 1780479102, false)
+            . $rawTarHeader('PaxHeaders/review-duplicate', 'x', $paxPayload([
+                'path' => 'packet/review.md',
+                'comment' => 'duplicate tar path review metadata',
+            ]), 1780479103, false)
+            . $rawTarHeader('placeholder-review.md', '0', "# Second spoofed review packet\n", 1780479104, false)
+            . str_repeat("\0", 1024);
+        $streams = [
+            ArchiveCompressionStream::FORMAT_TAR => $tarBytes,
+            ArchiveCompressionStream::FORMAT_GZIP_TAR => GzipStream::build($tarBytes, [
+                'filename' => 'wordpress-duplicate-member-package.tar',
+                'comment' => 'duplicate tar member name fixture',
+                'headerCrc' => true,
+            ]),
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR => DeflateStream::build($tarBytes, [
+                'format' => DeflateStream::FORMAT_ZLIB,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR => DeflateStream::build($tarBytes, [
+                'format' => DeflateStream::FORMAT_RAW,
+                'compressionLevel' => 9,
+            ]),
+            ArchiveCompressionStream::FORMAT_LZ4_TAR => Lz4Frame::skippableFrame('duplicate tar member reviewer metadata', 15)
+                . Lz4Frame::build($tarBytes, [
+                    'contentSize' => true,
+                    'contentChecksum' => true,
+                ]),
+        ];
+
+        foreach ($streams as $format => $bytes) {
+            $inspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy($bytes, $format, strlen($tarBytes));
+
+            $t->same($tarBytes, ArchiveCompressionStream::decodeTarBytes($bytes, $format, strlen($tarBytes)));
+            $t->same('tar-duplicate-entry-name-policy', $inspection['type']);
+            $t->same($format, $inspection['format']);
+            $t->same($tarBytes, $inspection['tarBytes']);
+            $t->same(strlen($tarBytes), $inspection['uncompressedSize']);
+            $t->same(3, $inspection['entryCount']);
+            $t->same(3, $inspection['scannedEntryCount']);
+            $t->same(1, $inspection['metadataRecordCount']);
+            $t->same(['packet/manifest.json', 'packet/review.md', 'packet/review.md'], $inspection['entryNames']);
+            $t->same(true, $inspection['hasDuplicateEntryNames']);
+            $t->same(1, $inspection['duplicateEntryNameGroupCount']);
+            $t->same(2, $inspection['duplicateEntryNameEntryCount']);
+            $t->same('packet/review.md', $inspection['duplicateEntryNameGroups'][0]['name']);
+            $t->same(2, $inspection['duplicateEntryNameGroups'][0]['count']);
+            $t->same([1, 2], $inspection['duplicateEntryNameGroups'][0]['entryIndexes']);
+            $t->same(['header', 'pax-path'], $inspection['duplicateEntryNameGroups'][0]['nameSources']);
+            $t->same(['regular-file', 'regular-file'], $inspection['duplicateEntryNameGroups'][0]['roles']);
+            $t->same([1, 2], array_column($inspection['duplicateEntries'], 'entryIndex'));
+            $t->same([1, 2], $inspection['entries'][1]['duplicateEntryIndexes']);
+            $t->same(['duplicate-tar-entry-name'], $inspection['entries'][2]['issues']);
+            $t->same(['duplicate-tar-entry-names'], $inspection['issues']);
+            $t->same(['duplicate-tar-entry-names'], $inspection['diagnostics']);
+            $t->same('review-before-conversion', $inspection['handoffPolicy']);
+            $t->same('tar-duplicate-entry-name-review', $inspection['extractionPolicy']);
+            $t->same(false, $inspection['isSupportedByBoundedReader']);
+            $t->same(false, isset($inspection['archive']));
+            $t->same(false, isset($inspection['entries'][0]['data']));
+        }
+
+        $gzipInspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_TAR],
+            ArchiveCompressionStream::FORMAT_GZIP_TAR,
+            strlen($tarBytes)
+        );
+        $zlibInspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_ZLIB_TAR],
+            ArchiveCompressionStream::FORMAT_ZLIB_TAR,
+            strlen($tarBytes)
+        );
+        $rawInspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR],
+            ArchiveCompressionStream::FORMAT_RAW_DEFLATE_TAR,
+            strlen($tarBytes)
+        );
+        $lz4Inspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_LZ4_TAR],
+            ArchiveCompressionStream::FORMAT_LZ4_TAR,
+            strlen($tarBytes)
+        );
+        $cleanArchive = TarArchive::fromEntries([
+            [
+                'name' => 'packet/manifest.json',
+                'data' => '{}',
+            ],
+            [
+                'name' => 'packet/review.md',
+                'data' => "# Clean review packet\n",
+            ],
+        ]);
+        $cleanInspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $cleanArchive->bytes(),
+            ArchiveCompressionStream::FORMAT_TAR,
+            strlen($cleanArchive->bytes())
+        );
+
+        $t->same('gzip', $gzipInspection['stream']['type']);
+        $t->same('wordpress-duplicate-member-package.tar', $gzipInspection['stream']['members'][0]['filename']);
+        $t->same('duplicate tar member name fixture', $gzipInspection['stream']['members'][0]['comment']);
+        $t->same('zlib-deflate', $zlibInspection['stream']['type']);
+        $t->same('raw-deflate', $rawInspection['stream']['type']);
+        $t->same('lz4', $lz4Inspection['stream']['type']);
+        $t->same('duplicate tar member reviewer metadata', $lz4Inspection['stream']['frames'][0]['data']);
+        $t->same(false, $cleanInspection['hasDuplicateEntryNames']);
+        $t->same(0, $cleanInspection['duplicateEntryNameGroupCount']);
+        $t->same(0, $cleanInspection['duplicateEntryNameEntryCount']);
+        $t->same([], $cleanInspection['issues']);
+        $t->same([], $cleanInspection['diagnostics']);
+        $t->same('within-thresholds', $cleanInspection['handoffPolicy']);
+        $t->same('metadata-only-no-extraction', $cleanInspection['extractionPolicy']);
+        $t->same(true, $cleanInspection['isSupportedByBoundedReader']);
+        $t->throws(\RuntimeException::class, static fn (): TarArchive => TarArchive::fromString($tarBytes));
+        $t->throws(\RuntimeException::class, static fn (): array => ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+            $streams[ArchiveCompressionStream::FORMAT_GZIP_TAR],
+            ArchiveCompressionStream::FORMAT_GZIP_ZIP,
+            strlen($tarBytes)
+        ));
+    },
+
     'preflights split zip disk markers across archive streams without exposing package entries' => static function (TestRunner $t) use ($zipFixtureBytes): void {
         $documentXml = '<w:document><w:body><w:p>Split ZIP document.xml</w:p></w:body></w:document>';
         $mediaBytes = "split archive media placeholder\n";

@@ -343,6 +343,7 @@ $multiVolumePolicyPaxPayload = 'pax multi-volume payload fragment';
 $signedChecksumContentBytes = "# Signed checksum source packet\n\nReady for WordPress archive review.\n";
 $charsetContentBytes = "# PAX charset source packet\n\nReady for WordPress archive charset review.\n";
 $duplicatePaxContentBytes = "# Duplicate PAX source packet\n\nReady for WordPress archive duplicate-key review.\n";
+$duplicateTarContentBytes = "# Duplicate TAR member packet\n\nReady for WordPress archive duplicate-member review.\n";
 $lz4DictionaryPayload = 'packet/word/document.xml needs an external LZ4 dictionary';
 $zlibDictionaryManifestBytes = '{"source":"zlib-dictionary-inspection","target":"wordpress"}';
 $zlibDictionaryContentBytes = "# ZLIB dictionary inspection\n\nReady for WordPress archive review.\n";
@@ -885,6 +886,30 @@ try {
     TarArchive::fromString($duplicatePaxArchiveBytes);
 } catch (RuntimeException) {
     $duplicatePaxExtractionBlocked = true;
+}
+$duplicateTarArchiveBytes = $rawTarHeader('packet/manifest.json', '0', '{"source":"duplicate-tar-member","target":"wordpress"}', 1780479086, false)
+    . $rawTarHeader('packet/review.md', '0', $duplicateTarContentBytes, 1780479087, false)
+    . $rawTarHeader('PaxHeaders/duplicate-member', 'x', $paxPayload([
+        'path' => 'packet/review.md',
+        'comment' => 'duplicate member review metadata',
+    ]), 1780479088, false)
+    . $rawTarHeader('placeholder-review.md', '0', "# Spoofed duplicate TAR member packet\n", 1780479089, false)
+    . str_repeat("\0", 1024);
+$duplicateTarGzip = GzipStream::build($duplicateTarArchiveBytes, [
+    'filename' => 'wordpress-duplicate-member-package.tar',
+    'comment' => 'TAR duplicate member name preflight',
+    'headerCrc' => true,
+]);
+$duplicateTarInspection = ArchiveCompressionStream::inspectTarDuplicateEntryNamePolicy(
+    $duplicateTarGzip,
+    ArchiveCompressionStream::FORMAT_GZIP_TAR,
+    strlen($duplicateTarArchiveBytes)
+);
+$duplicateTarExtractionBlocked = false;
+try {
+    TarArchive::fromString($duplicateTarArchiveBytes);
+} catch (RuntimeException) {
+    $duplicateTarExtractionBlocked = true;
 }
 $filesystemAttributeContentBytes = "# TAR filesystem attribute policy\n\nReady for WordPress archive review.\n";
 $filesystemAttributeArchive = TarArchive::fromEntries([
@@ -2256,6 +2281,18 @@ if (in_array('--self-test', $argv, true)) {
         'duplicatePaxEntryCount' => 1,
         'duplicatePaxKeyword' => 'org.wordpress.import.review',
         'duplicatePaxValues' => ['first review state', 'second review state'],
+        'duplicateTarFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
+        'duplicateTarType' => 'tar-duplicate-entry-name-policy',
+        'duplicateTarPolicy' => 'review-before-conversion',
+        'duplicateTarExtractionPolicy' => 'tar-duplicate-entry-name-review',
+        'duplicateTarEntryCount' => 3,
+        'duplicateTarMetadataRecordCount' => 1,
+        'duplicateTarGroupCount' => 1,
+        'duplicateTarEntryNameEntryCount' => 2,
+        'duplicateTarNames' => ['packet/manifest.json', 'packet/review.md', 'packet/review.md'],
+        'duplicateTarEntryIndexes' => [1, 2],
+        'duplicateTarNameSources' => ['header', 'pax-path'],
+        'duplicateTarDiagnostics' => ['duplicate-tar-entry-names'],
         'filesystemAttributeFormat' => ArchiveCompressionStream::FORMAT_GZIP_TAR,
         'filesystemAttributeType' => 'tar-filesystem-attribute-policy',
         'filesystemAttributeExtractionPolicy' => 'filesystem-attributes-metadata-only',
@@ -2982,6 +3019,25 @@ if (in_array('--self-test', $argv, true)) {
         || ($duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] ?? null) !== $expected['duplicatePaxKeyword']
         || ($duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values'] ?? []) !== $expected['duplicatePaxValues']
         || ($duplicatePaxInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-pax.tar'
+        || $duplicateTarInspection['format'] !== $expected['duplicateTarFormat']
+        || $duplicateTarInspection['type'] !== $expected['duplicateTarType']
+        || $duplicateTarInspection['handoffPolicy'] !== $expected['duplicateTarPolicy']
+        || $duplicateTarInspection['extractionPolicy'] !== $expected['duplicateTarExtractionPolicy']
+        || $duplicateTarInspection['entryCount'] !== $expected['duplicateTarEntryCount']
+        || $duplicateTarInspection['scannedEntryCount'] !== $expected['duplicateTarEntryCount']
+        || $duplicateTarInspection['metadataRecordCount'] !== $expected['duplicateTarMetadataRecordCount']
+        || $duplicateTarInspection['duplicateEntryNameGroupCount'] !== $expected['duplicateTarGroupCount']
+        || $duplicateTarInspection['duplicateEntryNameEntryCount'] !== $expected['duplicateTarEntryNameEntryCount']
+        || $duplicateTarInspection['entryNames'] !== $expected['duplicateTarNames']
+        || ($duplicateTarInspection['duplicateEntryNameGroups'][0]['entryIndexes'] ?? []) !== $expected['duplicateTarEntryIndexes']
+        || ($duplicateTarInspection['duplicateEntryNameGroups'][0]['nameSources'] ?? []) !== $expected['duplicateTarNameSources']
+        || array_column($duplicateTarInspection['duplicateEntries'], 'entryIndex') !== $expected['duplicateTarEntryIndexes']
+        || $duplicateTarInspection['issues'] !== $expected['duplicateTarDiagnostics']
+        || $duplicateTarInspection['diagnostics'] !== $expected['duplicateTarDiagnostics']
+        || ($duplicateTarInspection['stream']['members'][0]['filename'] ?? null) !== 'wordpress-duplicate-member-package.tar'
+        || isset($duplicateTarInspection['archive'])
+        || isset($duplicateTarInspection['entries'][0]['data'])
+        || !$duplicateTarExtractionBlocked
         || $filesystemAttributeInspection['format'] !== $expected['filesystemAttributeFormat']
         || $filesystemAttributeInspection['type'] !== $expected['filesystemAttributeType']
         || $filesystemAttributeInspection['extractionPolicy'] !== $expected['filesystemAttributeExtractionPolicy']
@@ -3753,6 +3809,13 @@ echo 'duplicatePax.duplicateEntryCount=' . $duplicatePaxInspection['duplicatePax
 echo 'duplicatePax.keyword=' . $duplicatePaxInspection['entries'][0]['duplicateKeywords'][0] . "\n";
 echo 'duplicatePax.values=' . implode('|', $duplicatePaxInspection['entries'][0]['duplicateRecords'][0]['values']) . "\n";
 echo 'duplicatePax.extractionBlocked=' . ($duplicatePaxExtractionBlocked ? 'yes' : 'no') . "\n";
+echo 'duplicateTar.format=' . $duplicateTarInspection['format'] . "\n";
+echo 'duplicateTar.handoffPolicy=' . $duplicateTarInspection['handoffPolicy'] . "\n";
+echo 'duplicateTar.extractionPolicy=' . $duplicateTarInspection['extractionPolicy'] . "\n";
+echo 'duplicateTar.groupCount=' . $duplicateTarInspection['duplicateEntryNameGroupCount'] . "\n";
+echo 'duplicateTar.entryIndexes=' . implode(',', $duplicateTarInspection['duplicateEntryNameGroups'][0]['entryIndexes']) . "\n";
+echo 'duplicateTar.nameSources=' . implode(',', $duplicateTarInspection['duplicateEntryNameGroups'][0]['nameSources']) . "\n";
+echo 'duplicateTar.extractionBlocked=' . ($duplicateTarExtractionBlocked ? 'yes' : 'no') . "\n";
 echo 'filesystemAttribute.format=' . $filesystemAttributeInspection['format'] . "\n";
 echo 'filesystemAttribute.extractionPolicy=' . $filesystemAttributeInspection['extractionPolicy'] . "\n";
 echo 'filesystemAttribute.attributeEntryCount=' . $filesystemAttributeInspection['attributeEntryCount'] . "\n";
