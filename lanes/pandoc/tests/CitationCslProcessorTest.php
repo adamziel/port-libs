@@ -20536,6 +20536,89 @@ XML);
         $t->contains('<dt>Migration Review Desk 2026</dt><dd>manual :: Migration Import Manual :: Migration Review Desk :: Portland :: 2nd</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>booklet :: Reviewer Booklet :: Remote review packet :: Stapled migration handout :: Includes legacy captions</dd>', $blocks);
     },
+    'maps biblatex letter entries to csl personal communication conditionals' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@letter{source-letter,
+  author    = {Smith, Ada},
+  title     = {Legacy Source Letter},
+  date      = {2026-06-01},
+  recipient = {{Review Desk}},
+  note      = {Preserved from migration mailbox}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('source-letter', $items[0]['id'] ?? null);
+        $t->same('personal_communication', $items[0]['type'] ?? null);
+        $t->same('letter', $items[0]['rawBibtex']['type'] ?? null);
+        $t->same('Legacy Source Letter', $items[0]['title'] ?? null);
+        $t->same('Smith', $items[0]['author'][0]['family'] ?? null);
+        $t->same('Ada', $items[0]['author'][0]['given'] ?? null);
+        $t->same('Review Desk', $items[0]['recipient'][0]['literal'] ?? null);
+        $t->same('Preserved from migration mailbox', $items[0]['note'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Letter Type Review</title>
+    <id>https://example.test/styles/bounded-letter-type-review</id>
+    <updated>2026-06-09T04:25:53+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if type="personal_communication">
+          <group delimiter=" | ">
+            <text value="letter"/>
+            <text variable="title"/>
+            <names variable="recipient"><name/></names>
+            <text variable="note"/>
+          </group>
+        </if>
+        <else>
+          <text value="fallback"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <choose>
+        <if type="personal_communication">
+          <group delimiter=" :: ">
+            <text value="letter"/>
+            <text variable="title"/>
+            <names variable="author"><name name-as-sort-order="all"/></names>
+            <names variable="recipient"><name/></names>
+            <text variable="note"/>
+          </group>
+        </if>
+      </choose>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('source-letter');
+        $t->same('Bounded Letter Type Review', $summary['title'] ?? null);
+        $t->same(['personal_communication'], $summary['citationRendering'][0]['branches'][0]['types'] ?? null);
+        $t->same('personal_communication', $item['type'] ?? null);
+        $t->same('letter', $item['raw']['rawBibtex']['type'] ?? null);
+        $t->same('Review Desk', $item['recipients'][0]['literal'] ?? null);
+
+        $t->same('[letter | Legacy Source Letter | Review Desk | Preserved from migration mailbox]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'source-letter', 'text' => '[@source-letter]']),
+        ]));
+        $t->same('letter :: Legacy Source Letter :: Smith, Ada :: Review Desk :: Preserved from migration mailbox', $processor->renderBibliographyEntry('source-letter'));
+
+        $document = (new MarkdownReader())->read('Letter source [@source-letter] keeps personal-communication routing stable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Letter source [letter | Legacy Source Letter | Review Desk | Preserved from migration mailbox] keeps personal-communication routing stable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>letter :: Legacy Source Letter :: Smith, Ada :: Review Desk :: Preserved from migration mailbox</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
