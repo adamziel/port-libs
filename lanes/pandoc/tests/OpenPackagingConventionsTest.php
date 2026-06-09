@@ -7283,6 +7283,123 @@ XML;
         $t->same('/word/document.xml', $inventory['/word/_rels/document.xml.rels']['relationshipSource']);
         $t->same(true, $inventory['/word/_rels/document.xml.rels']['relationshipSourceLoaded']);
     },
+    'summarizes OPC package part relationship coverage for importer review' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/media/stale-review.png" ContentType="image/png"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png"/>
+  <Relationship Id="rIdMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdExternalReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/review" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $commentsRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdCommentImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/comment.png"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $commentsRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+            ['name' => 'word/media/comment.png', 'data' => 'PNG'],
+            ['name' => 'word/media/stale-review.png', 'data' => 'PNG'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $summary = $graph->packagePartRelationshipCoverageSummary(
+            '/',
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+        );
+        $parts = [];
+        foreach ($summary['parts'] as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $t->same('/', $summary['source']);
+        $t->same(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE, $summary['relationshipType']);
+        $t->same(false, $summary['valid']);
+        $t->same(11, $summary['inventoryPartCount']);
+        $t->same(10, $summary['packagePartCount']);
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(3, $summary['relationshipSourcePartCount']);
+        $t->same(7, $summary['directReferencePartCount']);
+        $t->same(6, $summary['reachableReferencePartCount']);
+        $t->same(7, $summary['directReferenceCount']);
+        $t->same(6, $summary['reachableReferenceCount']);
+        $t->same(1, $summary['directOnlyPartCount']);
+        $t->same(1, $summary['missingReferencedPartCount']);
+        $t->same(1, $summary['unreferencedPackagePartCount']);
+        $t->same(3, $summary['unreferencedRelationshipPartCount']);
+        $t->same(1, $summary['invalidPartCount']);
+        $t->same(1, $summary['externalDirectReferenceCount']);
+        $t->same(1, $summary['externalReachableReferenceCount']);
+        $t->same(0, $summary['invalidExternalReferenceCount']);
+        $t->same(['missing-in-package' => 1], $summary['issueCounts']);
+        $t->same(['missing-in-package'], $summary['issues']);
+        $t->same([
+            '/docProps/core.xml',
+            '/word/comments.xml',
+            '/word/document.xml',
+            '/word/media/comment.png',
+            '/word/media/hero.png',
+            '/word/media/missing.png',
+            '/word/styles.xml',
+        ], $summary['referencedPartNames']);
+        $t->same([
+            '/word/comments.xml',
+            '/word/document.xml',
+            '/word/media/comment.png',
+            '/word/media/hero.png',
+            '/word/media/missing.png',
+            '/word/styles.xml',
+        ], $summary['reachablePartNames']);
+        $t->same(['/docProps/core.xml'], $summary['directOnlyPartNames']);
+        $t->same(['/word/media/missing.png'], $summary['missingReferencedPartNames']);
+        $t->same(['/word/media/stale-review.png'], $summary['unreferencedPackagePartNames']);
+        $t->same([
+            '/_rels/.rels',
+            '/word/_rels/comments.xml.rels',
+            '/word/_rels/document.xml.rels',
+        ], $summary['unreferencedRelationshipPartNames']);
+        $t->same(['/word/media/missing.png'], $summary['invalidPartNames']);
+        $t->same(['https://example.test/review'], $summary['externalTargets']);
+        $t->same(['https://example.test/review'], $summary['reachableExternalTargets']);
+
+        $t->same('direct-and-reachable', $parts['/word/document.xml']['coverage']);
+        $t->same('direct-only', $parts['/docProps/core.xml']['coverage']);
+        $t->same('missing-referenced-part', $parts['/word/media/missing.png']['coverage']);
+        $t->same('unreferenced-package-part', $parts['/word/media/stale-review.png']['coverage']);
+        $t->same('unreferenced-relationship-part', $parts['/_rels/.rels']['coverage']);
+        $t->same(['missing-in-package'], $parts['/word/media/missing.png']['issues']);
+    },
     'preflights fixed OPC content types item references' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

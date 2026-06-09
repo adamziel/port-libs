@@ -1610,6 +1610,10 @@ $packagePartReferences = [];
 foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $part) {
     $packagePartReferences[$part['partName']] = $part;
 }
+$packagePartRelationshipCoverage = $graph->packagePartRelationshipCoverageSummary(
+    '/',
+    OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+);
 $relationshipSourceClosure = $graph->relationshipSourceClosureInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
 $relationshipSourceClosureSources = [];
 foreach ($relationshipSourceClosure['sources'] as $source) {
@@ -2428,6 +2432,7 @@ $summary = [
     'relationshipTypeInventory' => $relationshipTypeInventory,
     'relationshipRolePolicySummary' => $relationshipRolePolicySummary,
     'packagePartReferences' => $packagePartReferences,
+    'packagePartRelationshipCoverage' => $packagePartRelationshipCoverage,
     'relationships' => $relationshipSummaries,
     'relationshipSelector' => $relationshipSelectorSummary,
     'relationshipTransform' => [
@@ -2552,6 +2557,34 @@ $summary = [
             'issues' => $relationshipSourceClosureSummary['issues'],
             'sources' => array_values($relationshipSourceClosureSummary['sources']),
             'stops' => array_values($relationshipSourceClosureSummary['stops']),
+        ],
+        'packagePartRelationshipCoverage' => [
+            'valid' => $packagePartRelationshipCoverage['valid'],
+            'inventoryPartCount' => $packagePartRelationshipCoverage['inventoryPartCount'],
+            'packagePartCount' => $packagePartRelationshipCoverage['packagePartCount'],
+            'relationshipPartCount' => $packagePartRelationshipCoverage['relationshipPartCount'],
+            'relationshipSourcePartCount' => $packagePartRelationshipCoverage['relationshipSourcePartCount'],
+            'directReferencePartCount' => $packagePartRelationshipCoverage['directReferencePartCount'],
+            'reachableReferencePartCount' => $packagePartRelationshipCoverage['reachableReferencePartCount'],
+            'directOnlyPartCount' => $packagePartRelationshipCoverage['directOnlyPartCount'],
+            'missingReferencedPartCount' => $packagePartRelationshipCoverage['missingReferencedPartCount'],
+            'unreferencedPackagePartCount' => $packagePartRelationshipCoverage['unreferencedPackagePartCount'],
+            'unreferencedRelationshipPartCount' => $packagePartRelationshipCoverage['unreferencedRelationshipPartCount'],
+            'invalidPartCount' => $packagePartRelationshipCoverage['invalidPartCount'],
+            'externalDirectReferenceCount' => $packagePartRelationshipCoverage['externalDirectReferenceCount'],
+            'externalReachableReferenceCount' => $packagePartRelationshipCoverage['externalReachableReferenceCount'],
+            'invalidExternalReferenceCount' => $packagePartRelationshipCoverage['invalidExternalReferenceCount'],
+            'referencedPartNames' => $packagePartRelationshipCoverage['referencedPartNames'],
+            'reachablePartNames' => $packagePartRelationshipCoverage['reachablePartNames'],
+            'directOnlyPartNames' => $packagePartRelationshipCoverage['directOnlyPartNames'],
+            'missingReferencedPartNames' => $packagePartRelationshipCoverage['missingReferencedPartNames'],
+            'unreferencedPackagePartNames' => $packagePartRelationshipCoverage['unreferencedPackagePartNames'],
+            'unreferencedRelationshipPartNames' => $packagePartRelationshipCoverage['unreferencedRelationshipPartNames'],
+            'invalidPartNames' => $packagePartRelationshipCoverage['invalidPartNames'],
+            'externalTargets' => $packagePartRelationshipCoverage['externalTargets'],
+            'reachableExternalTargets' => $packagePartRelationshipCoverage['reachableExternalTargets'],
+            'issueCounts' => $packagePartRelationshipCoverage['issueCounts'],
+            'issues' => $packagePartRelationshipCoverage['issues'],
         ],
         'officeDocumentRelationshipReadiness' => [
             'valid' => $officeDocumentRelationshipReadiness['valid'],
@@ -3241,6 +3274,51 @@ if (($argv[1] ?? '') === '--self-test') {
         || ($summary['wordpressImport']['relationshipRolePolicySummary']['issueCounts'] ?? null) !== []
         || ($summary['wordpressImport']['relationshipRolePolicySummary']['issues'] ?? null) !== []
         || ($summary['wordpressImport']['relationshipRolePolicySummary']['invalidRoles'] ?? null) !== []
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['valid'] ?? null) !== false
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['inventoryPartCount'] ?? null) !== 33
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['packagePartCount'] ?? null) !== 33
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['relationshipPartCount'] ?? null) !== 6
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['relationshipSourcePartCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['directReferencePartCount'] ?? null) !== 19
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['reachableReferencePartCount'] ?? null) !== 12
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['directOnlyPartCount'] ?? null) !== 7
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['missingReferencedPartCount'] ?? null) !== 0
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedPackagePartCount'] ?? null) !== 8
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedRelationshipPartCount'] ?? null) !== 6
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['invalidPartCount'] ?? null) !== 1
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['externalDirectReferenceCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['externalReachableReferenceCount'] ?? null) !== 5
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['invalidExternalReferenceCount'] ?? null) !== 3
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['directOnlyPartNames'] ?? null) !== [
+            '/EncryptedPackage',
+            '/_xmlsignatures/origin.sigs',
+            '/_xmlsignatures/sig1.xml',
+            '/docProps/app.xml',
+            '/docProps/core.xml',
+            '/docProps/custom.xml',
+            '/docProps/thumbnail.png',
+        ]
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['unreferencedPackagePartNames'] ?? null) !== [
+            '/_xmlsignatures/sig-dot-segments.xml',
+            '/_xmlsignatures/sig-duplicate-selector.xml',
+            '/_xmlsignatures/sig-fragment.xml',
+            '/_xmlsignatures/sig-missing-rels.xml',
+            '/_xmlsignatures/sig-reference-uri-kinds.xml',
+            '/_xmlsignatures/sig-selector-shape.xml',
+            '/_xmlsignatures/sig-unsafe-reference.xml',
+            '/word/media/draft-hidden.png',
+        ]
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['invalidPartNames'] ?? null) !== ['/word/_rels/draft.xml.rels']
+        || ($summary['wordpressImport']['packagePartRelationshipCoverage']['issueCounts'] ?? null) !== [
+            'external-target-network-path-base-uri' => 1,
+            'external-target-unsafe-scheme' => 1,
+            'invalid-relationship-content-type' => 1,
+            'relationship-type-not-absolute-uri' => 1,
+        ]
+        || ($summary['packagePartRelationshipCoverage']['parts'][0]['coverage'] ?? null) !== 'direct-only'
+        || ($summary['packagePartRelationshipCoverage']['parts'][1]['coverage'] ?? null) !== 'unreferenced-relationship-part'
+        || ($summary['packagePartRelationshipCoverage']['parts'][12]['coverage'] ?? null) !== 'direct-and-reachable'
+        || ($summary['packagePartRelationshipCoverage']['parts'][26]['coverage'] ?? null) !== 'unreferenced-package-part'
         || ($summary['relationshipRolePolicySummary']['source'] ?? null) !== null
         || array_column($summary['relationshipRolePolicySummary']['roles'] ?? [], 'role') !== [
             'core-properties',

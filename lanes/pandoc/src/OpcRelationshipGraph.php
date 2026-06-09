@@ -1505,6 +1505,174 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{source:string, relationshipType:?string, valid:bool, inventoryPartCount:int, packagePartCount:int, relationshipPartCount:int, relationshipSourcePartCount:int, directReferencePartCount:int, reachableReferencePartCount:int, directReferenceCount:int, reachableReferenceCount:int, directOnlyPartCount:int, missingReferencedPartCount:int, unreferencedPackagePartCount:int, unreferencedRelationshipPartCount:int, invalidPartCount:int, externalDirectReferenceCount:int, externalReachableReferenceCount:int, invalidExternalReferenceCount:int, referencedPartNames:list<string>, reachablePartNames:list<string>, directOnlyPartNames:list<string>, missingReferencedPartNames:list<string>, unreferencedPackagePartNames:list<string>, unreferencedRelationshipPartNames:list<string>, invalidPartNames:list<string>, externalTargets:list<string>, reachableExternalTargets:list<string>, issueCounts:array<string,int>, issues:list<string>, parts:list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceLoaded:?bool, coverage:string, directReferenceCount:int, reachableReferenceCount:int, valid:bool, issues:list<string>}>}
+     */
+    public function packagePartRelationshipCoverageSummary(
+        string $reachableSourcePartName = '/',
+        ?string $reachableRelationshipType = null,
+    ): array {
+        $reachableSourcePartName = $this->relationshipSourceNameForEquivalent($reachableSourcePartName);
+        $summary = [
+            'source' => $reachableSourcePartName,
+            'relationshipType' => $reachableRelationshipType,
+            'valid' => true,
+            'inventoryPartCount' => 0,
+            'packagePartCount' => 0,
+            'relationshipPartCount' => 0,
+            'relationshipSourcePartCount' => 0,
+            'directReferencePartCount' => 0,
+            'reachableReferencePartCount' => 0,
+            'directReferenceCount' => 0,
+            'reachableReferenceCount' => 0,
+            'directOnlyPartCount' => 0,
+            'missingReferencedPartCount' => 0,
+            'unreferencedPackagePartCount' => 0,
+            'unreferencedRelationshipPartCount' => 0,
+            'invalidPartCount' => 0,
+            'externalDirectReferenceCount' => 0,
+            'externalReachableReferenceCount' => 0,
+            'invalidExternalReferenceCount' => 0,
+            'referencedPartNames' => [],
+            'reachablePartNames' => [],
+            'directOnlyPartNames' => [],
+            'missingReferencedPartNames' => [],
+            'unreferencedPackagePartNames' => [],
+            'unreferencedRelationshipPartNames' => [],
+            'invalidPartNames' => [],
+            'externalTargets' => [],
+            'reachableExternalTargets' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'parts' => [],
+        ];
+
+        foreach ($this->packagePartReferenceInventory($reachableSourcePartName, $reachableRelationshipType) as $part) {
+            $summary['inventoryPartCount']++;
+            $summary['directReferenceCount'] += $part['directReferenceCount'];
+            $summary['reachableReferenceCount'] += $part['reachableReferenceCount'];
+
+            if ($part['exists']) {
+                $summary['packagePartCount']++;
+            }
+
+            if ($part['relationshipPart']) {
+                $summary['relationshipPartCount']++;
+                if ($part['relationshipSourceLoaded'] === true) {
+                    $summary['relationshipSourcePartCount']++;
+                }
+            }
+
+            if ($part['directReferenceCount'] > 0) {
+                $summary['directReferencePartCount']++;
+                self::appendUniqueString($summary['referencedPartNames'], $part['partName']);
+            }
+
+            if ($part['reachableReferenceCount'] > 0) {
+                $summary['reachableReferencePartCount']++;
+                self::appendUniqueString($summary['reachablePartNames'], $part['partName']);
+            }
+
+            $referenced = $part['directReferenceCount'] > 0 || $part['reachableReferenceCount'] > 0;
+            if (!$part['exists'] && $referenced) {
+                $coverage = 'missing-referenced-part';
+                $summary['missingReferencedPartCount']++;
+                self::appendUniqueString($summary['missingReferencedPartNames'], $part['partName']);
+            } elseif ($part['directReferenceCount'] > 0 && $part['reachableReferenceCount'] > 0) {
+                $coverage = 'direct-and-reachable';
+            } elseif ($part['directReferenceCount'] > 0) {
+                $coverage = 'direct-only';
+                $summary['directOnlyPartCount']++;
+                self::appendUniqueString($summary['directOnlyPartNames'], $part['partName']);
+            } elseif ($part['reachableReferenceCount'] > 0) {
+                $coverage = 'reachable-only';
+            } elseif ($part['relationshipPart']) {
+                $coverage = 'unreferenced-relationship-part';
+                $summary['unreferencedRelationshipPartCount']++;
+                self::appendUniqueString($summary['unreferencedRelationshipPartNames'], $part['partName']);
+            } else {
+                $coverage = 'unreferenced-package-part';
+                $summary['unreferencedPackagePartCount']++;
+                self::appendUniqueString($summary['unreferencedPackagePartNames'], $part['partName']);
+            }
+
+            if (!$part['valid']) {
+                $summary['invalidPartCount']++;
+                self::appendUniqueString($summary['invalidPartNames'], $part['partName']);
+            }
+
+            foreach ($part['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+
+            $summary['parts'][] = [
+                'partName' => $part['partName'],
+                'exists' => $part['exists'],
+                'contentType' => $part['contentType'],
+                'relationshipPart' => $part['relationshipPart'],
+                'relationshipSource' => $part['relationshipSource'],
+                'relationshipSourceLoaded' => $part['relationshipSourceLoaded'],
+                'coverage' => $coverage,
+                'directReferenceCount' => $part['directReferenceCount'],
+                'reachableReferenceCount' => $part['reachableReferenceCount'],
+                'valid' => $part['valid'],
+                'issues' => $part['issues'],
+            ];
+        }
+
+        foreach ($this->preflightAllRelationshipTargets() as $target) {
+            if (!$target['external']) {
+                continue;
+            }
+
+            $summary['externalDirectReferenceCount']++;
+            self::appendUniqueString($summary['externalTargets'], $target['target']);
+            if (!$target['valid']) {
+                $summary['invalidExternalReferenceCount']++;
+                foreach ($target['issues'] as $issue) {
+                    $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                    self::appendUniqueString($summary['issues'], $issue);
+                }
+            }
+        }
+
+        foreach ($this->reachableTargetsForSource($reachableSourcePartName, $reachableRelationshipType) as $target) {
+            if (!$target['external']) {
+                continue;
+            }
+
+            $summary['externalReachableReferenceCount']++;
+            self::appendUniqueString($summary['reachableExternalTargets'], $target['target']);
+        }
+
+        foreach ([
+            'referencedPartNames',
+            'reachablePartNames',
+            'directOnlyPartNames',
+            'missingReferencedPartNames',
+            'unreferencedPackagePartNames',
+            'unreferencedRelationshipPartNames',
+            'invalidPartNames',
+            'externalTargets',
+            'reachableExternalTargets',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+
+        ksort($summary['issueCounts'], SORT_STRING);
+        usort(
+            $summary['parts'],
+            static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
+        );
+
+        $summary['valid'] = $summary['invalidPartCount'] === 0
+            && $summary['invalidExternalReferenceCount'] === 0;
+
+        return $summary;
+    }
+
+    /**
      * @return array{source:string, relationshipType:?string, valid:bool, issues:list<string>, expandedSourceCount:int, outsideSourceCount:int, stopCount:int, externalStopCount:int, invalidStopCount:int, missingStopCount:int, relationshipPartStopCount:int, cycleStopCount:int, unloadedStopCount:int, sources:list<array<string, mixed>>, stops:list<array<string, mixed>>}
      */
     public function relationshipSourceClosureInventory(string $sourcePartName = '/', ?string $relationshipType = null): array
