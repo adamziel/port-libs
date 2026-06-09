@@ -239,4 +239,64 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders unsupported raw and native commands as latex review text' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', [
+                'format' => 'html',
+                'text' => '<aside data-review="1">needs TeX handoff</aside>',
+            ]),
+            new AstNode('raw_block', [
+                'format' => 'typst',
+                'text' => '#show heading: it => it',
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Audit'),
+                $space(),
+                new AstNode('raw_html_inline', [
+                    'format' => 'html',
+                    'text' => '<kbd>Ctrl+S</kbd>',
+                ]),
+                $space(),
+                new AstNode('raw_inline', [
+                    'format' => 'opml',
+                    'text' => '<outline text="Review"/>',
+                ]),
+            ]),
+            new AstNode('native_block', [
+                'constructor' => 'TableOfContents',
+                'reason' => 'writer extension not mapped',
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Macro'),
+                $space(),
+                new AstNode('native_inline', [
+                    'constructor' => 'UnsupportedInlineCommand',
+                    'text' => '\write18{curl example.test}',
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\begin{quote}',
+                '\texttt{[unsupported block command: raw html - <aside data-review="1">needs TeX handoff</aside>]}',
+                '\end{quote}',
+            ]),
+            implode("\n", [
+                '\begin{quote}',
+                '\texttt{[unsupported block command: raw typst - \#show heading: it => it]}',
+                '\end{quote}',
+            ]),
+            'Audit \texttt{[unsupported inline command: raw html - <kbd>Ctrl+S</kbd>]} \texttt{[unsupported inline command: raw opml - <outline text="Review"/>]}',
+            implode("\n", [
+                '\begin{quote}',
+                '\texttt{[unsupported block command: TableOfContents - writer extension not mapped]}',
+                '\end{quote}',
+            ]),
+            'Macro \texttt{[unsupported inline command: UnsupportedInlineCommand - \textbackslash{}write18\{curl example.test\}]}',
+        ]), (new LatexWriter())->write($document));
+    },
 ];

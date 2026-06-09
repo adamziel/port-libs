@@ -50,6 +50,7 @@ final class LatexWriter
             'ordered_list' => $this->renderList($node, true, $listDepth),
             'definition_list' => $this->renderDefinitionList($node),
             'raw_tex', 'raw_block' => $this->renderRawTexBlock($node),
+            'raw_html', 'raw_markdown', 'native_block', 'unsupported_command' => $this->renderUnsupportedCommandBlock($node),
             default => [],
         };
     }
@@ -576,6 +577,7 @@ final class LatexWriter
                 'note' => $this->renderNote($node),
                 'math' => $this->mathConverter()->latexFor($node),
                 'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
+                'raw_html_inline', 'raw_markdown', 'native_inline', 'unsupported_command' => $this->renderUnsupportedCommandInline($node),
                 'raw_inline' => $this->renderRawInline($node),
                 default => $this->renderInlines($node->children),
             };
@@ -652,7 +654,7 @@ final class LatexWriter
     {
         $format = strtolower((string) $node->attr('format', ''));
         if (!in_array($format, ['tex', 'latex', 'context'], true)) {
-            return '';
+            return $this->renderUnsupportedCommandInline($node);
         }
 
         return (string) $node->attr('text', '');
@@ -665,10 +667,92 @@ final class LatexWriter
     {
         $format = strtolower((string) $node->attr('format', ''));
         if ($node->type !== 'raw_tex' && !in_array($format, ['tex', 'latex', 'context'], true)) {
-            return [];
+            return $this->renderUnsupportedCommandBlock($node);
         }
 
         return explode("\n", (string) $node->attr('tex', $node->attr('text', '')));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderUnsupportedCommandBlock(AstNode $node): array
+    {
+        $lines = [
+            '\begin{quote}',
+            $this->renderCommand('texttt', $this->unsupportedCommandLabel($node, 'block')),
+        ];
+
+        $children = $this->renderBlockGroup($node->children);
+        if ($children !== []) {
+            $lines[] = '';
+            array_push($lines, ...$children);
+        }
+
+        $lines[] = '\end{quote}';
+
+        return $lines;
+    }
+
+    private function renderUnsupportedCommandInline(AstNode $node): string
+    {
+        $label = $this->renderCommand('texttt', $this->unsupportedCommandLabel($node, 'inline'));
+        $children = $this->renderInlines($node->children);
+
+        return $children === '' ? $label : $label . ' ' . $children;
+    }
+
+    private function unsupportedCommandLabel(AstNode $node, string $scope): string
+    {
+        $label = '[unsupported ' . $scope . ' command: ' . $this->unsupportedCommandName($node);
+        $detail = $this->unsupportedCommandDetail($node);
+        if ($detail !== '') {
+            $label .= ' - ' . $detail;
+        }
+
+        return $this->escapeText($label . ']');
+    }
+
+    private function unsupportedCommandName(AstNode $node): string
+    {
+        $command = $node->attr('command', null);
+        if (is_string($command) && trim($command) !== '') {
+            return trim($command);
+        }
+
+        $constructor = $node->attr('constructor', null);
+        if (is_string($constructor) && trim($constructor) !== '') {
+            return trim($constructor);
+        }
+
+        $format = $node->attr('format', null);
+        if (is_string($format) && trim($format) !== '') {
+            return 'raw ' . strtolower(trim($format));
+        }
+
+        return $node->type;
+    }
+
+    private function unsupportedCommandDetail(AstNode $node): string
+    {
+        foreach (['reason', 'message', 'text', 'html', 'markdown', 'tex'] as $attr) {
+            $detail = $node->attr($attr, null);
+            if (is_string($detail) && trim($detail) !== '') {
+                return $this->summarizeUnsupportedCommandDetail($detail);
+            }
+        }
+
+        return '';
+    }
+
+    private function summarizeUnsupportedCommandDetail(string $detail): string
+    {
+        $summary = preg_replace('/\s+/', ' ', trim($detail)) ?? trim($detail);
+        if (strlen($summary) <= 160) {
+            return $summary;
+        }
+
+        return substr($summary, 0, 157) . '...';
     }
 
     private function mathConverter(): MathTexConverter
@@ -714,7 +798,11 @@ final class LatexWriter
             'citation_group',
             'note',
             'raw_tex',
+            'raw_html_inline',
+            'raw_markdown',
             'raw_inline',
+            'native_inline',
+            'unsupported_command',
         ], true);
     }
 
