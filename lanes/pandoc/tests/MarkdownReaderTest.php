@@ -67,6 +67,35 @@ return [
         $t->same('Triple === stays literal.', (new MarkdownReader())->read('Triple === stays literal.')->children[0]->attr('text'));
         $t->same('Escaped ==source== stays literal.', (new MarkdownReader())->read('Escaped \==source== stays literal.')->children[0]->attr('text'));
     },
+    'maps pandoc markdown abbreviation definitions as skipped extension keys' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Imported HTML and CSS terms stay in body text.',
+            '',
+            '*[HTML]: Hypertext Markup Language',
+            '*[CSS]: Cascading Style Sheets',
+            '',
+            'After abbreviation definitions.',
+            '',
+            '    *[CODE]: indented code stays literal',
+            '',
+            '```',
+            '*[FENCE]: fenced code stays literal',
+            '```',
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['paragraph', 'paragraph', 'code_block', 'code_block'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('Imported HTML and CSS terms stay in body text.', $document->children[0]->attr('text'));
+        $t->same('After abbreviation definitions.', $document->children[1]->attr('text'));
+        $t->same('*[CODE]: indented code stays literal', $document->children[2]->attr('text'));
+        $t->same('*[FENCE]: fenced code stays literal', $document->children[3]->attr('text'));
+        $t->contains('<p>Imported HTML and CSS terms stay in body text.</p>', $blocks);
+        $t->contains('<p>After abbreviation definitions.</p>', $blocks);
+        $t->contains('<code>*[CODE]: indented code stays literal</code>', $blocks);
+        $t->contains('<code>*[FENCE]: fenced code stays literal</code>', $blocks);
+        $t->true(!str_contains($blocks, 'Hypertext Markup Language'), 'Abbreviation definitions should be skipped, not rendered');
+        $t->true(!str_contains($blocks, 'Cascading Style Sheets'), 'Multiple abbreviation definitions should be skipped');
+    },
     'maps upstream markdown smallcaps underline extension spans through writer and wordpress handoff' => static function (TestRunner $t): void {
         $markdown = 'Editorial [review **label**]{.smallcaps} and [inserted note]{.underline data-source="batch-55"}.';
         $document = (new MarkdownReader())->read($markdown);

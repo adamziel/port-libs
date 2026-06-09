@@ -7364,6 +7364,10 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($this->isAbbreviationDefinitionLine($expanded)) {
+                continue;
+            }
+
             $reference = $this->tryParseReferenceDefinitionStart($expanded);
             if ($reference !== null) {
                 [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
@@ -7382,6 +7386,11 @@ final class MarkdownReader
         }
 
         return [$content, $references, $footnotes];
+    }
+
+    private function isAbbreviationDefinitionLine(string $line): bool
+    {
+        return preg_match('/^ {0,3}\*\[[^\]\r\n]+\]:[ \t]*(.*)$/', $line) === 1;
     }
 
     /**
