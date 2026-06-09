@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
@@ -642,5 +643,79 @@ return [
         $t->same('Queue short', $table->attr('shortCaption'));
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
+    },
+    'maps native inline command constructors into latex writer output' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                [
+                    't' => 'Para',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Review'],
+                        ['t' => 'Space'],
+                        ['t' => 'Underline', 'c' => [
+                            ['t' => 'Str', 'c' => 'required'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'Strikeout', 'c' => [
+                            ['t' => 'Str', 'c' => 'stale'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'Superscript', 'c' => [
+                            ['t' => 'Str', 'c' => '2'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'Subscript', 'c' => [
+                            ['t' => 'Str', 'c' => 'n'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'SmallCaps', 'c' => [
+                            ['t' => 'Str', 'c' => 'caps'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'Quoted', 'c' => [
+                            ['t' => 'SingleQuote'],
+                            [
+                                ['t' => 'Str', 'c' => 'quoted'],
+                            ],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'RawInline', 'c' => ['latex', '\\LaTeX{}']],
+                        ['t' => 'Space'],
+                        ['t' => 'Math', 'c' => [
+                            ['t' => 'InlineMath'],
+                            'x^2',
+                        ]],
+                    ],
+                ],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $paragraph = $document->children[0];
+
+        $t->same([
+            'text',
+            'underline',
+            'text',
+            'strikeout',
+            'text',
+            'superscript',
+            'text',
+            'subscript',
+            'text',
+            'small_caps',
+            'text',
+            'quoted',
+            'text',
+            'raw_tex',
+            'text',
+            'math',
+        ], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same(
+            'Review \underline{required} \sout{stale} \textsuperscript{2} \textsubscript{n} \textsc{caps} `quoted\' \LaTeX{} $x^2$',
+            (new LatexWriter())->write($document)
+        );
     },
 ];

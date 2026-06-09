@@ -523,11 +523,34 @@ final class NativeReader
             'LineBreak' => new AstNode('linebreak', $attrs),
             'Emph' => new AstNode('emph', $attrs, $this->inlines($inline['c'] ?? [])),
             'Strong' => new AstNode('strong', $attrs, $this->inlines($inline['c'] ?? [])),
+            'Underline' => new AstNode('underline', $attrs, $this->inlines($inline['c'] ?? [])),
+            'Strikeout' => new AstNode('strikeout', $attrs, $this->inlines($inline['c'] ?? [])),
+            'Superscript' => new AstNode('superscript', $attrs, $this->inlines($inline['c'] ?? [])),
+            'Subscript' => new AstNode('subscript', $attrs, $this->inlines($inline['c'] ?? [])),
+            'SmallCaps' => new AstNode('small_caps', $attrs, $this->inlines($inline['c'] ?? [])),
+            'Quoted' => $this->quotedInline($attrs, $inline['c'] ?? []),
             'Code' => $this->codeInline($attrs, $inline['c'] ?? []),
+            'Math' => $this->mathInline($attrs, $inline['c'] ?? []),
+            'RawInline' => $this->rawInline($attrs, $inline['c'] ?? []),
             'Link' => $this->linkInline($attrs, $inline['c'] ?? []),
             'Span' => $this->spanInline($attrs, $inline['c'] ?? []),
             default => new AstNode('native_inline', $attrs),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function quotedInline(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Quoted inline content');
+        $kind = match ($this->constructorTag($tuple[0], 'Pandoc native JSON quote type')) {
+            'SingleQuote' => 'single',
+            'DoubleQuote' => 'double',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON quote type'),
+        };
+
+        return new AstNode('quoted', array_replace($attrs, ['kind' => $kind]), $this->inlines($tuple[1]));
     }
 
     /**
@@ -543,6 +566,52 @@ final class NativeReader
         }
 
         throw new \InvalidArgumentException('Pandoc native JSON Code inline content must contain attributes and text');
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function mathInline(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Math inline content');
+        if (!is_string($tuple[1])) {
+            throw new \InvalidArgumentException('Pandoc native JSON Math inline content must contain text');
+        }
+
+        $display = match ($this->constructorTag($tuple[0], 'Pandoc native JSON math type')) {
+            'DisplayMath' => true,
+            'InlineMath' => false,
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON math type'),
+        };
+
+        return new AstNode('math', array_replace($attrs, [
+            'display' => $display,
+            'text' => $tuple[1],
+        ]));
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function rawInline(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawInline content');
+        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+            throw new \InvalidArgumentException('Pandoc native JSON RawInline content must contain format and text strings');
+        }
+
+        $format = $tuple[0];
+        $text = $tuple[1];
+        $attrs = array_replace($attrs, [
+            'format' => $format,
+            'text' => $text,
+        ]);
+
+        return match (strtolower($format)) {
+            'tex', 'latex', 'context' => new AstNode('raw_tex', array_replace($attrs, ['tex' => $text])),
+            'html' => new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text])),
+            default => new AstNode('raw_inline', $attrs),
+        };
     }
 
     /**
