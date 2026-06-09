@@ -87,7 +87,13 @@ $contentXml = <<<'XML'
       <table:table table:name="Validation Review">
         <table:table-row>
           <table:table-cell><text:p>Status</text:p></table:table-cell>
-          <table:table-cell table:content-validation-name="ReviewStatusValidation" office:value-type="string" office:string-value="ready"><text:p>ready</text:p></table:table-cell>
+          <table:table-cell table:content-validation-name="ReviewStatusValidation" office:value-type="string" office:string-value="ready">
+            <table:detective>
+              <table:highlighted-range table:cell-range-address="Review.A2:Review.D12" table:direction="from-dependents" table:contains-error="false"/>
+              <table:operation table:name="trace-dependents" table:index="1"/>
+            </table:detective>
+            <text:p>ready</text:p>
+          </table:table-cell>
         </table:table-row>
       </table:table>
       <text:p>Import source <text:database-display text:database-name="ImportDS" text:table-name="wp_posts" text:table-type="table" text:column-name="post_title">Imported post title</text:database-display> moved to row <text:database-row-number text:database-name="ImportDS" text:table-name="wp_posts" text:row-number="12"/>.</text:p>
@@ -266,13 +272,22 @@ if (in_array('--self-test', $argv, true)) {
     if (($result['importReport']['content']['fieldCount'] ?? 0) !== 2) {
         throw new RuntimeException('Expected ODT database fields to be counted in the import report');
     }
+    if (($result['importReport']['content']['tableCellDetectiveCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table-cell detective metadata to be counted in the import report');
+    }
+    if (($result['importReport']['content']['tableCellDetectiveHighlightCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table-cell detective highlighted ranges to be counted in the import report');
+    }
+    if (($result['importReport']['content']['tableCellDetectiveOperationCount'] ?? 0) !== 1) {
+        throw new RuntimeException('Expected ODT table-cell detective operations to be counted in the import report');
+    }
     if (!str_contains($blocks, '<span class="odf-field odf-field-database-display" data-odf-field-type="database-display" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-table-type="table" data-odf-field-column-name="post_title">Imported post title</span>')) {
         throw new RuntimeException('Expected ODT database-display field metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<span class="odf-field odf-field-database-row-number" data-odf-field-type="database-row-number" data-odf-field-database-name="ImportDS" data-odf-field-table-name="wp_posts" data-odf-field-row-number="12">12</span>')) {
         throw new RuntimeException('Expected ODT database-row-number fallback value to render in WordPress blocks');
     }
-    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-validation" data-odf-cell-value-type="string" data-odf-cell-string-value="ready" data-odf-cell-content-validation-name="ReviewStatusValidation" data-odf-cell-content-validation-exists="true" data-odf-cell-content-validation-condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)" data-odf-cell-content-validation-allow-empty-cell="false"><p>ready</p></td>')) {
+    if (!str_contains($blocks, '<td class="odf-table-cell-value odf-table-cell-validation odf-table-cell-detective" data-odf-cell-value-type="string" data-odf-cell-string-value="ready" data-odf-cell-content-validation-name="ReviewStatusValidation" data-odf-cell-content-validation-exists="true" data-odf-cell-content-validation-condition="cell-content-is-in-list(&quot;draft&quot;;&quot;ready&quot;;&quot;legal&quot;)" data-odf-cell-content-validation-allow-empty-cell="false" data-odf-cell-detective-highlight-count="1" data-odf-cell-detective-ranges="Review.A2:Review.D12" data-odf-cell-detective-directions="from-dependents" data-odf-cell-detective-operation-count="1" data-odf-cell-detective-operation-names="trace-dependents"><p>ready</p></td>')) {
         throw new RuntimeException('Expected ODT content validation cell metadata to render in WordPress blocks');
     }
 

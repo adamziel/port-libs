@@ -266,6 +266,9 @@ final class OdfReader
                     'tableCoveredCellCount' => $contentStats['tableCoveredCellCount'],
                     'tableCoveredCellMetadataCount' => $contentStats['tableCoveredCellMetadataCount'],
                     'tableCellAnnotationCount' => $contentStats['tableCellAnnotationCount'],
+                    'tableCellDetectiveCount' => $contentStats['tableCellDetectiveCount'],
+                    'tableCellDetectiveHighlightCount' => $contentStats['tableCellDetectiveHighlightCount'],
+                    'tableCellDetectiveOperationCount' => $contentStats['tableCellDetectiveOperationCount'],
                     'tableStyledCellCount' => $contentStats['tableStyledCellCount'],
                     'tableProtectedCellCount' => $contentStats['tableProtectedCellCount'],
                     'tablePrintHiddenCellCount' => $contentStats['tablePrintHiddenCellCount'],
@@ -2654,6 +2657,17 @@ final class OdfReader
                 );
             }
         }
+        $detective = $this->tableCellDetectiveMetadata($cell);
+        if ($detective !== []) {
+            $attrs['odfCellDetective'] = $detective;
+            $attrs['detectiveHighlightCount'] = (int) ($detective['highlightedRangeCount'] ?? 0);
+            $attrs['detectiveOperationCount'] = (int) ($detective['operationCount'] ?? 0);
+            $htmlAttributes = array_merge(
+                $htmlAttributes,
+                $this->tableCellDetectiveHtmlAttributes($detective),
+            );
+            $classes[] = 'odf-table-cell-detective';
+        }
         if ($annotations !== []) {
             $attrs['odfCellAnnotations'] = $annotations;
             $attrs['annotationCount'] = count($annotations);
@@ -2753,6 +2767,104 @@ final class OdfReader
             'data-odf-cell-annotation-authors' => $authors === [] ? null : implode(',', array_values(array_unique($authors))),
             'data-odf-cell-annotation-dates' => $dates === [] ? null : implode(',', array_values(array_unique($dates))),
             'data-odf-cell-annotation-text-count' => $textCount > 0 ? (string) $textCount : null,
+        ]);
+    }
+
+    /**
+     * @return array{highlightedRanges?:list<array<string, mixed>>, highlightedRangeCount?:int, operations?:list<array<string, mixed>>, operationCount?:int}
+     */
+    private function tableCellDetectiveMetadata(\DOMElement $cell): array
+    {
+        $detective = self::firstChildElement($cell, 'detective', self::TABLE_NS);
+        if (!$detective instanceof \DOMElement) {
+            return [];
+        }
+
+        $highlightedRanges = [];
+        $operations = [];
+        foreach (self::childElements($detective) as $child) {
+            if ($child->namespaceURI !== self::TABLE_NS) {
+                continue;
+            }
+
+            if ($child->localName === 'highlighted-range') {
+                $entry = self::withoutEmpty(array_merge(
+                    ['element' => 'highlighted-range'],
+                    $this->odfElementMetadataAttributes($child, [self::TABLE_NS])
+                ));
+                if ($entry !== []) {
+                    $highlightedRanges[] = $entry;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'operation') {
+                $entry = self::withoutEmpty(array_merge(
+                    ['element' => 'operation'],
+                    $this->odfElementMetadataAttributes($child, [self::TABLE_NS])
+                ));
+                if ($entry !== []) {
+                    $operations[] = $entry;
+                }
+            }
+        }
+
+        return self::withoutEmpty([
+            'highlightedRanges' => $highlightedRanges,
+            'highlightedRangeCount' => $highlightedRanges === [] ? null : count($highlightedRanges),
+            'operations' => $operations,
+            'operationCount' => $operations === [] ? null : count($operations),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $detective
+     * @return array<string, string>
+     */
+    private function tableCellDetectiveHtmlAttributes(array $detective): array
+    {
+        $highlightedRanges = is_array($detective['highlightedRanges'] ?? null) ? $detective['highlightedRanges'] : [];
+        $operations = is_array($detective['operations'] ?? null) ? $detective['operations'] : [];
+        $ranges = [];
+        $directions = [];
+        $errorCount = 0;
+        foreach ($highlightedRanges as $range) {
+            if (!is_array($range)) {
+                continue;
+            }
+
+            $cellRangeAddress = (string) ($range['cellRangeAddress'] ?? '');
+            if ($cellRangeAddress !== '') {
+                $ranges[] = $cellRangeAddress;
+            }
+            $direction = (string) ($range['direction'] ?? '');
+            if ($direction !== '') {
+                $directions[] = $direction;
+            }
+            if (($range['containsError'] ?? null) === true) {
+                $errorCount++;
+            }
+        }
+
+        $operationNames = [];
+        foreach ($operations as $operation) {
+            if (!is_array($operation)) {
+                continue;
+            }
+
+            $name = (string) ($operation['name'] ?? '');
+            if ($name !== '') {
+                $operationNames[] = $name;
+            }
+        }
+
+        return self::withoutEmpty([
+            'data-odf-cell-detective-highlight-count' => $highlightedRanges === [] ? null : (string) count($highlightedRanges),
+            'data-odf-cell-detective-ranges' => $ranges === [] ? null : implode(';', array_values(array_unique($ranges))),
+            'data-odf-cell-detective-directions' => $directions === [] ? null : implode(',', array_values(array_unique($directions))),
+            'data-odf-cell-detective-error-count' => $errorCount > 0 ? (string) $errorCount : null,
+            'data-odf-cell-detective-operation-count' => $operations === [] ? null : (string) count($operations),
+            'data-odf-cell-detective-operation-names' => $operationNames === [] ? null : implode(',', array_values(array_unique($operationNames))),
         ]);
     }
 
@@ -9145,6 +9257,9 @@ final class OdfReader
             'tableCoveredCellCount' => 0,
             'tableCoveredCellMetadataCount' => 0,
             'tableCellAnnotationCount' => 0,
+            'tableCellDetectiveCount' => 0,
+            'tableCellDetectiveHighlightCount' => 0,
+            'tableCellDetectiveOperationCount' => 0,
             'tableStyledCellCount' => 0,
             'tableProtectedCellCount' => 0,
             'tablePrintHiddenCellCount' => 0,
@@ -9252,6 +9367,18 @@ final class OdfReader
             $cellAnnotations = $node->attr('odfCellAnnotations', []);
             if ($node->type === 'table_cell' && is_array($cellAnnotations)) {
                 $stats['tableCellAnnotationCount'] += count($cellAnnotations);
+            }
+            $cellDetective = $node->attr('odfCellDetective', []);
+            if ($node->type === 'table_cell' && is_array($cellDetective) && $cellDetective !== []) {
+                $stats['tableCellDetectiveCount']++;
+                $highlightedRanges = $cellDetective['highlightedRanges'] ?? [];
+                if (is_array($highlightedRanges)) {
+                    $stats['tableCellDetectiveHighlightCount'] += count($highlightedRanges);
+                }
+                $operations = $cellDetective['operations'] ?? [];
+                if (is_array($operations)) {
+                    $stats['tableCellDetectiveOperationCount'] += count($operations);
+                }
             }
             if ($node->type === 'span' && $this->nodeHasClass($node, 'odf-bookmark')) {
                 $stats['bookmarkCount']++;

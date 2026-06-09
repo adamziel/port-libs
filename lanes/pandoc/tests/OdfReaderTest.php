@@ -1323,6 +1323,66 @@ XML;
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="date" data-odf-cell-date-value="2026-06-05"><p>Review date</p></td>', $blocksHtml);
         $t->contains('<td class="odf-table-cell-value" data-odf-cell-value-type="boolean" data-odf-cell-boolean-value="true"><p>Ready</p></td>', $blocksHtml);
     },
+    'maps ODT table cell detective metadata into review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $content = <<<'XML'
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="DependencyReview">
+        <table:table-row>
+          <table:table-cell><text:p>Metric</text:p></table:table-cell>
+          <table:table-cell table:formula="of:=SUM([.B2:.B4])" office:value-type="float" office:value="42">
+            <table:detective>
+              <table:highlighted-range table:cell-range-address="DependencyReview.B2:DependencyReview.B4" table:direction="from-dependents" table:contains-error="true" />
+              <table:highlighted-range table:cell-range-address="DependencyReview.C2:DependencyReview.C4" table:direction="to-precedents" />
+              <table:operation table:name="trace-dependents" table:index="1" />
+            </table:detective>
+            <text:p>42</text:p>
+          </table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $reader = new OdfReader();
+        $result = $reader->readPackage($buildOdtPackage($content));
+        $table = $result['document']->children[0];
+        $rows = $table->children[0]->children;
+        $cell = $rows[0]->children[1];
+        $detective = $cell->attr('odfCellDetective');
+        $htmlAttributes = $cell->attr('htmlAttributes', []);
+
+        $t->same('table_cell', $cell->type);
+        $t->same('42', $cell->attr('text'));
+        $t->same(['odf-table-cell-value', 'odf-table-cell-formula', 'odf-table-cell-detective'], $cell->attr('classes'));
+        $t->same(2, $detective['highlightedRangeCount']);
+        $t->same(1, $detective['operationCount']);
+        $t->same('DependencyReview.B2:DependencyReview.B4', $detective['highlightedRanges'][0]['cellRangeAddress']);
+        $t->same('from-dependents', $detective['highlightedRanges'][0]['direction']);
+        $t->same(true, $detective['highlightedRanges'][0]['containsError']);
+        $t->same('DependencyReview.C2:DependencyReview.C4', $detective['highlightedRanges'][1]['cellRangeAddress']);
+        $t->same('to-precedents', $detective['highlightedRanges'][1]['direction']);
+        $t->same('trace-dependents', $detective['operations'][0]['name']);
+        $t->same(1, $detective['operations'][0]['index']);
+        $t->same('2', $htmlAttributes['data-odf-cell-detective-highlight-count']);
+        $t->same('DependencyReview.B2:DependencyReview.B4;DependencyReview.C2:DependencyReview.C4', $htmlAttributes['data-odf-cell-detective-ranges']);
+        $t->same('from-dependents,to-precedents', $htmlAttributes['data-odf-cell-detective-directions']);
+        $t->same('1', $htmlAttributes['data-odf-cell-detective-error-count']);
+        $t->same('1', $htmlAttributes['data-odf-cell-detective-operation-count']);
+        $t->same('trace-dependents', $htmlAttributes['data-odf-cell-detective-operation-names']);
+        $t->same(1, $result['importReport']['content']['tableCellDetectiveCount']);
+        $t->same(2, $result['importReport']['content']['tableCellDetectiveHighlightCount']);
+        $t->same(1, $result['importReport']['content']['tableCellDetectiveOperationCount']);
+
+        $blocks = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('class="odf-table-cell-value odf-table-cell-formula odf-table-cell-detective"', $blocks);
+        $t->contains('data-odf-cell-detective-highlight-count="2"', $blocks);
+        $t->contains('data-odf-cell-detective-ranges="DependencyReview.B2:DependencyReview.B4;DependencyReview.C2:DependencyReview.C4"', $blocks);
+        $t->contains('data-odf-cell-detective-error-count="1"', $blocks);
+        $t->contains('data-odf-cell-detective-operation-names="trace-dependents"', $blocks);
+    },
     'maps ODT table cell annotations into review metadata without polluting cell text' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnnotatedCell = <<<'XML'
 <office:document-content
