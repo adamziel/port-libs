@@ -13,14 +13,18 @@ final class UpstreamRunnerDependencies
         'cabal.project',
         'pandoc.cabal',
         'pandoc-lua-engine/pandoc-lua-engine.cabal',
+        'pandoc-server/pandoc-server.cabal',
+        'pandoc-cli/pandoc-cli.cabal',
         'test/test-pandoc.hs',
         'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+        'benchmark/benchmark-pandoc.hs',
     ];
 
     /** @var list<string> */
     private const SOLVER_TARGETS = [
         'test:test-pandoc',
         'test:test-pandoc-lua-engine',
+        'benchmark:benchmark-pandoc',
     ];
 
     /** @var list<string> */
@@ -398,14 +402,15 @@ final class UpstreamRunnerDependencies
             return [
                 'hydrate Pandoc upstream checkout at ' . self::UPSTREAM_COMMIT,
                 'verify cabal.project, pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, and both test entry points are present',
-                'record a non-mutating Cabal solver/build plan for test:test-pandoc and test:test-pandoc-lua-engine',
+                'verify pandoc-server, pandoc-cli, and benchmark package entry files are present before dependency planning',
+                'record a non-mutating Cabal solver/build plan for test:test-pandoc, test:test-pandoc-lua-engine, and benchmark:benchmark-pandoc',
                 'resolve cabal.project Git source-repository pins for doclayout, typst-symbols, typst-hs, texmath, and citeproc',
                 'only then attempt bounded Haskell runner execution in a separate slice',
             ];
         }
 
         return [
-            'record non-mutating Cabal solver/build plan for test:test-pandoc and test:test-pandoc-lua-engine',
+            'record non-mutating Cabal solver/build plan for test:test-pandoc, test:test-pandoc-lua-engine, and benchmark:benchmark-pandoc',
             'resolve project-pinned Git source-repository packages before any runner build',
             'keep runner execution deferred to a separately authorized bounded slice',
         ];

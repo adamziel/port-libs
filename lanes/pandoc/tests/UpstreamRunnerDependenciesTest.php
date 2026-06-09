@@ -22,10 +22,13 @@ return [
             'cabal.project',
             'pandoc.cabal',
             'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'pandoc-server/pandoc-server.cabal',
+            'pandoc-cli/pandoc-cli.cabal',
             'test/test-pandoc.hs',
             'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+            'benchmark/benchmark-pandoc.hs',
         ], $gate['missingFiles']);
-        $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $gate['solverTargets']);
+        $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine', 'benchmark:benchmark-pandoc'], $gate['solverTargets']);
         $t->same('no-new-native-support-component', $gate['dependencyBacklogDecision']);
         $t->contains('pandoc-runner-not-executed', implode(',', $gate['diagnostics']));
         $t->contains('cabal-build-not-run', implode(',', $gate['diagnostics']));
@@ -33,7 +36,7 @@ return [
         $t->contains('cabal-available:3.12.1.0', implode(',', $gate['diagnostics']));
         $t->contains('ghc-available:9.10.3', implode(',', $gate['diagnostics']));
         $t->contains('stack-not-on-path', implode(',', $gate['diagnostics']));
-        $t->contains('missing-required-upstream-files:5', implode(',', $gate['diagnostics']));
+        $t->contains('missing-required-upstream-files:8', implode(',', $gate['diagnostics']));
         $t->same('hydrate Pandoc upstream checkout at 0640c4c9859aa5a3ede082c190fcd5883c24ac83', $gate['activationGate'][0]);
         $t->contains('record a non-mutating Cabal solver/build plan', implode("\n", $gate['activationGate']));
     },
@@ -88,6 +91,8 @@ return [
         $t->same(17, count($support));
         $t->same(5, $summary['projectPinCount']);
         $t->same(17, $summary['supportComponentCount']);
+        $t->same(8, $summary['requiredFileCount']);
+        $t->same(3, $summary['solverTargetCount']);
         $t->same(2, $summary['testSuiteCount']);
         $t->same(20, $summary['testPandocDependencyCount']);
         $t->same(14, $summary['luaEngineTestDependencyCount']);
@@ -100,10 +105,13 @@ return [
             './cabal.project',
             'pandoc.cabal',
             'pandoc-lua-engine//pandoc-lua-engine.cabal',
+            'pandoc-server/pandoc-server.cabal',
+            'pandoc-cli/pandoc-cli.cabal',
             'test/test-pandoc.hs',
             '/pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+            'benchmark/benchmark-pandoc.hs',
         ]);
-        $missingOne = $audit->evaluateLocalGate(array_slice($required, 0, 4));
+        $missingOne = $audit->evaluateLocalGate(array_slice($required, 0, 7));
 
         $t->same('plan-ready', $gate['status']);
         $t->same(true, $gate['activationReady']);
@@ -112,9 +120,31 @@ return [
         $t->same($required, $gate['presentFiles']);
         $t->contains('non-mutating-plan-ready', implode(',', $gate['diagnostics']));
         $t->contains('record non-mutating Cabal solver/build plan', implode("\n", $gate['activationGate']));
+        $t->contains('benchmark:benchmark-pandoc', implode("\n", $gate['activationGate']));
         $t->contains('resolve project-pinned Git source-repository packages', implode("\n", $gate['activationGate']));
 
         $t->same('blocked-missing-upstream-checkout', $missingOne['status']);
-        $t->same(['pandoc-lua-engine/test/test-pandoc-lua-engine.hs'], $missingOne['missingFiles']);
+        $t->same(['benchmark/benchmark-pandoc.hs'], $missingOne['missingFiles']);
+    },
+
+    'keeps lightweight runner gate blocked without server cli and benchmark closure files' => static function (TestRunner $t): void {
+        $audit = new UpstreamRunnerDependencies();
+        $gate = $audit->evaluateLocalGate([
+            'cabal.project',
+            'pandoc.cabal',
+            'pandoc-lua-engine/pandoc-lua-engine.cabal',
+            'test/test-pandoc.hs',
+            'pandoc-lua-engine/test/test-pandoc-lua-engine.hs',
+        ]);
+
+        $t->same('blocked-missing-upstream-checkout', $gate['status']);
+        $t->same(false, $gate['activationReady']);
+        $t->same([
+            'pandoc-server/pandoc-server.cabal',
+            'pandoc-cli/pandoc-cli.cabal',
+            'benchmark/benchmark-pandoc.hs',
+        ], $gate['missingFiles']);
+        $t->contains('missing-required-upstream-files:3', implode(',', $gate['diagnostics']));
+        $t->contains('pandoc-server, pandoc-cli, and benchmark package entry files', implode("\n", $gate['activationGate']));
     },
 ];
