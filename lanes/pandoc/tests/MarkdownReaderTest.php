@@ -15494,6 +15494,118 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $text, $blocks);
         $t->true(!str_contains($blocks, '&lt;text'), 'Standalone SVG text should not be escaped into reviewer text');
     },
+    'maps upstream html reader svg g fragments as raw review markup' => static function (TestRunner $t): void {
+        $group = '<g data-source="batch-59"><path d="M0 0L10 10"></path></g>';
+        $document = (new MarkdownReader())->read($group . "\n\nAfter the group.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($group, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the group.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $group, $blocks);
+        $t->true(!str_contains($blocks, '&lt;g'), 'Standalone SVG group should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg rect fragments as raw review markup' => static function (TestRunner $t): void {
+        $rect = '<rect width="10" height="5" data-source="batch-59"></rect>';
+        $document = (new MarkdownReader())->read($rect . "\n\nAfter the rect.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($rect, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the rect.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $rect, $blocks);
+        $t->true(!str_contains($blocks, '&lt;rect'), 'Standalone SVG rect should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg circle fragments as raw review markup' => static function (TestRunner $t): void {
+        $circle = '<circle cx="5" cy="5" r="4" data-source="batch-59"></circle>';
+        $document = (new MarkdownReader())->read($circle . "\n\nAfter the circle.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($circle, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the circle.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $circle, $blocks);
+        $t->true(!str_contains($blocks, '&lt;circle'), 'Standalone SVG circle should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg ellipse fragments as raw review markup' => static function (TestRunner $t): void {
+        $ellipse = '<ellipse cx="5" cy="5" rx="4" ry="2" data-source="batch-59"></ellipse>';
+        $document = (new MarkdownReader())->read($ellipse . "\n\nAfter the ellipse.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($ellipse, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the ellipse.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $ellipse, $blocks);
+        $t->true(!str_contains($blocks, '&lt;ellipse'), 'Standalone SVG ellipse should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg line fragments as raw review markup' => static function (TestRunner $t): void {
+        $line = '<line x1="0" y1="0" x2="10" y2="10" data-source="batch-59"></line>';
+        $document = (new MarkdownReader())->read($line . "\n\nAfter the line.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($line, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the line.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $line, $blocks);
+        $t->true(!str_contains($blocks, '&lt;line'), 'Standalone SVG line should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg polygon fragments as raw review markup' => static function (TestRunner $t): void {
+        $polygon = '<polygon points="0,0 10,0 10,10" data-source="batch-59"></polygon>';
+        $document = (new MarkdownReader())->read($polygon . "\n\nAfter the polygon.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($polygon, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the polygon.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $polygon, $blocks);
+        $t->true(!str_contains($blocks, '&lt;polygon'), 'Standalone SVG polygon should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg polyline fragments as raw review markup' => static function (TestRunner $t): void {
+        $polyline = '<polyline points="0,0 5,5 10,0" data-source="batch-59"></polyline>';
+        $document = (new MarkdownReader())->read($polyline . "\n\nAfter the polyline.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($polyline, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the polyline.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $polyline, $blocks);
+        $t->true(!str_contains($blocks, '&lt;polyline'), 'Standalone SVG polyline should not be escaped into reviewer text');
+    },
+    'maps upstream html reader svg stop fragments as raw review markup' => static function (TestRunner $t): void {
+        $stop = '<stop offset="50%" stop-color="#f00" data-source="batch-59"></stop>';
+        $document = (new MarkdownReader())->read($stop . "\n\nAfter the stop.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($stop, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the stop.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $stop, $blocks);
+        $t->true(!str_contains($blocks, '&lt;stop'), 'Standalone SVG stop should not be escaped into reviewer text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
