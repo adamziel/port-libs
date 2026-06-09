@@ -3663,6 +3663,16 @@ $rawStrictLocalHeaderOffsetPreflight = ZipPackage::rawStrictImportPreflight(
     100.0,
     4096
 );
+$eocdCentralDirectoryOffsetBytes = $rewriteZipEndOfCentralDirectory($package->bytes(), [
+    'centralDirectoryOffset' => 0,
+]);
+$eocdCentralDirectoryOffsetPreflight = ZipPackage::endOfCentralDirectoryOffsetPreflight($eocdCentralDirectoryOffsetBytes);
+$rawStrictEocdCentralDirectoryOffsetPreflight = ZipPackage::rawStrictImportPreflight(
+    $eocdCentralDirectoryOffsetBytes,
+    4096,
+    100.0,
+    4096
+);
 $gzipReviewExtra = pack('CCv', ord('W'), ord('P'), strlen('review:v1')) . 'review:v1';
 $descriptorPackage = ZipPackage::fromString($buildDescriptorBackedPackage());
 $descriptorDataDescriptorPreflight = $descriptorPackage->dataDescriptorPreflight();
@@ -6379,6 +6389,21 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected raw strict ZIP preflight to report central-directory local header offsets');
     }
 
+    if (
+        ($eocdCentralDirectoryOffsetPreflight['centralDirectoryOffset'] ?? null) !== 0
+        || ($eocdCentralDirectoryOffsetPreflight['centralDirectoryStartSignature'] ?? null) !== 'local-file-header'
+        || ($eocdCentralDirectoryOffsetPreflight['centralDirectoryOffsetLocation'] ?? null) !== 'local-file-header'
+        || ($eocdCentralDirectoryOffsetPreflight['centralDirectoryRangeStartsWithCentralHeader'] ?? null) !== false
+        || ($eocdCentralDirectoryOffsetPreflight['centralDirectoryEndMatchesEocdOffset'] ?? null) !== false
+        || ($eocdCentralDirectoryOffsetPreflight['issues'] ?? null) !== ['central-directory-offset-not-central-header']
+        || ($rawStrictEocdCentralDirectoryOffsetPreflight['endOfCentralDirectoryOffset'] ?? null) !== $eocdCentralDirectoryOffsetPreflight
+        || ($rawStrictEocdCentralDirectoryOffsetPreflight['canInstantiate'] ?? null) !== false
+        || !in_array('central-directory-offset-not-central-header', $rawStrictEocdCentralDirectoryOffsetPreflight['diagnostics'] ?? [], true)
+        || !in_array('zip-package-instantiation-failed', $rawStrictEocdCentralDirectoryOffsetPreflight['diagnostics'] ?? [], true)
+    ) {
+        throw new RuntimeException('Expected raw strict ZIP import preflight to report EOCD central-directory offsets before package instantiation');
+    }
+
     if (!$localEntrySlackRejected) {
         throw new RuntimeException('Expected hidden ZIP local entry bytes to be rejected before media import');
     }
@@ -6629,6 +6654,10 @@ echo 'zipRawStrictLocalHeaderSpanPreviewHex=' . ($rawStrictLocalHeaderSpanPrefli
 echo 'zipRawStrictLocalHeaderOffsetPolicy=' . ($rawStrictLocalHeaderOffsetPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderOffsetIssues=' . implode(',', $rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderOffsetLocation=' . ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderOffsetLocation'] ?? 'none') . "\n";
+echo 'zipEocdCentralDirectoryOffsetPolicy=' . ($eocdCentralDirectoryOffsetPreflight['isSupportedByBoundedReader'] ? 'accepted' : 'rejected') . "\n";
+echo 'zipEocdCentralDirectoryOffsetSignature=' . ($eocdCentralDirectoryOffsetPreflight['centralDirectoryStartSignature'] ?? 'none') . "\n";
+echo 'zipEocdCentralDirectoryOffsetIssues=' . implode(',', $eocdCentralDirectoryOffsetPreflight['issues']) . "\n";
+echo 'zipRawStrictEocdCentralDirectoryOffsetDiagnostics=' . implode(',', $rawStrictEocdCentralDirectoryOffsetPreflight['diagnostics']) . "\n";
 echo 'zipRawExternalAttributeIssueCount=' . $rawExternalAttributePolicy['issueEntryCount'] . "\n";
 echo 'zipRawExternalAttributeDiagnostics=' . implode(',', $rawExternalAttributeStrictPreflight['diagnostics']) . "\n";
 echo 'zipStrictImportCommentPolicy=' . ($strictCommentImportRejected ? 'rejected' : 'not-rejected') . "\n";

@@ -4056,6 +4056,60 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($tailedZip));
     },
 
+    'preflights raw eocd central directory offsets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD central directory pointer</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => "review media bytes\n",
+                'method' => 0,
+            ],
+        ]);
+        $basePointer = ZipPackage::endOfCentralDirectoryOffsetPreflight($zip);
+
+        $t->same(true, $basePointer['hasEndOfCentralDirectoryRecord']);
+        $t->same(2, $basePointer['totalEntryCount']);
+        $t->same('central-directory-header', $basePointer['centralDirectoryStartSignature']);
+        $t->same(true, $basePointer['centralDirectoryRangeStartsWithCentralHeader']);
+        $t->same(true, $basePointer['centralDirectoryRangeAvailable']);
+        $t->same(true, $basePointer['centralDirectoryRangeBeforeEocd']);
+        $t->same(true, $basePointer['centralDirectoryEndMatchesEocdOffset']);
+        $t->same(true, $basePointer['isSupportedByBoundedReader']);
+        $t->same([], $basePointer['issues']);
+
+        $badOffsetZip = $rewriteEndOfCentralDirectory($zip, [
+            'centralDirectoryOffset' => 0,
+        ]);
+        $badPointer = ZipPackage::endOfCentralDirectoryOffsetPreflight($badOffsetZip);
+        $badRaw = ZipPackage::rawStrictImportPreflight($badOffsetZip, 2048, 100.0, 2048);
+
+        $t->same(true, $badPointer['hasEndOfCentralDirectoryRecord']);
+        $t->same(2, $badPointer['totalEntryCount']);
+        $t->same(0, $badPointer['centralDirectoryOffset']);
+        $t->same($basePointer['centralDirectorySize'], $badPointer['centralDirectorySize']);
+        $t->same('local-file-header', $badPointer['centralDirectoryStartSignature']);
+        $t->same('local-file-header', $badPointer['centralDirectoryOffsetLocation']);
+        $t->same(false, $badPointer['centralDirectoryRangeStartsWithCentralHeader']);
+        $t->same(true, $badPointer['centralDirectoryRangeAvailable']);
+        $t->same(true, $badPointer['centralDirectoryRangeBeforeEocd']);
+        $t->same(false, $badPointer['centralDirectoryEndMatchesEocdOffset']);
+        $t->same(false, $badPointer['isSupportedByBoundedReader']);
+        $t->same(['central-directory-offset-not-central-header'], $badPointer['issues']);
+
+        $t->same(false, $badRaw['isValid']);
+        $t->same(false, $badRaw['canInstantiate']);
+        $t->same(2, $badRaw['entryCount']);
+        $t->same(null, $badRaw['archive']);
+        $t->same($badPointer, $badRaw['endOfCentralDirectoryOffset']);
+        $t->contains('central-directory-offset-not-central-header', implode(',', $badRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $badRaw['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($badOffsetZip));
+    },
+
     'preflights zip central directory inventory counts before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $zip = $buildZipPackage([
             [

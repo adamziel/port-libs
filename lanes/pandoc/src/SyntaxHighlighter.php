@@ -157,6 +157,11 @@ final class SyntaxHighlighter
         'hs' => 'haskell',
         'httpd' => 'apache',
         'httpd-conf' => 'apache',
+        'idr' => 'idris',
+        'idris' => 'idris',
+        'idris-lang' => 'idris',
+        'idris-source' => 'idris',
+        'idris2' => 'idris',
         'atom' => 'xml',
         'cjs' => 'javascript',
         'cfg' => 'ini',
@@ -857,6 +862,7 @@ final class SyntaxHighlighter
             'hcl' => $this->tokenizeHcl($code),
             'haskell' => $this->tokenizeHaskell($code),
             'html' => $this->tokenizeHtml($code),
+            'idris' => $this->tokenizeIdris($code),
             'ini' => $this->tokenizeIni($code),
             'java' => $this->tokenizeJava($code),
             'javascript' => $this->tokenizeJavaScript($code),
@@ -3504,6 +3510,29 @@ final class SyntaxHighlighter
             ['number', '/^\\b(?:0[xX][0-9A-Fa-f]+|0[oO][0-7]+|\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\b/'],
             ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
             ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeIdris(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^\\{-[\\s\\S]*?-\\}/'],
+            ['comment', '/^--[^\\n]*/'],
+            ['preprocessor', "/^%[A-Za-z_][A-Za-z0-9_'-]*/"],
+            ['string', '/^"(?:\\\\.|[^"\\\\])*"/s'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/s"],
+            ['keyword', '/^\\b(?:abstract|auto|case|codata|constructor|covering|data|do|else|export|if|implementation|implicit|import|in|infix|infixl|infixr|interface|let|module|mutual|namespace|of|parameters|partial|private|public|record|rewrite|then|total|using|where|with)\\b/'],
+            ['constant', '/^\\b(?:False|Just|Left|Nothing|Right|True)\\b/'],
+            ['datatype', '/^\\b(?:Bool|Char|Double|Either|Fin|IO|Integer|Int|List|Maybe|Nat|String|Type|Unit|Vect|Void)\\b/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_\']*(?:\\.[A-Z][A-Za-z0-9_\']*)*\\b/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s*:)/'],
+            ['function', '/^\\b[a-z_][A-Za-z0-9_\']*(?=\\s+(?!(?:else|in|of|then|where)\\b)(?:[A-Za-z_(\\"\\d]))/'],
+            ['number', '/^-?\\b(?:0[xX][0-9A-Fa-f_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d[\\d_]*)?)\\b/'],
+            ['variable', '/^\\b[a-z_][A-Za-z0-9_\']*\\b/'],
+            ['operator', '/^(?:=>|->|<-|::|==|\\/=|>=|<=|\\+\\+|&&|\\|\\||[{}()[\\];,.+*\\/%=$<>:|\\\\-])/'],
         ]);
     }
 

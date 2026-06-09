@@ -1768,3 +1768,28 @@ pub fn queue_review(raw string) !map[string]string {
     return {'title': title, 'dryRun': 'true'}
 }
 ```
+
+``` {.idris #idris-review .numberLines startFrom=1480}
+-- Idris WordPress import review helper
+module WP.Import.Review
+
+%default total
+%language ElabReflection
+
+record ReviewPacket where
+  constructor MkReviewPacket
+  sourceId : Nat
+  title : Maybe String
+  blocks : List String
+
+normalizeTitle : ReviewPacket -> String
+normalizeTitle packet =
+  case title packet of
+    Just raw => if length raw == 0 then "Untitled" else raw
+    Nothing => "Import " ++ show (sourceId packet)
+
+queueReview : String -> Either String ReviewPacket
+queueReview raw =
+  let packet = MkReviewPacket 42 (Just raw) ["core/paragraph"] in
+      Right packet
+```

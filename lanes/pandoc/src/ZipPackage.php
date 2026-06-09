@@ -3541,7 +3541,8 @@ final class ZipPackage
     {
         $archiveLength = strlen($bytes);
         $candidate = self::findEndOfCentralDirectoryCandidate($bytes);
-        if ($candidate === null) {
+        $record = $candidate ?? self::findEndOfCentralDirectoryRecord($bytes);
+        if ($record === null) {
             return [
                 'archiveLength' => $archiveLength,
                 'hasEndOfCentralDirectoryCandidate' => false,
@@ -3561,13 +3562,18 @@ final class ZipPackage
             ];
         }
 
-        $eocdOffset = $candidate['offset'];
+        $eocdOffset = $record['offset'];
         $commentLength = self::readUInt16($bytes, $eocdOffset + 20);
         $declaredArchiveEndOffset = $eocdOffset + 22 + $commentLength;
         $availablePackageCommentBytes = max(0, min($commentLength, $archiveLength - ($eocdOffset + 22)));
         $trailingByteCount = max(0, $archiveLength - $declaredArchiveEndOffset);
         $hasTrailingBytes = $trailingByteCount > 0;
         $hasTruncatedComment = $declaredArchiveEndOffset > $archiveLength;
+        $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $centralDirectoryEnd = $candidate['centralDirectoryEnd'] ?? ($centralDirectoryOffset <= PHP_INT_MAX - $centralDirectorySize
+            ? $centralDirectoryOffset + $centralDirectorySize
+            : null);
         $issues = [];
         if ($hasTrailingBytes) {
             $issues[] = 'eocd-trailing-bytes';
@@ -3587,9 +3593,174 @@ final class ZipPackage
             'hasTrailingBytes' => $hasTrailingBytes,
             'hasTruncatedComment' => $hasTruncatedComment,
             'totalEntryCount' => self::readUInt16($bytes, $eocdOffset + 10),
-            'centralDirectoryOffset' => $candidate['centralDirectoryOffset'],
-            'centralDirectorySize' => $candidate['centralDirectorySize'],
-            'centralDirectoryEnd' => $candidate['centralDirectoryEnd'],
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectorySize' => $centralDirectorySize,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     archiveLength:int,
+     *     hasEndOfCentralDirectoryRecord:bool,
+     *     eocdOffset:?int,
+     *     declaredArchiveEndOffset:?int,
+     *     declaredPackageCommentLength:?int,
+     *     diskNumber:?int,
+     *     centralDirectoryDisk:?int,
+     *     diskEntryCount:?int,
+     *     totalEntryCount:?int,
+     *     centralDirectoryOffset:?int,
+     *     centralDirectorySize:?int,
+     *     centralDirectoryEnd:?int,
+     *     centralDirectoryRangeAvailable:bool,
+     *     centralDirectoryRangeBeforeEocd:bool,
+     *     centralDirectoryEndMatchesEocdOffset:bool,
+     *     centralDirectoryGapExplainedBySignature:bool,
+     *     centralDirectoryStartSignature:?string,
+     *     centralDirectoryOffsetLocation:?string,
+     *     centralDirectoryRangeStartsWithCentralHeader:bool,
+     *     requiresZip64:bool,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>
+     * }
+     */
+    public static function endOfCentralDirectoryOffsetPreflight(string $bytes): array
+    {
+        $archiveLength = strlen($bytes);
+        $record = self::findEndOfCentralDirectoryCandidate($bytes)
+            ?? self::findEndOfCentralDirectoryRecord($bytes);
+        if ($record === null) {
+            return [
+                'archiveLength' => $archiveLength,
+                'hasEndOfCentralDirectoryRecord' => false,
+                'eocdOffset' => null,
+                'declaredArchiveEndOffset' => null,
+                'declaredPackageCommentLength' => null,
+                'diskNumber' => null,
+                'centralDirectoryDisk' => null,
+                'diskEntryCount' => null,
+                'totalEntryCount' => null,
+                'centralDirectoryOffset' => null,
+                'centralDirectorySize' => null,
+                'centralDirectoryEnd' => null,
+                'centralDirectoryRangeAvailable' => false,
+                'centralDirectoryRangeBeforeEocd' => false,
+                'centralDirectoryEndMatchesEocdOffset' => false,
+                'centralDirectoryGapExplainedBySignature' => false,
+                'centralDirectoryStartSignature' => null,
+                'centralDirectoryOffsetLocation' => null,
+                'centralDirectoryRangeStartsWithCentralHeader' => false,
+                'requiresZip64' => false,
+                'isSupportedByBoundedReader' => false,
+                'issues' => ['eocd-record-not-found'],
+            ];
+        }
+
+        $eocdOffset = $record['offset'];
+        $diskNumber = self::readUInt16($bytes, $eocdOffset + 4);
+        $centralDirectoryDisk = self::readUInt16($bytes, $eocdOffset + 6);
+        $diskEntryCount = self::readUInt16($bytes, $eocdOffset + 8);
+        $totalEntryCount = self::readUInt16($bytes, $eocdOffset + 10);
+        $centralDirectorySize = self::readUInt32($bytes, $eocdOffset + 12);
+        $centralDirectoryOffset = self::readUInt32($bytes, $eocdOffset + 16);
+        $commentLength = self::readUInt16($bytes, $eocdOffset + 20);
+        $declaredArchiveEndOffset = $record['declaredArchiveEndOffset'];
+        $requiresZip64 = $diskEntryCount === 0xffff
+            || $totalEntryCount === 0xffff
+            || $centralDirectorySize === 0xffffffff
+            || $centralDirectoryOffset === 0xffffffff;
+
+        $centralDirectoryEnd = null;
+        $centralDirectoryRangeAvailable = false;
+        $centralDirectoryRangeBeforeEocd = false;
+        $centralDirectoryEndMatchesEocdOffset = false;
+        $centralDirectoryGapExplainedBySignature = false;
+        $centralDirectoryStartSignature = null;
+        $centralDirectoryOffsetLocation = null;
+        $centralDirectoryRangeStartsWithCentralHeader = false;
+        $issues = [];
+
+        if ($declaredArchiveEndOffset > $archiveLength) {
+            $issues[] = 'eocd-comment-truncated';
+        } elseif ($declaredArchiveEndOffset < $archiveLength) {
+            $issues[] = 'eocd-trailing-bytes';
+        }
+
+        if ($requiresZip64) {
+            $centralDirectoryOffsetLocation = 'zip64-sentinel';
+        } elseif ($centralDirectoryOffset > PHP_INT_MAX - $centralDirectorySize) {
+            $issues[] = 'central-directory-range-overflow';
+        } else {
+            $centralDirectoryEnd = $centralDirectoryOffset + $centralDirectorySize;
+            $centralDirectoryRangeAvailable = $centralDirectoryOffset <= $archiveLength
+                && $centralDirectoryEnd <= $archiveLength;
+            $centralDirectoryRangeBeforeEocd = $centralDirectoryEnd <= $eocdOffset;
+            $centralDirectoryEndMatchesEocdOffset = $centralDirectoryEnd === $eocdOffset;
+            $centralDirectoryStartSignature = $centralDirectoryOffset < $archiveLength
+                ? self::zipRecordSignatureNameAt($bytes, $centralDirectoryOffset)
+                : null;
+            $centralDirectoryOffsetLocation = $centralDirectoryStartSignature;
+            if ($centralDirectoryOffsetLocation === null) {
+                if ($centralDirectoryOffset >= $archiveLength) {
+                    $centralDirectoryOffsetLocation = 'beyond-archive';
+                } elseif ($centralDirectoryOffset >= $eocdOffset) {
+                    $centralDirectoryOffsetLocation = 'inside-or-after-eocd';
+                } else {
+                    $centralDirectoryOffsetLocation = 'non-zip-record';
+                }
+            }
+            $centralDirectoryRangeStartsWithCentralHeader = $centralDirectoryStartSignature === 'central-directory-header';
+            $emptyCentralDirectory = $totalEntryCount === 0
+                && $diskEntryCount === 0
+                && $centralDirectorySize === 0
+                && $centralDirectoryOffset === $eocdOffset;
+
+            if (!$centralDirectoryRangeAvailable) {
+                $issues[] = $centralDirectoryOffset >= $archiveLength
+                    ? 'central-directory-offset-beyond-archive'
+                    : 'central-directory-range-beyond-archive';
+            } elseif (!$centralDirectoryRangeBeforeEocd) {
+                $issues[] = $centralDirectoryOffset >= $eocdOffset
+                    ? 'central-directory-offset-at-or-after-eocd'
+                    : 'central-directory-range-overlaps-eocd';
+            } elseif (!$emptyCentralDirectory && !$centralDirectoryRangeStartsWithCentralHeader) {
+                $issues[] = 'central-directory-offset-not-central-header';
+            } elseif (!$centralDirectoryEndMatchesEocdOffset) {
+                $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $centralDirectoryEnd);
+                $centralDirectoryGapExplainedBySignature = $signature !== null
+                    && $signature['endOffset'] === $eocdOffset;
+                if (!$centralDirectoryGapExplainedBySignature) {
+                    $issues[] = 'central-directory-end-before-eocd';
+                }
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'archiveLength' => $archiveLength,
+            'hasEndOfCentralDirectoryRecord' => true,
+            'eocdOffset' => $eocdOffset,
+            'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+            'declaredPackageCommentLength' => $commentLength,
+            'diskNumber' => $diskNumber,
+            'centralDirectoryDisk' => $centralDirectoryDisk,
+            'diskEntryCount' => $diskEntryCount,
+            'totalEntryCount' => $totalEntryCount,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectorySize' => $centralDirectorySize,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectoryRangeAvailable' => $centralDirectoryRangeAvailable,
+            'centralDirectoryRangeBeforeEocd' => $centralDirectoryRangeBeforeEocd,
+            'centralDirectoryEndMatchesEocdOffset' => $centralDirectoryEndMatchesEocdOffset,
+            'centralDirectoryGapExplainedBySignature' => $centralDirectoryGapExplainedBySignature,
+            'centralDirectoryStartSignature' => $centralDirectoryStartSignature,
+            'centralDirectoryOffsetLocation' => $centralDirectoryOffsetLocation,
+            'centralDirectoryRangeStartsWithCentralHeader' => $centralDirectoryRangeStartsWithCentralHeader,
+            'requiresZip64' => $requiresZip64,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
         ];
@@ -6305,6 +6476,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:?array<string, mixed>,
      *     endOfCentralDirectoryTrailingBytes:array<string, mixed>,
+     *     endOfCentralDirectoryOffset:array<string, mixed>,
      *     zip64EndOfCentralDirectory:?array<string, mixed>,
      *     splitArchive:?array<string, mixed>,
      *     centralDirectoryInventory:?array<string, mixed>,
@@ -6377,6 +6549,11 @@ final class ZipPackage
             $addDiagnostics($endOfCentralDirectoryTrailingBytes['issues']);
         }
 
+        $endOfCentralDirectoryOffset = self::endOfCentralDirectoryOffsetPreflight($bytes);
+        if (!$endOfCentralDirectoryOffset['isSupportedByBoundedReader']) {
+            $addDiagnostics($endOfCentralDirectoryOffset['issues']);
+        }
+
         $archive = $runPreflight(
             'end-of-central-directory',
             static fn (): array => self::endOfCentralDirectoryPreflight($bytes)
@@ -6392,6 +6569,7 @@ final class ZipPackage
             return [
                 'entryCount' => (int) (
                     $zip64EndOfCentralDirectory['totalEntryCount']
+                    ?? $endOfCentralDirectoryOffset['totalEntryCount']
                     ?? $endOfCentralDirectoryTrailingBytes['totalEntryCount']
                     ?? 0
                 ),
@@ -6404,6 +6582,7 @@ final class ZipPackage
                 'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
                 'archive' => null,
                 'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
+                'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
                 'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
                 'splitArchive' => null,
                 'centralDirectoryInventory' => null,
@@ -6630,6 +6809,7 @@ final class ZipPackage
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
             ?? $zip64EndOfCentralDirectory['totalEntryCount']
+            ?? $endOfCentralDirectoryOffset['totalEntryCount']
             ?? $endOfCentralDirectoryTrailingBytes['totalEntryCount']
             ?? $archive['totalEntryCount']
             ?? 0
@@ -6646,6 +6826,7 @@ final class ZipPackage
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
             'endOfCentralDirectoryTrailingBytes' => $endOfCentralDirectoryTrailingBytes,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
             'zip64EndOfCentralDirectory' => $zip64EndOfCentralDirectory,
             'splitArchive' => $splitArchive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
@@ -8353,6 +8534,39 @@ final class ZipPackage
         }
 
         throw new \RuntimeException('ZIP end-of-central-directory record not found');
+    }
+
+    /**
+     * @return array{offset:int, declaredArchiveEndOffset:int, packageCommentLength:int}|null
+     */
+    private static function findEndOfCentralDirectoryRecord(string $bytes, bool $mustEndAtArchiveEnd = false): ?array
+    {
+        $length = strlen($bytes);
+        $minimumSize = 22;
+        if ($length < $minimumSize) {
+            return null;
+        }
+
+        $searchStart = max(0, $length - ($minimumSize + 0xffff));
+        for ($offset = $length - $minimumSize; $offset >= $searchStart; $offset--) {
+            if (substr($bytes, $offset, 4) !== self::EOCD_SIGNATURE) {
+                continue;
+            }
+
+            $commentLength = self::readUInt16($bytes, $offset + 20);
+            $declaredArchiveEndOffset = $offset + $minimumSize + $commentLength;
+            if ($mustEndAtArchiveEnd && $declaredArchiveEndOffset !== $length) {
+                continue;
+            }
+
+            return [
+                'offset' => $offset,
+                'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
+                'packageCommentLength' => $commentLength,
+            ];
+        }
+
+        return null;
     }
 
     /**

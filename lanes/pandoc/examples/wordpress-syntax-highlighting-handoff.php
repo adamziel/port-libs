@@ -568,6 +568,12 @@ if (!$vCodeBlock instanceof PortLibs\Pandoc\AstNode || $vCodeBlock->type !== 'co
 }
 $v = $highlighter->highlightCodeBlock($vCodeBlock, 'haddock');
 $vWordpressBlock = $highlighter->wordpressHtmlBlock($vCodeBlock, 'haddock');
+$idrisCodeBlock = $document->children[91] ?? null;
+if (!$idrisCodeBlock instanceof PortLibs\Pandoc\AstNode || $idrisCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include an Idris review packet code block');
+}
+$idris = $highlighter->highlightCodeBlock($idrisCodeBlock, 'zenburn');
+$idrisWordpressBlock = $highlighter->wordpressHtmlBlock($idrisCodeBlock, 'zenburn');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2516,6 +2522,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($vWordpressBlock, '<span class="kw">$if</span> <span class="va">debug</span>')) {
         throw new RuntimeException('Expected V compile-time guard token handoff');
     }
+    if (($idris['language'] ?? '') !== 'idris') {
+        throw new RuntimeException('Expected Idris language alias handoff');
+    }
+    if (($idris['requestedLanguage'] ?? '') !== 'idris') {
+        throw new RuntimeException('Expected Idris requested-language metadata');
+    }
+    if (($idris['lineNumbering']['start'] ?? null) !== 1480) {
+        throw new RuntimeException('Expected Idris line-number start handoff');
+    }
+    if (!str_contains($idris['html'], '<span class="kw">module</span> <span class="dt">WP.Import.Review</span>')) {
+        throw new RuntimeException('Expected Idris module token handoff');
+    }
+    if (!str_contains($idris['html'], '<span class="pp">%default</span> <span class="kw">total</span>')) {
+        throw new RuntimeException('Expected Idris directive token handoff');
+    }
+    if (!str_contains($idris['html'], '<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>')) {
+        throw new RuntimeException('Expected Idris type signature token handoff');
+    }
+    if (!str_contains($idrisWordpressBlock, '<style data-pandoc-highlight-style="zenburn">')) {
+        throw new RuntimeException('Expected Idris WordPress style metadata');
+    }
+    if (!str_contains($idrisWordpressBlock, '<span class="cn">Right</span> <span class="va">packet</span>')) {
+        throw new RuntimeException('Expected Idris constructor token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2625,6 +2655,7 @@ echo "crystalHighlightedHtml:\n" . $crystal['html'] . "\n";
 echo "shellSessionHighlightedHtml:\n" . $shellSession['html'] . "\n";
 echo "nimHighlightedHtml:\n" . $nim['html'] . "\n";
 echo "vHighlightedHtml:\n" . $v['html'] . "\n";
+echo "idrisHighlightedHtml:\n" . $idris['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2705,4 +2736,5 @@ echo "crystalWordpressBlock:\n" . $crystalWordpressBlock . "\n";
 echo "shellSessionWordpressBlock:\n" . $shellSessionWordpressBlock . "\n";
 echo "nimWordpressBlock:\n" . $nimWordpressBlock . "\n";
 echo "vWordpressBlock:\n" . $vWordpressBlock . "\n";
+echo "idrisWordpressBlock:\n" . $idrisWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

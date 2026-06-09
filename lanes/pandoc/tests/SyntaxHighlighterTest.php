@@ -29,6 +29,10 @@ return [
         $t->same('php', SyntaxHighlighter::languageFromCodeBlock($lineNumberNode));
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('lhs'));
         $t->same('haskell', SyntaxHighlighter::normalizeLanguage('literate-haskell'));
+        $t->same('idris', SyntaxHighlighter::normalizeLanguage('idris'));
+        $t->same('idris', SyntaxHighlighter::normalizeLanguage('idr'));
+        $t->same('idris', SyntaxHighlighter::normalizeLanguage('idris2'));
+        $t->same('idris', SyntaxHighlighter::normalizeLanguage('language-idris-source'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('patch'));
         $t->same('diff', SyntaxHighlighter::normalizeLanguage('unified-diff'));
         $t->same('dockerfile', SyntaxHighlighter::normalizeLanguage('Dockerfile'));
@@ -4526,6 +4530,54 @@ return [
         $t->same('vlang', $directV['requestedLanguage']);
         $t->contains('<span class="kw">pub</span> <span class="kw">fn</span> <span class="fu">main</span><span class="op">()</span> <span class="op">!</span><span class="dt">map</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span><span class="dt">string</span>', $directV['html']);
         $t->contains('<span class="kw">return</span> <span class="op">{</span><span class="st">&#039;dryRun&#039;</span><span class="op">:</span> <span class="st">&#039;true&#039;</span><span class="op">}</span>', $directV['html']);
+    },
+    'highlights idris review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[91] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include an Idris review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'zenburn');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'zenburn');
+        $directIdris = $highlighter->highlight(
+            'normalizeTitle : ReviewPacket -> String' . "\n" . 'normalizeTitle packet = Right packet',
+            'idris2'
+        );
+
+        $t->same('idris', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('idris', $highlighted['language']);
+        $t->same('idris', $highlighted['requestedLanguage']);
+        $t->same('zenburn', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1480, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource idris numberLines"><code class="sourceCode idris" style="counter-reset: source-line 1479;">', $highlighted['html']);
+        $t->contains('<span id="idris-review-1480"><a href="#idris-review-1480"></a><span class="co">-- Idris WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">module</span> <span class="dt">WP.Import.Review</span>', $highlighted['html']);
+        $t->contains('<span class="pp">%default</span> <span class="kw">total</span>', $highlighted['html']);
+        $t->contains('<span class="pp">%language</span> <span class="dt">ElabReflection</span>', $highlighted['html']);
+        $t->contains('<span class="kw">record</span> <span class="dt">ReviewPacket</span> <span class="kw">where</span>', $highlighted['html']);
+        $t->contains('<span class="kw">constructor</span> <span class="dt">MkReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="fu">sourceId</span> <span class="op">:</span> <span class="dt">Nat</span>', $highlighted['html']);
+        $t->contains('<span class="fu">title</span> <span class="op">:</span> <span class="dt">Maybe</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $highlighted['html']);
+        $t->contains('<span class="kw">case</span> <span class="fu">title</span> <span class="va">packet</span> <span class="kw">of</span>', $highlighted['html']);
+        $t->contains('<span class="cn">Just</span> <span class="va">raw</span> <span class="op">=&gt;</span> <span class="kw">if</span> <span class="fu">length</span> <span class="va">raw</span> <span class="op">==</span> <span class="dv">0</span>', $highlighted['html']);
+        $t->contains('<span class="cn">Nothing</span> <span class="op">=&gt;</span> <span class="st">&quot;Import &quot;</span> <span class="op">++</span> <span class="fu">show</span>', $highlighted['html']);
+        $t->contains('<span class="fu">queueReview</span> <span class="op">:</span> <span class="dt">String</span> <span class="op">-&gt;</span> <span class="dt">Either</span> <span class="dt">String</span> <span class="dt">ReviewPacket</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">packet</span> <span class="op">=</span> <span class="dt">MkReviewPacket</span> <span class="dv">42</span> <span class="op">(</span><span class="cn">Just</span> <span class="va">raw</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="zenburn">', $wordpressBlock);
+        $t->contains('<span class="cn">Right</span> <span class="va">packet</span>', $wordpressBlock);
+        $t->same('idris', $directIdris['language']);
+        $t->same('idris2', $directIdris['requestedLanguage']);
+        $t->contains('<span class="fu">normalizeTitle</span> <span class="op">:</span> <span class="dt">ReviewPacket</span> <span class="op">-&gt;</span> <span class="dt">String</span>', $directIdris['html']);
+        $t->contains('<span class="cn">Right</span> <span class="va">packet</span>', $directIdris['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
