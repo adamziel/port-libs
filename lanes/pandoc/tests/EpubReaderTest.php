@@ -1160,6 +1160,69 @@ XML;
         $t->same('landscape', $result['document']->children[1]->attr('spread'));
         $t->same($second['spineItemDiagnostics'], $result['document']->children[1]->attr('spineItemDiagnostics'));
     },
+    'reports effective OPF rendition values from package defaults and itemref overrides' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithEffectiveRendition = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+                . '<meta property="rendition:layout">pre-paginated</meta>'
+                . '<meta property="rendition:orientation">portrait</meta>'
+                . '<meta property="rendition:spread">auto</meta>'
+                . '<meta property="rendition:viewport">width=600,height=900</meta>'
+                . '<meta refines="#chapter-2-spine" property="rendition:viewport">width=480,height=640</meta>',
+            $opfXml
+        );
+        $opfWithEffectiveRendition = str_replace(
+            '<itemref idref="chapter-1"/>',
+            '<itemref id="chapter-1-spine" idref="chapter-1" properties="rendition:orientation-landscape"/>',
+            $opfWithEffectiveRendition
+        );
+        $opfWithEffectiveRendition = str_replace(
+            '<itemref idref="chapter-2" linear="no"/>',
+            '<itemref id="chapter-2-spine" idref="chapter-2" linear="no" properties="rendition:layout-reflowable rendition:spread-none"/>',
+            $opfWithEffectiveRendition
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithEffectiveRendition));
+        $packageRendition = $result['metadata']['renditionLayout'];
+        $first = $result['spine'][0]['effectiveRendition'];
+        $second = $result['spine'][1]['effectiveRendition'];
+
+        $t->same('pre-paginated', $packageRendition['layout']);
+        $t->same('portrait', $packageRendition['orientation']);
+        $t->same('auto', $packageRendition['spread']);
+        $t->same(600, $packageRendition['viewportWidth']);
+        $t->same('pre-paginated', $first['layout']);
+        $t->same('package', $first['layoutSource']);
+        $t->same(true, $first['fixedLayout']);
+        $t->same('landscape', $first['orientation']);
+        $t->same('itemref', $first['orientationSource']);
+        $t->same('auto', $first['spread']);
+        $t->same('package', $first['spreadSource']);
+        $t->same(600, $first['viewportWidth']);
+        $t->same(900, $first['viewportHeight']);
+        $t->same('package', $first['viewportSource']);
+        $t->same([], $first['diagnostics']);
+
+        $t->same('reflowable', $second['layout']);
+        $t->same('itemref', $second['layoutSource']);
+        $t->same(false, $second['fixedLayout']);
+        $t->same('portrait', $second['orientation']);
+        $t->same('package', $second['orientationSource']);
+        $t->same('none', $second['spread']);
+        $t->same('itemref', $second['spreadSource']);
+        $t->same(480, $second['viewportWidth']);
+        $t->same(640, $second['viewportHeight']);
+        $t->same('itemref-refinement', $second['viewportSource']);
+        $t->same(1, $second['itemrefViewportCount']);
+        $t->same('chapter-2-spine', $second['itemrefViewports'][0]['subjectId']);
+        $t->same('width=480,height=640', $second['viewportRaw']);
+        $t->same($second, $result['importReport']['spine']['items'][1]['effectiveRendition']);
+
+        $t->same($first, $result['document']->children[0]->attr('effectiveRendition'));
+        $t->same('package', $result['document']->children[0]->attr('effectiveRendition')['layoutSource']);
+        $t->same($second, $result['document']->children[1]->attr('effectiveRendition'));
+        $t->same('itemref-refinement', $result['document']->children[1]->attr('effectiveRendition')['viewportSource']);
+    },
     'reports invalid OPF spine progression and conflicting spread diagnostics' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithInvalidSpineProperties = str_replace(
             '<spine toc="toc">',

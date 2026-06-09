@@ -38,6 +38,10 @@ $opfXml = <<<'XML'
     <dc:date id="review-date">2026-06-05</dc:date>
     <dc:language>en</dc:language>
     <meta property="dcterms:modified">2026-06-04T21:45:00Z</meta>
+    <meta property="rendition:layout">reflowable</meta>
+    <meta property="rendition:orientation">portrait</meta>
+    <meta property="rendition:spread">auto</meta>
+    <meta property="rendition:viewport">width=800,height=1200</meta>
     <meta property="ibooks:specified-fonts">true</meta>
     <meta property="ibooks:version">1.2</meta>
     <meta property="calibre:series" content="WordPress migration packets"/>
@@ -532,6 +536,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['spine'][0]['spineItemProperties']['layout']['fixedLayout'] ?? null) !== true || ($result['spine'][0]['spineItemProperties']['orientation']['value'] ?? null) !== 'landscape') {
         throw new RuntimeException('Expected EPUB spine item property report to expose fixed-layout override metadata');
     }
+    if (($result['spine'][0]['effectiveRendition']['layout'] ?? null) !== 'pre-paginated' || ($result['spine'][0]['effectiveRendition']['layoutSource'] ?? null) !== 'itemref') {
+        throw new RuntimeException('Expected EPUB effective rendition to prefer itemref layout overrides over package defaults');
+    }
+    if (($result['spine'][0]['effectiveRendition']['viewportWidth'] ?? null) !== 1024 || ($result['spine'][0]['effectiveRendition']['viewportSource'] ?? null) !== 'itemref-refinement') {
+        throw new RuntimeException('Expected EPUB effective rendition to use itemref viewport refinement before package viewport metadata');
+    }
+    if (($result['spine'][2]['effectiveRendition']['layout'] ?? null) !== 'reflowable' || ($result['spine'][2]['effectiveRendition']['layoutSource'] ?? null) !== 'package') {
+        throw new RuntimeException('Expected EPUB effective rendition to fall back to package-level layout metadata for unstyled spine items');
+    }
     if (($result['document']->children[0]->attr('pageProgressionDirection') ?? null) !== 'rtl' || ($result['document']->children[0]->attr('pageSpread') ?? null) !== 'right') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB reading-order metadata');
     }
@@ -540,6 +553,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($result['document']->children[0]->attr('layout') ?? null) !== 'pre-paginated' || ($result['document']->children[0]->attr('orientation') ?? null) !== 'landscape' || ($result['document']->children[0]->attr('spread') ?? null) !== 'none') {
         throw new RuntimeException('Expected WordPress chapter handoff block to expose EPUB fixed-layout rendition overrides');
+    }
+    if (($result['document']->children[0]->attr('effectiveRendition')['viewportSource'] ?? null) !== 'itemref-refinement') {
+        throw new RuntimeException('Expected WordPress chapter handoff block to expose effective EPUB rendition metadata');
     }
     if (($result['spine'][0]['linearRaw'] ?? null) !== 'maybe' || ($result['spine'][0]['linearValid'] ?? null) !== false) {
         throw new RuntimeException('Expected invalid EPUB spine linear value to remain visible for review');
@@ -1745,12 +1761,16 @@ echo 'spineItems=' . count($result['spine']) . "\n";
 echo 'pageProgressionDirection=' . ($result['spineProperties']['pageProgressionDirection'] ?? '') . "\n";
 echo 'rightToLeft=' . (($result['spineProperties']['rightToLeft'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'firstPageSpread=' . ($result['spine'][0]['pageSpread'] ?? '') . "\n";
+echo 'firstEffectiveLayout=' . ($result['spine'][0]['effectiveRendition']['layout'] ?? '') . "\n";
+echo 'firstEffectiveViewportSource=' . ($result['spine'][0]['effectiveRendition']['viewportSource'] ?? '') . "\n";
 echo 'firstLinearRaw=' . ($result['spine'][0]['linearRaw'] ?? '') . "\n";
 echo 'firstLinearValid=' . (($result['spine'][0]['linearValid'] ?? true) ? 'yes' : 'no') . "\n";
 echo 'linearSpineItems=' . ($result['spineProperties']['linearItemCount'] ?? 0) . "\n";
 echo 'primaryReadingOrderEmpty=' . (($result['spineProperties']['primaryReadingOrderEmpty'] ?? false) ? 'yes' : 'no') . "\n";
 echo 'spineLinearDiagnostics=' . count($result['spineProperties']['itemDiagnostics'] ?? []) . "\n";
 echo 'fallbackPageSpread=' . ($result['spine'][1]['pageSpread'] ?? '') . "\n";
+echo 'boundTourEffectiveLayout=' . ($result['spine'][2]['effectiveRendition']['layout'] ?? '') . "\n";
+echo 'boundTourEffectiveLayoutSource=' . ($result['spine'][2]['effectiveRendition']['layoutSource'] ?? '') . "\n";
 echo 'fallbackSpineContent=' . ($result['spine'][1]['contentPart'] ?? '') . "\n";
 echo 'navTarget=' . ($result['nav']['items'][0]['target'] ?? '') . "\n";
 echo 'navSectionId=' . ($result['nav']['sections'][0]['id'] ?? '') . "\n";

@@ -563,7 +563,14 @@ final class EpubReader
         $mediaOverlays = $this->readMediaOverlays($package, $manifestById, $mediaDurations, $mediaOverlayStyles);
         $manifestById = self::attachMediaOverlayReferencesToManifest($manifestById, $mediaOverlays);
         $spineProperties = self::readSpineProperties($spineElement, $refinementsById, $linkedResourcesById);
-        $spine = $this->readSpine($spineElement, $manifestById, $bindings, $refinementsById, $linkedResourcesById);
+        $spine = $this->readSpine(
+            $spineElement,
+            $manifestById,
+            $bindings,
+            $refinementsById,
+            $linkedResourcesById,
+            is_array($metadata['renditionLayout'] ?? null) ? $metadata['renditionLayout'] : []
+        );
         $metadata['refinementSubjectSummary'] = self::metadataRefinementSubjectSummary(
             $metadata,
             $packageId,
@@ -6786,7 +6793,8 @@ final class EpubReader
         array $manifestById,
         array $bindings,
         array $refinementsById,
-        array $linksByRefinedId = []
+        array $linksByRefinedId = [],
+        array $packageRenditionLayout = []
     ): array
     {
         $spine = [];
@@ -6814,6 +6822,13 @@ final class EpubReader
             $itemProperties['linear'] = $linearProperties;
             $itemDiagnostics = array_merge($itemProperties['diagnostics'], $linearProperties['diagnostics']);
             $itemProperties['diagnostics'] = $itemDiagnostics;
+            $refinements = self::metadataRefinementsForId($refinementsById, $itemrefId);
+            $linkedResources = self::metadataLinkedResourcesForId($linksByRefinedId, $itemrefId);
+            $effectiveRendition = self::spineItemEffectiveRenditionReport(
+                $itemProperties,
+                $refinements,
+                $packageRenditionLayout
+            );
             $spine[] = [
                 'index' => $index,
                 'id' => $itemrefId,
@@ -6827,10 +6842,11 @@ final class EpubReader
                 'linearSpecified' => $linearProperties['specified'],
                 'linearValid' => $linearProperties['valid'],
                 'properties' => $properties,
-                'refinements' => self::metadataRefinementsForId($refinementsById, $itemrefId),
-                'linkedResources' => self::metadataLinkedResourcesForId($linksByRefinedId, $itemrefId),
+                'refinements' => $refinements,
+                'linkedResources' => $linkedResources,
                 'spineItemProperties' => $itemProperties,
                 'spineItemDiagnostics' => $itemDiagnostics,
+                'effectiveRendition' => $effectiveRendition,
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
                 'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'flow' => $itemProperties['flow']['value'],
@@ -7225,6 +7241,187 @@ final class EpubReader
                 'values' => $spreadOverrideValuesList,
                 'conflicting' => $spreadOverrideConflicting,
             ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $itemProperties
+     * @param array<string, list<array<string, mixed>>> $refinements
+     * @param array<string, mixed> $packageRenditionLayout
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineItemEffectiveRenditionReport(
+        array $itemProperties,
+        array $refinements,
+        array $packageRenditionLayout
+    ): array {
+        $layout = self::effectiveRenditionScalar('layout', $itemProperties, $packageRenditionLayout);
+        $orientation = self::effectiveRenditionScalar('orientation', $itemProperties, $packageRenditionLayout);
+        $spread = self::effectiveRenditionScalar('spread', $itemProperties, $packageRenditionLayout);
+        $flow = self::effectiveRenditionItemrefScalar('flow', $itemProperties);
+        $alignX = self::effectiveRenditionItemrefScalar('alignX', $itemProperties);
+        $itemrefViewportReport = self::spineItemRenditionViewportRefinementReport($refinements);
+        $packageViewport = is_array($packageRenditionLayout['viewport'] ?? null)
+            ? $packageRenditionLayout['viewport']
+            : self::emptyRenditionViewportReport();
+        $itemrefViewport = is_array($itemrefViewportReport['selected'] ?? null)
+            ? $itemrefViewportReport['selected']
+            : null;
+        $itemrefViewportValid = is_array($itemrefViewport) && ($itemrefViewport['valid'] ?? false) === true;
+        $packageViewportPresent = ($packageViewport['present'] ?? false) === true;
+
+        if ($itemrefViewportValid) {
+            $viewport = $itemrefViewport;
+            $viewportSource = 'itemref-refinement';
+        } elseif ($packageViewportPresent) {
+            $viewport = $packageViewport;
+            $viewportSource = 'package';
+        } elseif (is_array($itemrefViewport)) {
+            $viewport = $itemrefViewport;
+            $viewportSource = 'itemref-refinement';
+        } else {
+            $viewport = self::emptyRenditionViewportReport();
+            $viewportSource = null;
+        }
+
+        $packageDiagnostics = is_array($packageRenditionLayout['diagnostics'] ?? null)
+            ? $packageRenditionLayout['diagnostics']
+            : [];
+        $itemrefViewportDiagnostics = is_array($itemrefViewportReport['diagnostics'] ?? null)
+            ? $itemrefViewportReport['diagnostics']
+            : [];
+        $diagnostics = array_values(array_merge($packageDiagnostics, $itemrefViewportDiagnostics));
+        $present = $layout['value'] !== null
+            || $orientation['value'] !== null
+            || $spread['value'] !== null
+            || $flow['value'] !== null
+            || $alignX['value'] !== null
+            || ($viewport['present'] ?? false) === true;
+
+        return [
+            'present' => $present,
+            'fixedLayout' => $layout['value'] === 'pre-paginated',
+            'layout' => $layout['value'],
+            'layoutSource' => $layout['source'],
+            'layoutItemref' => $layout['itemref'],
+            'layoutPackage' => $layout['package'],
+            'orientation' => $orientation['value'],
+            'orientationSource' => $orientation['source'],
+            'orientationItemref' => $orientation['itemref'],
+            'orientationPackage' => $orientation['package'],
+            'spread' => $spread['value'],
+            'spreadSource' => $spread['source'],
+            'spreadItemref' => $spread['itemref'],
+            'spreadPackage' => $spread['package'],
+            'flow' => $flow['value'],
+            'flowSource' => $flow['source'],
+            'alignX' => $alignX['value'],
+            'alignXSource' => $alignX['source'],
+            'viewport' => $viewport,
+            'viewportSource' => $viewportSource,
+            'viewportRaw' => is_string($viewport['raw'] ?? null) ? $viewport['raw'] : null,
+            'viewportWidth' => is_int($viewport['width'] ?? null) ? $viewport['width'] : null,
+            'viewportHeight' => is_int($viewport['height'] ?? null) ? $viewport['height'] : null,
+            'itemrefViewports' => is_array($itemrefViewportReport['viewports'] ?? null)
+                ? $itemrefViewportReport['viewports']
+                : [],
+            'itemrefViewportCount' => is_int($itemrefViewportReport['count'] ?? null)
+                ? $itemrefViewportReport['count']
+                : 0,
+            'validItemrefViewportCount' => is_int($itemrefViewportReport['validCount'] ?? null)
+                ? $itemrefViewportReport['validCount']
+                : 0,
+            'invalidItemrefViewportCount' => is_int($itemrefViewportReport['invalidCount'] ?? null)
+                ? $itemrefViewportReport['invalidCount']
+                : 0,
+            'packageViewport' => $packageViewport,
+            'diagnostics' => $diagnostics,
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $itemProperties
+     * @param array<string, mixed> $packageRenditionLayout
+     *
+     * @return array{value:?string, source:?string, itemref:?string, package:?string}
+     */
+    private static function effectiveRenditionScalar(
+        string $name,
+        array $itemProperties,
+        array $packageRenditionLayout
+    ): array {
+        $itemref = is_string($itemProperties[$name]['value'] ?? null) ? $itemProperties[$name]['value'] : null;
+        $package = is_string($packageRenditionLayout[$name] ?? null) ? $packageRenditionLayout[$name] : null;
+        $value = $itemref ?? $package;
+
+        return [
+            'value' => $value,
+            'source' => $itemref !== null ? 'itemref' : ($package !== null ? 'package' : null),
+            'itemref' => $itemref,
+            'package' => $package,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $itemProperties
+     *
+     * @return array{value:?string, source:?string}
+     */
+    private static function effectiveRenditionItemrefScalar(string $name, array $itemProperties): array
+    {
+        $value = is_string($itemProperties[$name]['value'] ?? null) ? $itemProperties[$name]['value'] : null;
+
+        return [
+            'value' => $value,
+            'source' => $value !== null ? 'itemref' : null,
+        ];
+    }
+
+    /**
+     * @param array<string, list<array<string, mixed>>> $refinements
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineItemRenditionViewportRefinementReport(array $refinements): array
+    {
+        $entries = is_array($refinements['rendition:viewport'] ?? null) ? $refinements['rendition:viewport'] : [];
+        $viewports = [];
+        $diagnostics = [];
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $viewport = self::renditionViewportReport($entry, count($viewports));
+            $viewport['source'] = 'itemref-refinement';
+            $viewport['subjectId'] = is_string($entry['subjectId'] ?? null) ? $entry['subjectId'] : null;
+            $viewport['refines'] = is_string($entry['refines'] ?? null) ? $entry['refines'] : null;
+            $viewport['entryIndex'] = (int) $index;
+            foreach ($viewport['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+            $viewports[] = $viewport;
+        }
+
+        $validViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? false) === true,
+        ));
+        $invalidViewports = array_values(array_filter(
+            $viewports,
+            static fn (array $viewport): bool => ($viewport['valid'] ?? true) !== true,
+        ));
+
+        return [
+            'present' => $viewports !== [],
+            'count' => count($viewports),
+            'validCount' => count($validViewports),
+            'invalidCount' => count($invalidViewports),
+            'viewports' => $viewports,
+            'selected' => $validViewports[0] ?? ($viewports[0] ?? null),
             'diagnostics' => $diagnostics,
         ];
     }
@@ -18398,6 +18595,7 @@ final class EpubReader
                 'spreadProperties' => $item['spreadProperties'] ?? [],
                 'spineItemProperties' => $item['spineItemProperties'] ?? [],
                 'spineItemDiagnostics' => $item['spineItemDiagnostics'] ?? [],
+                'effectiveRendition' => $item['effectiveRendition'] ?? [],
                 'mediaOverlay' => $item['mediaOverlay'],
                 'mediaOverlayReference' => $item['mediaOverlayReference'] ?? null,
                 'mediaOverlayDiagnostics' => $item['mediaOverlayDiagnostics'] ?? [],
