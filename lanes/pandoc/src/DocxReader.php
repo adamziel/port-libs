@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class DocxReader
 {
+    private const STYLE_DOC_DEFAULTS_KEY = "\0docDefaults";
+
     public const WORDPROCESSINGML_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     public const WORDPROCESSINGML_2010_NS = 'http://schemas.microsoft.com/office/word/2010/wordml';
     public const WORDPROCESSINGML_2012_NS = 'http://schemas.microsoft.com/office/word/2012/wordml';
@@ -100,6 +102,16 @@ final class DocxReader
      * @var array<string, mixed>|null
      */
     private ?array $currentParagraphRunProperties = null;
+
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $currentDefaultRunProperties = null;
+
+    /**
+     * @var array{classes:list<string>, attributes:array<string, string>}|null
+     */
+    private ?array $currentDefaultParagraphMetadata = null;
 
     /**
      * @var array<string, string>
@@ -1015,8 +1027,17 @@ final class DocxReader
 
         $previousStyles = $this->currentStyles;
         $previousParagraphRunProperties = $this->currentParagraphRunProperties;
+        $previousDefaultRunProperties = $this->currentDefaultRunProperties;
+        $previousDefaultParagraphMetadata = $this->currentDefaultParagraphMetadata;
+        $styleDefaults = $styles[self::STYLE_DOC_DEFAULTS_KEY] ?? [];
         $this->currentStyles = $styles;
         $this->currentParagraphRunProperties = null;
+        $this->currentDefaultRunProperties = isset($styleDefaults['runProperties']) && is_array($styleDefaults['runProperties'])
+            ? $styleDefaults['runProperties']
+            : null;
+        $this->currentDefaultParagraphMetadata = isset($styleDefaults['paragraphMetadata']) && is_array($styleDefaults['paragraphMetadata'])
+            ? $styleDefaults['paragraphMetadata']
+            : null;
         try {
             $this->noteReferenceState = $this->newNoteReferenceState([]);
             $blocks = $this->bodyChildren(
@@ -1046,6 +1067,8 @@ final class DocxReader
         } finally {
             $this->currentStyles = $previousStyles;
             $this->currentParagraphRunProperties = $previousParagraphRunProperties;
+            $this->currentDefaultRunProperties = $previousDefaultRunProperties;
+            $this->currentDefaultParagraphMetadata = $previousDefaultParagraphMetadata;
         }
     }
 
@@ -3119,7 +3142,7 @@ final class DocxReader
     ): ?AstNode
     {
         $previousParagraphRunProperties = $this->currentParagraphRunProperties;
-        $this->currentParagraphRunProperties = $this->paragraphStyleRunProperties($paragraph, $styles);
+        $this->currentParagraphRunProperties = $this->paragraphRunProperties($paragraph, $styles);
         try {
             $children = $this->paragraphInlines(
                 $paragraph,
@@ -3183,10 +3206,16 @@ final class DocxReader
     private function paragraphMetadataAttrs(\DOMElement $paragraph, array $styles): ?array
     {
         $attrs = null;
+        if ($this->currentDefaultParagraphMetadata !== null) {
+            $attrs = $this->currentDefaultParagraphMetadata;
+        }
         $style = $this->paragraphStyleId($paragraph);
         if ($style !== null) {
             $seen = [];
-            $attrs = $this->resolveStyleParagraphMetadataAttrs($style, $styles, $seen);
+            $attrs = $this->mergeMetadataAttrs(
+                $attrs,
+                $this->resolveStyleParagraphMetadataAttrs($style, $styles, $seen)
+            );
         }
 
         $properties = $this->firstChildElement($paragraph, self::WORDPROCESSINGML_NS, 'pPr');
@@ -6112,6 +6141,18 @@ final class DocxReader
         }
 
         return $properties;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return array<string, mixed>|null
+     */
+    private function paragraphRunProperties(\DOMElement $paragraph, array $styles): ?array
+    {
+        return $this->mergeRunProperties(
+            $this->currentDefaultRunProperties,
+            $this->paragraphStyleRunProperties($paragraph, $styles),
+        );
     }
 
     /**
@@ -12319,6 +12360,10 @@ final class DocxReader
         }
 
         $styles = [];
+        $docDefaults = $this->stylesDocDefaults($root);
+        if ($docDefaults !== []) {
+            $styles[self::STYLE_DOC_DEFAULTS_KEY] = $docDefaults;
+        }
         foreach ($root->getElementsByTagNameNS(self::WORDPROCESSINGML_NS, 'style') as $styleElement) {
             if (!$styleElement instanceof \DOMElement || $styleElement->parentNode !== $root) {
                 continue;
@@ -12351,6 +12396,42 @@ final class DocxReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @return array{paragraphMetadata?:array{classes:list<string>, attributes:array<string, string>}, runProperties?:array<string, mixed>}
+     */
+    private function stylesDocDefaults(\DOMElement $styles): array
+    {
+        $docDefaults = $this->firstChildElement($styles, self::WORDPROCESSINGML_NS, 'docDefaults');
+        if (!$docDefaults instanceof \DOMElement) {
+            return [];
+        }
+
+        $defaults = [];
+        $paragraphDefault = $this->firstChildElement($docDefaults, self::WORDPROCESSINGML_NS, 'pPrDefault');
+        $paragraphProperties = $paragraphDefault instanceof \DOMElement
+            ? $this->firstChildElement($paragraphDefault, self::WORDPROCESSINGML_NS, 'pPr')
+            : null;
+        if ($paragraphProperties instanceof \DOMElement) {
+            $paragraphMetadata = $this->paragraphPropertiesMetadataAttrs($paragraphProperties);
+            if ($paragraphMetadata !== null) {
+                $defaults['paragraphMetadata'] = $paragraphMetadata;
+            }
+        }
+
+        $runDefault = $this->firstChildElement($docDefaults, self::WORDPROCESSINGML_NS, 'rPrDefault');
+        $runProperties = $runDefault instanceof \DOMElement
+            ? $this->firstChildElement($runDefault, self::WORDPROCESSINGML_NS, 'rPr')
+            : null;
+        if ($runProperties instanceof \DOMElement) {
+            $properties = $this->runPropertiesFromElement($runProperties);
+            if ($properties !== null) {
+                $defaults['runProperties'] = $properties;
+            }
+        }
+
+        return $defaults;
     }
 
     /**

@@ -2286,6 +2286,12 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test did not preserve explicit set tags in writer metadata');
     }
+    if (
+        !str_contains($metadataMarkdown, "  # sequence explicit source key reviewer comment\n  - \"[source, uri]\": https://example.test/exports/packet#sequence-explicit-item")
+        || !str_contains($metadataMarkdown, "  # sequence explicit owner key reviewer comment\n  - \"{owner: desk, ticket: 7}\": approved")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not preserve standalone source comments in writer metadata');
+    }
     if (str_contains($metadataMarkdown, "reviewer-pairs:\n    - key: owner")) {
         throw new RuntimeException('YAML metadata self-test flattened ordered pair metadata into key/value records');
     }

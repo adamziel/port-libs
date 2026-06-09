@@ -1087,6 +1087,77 @@ $paragraphRunStyleDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$docDefaultsStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:i/>
+        <w:highlight w:val="yellow"/>
+        <w:lang w:val="en-US"/>
+        <w:rFonts w:ascii="Source Sans 3" w:hAnsi="Source Sans 3"/>
+      </w:rPr>
+    </w:rPrDefault>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:jc w:val="center"/>
+        <w:spacing w:before="120" w:after="60"/>
+        <w:keepNext/>
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:styleId="DefaultOverride">
+    <w:name w:val="Default Override"/>
+    <w:pPr>
+      <w:jc w:val="end"/>
+      <w:pageBreakBefore/>
+    </w:pPr>
+    <w:rPr>
+      <w:b/>
+      <w:i w:val="0"/>
+      <w:highlight w:val="none"/>
+      <w:lang w:val="fr-FR"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="DefaultTerm">
+    <w:name w:val="Default Term"/>
+    <w:rPr>
+      <w:u/>
+      <w:smallCaps/>
+      <w:highlight w:val="green"/>
+    </w:rPr>
+  </w:style>
+</w:styles>
+XML;
+
+$docDefaultsDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t>Defaulted source note.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="DefaultOverride"/></w:pPr>
+      <w:r><w:t>Paragraph style overrides defaults.</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:jc w:val="start"/></w:pPr>
+      <w:r><w:t xml:space="preserve">Direct run </w:t></w:r>
+      <w:r>
+        <w:rPr>
+          <w:rStyle w:val="DefaultTerm"/>
+          <w:i w:val="0"/>
+          <w:highlight w:val="none"/>
+          <w:lang w:val="de-DE"/>
+        </w:rPr>
+        <w:t>term override</w:t>
+      </w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $themeFontContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -4117,6 +4188,22 @@ $buildParagraphRunStylePackage = static function () use (
     ]);
 };
 
+$buildDocDefaultsStylePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $docDefaultsDocumentXml,
+    $docDefaultsStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $docDefaultsDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $docDefaultsStylesXml],
+    ]);
+};
+
 $buildThemeFontPackage = static function () use (
     $themeFontContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6294,6 +6381,79 @@ return [
         $t->contains('<span class="docx-highlight docx-highlight-cyan docx-color docx-color-005a9c docx-language" data-docx-highlight="cyan" data-docx-color="005A9C" data-docx-lang="en-US" lang="en-US"><em>Base paragraph style run.</em></span>', $blocks);
         $t->contains('<span class="docx-color docx-color-005a9c docx-shading docx-language" data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR" lang="fr-FR"><span style="font-variant:small-caps"><u>direct override</u></span></span>', $blocks);
         $t->true(!str_contains($blocks, 'docx-highlight-green" data-docx-color="005A9C" data-docx-shading-fill="FFF2CC" data-docx-lang="fr-FR"'), 'Direct highlight removal should suppress inherited paragraph and character highlights');
+    },
+    'applies DOCX document default paragraph and run properties before style and direct overrides' => static function (TestRunner $t) use ($buildDocDefaultsStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildDocDefaultsStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+
+        $defaultParagraph = $document->children[0];
+        $t->same('paragraph', $defaultParagraph->type);
+        $defaultParagraphSpan = $defaultParagraph->children[0];
+        $t->same('span', $defaultParagraphSpan->type);
+        $t->same(['docx-paragraph-align', 'docx-align-center', 'docx-paragraph-spacing', 'docx-keep-next'], $defaultParagraphSpan->attr('classes'));
+        $defaultParagraphAttrs = $defaultParagraphSpan->attr('attributes');
+        $t->same('center', $defaultParagraphAttrs['data-docx-paragraph-align']);
+        $t->same('120', $defaultParagraphAttrs['data-docx-spacing-before-twips']);
+        $t->same('60', $defaultParagraphAttrs['data-docx-spacing-after-twips']);
+        $t->same('true', $defaultParagraphAttrs['data-docx-keep-next']);
+
+        $defaultRun = $defaultParagraphSpan->children[0];
+        $t->same('span', $defaultRun->type);
+        $t->same(['docx-highlight', 'docx-highlight-yellow', 'docx-language', 'docx-font'], $defaultRun->attr('classes'));
+        $defaultRunAttrs = $defaultRun->attr('attributes');
+        $t->same('yellow', $defaultRunAttrs['data-docx-highlight']);
+        $t->same('en-US', $defaultRunAttrs['data-docx-lang']);
+        $t->same('en-US', $defaultRunAttrs['lang']);
+        $t->same('Source Sans 3', $defaultRunAttrs['data-docx-font-ascii']);
+        $t->same('Source Sans 3', $defaultRunAttrs['data-docx-font-hansi']);
+        $t->same('emph', $defaultRun->children[0]->type);
+        $t->same('Defaulted source note.', $defaultRun->children[0]->children[0]->attr('text'));
+
+        $styleParagraphSpan = $document->children[1]->children[0];
+        $t->same(['docx-paragraph-spacing', 'docx-keep-next', 'docx-paragraph-align', 'docx-align-end', 'docx-page-break-before'], $styleParagraphSpan->attr('classes'));
+        $styleParagraphAttrs = $styleParagraphSpan->attr('attributes');
+        $t->same('end', $styleParagraphAttrs['data-docx-paragraph-align']);
+        $t->same('120', $styleParagraphAttrs['data-docx-spacing-before-twips']);
+        $t->same('true', $styleParagraphAttrs['data-docx-page-break-before']);
+
+        $styleRun = $styleParagraphSpan->children[0];
+        $t->same('span', $styleRun->type);
+        $t->same(['docx-font', 'docx-language'], $styleRun->attr('classes'));
+        $t->same('fr-FR', $styleRun->attr('attributes')['data-docx-lang']);
+        $t->same('strong', $styleRun->children[0]->type);
+        $t->same('Paragraph style overrides defaults.', $styleRun->children[0]->children[0]->attr('text'));
+        $t->true(!in_array('docx-highlight-yellow', $styleRun->attr('classes'), true), 'Paragraph style highlight none should suppress document default highlight');
+        $t->true($styleRun->children[0]->children[0]->type === 'text', 'Paragraph style disabled italic should suppress document default emphasis');
+
+        $directParagraphSpan = $document->children[2]->children[0];
+        $t->same('start', $directParagraphSpan->attr('attributes')['data-docx-paragraph-align']);
+        $t->true(in_array('docx-align-start', $directParagraphSpan->attr('classes'), true), 'Direct paragraph alignment should override document default alignment class');
+        $t->true(!in_array('docx-align-center', $directParagraphSpan->attr('classes'), true), 'Document default alignment class should not survive direct paragraph override');
+
+        $directPrefix = $directParagraphSpan->children[0];
+        $t->same('span', $directPrefix->type);
+        $t->same('emph', $directPrefix->children[0]->type);
+        $t->same('Direct run ', $directPrefix->children[0]->children[0]->attr('text'));
+
+        $term = $directParagraphSpan->children[1];
+        $t->same('span', $term->type);
+        $t->same(['docx-font', 'docx-language'], $term->attr('classes'));
+        $t->same('de-DE', $term->attr('attributes')['data-docx-lang']);
+        $t->same('small_caps', $term->children[0]->type);
+        $t->same('underline', $term->children[0]->children[0]->type);
+        $t->same('term override', $term->children[0]->children[0]->children[0]->attr('text'));
+        $t->true(!in_array('docx-highlight-green', $term->attr('classes'), true), 'Direct run highlight none should suppress character and document default highlights');
+
+        $t->contains('[[*Defaulted source note.*]{.docx-highlight .docx-highlight-yellow .docx-language .docx-font data-docx-highlight="yellow" data-docx-lang="en-US" lang="en-US" data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3"}]{.docx-paragraph-align .docx-align-center .docx-paragraph-spacing .docx-keep-next data-docx-paragraph-align="center" data-docx-spacing-before-twips="120" data-docx-spacing-after-twips="60" data-docx-keep-next="true"}', $markdown);
+        $t->contains('[**Paragraph style overrides defaults.**]{.docx-font .docx-language data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3" data-docx-lang="fr-FR" lang="fr-FR"}', $markdown);
+        $t->contains('[[term override]{.underline}]{.smallcaps}]{.docx-font .docx-language data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3" data-docx-lang="de-DE" lang="de-DE"}', $markdown);
+
+        $t->contains('<p><span class="docx-paragraph-align docx-align-center docx-paragraph-spacing docx-keep-next" data-docx-paragraph-align="center" data-docx-spacing-before-twips="120" data-docx-spacing-after-twips="60" data-docx-keep-next="true"><span class="docx-highlight docx-highlight-yellow docx-language docx-font" data-docx-highlight="yellow" data-docx-lang="en-US" lang="en-US" data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3"><em>Defaulted source note.</em></span></span></p>', $blocks);
+        $t->contains('<span class="docx-font docx-language" data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3" data-docx-lang="fr-FR" lang="fr-FR"><strong>Paragraph style overrides defaults.</strong></span>', $blocks);
+        $t->contains('<span class="docx-font docx-language" data-docx-font-ascii="Source Sans 3" data-docx-font-hansi="Source Sans 3" data-docx-lang="de-DE" lang="de-DE"><span style="font-variant:small-caps"><u>term override</u></span></span>', $blocks);
     },
     'resolves DOCX theme font slots into run metadata spans' => static function (TestRunner $t) use ($buildThemeFontPackage): void {
         $reader = new DocxReader();

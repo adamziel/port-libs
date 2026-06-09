@@ -24,6 +24,9 @@ final class MarkdownWriter
     /** @var array<string, string> */
     private array $yamlMetadataExplicitCollectionTags = [];
 
+    /** @var array<string, list<string>> */
+    private array $yamlMetadataStandaloneCommentsByPath = [];
+
     private int $nextNoteNumber = 1;
 
     private int $lastReferenceIndex = 0;
@@ -47,6 +50,7 @@ final class MarkdownWriter
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
         $this->yamlMetadataExplicitCollectionTags = [];
+        $this->yamlMetadataStandaloneCommentsByPath = [];
         $this->nextNoteNumber = 1;
         $this->lastReferenceIndex = 0;
 
@@ -54,6 +58,9 @@ final class MarkdownWriter
         if ((bool) ($this->options['yamlMetadata'] ?? false)) {
             $this->yamlMetadataExplicitCollectionTags = $this->yamlMetadataExplicitCollectionTags(
                 $document->attr('yamlMetadataCollectionProvenance', [])
+            );
+            $this->yamlMetadataStandaloneCommentsByPath = $this->yamlMetadataStandaloneCommentsByPath(
+                $document->attr('yamlMetadataCommentProvenance', [])
             );
             $metadataBlock = $this->renderYamlMetadataBlock($document->attr('meta', []));
             if ($metadataBlock !== []) {
@@ -143,6 +150,59 @@ final class MarkdownWriter
     }
 
     /**
+     * @return array<string, list<string>>
+     */
+    private function yamlMetadataStandaloneCommentsByPath(mixed $provenance): array
+    {
+        if (!is_array($provenance)) {
+            return [];
+        }
+
+        $comments = [];
+        foreach ($provenance as $entry) {
+            if (
+                !is_array($entry)
+                || ($entry['type'] ?? '') !== 'yaml-comment'
+                || ($entry['context'] ?? '') !== 'standalone'
+            ) {
+                continue;
+            }
+
+            $path = $entry['path'] ?? null;
+            $comment = $entry['comment'] ?? null;
+            if (!is_string($path) || $path === '' || !is_string($comment)) {
+                continue;
+            }
+
+            $comment = trim($comment);
+            if (!$this->isWritableYamlMetadataComment($comment)) {
+                continue;
+            }
+
+            $comments[$path] ??= [];
+            $comments[$path][] = $comment;
+        }
+
+        return $comments;
+    }
+
+    private function isWritableYamlMetadataComment(string $comment): bool
+    {
+        return $comment !== ''
+            && preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\r\n]/', $comment) !== 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function appendYamlMetadataStandaloneComments(array &$lines, string $path, int $indent): void
+    {
+        foreach ($this->yamlMetadataStandaloneCommentsByPath[$path] ?? [] as $comment) {
+            $lines[] = str_repeat(' ', $indent) . '# ' . $comment;
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function yamlMetadataForWriting(mixed $metadata): array
@@ -205,6 +265,7 @@ final class MarkdownWriter
     {
         $prefix = str_repeat(' ', $indent) . $this->formatYamlMetadataKey($key);
         if (!$this->isYamlMetadataCollection($value)) {
+            $this->appendYamlMetadataStandaloneComments($lines, $path, $indent);
             $this->appendYamlMetadataScalarMappingLines($lines, $prefix . ':', $value, $indent + 2);
             return;
         }
@@ -276,6 +337,7 @@ final class MarkdownWriter
         foreach ($value as $index => $item) {
             $itemPath = $this->yamlMetadataPathWithSegment($path, $index);
             if (!$this->isYamlMetadataCollection($item)) {
+                $this->appendYamlMetadataStandaloneComments($lines, $itemPath, $indent);
                 $this->appendYamlMetadataScalarListItemLines($lines, $item, $indent);
                 continue;
             }
@@ -325,6 +387,7 @@ final class MarkdownWriter
             $field = $this->formatYamlMetadataKey((string) $key);
             $itemPath = $this->yamlMetadataPathWithSegment($path, (string) $key);
             if (!$this->isYamlMetadataCollection($value)) {
+                $this->appendYamlMetadataStandaloneComments($lines, $itemPath, $first ? $indent : $indent + 2);
                 $this->appendYamlMetadataScalarMappingLines(
                     $lines,
                     $prefix . ($first ? '- ' : '  ') . $field . ':',
@@ -382,6 +445,7 @@ final class MarkdownWriter
             $prefix = str_repeat(' ', $indent) . '- ' . $key . ':';
 
             if (!$this->isYamlMetadataCollection($value)) {
+                $this->appendYamlMetadataStandaloneComments($lines, $valuePath, $indent);
                 $this->appendYamlMetadataScalarMappingLines($lines, $prefix, $value, $indent + 4);
                 continue;
             }

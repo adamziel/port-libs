@@ -7972,6 +7972,56 @@ MD;
         $t->same('set-writer-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="set-writer-body">Set writer body</h1>', $blocks);
     },
+    'writes pandoc yaml standalone source comments from reader provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Comment writer **Packet**',
+            'review:',
+            '  status: queued',
+            'review-items:',
+            '  # source URI key selected by migration reviewer',
+            '  - ? [source, uri]',
+            '    : https://example.test/import#sequence-comment',
+            '    status: queued',
+            '  # owner desk key selected by migration reviewer',
+            '  - ? {owner: desk, ticket: 7}',
+            '    : approved',
+            'references:',
+            '  - id: comment-writer-ref',
+            '    review-links:',
+            '      # nested source key selected by reviewer',
+            '      - ? [source, key]',
+            '        : metadata value',
+            '        status: kept',
+            '...',
+            '',
+            '# Comment writer body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $roundTripComments = $roundTripped->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->same(3, count($comments));
+        $t->contains("  # source URI key selected by migration reviewer\n  - \"[source, uri]\": https://example.test/import#sequence-comment", $markdown);
+        $t->contains("  # owner desk key selected by migration reviewer\n  - \"{owner: desk, ticket: 7}\": approved", $markdown);
+        $t->contains("      # nested source key selected by reviewer\n      - \"[source, key]\": \"metadata value\"", $markdown);
+        $t->same('Comment writer **Packet**', $meta['title']);
+        $t->same('queued', $meta['review']['status']);
+        $t->same('https://example.test/import#sequence-comment', $meta['review-items'][0]['[source, uri]']);
+        $t->same('queued', $meta['review-items'][0]['status']);
+        $t->same('approved', $meta['review-items'][1]['{owner: desk, ticket: 7}']);
+        $t->same('comment-writer-ref', $meta['references'][0]['id']);
+        $t->same('metadata value', $meta['references'][0]['review-links'][0]['[source, key]']);
+        $t->same('kept', $meta['references'][0]['review-links'][0]['status']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->true(count($roundTripComments) >= 3, 'expected emitted YAML comments to remain readable as provenance');
+        $t->same('comment-writer-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="comment-writer-body">Comment writer body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [
