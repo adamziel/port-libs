@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\EpubReader;
+use PortLibs\Pandoc\IpynbReader;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\OdtReader;
@@ -83,7 +84,7 @@ return [
         $t->same(PlainWriter::class, $outputSupport['plain']['implementation']);
         $t->contains('wrapping diagnostics', $outputSupport['plain']['notes']);
 
-        $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
@@ -116,7 +117,7 @@ return [
         $t->same('', $outputSupport['ms']['implementation']);
         $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
 
-        $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks roff manual input output direction buckets without direct parity claims' => static function (TestRunner $t): void {
@@ -415,11 +416,13 @@ return [
         $t->same(DocxReader::class, $inputSupport['docx']['implementation']);
         $t->same('partial', $inputSupport['epub']['status']);
         $t->same(EpubReader::class, $inputSupport['epub']['implementation']);
+        $t->same('partial', $inputSupport['ipynb']['status']);
+        $t->same(IpynbReader::class, $inputSupport['ipynb']['implementation']);
+        $t->contains('notebook reader maps Markdown/code/raw cells', $inputSupport['ipynb']['notes']);
         $t->same('partial', $inputSupport['odt']['status']);
         $t->same(OdtReader::class, $inputSupport['odt']['implementation']);
 
         $t->same([
-            'ipynb',
             'pptx',
             'xlsx',
         ], PandocFormatRegistry::unsupportedRichPackageInputFormats());
@@ -448,7 +451,7 @@ return [
             $t->contains('No native PHP reader or writer is registered', $outputSupport[$format]['notes']);
         }
 
-        $t->same(34, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(33, count(PandocFormatRegistry::unsupportedInputFormats()));
         $t->same(61, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks rich package input output direction buckets without direct writer parity claims' => static function (TestRunner $t): void {
@@ -491,7 +494,7 @@ return [
             $hasInput = in_array($format, $inputFormats, true);
             $hasOutput = in_array($format, $outputFormats, true);
             $expectedDirection = $hasInput && $hasOutput ? 'input-output' : ($hasInput ? 'input-only' : 'output-only');
-            $expectedInputStatus = in_array($format, ['docx', 'epub', 'odt'], true) ? 'partial' : ($hasInput ? 'unsupported' : 'not-applicable');
+            $expectedInputStatus = in_array($format, ['docx', 'epub', 'ipynb', 'odt'], true) ? 'partial' : ($hasInput ? 'unsupported' : 'not-applicable');
 
             $t->same($hasInput, $direction['input'], "Rich package format {$format} input direction mismatch");
             $t->same($hasOutput, $direction['output'], "Rich package format {$format} output direction mismatch");
@@ -596,11 +599,12 @@ return [
         ], $docx);
 
         $ipynb = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.ipynb');
-        $t->same('unsupported', $ipynb['inputStatus']);
+        $t->same('partial', $ipynb['inputStatus']);
         $t->same('unsupported', $ipynb['outputStatus']);
-        $t->same(true, $ipynb['unsupportedInput']);
+        $t->same(false, $ipynb['unsupportedInput']);
         $t->same(true, $ipynb['unsupportedOutput']);
-        $t->same('', $ipynb['inputImplementation']);
+        $t->same(true, $ipynb['partialInput']);
+        $t->same(IpynbReader::class, $ipynb['inputImplementation']);
         $t->same('', $ipynb['outputImplementation']);
 
         $xlsx = PandocFormatRegistry::richPackageUnsupportedFormatForExtension('.xlsx');
@@ -655,9 +659,9 @@ return [
         $t->same(['docx', 'epub', 'ipynb', 'odt', 'pptx'], PandocFormatRegistry::richPackageBidirectionalFormats());
         $t->same(['xlsx'], PandocFormatRegistry::richPackageInputOnlyFormats());
         $t->same(['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'], PandocFormatRegistry::richPackageOutputOnlyFormats());
-        $t->same(['docx', 'epub', 'odt'], $packet['partialInputFormats']);
+        $t->same(['docx', 'epub', 'ipynb', 'odt'], $packet['partialInputFormats']);
         $t->same([], $packet['partialOutputFormats']);
-        $t->same(['ipynb', 'pptx', 'xlsx'], $packet['unsupportedInputFormats']);
+        $t->same(['pptx', 'xlsx'], $packet['unsupportedInputFormats']);
         $t->same([
             'chunkedhtml',
             'docx',
@@ -708,9 +712,9 @@ return [
         $t->same(['.fodt'], $packet['formats']['opendocument']['extensions']);
         $t->same(false, $packet['formats']['chunkedhtml']['extensionInferred']);
         $t->same([], $packet['formats']['chunkedhtml']['extensions']);
-        $t->same('unsupported', $packet['formats']['ipynb']['inputStatus']);
+        $t->same('partial', $packet['formats']['ipynb']['inputStatus']);
         $t->same('unsupported', $packet['formats']['ipynb']['outputStatus']);
-        $t->same('', $packet['formats']['ipynb']['inputImplementation']);
+        $t->same(IpynbReader::class, $packet['formats']['ipynb']['inputImplementation']);
         $t->same('', $packet['formats']['ipynb']['outputImplementation']);
         $t->same('input-only', $packet['formats']['xlsx']['direction']);
         $t->same('not-applicable', $packet['formats']['xlsx']['outputStatus']);
@@ -738,8 +742,8 @@ return [
             'opendocument',
             'pdf',
         ], $summary['anyUnsupported']);
-        $t->same(['ipynb', 'pptx'], $summary['unsupportedBoth']);
-        $t->same(['docx', 'epub', 'odt'], $summary['partialInputUnsupportedOutput']);
+        $t->same(['pptx'], $summary['unsupportedBoth']);
+        $t->same(['docx', 'epub', 'ipynb', 'odt'], $summary['partialInputUnsupportedOutput']);
         $t->same(['xlsx'], $summary['unsupportedInputOnly']);
         $t->same(['chunkedhtml', 'epub2', 'epub3', 'icml', 'opendocument', 'pdf'], $summary['unsupportedOutputOnly']);
         $t->same(PandocFormatRegistry::unsupportedRichPackageInputFormats(), $summary['noNativeReader']);
@@ -788,7 +792,6 @@ return [
         $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $packet['upstreamSourceCommit']);
         $t->same(PandocFormatRegistry::richPackageUnsupportedFormatSummary(), $packet['unsupportedFormatSummary']);
         $t->same([
-            'ipynb',
             'pptx',
             'xlsx',
         ], $packet['unsupportedInputFormats']);
@@ -820,7 +823,7 @@ return [
             'pdf',
         ], $packet['unsupportedFormats']);
         $t->same(12, $packet['unsupportedFormatCount']);
-        $t->same(3, $packet['inputUnsupportedCount']);
+        $t->same(2, $packet['inputUnsupportedCount']);
         $t->same(11, $packet['outputUnsupportedCount']);
 
         $docx = $packet['formats']['docx'];
@@ -836,12 +839,12 @@ return [
         $t->contains('No native PHP reader or writer is registered', $docx['outputNotes']);
 
         $ipynb = $packet['formats']['ipynb'];
-        $t->same(['input', 'output'], $ipynb['unsupportedDirections']);
-        $t->same('unsupported', $ipynb['inputStatus']);
+        $t->same(['output'], $ipynb['unsupportedDirections']);
+        $t->same('partial', $ipynb['inputStatus']);
         $t->same('unsupported', $ipynb['outputStatus']);
-        $t->same('', $ipynb['inputImplementation']);
+        $t->same(IpynbReader::class, $ipynb['inputImplementation']);
         $t->same('', $ipynb['outputImplementation']);
-        $t->contains('No native PHP reader or writer is registered', $ipynb['inputNotes']);
+        $t->contains('notebook reader maps Markdown/code/raw cells', $ipynb['inputNotes']);
         $t->contains('No native PHP reader or writer is registered', $ipynb['outputNotes']);
 
         $xlsx = $packet['formats']['xlsx'];

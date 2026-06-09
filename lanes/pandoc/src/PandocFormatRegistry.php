@@ -408,6 +408,11 @@ final class PandocFormatRegistry
             'implementation' => Html5Dom::class,
             'notes' => 'HTML reader slices cover many DOM and raw HTML branches; full HTML5 tree construction remains open.',
         ],
+        'ipynb' => [
+            'status' => 'partial',
+            'implementation' => IpynbReader::class,
+            'notes' => 'Bounded native PHP notebook reader maps Markdown/code/raw cells into reviewable AST blocks while preserving execution/output metadata; full Jupyter notebook parity remains open.',
+        ],
         'json' => [
             'status' => 'partial',
             'implementation' => PandocJsonReader::class,
