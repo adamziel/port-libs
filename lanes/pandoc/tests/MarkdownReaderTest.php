@@ -12843,6 +12843,41 @@ HTML;
         $t->contains('<!-- wp:html -->' . "\n" . '<!review' . "\n" . 'data-source="batch-59">', $blocks);
         $t->contains('<p>After <strong>lowercase</strong> declarations.</p>', $blocks);
     },
+    'maps commonmark pre raw html blocks to closing-tag boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<pre data-source="commonmark-raw">',
+            'Review *markdown* stays raw.',
+            '',
+            '# Not a heading inside raw pre',
+            '</pre>',
+            '',
+            'After **pre** boundary.',
+            '',
+            '<pre><code>native code path stays structured</code></pre>',
+        ]));
+        $rawPre = $document->children[0];
+        $paragraph = $document->children[1];
+        $codeBlock = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('raw_html', $rawPre->type);
+        $t->same(
+            '<pre data-source="commonmark-raw">' . "\n"
+                . 'Review *markdown* stays raw.' . "\n\n"
+                . '# Not a heading inside raw pre' . "\n"
+                . '</pre>',
+            $rawPre->attr('html')
+        );
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('code_block', $codeBlock->type);
+        $t->same('native code path stays structured', $codeBlock->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<pre data-source="commonmark-raw">' . "\n" . 'Review *markdown* stays raw.', $blocks);
+        $t->contains('# Not a heading inside raw pre' . "\n" . '</pre>', $blocks);
+        $t->contains('<p>After <strong>pre</strong> boundary.</p>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code>native code path stays structured</code></pre>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
