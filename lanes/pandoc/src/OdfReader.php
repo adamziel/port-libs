@@ -9113,6 +9113,7 @@ final class OdfReader
             'family' => self::attr($style, self::STYLE_NS, 'family'),
             'displayName' => self::nullable(self::attr($style, self::STYLE_NS, 'display-name')),
             'parentName' => self::nullable(self::attr($style, self::STYLE_NS, 'parent-style-name')),
+            'nextStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'next-style-name')),
             'listStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'list-style-name')),
             'masterPageName' => self::nullable(self::attr($style, self::STYLE_NS, 'master-page-name')),
             'dataStyleName' => self::nullable(self::attr($style, self::STYLE_NS, 'data-style-name')),
@@ -9590,6 +9591,15 @@ final class OdfReader
                     $family
                 );
             }
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-style-missing-next-style',
+                'style',
+                $styleName,
+                'nextStyleName',
+                (string) ($style['nextStyleName'] ?? ''),
+                $catalog['styles']
+            );
             $this->appendMissingNamedReferenceDiagnostic(
                 $diagnostics,
                 'odf-style-missing-list-style',

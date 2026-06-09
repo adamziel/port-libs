@@ -295,7 +295,7 @@ XML;
     </style:page-layout>
   </office:automatic-styles>
   <office:styles>
-    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
+    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:next-style-name="MissingNextParagraph" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
       <style:text-properties style:font-name="MissingFont"/>
     </style:style>
     <style:style style:name="CycleA" style:family="paragraph" style:parent-style-name="CycleB"/>
@@ -326,7 +326,7 @@ XML;
 
         $t->same(4, $styleReport['count']);
         $t->same(1, $styleReport['styleMapCount']);
-        $t->same(13, $styleReport['diagnosticCount']);
+        $t->same(14, $styleReport['diagnosticCount']);
         $t->same([
             'odf-list-style-missing-font-face' => 1,
             'odf-master-page-missing-draw-style' => 1,
@@ -338,12 +338,14 @@ XML;
             'odf-style-missing-font-face' => 1,
             'odf-style-missing-list-style' => 1,
             'odf-style-missing-master-page' => 1,
+            'odf-style-missing-next-style' => 1,
             'odf-style-missing-parent' => 1,
             'odf-style-parent-cycle' => 1,
             'odf-table-template-missing-style' => 1,
         ], $styleReport['diagnosticCodeCounts']);
         $t->same('BrokenParagraph', $diagnosticsByCode['odf-style-missing-parent'][0]['styleName']);
         $t->same('MissingParent', $diagnosticsByCode['odf-style-missing-parent'][0]['parentName']);
+        $t->same('MissingNextParagraph', $diagnosticsByCode['odf-style-missing-next-style'][0]['nextStyleName']);
         $t->same('MissingCell', $diagnosticsByCode['odf-style-map-missing-target'][0]['applyStyleName']);
         $t->same(['CycleA', 'CycleB', 'CycleA'], $diagnosticsByCode['odf-style-parent-cycle'][0]['cyclePath']);
         $t->same('MissingHeaderStyle', $diagnosticsByCode['odf-table-template-missing-style'][0]['styleName']);
