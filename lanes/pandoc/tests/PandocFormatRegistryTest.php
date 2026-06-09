@@ -958,6 +958,22 @@ return [
     'summarizes wiki registry parity counts without registering converters' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::wikiFormatParitySummary();
 
+        $coreSummary = [
+            'totalFormats' => $summary['totalFormats'],
+            'inputFormats' => $summary['inputFormats'],
+            'outputFormats' => $summary['outputFormats'],
+            'inputOutputFormats' => $summary['inputOutputFormats'],
+            'inputOnlyFormats' => $summary['inputOnlyFormats'],
+            'outputOnlyFormats' => $summary['outputOnlyFormats'],
+            'extensionInferenceMappings' => $summary['extensionInferenceMappings'],
+            'extensionInferredFormats' => $summary['extensionInferredFormats'],
+            'nonExtensionInferredFormats' => $summary['nonExtensionInferredFormats'],
+            'unsupportedInputFormats' => $summary['unsupportedInputFormats'],
+            'unsupportedOutputFormats' => $summary['unsupportedOutputFormats'],
+            'registeredInputImplementations' => $summary['registeredInputImplementations'],
+            'registeredOutputImplementations' => $summary['registeredOutputImplementations'],
+            'directParityClaimed' => $summary['directParityClaimed'],
+        ];
         $t->same([
             'totalFormats' => 9,
             'inputFormats' => 7,
@@ -973,7 +989,7 @@ return [
             'registeredInputImplementations' => 0,
             'registeredOutputImplementations' => 0,
             'directParityClaimed' => false,
-        ], $summary);
+        ], $coreSummary);
 
         $packet = PandocFormatRegistry::wikiFormatReviewPacket();
         $t->same(count($packet['formats']), $summary['totalFormats']);
@@ -984,6 +1000,30 @@ return [
         $t->same(count($packet['unsupportedInputFormats']), $summary['unsupportedInputFormats']);
         $t->same(count($packet['unsupportedOutputFormats']), $summary['unsupportedOutputFormats']);
         $t->same(false, $summary['directParityClaimed']);
+    },
+    'builds compact wiki parity summary without direct reader writer claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::wikiFormatParitySummary();
+
+        $t->same('2026-06-03', $summary['upstreamManualDate']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $summary['upstreamSourceCommit']);
+        $t->same(7, $summary['inputFormatCount']);
+        $t->same(5, $summary['outputFormatCount']);
+        $t->same(9, $summary['uniqueFormatCount']);
+        $t->same([
+            'inputOutput' => 3,
+            'inputOnly' => 4,
+            'outputOnly' => 2,
+        ], $summary['directionCounts']);
+        $t->same(['unsupported' => 7], $summary['inputSupportStatusCounts']);
+        $t->same(['unsupported' => 5], $summary['outputSupportStatusCounts']);
+        $t->same(2, $summary['extensionInferredFormatCount']);
+        $t->same(7, $summary['nonExtensionInferredFormatCount']);
+        $t->same(7, $summary['unsupportedInputCount']);
+        $t->same(5, $summary['unsupportedOutputCount']);
+        $t->same(false, $summary['directReaderParitySupported']);
+        $t->same(false, $summary['directWriterParitySupported']);
+        $t->same('unsupported', $summary['directParityStatus']);
+        $t->contains('no native PHP wiki reader or writer is registered', $summary['reviewNote']);
     },
     'builds wiki format review packets without direct parity claims' => static function (TestRunner $t): void {
         $packet = PandocFormatRegistry::wikiFormatReviewPacket();

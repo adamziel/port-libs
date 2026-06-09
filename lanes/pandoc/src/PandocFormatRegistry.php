@@ -813,20 +813,36 @@ final class PandocFormatRegistry
 
     /**
      * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamSourceCommit:string,
      *     totalFormats:int,
+     *     uniqueFormatCount:int,
      *     inputFormats:int,
+     *     inputFormatCount:int,
      *     outputFormats:int,
+     *     outputFormatCount:int,
      *     inputOutputFormats:int,
      *     inputOnlyFormats:int,
      *     outputOnlyFormats:int,
+     *     directionCounts:array{inputOutput:int, inputOnly:int, outputOnly:int},
+     *     inputSupportStatusCounts:array<string, int>,
+     *     outputSupportStatusCounts:array<string, int>,
      *     extensionInferenceMappings:int,
      *     extensionInferredFormats:int,
+     *     extensionInferredFormatCount:int,
      *     nonExtensionInferredFormats:int,
+     *     nonExtensionInferredFormatCount:int,
      *     unsupportedInputFormats:int,
+     *     unsupportedInputCount:int,
      *     unsupportedOutputFormats:int,
+     *     unsupportedOutputCount:int,
      *     registeredInputImplementations:int,
      *     registeredOutputImplementations:int,
-     *     directParityClaimed:bool
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     directParityClaimed:bool,
+     *     directParityStatus:string,
+     *     reviewNote:string
      * }
      */
     public static function wikiFormatParitySummary(): array
@@ -834,9 +850,20 @@ final class PandocFormatRegistry
         $directions = self::wikiFormatDirections();
         $inputSupport = self::wikiInputSupport();
         $outputSupport = self::wikiOutputSupport();
+        $inputFormatCount = count(self::WIKI_INPUT_FORMATS);
+        $outputFormatCount = count(self::WIKI_OUTPUT_FORMATS);
+        $inputOutputFormats = count(self::wikiBidirectionalFormats());
+        $inputOnlyFormats = count(self::wikiInputOnlyFormats());
+        $outputOnlyFormats = count(self::wikiOutputOnlyFormats());
+        $extensionInferredFormatCount = count(self::wikiFormatsWithExtensionInference());
+        $nonExtensionInferredFormatCount = count(self::wikiFormatsWithoutExtensionInference());
+        $unsupportedInputFormats = self::formatsWithStatus($inputSupport, 'unsupported');
+        $unsupportedOutputFormats = self::formatsWithStatus($outputSupport, 'unsupported');
         $registeredInputImplementations = 0;
         $registeredOutputImplementations = 0;
         $directParityClaimed = false;
+        $directReaderParitySupported = $unsupportedInputFormats === [];
+        $directWriterParitySupported = $unsupportedOutputFormats === [];
 
         foreach ($directions as $format => $direction) {
             $inputImplementation = $direction['input'] ? $inputSupport[$format]['implementation'] : '';
@@ -859,20 +886,40 @@ final class PandocFormatRegistry
         }
 
         return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
             'totalFormats' => count($directions),
-            'inputFormats' => count(self::WIKI_INPUT_FORMATS),
-            'outputFormats' => count(self::WIKI_OUTPUT_FORMATS),
-            'inputOutputFormats' => count(self::wikiBidirectionalFormats()),
-            'inputOnlyFormats' => count(self::wikiInputOnlyFormats()),
-            'outputOnlyFormats' => count(self::wikiOutputOnlyFormats()),
+            'uniqueFormatCount' => count($directions),
+            'inputFormats' => $inputFormatCount,
+            'inputFormatCount' => $inputFormatCount,
+            'outputFormats' => $outputFormatCount,
+            'outputFormatCount' => $outputFormatCount,
+            'inputOutputFormats' => $inputOutputFormats,
+            'inputOnlyFormats' => $inputOnlyFormats,
+            'outputOnlyFormats' => $outputOnlyFormats,
+            'directionCounts' => [
+                'inputOutput' => $inputOutputFormats,
+                'inputOnly' => $inputOnlyFormats,
+                'outputOnly' => $outputOnlyFormats,
+            ],
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'outputSupportStatusCounts' => self::supportStatusCounts($outputSupport),
             'extensionInferenceMappings' => count(self::WIKI_EXTENSION_INFERENCE),
-            'extensionInferredFormats' => count(self::wikiFormatsWithExtensionInference()),
-            'nonExtensionInferredFormats' => count(self::wikiFormatsWithoutExtensionInference()),
-            'unsupportedInputFormats' => count(self::formatsWithStatus($inputSupport, 'unsupported')),
-            'unsupportedOutputFormats' => count(self::formatsWithStatus($outputSupport, 'unsupported')),
+            'extensionInferredFormats' => $extensionInferredFormatCount,
+            'extensionInferredFormatCount' => $extensionInferredFormatCount,
+            'nonExtensionInferredFormats' => $nonExtensionInferredFormatCount,
+            'nonExtensionInferredFormatCount' => $nonExtensionInferredFormatCount,
+            'unsupportedInputFormats' => count($unsupportedInputFormats),
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'unsupportedOutputFormats' => count($unsupportedOutputFormats),
+            'unsupportedOutputCount' => count($unsupportedOutputFormats),
             'registeredInputImplementations' => $registeredInputImplementations,
             'registeredOutputImplementations' => $registeredOutputImplementations,
+            'directReaderParitySupported' => $directReaderParitySupported,
+            'directWriterParitySupported' => $directWriterParitySupported,
             'directParityClaimed' => $directParityClaimed,
+            'directParityStatus' => $directReaderParitySupported && $directWriterParitySupported ? 'supported' : 'unsupported',
+            'reviewNote' => 'Pandoc wiki formats are tracked for registry review only; no native PHP wiki reader or writer is registered.',
         ];
     }
 
@@ -1791,6 +1838,22 @@ final class PandocFormatRegistry
         }
 
         return $formats;
+    }
+
+    /**
+     * @param array<string, array{status:string, implementation:string, notes:string}> $support
+     * @return array<string, int>
+     */
+    private static function supportStatusCounts(array $support): array
+    {
+        $counts = [];
+        foreach ($support as $entry) {
+            $status = $entry['status'];
+            $counts[$status] = ($counts[$status] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
     }
 
     /**
