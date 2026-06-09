@@ -291,6 +291,7 @@ final class PdfEngineHandoff
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     pdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
@@ -765,6 +766,7 @@ final class PdfEngineHandoff
         $pdfPageTimings = [];
         $pdfPageTimingPolicy = [];
         $pdfPageActions = [];
+        $pdfPageActionPolicy = [];
         $pdfPageViewports = [];
         $pdfPageContentStreams = [];
         $pdfPageContentResourceUsage = [];
@@ -897,6 +899,7 @@ final class PdfEngineHandoff
                 $pdfPageTimings = $pdfInspection['pageTimings'];
                 $pdfPageTimingPolicy = $pdfInspection['pageTimingPolicy'];
                 $pdfPageActions = $pdfInspection['pageActions'];
+                $pdfPageActionPolicy = $pdfInspection['pageActionPolicy'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
                 $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
@@ -1232,6 +1235,44 @@ final class PdfEngineHandoff
                     }
                     if ($pageActionScripts > 0) {
                         $diagnostics[] = 'pdf-byte-page-action-scripts:' . $pageActionScripts;
+                    }
+                }
+                if ($pdfPageActionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-action-policy:' . $pdfPageActionPolicy['reviewStatus'];
+                    if (isset($pdfPageActionPolicy['actionCount']) && is_int($pdfPageActionPolicy['actionCount']) && $pdfPageActionPolicy['actionCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-page-action-policy-actions:' . $pdfPageActionPolicy['actionCount'];
+                    }
+                    foreach ([
+                        'scriptActionCount' => 'scripts',
+                        'remoteTargetCount' => 'remote-targets',
+                        'launchActionCount' => 'launch-actions',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageActionPolicy[$policyKey]) && is_int($pdfPageActionPolicy[$policyKey]) && $pdfPageActionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-action-policy-' . $diagnosticName . ':' . $pdfPageActionPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageActionPolicy['triggerCounts']) && is_array($pdfPageActionPolicy['triggerCounts'])) {
+                        foreach ($pdfPageActionPolicy['triggerCounts'] as $trigger => $triggerCount) {
+                            $diagnostics[] = 'pdf-byte-page-action-policy-trigger:' . $trigger . ':' . $triggerCount;
+                        }
+                    }
+                    if (isset($pdfPageActionPolicy['actionTypes']) && is_array($pdfPageActionPolicy['actionTypes'])) {
+                        foreach ($pdfPageActionPolicy['actionTypes'] as $type => $typeCount) {
+                            $diagnostics[] = 'pdf-byte-page-action-policy-type:' . $type . ':' . $typeCount;
+                        }
+                    }
+                    if (isset($pdfPageActionPolicy['issues']) && is_array($pdfPageActionPolicy['issues']) && $pdfPageActionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-action-policy-issues:' . count($pdfPageActionPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfPageActionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-page-action-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfPageViewports !== []) {
@@ -3639,6 +3680,7 @@ final class PdfEngineHandoff
             'pdfPageTimings' => $pdfPageTimings,
             'pdfPageTimingPolicy' => $pdfPageTimingPolicy,
             'pdfPageActions' => $pdfPageActions,
+            'pdfPageActionPolicy' => $pdfPageActionPolicy,
             'pdfPageViewports' => $pdfPageViewports,
             'pdfPageContentStreams' => $pdfPageContentStreams,
             'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
@@ -3783,6 +3825,7 @@ final class PdfEngineHandoff
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     finalPdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
@@ -4050,6 +4093,7 @@ final class PdfEngineHandoff
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
             'finalPdfPageTimingPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageTimingPolicy'] ?? null) ? $finalRun['pdfPageTimingPolicy'] : [],
             'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
+            'finalPdfPageActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageActionPolicy'] ?? null) ? $finalRun['pdfPageActionPolicy'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
             'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
@@ -5212,6 +5256,8 @@ final class PdfEngineHandoff
      *     pageLabelPolicy:array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pageTimingPolicy:array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
+     *     pageActions:list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
+     *     pageActionPolicy:array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
@@ -5405,6 +5451,7 @@ final class PdfEngineHandoff
             'pageTimings' => $pageTimings,
             'pageTimingPolicy' => $this->summarizePdfPageTimingPolicy($pageTimings, $this->extractPdfPageCount($pdfBytes)),
             'pageActions' => $pageActions,
+            'pageActionPolicy' => $this->summarizePdfPageActionPolicy($pageActions, $this->extractPdfPageCount($pdfBytes)),
             'pageViewports' => $pageViewports,
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
@@ -17926,6 +17973,105 @@ final class PdfEngineHandoff
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @return array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{}
+     */
+    private function summarizePdfPageActionPolicy(array $actions, ?int $pageCount): array
+    {
+        if ($actions === []) {
+            return [];
+        }
+
+        $pages = [];
+        $openPages = [];
+        $closePages = [];
+        $triggerCounts = [];
+        $actionTypes = [];
+        $scriptActionCount = 0;
+        $remoteTargetCount = 0;
+        $launchActionCount = 0;
+        $issues = [];
+
+        foreach ($actions as $action) {
+            $page = is_int($action['page'] ?? null) ? $action['page'] : null;
+            if ($page !== null) {
+                $pages[$page] = true;
+            }
+
+            $trigger = is_string($action['trigger'] ?? null) ? $action['trigger'] : '';
+            if ($trigger !== '') {
+                $triggerCounts[$trigger] = ($triggerCounts[$trigger] ?? 0) + 1;
+                if ($trigger === 'O') {
+                    $issues[] = 'page-open-action';
+                    if ($page !== null) {
+                        $openPages[$page] = true;
+                    }
+                } elseif ($trigger === 'C') {
+                    $issues[] = 'page-close-action';
+                    if ($page !== null) {
+                        $closePages[$page] = true;
+                    }
+                }
+            }
+
+            $type = is_string($action['actionType'] ?? null) ? $action['actionType'] : '';
+            if ($type !== '') {
+                $actionTypes[$type] = ($actionTypes[$type] ?? 0) + 1;
+                if ($type === 'JavaScript') {
+                    $issues[] = 'script-action';
+                } elseif ($type === 'Launch') {
+                    $launchActionCount++;
+                    $issues[] = 'launch-action';
+                } elseif ($type === 'SubmitForm') {
+                    $issues[] = 'submit-form-action';
+                } elseif ($type === 'ImportData') {
+                    $issues[] = 'import-data-action';
+                } elseif ($type === 'ResetForm') {
+                    $issues[] = 'reset-form-action';
+                }
+            }
+
+            if (($action['scriptBytes'] ?? null) !== null) {
+                $scriptActionCount++;
+                $issues[] = 'script-action';
+            }
+
+            $target = is_string($action['actionTarget'] ?? null) ? $action['actionTarget'] : null;
+            $scheme = $this->pdfActionTargetScheme($target);
+            if ($scheme !== null && in_array($scheme, ['ftp', 'ftps', 'http', 'https', 'mailto'], true)) {
+                $remoteTargetCount++;
+                $issues[] = 'remote-action-target';
+            }
+        }
+
+        ksort($triggerCounts);
+        ksort($actionTypes);
+        $pageList = array_keys($pages);
+        $openPageList = array_keys($openPages);
+        $closePageList = array_keys($closePages);
+        sort($pageList);
+        sort($openPageList);
+        sort($closePageList);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'actionCount' => count($actions),
+            'pagesWithActions' => $pageList,
+            'openActionPages' => $openPageList,
+            'closeActionPages' => $closePageList,
+            'triggerCounts' => $triggerCounts,
+            'actionTypes' => $actionTypes,
+            'scriptActionCount' => $scriptActionCount,
+            'remoteTargetCount' => $remoteTargetCount,
+            'launchActionCount' => $launchActionCount,
+            'issues' => $issues,
+        ];
     }
 
     /**

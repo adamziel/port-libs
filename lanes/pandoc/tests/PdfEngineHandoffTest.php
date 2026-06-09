@@ -10147,9 +10147,36 @@ MARKDOWN);
                 'scriptSha256' => null,
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 2,
+            'actionCount' => 4,
+            'pagesWithActions' => [1, 2],
+            'openActionPages' => [1, 2],
+            'closeActionPages' => [1, 2],
+            'triggerCounts' => ['C' => 2, 'O' => 2],
+            'actionTypes' => [
+                'JavaScript' => 1,
+                'Launch' => 1,
+                'Named' => 1,
+                'SubmitForm' => 1,
+            ],
+            'scriptActionCount' => 1,
+            'remoteTargetCount' => 1,
+            'launchActionCount' => 1,
+            'issues' => [
+                'launch-action',
+                'page-close-action',
+                'page-open-action',
+                'remote-action-target',
+                'script-action',
+                'submit-form-action',
+            ],
+        ];
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageActions'] ?? null);
+        $t->same($expectedPolicy, $result['pdfPageActionPolicy'] ?? null);
         $t->contains('pdf-byte-page-actions:4', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-trigger:O:2', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-trigger:C:2', implode(',', $result['diagnostics']));
@@ -10158,6 +10185,79 @@ MARKDOWN);
         $t->contains('pdf-byte-page-action-scripts:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageActions'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
+    },
+
+    'fake runner summarizes bounded pdf page lifecycle action review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-action-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /O << /S /Named /N /Print >> >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /AA << /C << /S /SubmitForm /F (mailto:review@example.test) >> >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-action-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-action-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expected = [
+            'reviewStatus' => 'review',
+            'pageCount' => 3,
+            'actionCount' => 2,
+            'pagesWithActions' => [1, 2],
+            'openActionPages' => [1],
+            'closeActionPages' => [2],
+            'triggerCounts' => ['C' => 1, 'O' => 1],
+            'actionTypes' => ['Named' => 1, 'SubmitForm' => 1],
+            'scriptActionCount' => 0,
+            'remoteTargetCount' => 1,
+            'launchActionCount' => 0,
+            'issues' => [
+                'page-close-action',
+                'page-open-action',
+                'remote-action-target',
+                'submit-form-action',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfPageActionPolicy'] ?? null);
+        $t->same($expected, $sequence['finalPdfPageActionPolicy'] ?? null);
+        $t->contains('pdf-byte-page-action-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-actions:2', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-targets:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-trigger:C:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-trigger:O:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-type:SubmitForm:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-issue:remote-action-target:1', $diagnostics);
     },
 
     'fake runner extracts bounded pdf platform launch action targets from produced bytes' => static function (TestRunner $t) use ($document): void {
