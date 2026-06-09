@@ -1761,6 +1761,50 @@ return [
         $t->same('stream-override-body', $document->children[0]->attr('id'));
         $t->contains('<h1 id="stream-override-body">Stream override body</h1>', $blocks);
     },
+    'summarizes pandoc yaml metadata review status for wordpress handoff' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Summary **Packet** # title reviewer comment',
+            'review:',
+            '  status: queued',
+            '  status: draft',
+            'source: !wp-source export',
+            '...',
+            '---',
+            'review: {status: approved, owner: QA Desk}',
+            'followup: true',
+            '...',
+            '',
+            '# Summary YAML body',
+        ]));
+        $meta = $document->attr('meta');
+        $summary = $document->attr('yamlMetadataReviewSummary', []);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Summary **Packet**', $meta['title']);
+        $t->same('approved', $meta['review']['status']);
+        $t->same('QA Desk', $meta['review']['owner']);
+        $t->same('export', $meta['source']);
+        $t->same(true, $meta['followup']);
+        $t->same(false, array_key_exists('__yamlMetadataReviewSummary', $meta));
+        $t->same('yaml-metadata-review', $summary['type'] ?? null);
+        $t->same('needs-review', $summary['reviewStatus'] ?? null);
+        $t->same(4, $summary['fieldCount'] ?? null);
+        $t->same(['title', 'review', 'source', 'followup'], $summary['fields'] ?? null);
+        $t->same(2, $summary['documentCount'] ?? null);
+        $t->same(['explicit', 'explicit'], $summary['documentSources'] ?? null);
+        $t->same('1', $summary['sourceStartLine'] ?? null);
+        $t->same('11', $summary['sourceEndLine'] ?? null);
+        $t->same(2, $summary['diagnosticCount'] ?? null);
+        $t->same(['duplicate-key' => 1, 'stream-field-overridden' => 1], $summary['diagnosticReasons'] ?? null);
+        $t->same(['yaml-duplicate-key' => 1, 'yaml-stream' => 1], $summary['diagnosticTypes'] ?? null);
+        $t->same(['review'], $summary['overriddenFields'] ?? null);
+        $t->same(1, $summary['tagCount'] ?? null);
+        $t->same(1, $summary['commentCount'] ?? null);
+        $t->same(2, $summary['streamCount'] ?? null);
+        $t->same('summary-yaml-body', $document->children[0]->attr('id'));
+        $t->contains('<h1 id="summary-yaml-body">Summary YAML body</h1>', $blocks);
+    },
     'maps pandoc yaml metadata from json object documents' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '---',

@@ -1317,6 +1317,83 @@ XML;
         $t->contains(': ScenarioReview', $markdown);
         $t->contains('<table class="odf-table-scenario" data-odf-table-name="ScenarioReview" data-odf-table-scenario-count="2" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport,DraftFallback" data-odf-table-scenario-ranges="ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6">', $blocksHtml);
     },
+    'preserves quoted ODT table range tokens in print scenarios and consolidation metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithQuotedRanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:consolidation
+        table:function="sum"
+        table:source-cell-range-addresses="'Source Team''s Sheet'.A1:'Source Team''s Sheet'.B5 'Escalated Review'.C1:'Escalated Review'.C4"
+        table:target-cell-address="'Summary Sheet'.A1"
+        table:use-labels="row"
+        table:link-to-source-data="true"/>
+      <table:table
+        table:name="Quoted Range Review"
+        table:print-ranges="'Review Sheet'.A1:'Review Sheet'.B2 QuotedRange.D1:QuotedRange.D4">
+        <table:scenario
+          table:name="QuotedReady"
+          table:is-active="true"
+          table:scenario-ranges="'Review Sheet'.A2:'Review Sheet'.B3 QuotedRange.C1:QuotedRange.C4"/>
+        <table:table-row>
+          <table:table-cell><text:p>Owner</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithQuotedRanges));
+        $table = $result['document']->children[0];
+        $scenarios = $table->attr('odfTableScenarios');
+        $consolidations = $result['contentDeclarations']['consolidations'];
+        $consolidation = $consolidations[0] ?? [];
+
+        $t->same('table', $table->type);
+        $t->same('Quoted Range Review', $table->attr('tableName'));
+        $t->same([
+            "'Review Sheet'.A1:'Review Sheet'.B2",
+            'QuotedRange.D1:QuotedRange.D4',
+        ], $table->attr('odfPrintRanges'));
+        $t->same(2, $table->attr('printRangeCount'));
+        $t->same('2', $table->attr('htmlAttributes')['data-odf-table-print-range-count']);
+        $t->same("'Review Sheet'.A1:'Review Sheet'.B2;QuotedRange.D1:QuotedRange.D4", $table->attr('htmlAttributes')['data-odf-table-print-ranges']);
+
+        $t->same(1, $table->attr('scenarioCount'));
+        $t->same(1, $table->attr('activeScenarioCount'));
+        $t->same([
+            "'Review Sheet'.A2:'Review Sheet'.B3",
+            'QuotedRange.C1:QuotedRange.C4',
+        ], $scenarios[0]['scenarioRanges']);
+        $t->same("'Review Sheet'.A2:'Review Sheet'.B3;QuotedRange.C1:QuotedRange.C4", $table->attr('htmlAttributes')['data-odf-table-scenario-ranges']);
+
+        $t->same(1, $result['contentDeclarations']['consolidationCount']);
+        $t->same(2, $result['contentDeclarations']['consolidationSourceRangeCount']);
+        $t->same('sum', $consolidation['function'] ?? null);
+        $t->same([
+            "'Source Team''s Sheet'.A1:'Source Team''s Sheet'.B5",
+            "'Escalated Review'.C1:'Escalated Review'.C4",
+        ], $consolidation['sourceCellRangeAddresses'] ?? null);
+        $t->same(2, $consolidation['sourceRangeCount'] ?? null);
+        $t->same("'Summary Sheet'.A1", $consolidation['targetCellAddress'] ?? null);
+        $t->same(true, $consolidation['linkToSourceData'] ?? null);
+        $t->same(2, $result['importReport']['content']['tablePrintRangeCount']);
+        $t->same(1, $result['importReport']['content']['tableScenarioCount']);
+        $t->same(2, $result['importReport']['content']['consolidationSourceRangeCount']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('data-odf-table-print-ranges="&#039;Review Sheet&#039;.A1:&#039;Review Sheet&#039;.B2;QuotedRange.D1:QuotedRange.D4"', $blocksHtml);
+        $t->contains('data-odf-table-scenario-ranges="&#039;Review Sheet&#039;.A2:&#039;Review Sheet&#039;.B3;QuotedRange.C1:QuotedRange.C4"', $blocksHtml);
+    },
     'maps ODT table cell formulas and typed values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTypedTableCells = <<<'XML'
 <office:document-content

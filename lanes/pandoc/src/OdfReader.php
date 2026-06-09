@@ -3060,21 +3060,7 @@ final class OdfReader
      */
     private function tablePrintRanges(\DOMElement $table): array
     {
-        $raw = trim(self::attr($table, self::TABLE_NS, 'print-ranges'));
-        if ($raw === '') {
-            return [];
-        }
-
-        $ranges = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $normalized = [];
-        foreach ($ranges as $range) {
-            $range = trim($range);
-            if ($range !== '') {
-                $normalized[] = $range;
-            }
-        }
-
-        return array_values(array_unique($normalized));
+        return self::odfWhitespaceSeparatedTokens(self::attr($table, self::TABLE_NS, 'print-ranges'));
     }
 
     /**
@@ -3118,21 +3104,56 @@ final class OdfReader
      */
     private function tableScenarioRanges(string $raw): array
     {
+        return self::odfWhitespaceSeparatedTokens($raw);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function odfWhitespaceSeparatedTokens(string $raw): array
+    {
         $raw = trim($raw);
         if ($raw === '') {
             return [];
         }
 
-        $ranges = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $normalized = [];
-        foreach ($ranges as $range) {
-            $range = trim($range);
-            if ($range !== '') {
-                $normalized[] = $range;
+        $tokens = [];
+        $token = '';
+        $inQuotedSheetName = false;
+        $length = strlen($raw);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $raw[$index];
+            if ($char === "'") {
+                $token .= $char;
+                if ($inQuotedSheetName && $index + 1 < $length && $raw[$index + 1] === "'") {
+                    $index++;
+                    $token .= "'";
+                    continue;
+                }
+
+                $inQuotedSheetName = !$inQuotedSheetName;
+                continue;
             }
+
+            if (!$inQuotedSheetName && ctype_space($char)) {
+                $token = trim($token);
+                if ($token !== '') {
+                    $tokens[] = $token;
+                }
+                $token = '';
+                continue;
+            }
+
+            $token .= $char;
         }
 
-        return array_values(array_unique($normalized));
+        $token = trim($token);
+        if ($token !== '') {
+            $tokens[] = $token;
+        }
+
+        return array_values(array_unique($tokens));
     }
 
     /**
@@ -4364,20 +4385,7 @@ final class OdfReader
      */
     private function consolidationSourceRangeAddresses(string $raw): array
     {
-        $raw = trim($raw);
-        if ($raw === '') {
-            return [];
-        }
-
-        $tokens = preg_split('/\s+/', $raw);
-        if (!is_array($tokens)) {
-            return [];
-        }
-
-        return array_values(array_filter(
-            array_map(static fn (string $token): string => trim($token), $tokens),
-            static fn (string $token): bool => $token !== '',
-        ));
+        return self::odfWhitespaceSeparatedTokens($raw);
     }
 
     /**

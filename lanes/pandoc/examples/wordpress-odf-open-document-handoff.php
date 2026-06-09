@@ -328,8 +328,8 @@ $contentXml = <<<'XML'
           <text:p>Anchored text box note for reviewers.</text:p>
         </draw:text-box>
       </draw:frame>
-      <table:table table:name="Review" table:style-name="ReviewTable" table:template-name="ReviewTemplate" table:print-ranges="Review.A1:Review.B2 Review.D1:Review.D4" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
-        <table:scenario table:name="ReadyImport" table:display-border="true" table:border-color="#00843d" table:copy-back="false" table:copy-styles="true" table:copy-formulas="false" table:is-active="true" table:scenario-ranges="Review.A1:Review.B2 Review.D1:Review.D4" table:comment="Approved ODT rows for WordPress import"/>
+      <table:table table:name="Review" table:style-name="ReviewTable" table:template-name="ReviewTemplate" table:print-ranges="'Review Sheet'.A1:'Review Sheet'.B2 Review.D1:Review.D4" table:protected="true" table:protection-key="opaque-review-key" table:protection-key-digest-algorithm="urn:odf:sha1">
+        <table:scenario table:name="ReadyImport" table:display-border="true" table:border-color="#00843d" table:copy-back="false" table:copy-styles="true" table:copy-formulas="false" table:is-active="true" table:scenario-ranges="'Review Sheet'.A1:'Review Sheet'.B2 Review.D1:Review.D4" table:comment="Approved ODT rows for WordPress import"/>
         <table:table-row table:default-cell-style-name="ReviewDefaultCell">
           <table:table-cell><text:p>Item</text:p></table:table-cell>
           <table:table-cell table:style-name="ReviewStatusCell"><text:p>Status</text:p></table:table-cell>
@@ -1158,14 +1158,14 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($blocks, 'data-odf-cell-default-style-source="row"')) {
         throw new RuntimeException('Expected ODT row default table cell style metadata to render in WordPress blocks');
     }
-    if (!str_contains($blocks, 'data-odf-table-print-range-count="2" data-odf-table-print-ranges="Review.A1:Review.B2;Review.D1:Review.D4"')) {
+    if (!str_contains($blocks, 'data-odf-table-print-range-count="2" data-odf-table-print-ranges="&#039;Review Sheet&#039;.A1:&#039;Review Sheet&#039;.B2;Review.D1:Review.D4"')) {
         throw new RuntimeException('Expected ODT table print-range metadata to render in WordPress blocks');
     }
     if (($result['importReport']['content']['tableScenarioCount'] ?? 0) !== 1
         || ($result['importReport']['content']['activeTableScenarioCount'] ?? 0) !== 1) {
         throw new RuntimeException('Expected ODT table scenario metadata to be counted in the import report');
     }
-    if (!str_contains($blocks, 'data-odf-table-scenario-count="1" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport" data-odf-table-scenario-ranges="Review.A1:Review.B2;Review.D1:Review.D4"')) {
+    if (!str_contains($blocks, 'data-odf-table-scenario-count="1" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport" data-odf-table-scenario-ranges="&#039;Review Sheet&#039;.A1:&#039;Review Sheet&#039;.B2;Review.D1:Review.D4"')) {
         throw new RuntimeException('Expected ODT table scenario metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, 'class="odf-table-cell-style odf-table-cell-background odf-table-cell-protected odf-table-cell-print-hidden odf-table-cell-vertical-align-middle odf-table-cell-data-style odf-table-cell-style-map"')
@@ -1179,7 +1179,7 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($blocks, 'data-odf-cell-style-map-1-base-cell-address="Review.B1"')) {
         throw new RuntimeException('Expected ODT styled table cell metadata to render in WordPress blocks');
     }
-    if (!str_contains($blocks, '<table class="odf-table-scenario odf-table-template" data-odf-table-name="Review" data-odf-table-print-range-count="2" data-odf-table-print-ranges="Review.A1:Review.B2;Review.D1:Review.D4" data-odf-table-scenario-count="1" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport" data-odf-table-scenario-ranges="Review.A1:Review.B2;Review.D1:Review.D4" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
+    if (!str_contains($blocks, '<table class="odf-table-scenario odf-table-template" data-odf-table-name="Review" data-odf-table-print-range-count="2" data-odf-table-print-ranges="&#039;Review Sheet&#039;.A1:&#039;Review Sheet&#039;.B2;Review.D1:Review.D4" data-odf-table-scenario-count="1" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport" data-odf-table-scenario-ranges="&#039;Review Sheet&#039;.A1:&#039;Review Sheet&#039;.B2;Review.D1:Review.D4" data-odf-table-style-name="ReviewTable" data-odf-table-template-name="ReviewTemplate" data-odf-table-template-exists="true" data-odf-table-template-style-count="9" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">')) {
         throw new RuntimeException('Expected ODT named protected table metadata to render in WordPress blocks');
     }
     if (!str_contains($blocks, '<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table 2: Source package review grid</p></figcaption>')) {

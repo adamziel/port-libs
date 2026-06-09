@@ -6310,8 +6310,142 @@ final class MarkdownReader
         if ($streamProvenance !== []) {
             $attrs['yamlMetadataStreamProvenance'] = $streamProvenance;
         }
+        if (
+            $meta !== []
+            || $diagnostics !== []
+            || $tagProvenance !== []
+            || $directiveProvenance !== []
+            || $commentProvenance !== []
+            || $anchorProvenance !== []
+            || $scalarProvenance !== []
+            || $collectionProvenance !== []
+            || $streamProvenance !== []
+        ) {
+            $attrs['yamlMetadataReviewSummary'] = $this->yamlMetadataReviewSummary(
+                $meta,
+                $diagnostics,
+                $tagProvenance,
+                $directiveProvenance,
+                $commentProvenance,
+                $anchorProvenance,
+                $scalarProvenance,
+                $collectionProvenance,
+                $streamProvenance
+            );
+        }
 
         return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @param list<array<string, string>> $diagnostics
+     * @param list<array<string, string>> $tagProvenance
+     * @param list<array<string, string>> $directiveProvenance
+     * @param list<array<string, string>> $commentProvenance
+     * @param list<array<string, string>> $anchorProvenance
+     * @param list<array<string, string>> $scalarProvenance
+     * @param list<array<string, string>> $collectionProvenance
+     * @param list<array<string, string>> $streamProvenance
+     * @return array<string, mixed>
+     */
+    private function yamlMetadataReviewSummary(
+        array $meta,
+        array $diagnostics,
+        array $tagProvenance,
+        array $directiveProvenance,
+        array $commentProvenance,
+        array $anchorProvenance,
+        array $scalarProvenance,
+        array $collectionProvenance,
+        array $streamProvenance
+    ): array {
+        $fields = [];
+        foreach (array_keys($meta) as $field) {
+            $fieldName = (string) $field;
+            if (
+                $fieldName === ''
+                || str_ends_with($fieldName, 'Inlines')
+                || $fieldName === 'abstractBlocks'
+            ) {
+                continue;
+            }
+
+            $fields[] = $fieldName;
+        }
+
+        $diagnosticReasons = [];
+        $diagnosticTypes = [];
+        $overriddenFields = [];
+        foreach ($diagnostics as $diagnostic) {
+            $reason = (string) ($diagnostic['reason'] ?? '');
+            if ($reason !== '') {
+                $diagnosticReasons[$reason] = ($diagnosticReasons[$reason] ?? 0) + 1;
+            }
+
+            $type = (string) ($diagnostic['type'] ?? '');
+            if ($type !== '') {
+                $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+            }
+
+            if ($reason === 'stream-field-overridden') {
+                $field = (string) ($diagnostic['field'] ?? '');
+                if ($field !== '' && !in_array($field, $overriddenFields, true)) {
+                    $overriddenFields[] = $field;
+                }
+            }
+        }
+
+        $documentSources = [];
+        $sourceStartLine = null;
+        $sourceEndLine = null;
+        foreach ($streamProvenance as $stream) {
+            $source = (string) ($stream['source'] ?? '');
+            if ($source !== '') {
+                $documentSources[] = $source;
+            }
+
+            $startLine = (string) ($stream['startLine'] ?? '');
+            if ($startLine !== '' && ctype_digit($startLine)) {
+                $line = (int) $startLine;
+                $sourceStartLine = $sourceStartLine === null ? $line : min($sourceStartLine, $line);
+            }
+
+            $endLine = (string) ($stream['endLine'] ?? '');
+            if ($endLine !== '' && ctype_digit($endLine)) {
+                $line = (int) $endLine;
+                $sourceEndLine = $sourceEndLine === null ? $line : max($sourceEndLine, $line);
+            }
+        }
+
+        $summary = [
+            'type' => 'yaml-metadata-review',
+            'reviewStatus' => $diagnostics === [] ? 'clean' : 'needs-review',
+            'fieldCount' => count($fields),
+            'fields' => $fields,
+            'documentCount' => count($streamProvenance),
+            'documentSources' => $documentSources,
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticReasons' => $diagnosticReasons,
+            'diagnosticTypes' => $diagnosticTypes,
+            'overriddenFields' => $overriddenFields,
+            'tagCount' => count($tagProvenance),
+            'directiveCount' => count($directiveProvenance),
+            'commentCount' => count($commentProvenance),
+            'anchorCount' => count($anchorProvenance),
+            'scalarCount' => count($scalarProvenance),
+            'collectionCount' => count($collectionProvenance),
+            'streamCount' => count($streamProvenance),
+        ];
+
+        if ($sourceStartLine !== null) {
+            $summary['sourceStartLine'] = (string) $sourceStartLine;
+        }
+        if ($sourceEndLine !== null) {
+            $summary['sourceEndLine'] = (string) $sourceEndLine;
+        }
+
+        return $summary;
     }
 
     private function yamlAmbiguousMetadataFieldNameType(string $fieldName): ?string

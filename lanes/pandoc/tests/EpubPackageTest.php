@@ -310,6 +310,79 @@ return [
         $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
     },
 
+    'preflights OPF unique identifier and duplicate identifier diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithIdentifierDiagnostics = str_replace(
+            '<dc:identifier id="bookid">urn:isbn:9780000000001</dc:identifier>',
+            '<dc:identifier id="bookid" scheme="UUID">urn:uuid:primary-source</dc:identifier>
+    <dc:identifier id="bookid" scheme="UUID">urn:uuid:secondary-source</dc:identifier>
+    <dc:identifier id="isbn-id" scheme="ISBN">9780000000001</dc:identifier>
+    <dc:identifier id="duplicate-isbn" scheme="ISBN">9780000000001</dc:identifier>',
+            $epub3OpfXml
+        );
+        $opfWithIdentifierDiagnostics = str_replace(
+            '</metadata>',
+            '    <meta refines="#bookid" property="identifier-type" scheme="onix:codelist5">15</meta>
+    <meta refines="#duplicate-isbn" property="identifier-type" scheme="onix:codelist5">15</meta>
+  </metadata>',
+            $opfWithIdentifierDiagnostics
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithIdentifierDiagnostics],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $uniqueIdentifier = $metadata['uniqueIdentifier'];
+        $identifierSummary = $metadata['identifierSummary'];
+        $identifierDetails = $metadata['identifierDetails'];
+
+        $t->same('urn:uuid:primary-source', $metadata['identifier']);
+        $t->same(true, $uniqueIdentifier['specified']);
+        $t->same('bookid', $uniqueIdentifier['id']);
+        $t->same(true, $uniqueIdentifier['matched']);
+        $t->same('urn:uuid:primary-source', $uniqueIdentifier['value']);
+        $t->same('unique-identifier', $uniqueIdentifier['selectedBy']);
+        $t->same(4, $uniqueIdentifier['identifierCount']);
+        $t->same(2, $uniqueIdentifier['matchCount']);
+        $t->same(1, $uniqueIdentifier['duplicateMatchCount']);
+        $t->same(false, $uniqueIdentifier['valid']);
+        $t->same('duplicate-unique-identifier-id', $uniqueIdentifier['diagnostics'][0]['type']);
+        $t->same(['urn:uuid:primary-source', 'urn:uuid:secondary-source'], $uniqueIdentifier['diagnostics'][0]['values']);
+
+        $t->same(true, $identifierDetails[0]['selectedByUniqueIdentifier']);
+        $t->same(true, $identifierDetails[1]['selectedByUniqueIdentifier']);
+        $t->same(false, $identifierDetails[0]['duplicateValue']);
+        $t->same(true, $identifierDetails[2]['duplicateValue']);
+        $t->same(['isbn-id', 'duplicate-isbn'], $identifierDetails[2]['duplicateIds']);
+        $t->same([2, 3], $identifierDetails[2]['duplicateIndexes']);
+        $t->same('15', $identifierDetails[3]['identifierType']);
+
+        $t->same(true, $identifierSummary['present']);
+        $t->same(4, $identifierSummary['count']);
+        $t->same(3, $identifierSummary['typedCount']);
+        $t->same(['UUID', 'ISBN'], $identifierSummary['schemes']);
+        $t->same(['15'], $identifierSummary['identifierTypes']);
+        $t->same('urn:uuid:primary-source', $identifierSummary['selectedValue']);
+        $t->same('bookid', $identifierSummary['selectedId']);
+        $t->same(0, $identifierSummary['selectedIndex']);
+        $t->same(1, $identifierSummary['duplicateValueCount']);
+        $t->same('9780000000001', $identifierSummary['duplicatesByValue'][0]['value']);
+        $t->same('duplicate-metadata-identifier-value', $identifierSummary['diagnostics'][0]['type']);
+
+        $t->same(['duplicate-unique-identifier-id', 'duplicate-metadata-identifier-value'], array_map(static fn (array $diagnostic): string => $diagnostic['type'], $metadata['identifierDiagnostics']));
+        $t->same($uniqueIdentifier, $summary['wordpressImport']['metadataDetails']['uniqueIdentifier']);
+        $t->same($identifierSummary, $summary['wordpressImport']['metadataDetails']['identifierSummary']);
+        $t->same($metadata['identifierDiagnostics'], $summary['wordpressImport']['metadataDetails']['identifierDiagnostics']);
+    },
+
     'preserves OPF guide references and XHTML nav sections for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithGuide = str_replace(
             '</spine>',

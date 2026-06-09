@@ -584,6 +584,7 @@ $yamlAnchorProvenance = $document->attr('yamlMetadataAnchorProvenance', []);
 $yamlScalarProvenance = $document->attr('yamlMetadataScalarProvenance', []);
 $yamlCollectionProvenance = $document->attr('yamlMetadataCollectionProvenance', []);
 $yamlStreamProvenance = $document->attr('yamlMetadataStreamProvenance', []);
+$yamlReviewSummary = $document->attr('yamlMetadataReviewSummary', []);
 $invalidTagDiagnostics = array_values(array_filter(
     $yamlDiagnostics,
     static fn (array $diagnostic): bool => ($diagnostic['reason'] ?? '') === 'invalid-tag-directive'
@@ -823,6 +824,36 @@ $reservedDirectiveBlocks = (new WordPressBlockWriter())->write($reservedDirectiv
 if (($argv[1] ?? '') === '--self-test') {
     if (($meta['review']['status'] ?? '') !== 'needs-review') {
         throw new RuntimeException('YAML metadata self-test missing later review override');
+    }
+    if (array_key_exists('__yamlMetadataReviewSummary', $meta)) {
+        throw new RuntimeException('YAML metadata self-test leaked review summary into plain metadata');
+    }
+    if (($yamlReviewSummary['type'] ?? '') !== 'yaml-metadata-review') {
+        throw new RuntimeException('YAML metadata self-test missing review summary type');
+    }
+    if (($yamlReviewSummary['reviewStatus'] ?? '') !== 'needs-review') {
+        throw new RuntimeException('YAML metadata self-test missing needs-review summary status');
+    }
+    if (($yamlReviewSummary['diagnosticCount'] ?? null) !== count($yamlDiagnostics)) {
+        throw new RuntimeException('YAML metadata self-test review summary diagnostic count mismatch');
+    }
+    if (($yamlReviewSummary['streamCount'] ?? null) !== count($yamlStreamProvenance)) {
+        throw new RuntimeException('YAML metadata self-test review summary stream count mismatch');
+    }
+    if (($yamlReviewSummary['tagCount'] ?? null) !== count($yamlTagProvenance)) {
+        throw new RuntimeException('YAML metadata self-test review summary tag count mismatch');
+    }
+    if (($yamlReviewSummary['commentCount'] ?? null) !== count($yamlCommentProvenance)) {
+        throw new RuntimeException('YAML metadata self-test review summary comment count mismatch');
+    }
+    if (!in_array('review', $yamlReviewSummary['overriddenFields'] ?? [], true)) {
+        throw new RuntimeException('YAML metadata self-test review summary missing overridden review field');
+    }
+    if (!in_array('stream-field-overridden', array_keys($yamlReviewSummary['diagnosticReasons'] ?? []), true)) {
+        throw new RuntimeException('YAML metadata self-test review summary missing stream override reason');
+    }
+    if (!in_array('flow-document-review', $yamlReviewSummary['fields'] ?? [], true)) {
+        throw new RuntimeException('YAML metadata self-test review summary missing final flow document field');
     }
     if (
         count($streamOverrideDiagnostics) !== 1
@@ -2655,6 +2686,7 @@ echo 'YAML collection provenance: ' . count($yamlCollectionProvenance) . "\n";
 echo 'YAML collection provenance paths: ' . implode(', ', array_filter(array_column($yamlCollectionProvenance, 'path'))) . "\n";
 echo 'YAML stream provenance: ' . count($yamlStreamProvenance) . "\n";
 echo 'YAML stream provenance fields: ' . implode(' | ', array_column($yamlStreamProvenance, 'fields')) . "\n";
+echo 'YAML review summary: ' . ($yamlReviewSummary['reviewStatus'] ?? '') . ' / diagnostics ' . ($yamlReviewSummary['diagnosticCount'] ?? '') . ' / streams ' . ($yamlReviewSummary['streamCount'] ?? '') . "\n";
 echo 'Compact sequence item: ' . ($meta['compact-review-items'][0]['label'] ?? '') . ' / ' . ($meta['compact-review-items'][1]['source:key'] ?? '') . "\n";
 echo 'Source review log: ' . str_replace("\n", ' | ', $meta['source-review-log'] ?? '') . "\n";
 echo 'Source revision: ' . ($meta['source-revision'] ?? '') . "\n";
