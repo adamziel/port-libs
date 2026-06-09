@@ -609,7 +609,8 @@ final class MarkdownWriter
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
-                $lines[] = str_repeat(' ', $indent) . $blockHeader;
+                $lines[] = str_repeat(' ', $indent) . $blockHeader
+                    . $this->yamlMetadataTrailingCommentSuffix($path);
                 $this->appendYamlMetadataBlockScalarLines($lines, $value, $indent + 2);
                 return;
             }
@@ -628,7 +629,8 @@ final class MarkdownWriter
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
-                $lines[] = $prefix . '- ' . $blockHeader;
+                $lines[] = $prefix . '- ' . $blockHeader
+                    . $this->yamlMetadataTrailingCommentSuffix($path);
                 $this->appendYamlMetadataBlockScalarLines($lines, $value, $indent + 2);
                 return;
             }
@@ -652,7 +654,8 @@ final class MarkdownWriter
         if (is_string($value)) {
             $blockHeader = $this->yamlMetadataBlockScalarHeader($value);
             if ($blockHeader !== null) {
-                $lines[] = $mappingPrefix . ' ' . $blockHeader;
+                $lines[] = $mappingPrefix . ' ' . $blockHeader
+                    . $this->yamlMetadataTrailingCommentSuffix($path);
                 $this->appendYamlMetadataBlockScalarLines($lines, $value, $blockIndent);
                 return;
             }

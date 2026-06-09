@@ -3114,6 +3114,10 @@ final class MarkdownReader
             }
 
             if ($blockScalarHeader !== null) {
+                $this->withYamlMetadataSourceLine(
+                    $sourceLine,
+                    fn (): mixed => $this->recordYamlTrailingCommentProvenance($sourceValueWithComment, $itemPath)
+                );
                 if (!$this->yamlBlockScalarIndentationIsValid($children, $blockScalarHeader['indent'])) {
                     $this->yamlMetadataInvalid = true;
                     $value = null;

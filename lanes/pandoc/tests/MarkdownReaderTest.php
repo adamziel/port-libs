@@ -8249,6 +8249,73 @@ MD;
         $t->same('trailing-comment-writer-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="trailing-comment-writer-body">Trailing comment writer body</h1>', $blocks);
     },
+    'writes pandoc yaml block scalar header comments from reader provenance' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '---',
+            'title: Block scalar comment writer **Packet**',
+            'abstract: | # abstract reviewer comment',
+            '  First abstract paragraph.',
+            '',
+            '  Second abstract paragraph.',
+            'review:',
+            '  note: >- # folded note reviewer comment',
+            '    First folded reviewer line',
+            '',
+            '    second folded reviewer line',
+            '  keep: |+ # keep note reviewer comment',
+            '    Keep final blank lines',
+            '',
+            '  steps:',
+            '    - |- # first step reviewer comment',
+            '      Collect source',
+            '      metadata',
+            '    - | # second step reviewer comment',
+            '      Approve WordPress',
+            '      handoff',
+            'source-review-log: |2- # explicit indent reviewer comment',
+            '    preserve leading reviewer column',
+            '    keep source outline',
+            '...',
+            '',
+            '# Block scalar comment body',
+        ]));
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $comments = $document->attr('yamlMetadataCommentProvenance', []);
+        $roundTripComments = $roundTripped->attr('yamlMetadataCommentProvenance', []);
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $trailingComments = array_values(array_filter(
+            $comments,
+            static fn (array $entry): bool => ($entry['context'] ?? '') === 'trailing'
+        ));
+        $roundTripTrailingComments = array_values(array_filter(
+            $roundTripComments,
+            static fn (array $entry): bool => ($entry['context'] ?? '') === 'trailing'
+        ));
+
+        $t->same(6, count($trailingComments));
+        $t->contains("abstract: | # abstract reviewer comment\n  First abstract paragraph.", $markdown);
+        $t->contains("  note: |- # folded note reviewer comment\n    First folded reviewer line\n\n    second folded reviewer line", $markdown);
+        $t->contains("  keep: | # keep note reviewer comment\n    Keep final blank lines", $markdown);
+        $t->contains("    - |- # first step reviewer comment\n      Collect source\n      metadata", $markdown);
+        $t->contains("    - | # second step reviewer comment\n      Approve WordPress\n      handoff", $markdown);
+        $t->contains("source-review-log: |2- # explicit indent reviewer comment\n    preserve leading reviewer column", $markdown);
+        $t->same('Block scalar comment writer **Packet**', $meta['title']);
+        $t->same("First abstract paragraph.\n\nSecond abstract paragraph.\n", $meta['abstract']);
+        $t->same("First folded reviewer line\n\nsecond folded reviewer line", $meta['review']['note']);
+        $t->same("Keep final blank lines\n", $meta['review']['keep']);
+        $t->same("Collect source\nmetadata", $meta['review']['steps'][0]);
+        $t->same("Approve WordPress\nhandoff\n", $meta['review']['steps'][1]);
+        $t->same("  preserve leading reviewer column\n  keep source outline", $meta['source-review-log']);
+        $t->same(false, array_key_exists('__yamlMetadataCommentProvenance', $meta));
+        $t->same(array_column($trailingComments, 'comment'), array_column($roundTripTrailingComments, 'comment'));
+        $t->same(array_column($trailingComments, 'path'), array_column($roundTripTrailingComments, 'path'));
+        $t->same('block-scalar-comment-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="block-scalar-comment-body">Block scalar comment body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

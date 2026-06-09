@@ -24,7 +24,7 @@ author:
   - "WordPress #import editor"
 date: 2026-06-03
 keywords: [migration, wordpress, metadata] # reviewer labels
-abstract: |
+abstract: | # source abstract reviewer comment
   Source abstract keeps **review** emphasis and [source](https://example.test/exports/packet#abstract).
 
   - Preserve front matter
@@ -2211,6 +2211,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         "/title\0source export title",
         "/keywords\0reviewer labels",
+        "/abstract\0source abstract reviewer comment",
         "/flow-comment-labels\0source label",
         "/flow-comment-review\0reviewer queue state",
         "/flow-comment-review\0reviewer import tag",
@@ -2318,10 +2319,10 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($metadataMarkdown, "---\ntitle: \"Migration **Packet**\"")) {
         throw new RuntimeException('YAML metadata self-test missing writer YAML metadata block');
     }
-    if (!str_contains($metadataMarkdown, "abstract: |\n  Source abstract keeps **review** emphasis")) {
+    if (!str_contains($metadataMarkdown, "abstract: | # source abstract reviewer comment\n  Source abstract keeps **review** emphasis")) {
         throw new RuntimeException('YAML metadata self-test did not write multiline abstract as a YAML block scalar');
     }
-    if (!str_contains($metadataMarkdown, "source-review-log: |-\n  Review steps:\n    - preserve front matter")) {
+    if (!str_contains($metadataMarkdown, "source-review-log: |- # folded reviewer log with preserved nested lines\n  Review steps:\n    - preserve front matter")) {
         throw new RuntimeException('YAML metadata self-test did not write multiline review log as a stripped YAML block scalar');
     }
     if (!str_contains($metadataMarkdown, "review-notes:\n  - |-\n    Preserve original front matter.")) {

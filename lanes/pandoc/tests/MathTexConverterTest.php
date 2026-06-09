@@ -382,12 +382,27 @@ return [
         $t->contains('<mstyle mathvariant="normal"><mtext>TeX</mtext></mstyle><mo>+</mo><mstyle mathvariant="sans-serif"><mtext>…</mtext></mstyle>', $tokenTextMathml);
         $t->contains('<annotation encoding="application/x-tex">\\textbf x_i + \\textit\\% + \\mbox~ + \\texttt\\&amp; + \\textnormal\\TeX + \\textsf\\ldots</annotation>', $tokenTextMathml);
         $t->contains('<mstyle mathvariant="normal"><mtext>\\</mtext></mstyle><mo>+</mo><mstyle mathvariant="normal"><mtext>LaTeX</mtext></mstyle><mo>+</mo><mstyle mathvariant="italic"><mtext>z</mtext></mstyle>', $escapedTokenMathml);
-        $t->contains('alttext="x sub i plus #"', $accessibleMathml);
-        $t->contains('intent="row(subscript(x,i),plus,token)"', $accessibleMathml);
+        $t->contains('alttext="x sub i plus number sign"', $accessibleMathml);
+        $t->contains('intent="row(subscript(x,i),plus,number_sign)"', $accessibleMathml);
         $t->true(!str_contains($tokenTextMathml . $escapedTokenMathml, '<mi>\\textbf</mi>'));
         $t->true(!str_contains($tokenTextMathml . $escapedTokenMathml, '<mi>\\mbox</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf\\unknown'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\textbf_1'));
+    },
+    'converts bounded tex escaped special symbols to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $symbolMathml = $converter->texToMathMl('\\{p_i\\} + a\\#b + c\\&d + e\\$f + g\\%h + i\\_j + \\textbackslash', true);
+        $accessibleMathml = $converter->texToAccessibleMathMl('a\\#b + c\\_d + \\textbackslash');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $symbolMathml);
+        $t->contains('<mo>{</mo><msub><mi>p</mi><mi>i</mi></msub><mo>}</mo><mo>+</mo><mi>a</mi><mo>#</mo><mi>b</mi>', $symbolMathml);
+        $t->contains('<mi>c</mi><mo>&amp;</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>$</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>%</mo><mi>h</mi><mo>+</mo><mi>i</mi><mo>_</mo><mi>j</mi><mo>+</mo><mo>\\</mo>', $symbolMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\{p_i\\} + a\\#b + c\\&amp;d + e\\$f + g\\%h + i\\_j + \\textbackslash</annotation>', $symbolMathml);
+        $t->contains('alttext="a number sign b plus c underbar d plus backslash"', $accessibleMathml);
+        $t->contains('intent="row(a,number_sign,b,plus,c,underbar,d,plus,backslash)"', $accessibleMathml);
+        $t->true(!str_contains($symbolMathml, '<mi>\\#</mi>'));
+        $t->true(!str_contains($symbolMathml, '<mi>\\&amp;</mi>'));
+        $t->true(!str_contains($symbolMathml, '<mi>\\textbackslash</mi>'));
     },
     'adds bounded mathml accessibility text and intent annotations' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
@@ -1449,7 +1464,7 @@ return [
         $t->contains('<mtable columnalign="center center"><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable>', $arrayMathml);
         $t->contains("<annotation encoding=\"application/x-tex\">\\begin{array}{cc}a &amp; b % hidden \\end{array}\n\\\\ c &amp; d\\end{array}</annotation>", $arrayMathml);
         $t->true(!str_contains($arrayRendered, '<mi>h</mi><mi>i</mi><mi>d</mi><mi>d</mi><mi>e</mi><mi>n</mi>'));
-        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mi>\\%</mi></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $escapedPercentMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>%</mo></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr></mtable>', $escapedPercentMathml);
         $t->contains('<annotation encoding="application/x-tex">\\begin{aligned}p_i\\% &amp;= m_i\\end{aligned}</annotation>', $escapedPercentMathml);
     },
     'converts bounded tex explicit hspace and mspace dimensions to mathml' => static function (TestRunner $t): void {

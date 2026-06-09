@@ -445,6 +445,16 @@ final class MathTexConverter
     ];
 
     /** @var array<string, string> */
+    private const ESCAPED_SYMBOL_COMMANDS = [
+        '#' => '#',
+        '$' => '$',
+        '%' => '%',
+        '&' => '&',
+        '_' => '_',
+        'textbackslash' => '\\',
+    ];
+
+    /** @var array<string, string> */
     private const SI_UNIT_COMMANDS = [
         'A' => 'A',
         'ampere' => 'A',
@@ -895,6 +905,11 @@ final class MathTexConverter
         '<' => 'less than',
         '>' => 'greater than',
         '/' => 'slash',
+        '\\' => 'backslash',
+        '#' => 'number sign',
+        '$' => 'dollar sign',
+        '%' => 'percent sign',
+        '&' => 'ampersand',
         ',' => 'comma',
         ':' => 'colon',
         ';' => 'semicolon',
@@ -3175,6 +3190,10 @@ final class MathTexConverter
 
         if (isset(self::SPACING_COMMANDS[$command])) {
             return '<mspace width="' . self::SPACING_COMMANDS[$command] . '"></mspace>';
+        }
+
+        if (isset(self::ESCAPED_SYMBOL_COMMANDS[$command])) {
+            return '<mo>' . $this->esc(self::ESCAPED_SYMBOL_COMMANDS[$command]) . '</mo>';
         }
 
         if (isset(self::EXTENSIBLE_ARROW_COMMANDS[$command])) {
