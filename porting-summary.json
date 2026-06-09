@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 10:34:04 UTC",
-    "sourceCommit": "0a1635bec5a0d7ed3ad1a87bcad3bcd2a060dcfb",
-    "sourceCommitShort": "0a1635bec5a0",
+    "generated": "2026-06-09 10:42:55 UTC",
+    "sourceCommit": "d1f52e20cce4a87a25f4b3405bb06f98d2445a79",
+    "sourceCommitShort": "d1f52e20cce4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0a1635bec5a0d7ed3ad1a87bcad3bcd2a060dcfb",
-    "dashboardCommitShort": "0a1635bec5a0",
+    "dashboardCommit": "d1f52e20cce4a87a25f4b3405bb06f98d2445a79",
+    "dashboardCommitShort": "d1f52e20cce4",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,10 +137,10 @@
             "coverage": "2,917 / 2,276 (128.2%)",
             "mapPercent": "128.2%",
             "unmapped": "0",
-            "php": "2,661 pass / 0 fail",
+            "php": "2,677 pass / 0 fail",
             "phase": "native PHP Pandoc HTML5 reader review markup; standalone MathML token...",
-            "audit": "2026-06-09 UTC isolated pandoc-html-mathml-core current-base slice on...",
-            "currentWork": "Pandoc HTML reader review now preserves standalone MathML mi/mo/mn/mtext/mrow/msup/ms...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-mathml-structure current-base sli...",
+            "currentWork": "Pandoc HTML reader review now preserves standalone MathML mfenced/menclose/mpadded/mp...",
             "nextTarget": "Continue non-overlapping native conversion support under DOCX...",
             "remainingGate": "No new native support component is needed.",
             "commit": "pending fast ba..."

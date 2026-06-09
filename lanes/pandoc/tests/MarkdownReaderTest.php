@@ -15648,6 +15648,230 @@ XML;
         $t->contains('<!-- wp:html -->' . "\n" . $annotationXml, $blocks);
         $t->true(!str_contains($blocks, '&lt;annotation-xml'), 'Standalone MathML annotation-xml should not be escaped into reviewer text');
     },
+    'maps upstream html reader mathml mfenced fragments as raw review markup' => static function (TestRunner $t): void {
+        $mfenced = '<mfenced data-source="batch-63"><mi>x</mi></mfenced>';
+        $document = (new MarkdownReader())->read($mfenced . "\n\nAfter the fenced expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mfenced, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the fenced expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mfenced, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mfenced'), 'Standalone MathML mfenced should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml menclose fragments as raw review markup' => static function (TestRunner $t): void {
+        $menclose = '<menclose notation="box" data-source="batch-63"><mi>x</mi></menclose>';
+        $document = (new MarkdownReader())->read($menclose . "\n\nAfter the enclosed expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($menclose, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the enclosed expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $menclose, $blocks);
+        $t->true(!str_contains($blocks, '&lt;menclose'), 'Standalone MathML menclose should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mpadded fragments as raw review markup' => static function (TestRunner $t): void {
+        $mpadded = '<mpadded width="+1em" data-source="batch-63"><mi>x</mi></mpadded>';
+        $document = (new MarkdownReader())->read($mpadded . "\n\nAfter the padded expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mpadded, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the padded expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mpadded, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mpadded'), 'Standalone MathML mpadded should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mphantom fragments as raw review markup' => static function (TestRunner $t): void {
+        $mphantom = '<mphantom data-source="batch-63"><mi>x</mi></mphantom>';
+        $document = (new MarkdownReader())->read($mphantom . "\n\nAfter the phantom expression.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mphantom, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the phantom expression.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mphantom, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mphantom'), 'Standalone MathML mphantom should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mspace fragments as raw review markup' => static function (TestRunner $t): void {
+        $mspace = '<mspace width="1em" data-source="batch-63"></mspace>';
+        $document = (new MarkdownReader())->read($mspace . "\n\nAfter the space.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mspace, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the space.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mspace, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mspace'), 'Standalone MathML mspace should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mstyle fragments as raw review markup' => static function (TestRunner $t): void {
+        $mstyle = '<mstyle displaystyle="true" data-source="batch-63"><mi>x</mi></mstyle>';
+        $document = (new MarkdownReader())->read($mstyle . "\n\nAfter the style.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mstyle, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the style.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mstyle, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mstyle'), 'Standalone MathML mstyle should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml ms fragments as raw review markup' => static function (TestRunner $t): void {
+        $ms = '<ms data-source="batch-63">word</ms>';
+        $document = (new MarkdownReader())->read($ms . "\n\nAfter the string literal.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($ms, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the string literal.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $ms, $blocks);
+        $t->true(!str_contains($blocks, '&lt;ms'), 'Standalone MathML ms should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mglyph fragments as raw review markup' => static function (TestRunner $t): void {
+        $mglyph = '<mglyph alt="alpha" data-source="batch-63"></mglyph>';
+        $document = (new MarkdownReader())->read($mglyph . "\n\nAfter the glyph.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mglyph, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the glyph.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mglyph, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mglyph'), 'Standalone MathML mglyph should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mtable fragments as raw review markup' => static function (TestRunner $t): void {
+        $mtable = '<mtable data-source="batch-63"><mtr><mtd><mi>x</mi></mtd></mtr></mtable>';
+        $document = (new MarkdownReader())->read($mtable . "\n\nAfter the math table.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mtable, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the math table.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mtable, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mtable'), 'Standalone MathML mtable should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mtr fragments as raw review markup' => static function (TestRunner $t): void {
+        $mtr = '<mtr data-source="batch-63"><mtd><mi>x</mi></mtd></mtr>';
+        $document = (new MarkdownReader())->read($mtr . "\n\nAfter the math row.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mtr, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the math row.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mtr, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mtr'), 'Standalone MathML mtr should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mtd fragments as raw review markup' => static function (TestRunner $t): void {
+        $mtd = '<mtd data-source="batch-63"><mi>x</mi></mtd>';
+        $document = (new MarkdownReader())->read($mtd . "\n\nAfter the math cell.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mtd, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the math cell.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mtd, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mtd'), 'Standalone MathML mtd should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml mlabeledtr fragments as raw review markup' => static function (TestRunner $t): void {
+        $mlabeledtr = '<mlabeledtr data-source="batch-63"><mtd><mn>1</mn></mtd><mtd><mi>x</mi></mtd></mlabeledtr>';
+        $document = (new MarkdownReader())->read($mlabeledtr . "\n\nAfter the labeled row.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($mlabeledtr, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the labeled row.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $mlabeledtr, $blocks);
+        $t->true(!str_contains($blocks, '&lt;mlabeledtr'), 'Standalone MathML mlabeledtr should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml maction fragments as raw review markup' => static function (TestRunner $t): void {
+        $maction = '<maction actiontype="toggle" data-source="batch-63"><mi>x</mi><mi>y</mi></maction>';
+        $document = (new MarkdownReader())->read($maction . "\n\nAfter the math action.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($maction, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the math action.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $maction, $blocks);
+        $t->true(!str_contains($blocks, '&lt;maction'), 'Standalone MathML maction should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml maligngroup fragments as raw review markup' => static function (TestRunner $t): void {
+        $maligngroup = '<maligngroup data-source="batch-63"></maligngroup>';
+        $document = (new MarkdownReader())->read($maligngroup . "\n\nAfter the alignment group.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($maligngroup, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the alignment group.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $maligngroup, $blocks);
+        $t->true(!str_contains($blocks, '&lt;maligngroup'), 'Standalone MathML maligngroup should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml malignmark fragments as raw review markup' => static function (TestRunner $t): void {
+        $malignmark = '<malignmark edge="left" data-source="batch-63"></malignmark>';
+        $document = (new MarkdownReader())->read($malignmark . "\n\nAfter the alignment mark.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($malignmark, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the alignment mark.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $malignmark, $blocks);
+        $t->true(!str_contains($blocks, '&lt;malignmark'), 'Standalone MathML malignmark should not be escaped into reviewer text');
+    },
+    'maps upstream html reader mathml none fragments as raw review markup' => static function (TestRunner $t): void {
+        $none = '<none data-source="batch-63"></none>';
+        $document = (new MarkdownReader())->read($none . "\n\nAfter the none placeholder.");
+        $blockHtml = $document->children[0] ?? new AstNode('missing');
+        $blockParagraph = $document->children[1] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($none, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the none placeholder.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $none, $blocks);
+        $t->true(!str_contains($blocks, '&lt;none'), 'Standalone MathML none should not be escaped into reviewer text');
+    },
     'maps upstream html reader svg symbol fragments as raw review markup' => static function (TestRunner $t): void {
         $symbol = '<symbol id="review-icon" viewBox="0 0 10 10" data-source="batch-58"><path d="M0 0L10 10"></path></symbol>';
         $document = (new MarkdownReader())->read($symbol . "\n\nAfter the symbol.");
