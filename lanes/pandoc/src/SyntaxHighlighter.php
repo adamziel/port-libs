@@ -259,6 +259,12 @@ final class SyntaxHighlighter
         'nginx-conf' => 'nginx',
         'nginx-config' => 'nginx',
         'nginxconf' => 'nginx',
+        'nim' => 'nim',
+        'nim-lang' => 'nim',
+        'nim-source' => 'nim',
+        'nimrod' => 'nim',
+        'nims' => 'nim',
+        'nimscript' => 'nim',
         'ml' => 'ocaml',
         'mli' => 'ocaml',
         'mm' => 'objectivec',
@@ -866,6 +872,7 @@ final class SyntaxHighlighter
             'mermaid' => $this->tokenizeMermaid($code),
             'mustache' => $this->tokenizeMustache($code),
             'nginx' => $this->tokenizeNginx($code),
+            'nim' => $this->tokenizeNim($code),
             'nix' => $this->tokenizeNix($code),
             'objectivec' => $this->tokenizeObjectiveC($code),
             'ocaml' => $this->tokenizeOcaml($code),
@@ -1064,6 +1071,30 @@ final class SyntaxHighlighter
             ['string', '/^(?:\\\\.|[\\^$.*+?()[\\]|-])+/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_.-]*\\b/'],
             ['operator', '/^(?:\\^~|~\\*?|==|!=|<=|>=|[{}()[\\];,.+*\\/%=!<>?:|&^-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizeNim(string $code): array
+    {
+        return $this->scan($code, [
+            ['comment', '/^#\\[[\\s\\S]*?\\]#/'],
+            ['comment', '/^#[^\\n]*/'],
+            ['attribute', '/^\\{\\.[\\s\\S]*?\\.\\}/'],
+            ['string', '/^(?i)(?:r|raw)?"""[\\s\\S]*?"""/'],
+            ['string', '/^(?i)(?:r|raw)?f?"(?:\\\\.|[^"\\\\])*"/'],
+            ['string', "/^'(?:\\\\.|[^'\\\\])'/"],
+            ['keyword', '/^\\b(?:addr|and|as|asm|bind|block|break|case|cast|concept|const|continue|converter|defer|discard|distinct|do|elif|else|end|enum|except|export|finally|for|from|func|if|import|in|include|interface|is|isnot|iterator|let|macro|method|mixin|not|notin|object|of|or|out|proc|ptr|raise|ref|return|shl|shr|static|template|try|tuple|type|using|var|when|while|xor|yield)\\b/'],
+            ['constant', '/^\\b(?:false|nil|none|true)\\b/'],
+            ['datatype', '/^\\b(?:auto|bool|byte|char|cstring|float(?:32|64)?|int(?:8|16|32|64)?|Natural|Option|Positive|RootObj|seq|string|uint(?:8|16|32|64)?|void)\\b/'],
+            ['function', '/^`[^`\\n]+`(?=\\s*\\()/'],
+            ['function', '/^[A-Za-z_][A-Za-z0-9_]*[!?*]?(?=\\s*\\()/'],
+            ['datatype', '/^\\b[A-Z][A-Za-z0-9_]*\\b/'],
+            ['number', '/^-?\\b(?:0x[0-9A-Fa-f_]+|0b[01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:e[+-]?\\d[\\d_]*)?)(?:\'?[A-Za-z][A-Za-z0-9_]*)?\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?:\\.\\.|=>|->|==|!=|<=|>=|\\+=|-=|\\*=|\\/=|:=|[{}()[\\];,.+*\\/%=!<>?:|&@^$\\\\-])/'],
         ]);
     }
 

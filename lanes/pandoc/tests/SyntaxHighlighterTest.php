@@ -199,6 +199,10 @@ return [
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginxconf'));
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('nginx-config'));
         $t->same('nginx', SyntaxHighlighter::normalizeLanguage('language-nginx'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nim'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nimrod'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nims'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('language-nim-source'));
         $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ocaml'));
         $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('ml'));
         $t->same('ocaml', SyntaxHighlighter::normalizeLanguage('mli'));
@@ -4423,6 +4427,55 @@ return [
         $t->same('cr', $directCrystal['requestedLanguage']);
         $t->contains('<span class="ot">@[Link(&quot;wp-review&quot;)]</span> <span class="kw">struct</span> <span class="dt">Packet</span>', $directCrystal['html']);
         $t->contains('<span class="kw">property</span> <span class="va">title</span> <span class="op">:</span> <span class="dt">String</span><span class="op">?;</span>', $directCrystal['html']);
+    },
+    'highlights nim review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[89] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Nim review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'monochrome');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'monochrome');
+        $directNim = $highlighter->highlight(
+            'proc queue*(title: Option[string]): string = title.get("Untitled")',
+            'nimrod'
+        );
+
+        $t->same('nim', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nim'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nimrod'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nims'));
+        $t->same('nim', SyntaxHighlighter::normalizeLanguage('nimscript'));
+        $t->same('nim', $highlighted['language']);
+        $t->same('nim', $highlighted['requestedLanguage']);
+        $t->same('monochrome', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1440, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource nim numberLines"><code class="sourceCode nim" style="counter-reset: source-line 1439;">', $highlighted['html']);
+        $t->contains('<span id="nim-review-1440"><a href="#nim-review-1440"></a><span class="co"># Nim WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">import</span> <span class="va">std</span><span class="op">/[</span><span class="va">json</span><span class="op">,</span> <span class="va">options</span><span class="op">,</span> <span class="va">strutils</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="dt">ReviewPacket</span><span class="op">*</span> <span class="op">=</span> <span class="kw">object</span>', $highlighted['html']);
+        $t->contains('<span class="va">title</span><span class="op">*:</span> <span class="dt">Option</span><span class="op">[</span><span class="dt">string</span><span class="op">]</span>', $highlighted['html']);
+        $t->contains('<span class="kw">proc</span> <span class="fu">normalizeTitle*</span><span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">):</span> <span class="dt">string</span> <span class="ot">{.raises: [ValueError].}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">let</span> <span class="va">title</span> <span class="op">=</span> <span class="va">packet</span><span class="op">.</span><span class="va">title</span><span class="op">.</span><span class="fu">get</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">).</span><span class="fu">strip</span><span class="op">()</span>', $highlighted['html']);
+        $t->contains('<span class="kw">return</span> <span class="st">&quot;Import &quot;</span> <span class="op">&amp;</span> <span class="op">$</span><span class="va">packet</span><span class="op">.</span><span class="va">sourceId</span>', $highlighted['html']);
+        $t->contains('<span class="kw">proc</span> <span class="fu">queueReview*</span><span class="op">(</span><span class="va">raw</span><span class="op">:</span> <span class="dt">string</span><span class="op">):</span> <span class="dt">JsonNode</span>', $highlighted['html']);
+        $t->contains('<span class="va">raw</span><span class="op">.</span><span class="fu">parseJson</span><span class="op">().</span><span class="fu">to</span><span class="op">(</span><span class="dt">ReviewPacket</span><span class="op">)</span>', $highlighted['html']);
+        $t->contains('<span class="op">%*{</span>', $highlighted['html']);
+        $t->contains('<span class="st">&quot;dryRun&quot;</span><span class="op">:</span> <span class="cn">true</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="monochrome">', $wordpressBlock);
+        $t->contains('<span class="fu">normalizeTitle</span><span class="op">(</span><span class="va">packet</span><span class="op">),</span>', $wordpressBlock);
+        $t->same('nim', $directNim['language']);
+        $t->same('nimrod', $directNim['requestedLanguage']);
+        $t->contains('<span class="kw">proc</span> <span class="fu">queue*</span><span class="op">(</span><span class="va">title</span><span class="op">:</span> <span class="dt">Option</span><span class="op">[</span><span class="dt">string</span><span class="op">]):</span> <span class="dt">string</span>', $directNim['html']);
+        $t->contains('<span class="va">title</span><span class="op">.</span><span class="fu">get</span><span class="op">(</span><span class="st">&quot;Untitled&quot;</span><span class="op">)</span>', $directNim['html']);
     },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([

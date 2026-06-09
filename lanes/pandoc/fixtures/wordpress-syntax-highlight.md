@@ -1710,3 +1710,28 @@ Legacy Review
 $ printf '%s\n' "$title"
 Legacy Review
 ```
+
+``` {.nim #nim-review .numberLines startFrom=1440}
+# Nim WordPress import review helper
+import std/[json, options, strutils]
+
+type
+  ReviewPacket* = object
+    sourceId*: int
+    title*: Option[string]
+    blocks*: seq[string]
+
+proc normalizeTitle*(packet: ReviewPacket): string {.raises: [ValueError].} =
+  let title = packet.title.get("Untitled").strip()
+  if title.len == 0:
+    return "Import " & $packet.sourceId
+  result = title
+
+proc queueReview*(raw: string): JsonNode =
+  let packet = raw.parseJson().to(ReviewPacket)
+  %*{
+    "title": normalizeTitle(packet),
+    "dryRun": true,
+    "blocks": packet.blocks
+  }
+```

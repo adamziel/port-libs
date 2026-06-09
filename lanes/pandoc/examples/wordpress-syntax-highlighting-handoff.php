@@ -556,6 +556,12 @@ if (!$shellSessionCodeBlock instanceof PortLibs\Pandoc\AstNode || $shellSessionC
 }
 $shellSession = $highlighter->highlightCodeBlock($shellSessionCodeBlock, 'tango');
 $shellSessionWordpressBlock = $highlighter->wordpressHtmlBlock($shellSessionCodeBlock, 'tango');
+$nimCodeBlock = $document->children[89] ?? null;
+if (!$nimCodeBlock instanceof PortLibs\Pandoc\AstNode || $nimCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Nim review packet code block');
+}
+$nim = $highlighter->highlightCodeBlock($nimCodeBlock, 'monochrome');
+$nimWordpressBlock = $highlighter->wordpressHtmlBlock($nimCodeBlock, 'monochrome');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2456,6 +2462,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($shellSessionWordpressBlock, '<span class="re">$ </span><span class="fu">printf</span>')) {
         throw new RuntimeException('Expected shell-session WordPress command token handoff');
     }
+    if (($nim['language'] ?? '') !== 'nim') {
+        throw new RuntimeException('Expected Nim language alias handoff');
+    }
+    if (($nim['requestedLanguage'] ?? '') !== 'nim') {
+        throw new RuntimeException('Expected Nim requested-language metadata');
+    }
+    if (($nim['lineNumbering']['start'] ?? null) !== 1440) {
+        throw new RuntimeException('Expected Nim line-number start handoff');
+    }
+    if (!str_contains($nim['html'], '<span class="kw">proc</span> <span class="fu">normalizeTitle*</span><span class="op">(</span><span class="va">packet</span><span class="op">:</span> <span class="dt">ReviewPacket</span><span class="op">):</span> <span class="dt">string</span> <span class="ot">{.raises: [ValueError].}</span>')) {
+        throw new RuntimeException('Expected Nim proc and pragma token handoff');
+    }
+    if (!str_contains($nim['html'], '<span class="kw">return</span> <span class="st">&quot;Import &quot;</span> <span class="op">&amp;</span> <span class="op">$</span><span class="va">packet</span><span class="op">.</span><span class="va">sourceId</span>')) {
+        throw new RuntimeException('Expected Nim string concat and dollar conversion token handoff');
+    }
+    if (!str_contains($nim['html'], '<span class="st">&quot;dryRun&quot;</span><span class="op">:</span> <span class="cn">true</span>')) {
+        throw new RuntimeException('Expected Nim JSON builder boolean token handoff');
+    }
+    if (!str_contains($nimWordpressBlock, '<style data-pandoc-highlight-style="monochrome">')) {
+        throw new RuntimeException('Expected Nim WordPress style metadata');
+    }
+    if (!str_contains($nimWordpressBlock, '<span class="fu">normalizeTitle</span><span class="op">(</span><span class="va">packet</span><span class="op">),</span>')) {
+        throw new RuntimeException('Expected Nim WordPress block token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2563,6 +2593,7 @@ echo "pascalHighlightedHtml:\n" . $pascal['html'] . "\n";
 echo "groovyHighlightedHtml:\n" . $groovy['html'] . "\n";
 echo "crystalHighlightedHtml:\n" . $crystal['html'] . "\n";
 echo "shellSessionHighlightedHtml:\n" . $shellSession['html'] . "\n";
+echo "nimHighlightedHtml:\n" . $nim['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2641,4 +2672,5 @@ echo "pascalWordpressBlock:\n" . $pascalWordpressBlock . "\n";
 echo "groovyWordpressBlock:\n" . $groovyWordpressBlock . "\n";
 echo "crystalWordpressBlock:\n" . $crystalWordpressBlock . "\n";
 echo "shellSessionWordpressBlock:\n" . $shellSessionWordpressBlock . "\n";
+echo "nimWordpressBlock:\n" . $nimWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";
