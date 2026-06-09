@@ -1710,6 +1710,33 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes gb2312 symbol rows into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# GB2312 Symbols\n\nSymbols \xA1\xA1\xA1\xA2\xA1\xA3; fullwidth \xA3\xC1\xA3\xE1\xA3\xB0; kana \xA4\xA2\xA4\xA4\xA5\xA2; greek \xA6\xA1\xA6\xC1.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'euc-cn');
+        $document = (new MarkdownReader())->readBytes($bytes, 'gb2312');
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $gb18030Comparison = UnicodeText::decodeBytes("\xA3\xC1\xA4\xA2\xA6\xA1", 'gb18030');
+        $gb12345Comparison = UnicodeText::decodeBytes("\xA1\xA1\xA3\xE1\xA5\xA2\xA6\xC1", 'gb12345');
+        $unmappedSymbol = UnicodeText::decodeBytes("\xA2\xA1A", 'gb2312');
+        $text = 'Symbols 　、。; fullwidth Ａａ０; kana あいア; greek Αα.';
+
+        $t->same('gbk', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# GB2312 Symbols\n\n{$text}", $decoded['text']);
+        $t->same('ＡあΑ', $gb18030Comparison['text']);
+        $t->same(0, $gb18030Comparison['repairs']);
+        $t->same('　ａアα', $gb12345Comparison['text']);
+        $t->same(0, $gb12345Comparison['repairs']);
+        $t->same(['encoding' => 'gbk', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('GB2312 Symbols', $document->children[0]->attr('text'));
+        $t->same($text, $document->children[1]->attr('text'));
+        $t->same(56, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(58, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="gb2312-symbols">GB2312 Symbols</h1>', $blocks);
+        $t->contains("<p>{$text}</p>", $blocks);
+        $t->same("\u{FFFD}A", $unmappedSymbol['text']);
+        $t->same(1, $unmappedSymbol['repairs']);
+    },
     'decodes gb1988 yen overline and halfwidth punctuation into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = "# GB1988\n\nCurrency \$~ halfwidth \xA1\xB0\xDF ASCII.";
         $decoded = UnicodeText::decodeBytes($bytes, 'gb_1988-80');
@@ -1887,7 +1914,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
         $invalidEscape = UnicodeText::decodeBytes("A\x1B(B", 'iso-2022-cn');
         $shiftWithoutDesignation = UnicodeText::decodeBytes("\x0E\x56\x50\x0F", 'iso-2022-cn');
-        $unmappedPair = UnicodeText::decodeBytes("\x1B\$)A\x0E!!\x0F", 'iso-2022-cn');
+        $unmappedPair = UnicodeText::decodeBytes("\x1B\$)A\x0E\"!\x0F", 'iso-2022-cn');
         $missingTrailBeforeShift = UnicodeText::decodeBytes("\x1B\$)A\x0E\x56\x0F", 'iso-2022-cn');
         $unsupportedCnsDesignation = UnicodeText::decodeBytes("A\x1B\$)GB", 'iso-2022-cn');
         $finalStateRepair = UnicodeText::decodeBytes("\x1B\$)A\x0E\x56\x50", 'iso-2022-cn');
@@ -1921,7 +1948,7 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
         $malformedPair = UnicodeText::decodeBytes('~{<~}', 'hz');
         $invalidEscape = UnicodeText::decodeBytes('A~xB', 'hz-gb-2312');
-        $unmappedPair = UnicodeText::decodeBytes('~{!!~}', 'hz-gb-2312');
+        $unmappedPair = UnicodeText::decodeBytes('~{"!~}', 'hz-gb-2312');
 
         $t->same('hz-gb-2312', $decoded['encoding']);
         $t->same(0, $decoded['repairs']);

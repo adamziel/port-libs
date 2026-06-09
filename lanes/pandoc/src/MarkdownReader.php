@@ -7873,7 +7873,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(script|style)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(script|style|select)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10311,6 +10311,10 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
+        if ($name === 'select') {
+            return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
+        }
+
         $children = $this->parseHtmlInlineChildren($node);
 
         if (in_array($name, ['strong', 'b'], true)) {

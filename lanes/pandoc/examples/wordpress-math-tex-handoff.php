@@ -59,6 +59,8 @@ Symbol override alias audit $\arg z + \hbar\omega + \digamma + \varnothing + a \
 
 Extended relation alias audit $\beth + \gimel + \daleth + a \leqq b + c \geqq d + x \doteq y + P \nsubseteq Q + u \nparallel v$ stays semantic.
 
+Generated symbol-map relation audit $a \lneq b + c \gneq d + p \precapprox q + r \succapprox s + P \nvdash Q + R \nvDash S + x \varpropto y + A \smallsetminus B + \blacktriangle$ stays semantic.
+
 Negative approximate relation alias audit $x \approxeq y + a \napprox b + c \ncong d$ stays semantic.
 
 Comparison relation alias audit $x \nless y + a \ngtr b + c \leqgtr d + e \geqless f$ stays semantic.
@@ -290,6 +292,7 @@ $summary = [
     'relationHarpoonAliasMathml' => $converter->texToMathMl('A \\prec B + C \\succ D + E \\ll F + G \\gg H + x \\nearrow y + a \\searrow b + L \\leftharpoonup M + N \\rightharpoondown O + P \\rightleftharpoons Q + p \\because q + f \\multimap g'),
     'symbolOverrideAliasMathml' => $converter->texToMathMl('\\arg z + \\hbar\\omega + \\digamma + \\varnothing + a \\dag b + c \\ddag d + A \\lhd B + C \\unrhd D + M \\longmapsto N + \\blacklozenge'),
     'extendedRelationAliasMathml' => $converter->texToMathMl('\\beth + \\gimel + \\daleth + a \\leqq b + c \\geqq d + x \\doteq y + P \\nsubseteq Q + u \\nparallel v'),
+    'generatedSymbolMapRelationAliasMathml' => $converter->texToMathMl('a \\lneq b + c \\gneq d + p \\precapprox q + r \\succapprox s + P \\nvdash Q + R \\nvDash S + x \\varpropto y + A \\smallsetminus B + \\blacktriangle'),
     'negativeApproxRelationAliasMathml' => $converter->texToMathMl('x \\approxeq y + a \\napprox b + c \\ncong d'),
     'comparisonRelationAliasMathml' => $converter->texToMathMl('x \\nless y + a \\ngtr b + c \\leqgtr d + e \\geqless f'),
     'unicodeSymbolMapAliasMathml' => $converter->texToMathMl('\\AC + \\twoheadleftarrow + \\hookleftarrow + A \\nleftarrow B + C \\nrightarrow D + E \\nleftrightarrow F + P \\nsubset Q + R \\nsupset S'),
@@ -734,6 +737,20 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['extendedRelationAliasMathml'], '<mi>P</mi><mo>⊈</mo><mi>Q</mi><mo>+</mo><mi>u</mi><mo>∦</mo><mi>v</mi>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map extended relation aliases');
+    }
+
+    if (
+        str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>\\lneq</mi>')
+        || str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>\\precapprox</mi>')
+        || str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>\\nvdash</mi>')
+        || str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>\\varpropto</mi>')
+        || str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>\\blacktriangle</mi>')
+        || !str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>a</mi><mo>⪇</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⪈</mo><mi>d</mi>')
+        || !str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>p</mi><mo>⪷</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>⪸</mo><mi>s</mi>')
+        || !str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>P</mi><mo>⊬</mo><mi>Q</mi><mo>+</mo><mi>R</mi><mo>⊭</mo><mi>S</mi>')
+        || !str_contains($summary['generatedSymbolMapRelationAliasMathml'], '<mi>x</mi><mo>∝</mo><mi>y</mi><mo>+</mo><mi>A</mi><mo>∖</mo><mi>B</mi><mo>+</mo><mo>▴</mo>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map generated symbol-map relation aliases');
     }
 
     if (

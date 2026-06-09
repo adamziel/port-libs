@@ -1042,6 +1042,33 @@ return [
         $t->true(!str_contains($combinedMathml, '<mi>\\doteq</mi>'));
         $t->true(!str_contains($combinedMathml, '<mi>\\nsubseteq</mi>'));
     },
+    'converts bounded texmath generated symbol map relation aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $orderMathml = $converter->texToMathMl('a \\lneq b + c \\gneq d + e \\lnsim f + g \\gnsim h + p \\precapprox q + r \\succapprox s + A \\subsetneqq B + C \\supsetneqq D', true);
+        $logicMathml = $converter->texToMathMl('\\nexists x + p \\nvdash q + r \\nvDash s + t \\nVdash u + v \\nVDash w + a \\Vvdash b');
+        $shapeMathml = $converter->texToMathMl('x \\varpropto y + U \\smallsetminus V + A \\backcong B + \\blacktriangle');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\nexists x + A \\varpropto B + \\blacktriangle');
+        $combinedMathml = $orderMathml . $logicMathml . $shapeMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $orderMathml);
+        $t->contains('<mi>a</mi><mo>⪇</mo><mi>b</mi><mo>+</mo><mi>c</mi><mo>⪈</mo><mi>d</mi><mo>+</mo><mi>e</mi><mo>⋦</mo><mi>f</mi><mo>+</mo><mi>g</mi><mo>⋧</mo><mi>h</mi>', $orderMathml);
+        $t->contains('<mi>p</mi><mo>⪷</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>⪸</mo><mi>s</mi><mo>+</mo><mi>A</mi><mo>⫋</mo><mi>B</mi><mo>+</mo><mi>C</mi><mo>⫌</mo><mi>D</mi>', $orderMathml);
+        $t->contains('<annotation encoding="application/x-tex">a \\lneq b + c \\gneq d + e \\lnsim f + g \\gnsim h + p \\precapprox q + r \\succapprox s + A \\subsetneqq B + C \\supsetneqq D</annotation>', $orderMathml);
+        $t->contains('<mo>∄</mo><mi>x</mi><mo>+</mo><mi>p</mi><mo>⊬</mo><mi>q</mi><mo>+</mo><mi>r</mi><mo>⊭</mo><mi>s</mi>', $logicMathml);
+        $t->contains('<mi>t</mi><mo>⊮</mo><mi>u</mi><mo>+</mo><mi>v</mi><mo>⊯</mo><mi>w</mi><mo>+</mo><mi>a</mi><mo>⊪</mo><mi>b</mi>', $logicMathml);
+        $t->contains('<mi>x</mi><mo>∝</mo><mi>y</mi><mo>+</mo><mi>U</mi><mo>∖</mo><mi>V</mi><mo>+</mo><mi>A</mi><mo>≌</mo><mi>B</mi><mo>+</mo><mo>▴</mo>', $shapeMathml);
+        $t->contains('alttext=', $accessibleMathml);
+        $t->contains('alttext="∄ x plus A proportional to B plus ▴"', $accessibleMathml);
+        $t->contains('intent=', $accessibleMathml);
+        $t->true(!str_contains($combinedMathml, '<mi>\\lneq</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\gneq</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\precapprox</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\subsetneqq</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\nexists</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\nvdash</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\varpropto</mi>'));
+        $t->true(!str_contains($combinedMathml, '<mi>\\blacktriangle</mi>'));
+    },
     'converts bounded texmath variant greek and underbar aliases to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $variantGreekMathml = $converter->texToMathMl('\\varGamma + \\varDelta + \\varTheta + \\varLambda + \\varXi + \\varPi + \\varSigma + \\varUpsilon + \\varPhi + \\varPsi + \\varOmega', true);

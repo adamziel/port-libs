@@ -241,6 +241,9 @@ $eucTwText = (string) $eucTwSource->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
+$gb2312SymbolBytes = "# GB2312 Symbols\n\nSymbols \xA1\xA1\xA1\xA2\xA1\xA3; fullwidth \xA3\xC1\xA3\xE1\xA3\xB0; kana \xA4\xA2\xA4\xA4\xA5\xA2; greek \xA6\xA1\xA6\xC1.";
+$gb2312SymbolSource = (new MarkdownReader())->readBytes($gb2312SymbolBytes, 'euc-cn');
+$gb2312SymbolText = (string) $gb2312SymbolSource->children[1]->attr('text');
 $gb1988Bytes = "# GB1988\n\nCurrency \$~ halfwidth \xA1\xB0\xDF ASCII.";
 $gb1988Source = (new MarkdownReader())->readBytes($gb1988Bytes, 'gb_1988-80');
 $gb1988Text = (string) $gb1988Source->children[1]->attr('text');
@@ -985,6 +988,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB2312 symbol rows'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb2312SymbolText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb2312SymbolSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb2312SymbolText) . '/' . UnicodeText::displayWidth($gb2312SymbolText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GB1988 source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gb1988Text])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gb1988Source->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gb1988Text) . '/' . UnicodeText::displayWidth($gb1988Text, 'wide')])]),
@@ -1613,6 +1621,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, '<td>GBK source</td><td>中文 GBK 测试，北京。</td><td>gbk:21</td>')) {
         throw new RuntimeException('charset handoff self-test missing GBK decode audit row');
+    }
+    if (($gb2312SymbolSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gbk') {
+        throw new RuntimeException('charset handoff self-test missing GB2312 symbol row source encoding');
+    }
+    if (!str_contains($blocks, '<td>GB2312 symbol rows</td><td>Symbols 　、。; fullwidth Ａａ０; kana あいア; greek Αα.</td><td>gbk:56/58</td>')) {
+        throw new RuntimeException('charset handoff self-test missing GB2312 symbol row audit');
     }
     if (($gb1988Source->attr('sourceEncoding')['encoding'] ?? '') !== 'gb1988') {
         throw new RuntimeException('charset handoff self-test missing GB1988 source encoding');

@@ -13736,6 +13736,52 @@ XML;
         $t->contains('<h1 id="imported-html-batch-42" class="title">Imported HTML Batch 42</h1>', $blocks);
         $t->contains('<p>Review * stays literal inside HTML paragraphs.</p>', $blocks);
     },
+    'maps upstream html reader select controls as raw review markup' => static function (TestRunner $t): void {
+        $select = implode("\n", [
+            '<select id="import-state" name="state" data-source="batch-42">',
+            '<optgroup label="Review queue">',
+            '<option value="draft">Draft copy</option>',
+            '<option value="publish" selected>Publish after media check</option>',
+            '</optgroup>',
+            '<option value="hold" disabled>Hold</option>',
+            '</select>',
+        ]);
+        $blockDocument = (new MarkdownReader())->read($select . "\n\nAfter the import state selector.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->contains('<select id="import-state" name="state" data-source="batch-42">', $blockHtml->attr('html'));
+        $t->contains('<option value="publish" selected>Publish after media check</option>', $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the import state selector.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . '<select id="import-state" name="state" data-source="batch-42">', $blockOutput);
+        $t->contains('<option value="hold" disabled>Hold</option>', $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;select'), 'Standalone select source should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . '<select id="import-state" name="state" data-source="batch-42">'
+            . '<optgroup label="Review queue">'
+            . '<option value="draft">Draft copy</option>'
+            . '<option value="publish" selected>Publish after media check</option>'
+            . '</optgroup>'
+            . '<option value="hold" disabled>Hold</option>'
+            . '</select> after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineSelect = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<select data-source="batch-42" id="import-state" name="state">', $inlineSelect->attr('html'));
+        $t->contains('<option selected value="publish">Publish after media check</option>', $inlineSelect->attr('html'));
+        $t->contains('<option disabled value="hold">Hold</option>', $inlineSelect->attr('html'));
+        $t->contains('<p>Before <select data-source="batch-42" id="import-state" name="state">', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before Draft copyPublish after media checkHold after.'), 'HTML document select should not collapse option labels into plain paragraph text');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
