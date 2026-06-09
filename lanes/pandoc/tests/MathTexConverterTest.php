@@ -1839,6 +1839,32 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\matrix{}'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\matrix{a & {b \\cr c}'));
     },
+    'converts bounded plain tex alignment commands to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $eqalignMathml = $converter->texToMathMl('\\eqalign{p_i &= m_i \\cr q_i &= n_i}', true);
+        $displayLinesMathml = $converter->texToMathMl('\\displaylines{p_i + m_i \\cr q_i + n_i}');
+        $spacedRowsMathml = $converter->texToMathMl('\\eqalign{x &= y \\cr[1ex] u &= v\\cr}');
+        $nestedMatrixMathml = $converter->texToMathMl('\\eqalign{A &= \\matrix{a & b \\cr c & d} \\cr B &= C}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\displaylines{x+y \\cr z}');
+        $combined = $eqalignMathml . $displayLinesMathml . $spacedRowsMathml . $nestedMatrixMathml;
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $eqalignMathml);
+        $t->contains('<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>', $eqalignMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\eqalign{p_i &amp;= m_i \\cr q_i &amp;= n_i}</annotation>', $eqalignMathml);
+        $t->contains('<mtable columnalign="center"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub><mo>+</mo><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>', $displayLinesMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\displaylines{p_i + m_i \\cr q_i + n_i}</annotation>', $displayLinesMathml);
+        $t->contains('<mtable columnalign="right left" rowspacing="1ex" data-tex-rowspacing="after-row-1:1ex"><mtr><mtd><mi>x</mi></mtd><mtd><mo>=</mo><mi>y</mi></mtd></mtr><mtr><mtd><mi>u</mi></mtd><mtd><mo>=</mo><mi>v</mi></mtd></mtr></mtable>', $spacedRowsMathml);
+        $t->contains('<mtd><mo>=</mo><mtable><mtr><mtd><mi>a</mi></mtd><mtd><mi>b</mi></mtd></mtr><mtr><mtd><mi>c</mi></mtd><mtd><mi>d</mi></mtd></mtr></mtable></mtd>', $nestedMatrixMathml);
+        $t->contains('alttext="table row x plus y; row z"', $accessibleMathml);
+        $t->true(!str_contains($combined, '<mi>\\eqalign</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\displaylines</mi>'));
+        $t->true(!str_contains($combined, '<mi>\\cr</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqalign'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqalign{}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\eqalign{x = y \\cr z = w}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaylines{x & y}'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\displaylines{x \\cr[bad] y}'));
+    },
     'preserves bounded tex optional row spacing as mathml review metadata' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $alignedMathml = $converter->texToMathMl('\\begin{aligned}a &= b \\\\[.5em] c &= d\\end{aligned}', true);

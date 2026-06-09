@@ -1129,6 +1129,74 @@ XML;
         $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
         $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
     },
+    'maps ODT grouped body and footer table rows into table sections' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithGroupedRows = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="Grouped Review">
+        <table:table-header-rows>
+          <table:table-row>
+            <table:table-cell><text:p>Item</text:p></table:table-cell>
+            <table:table-cell><text:p>Status</text:p></table:table-cell>
+          </table:table-row>
+        </table:table-header-rows>
+        <table:table-rows>
+          <table:table-row>
+            <table:table-cell><text:p>Draft import</text:p></table:table-cell>
+            <table:table-cell><text:p>Needs review</text:p></table:table-cell>
+          </table:table-row>
+          <table:table-row>
+            <table:table-cell><text:p>Ready import</text:p></table:table-cell>
+            <table:table-cell><text:p>Ready</text:p></table:table-cell>
+          </table:table-row>
+        </table:table-rows>
+        <table:table-row>
+          <table:table-cell><text:p>Escalated import</text:p></table:table-cell>
+          <table:table-cell><text:p>Legal</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-footer-rows>
+          <table:table-row>
+            <table:table-cell><text:p>Total</text:p></table:table-cell>
+            <table:table-cell><text:p>3 rows</text:p></table:table-cell>
+          </table:table-row>
+        </table:table-footer-rows>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithGroupedRows));
+        $table = $result['document']->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $foot = $table->children[2];
+        $geometry = $table->attr('tableGeometry');
+        $rowGroups = is_array($geometry) ? ($geometry['rowGroups'] ?? []) : [];
+
+        $t->same('table', $table->type);
+        $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn ($child): string => $child->type, $table->children));
+        $t->same(1, count($head->children));
+        $t->same(3, count($body->children));
+        $t->same(1, count($foot->children));
+        $t->same('Draft import', $body->children[0]->children[0]->attr('text'));
+        $t->same('Ready import', $body->children[1]->children[0]->attr('text'));
+        $t->same('Escalated import', $body->children[2]->children[0]->attr('text'));
+        $t->same('3 rows', $foot->children[0]->children[1]->attr('text'));
+        $t->same('table-head', $rowGroups[0]['kind'] ?? null);
+        $t->same('table-body', $rowGroups[1]['kind'] ?? null);
+        $t->same('table-foot', $rowGroups[2]['kind'] ?? null);
+        $t->same(3, $rowGroups[1]['bodyRowCount'] ?? null);
+        $t->same(1, $rowGroups[2]['footRowCount'] ?? null);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('<tbody><tr><td><p>Draft import</p></td><td><p>Needs review</p></td></tr><tr><td><p>Ready import</p></td><td><p>Ready</p></td></tr><tr><td><p>Escalated import</p></td><td><p>Legal</p></td></tr></tbody>', $blocksHtml);
+        $t->contains('<tfoot><tr><td><p>Total</p></td><td><p>3 rows</p></td></tr></tfoot>', $blocksHtml);
+    },
     'maps ODT table print ranges into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPrintRanges = <<<'XML'
 <office:document-content

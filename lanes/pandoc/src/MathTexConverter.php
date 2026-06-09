@@ -817,6 +817,12 @@ final class MathTexConverter
     ];
 
     /** @var array<string, array{columnalign: string, columns: int}> */
+    private const PLAIN_ALIGNMENT_COMMANDS = [
+        'displaylines' => ['columnalign' => 'center', 'columns' => 1],
+        'eqalign' => ['columnalign' => 'right left', 'columns' => 2],
+    ];
+
+    /** @var array<string, array{columnalign: string, columns: int}> */
     private const AMS_ROW_ENVIRONMENTS = [
         'align' => ['columnalign' => 'right left', 'columns' => 2],
         'align*' => ['columnalign' => 'right left', 'columns' => 2],
@@ -2984,6 +2990,10 @@ final class MathTexConverter
             return $this->parsePlainMatrixCommand($source, $offset, $command);
         }
 
+        if (isset(self::PLAIN_ALIGNMENT_COMMANDS[$command])) {
+            return $this->parsePlainAlignmentCommand($source, $offset, $command);
+        }
+
         if (array_key_exists($command, self::TEXT_MODE_COMMANDS)) {
             return $this->parseTextModeCommand($source, $offset, $command);
         }
@@ -3358,6 +3368,20 @@ final class MathTexConverter
         $attributes .= $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
 
         return $this->matrixTableForRows($rows, $matrixEnvironment, $attributes);
+    }
+
+    private function parsePlainAlignmentCommand(string $source, int &$offset, string $command): string
+    {
+        $content = $this->readRequiredGroupText($source, $offset);
+        $normalizedContent = $this->normalizePlainMatrixCommandRows($content, $command);
+        $splitRows = $this->splitAlignmentRowsWithSpacing($normalizedContent, $command);
+        $rows = $splitRows['rows'];
+        $spec = self::PLAIN_ALIGNMENT_COMMANDS[$command];
+        $this->validateAmsRowEnvironmentRows($rows, $command, $spec['columns']);
+        $attributes = ' columnalign="' . $this->esc($spec['columnalign']) . '"'
+            . $this->environmentRowSpacingAttributes($splitRows['rowSpacing'], count($rows));
+
+        return $this->environmentTable($rows, $attributes);
     }
 
     private function normalizePlainMatrixCommandRows(string $content, string $command): string

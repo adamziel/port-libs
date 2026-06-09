@@ -68,6 +68,8 @@ Plain root audit $\root 3 \of{x_i + y_i} + \root n+1 \of{\frac{a}{b}}$ stays sem
 
 TeX token argument audit $\sqrt x_i + \sqrt[3]y_j + \frac12 + \dfrac a b + \binom n k + \overset\alpha q_i + \underset 0 r_i + \boxed s_i + \phantom t_i + \hphantom u_i + \vphantom v_i + \cancel w_i + \bcancel x + \xcancel y$ stays semantic.
 
+Plain alignment command audit $\eqalign{p_i &= m_i \cr q_i &= n_i} + \displaylines{p_i + m_i \cr q_i + n_i}$ keeps command rows semantic.
+
 Partial array rule audit $\begin{array}{l|c|r}p_i & m_i & 1 \\ \cline{2-3} q_i & n_i & 2 \\ \cline{1-1}\cline{3-3} r_i & s_i & 3\end{array}$ stays semantic.
 
 Repeated array preamble audit $\begin{array}{*{2}{c|}r}p_1 & m_1 & 1 \\ p_2 & m_2 & 2\end{array}$ stays semantic.
@@ -326,6 +328,7 @@ $summary = [
     'mathtoolsCasesMathml' => $converter->texToMathMl('\\begin{dcases}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{dcases} + \\begin{rcases}q_i & q_i \\in Q \\\\ 0 & \\text{otherwise}\\end{rcases} + \\begin{drcases*}r_i & r_i \\in R \\\\ 0 & \\text{otherwise}\\end{drcases*}', true),
     'starredMatrixAliasMathml' => $converter->texToMathMl('\\begin{pmatrix*}p_i & m_i \\\\ q_i & n_i\\end{pmatrix*} + \\begin{cases*}p_i & p_i \\in P \\\\ 0 & \\text{otherwise}\\end{cases*}', true),
     'texMatrixCommandMathml' => $converter->texToMathMl('\\matrix{p_1 & m_1 \\cr p_2 & m_2} + \\pmatrix{a & b \\cr c & d} + \\cases{p_i & p_i \\in P \\cr 0 & \\text{otherwise}}', true),
+    'plainAlignmentCommandMathml' => $converter->texToMathMl('\\eqalign{p_i &= m_i \\cr q_i &= n_i} + \\displaylines{p_i + m_i \\cr q_i + n_i}', true),
     'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'mathChoiceMathml' => $converter->texToMathMl('\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i'),
     'siunitxUnitAliasMathml' => $converter->texToMathMl('\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}'),
@@ -630,6 +633,17 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['texMatrixCommandMathml'], '<annotation encoding="application/x-tex">\\matrix{p_1 &amp; m_1 \\cr p_2 &amp; m_2} + \\pmatrix{a &amp; b \\cr c &amp; d} + \\cases{p_i &amp; p_i \\in P \\cr 0 &amp; \\text{otherwise}}</annotation>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map plain TeX matrix commands');
+    }
+
+    if (
+        str_contains($summary['plainAlignmentCommandMathml'], '<mi>\\eqalign</mi>')
+        || str_contains($summary['plainAlignmentCommandMathml'], '<mi>\\displaylines</mi>')
+        || str_contains($summary['plainAlignmentCommandMathml'], '<mi>\\cr</mi>')
+        || !str_contains($summary['plainAlignmentCommandMathml'], '<mtable columnalign="right left"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub></mtd><mtd><mo>=</mo><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>')
+        || !str_contains($summary['plainAlignmentCommandMathml'], '<mtable columnalign="center"><mtr><mtd><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><msub><mi>q</mi><mi>i</mi></msub><mo>+</mo><msub><mi>n</mi><mi>i</mi></msub></mtd></mtr></mtable>')
+        || !str_contains($summary['plainAlignmentCommandMathml'], '<annotation encoding="application/x-tex">\\eqalign{p_i &amp;= m_i \\cr q_i &amp;= n_i} + \\displaylines{p_i + m_i \\cr q_i + n_i}</annotation>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map plain TeX alignment commands');
     }
 
     if (str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\ldots</mi>') || str_contains($summary['dotRelationSymbolAliasMathml'], '<mi>\\cong</mi>')) {

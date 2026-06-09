@@ -2153,11 +2153,18 @@ final class OdfReader
         $children = [];
         $headerRows = [];
         $bodyRows = [];
+        $footerRows = [];
         foreach (self::childElements($table) as $child) {
             if ($this->isElement($child, self::TABLE_NS, 'table-header-rows')) {
-                foreach (self::childElements($child, 'table-row', self::TABLE_NS) as $row) {
-                    array_push($headerRows, ...$this->repeatedRows($row, $package, $catalog, $columnDefinitions));
-                }
+                array_push($headerRows, ...$this->tableRowsFromContainer($child, $package, $catalog, $columnDefinitions));
+                continue;
+            }
+            if ($this->isElement($child, self::TABLE_NS, 'table-rows')) {
+                array_push($bodyRows, ...$this->tableRowsFromContainer($child, $package, $catalog, $columnDefinitions));
+                continue;
+            }
+            if ($this->isElement($child, self::TABLE_NS, 'table-footer-rows')) {
+                array_push($footerRows, ...$this->tableRowsFromContainer($child, $package, $catalog, $columnDefinitions));
                 continue;
             }
             if ($this->isElement($child, self::TABLE_NS, 'table-row')) {
@@ -2169,6 +2176,9 @@ final class OdfReader
             $children[] = new AstNode('table_head', [], $headerRows);
         }
         $children[] = new AstNode('table_body', [], $bodyRows);
+        if ($footerRows !== []) {
+            $children[] = new AstNode('table_foot', [], $footerRows);
+        }
 
         $attrs = [
             'sourceFormat' => 'odt',
@@ -2266,6 +2276,21 @@ final class OdfReader
         return TableGeometry::withReviewPacket(new AstNode('table', $attrs, $children), [
             'idPrefix' => $tableName === '' ? 'odf-table' : $tableName,
         ]);
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>} $catalog
+     * @param list<array<string, mixed>> $columnDefinitions
+     * @return list<AstNode>
+     */
+    private function tableRowsFromContainer(\DOMElement $container, ZipPackage $package, array $catalog, array $columnDefinitions): array
+    {
+        $rows = [];
+        foreach (self::childElements($container, 'table-row', self::TABLE_NS) as $row) {
+            array_push($rows, ...$this->repeatedRows($row, $package, $catalog, $columnDefinitions));
+        }
+
+        return $rows;
     }
 
     /**

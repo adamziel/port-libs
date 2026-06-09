@@ -8493,6 +8493,131 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfFormFieldActionTargets']);
     },
 
+    'fake runner summarizes bounded pdf acroform submit export policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/form-submit-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 7 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /A << /S /SubmitForm /F (https://example.test/review/form-submit) /Flags 256 >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (approved) /AA << /Fo << /S /ImportData /F (imports/review.fdf) >> >> /V /Yes >>',
+            'endobj',
+            '6 0 obj',
+            '<< /FT /Ch /T (routing) /Kids [7 0 R] >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (queue) /AA << /Fo << /S /ResetForm /Fields [4 0 R (approved)] /Flags 1 >> >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /NeedAppearances true >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/form-submit-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/form-submit-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'fieldName' => 'approved',
+                'fieldObject' => '5 0 R',
+                'fieldType' => 'Btn',
+                'fieldTypeLabel' => 'button',
+                'trigger' => 'AA.Fo',
+                'source' => 'field:5 0 R.AA.Fo',
+                'actionType' => 'ImportData',
+                'actionTarget' => 'imports/review.fdf',
+                'targetScheme' => null,
+                'targetIsRemote' => false,
+                'flags' => null,
+                'flagNames' => [],
+                'fieldNames' => [],
+                'fieldSelection' => 'all-fields',
+                'fieldCount' => 0,
+                'reviewStatus' => 'review',
+                'issues' => ['import-data-action'],
+            ],
+            [
+                'fieldName' => 'reviewer.name',
+                'fieldObject' => '4 0 R',
+                'fieldType' => 'Tx',
+                'fieldTypeLabel' => 'text',
+                'trigger' => 'A',
+                'source' => 'field:4 0 R.A',
+                'actionType' => 'SubmitForm',
+                'actionTarget' => 'https://example.test/review/form-submit',
+                'targetScheme' => 'https',
+                'targetIsRemote' => true,
+                'flags' => 256,
+                'flagNames' => ['submitPdf'],
+                'fieldNames' => [],
+                'fieldSelection' => 'all-fields',
+                'fieldCount' => 0,
+                'reviewStatus' => 'review',
+                'issues' => ['remote-submit-target', 'submit-pdf-payload', 'submit-all-fields'],
+            ],
+            [
+                'fieldName' => 'routing.queue',
+                'fieldObject' => '7 0 R',
+                'fieldType' => 'Ch',
+                'fieldTypeLabel' => 'choice',
+                'trigger' => 'AA.Fo',
+                'source' => 'field:7 0 R.AA.Fo',
+                'actionType' => 'ResetForm',
+                'actionTarget' => null,
+                'targetScheme' => null,
+                'targetIsRemote' => false,
+                'flags' => 1,
+                'flagNames' => ['excludeListedFields'],
+                'fieldNames' => ['reviewer.name', 'approved'],
+                'fieldSelection' => 'exclude-listed',
+                'fieldCount' => 2,
+                'reviewStatus' => 'review',
+                'issues' => ['reset-excludes-listed-fields'],
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfFormFieldActionPolicy']);
+        $t->contains('pdf-byte-form-field-action-policy:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-status:review:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-remote-targets:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-fields:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-type:ImportData:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-type:SubmitForm:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-type:ResetForm:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-issue:import-data-action:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-issue:remote-submit-target:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-issue:submit-pdf-payload:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-issue:submit-all-fields:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-form-field-action-policy-issue:reset-excludes-listed-fields:1', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfFormFieldActionPolicy']);
+    },
+
     'fake runner extracts bounded pdf acroform dictionary metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-dictionary.pdf']);

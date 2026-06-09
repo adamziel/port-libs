@@ -1073,6 +1073,49 @@ return [
         $t->contains('benchmark:benchmark-pandoc type, buildable state, default-language, absent manual field, common import closure, entry point, direct build-depends with pinned version constraints, exact executable options, no unexpected Cabal benchmark common imports, unresolved common imports, direct build-depends, hs-source-dirs, mixins, build-tool dependencies, default-extensions, other-extensions, cpp-options, autogen-modules, reexported-modules, module interface fields, other-modules, extra-source-files, extra-doc-files, extra-tmp-files, data-files, or conditional branches', $audit['nonMutatingPlan'][3]);
         $t->contains('entry-source semantics before any benchmark execution', $audit['nonMutatingPlan'][3]);
     },
+
+    'records descriptor only cabal dry-run command envelope before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $root = $makeTree($requiredFiles($pinnedProject()));
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => ['available' => true, 'version' => '9.10.3'],
+                'cabal' => ['available' => true, 'version' => '3.12.1.0'],
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $commands = UpstreamRunnerDependencyAudit::expectedCabalPlanCommands();
+        $t->same($commands, $audit['cabalPlanCommands']);
+        $t->same([
+            'runner-test-dependencies',
+            'benchmark-dependencies',
+        ], array_keys($commands));
+        $t->same('descriptor-only; do not execute from this isolated PHP lane', $commands['runner-test-dependencies']['executionPolicy']);
+        $t->same([
+            'v2-build',
+            '--dry-run',
+            '--only-dependencies',
+            '--enable-tests',
+            '--disable-benchmarks',
+            'test:test-pandoc',
+            'test:test-pandoc-lua-engine',
+        ], $commands['runner-test-dependencies']['arguments']);
+        $t->same([
+            'v2-build',
+            '--dry-run',
+            '--only-dependencies',
+            '--disable-tests',
+            '--enable-benchmarks',
+            'benchmark:benchmark-pandoc',
+        ], $commands['benchmark-dependencies']['arguments']);
+        $t->same(['test:test-pandoc', 'test:test-pandoc-lua-engine'], $commands['runner-test-dependencies']['targets']);
+        $t->same(['benchmark:benchmark-pandoc'], $commands['benchmark-dependencies']['targets']);
+        $t->contains('exact Cabal dry-run command descriptors', $audit['nonMutatingPlan'][5]);
+        $t->contains('runner-test-dependencies', $audit['activationGate']);
+        $t->contains('benchmark-dependencies', $audit['activationGate']);
+    },
+
     'records required runner file provenance before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $root = $makeTree($files);

@@ -380,6 +380,7 @@ final class PdfEngineHandoff
      *     pdfFormFieldTypes: array<string, int>,
      *     pdfFormFieldActions: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfFormFieldActionTargets: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
+     *     pdfFormFieldActionPolicy: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, targetScheme:string|null, targetIsRemote:bool, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string, fieldCount:int, reviewStatus:string, issues:list<string>}>,
      *     pdfFormFieldActionTypes: array<string, int>,
      *     pdfEncrypted: bool,
      *     pdfEncryptionFilter: string|null,
@@ -851,6 +852,7 @@ final class PdfEngineHandoff
         $pdfFormFieldTypes = [];
         $pdfFormFieldActions = [];
         $pdfFormFieldActionTargets = [];
+        $pdfFormFieldActionPolicy = [];
         $pdfFormFieldActionTypes = [];
         $pdfEncrypted = false;
         $pdfEncryptionFilter = null;
@@ -980,6 +982,7 @@ final class PdfEngineHandoff
                 $pdfFormFieldTypes = $pdfInspection['formFieldTypes'];
                 $pdfFormFieldActions = $pdfInspection['formFieldActions'];
                 $pdfFormFieldActionTargets = $pdfInspection['formFieldActionTargets'];
+                $pdfFormFieldActionPolicy = $pdfInspection['formFieldActionPolicy'];
                 $pdfFormFieldActionTypes = $pdfInspection['formFieldActionTypes'];
                 $pdfEncryption = $pdfInspection['encryption'];
                 $pdfEncrypted = $pdfEncryption['encrypted'];
@@ -3300,6 +3303,53 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-form-field-action-target-selection:' . $selection . ':' . $selectionCount;
                     }
                 }
+                if ($pdfFormFieldActionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-form-field-action-policy:' . count($pdfFormFieldActionPolicy);
+                    $policyStatuses = [];
+                    $policyActionTypes = [];
+                    $policyIssues = [];
+                    $remoteTargetCount = 0;
+                    $policyFieldCount = 0;
+                    foreach ($pdfFormFieldActionPolicy as $policy) {
+                        $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                            ? $policy['reviewStatus']
+                            : 'unknown';
+                        $policyStatuses[$reviewStatus] = ($policyStatuses[$reviewStatus] ?? 0) + 1;
+                        $actionType = is_string($policy['actionType'] ?? null) && $policy['actionType'] !== ''
+                            ? $policy['actionType']
+                            : 'unknown';
+                        $policyActionTypes[$actionType] = ($policyActionTypes[$actionType] ?? 0) + 1;
+                        if (($policy['targetIsRemote'] ?? false) === true) {
+                            $remoteTargetCount++;
+                        }
+                        if (isset($policy['fieldNames']) && is_array($policy['fieldNames'])) {
+                            $policyFieldCount += count($policy['fieldNames']);
+                        }
+                        foreach (($policy['issues'] ?? []) as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $policyIssues[$issue] = ($policyIssues[$issue] ?? 0) + 1;
+                            }
+                        }
+                    }
+                    ksort($policyStatuses);
+                    foreach ($policyStatuses as $reviewStatus => $statusCount) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-policy-status:' . $reviewStatus . ':' . $statusCount;
+                    }
+                    if ($remoteTargetCount > 0) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-policy-remote-targets:' . $remoteTargetCount;
+                    }
+                    if ($policyFieldCount > 0) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-policy-fields:' . $policyFieldCount;
+                    }
+                    ksort($policyActionTypes);
+                    foreach ($policyActionTypes as $actionType => $actionCount) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-policy-type:' . $actionType . ':' . $actionCount;
+                    }
+                    ksort($policyIssues);
+                    foreach ($policyIssues as $issue => $issueCount) {
+                        $diagnostics[] = 'pdf-byte-form-field-action-policy-issue:' . $issue . ':' . $issueCount;
+                    }
+                }
                 if ($pdfFormFieldActionTypes !== []) {
                     $diagnostics[] = 'pdf-byte-form-field-action-types:' . count($pdfFormFieldActionTypes);
                     foreach ($pdfFormFieldActionTypes as $actionType => $actionCount) {
@@ -3605,6 +3655,7 @@ final class PdfEngineHandoff
             'pdfFormFieldTypes' => $pdfFormFieldTypes,
             'pdfFormFieldActions' => $pdfFormFieldActions,
             'pdfFormFieldActionTargets' => $pdfFormFieldActionTargets,
+            'pdfFormFieldActionPolicy' => $pdfFormFieldActionPolicy,
             'pdfFormFieldActionTypes' => $pdfFormFieldActionTypes,
             'pdfEncrypted' => $pdfEncrypted,
             'pdfEncryptionFilter' => $pdfEncryptionFilter,
@@ -3755,6 +3806,7 @@ final class PdfEngineHandoff
      *     finalPdfFormFieldTypes: array<string, int>,
      *     finalPdfFormFieldActions: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfFormFieldActionTargets: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
+     *     finalPdfFormFieldActionPolicy: list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, targetScheme:string|null, targetIsRemote:bool, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string, fieldCount:int, reviewStatus:string, issues:list<string>}>,
      *     finalPdfFormFieldActionTypes: array<string, int>,
      *     finalPdfEncrypted: bool,
      *     finalPdfEncryptionFilter: string|null,
@@ -4019,6 +4071,7 @@ final class PdfEngineHandoff
             'finalPdfFormFieldTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldTypes'] ?? null) ? $finalRun['pdfFormFieldTypes'] : [],
             'finalPdfFormFieldActions' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActions'] ?? null) ? $finalRun['pdfFormFieldActions'] : [],
             'finalPdfFormFieldActionTargets' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActionTargets'] ?? null) ? $finalRun['pdfFormFieldActionTargets'] : [],
+            'finalPdfFormFieldActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActionPolicy'] ?? null) ? $finalRun['pdfFormFieldActionPolicy'] : [],
             'finalPdfFormFieldActionTypes' => is_array($finalRun) && is_array($finalRun['pdfFormFieldActionTypes'] ?? null) ? $finalRun['pdfFormFieldActionTypes'] : [],
             'finalPdfEncrypted' => is_array($finalRun) && ($finalRun['pdfEncrypted'] ?? false) === true,
             'finalPdfEncryptionFilter' => is_array($finalRun) && is_string($finalRun['pdfEncryptionFilter'] ?? null) ? $finalRun['pdfEncryptionFilter'] : null,
@@ -5151,6 +5204,7 @@ final class PdfEngineHandoff
      *     formFieldTypes:array<string, int>,
      *     formFieldActions:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     formFieldActionTargets:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}>,
+     *     formFieldActionPolicy:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, targetScheme:string|null, targetIsRemote:bool, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string, fieldCount:int, reviewStatus:string, issues:list<string>}>,
      *     formFieldActionTypes:array<string, int>,
      *     encryption:array{
      *         encrypted:bool,
@@ -5358,6 +5412,7 @@ final class PdfEngineHandoff
             'formFieldTypes' => $this->summarizePdfFormFieldTypes($formFields),
             'formFieldActions' => $formFieldActions,
             'formFieldActionTargets' => $formFieldActionTargets,
+            'formFieldActionPolicy' => $this->summarizePdfFormFieldActionPolicy($formFieldActions, $formFieldActionTargets),
             'formFieldActionTypes' => $this->summarizePdfFormFieldActionTypes($formFieldActions),
             'encryption' => $encryption,
             'headerVersion' => $headerVersion,
@@ -22901,6 +22956,209 @@ final class PdfEngineHandoff
         }
 
         return 'include-listed';
+    }
+
+    /**
+     * @param list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
+     * @param list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string}> $targets
+     * @return list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, targetScheme:string|null, targetIsRemote:bool, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string, fieldCount:int, reviewStatus:string, issues:list<string>}>
+     */
+    private function summarizePdfFormFieldActionPolicy(array $actions, array $targets): array
+    {
+        $targetByKey = [];
+        foreach ($targets as $target) {
+            if (!$this->isPdfFormFieldActionPolicyType((string) ($target['actionType'] ?? ''))) {
+                continue;
+            }
+
+            $targetByKey[$this->pdfFormFieldActionPolicyKey($target)] = $target;
+        }
+
+        $policy = [];
+        foreach ($actions as $action) {
+            if (!$this->isPdfFormFieldActionPolicyType((string) ($action['actionType'] ?? ''))) {
+                continue;
+            }
+
+            $key = $this->pdfFormFieldActionPolicyKey($action);
+            $policy[$key] = $this->pdfFormFieldActionPolicyEntry($action, $targetByKey[$key] ?? null);
+        }
+
+        foreach ($targetByKey as $key => $target) {
+            if (isset($policy[$key])) {
+                continue;
+            }
+
+            $policy[$key] = $this->pdfFormFieldActionPolicyEntry($target, $target);
+        }
+
+        $policy = array_values($policy);
+        usort(
+            $policy,
+            static fn (array $left, array $right): int => [
+                $left['fieldName'] ?? '',
+                $left['fieldObject'] ?? '',
+                $left['trigger'],
+                $left['actionType'],
+                $left['actionTarget'] ?? '',
+            ] <=> [
+                $right['fieldName'] ?? '',
+                $right['fieldObject'] ?? '',
+                $right['trigger'],
+                $right['actionType'],
+                $right['actionTarget'] ?? '',
+            ]
+        );
+
+        return $policy;
+    }
+
+    private function isPdfFormFieldActionPolicyType(string $type): bool
+    {
+        return in_array($type, ['ImportData', 'ResetForm', 'SubmitForm'], true);
+    }
+
+    /**
+     * @param array{fieldName?:string|null, fieldObject?:string|null, trigger?:string, actionType?:string, actionTarget?:string|null} $entry
+     */
+    private function pdfFormFieldActionPolicyKey(array $entry): string
+    {
+        return implode("\0", [
+            $entry['fieldObject'] ?? '',
+            $entry['fieldName'] ?? '',
+            $entry['trigger'] ?? '',
+            $entry['actionType'] ?? '',
+            $entry['actionTarget'] ?? '',
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $action
+     * @param array<string, mixed>|null $target
+     * @return array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, targetScheme:string|null, targetIsRemote:bool, flags:int|null, flagNames:list<string>, fieldNames:list<string>, fieldSelection:string, fieldCount:int, reviewStatus:string, issues:list<string>}
+     */
+    private function pdfFormFieldActionPolicyEntry(array $action, ?array $target): array
+    {
+        $actionType = (string) ($action['actionType'] ?? $target['actionType'] ?? 'unknown');
+        $actionTarget = is_string($target['actionTarget'] ?? null)
+            ? $target['actionTarget']
+            : (is_string($action['actionTarget'] ?? null) ? $action['actionTarget'] : null);
+        $flags = is_int($target['flags'] ?? null) ? $target['flags'] : null;
+        $flagNames = $this->stringList($target['flagNames'] ?? []);
+        $fieldNames = $this->stringList($target['fieldNames'] ?? []);
+        $fieldSelection = is_string($target['fieldSelection'] ?? null) && $target['fieldSelection'] !== ''
+            ? $target['fieldSelection']
+            : 'all-fields';
+        $targetScheme = $this->pdfActionTargetScheme($actionTarget);
+        $targetIsRemote = $targetScheme !== null && in_array($targetScheme, ['ftp', 'ftps', 'http', 'https', 'mailto'], true);
+        $issues = $this->pdfFormFieldActionPolicyIssues($actionType, $actionTarget, $targetIsRemote, $flagNames, $fieldSelection);
+
+        return [
+            'fieldName' => is_string($action['fieldName'] ?? null) ? $action['fieldName'] : null,
+            'fieldObject' => is_string($action['fieldObject'] ?? null) ? $action['fieldObject'] : null,
+            'fieldType' => is_string($action['fieldType'] ?? null) ? $action['fieldType'] : null,
+            'fieldTypeLabel' => is_string($action['fieldTypeLabel'] ?? null) ? $action['fieldTypeLabel'] : null,
+            'trigger' => is_string($action['trigger'] ?? null) && $action['trigger'] !== '' ? $action['trigger'] : 'unknown',
+            'source' => is_string($action['source'] ?? null) && $action['source'] !== '' ? $action['source'] : 'field:unknown',
+            'actionType' => $actionType,
+            'actionTarget' => $actionTarget,
+            'targetScheme' => $targetScheme,
+            'targetIsRemote' => $targetIsRemote,
+            'flags' => $flags,
+            'flagNames' => $flagNames,
+            'fieldNames' => $fieldNames,
+            'fieldSelection' => $fieldSelection,
+            'fieldCount' => count($fieldNames),
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<string> $flagNames
+     * @return list<string>
+     */
+    private function pdfFormFieldActionPolicyIssues(
+        string $type,
+        ?string $target,
+        bool $targetIsRemote,
+        array $flagNames,
+        string $fieldSelection
+    ): array {
+        $issues = [];
+
+        if ($type === 'ImportData') {
+            $issues[] = 'import-data-action';
+            if ($target === null || $target === '') {
+                $issues[] = 'missing-import-target';
+            } elseif ($targetIsRemote) {
+                $issues[] = 'remote-import-target';
+            }
+
+            return $issues;
+        }
+
+        if ($type === 'SubmitForm') {
+            if ($target === null || $target === '') {
+                $issues[] = 'missing-submit-target';
+            } elseif ($targetIsRemote) {
+                $issues[] = 'remote-submit-target';
+            }
+            if (in_array('submitPdf', $flagNames, true)) {
+                $issues[] = 'submit-pdf-payload';
+            }
+            if (in_array('includeAnnotations', $flagNames, true)) {
+                $issues[] = 'include-annotations';
+            }
+            if (in_array('includeAppendSaves', $flagNames, true)) {
+                $issues[] = 'include-append-saves';
+            }
+            if (in_array('embedForm', $flagNames, true)) {
+                $issues[] = 'embed-form';
+            }
+            if ($fieldSelection === 'all-fields') {
+                $issues[] = 'submit-all-fields';
+            } elseif ($fieldSelection === 'exclude-listed') {
+                $issues[] = 'submit-excludes-listed-fields';
+            }
+
+            return $issues;
+        }
+
+        if ($type === 'ResetForm') {
+            if ($fieldSelection === 'all-fields') {
+                $issues[] = 'reset-all-fields';
+            } elseif ($fieldSelection === 'exclude-listed') {
+                $issues[] = 'reset-excludes-listed-fields';
+            }
+        }
+
+        return $issues;
+    }
+
+    private function pdfActionTargetScheme(?string $target): ?string
+    {
+        if ($target === null || $target === '') {
+            return null;
+        }
+        if (preg_match('/\A([A-Za-z][A-Za-z0-9+.-]*):/', $target, $matches) !== 1) {
+            return null;
+        }
+
+        return strtolower($matches[1]);
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter($value, static fn (mixed $item): bool => is_string($item)));
     }
 
     /**
