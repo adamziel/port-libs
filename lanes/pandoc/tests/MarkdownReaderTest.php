@@ -14379,6 +14379,93 @@ XML;
         $t->contains('<p>Before <wbr data-source="batch-48"></p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document wbr tag should not be dropped from the paragraph');
     },
+    'maps upstream html reader audio containers as raw review markup' => static function (TestRunner $t): void {
+        $audio = '<audio src="clip.mp3" data-source="batch-49"></audio>';
+        $blockDocument = (new MarkdownReader())->read($audio . "\n\nAfter the audio container.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($audio, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the audio container.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $audio, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;audio'), 'Standalone audio container should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $audio
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineAudio = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<audio data-source="batch-49" src="clip.mp3"></audio>', $inlineAudio->attr('html'));
+        $t->contains('<p>Before <audio data-source="batch-49" src="clip.mp3"></audio></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document audio container should not be dropped from the paragraph');
+    },
+    'maps upstream html reader video containers as raw review markup' => static function (TestRunner $t): void {
+        $video = '<video src="clip.webm" poster="poster.jpg" data-source="batch-49"></video>';
+        $blockDocument = (new MarkdownReader())->read($video . "\n\nAfter the video container.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($video, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the video container.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $video, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;video'), 'Standalone video container should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $video
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineVideo = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<video data-source="batch-49" poster="poster.jpg" src="clip.webm"></video>', $inlineVideo->attr('html'));
+        $t->contains('<p>Before <video data-source="batch-49" poster="poster.jpg" src="clip.webm"></video></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document video container should not be dropped from the paragraph');
+    },
+    'maps upstream html reader image map containers as raw review markup' => static function (TestRunner $t): void {
+        $map = '<map name="chapters" data-source="batch-49"><area shape="rect" coords="0,0,80,40" href="chapter.html" alt="Chapter"></map>';
+        $blockDocument = (new MarkdownReader())->read($map . "\n\nAfter the image map.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($map, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the image map.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $map, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;map'), 'Standalone image map container should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . $map
+            . '</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineMap = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<map data-source="batch-49" name="chapters"><area alt="Chapter" coords="0,0,80,40" href="chapter.html" shape="rect"></map>', $inlineMap->attr('html'));
+        $t->contains('<p>Before <map data-source="batch-49" name="chapters"><area alt="Chapter" coords="0,0,80,40" href="chapter.html" shape="rect"></map></p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document image map container should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);

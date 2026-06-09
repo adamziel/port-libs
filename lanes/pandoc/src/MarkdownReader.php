@@ -8153,7 +8153,7 @@ final class MarkdownReader
             return $this->readHtmlCommentBlock($lines, $index);
         }
 
-        if (preg_match('/^ {0,3}<(iframe|object|script|style|select)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('/^ {0,3}<(audio|iframe|map|object|script|style|select|video)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
@@ -10654,7 +10654,7 @@ final class MarkdownReader
         }
 
         $name = strtolower($node->localName);
-        if (in_array($name, ['area', 'base', 'embed', 'iframe', 'input', 'link', 'meta', 'object', 'param', 'select', 'source', 'track', 'wbr'], true)) {
+        if (in_array($name, ['area', 'audio', 'base', 'embed', 'iframe', 'input', 'link', 'map', 'meta', 'object', 'param', 'select', 'source', 'track', 'video', 'wbr'], true)) {
             return [new AstNode('raw_html_inline', ['html' => XmlHtml5Dom::serializeHtmlFragment($node)])];
         }
 
