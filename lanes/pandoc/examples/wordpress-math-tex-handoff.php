@@ -160,6 +160,8 @@ Math choice audit $\mathchoice{\text{display branch}}{\text{text branch}}{\text{
 
 SI unit alias audit $\SI{9.81}{\metre\per\second\squared} + \si{\km\per\hour} + \unit{\joule\per\mole\per\kelvin}$ stays semantic.
 
+Prefixed SI unit alias audit $\si{\mg\per\mL} + \qty{532}{\nm} + \SI{20}{\MHz} + \unit{\kPa} + \si{\us}$ stays semantic.
+
 Equation wrapper audit:
 $$\begin{equation}r_i + s_i \label{eq:wrapped-env} \tag{WP-3}\end{equation}$$
 
@@ -318,6 +320,7 @@ $summary = [
     'texmathCommandWrapperMathml' => $converter->texToMathMl('\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}'),
     'mathChoiceMathml' => $converter->texToMathMl('\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i'),
     'siunitxUnitAliasMathml' => $converter->texToMathMl('\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}'),
+    'siunitxPrefixedUnitAliasMathml' => $converter->texToMathMl('\\si{\\mg\\per\\mL} + \\qty{532}{\\nm} + \\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}'),
     'equationWrapperMathml' => $converter->texToMathMl('\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}', true),
     'starredEquationWrapperMathml' => $converter->texToMathMl('\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}', false, [], $equationReferenceLabels),
     'rowTaggedEnvironmentMathml' => $converter->texToMathMl('\\begin{align}p_i &= m_i \\tag{WP-1} \\\\ x_i &= y_i \\label{eq:row-review} \\tag*{review}\\end{align}', true),
@@ -472,6 +475,19 @@ if (($argv[1] ?? '') === '--self-test') {
         || !str_contains($summary['siunitxUnitAliasMathml'], '<mrow><mtext>J</mtext><mtext>/</mtext><mtext>mol</mtext><mtext>/</mtext><mtext>K</mtext></mrow>')
     ) {
         throw new RuntimeException('Math TeX handoff self-test did not map siunitx unit aliases');
+    }
+
+    if (
+        str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mi>\\mg</mi>')
+        || str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mi>\\MHz</mi>')
+        || str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mi>\\us</mi>')
+        || !str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mrow><mtext>mg</mtext><mtext>/</mtext><mtext>mL</mtext></mrow>')
+        || !str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mrow><mn>532</mn><mspace width="0.2222em"></mspace><mtext>nm</mtext></mrow>')
+        || !str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mrow><mn>20</mn><mspace width="0.2222em"></mspace><mtext>MHz</mtext></mrow>')
+        || !str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mtext>kPa</mtext>')
+        || !str_contains($summary['siunitxPrefixedUnitAliasMathml'], '<mtext>μs</mtext>')
+    ) {
+        throw new RuntimeException('Math TeX handoff self-test did not map prefixed siunitx unit aliases');
     }
 
     if (
@@ -765,6 +781,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i\\)</span>',
         '<span class="math inline">\\(\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}\\)</span>',
         '<annotation encoding="application/x-tex">\\SI{9.81}{\\metre\\per\\second\\squared} + \\si{\\km\\per\\hour} + \\unit{\\joule\\per\\mole\\per\\kelvin}</annotation>',
+        '<span class="math inline">\\(\\si{\\mg\\per\\mL} + \\qty{532}{\\nm} + \\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}\\)</span>',
+        '<annotation encoding="application/x-tex">\\si{\\mg\\per\\mL} + \\qty{532}{\\nm} + \\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}</annotation>',
         '<span class="math display">\\[\\begin{equation}r_i + s_i \\label{eq:wrapped-env} \\tag{WP-3}\\end{equation}\\]</span>',
         '<span class="math inline">\\(\\begin{equation*}\\operatorname{review}(p_i) + \\eqref{eq:wrapped-env}\\end{equation*}\\)</span>',
         '<span class="math inline">\\(\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}\\)</span>',
@@ -1012,6 +1030,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<annotation encoding="application/x-tex">\\stackrel{\\text{audit}}{p_i} + \\ensuremath{q_i + r_i} + \\surd{s_i}</annotation>',
         '<mtext>text branch</mtext><mo>+</mo><msub><mi>q</mi><mi>i</mi></msub>',
         '<annotation encoding="application/x-tex">\\mathchoice{\\text{display branch}}{\\text{text branch}}{\\text{script branch}}{\\text{tiny branch}} + q_i</annotation>',
+        '<mrow><mtext>mg</mtext><mtext>/</mtext><mtext>mL</mtext></mrow><mo>+</mo><mrow><mn>532</mn><mspace width="0.2222em"></mspace><mtext>nm</mtext></mrow><mo>+</mo><mrow><mn>20</mn><mspace width="0.2222em"></mspace><mtext>MHz</mtext></mrow><mo>+</mo><mtext>kPa</mtext><mo>+</mo><mtext>μs</mtext>',
         '<annotation encoding="application/x-tex">\\begin{align}p_i &amp;= m_i \\tag{WP-1} \\\\ x_i &amp;= y_i \\label{eq:row-review} \\tag*{review}\\end{align}</annotation>',
         '<annotation encoding="application/x-tex">p_i\\,m_i\\;n_i\\!q_i + a\\quad b\\qquad c + \\operatorname{post}\\thinspace\\operatorname{media}\\negthinspace\\operatorname{review} + x\\:y\\&gt;z</annotation>',
         '<msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><msub><mi>m</mi><mi>i</mi></msub><mo>+</mo><mi>slug</mi>',

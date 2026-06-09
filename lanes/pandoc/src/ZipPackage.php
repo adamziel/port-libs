@@ -1247,6 +1247,9 @@ final class ZipPackage
                         $archive['centralDirectoryOffset']
                     ),
                     'unclaimedBytes' => 0,
+                    'unclaimedBytesPreviewHex' => '',
+                    'unclaimedBytesPreviewByteCount' => 0,
+                    'unclaimedBytesSignature' => null,
                     'unclaimedBytesStartWithLocalHeader' => false,
                     'isContiguousWithNext' => false,
                     'compressionMethod' => $centralEntry['compressionMethod'],
@@ -1332,6 +1335,10 @@ final class ZipPackage
             }
 
             $unclaimedBytes = max(0, $nextOffset - $recordEnd);
+            $unclaimedPreviewByteCount = min($unclaimedBytes, 16);
+            $unclaimedBytesSignature = $unclaimedBytes > 0
+                ? self::zipRecordSignatureNameAt($bytes, $recordEnd)
+                : null;
             if ($unclaimedBytes > 0) {
                 $entryIssues[] = 'local-entry-unclaimed-bytes';
             }
@@ -1362,8 +1369,10 @@ final class ZipPackage
                 'recordEnd' => $recordEnd,
                 'nextOffset' => $nextOffset,
                 'unclaimedBytes' => $unclaimedBytes,
-                'unclaimedBytesStartWithLocalHeader' => $unclaimedBytes >= 4
-                    && substr($bytes, $recordEnd, 4) === self::LOCAL_FILE_SIGNATURE,
+                'unclaimedBytesPreviewHex' => bin2hex(substr($bytes, $recordEnd, $unclaimedPreviewByteCount)),
+                'unclaimedBytesPreviewByteCount' => $unclaimedPreviewByteCount,
+                'unclaimedBytesSignature' => $unclaimedBytesSignature,
+                'unclaimedBytesStartWithLocalHeader' => $unclaimedBytesSignature === 'local-file-header',
                 'isContiguousWithNext' => $recordEnd === $nextOffset,
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'generalPurposeFlags' => $centralEntry['generalPurposeFlags'],
@@ -7960,6 +7969,23 @@ final class ZipPackage
             'ZIP archive extra data records are not supported by this bounded package reader '
             . "({$label}, {$record['dataLength']} bytes at offset {$record['offset']})"
         );
+    }
+
+    private static function zipRecordSignatureNameAt(string $bytes, int $offset): ?string
+    {
+        $signature = substr($bytes, $offset, 4);
+
+        return match ($signature) {
+            self::LOCAL_FILE_SIGNATURE => 'local-file-header',
+            self::CENTRAL_DIRECTORY_SIGNATURE => 'central-directory-header',
+            self::CENTRAL_DIRECTORY_DIGITAL_SIGNATURE => 'central-directory-digital-signature',
+            self::ARCHIVE_EXTRA_DATA_RECORD_SIGNATURE => 'archive-extra-data-record',
+            self::ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE => 'zip64-end-of-central-directory',
+            self::ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE => 'zip64-end-of-central-directory-locator',
+            self::EOCD_SIGNATURE => 'end-of-central-directory',
+            "PK\x07\x08" => 'data-descriptor',
+            default => null,
+        };
     }
 
     /**

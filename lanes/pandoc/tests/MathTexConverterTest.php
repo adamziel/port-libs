@@ -243,6 +243,26 @@ return [
         $t->true(!str_contains($travelMathml . $mechanicalMathml . $namedUnitsMathml, '<mi>\\joule</mi>'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\unknownunit}'));
     },
+    'converts bounded siunitx prefixed unit aliases to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $concentrationMathml = $converter->texToMathMl('\\si{\\mg\\per\\mL} + \\qty{532}{\\nm}', true);
+        $frequencyPressureMathml = $converter->texToMathMl('\\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}');
+        $powerAmountMathml = $converter->texToMathMl('\\qty{1.5}{\\uJ\\per\\umol} + \\si{\\kWh\\per\\kmol}');
+        $accessibleMathml = $converter->texToAccessibleMathMl('\\qty{5}{\\mg\\per\\mL}');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $concentrationMathml);
+        $t->contains('<mrow><mtext>mg</mtext><mtext>/</mtext><mtext>mL</mtext></mrow><mo>+</mo><mrow><mn>532</mn><mspace width="0.2222em"></mspace><mtext>nm</mtext></mrow>', $concentrationMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\si{\\mg\\per\\mL} + \\qty{532}{\\nm}</annotation>', $concentrationMathml);
+        $t->contains('<mrow><mn>20</mn><mspace width="0.2222em"></mspace><mtext>MHz</mtext></mrow><mo>+</mo><mtext>kPa</mtext><mo>+</mo><mtext>μs</mtext>', $frequencyPressureMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\SI{20}{\\MHz} + \\unit{\\kPa} + \\si{\\us}</annotation>', $frequencyPressureMathml);
+        $t->contains('<mrow><mn>1.5</mn><mspace width="0.2222em"></mspace><mrow><mtext>μJ</mtext><mtext>/</mtext><mtext>μmol</mtext></mrow></mrow><mo>+</mo><mrow><mtext>kWh</mtext><mtext>/</mtext><mtext>kmol</mtext></mrow>', $powerAmountMathml);
+        $t->contains('alttext="5 space mg slash mL"', $accessibleMathml);
+        $t->contains('intent="row(5,space,row(mg,slash,ml))"', $accessibleMathml);
+        $t->true(!str_contains($concentrationMathml . $frequencyPressureMathml . $powerAmountMathml, '<mi>\\mg</mi>'));
+        $t->true(!str_contains($concentrationMathml . $frequencyPressureMathml . $powerAmountMathml, '<mi>\\MHz</mi>'));
+        $t->true(!str_contains($concentrationMathml . $frequencyPressureMathml . $powerAmountMathml, '<mi>\\us</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\si{\\qqmol}'));
+    },
     'converts bounded tex binomial commands to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $binomialMathml = $converter->texToMathMl('\\binom{n}{k} + \\tbinom{p_i}{2} + \\dbinom{a+b}{c}', true);

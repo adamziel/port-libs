@@ -6090,6 +6090,8 @@ if (in_array('--self-test', $argv, true)) {
         || ($rawStrictLocalHeaderSpanPreflight['canInstantiate'] ?? null) !== false
         || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntryCount'] ?? null) !== 1
         || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesStartWithLocalHeader'] ?? null) !== true
+        || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesSignature'] ?? null) !== 'local-file-header'
+        || ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesPreviewByteCount'] ?? null) !== 16
         || !in_array('local-header-span-issues', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
         || !in_array('local-entry-unclaimed-bytes', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
         || !in_array('zip-package-instantiation-failed', $rawStrictLocalHeaderSpanPreflight['diagnostics'] ?? [], true)
@@ -6350,6 +6352,8 @@ echo 'zipRawStrictLocalHeaderNameMismatchCount=' . ($rawStrictLocalHeaderNamePre
 echo 'zipRawStrictLocalHeaderSpanPolicy=' . ($rawStrictLocalHeaderSpanPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderSpanIssues=' . implode(',', $rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderSpanUnclaimedBytes=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytes'] ?? 0) . "\n";
+echo 'zipRawStrictLocalHeaderSpanSignature=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesSignature'] ?? 'none') . "\n";
+echo 'zipRawStrictLocalHeaderSpanPreviewHex=' . ($rawStrictLocalHeaderSpanPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesPreviewHex'] ?? '') . "\n";
 echo 'zipRawStrictLocalHeaderOffsetPolicy=' . ($rawStrictLocalHeaderOffsetPreflight['isValid'] ? 'accepted' : 'rejected') . "\n";
 echo 'zipRawStrictLocalHeaderOffsetIssues=' . implode(',', $rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issues'] ?? []) . "\n";
 echo 'zipRawStrictLocalHeaderOffsetLocation=' . ($rawStrictLocalHeaderOffsetPreflight['localHeaderSpans']['issueEntries'][0]['localHeaderOffsetLocation'] ?? 'none') . "\n";

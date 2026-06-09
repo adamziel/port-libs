@@ -795,6 +795,9 @@ return [
         $t->same(['local-entry-unclaimed-bytes'], $spanPreflight['issues']);
         $t->same('word/document.xml', $entry['name']);
         $t->same(strlen($orphanBytes), $entry['unclaimedBytes']);
+        $t->same(16, $entry['unclaimedBytesPreviewByteCount']);
+        $t->same(bin2hex(substr($orphanBytes, 0, 16)), $entry['unclaimedBytesPreviewHex']);
+        $t->same('local-file-header', $entry['unclaimedBytesSignature']);
         $t->same(true, $entry['unclaimedBytesStartWithLocalHeader']);
         $t->same(false, $entry['isContiguousWithNext']);
         $t->same(true, $entry['hasSpanIssue']);
@@ -805,11 +808,42 @@ return [
         $t->same(1, $rawPreflight['entryCount']);
         $t->same(1, $rawPreflight['localHeaderSpans']['issueEntryCount']);
         $t->same(['local-entry-unclaimed-bytes'], $rawPreflight['localHeaderSpans']['issues']);
+        $t->same('local-file-header', $rawPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesSignature']);
+        $t->same(bin2hex(substr($orphanBytes, 0, 16)), $rawPreflight['localHeaderSpans']['issueEntries'][0]['unclaimedBytesPreviewHex']);
         $t->same($spanPreflight, $rawPreflight['localHeaderSpans']);
         $t->same(null, $rawPreflight['strictImport']);
         $t->contains('local-header-span-issues', implode(',', $rawPreflight['diagnostics']));
         $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawPreflight['diagnostics']));
+    },
+
+    'preflights hidden zip local span record signatures before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $reviewPayload = 'hidden archive-extra reviewer metadata';
+        $hiddenRecord = "PK\x06\x08" . pack('V', strlen($reviewPayload)) . $reviewPayload;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>hidden span signature review</w:p></w:document>',
+                'method' => 0,
+                'localSlack' => $hiddenRecord,
+            ],
+        ]);
+
+        $summary = ZipPackage::localHeaderSpanPreflight($zip);
+        $entry = $summary['issueEntries'][0];
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
+
+        $t->same(1, $summary['issueEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['local-entry-unclaimed-bytes'], $summary['issues']);
+        $t->same(strlen($hiddenRecord), $entry['unclaimedBytes']);
+        $t->same(16, $entry['unclaimedBytesPreviewByteCount']);
+        $t->same(bin2hex(substr($hiddenRecord, 0, 16)), $entry['unclaimedBytesPreviewHex']);
+        $t->same('archive-extra-data-record', $entry['unclaimedBytesSignature']);
+        $t->same(false, $entry['unclaimedBytesStartWithLocalHeader']);
+        $t->same($summary, $rawPreflight['localHeaderSpans']);
+        $t->contains('local-header-span-issues', implode(',', $rawPreflight['diagnostics']));
+        $t->contains('local-entry-unclaimed-bytes', implode(',', $rawPreflight['diagnostics']));
     },
 
     'preflights central directory local header offsets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $rewriteFirstCentralLocalHeaderOffset): void {
