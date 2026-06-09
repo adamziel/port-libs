@@ -9287,6 +9287,59 @@ XML;
         $t->same('https://example.test/source', $roundTrip->resolveTarget('rIdSource'));
         $t->true($roundTrip->byId('rIdSource')?->isExternal() ?? false);
     },
+    'rejects unsafe external OPC relationship targets during XML serialization' => static function (TestRunner $t): void {
+        $safe = new OpcRelationships('/word/document.xml');
+        $safe->add(new OpcRelationship(
+            'rIdExternalEncodedSpace',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'https://example.test/source%20packet.html?post=42#review',
+            OpcRelationship::TARGET_MODE_EXTERNAL
+        ));
+        $safe->add(new OpcRelationship(
+            'rIdExternalRelative',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            'review/source.html#packet',
+            OpcRelationship::TARGET_MODE_EXTERNAL
+        ));
+
+        $xml = $safe->toXml();
+        $t->contains('Target="https://example.test/source%20packet.html?post=42#review"', $xml);
+        $t->contains('Target="review/source.html#packet"', $xml);
+
+        foreach ([
+            'rawSpace' => [
+                'target' => 'https://example.test/source packet.html',
+                'issue' => 'external-target-invalid-uri-byte',
+            ],
+            'badPercentEscape' => [
+                'target' => 'https://example.test/source%ZZpacket.html',
+                'issue' => 'external-target-malformed-percent-escape',
+            ],
+            'encodedControlByte' => [
+                'target' => 'https://example.test/source%00packet.html',
+                'issue' => 'external-target-unsafe-percent-encoded-byte',
+            ],
+            'unsafeScheme' => [
+                'target' => 'javascript:alert(1)',
+                'issue' => 'external-target-unsafe-scheme',
+            ],
+        ] as $label => $case) {
+            $relationships = new OpcRelationships('/word/document.xml');
+            $relationships->add(new OpcRelationship(
+                'rId' . ucfirst($label),
+                'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+                $case['target'],
+                OpcRelationship::TARGET_MODE_EXTERNAL
+            ));
+
+            try {
+                $relationships->toXml();
+                $t->true(false, 'Unsafe external OPC target serialized: ' . $label);
+            } catch (\InvalidArgumentException $exception) {
+                $t->contains($case['issue'], $exception->getMessage());
+            }
+        }
+    },
     'serializes OPC internal relationship target path bytes as URI escaped XML attributes' => static function (TestRunner $t): void {
         $utf8Name = "\u{00E9}" . 'preuve.png';
         $relationships = new OpcRelationships('/word/document.xml');

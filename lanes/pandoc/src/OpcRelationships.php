@@ -445,6 +445,8 @@ final class OpcRelationships
     private static function targetForXmlAttribute(OpcRelationship $relationship, string $sourcePartName): string
     {
         if ($relationship->isExternal()) {
+            self::assertSerializableExternalTarget($relationship);
+
             return $relationship->target;
         }
 
@@ -509,5 +511,18 @@ final class OpcRelationships
                 $exception
             );
         }
+    }
+
+    private static function assertSerializableExternalTarget(OpcRelationship $relationship): void
+    {
+        $preflight = $relationship->externalTargetPreflight();
+        if ($preflight['issues'] === []) {
+            return;
+        }
+
+        throw new \InvalidArgumentException(
+            'OPC external relationship target cannot be serialized safely: '
+            . implode(', ', $preflight['issues'])
+        );
     }
 }

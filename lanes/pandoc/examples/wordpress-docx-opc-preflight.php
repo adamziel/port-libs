@@ -2258,6 +2258,27 @@ foreach ([
         $serializedInternalTargetRejections[$label] = true;
     }
 }
+$serializedExternalTargetRejections = [];
+foreach ([
+    'rawSpace' => 'https://example.test/source packet.html',
+    'badPercentEscape' => 'https://example.test/source%ZZpacket.html',
+    'encodedControlByte' => 'https://example.test/source%00packet.html',
+    'unsafeScheme' => 'javascript:alert(1)',
+] as $label => $target) {
+    try {
+        $guardRelationships = new OpcRelationships('/word/document.xml');
+        $guardRelationships->add(new OpcRelationship(
+            'rId' . ucfirst($label),
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+            $target,
+            OpcRelationship::TARGET_MODE_EXTERNAL
+        ));
+        $guardRelationships->toXml();
+        $serializedExternalTargetRejections[$label] = false;
+    } catch (InvalidArgumentException) {
+        $serializedExternalTargetRejections[$label] = true;
+    }
+}
 $relationshipSerializationGuard = [
     'xmlContainsEscapedInternalTarget' => str_contains($serializedRelationshipXml, 'Target="media/review%20source%20%C3%A9preuve.png#crop"'),
     'xmlOmitsRawInternalSpace' => !str_contains($serializedRelationshipXml, 'Target="media/review source '),
@@ -2267,6 +2288,7 @@ $relationshipSerializationGuard = [
     'roundTripInternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedReview'),
     'roundTripExternalTarget' => $serializedRelationshipRoundTrip->resolveTarget('rIdSerializedExternal'),
     'internalTargetRejections' => $serializedInternalTargetRejections,
+    'externalTargetRejections' => $serializedExternalTargetRejections,
 ];
 
 $summary = [
@@ -3195,6 +3217,12 @@ if (($argv[1] ?? '') === '--self-test') {
             'encodedDotSegment' => true,
             'encodedBackslash' => true,
             'rootFragment' => true,
+        ]
+        || ($summary['integrity']['relationshipSerializationGuard']['externalTargetRejections'] ?? null) !== [
+            'rawSpace' => true,
+            'badPercentEscape' => true,
+            'encodedControlByte' => true,
+            'unsafeScheme' => true,
         ]
         || array_keys($summary['relationshipSourceAliasGuards'] ?? []) !== [
             '/word/_rels/review%20source.xml.rels',
