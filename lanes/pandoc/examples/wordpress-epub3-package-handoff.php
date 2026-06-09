@@ -1328,6 +1328,23 @@ XML;
     if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['reviewFlags'] ?? []) !== ['encrypted-references', 'conditional-styles', 'paged-media']) {
         throw new RuntimeException('Expected EPUB CSS review flags to identify encrypted, conditional, and paged-media stylesheet dependencies');
     }
+    $cssExportPolicy = $result['cssResourceReport']['exportPolicy'] ?? [];
+    if (($cssExportPolicy['assetCount'] ?? null) !== 1 || ($cssExportPolicy['blockedAssetCount'] ?? null) !== 1 || ($cssExportPolicy['exportableAssetCount'] ?? null) !== 0) {
+        throw new RuntimeException('Expected EPUB CSS export policy to classify the review stylesheet as blocked');
+    }
+    if (($cssExportPolicy['canExportAll'] ?? null) !== false || ($cssExportPolicy['requiresReview'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB CSS export policy to require manual review before stylesheet export');
+    }
+    if (($cssExportPolicy['reviewReasons'] ?? []) !== ['conditional-styles', 'paged-media'] || ($cssExportPolicy['blockingReasons'] ?? []) !== ['encrypted-references']) {
+        throw new RuntimeException('Expected EPUB CSS export policy to separate review reasons from blocking encrypted font references');
+    }
+    $reviewCssExportPolicy = $result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['exportPolicy'] ?? [];
+    if (($reviewCssExportPolicy['status'] ?? null) !== 'blocked' || ($reviewCssExportPolicy['canExport'] ?? null) !== false || ($reviewCssExportPolicy['requiresReview'] ?? null) !== true) {
+        throw new RuntimeException('Expected EPUB CSS per-stylesheet export policy to block encrypted font-dependent styles');
+    }
+    if (($reviewCssExportPolicy['referenceCount'] ?? null) !== 2 || ($reviewCssExportPolicy['encryptedReferenceCount'] ?? null) !== 1 || ($reviewCssExportPolicy['pageRuleCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected EPUB CSS export policy to preserve dependency and paged-media counts');
+    }
     if (($result['cssResourceReport']['itemsByPart']['/EPUB/styles/review.css']['conditionalRules'][0]['conditionItems'] ?? []) !== ['screen and (min-width: 700px)', 'print']) {
         throw new RuntimeException('Expected EPUB CSS per-stylesheet media condition metadata');
     }
@@ -1868,6 +1885,9 @@ echo 'cssSupportsConditions=' . implode('|', $result['cssResourceReport']['suppo
 echo 'cssPageRules=' . ($result['cssResourceReport']['pageRuleCount'] ?? 0) . "\n";
 echo 'cssPageRuleNames=' . implode('|', $result['cssResourceReport']['pageRuleNames'] ?? []) . "\n";
 echo 'cssPageMarginBoxes=' . ($result['cssResourceReport']['pageMarginBoxCount'] ?? 0) . "\n";
+echo 'cssExportStatuses=' . implode('|', $result['cssResourceReport']['exportPolicy']['statuses'] ?? []) . "\n";
+echo 'cssExportBlockedAssets=' . ($result['cssResourceReport']['exportPolicy']['blockedAssetCount'] ?? 0) . "\n";
+echo 'cssExportBlockingReasons=' . implode('|', $result['cssResourceReport']['exportPolicy']['blockingReasons'] ?? []) . "\n";
 echo 'remoteResourceDeclaredItems=' . ($result['remoteResources']['declaredCount'] ?? 0) . "\n";
 echo 'remoteResourceObservedAssets=' . ($result['remoteResources']['observedAssetCount'] ?? 0) . "\n";
 echo 'remoteResourceReferences=' . ($result['remoteResources']['remoteReferenceCount'] ?? 0) . "\n";

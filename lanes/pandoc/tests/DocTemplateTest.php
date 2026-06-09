@@ -1204,6 +1204,37 @@ TPL;
         ]));
     },
 
+    'composes adjacent pandoc doctemplate block pipes horizontally' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same(implode("\n", [
+            '    a multiline  a multiline  a multiline',
+            '         string    string     string',
+        ]), $renderer->render('$sup/right 15$$sup/center 15$$sup/left 15$', [
+            'sup' => "a multiline\nstring",
+        ]));
+
+        $tableTemplate = '+------+-----------+' . "\n"
+            . '$for(rows/pairs)$'
+            . '$it.key/right 4 "| " " | "$$it.value/left 10 "" "|"$' . "\n"
+            . '+------+-----------+' . "\n"
+            . '$endfor$';
+
+        $t->same(implode("\n", [
+            '+------+-----------+',
+            '|    1 | a         |',
+            '|      | b         |',
+            '+------+-----------+',
+            '|    2 | b         |',
+            '|      | c         |',
+            '|      | d         |',
+            '+------+-----------+',
+            '',
+        ]), $renderer->render($tableTemplate, [
+            'rows' => ["a\nb", "b\nc\nd"],
+        ]));
+    },
+
     'leaves non textual values unchanged for pandoc doctemplate block pipes' => static function (TestRunner $t): void {
         $template = <<<'TPL'
 Meta: $meta/left 12 "| " " |"$

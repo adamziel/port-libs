@@ -12347,6 +12347,7 @@ final class EpubReader
                     'references' => [],
                     'diagnostics' => $assetDiagnostics,
                 ];
+                $item['exportPolicy'] = self::cssResourceExportPolicy($item);
                 $items[] = $item;
                 $itemsByPart[$part] = $item;
                 ++$reviewRequiredCount;
@@ -12489,6 +12490,7 @@ final class EpubReader
                 'references' => $references,
                 'diagnostics' => $assetDiagnostics,
             ];
+            $item['exportPolicy'] = self::cssResourceExportPolicy($item);
 
             $referenceCount += $item['referenceCount'];
             $importReferenceCount += $assetImportCount;
@@ -12571,6 +12573,7 @@ final class EpubReader
             'missingReferenceCount' => count($missingReferences),
             'encryptedReferenceCount' => count($encryptedReferences),
             'reviewRequiredCount' => $reviewRequiredCount,
+            'exportPolicy' => self::cssResourceExportPolicySummary($items),
             'items' => $items,
             'itemsByPart' => $itemsByPart,
             'externalReferences' => $externalReferences,
@@ -13889,6 +13892,18 @@ final class EpubReader
     }
 
     /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        return array_values(array_filter($values, static fn (mixed $value): bool => is_string($value) && $value !== ''));
+    }
+
+    /**
      * @param list<array<string, mixed>> $references
      * @param list<array<string, mixed>> $conditionalRules
      * @param list<array<string, mixed>> $pageRules
@@ -13921,6 +13936,164 @@ final class EpubReader
         }
 
         return array_keys($flags);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function cssResourceExportPolicy(array $item): array
+    {
+        $references = is_array($item['references'] ?? null) ? array_values($item['references']) : [];
+        $diagnostics = is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [];
+        $reviewFlags = is_array($item['reviewFlags'] ?? null)
+            ? array_values(array_filter($item['reviewFlags'], static fn (mixed $flag): bool => is_string($flag) && $flag !== ''))
+            : [];
+
+        $externalReferenceCount = 0;
+        $missingReferenceCount = 0;
+        $encryptedReferenceCount = 0;
+        foreach ($references as $reference) {
+            if (!is_array($reference)) {
+                continue;
+            }
+            if (($reference['external'] ?? false) === true) {
+                ++$externalReferenceCount;
+            }
+            if (($reference['exists'] ?? true) !== true && ($reference['external'] ?? false) !== true) {
+                ++$missingReferenceCount;
+            }
+            if (($reference['encrypted'] ?? false) === true) {
+                ++$encryptedReferenceCount;
+            }
+        }
+
+        $blockingReasons = [];
+        if ($missingReferenceCount > 0) {
+            $blockingReasons[] = 'missing-references';
+        }
+        if ($encryptedReferenceCount > 0) {
+            $blockingReasons[] = 'encrypted-references';
+        }
+        foreach ($diagnostics as $diagnostic) {
+            if (is_array($diagnostic) && ($diagnostic['type'] ?? null) === 'css-resource-bytes-unavailable') {
+                $blockingReasons[] = 'bytes-unavailable';
+                break;
+            }
+        }
+        $blockingReasons = array_values(array_unique($blockingReasons));
+
+        $conditionalRuleCount = (int) ($item['conditionalRuleCount'] ?? 0);
+        $importConditionCount = (int) ($item['importConditionCount'] ?? 0);
+        $pageRuleCount = (int) ($item['pageRuleCount'] ?? 0);
+
+        $reviewReasons = [];
+        if ($externalReferenceCount > 0 || in_array('remote-resources', $reviewFlags, true)) {
+            $reviewReasons[] = 'remote-resources';
+        }
+        if ($conditionalRuleCount > 0 || $importConditionCount > 0 || in_array('conditional-styles', $reviewFlags, true)) {
+            $reviewReasons[] = 'conditional-styles';
+        }
+        if ($pageRuleCount > 0 || in_array('paged-media', $reviewFlags, true)) {
+            $reviewReasons[] = 'paged-media';
+        }
+        foreach ($reviewFlags as $flag) {
+            if (
+                !in_array($flag, ['remote-resources', 'missing-references', 'encrypted-references', 'conditional-styles', 'paged-media'], true)
+                && !in_array($flag, $reviewReasons, true)
+            ) {
+                $reviewReasons[] = $flag;
+            }
+        }
+
+        $status = 'exportable';
+        if ($blockingReasons !== []) {
+            $status = 'blocked';
+        } elseif ($reviewReasons !== []) {
+            $status = 'review-required';
+        }
+
+        return [
+            'status' => $status,
+            'canExport' => $status !== 'blocked',
+            'requiresReview' => $status !== 'exportable',
+            'reviewReasons' => $reviewReasons,
+            'blockingReasons' => $blockingReasons,
+            'reasons' => array_values(array_unique(array_merge($reviewReasons, $blockingReasons))),
+            'manifestId' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'part' => (string) ($item['part'] ?? ''),
+            'referenceCount' => (int) ($item['referenceCount'] ?? count($references)),
+            'externalReferenceCount' => $externalReferenceCount,
+            'missingReferenceCount' => $missingReferenceCount,
+            'encryptedReferenceCount' => $encryptedReferenceCount,
+            'conditionalRuleCount' => $conditionalRuleCount,
+            'importConditionCount' => $importConditionCount,
+            'pageRuleCount' => $pageRuleCount,
+            'fontFaceCount' => (int) ($item['fontFaceCount'] ?? 0),
+            'diagnosticCount' => count($diagnostics),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array<string, mixed>
+     */
+    private static function cssResourceExportPolicySummary(array $items): array
+    {
+        $policyItems = [];
+        $itemsByPart = [];
+        $statusCounts = [
+            'exportable' => 0,
+            'review-required' => 0,
+            'blocked' => 0,
+        ];
+        $statuses = [];
+        $reviewReasons = [];
+        $blockingReasons = [];
+        $reasons = [];
+
+        foreach ($items as $item) {
+            $policy = is_array($item['exportPolicy'] ?? null)
+                ? $item['exportPolicy']
+                : self::cssResourceExportPolicy($item);
+            $status = is_string($policy['status'] ?? null) ? $policy['status'] : 'exportable';
+            if (!array_key_exists($status, $statusCounts)) {
+                $statusCounts[$status] = 0;
+            }
+            ++$statusCounts[$status];
+            if (!in_array($status, $statuses, true)) {
+                $statuses[] = $status;
+            }
+
+            self::appendUniqueStrings($reviewReasons, self::stringList($policy['reviewReasons'] ?? []));
+            self::appendUniqueStrings($blockingReasons, self::stringList($policy['blockingReasons'] ?? []));
+            self::appendUniqueStrings($reasons, self::stringList($policy['reasons'] ?? []));
+
+            $policyItems[] = $policy;
+            if (is_string($policy['part'] ?? null) && $policy['part'] !== '') {
+                $itemsByPart[$policy['part']] = $policy;
+            }
+        }
+
+        return [
+            'present' => $items !== [],
+            'assetCount' => count($items),
+            'exportableAssetCount' => $statusCounts['exportable'] ?? 0,
+            'reviewRequiredAssetCount' => $statusCounts['review-required'] ?? 0,
+            'blockedAssetCount' => $statusCounts['blocked'] ?? 0,
+            'statusCounts' => $statusCounts,
+            'canExportAll' => ($statusCounts['blocked'] ?? 0) === 0,
+            'requiresReview' => ($statusCounts['review-required'] ?? 0) > 0 || ($statusCounts['blocked'] ?? 0) > 0,
+            'statuses' => $statuses,
+            'reviewReasons' => $reviewReasons,
+            'blockingReasons' => $blockingReasons,
+            'reasons' => $reasons,
+            'items' => $policyItems,
+            'itemsByPart' => $itemsByPart,
+        ];
     }
 
     /**

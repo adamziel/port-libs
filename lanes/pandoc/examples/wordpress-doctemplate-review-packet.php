@@ -279,6 +279,18 @@ if (in_array('--self-test', $argv, true)) {
         exit(1);
     }
 
+    $blockPipeReviewPacket = $renderer->render(
+        '$source/uppercase/left 8 "| " " | "$$details/left 20 "" "|"$',
+        [
+            'source' => "media\nlinks",
+            'details' => "Check alt text\nReview redirects",
+        ],
+    );
+    if ($blockPipeReviewPacket !== "| MEDIA    | Check alt text      |\n| LINKS    | Review redirects    |") {
+        fwrite(STDERR, "Unexpected doctemplate adjacent block-pipe output\n");
+        exit(1);
+    }
+
     if (str_contains($output, "\n\n</section>")) {
         fwrite(STDERR, "Unexpected blank line before doctemplate review body close\n");
         exit(1);

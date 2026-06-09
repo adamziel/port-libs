@@ -5615,6 +5615,98 @@ CSS;
         $t->same($css, $result['importReport']['cssResourceReport']);
         $t->same($css, $result['document']->attr('cssResourceReport'));
     },
+    'reports EPUB stylesheet export policy for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml, $encryptionXml): void {
+        $opfWithCssPolicy = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/local.css" media-type="text/css"/>'
+            . '<item id="review-style" href="styles/review.css" media-type="text/css" properties="remote-resources"/>'
+            . '<item id="blocked-style" href="styles/blocked.css" media-type="text/css"/>'
+            . '<item id="locked-font" href="fonts/source.otf" media-type="application/vnd.ms-opentype"/>',
+            $opfXml
+        );
+        $reviewCss = <<<'CSS'
+@import url("https://cdn.example.test/epub/review.css") screen;
+@media print {
+  body { color: black; }
+}
+@page review:left {
+  margin-left: 1in;
+}
+CSS;
+        $blockedCss = <<<'CSS'
+@font-face { font-family: Locked; src: url("../fonts/source.otf") format("opentype"); }
+.missing { background: url("../images/missing-css-export.png"); }
+CSS;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithCssPolicy,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+                ['name' => 'OEBPS/styles/local.css', 'data' => 'body { color: #222; }'],
+                ['name' => 'OEBPS/styles/review.css', 'data' => $reviewCss],
+                ['name' => 'OEBPS/styles/blocked.css', 'data' => $blockedCss],
+                ['name' => 'OEBPS/fonts/source.otf', 'data' => 'OBFUSCATED-FONT'],
+            ]
+        ));
+
+        $css = $result['cssResourceReport'];
+        $policy = $css['exportPolicy'];
+        $t->same(3, $css['assetCount']);
+        $t->same(3, $policy['assetCount']);
+        $t->same(1, $policy['exportableAssetCount']);
+        $t->same(1, $policy['reviewRequiredAssetCount']);
+        $t->same(1, $policy['blockedAssetCount']);
+        $t->same([
+            'exportable' => 1,
+            'review-required' => 1,
+            'blocked' => 1,
+        ], $policy['statusCounts']);
+        $t->same(false, $policy['canExportAll']);
+        $t->same(true, $policy['requiresReview']);
+        $t->same(['exportable', 'review-required', 'blocked'], $policy['statuses']);
+        $t->same(['remote-resources', 'conditional-styles', 'paged-media'], $policy['reviewReasons']);
+        $t->same(['missing-references', 'encrypted-references'], $policy['blockingReasons']);
+        $t->same([
+            'remote-resources',
+            'conditional-styles',
+            'paged-media',
+            'missing-references',
+            'encrypted-references',
+        ], $policy['reasons']);
+
+        $localPolicy = $css['itemsByPart']['/OEBPS/styles/local.css']['exportPolicy'];
+        $t->same('exportable', $localPolicy['status']);
+        $t->same(true, $localPolicy['canExport']);
+        $t->same(false, $localPolicy['requiresReview']);
+        $t->same([], $localPolicy['reasons']);
+
+        $reviewPolicy = $css['itemsByPart']['/OEBPS/styles/review.css']['exportPolicy'];
+        $t->same('review-required', $reviewPolicy['status']);
+        $t->same(true, $reviewPolicy['canExport']);
+        $t->same(true, $reviewPolicy['requiresReview']);
+        $t->same(['remote-resources', 'conditional-styles', 'paged-media'], $reviewPolicy['reviewReasons']);
+        $t->same([], $reviewPolicy['blockingReasons']);
+        $t->same(1, $reviewPolicy['externalReferenceCount']);
+        $t->same(1, $reviewPolicy['conditionalRuleCount']);
+        $t->same(1, $reviewPolicy['importConditionCount']);
+        $t->same(1, $reviewPolicy['pageRuleCount']);
+
+        $blockedPolicy = $css['itemsByPart']['/OEBPS/styles/blocked.css']['exportPolicy'];
+        $t->same('blocked', $blockedPolicy['status']);
+        $t->same(false, $blockedPolicy['canExport']);
+        $t->same(true, $blockedPolicy['requiresReview']);
+        $t->same(['missing-references', 'encrypted-references'], $blockedPolicy['blockingReasons']);
+        $t->same([], $blockedPolicy['reviewReasons']);
+        $t->same(2, $blockedPolicy['referenceCount']);
+        $t->same(1, $blockedPolicy['missingReferenceCount']);
+        $t->same(1, $blockedPolicy['encryptedReferenceCount']);
+        $t->same(1, $blockedPolicy['fontFaceCount']);
+        $t->same($reviewPolicy, $policy['itemsByPart']['/OEBPS/styles/review.css']);
+        $t->same($blockedPolicy, $policy['itemsByPart']['/OEBPS/styles/blocked.css']);
+        $t->same($policy, $result['importReport']['cssResourceReport']['exportPolicy']);
+        $t->same($policy, $result['document']->attr('cssResourceReport')['exportPolicy']);
+    },
     'reports EPUB stylesheet page rules for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithPagedCss = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

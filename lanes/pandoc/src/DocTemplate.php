@@ -4,11 +4,47 @@ declare(strict_types=1);
 
 namespace PortLibs\Pandoc;
 
+/**
+ * @internal
+ */
+final class DocTemplateBlockOutput
+{
+    /**
+     * @param list<string> $lines
+     */
+    public function __construct(private array $lines, private string $blankLine)
+    {
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function lines(): array
+    {
+        return $this->lines;
+    }
+
+    public function blankLine(): string
+    {
+        return $this->blankLine;
+    }
+
+    public function mapText(callable $callback): self
+    {
+        return new self(
+            array_map(static fn (string $line): string => $callback($line), $this->lines),
+            $callback($this->blankLine),
+        );
+    }
+}
+
 final class DocTemplate
 {
     private const MAX_PARTIAL_DEPTH = 50;
     private const BREAKABLE_SPACE_MARKER = "\x1F";
     private const BREAKABLE_SPACE_INDENT_MARKER = "\x1E";
+    private const BLOCK_PIPE_MARKER_START = "\x1D";
+    private const BLOCK_PIPE_MARKER_END = "\x1C";
     private const MAX_FILESYSTEM_RESOURCE_FILES = 512;
     private const MAX_FILESYSTEM_RESOURCE_BYTES = 1048576;
     private const MAX_FILESYSTEM_RESOURCE_TOTAL_BYTES = 4194304;
@@ -4875,6 +4911,9 @@ CSS;
     {
         $output = '';
         $explicitNestColumn = null;
+        $pendingBlockStart = null;
+        $pendingBlockLines = null;
+        $pendingBlockBlankLine = null;
 
         for ($index = $start; $index < $end; $index++) {
             $token = $tokens[$index];
@@ -4887,7 +4926,7 @@ CSS;
                     );
                 }
 
-                $this->appendRenderedChunk($output, $text, $explicitNestColumn, true);
+                $this->appendRenderedChunk($output, $text, $explicitNestColumn, true, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 continue;
             }
 
@@ -4909,7 +4948,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -4924,7 +4963,7 @@ CSS;
                 } catch (\UnexpectedValueException $exception) {
                     throw $this->withTokenLocation($exception, $token);
                 }
-                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
+                $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
                 if ($skipFollowingLineEnding) {
                     $this->dropLeadingLineEndingAt($tokens, $nextIndex, $end);
                 }
@@ -4969,8 +5008,10 @@ CSS;
                 }
             }
 
-            $this->appendRenderedChunk($output, $rendered, $explicitNestColumn);
+            $this->appendRenderedChunk($output, $rendered, $explicitNestColumn, false, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
         }
+
+        $this->finalizePendingBlockOutput($output, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
 
         return $output;
     }
@@ -6218,6 +6259,10 @@ CSS;
 
     private function mapTextualValue(mixed $value, callable $callback): mixed
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $value->mapText($callback);
+        }
+
         if (is_array($value)) {
             $mapped = [];
             foreach ($value as $key => $item) {
@@ -6293,6 +6338,10 @@ CSS;
      */
     private function pipeBlock(string $alignment, array $args, mixed $value): mixed
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            $value = $this->blockOutputToString($value);
+        }
+
         if (!is_string($value) && !is_int($value) && !is_float($value) && $value !== null) {
             return $value;
         }
@@ -6310,13 +6359,16 @@ CSS;
         }
 
         $padded = [];
+        $blankContentWidth = 0;
         foreach ($lines as $line) {
+            $effectiveWidth = $this->effectiveBlockPipeWidth($width, $line);
+            $blankContentWidth = max($blankContentWidth, $effectiveWidth);
             foreach ($this->blockPipeLines($line, $width) as $blockLine) {
-                $padded[] = $leftBorder . $this->padBlockLine($blockLine, $this->effectiveBlockPipeWidth($width, $line), $alignment) . $rightBorder;
+                $padded[] = $leftBorder . $this->padBlockLine($blockLine, $effectiveWidth, $alignment) . $rightBorder;
             }
         }
 
-        return implode("\n", $padded);
+        return new DocTemplateBlockOutput($padded, $leftBorder . str_repeat(' ', $blankContentWidth) . $rightBorder);
     }
 
     /**
@@ -6399,6 +6451,10 @@ CSS;
 
     private function pipeLength(mixed $value): int
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $this->stringLength($this->blockOutputToString($value));
+        }
+
         if (is_string($value)) {
             return $this->stringLength($value);
         }
@@ -6425,6 +6481,10 @@ CSS;
 
     private function pipeChomp(mixed $value): mixed
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $value;
+        }
+
         if (is_array($value)) {
             $chomped = [];
             foreach ($value as $key => $item) {
@@ -6443,6 +6503,10 @@ CSS;
 
     private function pipeNowrap(mixed $value): mixed
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $value;
+        }
+
         if (is_array($value)) {
             $nowrap = [];
             foreach ($value as $key => $item) {
@@ -6495,6 +6559,10 @@ CSS;
 
     private function renderValue(mixed $value, ?string $separator): string
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $this->encodeBlockOutput($value);
+        }
+
         if (is_array($value)) {
             if (!array_is_list($value)) {
                 return 'true';
@@ -6525,6 +6593,10 @@ CSS;
 
     private function renderPartialValue(mixed $value, ?string $separator): string
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $this->encodeBlockOutput($value);
+        }
+
         if (is_string($value)) {
             return $value;
         }
@@ -6547,6 +6619,10 @@ CSS;
 
     private function isTruthy(mixed $value): bool
     {
+        if ($value instanceof DocTemplateBlockOutput) {
+            return $value->lines() !== [];
+        }
+
         if (is_array($value)) {
             if (!array_is_list($value)) {
                 return true;
@@ -6666,10 +6742,24 @@ CSS;
         return $prefix;
     }
 
-    private function appendRenderedChunk(string &$output, string $chunk, ?int &$explicitNestColumn, bool $templateText = false): void
-    {
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function appendRenderedChunk(
+        string &$output,
+        string $chunk,
+        ?int &$explicitNestColumn,
+        bool $templateText,
+        ?int &$pendingBlockStart,
+        ?array &$pendingBlockLines,
+        ?string &$pendingBlockBlankLine,
+    ): void {
         if ($explicitNestColumn !== null) {
             $activeNestColumn = $explicitNestColumn;
+            if (str_contains($chunk, self::BLOCK_PIPE_MARKER_START)) {
+                $chunk = $this->expandBlockOutputMarkers($chunk);
+            }
+
             if (strpbrk($chunk, "\r\n") !== false) {
                 if ($templateText) {
                     [$chunk, $stillNested] = $this->nestTemplateTextChunk($chunk, $explicitNestColumn);
@@ -6686,14 +6776,220 @@ CSS;
             }
 
             $output .= $chunk;
+            $this->clearPendingBlockOutput($pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
             return;
         }
 
-        $output .= $chunk;
+        $this->appendBlockAwareChunk($output, $chunk, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+    }
+
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function appendBlockAwareChunk(string &$output, string $chunk, ?int &$pendingBlockStart, ?array &$pendingBlockLines, ?string &$pendingBlockBlankLine): void
+    {
+        if ($chunk === '') {
+            return;
+        }
+
+        if (!str_contains($chunk, self::BLOCK_PIPE_MARKER_START)) {
+            $this->appendPlainRenderedText($output, $chunk, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+            return;
+        }
+
+        $offset = 0;
+        $length = strlen($chunk);
+        while ($offset < $length) {
+            $markerStart = strpos($chunk, self::BLOCK_PIPE_MARKER_START, $offset);
+            if ($markerStart === false) {
+                $tail = substr($chunk, $offset);
+                if ($tail !== '') {
+                    $this->appendPlainRenderedText($output, $tail, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+                }
+
+                return;
+            }
+
+            if ($markerStart > $offset) {
+                $text = substr($chunk, $offset, $markerStart - $offset);
+                $this->appendPlainRenderedText($output, $text, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+            }
+
+            $decoded = $this->decodeBlockOutputAt($chunk, $markerStart);
+            if ($decoded === null) {
+                $this->appendPlainRenderedText($output, self::BLOCK_PIPE_MARKER_START, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+                $offset = $markerStart + strlen(self::BLOCK_PIPE_MARKER_START);
+                continue;
+            }
+
+            [$block, $offset] = $decoded;
+            $this->appendBlockOutput($output, $block, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+        }
+    }
+
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function appendPlainRenderedText(string &$output, string $text, ?int &$pendingBlockStart, ?array &$pendingBlockLines, ?string &$pendingBlockBlankLine): void
+    {
+        if ($text !== '' && ($text[0] === "\n" || $text[0] === "\r")) {
+            $this->finalizePendingBlockOutput($output, $pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+        }
+
+        $output .= $text;
+        $this->clearPendingBlockOutput($pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+    }
+
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function appendBlockOutput(string &$output, DocTemplateBlockOutput $block, ?int &$pendingBlockStart, ?array &$pendingBlockLines, ?string &$pendingBlockBlankLine): void
+    {
+        if ($pendingBlockStart !== null && $pendingBlockLines !== null && $pendingBlockBlankLine !== null) {
+            [$combinedLines, $combinedBlankLine] = $this->composeBlockOutputs($pendingBlockLines, $pendingBlockBlankLine, $block);
+            $output = substr($output, 0, $pendingBlockStart) . implode("\n", $combinedLines);
+            $pendingBlockLines = $combinedLines;
+            $pendingBlockBlankLine = $combinedBlankLine;
+            return;
+        }
+
+        $pendingBlockStart = strlen($output);
+        $pendingBlockLines = $block->lines();
+        $pendingBlockBlankLine = $block->blankLine();
+        $output .= implode("\n", $pendingBlockLines);
+    }
+
+    /**
+     * @param list<string> $leftLines
+     * @return array{0:list<string>, 1:string}
+     */
+    private function composeBlockOutputs(array $leftLines, string $leftBlankLine, DocTemplateBlockOutput $right): array
+    {
+        $rightLines = $right->lines();
+        $rightBlankLine = $right->blankLine();
+        $lineCount = max(count($leftLines), count($rightLines));
+        $lines = [];
+
+        for ($index = 0; $index < $lineCount; $index++) {
+            $lines[] = ($leftLines[$index] ?? $leftBlankLine) . ($rightLines[$index] ?? $rightBlankLine);
+        }
+
+        return [$lines, $leftBlankLine . $rightBlankLine];
+    }
+
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function clearPendingBlockOutput(?int &$pendingBlockStart, ?array &$pendingBlockLines, ?string &$pendingBlockBlankLine): void
+    {
+        $pendingBlockStart = null;
+        $pendingBlockLines = null;
+        $pendingBlockBlankLine = null;
+    }
+
+    /**
+     * @param ?list<string> $pendingBlockLines
+     */
+    private function finalizePendingBlockOutput(string &$output, ?int &$pendingBlockStart, ?array &$pendingBlockLines, ?string &$pendingBlockBlankLine): void
+    {
+        if ($pendingBlockStart === null || $pendingBlockLines === null) {
+            return;
+        }
+
+        $trimmedLines = array_map(static fn (string $line): string => rtrim($line, ' '), $pendingBlockLines);
+        $output = substr($output, 0, $pendingBlockStart) . implode("\n", $trimmedLines);
+        $this->clearPendingBlockOutput($pendingBlockStart, $pendingBlockLines, $pendingBlockBlankLine);
+    }
+
+    private function encodeBlockOutput(DocTemplateBlockOutput $block): string
+    {
+        $json = json_encode([
+            'lines' => $block->lines(),
+            'blankLine' => $block->blankLine(),
+        ], JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) {
+            throw new \UnexpectedValueException('Unable to encode doctemplate block pipe output');
+        }
+
+        return self::BLOCK_PIPE_MARKER_START . base64_encode($json) . self::BLOCK_PIPE_MARKER_END;
+    }
+
+    private function expandBlockOutputMarkers(string $chunk): string
+    {
+        $expanded = '';
+        $offset = 0;
+        $length = strlen($chunk);
+        while ($offset < $length) {
+            $markerStart = strpos($chunk, self::BLOCK_PIPE_MARKER_START, $offset);
+            if ($markerStart === false) {
+                $expanded .= substr($chunk, $offset);
+                break;
+            }
+
+            $expanded .= substr($chunk, $offset, $markerStart - $offset);
+            $decoded = $this->decodeBlockOutputAt($chunk, $markerStart);
+            if ($decoded === null) {
+                $expanded .= self::BLOCK_PIPE_MARKER_START;
+                $offset = $markerStart + strlen(self::BLOCK_PIPE_MARKER_START);
+                continue;
+            }
+
+            [$block, $offset] = $decoded;
+            $expanded .= $this->blockOutputToString($block);
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @return null|array{0:DocTemplateBlockOutput, 1:int}
+     */
+    private function decodeBlockOutputAt(string $chunk, int $offset): ?array
+    {
+        if (substr($chunk, $offset, strlen(self::BLOCK_PIPE_MARKER_START)) !== self::BLOCK_PIPE_MARKER_START) {
+            return null;
+        }
+
+        $payloadStart = $offset + strlen(self::BLOCK_PIPE_MARKER_START);
+        $payloadEnd = strpos($chunk, self::BLOCK_PIPE_MARKER_END, $payloadStart);
+        if ($payloadEnd === false) {
+            return null;
+        }
+
+        $payload = substr($chunk, $payloadStart, $payloadEnd - $payloadStart);
+        $json = base64_decode($payload, true);
+        if (!is_string($json)) {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || !isset($data['lines'], $data['blankLine']) || !is_array($data['lines']) || !is_string($data['blankLine']) || !array_is_list($data['lines'])) {
+            return null;
+        }
+
+        $lines = [];
+        foreach ($data['lines'] as $line) {
+            if (!is_string($line)) {
+                return null;
+            }
+
+            $lines[] = $line;
+        }
+
+        return [new DocTemplateBlockOutput($lines, $data['blankLine']), $payloadEnd + strlen(self::BLOCK_PIPE_MARKER_END)];
+    }
+
+    private function blockOutputToString(DocTemplateBlockOutput $block): string
+    {
+        return implode("\n", $block->lines());
     }
 
     private function nestMultiline(string $value, string $indent): string
     {
+        if (str_contains($value, self::BLOCK_PIPE_MARKER_START)) {
+            $value = $this->expandBlockOutputMarkers($value);
+        }
+
         if ($indent === '' || strpbrk($value, "\r\n") === false) {
             return $value;
         }

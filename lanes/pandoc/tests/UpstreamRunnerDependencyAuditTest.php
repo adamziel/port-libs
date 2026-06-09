@@ -3993,6 +3993,51 @@ return [
         $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
         $t->same([], $audit['nonMutatingPlan']);
     },
+    'blocks benchmark format registry source semantic drift before planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
+        $files = $requiredFiles($pinnedProject());
+        $files['benchmark/benchmark-pandoc.hs'] = str_replace(
+            [
+                '    [ env getImages $ \imgs ->',
+                '      bgroup "writers" $ mapMaybe (writerBench imgs doc . fst) (sortOn fst writers :: [(T.Text, Writer PandocPure)])',
+                '    , bgroup "readers" $ mapMaybe (readerBench doc . fst) (sortOn fst readers :: [(T.Text, Reader PandocPure)])',
+            ],
+            [
+                '    [',
+                '      bgroup "writers" []',
+                '    , bgroup "readers" []',
+            ],
+            $files['benchmark/benchmark-pandoc.hs']
+        );
+
+        $root = $makeTree($files);
+        try {
+            $audit = UpstreamRunnerDependencyAudit::auditCheckout($root, [
+                'ghc' => '9.10.3',
+                'cabal' => '3.12.1.0',
+            ]);
+        } finally {
+            $removeTree($root);
+        }
+
+        $target = 'benchmark:benchmark-pandoc';
+        $t->same(false, $audit['readyForNonMutatingCabalPlan']);
+        $t->same([], $audit['missingFiles']);
+        $t->same([], $audit['missingTools']);
+        $t->same([], $audit['benchmarkArtifactClosure']['missing']);
+        $t->same([], $audit['benchmarkEntrySourceClosure']['missingTargets']);
+        $t->same([
+            'wraps writer benchmarks in media environment',
+            'maps writers from registry into benchmark group',
+            'maps readers from registry into benchmark group',
+        ], $audit['benchmarkEntrySourceClosure']['missingSemantics'][$target]);
+        $blocked = implode("\n", $audit['blockedReasons']);
+        $t->contains('missing benchmark entry point source semantics', $blocked);
+        $t->contains('wraps writer benchmarks in media environment', $blocked);
+        $t->contains('maps writers from registry into benchmark group', $blocked);
+        $t->contains('maps readers from registry into benchmark group', $blocked);
+        $t->contains('benchmark entry-point source semantics', $audit['activationGate']);
+        $t->same([], $audit['nonMutatingPlan']);
+    },
     'blocks runner and benchmark mixin drift before cabal planning' => static function (TestRunner $t) use ($makeTree, $removeTree, $pinnedProject, $requiredFiles): void {
         $files = $requiredFiles($pinnedProject());
         $files['pandoc.cabal'] = str_replace(
