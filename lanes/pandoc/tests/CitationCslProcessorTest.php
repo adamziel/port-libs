@@ -14082,6 +14082,12 @@ XML
       </group>
     </layout>
   </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
 </style>
 XML
         );
@@ -14102,6 +14108,17 @@ XML
         $t->same('info', $diagnostics[0]['severity'] ?? null);
         $t->same('citation-locator-explicit-value-defaulted-page', $processor->normalizeCitation($citation)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
         $t->same('(Vale, p. appendix A)', $processor->renderCitationCluster([$citation]));
+
+        $processed = $processor->appendBibliography(new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Explicit locator default ']),
+                $citation,
+                new AstNode('text', ['text' => '.']),
+            ]),
+        ]), 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Explicit locator default (Vale, p. appendix A).</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Explicit Locator Value Packet.</dd>', $blocks);
     },
     'applies bounded citation locator diagnostics when explicit labels omit values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
