@@ -10950,15 +10950,17 @@ final class DocxReader
         $rowElements = $this->directWordChildElements($table, 'tr');
         $rowCount = count($rowElements);
         $conditionalRegions = $this->tableConditionalStyleRegionsForTable($table, $styles);
+        $gridAttrs = $this->tableGridAttrs($table);
+        $columnCount = max(
+            count($gridAttrs['widths'] ?? []),
+            $this->tableInferredColumnCount($rowElements)
+        );
         foreach ($rowElements as $rowIndex => $rowElement) {
             $rowRegions = $this->tableConditionalRegionsForRow($conditionalRegions, $rowIndex, $rowCount);
             $rowAttrs = $this->mergeTableRowAttrs(
                 $this->tableConditionalRowAttrs($rowRegions),
                 $this->tableRowAttrs($rowElement),
             );
-            $conditionalCellAttrs = $this->tableConditionalCellAttrs($rowRegions);
-            $conditionalParagraphMetadata = $this->tableConditionalParagraphMetadata($rowRegions);
-            $conditionalRunProperties = $this->tableConditionalRunProperties($rowRegions);
 
             $cells = [];
             $gridBefore = $this->tableRowGridOmissionCount($rowElement, 'gridBefore');
@@ -10978,6 +10980,18 @@ final class DocxReader
                 }
 
                 $this->clearTableVerticalMergeColumns($verticalMerges, $gridColumn, $colspan);
+                $cellRegions = $this->tableConditionalRegionsForCell(
+                    $rowRegions,
+                    $conditionalRegions,
+                    $rowIndex,
+                    $rowCount,
+                    $gridColumn,
+                    $colspan,
+                    $columnCount
+                );
+                $conditionalCellAttrs = $this->tableConditionalCellAttrs($cellRegions);
+                $conditionalParagraphMetadata = $this->tableConditionalParagraphMetadata($cellRegions);
+                $conditionalRunProperties = $this->tableConditionalRunProperties($cellRegions);
                 $attrs = $this->tableCellAttrs($cellElement);
                 if ($conditionalCellAttrs !== null) {
                     $attrs = $this->mergeTableCellAttrs($conditionalCellAttrs, $attrs);
@@ -11027,7 +11041,7 @@ final class DocxReader
             $rows[] = new AstNode('table_row', $rowAttrs, $cells);
         }
 
-        $tableAttrs = array_replace($this->tableAttrs($table, $styles), $this->tableGridAttrs($table));
+        $tableAttrs = array_replace($this->tableAttrs($table, $styles), $gridAttrs);
 
         return TableGeometry::withReviewPacket(new AstNode('table', $tableAttrs, [
             new AstNode('table_body', [], $rows),
@@ -11385,6 +11399,55 @@ final class DocxReader
         }
         if ($rowIndex === $rowCount - 1 && isset($regions['lastRow'])) {
             $active[] = $regions['lastRow'];
+        }
+
+        return $active;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rowRegions
+     * @param array<string, array<string, mixed>> $regions
+     * @return list<array<string, mixed>>
+     */
+    private function tableConditionalRegionsForCell(
+        array $rowRegions,
+        array $regions,
+        int $rowIndex,
+        int $rowCount,
+        int $gridColumn,
+        int $colspan,
+        int $columnCount
+    ): array
+    {
+        if ($rowCount <= 0 || $columnCount <= 0) {
+            return $rowRegions;
+        }
+
+        $active = $rowRegions;
+        $startColumn = max(0, $gridColumn);
+        $lastColumn = $columnCount - 1;
+        $endColumn = min($lastColumn, $startColumn + max(1, $colspan) - 1);
+
+        if ($startColumn === 0 && isset($regions['firstCol'])) {
+            $active[] = $regions['firstCol'];
+        }
+        if ($endColumn === $lastColumn && isset($regions['lastCol'])) {
+            $active[] = $regions['lastCol'];
+        }
+
+        $isFirstRow = $rowIndex === 0;
+        $isLastRow = $rowIndex === $rowCount - 1;
+        if ($isFirstRow && $startColumn === 0 && isset($regions['nwCell'])) {
+            $active[] = $regions['nwCell'];
+        }
+        if ($isFirstRow && $endColumn === $lastColumn && isset($regions['neCell'])) {
+            $active[] = $regions['neCell'];
+        }
+        if ($isLastRow && $startColumn === 0 && isset($regions['swCell'])) {
+            $active[] = $regions['swCell'];
+        }
+        if ($isLastRow && $endColumn === $lastColumn && isset($regions['seCell'])) {
+            $active[] = $regions['seCell'];
         }
 
         return $active;
@@ -11835,6 +11898,25 @@ final class DocxReader
             'widths' => $widths,
             'columnSources' => $columnSources,
         ];
+    }
+
+    /**
+     * @param list<\DOMElement> $rowElements
+     */
+    private function tableInferredColumnCount(array $rowElements): int
+    {
+        $columnCount = 0;
+        foreach ($rowElements as $rowElement) {
+            $rowColumnCount = $this->tableRowGridOmissionCount($rowElement, 'gridBefore')
+                + $this->tableRowGridOmissionCount($rowElement, 'gridAfter');
+            foreach ($this->directWordChildElements($rowElement, 'tc') as $cellElement) {
+                $rowColumnCount += $this->tableCellGridSpan($cellElement);
+            }
+
+            $columnCount = max($columnCount, $rowColumnCount);
+        }
+
+        return $columnCount;
     }
 
     private function roundTableGridWidth(float $value): float

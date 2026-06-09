@@ -1706,6 +1706,87 @@ $tableConditionalStyleDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$tableConditionalColumnStyleStylesXml = <<<'XML'
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="table" w:styleId="ConditionalColumnReviewTable">
+    <w:name w:val="Conditional Column Review Table"/>
+    <w:tblStylePr w:type="firstRow">
+      <w:trPr><w:tblHeader/></w:trPr>
+      <w:tcPr><w:shd w:val="clear" w:fill="DDEBF7"/></w:tcPr>
+      <w:pPr><w:jc w:val="center"/></w:pPr>
+      <w:rPr><w:b/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="firstCol">
+      <w:tcPr><w:shd w:val="clear" w:fill="D9EAD3"/></w:tcPr>
+      <w:pPr><w:jc w:val="start"/></w:pPr>
+      <w:rPr><w:color w:val="38761D"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="lastCol">
+      <w:tcPr><w:shd w:val="clear" w:fill="FCE5CD"/></w:tcPr>
+      <w:pPr><w:jc w:val="end"/></w:pPr>
+      <w:rPr><w:i/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="nwCell">
+      <w:tcPr><w:shd w:val="clear" w:fill="B6D7A8"/></w:tcPr>
+      <w:pPr><w:jc w:val="left"/></w:pPr>
+      <w:rPr><w:b/><w:color w:val="274E13"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="neCell">
+      <w:tcPr><w:shd w:val="clear" w:fill="F9CB9C"/></w:tcPr>
+      <w:rPr><w:smallCaps/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="swCell">
+      <w:tcPr><w:shd w:val="clear" w:fill="D9D2E9"/></w:tcPr>
+      <w:rPr><w:u w:val="single"/></w:rPr>
+    </w:tblStylePr>
+    <w:tblStylePr w:type="seCell">
+      <w:tcPr><w:shd w:val="clear" w:fill="F4CCCC"/></w:tcPr>
+      <w:rPr><w:strike/></w:rPr>
+    </w:tblStylePr>
+  </w:style>
+</w:styles>
+XML;
+
+$tableConditionalColumnStyleDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblStyle w:val="ConditionalColumnReviewTable"/>
+      </w:tblPr>
+      <w:tblGrid>
+        <w:gridCol w:w="1200"/>
+        <w:gridCol w:w="1600"/>
+        <w:gridCol w:w="1600"/>
+        <w:gridCol w:w="1200"/>
+      </w:tblGrid>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Top left</w:t></w:r></w:p></w:tc>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+          <w:p><w:r><w:t>Spanned header middle</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Top right</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Left body</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Body one</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Body two</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Right body</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Bottom left</w:t></w:r></w:p></w:tc>
+        <w:tc>
+          <w:tcPr><w:gridSpan w:val="2"/></w:tcPr>
+          <w:p><w:r><w:t>Bottom middle</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc><w:p><w:r><w:t>Bottom right</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML;
+
 $tableCellVerticalAlignmentDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -4566,6 +4647,22 @@ $buildTableConditionalStylePackage = static function () use (
         ['name' => 'word/document.xml', 'data' => $tableConditionalStyleDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
         ['name' => 'word/styles.xml', 'data' => $tableConditionalStyleStylesXml],
+    ]);
+};
+
+$buildTableConditionalColumnStylePackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $stylesNumberingDocumentRelationshipsXml,
+    $tableConditionalColumnStyleDocumentXml,
+    $tableConditionalColumnStyleStylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $tableConditionalColumnStyleDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $stylesNumberingDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $tableConditionalColumnStyleStylesXml],
     ]);
 };
 
@@ -7457,6 +7554,146 @@ return [
         $t->contains('data-docx-highlight="yellow"', $blocks);
         $t->contains('data-docx-table-style-cell-region="lastRow"', $blocks);
         $t->contains('font-variant:small-caps">Final owner</span>', $blocks);
+    },
+    'applies DOCX conditional first last column and corner table style regions by visual grid column' => static function (TestRunner $t) use ($buildTableConditionalColumnStylePackage): void {
+        $document = (new DocxReader())->readDocument($buildTableConditionalColumnStylePackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $nodeTypes = null;
+        $nodeTypes = static function (AstNode $node) use (&$nodeTypes): array {
+            $types = [$node->type];
+            foreach ($node->children as $child) {
+                if ($child instanceof AstNode) {
+                    array_push($types, ...$nodeTypes($child));
+                }
+            }
+
+            return $types;
+        };
+
+        $table = $document->children[0];
+        $t->same('table', $table->type);
+        $attrs = $table->attr('attributes');
+        $t->same('ConditionalColumnReviewTable', $attrs['data-docx-table-style']);
+        $t->same('Conditional Column Review Table', $attrs['data-docx-table-style-name']);
+        $t->same('7', $attrs['data-docx-table-style-region-count']);
+        $t->same('firstRow firstCol lastCol nwCell neCell swCell seCell', $attrs['data-docx-table-style-region-types']);
+        $t->same('firstCol', $attrs['data-docx-table-style-region-2-type']);
+        $t->same('first-col', $attrs['data-docx-table-style-region-2-type-label']);
+        $t->same('lastCol', $attrs['data-docx-table-style-region-3-type']);
+        $t->same('last-col', $attrs['data-docx-table-style-region-3-type-label']);
+        $t->same('nwCell', $attrs['data-docx-table-style-region-4-type']);
+        $t->same('neCell', $attrs['data-docx-table-style-region-5-type']);
+        $t->same('swCell', $attrs['data-docx-table-style-region-6-type']);
+        $t->same('seCell', $attrs['data-docx-table-style-region-7-type']);
+
+        $geometry = $table->attr('tableGeometry');
+        $t->same(true, is_array($geometry));
+        $geometry = is_array($geometry) ? $geometry : [];
+        $sourceAttributes = $geometry['sourceAttributes']['attributes'] ?? [];
+        $t->same('firstRow firstCol lastCol nwCell neCell swCell seCell', $sourceAttributes['data-docx-table-style-region-types'] ?? null);
+        $t->same('B6D7A8', $sourceAttributes['data-docx-table-style-region-4-cell-shading-fill'] ?? null);
+        $t->same('F4CCCC', $sourceAttributes['data-docx-table-style-region-7-cell-shading-fill'] ?? null);
+
+        $body = $table->children[0];
+        $headerRow = $body->children[0];
+        $middleRow = $body->children[1];
+        $footerRow = $body->children[2];
+        $topLeft = $headerRow->children[0];
+        $topMiddle = $headerRow->children[1];
+        $topRight = $headerRow->children[2];
+        $middleLeft = $middleRow->children[0];
+        $middleRight = $middleRow->children[3];
+        $bottomLeft = $footerRow->children[0];
+        $bottomMiddle = $footerRow->children[1];
+        $bottomRight = $footerRow->children[2];
+
+        $t->true(in_array('docx-table-row-repeat-header', $headerRow->attr('classes'), true), 'Expected firstRow row formatting to remain row-scoped');
+        $t->same('firstRow', $headerRow->attr('attributes')['data-docx-table-style-row-region'] ?? null);
+
+        $t->same('nwCell', $topLeft->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('B6D7A8', $topLeft->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $topLeftParagraph = $topLeft->children[0]->children[0];
+        $t->same('left', $topLeftParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('nwCell', $topLeftParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $topLeftRun = $topLeftParagraph->children[0];
+        $t->same('274E13', $topLeftRun->attr('attributes')['data-docx-color'] ?? null);
+        $t->same('nwCell', $topLeftRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->same('strong', $topLeftRun->children[0]->type);
+
+        $t->same(2, $topMiddle->attr('colspan'));
+        $t->same('firstRow', $topMiddle->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('DDEBF7', $topMiddle->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $topMiddleParagraph = $topMiddle->children[0]->children[0];
+        $t->same('center', $topMiddleParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('firstRow', $topMiddleParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+
+        $t->same('neCell', $topRight->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('F9CB9C', $topRight->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $topRightParagraph = $topRight->children[0]->children[0];
+        $t->same('end', $topRightParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('lastCol', $topRightParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $topRightRun = $topRightParagraph->children[0];
+        $t->same('neCell', $topRightRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $topRightTypes = $nodeTypes($topRightRun);
+        $t->true(in_array('small_caps', $topRightTypes, true), 'Expected neCell run properties to add small-caps formatting');
+        $t->true(in_array('strong', $topRightTypes, true), 'Expected inherited firstRow run properties to keep bold formatting');
+
+        $t->same('firstCol', $middleLeft->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('D9EAD3', $middleLeft->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $middleLeftParagraph = $middleLeft->children[0]->children[0];
+        $t->same('start', $middleLeftParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('firstCol', $middleLeftParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $middleLeftRun = $middleLeftParagraph->children[0];
+        $t->same('38761D', $middleLeftRun->attr('attributes')['data-docx-color'] ?? null);
+        $t->same('firstCol', $middleLeftRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+
+        $t->same('lastCol', $middleRight->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('FCE5CD', $middleRight->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $middleRightParagraph = $middleRight->children[0]->children[0];
+        $t->same('end', $middleRightParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('lastCol', $middleRightParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $middleRightRun = $middleRightParagraph->children[0];
+        $t->same('lastCol', $middleRightRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->true(in_array('emph', $nodeTypes($middleRightRun), true), 'Expected lastCol run properties to add emphasis');
+
+        $t->same('swCell', $bottomLeft->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('D9D2E9', $bottomLeft->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $bottomLeftParagraph = $bottomLeft->children[0]->children[0];
+        $t->same('start', $bottomLeftParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('firstCol', $bottomLeftParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $bottomLeftRun = $bottomLeftParagraph->children[0];
+        $t->same('swCell', $bottomLeftRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $t->true(in_array('underline', $nodeTypes($bottomLeftRun), true), 'Expected swCell run properties to add underline formatting');
+
+        $t->same(2, $bottomMiddle->attr('colspan'));
+        $t->same(null, $bottomMiddle->attr('attributes', [])['data-docx-table-style-cell-region'] ?? null);
+
+        $t->same('seCell', $bottomRight->attr('attributes')['data-docx-table-style-cell-region'] ?? null);
+        $t->same('F4CCCC', $bottomRight->attr('attributes')['data-docx-cell-shading-fill'] ?? null);
+        $bottomRightParagraph = $bottomRight->children[0]->children[0];
+        $t->same('end', $bottomRightParagraph->attr('attributes')['data-docx-paragraph-align'] ?? null);
+        $t->same('lastCol', $bottomRightParagraph->attr('attributes')['data-docx-table-style-paragraph-region'] ?? null);
+        $bottomRightRun = $bottomRightParagraph->children[0];
+        $t->same('seCell', $bottomRightRun->attr('attributes')['data-docx-table-style-run-region'] ?? null);
+        $bottomRightTypes = $nodeTypes($bottomRightRun);
+        $t->true(in_array('strikeout', $bottomRightTypes, true), 'Expected seCell run properties to add strikeout formatting');
+        $t->true(in_array('emph', $bottomRightTypes, true), 'Expected inherited lastCol run properties to keep emphasis');
+
+        $t->contains('data-docx-table-style-paragraph-region="nwCell"', $markdown);
+        $t->contains('data-docx-table-style-run-region="seCell"', $markdown);
+        $t->contains('data-docx-color="38761D"', $markdown);
+        $t->true(!str_contains($markdown, 'data-docx-table-style-cell-region'), 'Pipe-table Markdown handoff should not leak table cell HTML metadata');
+
+        $t->contains('data-docx-table-style-region-types="firstRow firstCol lastCol nwCell neCell swCell seCell"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="nwCell"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="neCell"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="firstCol"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="lastCol"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="swCell"', $blocks);
+        $t->contains('data-docx-table-style-cell-region="seCell"', $blocks);
+        $t->contains('colspan="2"', $blocks);
+        $t->contains('<em><del>Bottom right</del></em>', $blocks);
     },
     'preserves DOCX table cell vertical alignment metadata for reviewer handoff' => static function (TestRunner $t) use ($buildTableCellVerticalAlignmentPackage): void {
         $document = (new DocxReader())->readDocument($buildTableCellVerticalAlignmentPackage());
