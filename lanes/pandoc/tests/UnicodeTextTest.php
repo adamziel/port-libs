@@ -1712,6 +1712,23 @@ return [
         $t->same("\u{FFFD}A", $unmappedPair['text']);
         $t->same(1, $unmappedPair['repairs']);
     },
+    'decodes bounded euc tw cns row pairs into wordpress blocks' => static function (TestRunner $t): void {
+        $bytes = "# EUC TW Rows\n\nRows \xA2\xA1\xA2\xA2\xA2\xA3; \xA3\xA1\xA3\xA2\xA3\xA3.";
+        $decoded = UnicodeText::decodeBytes($bytes, 'cseuctw');
+        $document = (new MarkdownReader())->readBytes($bytes, 'euc-tw');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('euc-tw', $decoded['encoding']);
+        $t->same(0, $decoded['repairs']);
+        $t->same("# EUC TW Rows\n\nRows \u{5322}\u{5304}\u{5303}; \u{4F64}\u{51E8}\u{4F67}.", $decoded['text']);
+        $t->same(['encoding' => 'euc-tw', 'bom' => null, 'repairs' => 0], $document->attr('sourceEncoding'));
+        $t->same('EUC TW Rows', $document->children[0]->attr('text'));
+        $t->same("Rows \u{5322}\u{5304}\u{5303}; \u{4F64}\u{51E8}\u{4F67}.", $document->children[1]->attr('text'));
+        $t->same(20, UnicodeText::displayWidth((string) $document->children[1]->attr('text')));
+        $t->same(20, UnicodeText::displayWidth((string) $document->children[1]->attr('text'), 'wide'));
+        $t->contains('<h1 id="euc-tw-rows">EUC TW Rows</h1>', $blocks);
+        $t->contains("<p>Rows \u{5322}\u{5304}\u{5303}; \u{4F64}\u{51E8}\u{4F67}.</p>", $blocks);
+    },
     'decodes bounded gbk simplified chinese source bytes into wordpress blocks' => static function (TestRunner $t): void {
         $bytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
         $decoded = UnicodeText::decodeBytes($bytes, 'gbk');

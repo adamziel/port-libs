@@ -241,6 +241,9 @@ $cp950Text = (string) $cp950Source->children[1]->attr('text');
 $eucTwBytes = "# EUC TW\n\nPlane1 \xA1\xA1\xA1\xA2\xA1\xA3.";
 $eucTwSource = (new MarkdownReader())->readBytes($eucTwBytes, 'x-euc-tw');
 $eucTwText = (string) $eucTwSource->children[1]->attr('text');
+$eucTwRowsBytes = "# EUC TW Rows\n\nRows \xA2\xA1\xA2\xA2\xA2\xA3; \xA3\xA1\xA3\xA2\xA3\xA3.";
+$eucTwRowsSource = (new MarkdownReader())->readBytes($eucTwRowsBytes, 'cseuctw');
+$eucTwRowsText = (string) $eucTwRowsSource->children[1]->attr('text');
 $gbkBytes = (string) hex2bin('2320bcf2cce50a0ad6d0cec42047424b20b2e2cad4a3acb1b1bea9a1a3');
 $gbkSource = (new MarkdownReader())->readBytes($gbkBytes, 'gbk');
 $gbkText = (string) $gbkSource->children[1]->attr('text');
@@ -994,6 +997,11 @@ $table = new AstNode('table', [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucTwSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucTwText) . '/' . UnicodeText::displayWidth($eucTwText, 'wide')])]),
         ]),
         new AstNode('table_row', [], [
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => 'EUC-TW row pairs'])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => $eucTwRowsText])]),
+            new AstNode('table_cell', [], [new AstNode('text', ['text' => ($eucTwRowsSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($eucTwRowsText) . '/' . UnicodeText::displayWidth($eucTwRowsText, 'wide')])]),
+        ]),
+        new AstNode('table_row', [], [
             new AstNode('table_cell', [], [new AstNode('text', ['text' => 'GBK source'])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => $gbkText])]),
             new AstNode('table_cell', [], [new AstNode('text', ['text' => ($gbkSource->attr('sourceEncoding')['encoding'] ?? '') . ':' . UnicodeText::displayWidth($gbkText)])]),
@@ -1637,6 +1645,12 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (!str_contains($blocks, "<td>EUC-TW source</td><td>Plane1 \u{4E28}\u{4E36}\u{4E3F}.</td><td>euc-tw:14/14</td>")) {
         throw new RuntimeException('charset handoff self-test missing EUC-TW plane one decode audit row');
+    }
+    if (($eucTwRowsSource->attr('sourceEncoding')['encoding'] ?? '') !== 'euc-tw') {
+        throw new RuntimeException('charset handoff self-test missing EUC-TW row-pair source encoding');
+    }
+    if (!str_contains($blocks, "<td>EUC-TW row pairs</td><td>Rows \u{5322}\u{5304}\u{5303}; \u{4F64}\u{51E8}\u{4F67}.</td><td>euc-tw:20/20</td>")) {
+        throw new RuntimeException('charset handoff self-test missing EUC-TW row-pair decode audit row');
     }
     if (($gbkSource->attr('sourceEncoding')['encoding'] ?? '') !== 'gbk') {
         throw new RuntimeException('charset handoff self-test missing GBK source encoding');
