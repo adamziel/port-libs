@@ -1129,6 +1129,49 @@ XML;
         $t->contains('<table data-odf-table-name="Protected Review Matrix" data-odf-table-style-name="ReviewTable" data-odf-table-protected="true" data-odf-table-protection-key-present="true" data-odf-table-protection-key-digest-algorithm="urn:odf:sha1">', $blocksHtml);
         $t->contains('<figcaption class="wp-element-caption">Protected Review Matrix</figcaption>', $blocksHtml);
     },
+    'maps ODT table print ranges into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPrintRanges = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="PrintableReview" table:print-ranges="PrintableReview.A1:PrintableReview.B2 PrintableReview.D1:PrintableReview.D4">
+        <table:table-row>
+          <table:table-cell><text:p>Owner</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPrintRanges));
+        $table = $result['document']->children[0];
+        $ranges = $table->attr('odfPrintRanges');
+
+        $t->same('table', $table->type);
+        $t->same('PrintableReview', $table->attr('tableName'));
+        $t->same([
+            'PrintableReview.A1:PrintableReview.B2',
+            'PrintableReview.D1:PrintableReview.D4',
+        ], $ranges);
+        $t->same(2, $table->attr('printRangeCount'));
+        $t->same('2', $table->attr('htmlAttributes')['data-odf-table-print-range-count']);
+        $t->same('PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4', $table->attr('htmlAttributes')['data-odf-table-print-ranges']);
+        $t->same(2, $result['importReport']['content']['tablePrintRangeCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains(': PrintableReview', $markdown);
+        $t->contains('<table data-odf-table-name="PrintableReview" data-odf-table-print-range-count="2" data-odf-table-print-ranges="PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4">', $blocksHtml);
+    },
     'maps ODT table cell formulas and typed values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTypedTableCells = <<<'XML'
 <office:document-content

@@ -254,6 +254,7 @@ final class OdfReader
                     'imageListStyleCount' => $contentStats['imageListStyleCount'],
                     'listTextPropertyCount' => $contentStats['listTextPropertyCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
+                    'tablePrintRangeCount' => $contentStats['tablePrintRangeCount'],
                     'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
                     'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
                     'tableRowDefinitionCount' => $contentStats['tableRowDefinitionCount'],
@@ -2156,6 +2157,14 @@ final class OdfReader
             ];
         }
 
+        $printRanges = $this->tablePrintRanges($table);
+        if ($printRanges !== []) {
+            $attrs['odfPrintRanges'] = $printRanges;
+            $attrs['printRangeCount'] = count($printRanges);
+            $attrs['htmlAttributes']['data-odf-table-print-range-count'] = (string) count($printRanges);
+            $attrs['htmlAttributes']['data-odf-table-print-ranges'] = implode(';', $printRanges);
+        }
+
         $styleName = self::attr($table, self::TABLE_NS, 'style-name');
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
@@ -2823,6 +2832,28 @@ final class OdfReader
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tablePrintRanges(\DOMElement $table): array
+    {
+        $raw = trim(self::attr($table, self::TABLE_NS, 'print-ranges'));
+        if ($raw === '') {
+            return [];
+        }
+
+        $ranges = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $normalized = [];
+        foreach ($ranges as $range) {
+            $range = trim($range);
+            if ($range !== '') {
+                $normalized[] = $range;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     /**
@@ -8810,7 +8841,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, eventListenerCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, eventListenerCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tablePrintRangeCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -8858,6 +8889,7 @@ final class OdfReader
             'imageListStyleCount' => 0,
             'listTextPropertyCount' => 0,
             'tableTemplateReferenceCount' => 0,
+            'tablePrintRangeCount' => 0,
             'tableColumnDefinitionCount' => 0,
             'hiddenTableColumnCount' => 0,
             'tableRowDefinitionCount' => 0,
@@ -8915,6 +8947,12 @@ final class OdfReader
             }
             if ($node->type === 'table' && (string) $node->attr('templateName', '') !== '') {
                 $stats['tableTemplateReferenceCount']++;
+            }
+            if ($node->type === 'table') {
+                $printRanges = $node->attr('odfPrintRanges', []);
+                if (is_array($printRanges)) {
+                    $stats['tablePrintRangeCount'] += count($printRanges);
+                }
             }
             if ($node->type === 'table') {
                 $columns = $node->attr('odfTableColumns', []);
