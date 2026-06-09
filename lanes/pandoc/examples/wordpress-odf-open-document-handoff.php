@@ -16,6 +16,7 @@ $manifestXml = <<<'XML'
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>
   <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
   <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Pictures/source%20hero.png" manifest:media-type="image/png" manifest:size="2048" manifest:preferred-view-mode="presentation-slide-show">
@@ -448,6 +449,23 @@ $chartObjectXml = <<<'XML'
 </office:document-content>
 XML;
 
+$rdfMetadataXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:wp="https://example.test/ns/wp#"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <rdf:Description rdf:about="content.xml">
+    <dc:title xml:lang="en">WordPress ODT source packet body</dc:title>
+    <dc:creator rdf:resource="urn:uuid:migration-reviewer"/>
+    <wp:review-status>ready</wp:review-status>
+  </rdf:Description>
+  <rdf:Description rdf:about="Pictures/source hero.png">
+    <dc:format>image/png</dc:format>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+
 $package = ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
@@ -455,6 +473,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'styles.xml', 'data' => $stylesXml],
     ['name' => 'meta.xml', 'data' => $metaXml],
     ['name' => 'settings.xml', 'data' => $settingsXml],
+    ['name' => 'manifest.rdf', 'data' => $rdfMetadataXml],
     ['name' => 'Object 1/content.xml', 'data' => $mathObjectXml],
     ['name' => 'Object 2/oleObject.bin', 'data' => 'OLEPAYLOAD'],
     ['name' => 'Object 3/content.xml', 'data' => $chartObjectXml],
@@ -509,6 +528,15 @@ if (($argv[1] ?? '') === '--self-test') {
         || (($result['importReport']['settings']['itemCount'] ?? 0) !== 8)
         || (($result['document']->attr('settings')['mapEntryCount'] ?? 0) !== 1)) {
         throw new RuntimeException('Expected ODT view settings map metadata to survive import review');
+    }
+    if (($result['rdfMetadata']['partCount'] ?? 0) !== 1
+        || (($result['rdfMetadata']['parsedPartCount'] ?? 0) !== 1)
+        || (($result['rdfMetadata']['tripleCount'] ?? 0) !== 4)
+        || (($result['rdfMetadata']['resourceCount'] ?? 0) !== 1)
+        || (($result['rdfMetadata']['subjectsBySubject']['content.xml']['predicates'] ?? []) !== ['dc:creator', 'dc:title', 'wp:review-status'])
+        || (($result['rdfMetadata']['subjectsBySubject']['Pictures/source hero.png']['predicates'] ?? []) !== ['dc:format'])
+        || (($result['importReport']['rdfMetadata']['parts'][0]['part'] ?? '') !== 'manifest.rdf')) {
+        throw new RuntimeException('Expected ODT RDF metadata sidecar triples to survive package review');
     }
     if (($result['media'][0]['part'] ?? '') !== 'Pictures/source hero.png') {
         throw new RuntimeException('Expected ODT image manifest media to be reported');

@@ -25,6 +25,7 @@ final class OdfReader
     private const MATH_NS = 'http://www.w3.org/1998/Math/MathML';
     private const CHART_NS = 'urn:oasis:names:tc:opendocument:xmlns:chart:1.0';
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
+    private const RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -78,6 +79,7 @@ final class OdfReader
      *     settings:array<string, mixed>,
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
+     *     rdfMetadata:array<string, mixed>,
      *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
      * }
@@ -88,6 +90,7 @@ final class OdfReader
 
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
+        $rdfMetadata = $this->readRdfMetadata($package, $manifest);
         $styleCatalog = $this->readStyles($package);
         $metadata = $this->readMeta($package);
         $settings = $this->readSettings($package);
@@ -136,6 +139,7 @@ final class OdfReader
             ],
             'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
+            'rdfMetadata' => $rdfMetadata,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -156,6 +160,7 @@ final class OdfReader
             'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
+            'rdfMetadata' => $rdfMetadata,
             'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
                 'mimetype' => self::MIMETYPE,
@@ -205,6 +210,7 @@ final class OdfReader
                     'count' => count($media),
                     'items' => $media,
                 ],
+                'rdfMetadata' => $rdfMetadata,
                 'trackedChanges' => [
                     'count' => count($content['trackedChanges']),
                     'items' => $content['trackedChanges'],
@@ -9464,6 +9470,347 @@ final class OdfReader
             ['(', ')'] => 'two_parens',
             default => ($prefix !== '' || $suffix !== '') ? 'default' : '',
         };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function readRdfMetadata(ZipPackage $package, array $manifest): array
+    {
+        $parts = [];
+        $subjectsBySubject = [];
+        $parsedPartCount = 0;
+        $tripleCount = 0;
+        $literalCount = 0;
+        $resourceCount = 0;
+        $parseErrorCount = 0;
+
+        foreach ($manifest as $item) {
+            if (!$this->isRdfManifestItem($item)) {
+                continue;
+            }
+
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || str_ends_with($part, '/')) {
+                continue;
+            }
+
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $partMetadata = [
+                'fullPath' => $item['fullPath'],
+                'part' => $part,
+                'mediaType' => $item['mediaType'],
+                'exists' => $entry instanceof ZipPackageEntry,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => !$encrypted,
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'tripleCount' => 0,
+                'literalCount' => 0,
+                'resourceCount' => 0,
+                'subjectCount' => 0,
+                'subjects' => [],
+                'triples' => [],
+            ];
+
+            if (!$entry instanceof ZipPackageEntry) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'missing-rdf-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            if ($encrypted) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'encrypted-rdf-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            try {
+                $parsed = $this->parseRdfMetadataPart($package->read($part), $part);
+            } catch (\InvalidArgumentException $exception) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'invalid-rdf-xml';
+                $partMetadata['error'] = $exception->getMessage();
+                $parseErrorCount++;
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            $partMetadata = array_merge($partMetadata, $parsed, ['parseable' => true]);
+            $parsedPartCount++;
+            $tripleCount += (int) ($parsed['tripleCount'] ?? 0);
+            $literalCount += (int) ($parsed['literalCount'] ?? 0);
+            $resourceCount += (int) ($parsed['resourceCount'] ?? 0);
+            foreach ($parsed['subjectsBySubject'] ?? [] as $subject => $subjectMetadata) {
+                if (!is_string($subject) || !is_array($subjectMetadata)) {
+                    continue;
+                }
+
+                if (!isset($subjectsBySubject[$subject])) {
+                    $subjectsBySubject[$subject] = [
+                        'subject' => $subject,
+                        'partCount' => 0,
+                        'tripleCount' => 0,
+                        'literalCount' => 0,
+                        'resourceCount' => 0,
+                        'parts' => [],
+                        'predicates' => [],
+                    ];
+                }
+
+                $subjectsBySubject[$subject]['partCount']++;
+                $subjectsBySubject[$subject]['tripleCount'] += (int) ($subjectMetadata['tripleCount'] ?? 0);
+                $subjectsBySubject[$subject]['literalCount'] += (int) ($subjectMetadata['literalCount'] ?? 0);
+                $subjectsBySubject[$subject]['resourceCount'] += (int) ($subjectMetadata['resourceCount'] ?? 0);
+                $subjectsBySubject[$subject]['parts'][] = $part;
+                foreach ($subjectMetadata['predicates'] ?? [] as $predicate) {
+                    if (is_string($predicate) && $predicate !== '' && !in_array($predicate, $subjectsBySubject[$subject]['predicates'], true)) {
+                        $subjectsBySubject[$subject]['predicates'][] = $predicate;
+                    }
+                }
+            }
+
+            $parts[] = $partMetadata;
+        }
+
+        foreach ($subjectsBySubject as &$subjectMetadata) {
+            $subjectMetadata['parts'] = array_values(array_unique($subjectMetadata['parts']));
+            sort($subjectMetadata['predicates']);
+        }
+        unset($subjectMetadata);
+
+        return [
+            'count' => count($parts),
+            'partCount' => count($parts),
+            'parsedPartCount' => $parsedPartCount,
+            'parseErrorCount' => $parseErrorCount,
+            'tripleCount' => $tripleCount,
+            'literalCount' => $literalCount,
+            'resourceCount' => $resourceCount,
+            'subjectCount' => count($subjectsBySubject),
+            'parts' => $parts,
+            'subjectsBySubject' => $subjectsBySubject,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function isRdfManifestItem(array $item): bool
+    {
+        $mediaType = strtolower(trim(explode(';', (string) ($item['mediaType'] ?? ''), 2)[0]));
+        $part = (string) ($item['part'] ?? '');
+
+        return $mediaType === 'application/rdf+xml' || strtolower(basename($part)) === 'manifest.rdf';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseRdfMetadataPart(string $xml, string $part): array
+    {
+        $dom = self::loadXml($xml, 'ODT RDF metadata ' . $part);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isElement($root, self::RDF_NS, 'RDF')) {
+            throw new \InvalidArgumentException('ODT RDF metadata ' . $part . ' must use rdf:RDF as its root element');
+        }
+
+        $triples = [];
+        $subjectsBySubject = [];
+        foreach (self::childElements($root) as $descriptionIndex => $description) {
+            $subject = $this->rdfSubject($description, $part, $descriptionIndex);
+            $descriptionTriples = $this->rdfDescriptionTriples($description, $subject);
+            if (!$this->isElement($description, self::RDF_NS, 'Description')) {
+                array_unshift($descriptionTriples, [
+                    'subject' => $subject,
+                    'predicate' => 'rdf:type',
+                    'predicateNamespace' => self::RDF_NS,
+                    'predicateName' => 'type',
+                    'objectType' => 'resource',
+                    'object' => $this->rdfExpandedName($description),
+                ]);
+            }
+
+            foreach ($descriptionTriples as $triple) {
+                if ($triple === []) {
+                    continue;
+                }
+
+                $triples[] = $triple;
+                if (!isset($subjectsBySubject[$subject])) {
+                    $subjectsBySubject[$subject] = [
+                        'subject' => $subject,
+                        'tripleCount' => 0,
+                        'literalCount' => 0,
+                        'resourceCount' => 0,
+                        'predicates' => [],
+                    ];
+                }
+
+                $subjectsBySubject[$subject]['tripleCount']++;
+                if (($triple['objectType'] ?? '') === 'resource') {
+                    $subjectsBySubject[$subject]['resourceCount']++;
+                } else {
+                    $subjectsBySubject[$subject]['literalCount']++;
+                }
+                $predicate = (string) ($triple['predicate'] ?? '');
+                if ($predicate !== '' && !in_array($predicate, $subjectsBySubject[$subject]['predicates'], true)) {
+                    $subjectsBySubject[$subject]['predicates'][] = $predicate;
+                }
+            }
+        }
+
+        foreach ($subjectsBySubject as &$subjectMetadata) {
+            sort($subjectMetadata['predicates']);
+        }
+        unset($subjectMetadata);
+
+        $literalCount = 0;
+        $resourceCount = 0;
+        foreach ($triples as $triple) {
+            if (($triple['objectType'] ?? '') === 'resource') {
+                $resourceCount++;
+            } else {
+                $literalCount++;
+            }
+        }
+
+        return [
+            'tripleCount' => count($triples),
+            'literalCount' => $literalCount,
+            'resourceCount' => $resourceCount,
+            'subjectCount' => count($subjectsBySubject),
+            'subjects' => array_values($subjectsBySubject),
+            'subjectsBySubject' => $subjectsBySubject,
+            'triples' => $triples,
+        ];
+    }
+
+    private function rdfSubject(\DOMElement $description, string $part, int $index): string
+    {
+        foreach (['about', 'ID', 'nodeID'] as $name) {
+            $value = self::attr($description, self::RDF_NS, $name);
+            if ($value === '') {
+                continue;
+            }
+
+            if ($name === 'ID') {
+                return '#' . $value;
+            }
+            if ($name === 'nodeID') {
+                return '_:' . $value;
+            }
+
+            return $value;
+        }
+
+        return '_:' . $part . '#' . ($index + 1);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function rdfDescriptionTriples(\DOMElement $description, string $subject): array
+    {
+        $triples = [];
+        foreach ($description->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            if ($attribute->namespaceURI === self::RDF_NS || $attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            $value = trim($attribute->value);
+            if ($value === '') {
+                continue;
+            }
+
+            $triples[] = [
+                'subject' => $subject,
+                'predicate' => $this->rdfNodeName($attribute),
+                'predicateNamespace' => $attribute->namespaceURI,
+                'predicateName' => $attribute->localName,
+                'objectType' => 'literal',
+                'object' => $value,
+            ];
+        }
+
+        foreach (self::childElements($description) as $property) {
+            $triple = $this->rdfPropertyTriple($property, $subject);
+            if ($triple !== []) {
+                $triples[] = $triple;
+            }
+        }
+
+        return $triples;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rdfPropertyTriple(\DOMElement $property, string $subject): array
+    {
+        $resource = self::attr($property, self::RDF_NS, 'resource');
+        $nodeId = self::attr($property, self::RDF_NS, 'nodeID');
+        $language = self::attr($property, self::XML_NS, 'lang');
+        $datatype = self::attr($property, self::RDF_NS, 'datatype');
+        $parseType = self::attr($property, self::RDF_NS, 'parseType');
+
+        $metadata = [
+            'subject' => $subject,
+            'predicate' => $this->rdfNodeName($property),
+            'predicateNamespace' => $property->namespaceURI,
+            'predicateName' => $property->localName,
+        ];
+
+        if ($resource !== '') {
+            $metadata['objectType'] = 'resource';
+            $metadata['object'] = $resource;
+        } elseif ($nodeId !== '') {
+            $metadata['objectType'] = 'resource';
+            $metadata['object'] = '_:' . $nodeId;
+        } else {
+            $metadata['objectType'] = 'literal';
+            $metadata['object'] = self::normalizedText($property);
+        }
+
+        if ($language !== '') {
+            $metadata['language'] = $language;
+        }
+        if ($datatype !== '') {
+            $metadata['datatype'] = $datatype;
+        }
+        if ($parseType !== '') {
+            $metadata['parseType'] = $parseType;
+        }
+
+        return self::withoutEmpty($metadata);
+    }
+
+    private function rdfNodeName(\DOMNode $node): string
+    {
+        $prefix = $node->prefix;
+        if (is_string($prefix) && $prefix !== '') {
+            return $prefix . ':' . $node->localName;
+        }
+
+        return $node->localName ?? $node->nodeName;
+    }
+
+    private function rdfExpandedName(\DOMElement $element): string
+    {
+        $namespace = $element->namespaceURI;
+        if (is_string($namespace) && $namespace !== '') {
+            return $namespace . $element->localName;
+        }
+
+        return $element->localName;
     }
 
     /**

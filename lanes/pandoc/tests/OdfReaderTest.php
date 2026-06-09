@@ -8173,6 +8173,83 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<img src="Pictures/hero.png" alt="Hero alt text" title="Hero title"/>', $blocks);
     },
+    'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithRdf = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>'
+            . '<manifest:file-entry manifest:full-path="metadata/invalid.rdf" manifest:media-type="application/rdf+xml"/>',
+            $manifestXml
+        );
+        $rdfXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:wp="https://example.test/ns/wp#"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <rdf:Description rdf:about="content.xml">
+    <dc:title xml:lang="en">Reviewed ODT source body</dc:title>
+    <dc:creator rdf:resource="urn:uuid:reviewer-1"/>
+    <wp:review-status>ready</wp:review-status>
+  </rdf:Description>
+  <rdf:Description rdf:about="Pictures/hero.png">
+    <dc:format>image/png</dc:format>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithRdf, null, null, [
+            ['name' => 'manifest.rdf', 'data' => $rdfXml],
+            ['name' => 'metadata/invalid.rdf', 'data' => '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description'],
+        ]));
+        $rdf = $result['rdfMetadata'];
+
+        $t->same(2, $rdf['partCount']);
+        $t->same(1, $rdf['parsedPartCount']);
+        $t->same(1, $rdf['parseErrorCount']);
+        $t->same(4, $rdf['tripleCount']);
+        $t->same(3, $rdf['literalCount']);
+        $t->same(1, $rdf['resourceCount']);
+        $t->same(2, $rdf['subjectCount']);
+        $t->same($rdf, $result['document']->attr('rdfMetadata'));
+        $t->same($rdf, $result['importReport']['rdfMetadata']);
+        $t->same(7, $result['importReport']['manifest']['count']);
+        $t->same(1, count($result['media']), 'RDF XML sidecars must stay out of media byte handoff');
+
+        $validPart = $rdf['parts'][0];
+        $invalidPart = $rdf['parts'][1];
+        $t->same('manifest.rdf', $validPart['part']);
+        $t->same('application/rdf+xml', $validPart['mediaType']);
+        $t->same(true, $validPart['exists']);
+        $t->same(true, $validPart['parseable']);
+        $t->same(4, $validPart['tripleCount']);
+        $t->same(2, $validPart['subjectCount']);
+        $t->same('metadata/invalid.rdf', $invalidPart['part']);
+        $t->same(false, $invalidPart['parseable']);
+        $t->same('invalid-rdf-xml', $invalidPart['diagnostic']);
+
+        $contentSubject = $rdf['subjectsBySubject']['content.xml'];
+        $imageSubject = $rdf['subjectsBySubject']['Pictures/hero.png'];
+        $t->same(3, $contentSubject['tripleCount']);
+        $t->same(2, $contentSubject['literalCount']);
+        $t->same(1, $contentSubject['resourceCount']);
+        $t->same(['dc:creator', 'dc:title', 'wp:review-status'], $contentSubject['predicates']);
+        $t->same(1, $imageSubject['tripleCount']);
+        $t->same(['dc:format'], $imageSubject['predicates']);
+
+        $triplesByPredicate = [];
+        foreach ($validPart['triples'] as $triple) {
+            $triplesByPredicate[$triple['subject'] . '|' . $triple['predicate']] = $triple;
+        }
+
+        $t->same('Reviewed ODT source body', $triplesByPredicate['content.xml|dc:title']['object']);
+        $t->same('literal', $triplesByPredicate['content.xml|dc:title']['objectType']);
+        $t->same('en', $triplesByPredicate['content.xml|dc:title']['language']);
+        $t->same('urn:uuid:reviewer-1', $triplesByPredicate['content.xml|dc:creator']['object']);
+        $t->same('resource', $triplesByPredicate['content.xml|dc:creator']['objectType']);
+        $t->same('ready', $triplesByPredicate['content.xml|wp:review-status']['object']);
+        $t->same('image/png', $triplesByPredicate['Pictures/hero.png|dc:format']['object']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
