@@ -255,6 +255,8 @@ final class OdfReader
                     'listTextPropertyCount' => $contentStats['listTextPropertyCount'],
                     'tableTemplateReferenceCount' => $contentStats['tableTemplateReferenceCount'],
                     'tablePrintRangeCount' => $contentStats['tablePrintRangeCount'],
+                    'tableScenarioCount' => $contentStats['tableScenarioCount'],
+                    'activeTableScenarioCount' => $contentStats['activeTableScenarioCount'],
                     'tableColumnDefinitionCount' => $contentStats['tableColumnDefinitionCount'],
                     'hiddenTableColumnCount' => $contentStats['hiddenTableColumnCount'],
                     'tableRowDefinitionCount' => $contentStats['tableRowDefinitionCount'],
@@ -2165,6 +2167,21 @@ final class OdfReader
             $attrs['htmlAttributes']['data-odf-table-print-ranges'] = implode(';', $printRanges);
         }
 
+        $scenarios = $this->tableScenarios($table);
+        if ($scenarios !== []) {
+            $activeScenarioCount = $this->activeTableScenarioCount($scenarios);
+            $attrs['odfTableScenarios'] = $scenarios;
+            $attrs['scenarioCount'] = count($scenarios);
+            $attrs['activeScenarioCount'] = $activeScenarioCount;
+            $attrs['htmlAttributes'] = array_merge(
+                is_array($attrs['htmlAttributes'] ?? null) ? $attrs['htmlAttributes'] : [],
+                $this->tableScenarioHtmlAttributes($scenarios),
+            );
+            $classes = is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [];
+            $classes[] = 'odf-table-scenario';
+            $attrs['classes'] = array_values(array_unique($classes));
+        }
+
         $styleName = self::attr($table, self::TABLE_NS, 'style-name');
         if ($styleName !== '') {
             $attrs['styleName'] = $styleName;
@@ -2177,7 +2194,9 @@ final class OdfReader
             $attrs['templateName'] = $templateName;
             $attrs['htmlAttributes']['data-odf-table-template-name'] = $templateName;
             $attrs['htmlAttributes']['data-odf-table-template-exists'] = is_array($template) ? 'true' : 'false';
-            $attrs['classes'] = ['odf-table-template'];
+            $classes = is_array($attrs['classes'] ?? null) ? $attrs['classes'] : [];
+            $classes[] = 'odf-table-template';
+            $attrs['classes'] = array_values(array_unique($classes));
             if (is_array($template)) {
                 $attrs['tableTemplate'] = $template;
                 $attrs['htmlAttributes']['data-odf-table-template-style-count'] = (string) count($this->tableTemplateStyleNames($template));
@@ -2854,6 +2873,110 @@ final class OdfReader
         }
 
         return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function tableScenarios(\DOMElement $table): array
+    {
+        $scenarios = [];
+        foreach (self::childElements($table, 'scenario', self::TABLE_NS) as $scenario) {
+            $definition = $this->tableScenarioDefinition($scenario);
+            if ($definition !== []) {
+                $scenarios[] = $definition;
+            }
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableScenarioDefinition(\DOMElement $scenario): array
+    {
+        $ranges = $this->tableScenarioRanges(self::attr($scenario, self::TABLE_NS, 'scenario-ranges'));
+
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($scenario, self::TABLE_NS, 'name')),
+            'displayBorder' => self::nullableBool(self::attr($scenario, self::TABLE_NS, 'display-border')),
+            'borderColor' => self::nullable(self::attr($scenario, self::TABLE_NS, 'border-color')),
+            'copyBack' => self::nullableBool(self::attr($scenario, self::TABLE_NS, 'copy-back')),
+            'copyStyles' => self::nullableBool(self::attr($scenario, self::TABLE_NS, 'copy-styles')),
+            'copyFormulas' => self::nullableBool(self::attr($scenario, self::TABLE_NS, 'copy-formulas')),
+            'isActive' => self::nullableBool(self::attr($scenario, self::TABLE_NS, 'is-active')),
+            'scenarioRanges' => $ranges === [] ? null : $ranges,
+            'comment' => self::nullable(self::attr($scenario, self::TABLE_NS, 'comment')),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableScenarioRanges(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return [];
+        }
+
+        $ranges = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $normalized = [];
+        foreach ($ranges as $range) {
+            $range = trim($range);
+            if ($range !== '') {
+                $normalized[] = $range;
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $scenarios
+     */
+    private function activeTableScenarioCount(array $scenarios): int
+    {
+        $activeCount = 0;
+        foreach ($scenarios as $scenario) {
+            if (($scenario['isActive'] ?? false) === true) {
+                $activeCount++;
+            }
+        }
+
+        return $activeCount;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $scenarios
+     * @return array<string, string>
+     */
+    private function tableScenarioHtmlAttributes(array $scenarios): array
+    {
+        $names = [];
+        $ranges = [];
+        foreach ($scenarios as $scenario) {
+            $name = (string) ($scenario['name'] ?? '');
+            if ($name !== '') {
+                $names[] = $name;
+            }
+            $scenarioRanges = $scenario['scenarioRanges'] ?? [];
+            if (is_array($scenarioRanges)) {
+                foreach ($scenarioRanges as $range) {
+                    if (is_scalar($range) && (string) $range !== '') {
+                        $ranges[] = (string) $range;
+                    }
+                }
+            }
+        }
+
+        return self::withoutEmpty([
+            'data-odf-table-scenario-count' => (string) count($scenarios),
+            'data-odf-table-active-scenario-count' => (string) $this->activeTableScenarioCount($scenarios),
+            'data-odf-table-scenario-names' => $names === [] ? null : implode(',', array_values(array_unique($names))),
+            'data-odf-table-scenario-ranges' => $ranges === [] ? null : implode(';', array_values(array_unique($ranges))),
+        ]);
     }
 
     /**
@@ -8841,7 +8964,7 @@ final class OdfReader
 
     /**
      * @param list<AstNode> $nodes
-     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, eventListenerCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tablePrintRangeCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
+     * @return array{blockquoteCount:int, noteCount:int, bookmarkCount:int, bookmarkReferenceCount:int, referenceMarkCount:int, referenceReferenceCount:int, indexMarkCount:int, sequenceCount:int, fieldCount:int, metaSpanCount:int, placeholderCount:int, rubyCount:int, softPageBreakCount:int, citationCount:int, eventListenerCount:int, annotationRangeCount:int, trackedChangeCount:int, mathCount:int, embeddedObjectCount:int, missingEmbeddedObjectCount:int, chartObjectCount:int, chartMetadataCount:int, formControlCount:int, missingFormControlCount:int, formControlOptionCount:int, selectedFormControlOptionCount:int, sectionCount:int, linkedSectionCount:int, protectedSectionCount:int, conditionalSectionCount:int, hiddenSectionCount:int, tableOfContentsCount:int, generatedIndexCount:int, tableCaptionCount:int, preformattedCodeBlockCount:int, continuedListCount:int, listHeaderCount:int, tableTemplateReferenceCount:int, tablePrintRangeCount:int, tableScenarioCount:int, activeTableScenarioCount:int, tableColumnDefinitionCount:int, hiddenTableColumnCount:int, tableRowDefinitionCount:int, hiddenTableRowCount:int, repeatedTableRowCount:int, truncatedTableRowRepeatCount:int}
      */
     private function contentNodeStats(array $nodes): array
     {
@@ -8890,6 +9013,8 @@ final class OdfReader
             'listTextPropertyCount' => 0,
             'tableTemplateReferenceCount' => 0,
             'tablePrintRangeCount' => 0,
+            'tableScenarioCount' => 0,
+            'activeTableScenarioCount' => 0,
             'tableColumnDefinitionCount' => 0,
             'hiddenTableColumnCount' => 0,
             'tableRowDefinitionCount' => 0,
@@ -8952,6 +9077,13 @@ final class OdfReader
                 $printRanges = $node->attr('odfPrintRanges', []);
                 if (is_array($printRanges)) {
                     $stats['tablePrintRangeCount'] += count($printRanges);
+                }
+            }
+            if ($node->type === 'table') {
+                $scenarios = $node->attr('odfTableScenarios', []);
+                if (is_array($scenarios)) {
+                    $stats['tableScenarioCount'] += count($scenarios);
+                    $stats['activeTableScenarioCount'] += $this->activeTableScenarioCount($scenarios);
                 }
             }
             if ($node->type === 'table') {

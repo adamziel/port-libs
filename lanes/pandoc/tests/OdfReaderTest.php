@@ -1172,6 +1172,83 @@ XML;
         $t->contains(': PrintableReview', $markdown);
         $t->contains('<table data-odf-table-name="PrintableReview" data-odf-table-print-range-count="2" data-odf-table-print-ranges="PrintableReview.A1:PrintableReview.B2;PrintableReview.D1:PrintableReview.D4">', $blocksHtml);
     },
+    'maps ODT table scenarios into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithTableScenarios = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0">
+  <office:body>
+    <office:text>
+      <table:table table:name="ScenarioReview">
+        <table:scenario
+          table:name="ReadyImport"
+          table:display-border="true"
+          table:border-color="#00843d"
+          table:copy-back="false"
+          table:copy-styles="true"
+          table:copy-formulas="false"
+          table:is-active="true"
+          table:scenario-ranges="ScenarioReview.A2:ScenarioReview.B3 ScenarioReview.D2:ScenarioReview.D4"
+          table:comment="Approved rows for WordPress import"/>
+        <table:scenario
+          table:name="DraftFallback"
+          table:display-border="false"
+          table:is-active="false"
+          table:scenario-ranges="ScenarioReview.A5:ScenarioReview.B6"/>
+        <table:table-row>
+          <table:table-cell><text:p>Owner</text:p></table:table-cell>
+          <table:table-cell><text:p>Status</text:p></table:table-cell>
+        </table:table-row>
+        <table:table-row>
+          <table:table-cell><text:p>Migration desk</text:p></table:table-cell>
+          <table:table-cell><text:p>Ready</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithTableScenarios));
+        $table = $result['document']->children[0];
+        $scenarios = $table->attr('odfTableScenarios');
+        $first = is_array($scenarios) ? ($scenarios[0] ?? []) : [];
+        $second = is_array($scenarios) ? ($scenarios[1] ?? []) : [];
+
+        $t->same('table', $table->type);
+        $t->same('ScenarioReview', $table->attr('tableName'));
+        $t->same(2, $table->attr('scenarioCount'));
+        $t->same(1, $table->attr('activeScenarioCount'));
+        $t->same(2, count($scenarios));
+        $t->same('ReadyImport', $first['name'] ?? null);
+        $t->same(true, $first['displayBorder'] ?? null);
+        $t->same('#00843d', $first['borderColor'] ?? null);
+        $t->same(false, $first['copyBack'] ?? null);
+        $t->same(true, $first['copyStyles'] ?? null);
+        $t->same(false, $first['copyFormulas'] ?? null);
+        $t->same(true, $first['isActive'] ?? null);
+        $t->same([
+            'ScenarioReview.A2:ScenarioReview.B3',
+            'ScenarioReview.D2:ScenarioReview.D4',
+        ], $first['scenarioRanges'] ?? null);
+        $t->same('Approved rows for WordPress import', $first['comment'] ?? null);
+        $t->same('DraftFallback', $second['name'] ?? null);
+        $t->same(false, $second['displayBorder'] ?? null);
+        $t->same(false, $second['isActive'] ?? null);
+        $t->same(['ScenarioReview.A5:ScenarioReview.B6'], $second['scenarioRanges'] ?? null);
+        $t->same('2', $table->attr('htmlAttributes')['data-odf-table-scenario-count']);
+        $t->same('1', $table->attr('htmlAttributes')['data-odf-table-active-scenario-count']);
+        $t->same('ReadyImport,DraftFallback', $table->attr('htmlAttributes')['data-odf-table-scenario-names']);
+        $t->same('ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6', $table->attr('htmlAttributes')['data-odf-table-scenario-ranges']);
+        $t->same(2, $result['importReport']['content']['tableScenarioCount']);
+        $t->same(1, $result['importReport']['content']['activeTableScenarioCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains(': ScenarioReview', $markdown);
+        $t->contains('<table class="odf-table-scenario" data-odf-table-name="ScenarioReview" data-odf-table-scenario-count="2" data-odf-table-active-scenario-count="1" data-odf-table-scenario-names="ReadyImport,DraftFallback" data-odf-table-scenario-ranges="ScenarioReview.A2:ScenarioReview.B3;ScenarioReview.D2:ScenarioReview.D4;ScenarioReview.A5:ScenarioReview.B6">', $blocksHtml);
+    },
     'maps ODT table cell formulas and typed values into review metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithTypedTableCells = <<<'XML'
 <office:document-content
