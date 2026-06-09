@@ -2184,6 +2184,57 @@ XML;
         $t->same(1, $result['nav']['documentDiagnosticCount']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
+    'reports EPUB nav document item label diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithMissingItemLabels = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li><a id="blank-toc-link" href="text/chapter1.xhtml#intro"></a></li>
+        <li><a href="text/chapter2.xhtml#media">Media audit</a></li>
+      </ol>
+    </nav>
+    <nav id="print-pages" epub:type="page-list">
+      <h2>Print page list</h2>
+      <ol>
+        <li><a id="blank-page-link" epub:type="pagebreak" href="text/chapter1.xhtml#page-1"></a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithMissingItemLabels,
+        ));
+
+        $report = $result['nav']['documentDiagnostics'];
+        $t->same(true, $report['present']);
+        $t->same(2, $report['sectionCount']);
+        $t->same(2, $report['primarySectionCount']);
+        $t->same(0, $report['missingHeadingSectionCount']);
+        $t->same(2, $report['missingPrimaryItemLabelCount']);
+        $t->same(2, $report['diagnosticCount']);
+        $t->same(['missing-primary-nav-item-label', 'missing-primary-nav-item-label'], array_column($report['diagnostics'], 'type'));
+
+        $tocDiagnostic = $report['diagnostics'][0];
+        $t->same('main-toc', $tocDiagnostic['sectionId']);
+        $t->same('toc', $tocDiagnostic['sectionType']);
+        $t->same(0, $tocDiagnostic['itemIndex']);
+        $t->same('blank-toc-link', $tocDiagnostic['labelId']);
+        $t->same('text/chapter1.xhtml#intro', $tocDiagnostic['href']);
+        $t->same('/OEBPS/text/chapter1.xhtml#intro', $tocDiagnostic['target']);
+        $t->same(0, $tocDiagnostic['depth']);
+
+        $pageDiagnostic = $report['diagnostics'][1];
+        $t->same('print-pages', $pageDiagnostic['sectionId']);
+        $t->same(['page-list'], $pageDiagnostic['sectionTypes']);
+        $t->same('blank-page-link', $pageDiagnostic['labelId']);
+        $t->same('/OEBPS/text/chapter1.xhtml#page-1', $pageDiagnostic['target']);
+        $t->same(2, $result['nav']['documentDiagnosticCount']);
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
