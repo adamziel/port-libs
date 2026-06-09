@@ -430,6 +430,12 @@ writer-special-float-labels:
   - "-.inf"
   - "+.nan"
   - safe.inf
+writer-timestamp-date: "2026-6-3"
+writer-timestamp-captured-at: "2026-6-3T4:05:06Z"
+writer-timestamp-labels:
+  - "2026-6-4"
+  - "2026-6-4T5:06:07+5"
+  - release-2026-6-4
 plain-key-review:
   source owner: Import Desk
   owner role: content steward
@@ -1946,6 +1952,15 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($meta['writer-special-float-labels'] ?? []) !== ['-.inf', '+.nan', 'safe.inf']) {
         throw new RuntimeException('YAML metadata self-test missing writer special-float-looking label list source metadata');
     }
+    if (($meta['writer-timestamp-date'] ?? '') !== '2026-6-3') {
+        throw new RuntimeException('YAML metadata self-test missing writer timestamp-looking date source metadata');
+    }
+    if (($meta['writer-timestamp-captured-at'] ?? '') !== '2026-6-3T4:05:06Z') {
+        throw new RuntimeException('YAML metadata self-test missing writer timestamp-looking datetime source metadata');
+    }
+    if (($meta['writer-timestamp-labels'] ?? []) !== ['2026-6-4', '2026-6-4T5:06:07+5', 'release-2026-6-4']) {
+        throw new RuntimeException('YAML metadata self-test missing writer timestamp-looking label list source metadata');
+    }
     if (($meta['plain-key-review']['source owner'] ?? '') !== 'Import Desk') {
         throw new RuntimeException('YAML metadata self-test missing nested plain spaced key metadata');
     }
@@ -2200,11 +2215,23 @@ if (($argv[1] ?? '') === '--self-test') {
     ) {
         throw new RuntimeException('YAML metadata self-test did not quote special-float-looking writer scalars');
     }
+    if (
+        !str_contains($metadataMarkdown, "writer-timestamp-date: \"2026-6-3\"")
+        || !str_contains($metadataMarkdown, "writer-timestamp-captured-at: \"2026-6-3T4:05:06Z\"")
+        || !str_contains($metadataMarkdown, "  - \"2026-6-4\"")
+        || !str_contains($metadataMarkdown, "  - \"2026-6-4T5:06:07+5\"")
+        || !str_contains($metadataMarkdown, "  - release-2026-6-4")
+    ) {
+        throw new RuntimeException('YAML metadata self-test did not quote timestamp-looking writer scalars');
+    }
     if (str_contains($metadataMarkdown, 'writer-sexagesimal-duration: 2:03')) {
         throw new RuntimeException('YAML metadata self-test emitted ambiguous sexagesimal writer scalar');
     }
     if (str_contains($metadataMarkdown, 'writer-special-float-status: .inf')) {
         throw new RuntimeException('YAML metadata self-test emitted ambiguous special-float writer scalar');
+    }
+    if (str_contains($metadataMarkdown, 'writer-timestamp-date: 2026-6-3') || str_contains($metadataMarkdown, 'writer-timestamp-captured-at: 2026-6-3T4:05:06Z')) {
+        throw new RuntimeException('YAML metadata self-test emitted ambiguous timestamp writer scalar');
     }
     if (str_contains($metadataMarkdown, 'Source abstract keeps **review** emphasis\\n\\n') || str_contains($metadataMarkdown, 'Review steps:\\n')) {
         throw new RuntimeException('YAML metadata self-test leaked escaped newline metadata after writer block-scalar handoff');
@@ -2241,6 +2268,15 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($metadataRoundTripMeta['writer-special-float-labels'] ?? []) !== ['-.inf', '+.nan', 'safe.inf']) {
         throw new RuntimeException('YAML metadata self-test lost special-float-looking writer sequence scalars during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-timestamp-date'] ?? '') !== '2026-6-3') {
+        throw new RuntimeException('YAML metadata self-test lost timestamp-looking writer date during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-timestamp-captured-at'] ?? '') !== '2026-6-3T4:05:06Z') {
+        throw new RuntimeException('YAML metadata self-test lost timestamp-looking writer datetime during round trip');
+    }
+    if (($metadataRoundTripMeta['writer-timestamp-labels'] ?? []) !== ['2026-6-4', '2026-6-4T5:06:07+5', 'release-2026-6-4']) {
+        throw new RuntimeException('YAML metadata self-test lost timestamp-looking writer sequence scalars during round trip');
     }
     if (($implicitOpeningMeta['title'] ?? '') !== 'Implicit **Packet**') {
         throw new RuntimeException('YAML metadata self-test missing omitted-opening title metadata');
@@ -2405,6 +2441,7 @@ echo 'Writer hashtag labels: ' . ($metadataRoundTripMeta['writer-hashtag-label']
 echo 'Writer colon labels: ' . ($metadataRoundTripMeta['writer-colon-label'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-colon-labels'] ?? []) . "\n";
 echo 'Writer sexagesimal labels: ' . ($metadataRoundTripMeta['writer-sexagesimal-duration'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-sexagesimal-labels'] ?? []) . "\n";
 echo 'Writer special float labels: ' . ($metadataRoundTripMeta['writer-special-float-status'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-special-float-labels'] ?? []) . "\n";
+echo 'Writer timestamp labels: ' . ($metadataRoundTripMeta['writer-timestamp-date'] ?? '') . ' / ' . implode(', ', $metadataRoundTripMeta['writer-timestamp-labels'] ?? []) . "\n";
 echo 'Flow colon key review: ' . ($meta['flow-colon-key-review']['source:key'] ?? '') . ' / ' . ($meta['flow-colon-key-review']['dc:title'] ?? '') . "\n";
 echo 'Flow document review: ' . ($meta['flow-document-review']['status'] ?? '') . ' / priority ' . ($meta['flow-document-review']['priority'] ?? '') . "\n";
 echo 'Ambiguous field diagnostics: ' . implode(', ', array_column($ambiguousYamlDiagnostics, 'field')) . "\n";

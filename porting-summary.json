@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 03:07:48 UTC",
-    "sourceCommit": "82ece526c3b1abf329ce3c42e1c2113cbac669aa",
-    "sourceCommitShort": "82ece526c3b1",
+    "generated": "2026-06-09 03:09:23 UTC",
+    "sourceCommit": "973652bab7ed8beecdee44a1321feeb3759f9d5c",
+    "sourceCommitShort": "973652bab7ed",
     "sourceBranch": "unknown",
-    "dashboardCommit": "82ece526c3b1abf329ce3c42e1c2113cbac669aa",
-    "dashboardCommitShort": "82ece526c3b1",
+    "dashboardCommit": "973652bab7ed8beecdee44a1321feeb3759f9d5c",
+    "dashboardCommitShort": "973652bab7ed",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -133,16 +133,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "2617",
-            "coverage": "2,617 / 2,276 (115.0%)",
+            "mapped": "2618",
+            "coverage": "2,618 / 2,276 (115.0%)",
             "mapPercent": "115.0%",
             "unmapped": "0",
-            "php": "2,207 pass / 0 fail",
+            "php": "2,208 pass / 0 fail",
             "phase": "cloned inventory plus native Markdown/HTML reader, Markdown/LaTeX/Wor...",
-            "audit": "2026-06-09 UTC math/TeX conversion core current-base slice on base 9c...",
+            "audit": "2026-06-09 UTC isolated pandoc YAML metadata core slice on base f3cb4...",
             "currentWork": "Native Pandoc support now includes accepted Markdown/HTML reader and writer evidence...",
-            "nextTarget": "For math/TeX follow-up, choose a non-overlapping bounded TeX...",
-            "remainingGate": "No new native support component is needed for this math/TeX conversio...",
+            "nextTarget": "Keep broader DOCX document-part parsing, XHTML-to-AST EPUB ch...",
+            "remainingGate": "No local blocker",
             "commit": "pending fast ba..."
         },
         {

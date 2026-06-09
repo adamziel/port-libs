@@ -7637,6 +7637,48 @@ MD;
         $t->same('yaml-writer-special-float-body', $roundTripped->children[0]->attr('id'));
         $t->contains('<h1 id="yaml-writer-special-float-body">YAML writer special float body</h1>', $blocks);
     },
+    'writes pandoc yaml timestamp-looking metadata scalars as quoted strings' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'title' => 'Writer timestamp **Packet**',
+                'date' => '2026-6-2',
+                'review' => [
+                    'source-date' => '2026-6-3',
+                    'captured-at' => '2026-6-3T4:05:06Z',
+                    'offset-at' => '2026-6-3T4:05:06-3',
+                    'invalid-date' => '2026-13-03',
+                    'labels' => ['2026-6-4', '2026-6-4T5:06:07+5', 'release-2026-6-4'],
+                ],
+            ],
+        ], [
+            new AstNode('heading', ['level' => 1, 'id' => 'yaml-writer-timestamp-body'], [$text('YAML writer timestamp body')]),
+        ]);
+
+        $markdown = (new MarkdownWriter(['yamlMetadata' => true]))->write($document);
+        $roundTripped = (new MarkdownReader())->read($markdown);
+        $meta = $roundTripped->attr('meta');
+        $blocks = (new WordPressBlockWriter())->write($roundTripped);
+
+        $t->contains('date: "2026-6-2"', $markdown);
+        $t->contains('source-date: "2026-6-3"', $markdown);
+        $t->contains('captured-at: "2026-6-3T4:05:06Z"', $markdown);
+        $t->contains('offset-at: "2026-6-3T4:05:06-3"', $markdown);
+        $t->contains('invalid-date: "2026-13-03"', $markdown);
+        $t->contains('  - "2026-6-4"', $markdown);
+        $t->contains('  - "2026-6-4T5:06:07+5"', $markdown);
+        $t->contains('  - release-2026-6-4', $markdown);
+        $t->same(false, str_contains($markdown, 'source-date: 2026-6-3'));
+        $t->same(false, str_contains($markdown, 'captured-at: 2026-6-3T4:05:06Z'));
+        $t->same('2026-6-2', $meta['date']);
+        $t->same('2026-6-3', $meta['review']['source-date']);
+        $t->same('2026-6-3T4:05:06Z', $meta['review']['captured-at']);
+        $t->same('2026-6-3T4:05:06-3', $meta['review']['offset-at']);
+        $t->same('2026-13-03', $meta['review']['invalid-date']);
+        $t->same(['2026-6-4', '2026-6-4T5:06:07+5', 'release-2026-6-4'], $meta['review']['labels']);
+        $t->same('yaml-writer-timestamp-body', $roundTripped->children[0]->attr('id'));
+        $t->contains('<h1 id="yaml-writer-timestamp-body">YAML writer timestamp body</h1>', $blocks);
+    },
     'writes pandoc yaml multiline metadata as block scalars' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $document = new AstNode('document', [

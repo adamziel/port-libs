@@ -443,6 +443,7 @@ final class MarkdownWriter
         return is_numeric($value)
             || $this->isYamlMetadataSexagesimalNumericScalar(str_replace('_', '', trim($value)))
             || $this->isYamlMetadataSpecialFloatScalar($normalized)
+            || $this->isYamlMetadataTimestampScalar($value)
             || preg_match('/^[+-]?0x[0-9a-f]+$/i', $value) === 1
             || preg_match('/^[+-]?0o[0-7]+$/i', $value) === 1
             || preg_match('/^[+-]?0b[01]+$/i', $value) === 1;
@@ -451,6 +452,19 @@ final class MarkdownWriter
     private function isYamlMetadataSpecialFloatScalar(string $value): bool
     {
         return in_array($value, ['.inf', '+.inf', '-.inf', '.nan', '+.nan', '-.nan'], true);
+    }
+
+    private function isYamlMetadataTimestampScalar(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match('/^\d{4}-\d{1,2}-\d{1,2}$/', $value) === 1) {
+            return true;
+        }
+
+        return preg_match(
+            '/^\d{4}-\d{1,2}-\d{1,2}(?:[Tt]|[ \t]+)\d{1,2}:\d{2}:\d{2}(?:\.[0-9]+)?(?:[ \t]*(?:[Zz]|[+-]\d{1,2}(?::?\d{2})?))?$/',
+            $value
+        ) === 1;
     }
 
     private function isYamlMetadataSexagesimalNumericScalar(string $value): bool
