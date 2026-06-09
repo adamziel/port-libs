@@ -26,6 +26,7 @@ final class OdfReader
     private const CHART_NS = 'urn:oasis:names:tc:opendocument:xmlns:chart:1.0';
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
     private const RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    private const XHTML_NS = 'http://www.w3.org/1999/xhtml';
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -64,6 +65,9 @@ final class OdfReader
     /** @var array<string, mixed> */
     private array $packageSettings = [];
 
+    /** @var array<string, mixed> */
+    private array $packageRdfMetadata = [];
+
     /**
      * @return array{
      *     document:AstNode,
@@ -91,6 +95,7 @@ final class OdfReader
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
         $rdfMetadata = $this->readRdfMetadata($package, $manifest);
+        $this->packageRdfMetadata = $rdfMetadata;
         $styleCatalog = $this->readStyles($package);
         $metadata = $this->readMeta($package);
         $settings = $this->readSettings($package);
@@ -6288,8 +6293,13 @@ final class OdfReader
         if ($timeValue === '') {
             $timeValue = self::attr($meta, self::TEXT_NS, 'time-value');
         }
+        $rdfAbout = $this->metaSpanRdfAttribute($meta, 'about');
+        $rdfProperty = $this->metaSpanRdfAttribute($meta, 'property');
+        $rdfContent = $this->metaSpanRdfAttribute($meta, 'content');
+        $rdfDatatype = $this->metaSpanRdfAttribute($meta, 'datatype');
+        $rdfSubject = $this->rdfSubjectMetadataForInlineMeta($rdfAbout, $sourceId);
 
-        return self::withoutEmpty([
+        $metadata = self::withoutEmpty([
             'sourceId' => self::nullable($sourceId),
             'name' => self::nullable(self::attr($meta, self::TEXT_NS, 'name')),
             'description' => self::nullable(self::attr($meta, self::TEXT_NS, 'description')),
@@ -6301,7 +6311,94 @@ final class OdfReader
             'timeValue' => self::nullable($timeValue),
             'fixed' => self::nullableBool(self::attr($meta, self::TEXT_NS, 'fixed')),
             'styleName' => self::nullable(self::attr($meta, self::TEXT_NS, 'style-name')),
+            'rdfAbout' => self::nullable($rdfAbout),
+            'rdfProperty' => self::nullable($rdfProperty),
+            'rdfContent' => self::nullable($rdfContent),
+            'rdfDatatype' => self::nullable($rdfDatatype),
         ]);
+
+        if ($rdfSubject !== []) {
+            $metadata['rdfSubject'] = (string) ($rdfSubject['subject'] ?? '');
+            $metadata['rdfSubjectPartCount'] = (int) ($rdfSubject['partCount'] ?? 0);
+            $metadata['rdfSubjectTripleCount'] = (int) ($rdfSubject['tripleCount'] ?? 0);
+            $metadata['rdfSubjectLiteralCount'] = (int) ($rdfSubject['literalCount'] ?? 0);
+            $metadata['rdfSubjectResourceCount'] = (int) ($rdfSubject['resourceCount'] ?? 0);
+            $metadata['rdfSubjectParts'] = implode(',', array_map(
+                static fn (mixed $value): string => (string) $value,
+                is_array($rdfSubject['parts'] ?? null) ? $rdfSubject['parts'] : []
+            ));
+            $metadata['rdfSubjectPredicates'] = implode(',', array_map(
+                static fn (mixed $value): string => (string) $value,
+                is_array($rdfSubject['predicates'] ?? null) ? $rdfSubject['predicates'] : []
+            ));
+            $metadata['rdfSubjectMetadata'] = $rdfSubject;
+        }
+
+        return self::withoutEmpty($metadata);
+    }
+
+    private function metaSpanRdfAttribute(\DOMElement $meta, string $name): string
+    {
+        foreach ([self::XHTML_NS, self::TEXT_NS, self::RDF_NS] as $namespace) {
+            $value = self::attr($meta, $namespace, $name);
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rdfSubjectMetadataForInlineMeta(string $about, string $sourceId): array
+    {
+        $subjectsBySubject = $this->packageRdfMetadata['subjectsBySubject'] ?? [];
+        if (!is_array($subjectsBySubject) || $subjectsBySubject === []) {
+            return [];
+        }
+
+        foreach ($this->inlineMetaRdfSubjectCandidates($about, $sourceId) as $candidate) {
+            $subject = $subjectsBySubject[$candidate] ?? null;
+            if (is_array($subject)) {
+                return $subject;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function inlineMetaRdfSubjectCandidates(string $about, string $sourceId): array
+    {
+        $candidates = [];
+        if ($about !== '') {
+            $candidates[] = $about;
+            $decoded = rawurldecode($about);
+            if ($decoded !== $about) {
+                $candidates[] = $decoded;
+            }
+            if (str_starts_with($about, '#')) {
+                $candidates[] = 'content.xml' . $about;
+            }
+        }
+        if ($sourceId !== '') {
+            $candidates[] = '#' . $sourceId;
+            $candidates[] = 'content.xml#' . $sourceId;
+            $candidates[] = $sourceId;
+        }
+
+        $unique = [];
+        foreach ($candidates as $candidate) {
+            if ($candidate !== '' && !in_array($candidate, $unique, true)) {
+                $unique[] = $candidate;
+            }
+        }
+
+        return $unique;
     }
 
     /**

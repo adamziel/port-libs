@@ -5713,6 +5713,68 @@ XML;
         $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-score" data-odf-meta-value-type="float" data-odf-meta-value="0.98">98%</span>', $blocksHtml);
         $t->contains('<span class="odf-meta odf-meta-field" data-odf-meta-type="meta-field" data-odf-meta-name="review-date" data-odf-meta-value-type="date" data-odf-meta-date-value="2026-06-08">2026-06-08</span>', $blocksHtml);
     },
+    'links ODT inline meta spans to RDF sidecar subjects' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithRdf = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml"/>',
+            $manifestXml
+        );
+        $contentWithRdfLinkedMeta = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <office:body>
+    <office:text>
+      <text:p>Reviewed <text:meta xml:id="source-claim-meta" text:name="review:claim" xhtml:about="content.xml#source-claim-meta" xhtml:property="wp:review-status" xhtml:content="ready" xhtml:datatype="xsd:string">source claim</text:meta> with RDF provenance.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $rdfXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:wp="https://example.test/ns/wp#"
+  xmlns:xml="http://www.w3.org/XML/1998/namespace">
+  <rdf:Description rdf:about="content.xml#source-claim-meta">
+    <dc:creator xml:lang="en">Migration Reviewer</dc:creator>
+    <wp:review-status>ready</wp:review-status>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithRdfLinkedMeta, $manifestWithRdf, null, null, [
+            ['name' => 'manifest.rdf', 'data' => $rdfXml],
+        ]));
+        $paragraph = $result['document']->children[0];
+        $sourceMeta = $paragraph->children[1];
+
+        $t->same('Reviewed source claim with RDF provenance.', $paragraph->attr('text'));
+        $t->same('span', $sourceMeta->type);
+        $t->same(['odf-meta'], $sourceMeta->attr('classes'));
+        $t->same('content.xml#source-claim-meta', $sourceMeta->attr('metaMetadata')['rdfAbout']);
+        $t->same('wp:review-status', $sourceMeta->attr('metaMetadata')['rdfProperty']);
+        $t->same('ready', $sourceMeta->attr('metaMetadata')['rdfContent']);
+        $t->same('xsd:string', $sourceMeta->attr('metaMetadata')['rdfDatatype']);
+        $t->same('content.xml#source-claim-meta', $sourceMeta->attr('metaMetadata')['rdfSubject']);
+        $t->same(2, $sourceMeta->attr('metaMetadata')['rdfSubjectTripleCount']);
+        $t->same('dc:creator,wp:review-status', $sourceMeta->attr('metaMetadata')['rdfSubjectPredicates']);
+        $t->same(['dc:creator', 'wp:review-status'], $sourceMeta->attr('metaMetadata')['rdfSubjectMetadata']['predicates']);
+        $t->same('manifest.rdf', $sourceMeta->attr('metaMetadata')['rdfSubjectParts']);
+        $t->same('content.xml#source-claim-meta', $sourceMeta->attr('attributes')['data-odf-meta-rdf-subject']);
+        $t->same('2', $sourceMeta->attr('attributes')['data-odf-meta-rdf-subject-triple-count']);
+        $t->same('dc:creator,wp:review-status', $sourceMeta->attr('attributes')['data-odf-meta-rdf-subject-predicates']);
+        $t->same(1, $result['importReport']['content']['metaSpanCount']);
+        $t->same(1, $result['rdfMetadata']['subjectCount']);
+
+        $markdown = (new MarkdownWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('[source claim]{.odf-meta data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-rdf-about="content.xml#source-claim-meta" data-odf-meta-rdf-property="wp:review-status" data-odf-meta-rdf-content="ready" data-odf-meta-rdf-datatype="xsd:string" data-odf-meta-rdf-subject="content.xml#source-claim-meta" data-odf-meta-rdf-subject-part-count="1" data-odf-meta-rdf-subject-triple-count="2" data-odf-meta-rdf-subject-literal-count="2" data-odf-meta-rdf-subject-resource-count="0" data-odf-meta-rdf-subject-parts="manifest.rdf" data-odf-meta-rdf-subject-predicates="dc:creator,wp:review-status"}', $markdown);
+        $t->contains('<span class="odf-meta" data-odf-meta-type="meta" data-odf-meta-source-id="source-claim-meta" data-odf-meta-name="review:claim" data-odf-meta-rdf-about="content.xml#source-claim-meta" data-odf-meta-rdf-property="wp:review-status" data-odf-meta-rdf-content="ready" data-odf-meta-rdf-datatype="xsd:string" data-odf-meta-rdf-subject="content.xml#source-claim-meta" data-odf-meta-rdf-subject-part-count="1" data-odf-meta-rdf-subject-triple-count="2" data-odf-meta-rdf-subject-literal-count="2" data-odf-meta-rdf-subject-resource-count="0" data-odf-meta-rdf-subject-parts="manifest.rdf" data-odf-meta-rdf-subject-predicates="dc:creator,wp:review-status">source claim</span>', $blocksHtml);
+    },
     'maps ODT user-defined content fields into review spans' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithUserDefinedFields = <<<'XML'
 <office:document-content
