@@ -3462,6 +3462,7 @@ return [
         $t->contains('<span class="st">/&lt;!-- wp:html --&gt;/</span><span class="op">,</span><span class="st">/&lt;!-- \/wp:html --&gt;/</span><span class="op">{</span>', $highlighted['html']);
         $t->contains('<span class="kw">t</span> <span class="va">normalized</span>', $highlighted['html']);
         $t->contains('<span class="re">:normalized</span>', $highlighted['html']);
+        $t->contains('<span id="sed-review-1032"><a href="#sed-review-1032"></a><span class="kw">p</span></span>', $highlighted['html']);
         $t->contains('<style data-pandoc-highlight-style="tango">', $wordpressBlock);
         $t->contains('<span class="kw">s</span><span class="st">#&lt;script', $wordpressBlock);
         $t->same('sed', $directSed['language']);
@@ -3513,7 +3514,24 @@ return [
         $t->contains('<span class="dv">$</span><span class="kw">i</span><span class="op">\\</span>', $continuedPayload['html']);
         $t->contains('<span class="st">&lt;!-- wp:html --&gt;\\</span>', $continuedPayload['html']);
         $t->contains('<span class="st">&lt;div data-source=&quot;legacy&quot;&gt;&lt;/div&gt;</span>', $continuedPayload['html']);
-        $t->contains('<span class="ot">p</span>', $continuedPayload['html']);
+        $t->contains('<span class="kw">p</span>', $continuedPayload['html']);
+    },
+    'disambiguates sed print commands from substitution flags' => static function (TestRunner $t): void {
+        $highlighted = (new SyntaxHighlighter())->highlight(implode("\n", [
+            'p',
+            '1,3p',
+            '/legacy-shortcode/p',
+            '1!p',
+            's/foo/bar/p',
+        ]), 'sed');
+
+        $t->same('sed', $highlighted['language']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->contains('<span class="kw">p</span>', $highlighted['html']);
+        $t->contains('<span class="dv">1,3</span><span class="kw">p</span>', $highlighted['html']);
+        $t->contains('<span class="st">/legacy-shortcode/</span><span class="kw">p</span>', $highlighted['html']);
+        $t->contains('<span class="dv">1</span><span class="op">!</span><span class="kw">p</span>', $highlighted['html']);
+        $t->contains('<span class="kw">s</span><span class="st">/foo/</span><span class="va">bar</span><span class="op">/</span><span class="ot">p</span>', $highlighted['html']);
     },
     'highlights bibtex bibliography review snippets with pandoc aliases' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');

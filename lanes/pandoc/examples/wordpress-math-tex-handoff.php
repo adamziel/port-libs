@@ -197,6 +197,8 @@ Extensible arrow audit $\xrightarrow[\text{review}]{\operatorname{publish}} p_i 
 
 Extensible arrow alias audit $\xlongequal{\text{same}} + \xhookrightarrow[\text{map}]{f} + \xtwoheadleftarrow{g} + \xleftharpoonup{\text{pull}} + \xrightharpoondown[low]{high}$ stays semantic.
 
+Reciprocal harpoon arrow audit $\xrightleftharpoons[\text{review}]{\operatorname{publish}} p_i + \xleftrightharpoons{draft} m_i$ stays semantic.
+
 Unbraced extensible arrow audit $\xrightarrow\alpha p_i + \xleftarrow[\text{low}]\beta m_i + \xhookrightarrow[map] f q + \overrightarrow A_i + \underrightarrow\operatorname{media}$ keeps texToken arrow labels semantic.
 
 Tagged equation audit:
@@ -338,6 +340,7 @@ $summary = [
     'middleDelimiterMathml' => $converter->texToMathMl('\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle'),
     'extensibleArrowMathml' => $converter->texToMathMl('\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i'),
     'extensibleArrowAliasMathml' => $converter->texToMathMl('\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}'),
+    'reciprocalHarpoonArrowMathml' => $converter->texToMathMl('\\xrightleftharpoons[\\text{review}]{\\operatorname{publish}} p_i + \\xleftrightharpoons{draft} m_i'),
     'unbracedExtensibleArrowMathml' => $converter->texToMathMl('\\xrightarrow\\alpha p_i + \\xleftarrow[\\text{low}]\\beta m_i + \\xhookrightarrow[map] f q + \\overrightarrow A_i + \\underrightarrow\\operatorname{media}'),
     'taggedEquationMathml' => $converter->texToMathMl('p_i + m_i \\label{eq:review-flow} \\tag{WP-2}', true),
     'equationReferenceMathml' => $converter->texToMathMl('\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}', true),
@@ -799,6 +802,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="math inline">\\(\\left\\{p_i \\middle| p_i \\in P\\right\\} + \\left\\langle x \\middle/ y \\right\\rangle\\)</span>',
         '<span class="math inline">\\(\\xrightarrow[\\text{review}]{\\operatorname{publish}} p_i + \\xleftarrow{draft} m_i + \\overrightarrow{AB}_i\\)</span>',
         '<span class="math inline">\\(\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}\\)</span>',
+        '<span class="math inline">\\(\\xrightleftharpoons[\\text{review}]{\\operatorname{publish}} p_i + \\xleftrightharpoons{draft} m_i\\)</span>',
         '<span class="math inline">\\(\\xrightarrow\\alpha p_i + \\xleftarrow[\\text{low}]\\beta m_i + \\xhookrightarrow[map] f q + \\overrightarrow A_i + \\underrightarrow\\operatorname{media}\\)</span>',
         '<span class="math display">\\[p_i + m_i \\label{eq:review-flow} \\tag{WP-2}\\]</span>',
         '<span class="math inline">\\(\\label{eq:plain}x_i + \\eqref{eq:plain} + \\ref{review row/2}\\)</span>',
@@ -1048,6 +1052,8 @@ if (($argv[1] ?? '') === '--self-test') {
         '<mover><mo stretchy="true">=</mo><mtext>same</mtext></mover><mo>+</mo><munderover><mo stretchy="true">↪</mo><mtext>map</mtext><mi>f</mi></munderover><mo>+</mo><mover><mo stretchy="true">↞</mo><mi>g</mi></mover>',
         '<mover><mo stretchy="true">↼</mo><mtext>pull</mtext></mover><mo>+</mo><munderover><mo stretchy="true">⇁</mo><mrow><mi>l</mi><mi>o</mi><mi>w</mi></mrow><mrow><mi>h</mi><mi>i</mi><mi>g</mi><mi>h</mi></mrow></munderover>',
         '<annotation encoding="application/x-tex">\\xlongequal{\\text{same}} + \\xhookrightarrow[\\text{map}]{f} + \\xtwoheadleftarrow{g} + \\xleftharpoonup{\\text{pull}} + \\xrightharpoondown[low]{high}</annotation>',
+        '<munderover><mo stretchy="true">⇌</mo><mtext>review</mtext><mi>publish</mi></munderover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><mover><mo stretchy="true">⇋</mo><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mover><msub><mi>m</mi><mi>i</mi></msub>',
+        '<annotation encoding="application/x-tex">\\xrightleftharpoons[\\text{review}]{\\operatorname{publish}} p_i + \\xleftrightharpoons{draft} m_i</annotation>',
         '<mover><mo stretchy="true">→</mo><mi>α</mi></mover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><munderover><mo stretchy="true">←</mo><mtext>low</mtext><mi>β</mi></munderover><msub><mi>m</mi><mi>i</mi></msub>',
         '<munderover><mo stretchy="true">↪</mo><mrow><mi>m</mi><mi>a</mi><mi>p</mi></mrow><mi>f</mi></munderover><mi>q</mi><mo>+</mo><msub><mover accent="true"><mi>A</mi><mo stretchy="true">→</mo></mover><mi>i</mi></msub>',
         '<munder accentunder="true"><mi>media</mi><mo stretchy="true">→</mo></munder>',

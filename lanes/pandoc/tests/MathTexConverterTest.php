@@ -1739,6 +1739,23 @@ return [
         $t->true(!str_contains($tokenArrowMathml . $tokenAccentArrowMathml, '<mi>\\xrightarrow</mi>'));
         $t->true(!str_contains($tokenArrowMathml . $tokenAccentArrowMathml, '<mi>\\overrightarrow</mi>'));
     },
+    'converts bounded reciprocal harpoon extensible arrows to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $mathml = $converter->texToMathMl('A \\xrightleftharpoons[\\text{review}]{\\operatorname{publish}} B + C \\xleftrightharpoons{draft} D', true);
+        $tokenMathml = $converter->texToMathMl('\\xrightleftharpoons\\alpha p_i + \\xleftrightharpoons[low] \\beta m_i');
+        $accessibleMathml = $converter->texToAccessibleMathMl('A \\xrightleftharpoons[low]{high} B');
+
+        $t->contains('<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">', $mathml);
+        $t->contains('<mi>A</mi><munderover><mo stretchy="true">⇌</mo><mtext>review</mtext><mi>publish</mi></munderover><mi>B</mi><mo>+</mo><mi>C</mi><mover><mo stretchy="true">⇋</mo><mrow><mi>d</mi><mi>r</mi><mi>a</mi><mi>f</mi><mi>t</mi></mrow></mover><mi>D</mi>', $mathml);
+        $t->contains('<annotation encoding="application/x-tex">A \\xrightleftharpoons[\\text{review}]{\\operatorname{publish}} B + C \\xleftrightharpoons{draft} D</annotation>', $mathml);
+        $t->contains('<mover><mo stretchy="true">⇌</mo><mi>α</mi></mover><msub><mi>p</mi><mi>i</mi></msub><mo>+</mo><munderover><mo stretchy="true">⇋</mo><mrow><mi>l</mi><mi>o</mi><mi>w</mi></mrow><mi>β</mi></munderover><msub><mi>m</mi><mi>i</mi></msub>', $tokenMathml);
+        $t->contains('alttext="A right harpoon over left under l o w over h i g h B"', $accessibleMathml);
+        $t->contains('intent="row(a,underover(right_harpoon_over_left,row(l,o,w),row(h,i,g,h)),b)"', $accessibleMathml);
+        $t->true(!str_contains($mathml . $tokenMathml, '<mi>\\xrightleftharpoons</mi>'));
+        $t->true(!str_contains($mathml . $tokenMathml, '<mi>\\xleftrightharpoons</mi>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xrightleftharpoons'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $converter->texToMathMl('\\xleftrightharpoons[]'));
+    },
     'converts bounded tex matrix and aligned environments to mathml' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $matrixMathml = $converter->texToMathMl('\\begin{matrix}a & b \\\\ c & d\\end{matrix}');

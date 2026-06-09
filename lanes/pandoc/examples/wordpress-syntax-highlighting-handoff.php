@@ -2012,6 +2012,9 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($sed['html'], '<span class="re">:normalized</span>')) {
         throw new RuntimeException('Expected Sed branch label token handoff');
     }
+    if (!str_contains($sed['html'], '<span id="sed-review-1032"><a href="#sed-review-1032"></a><span class="kw">p</span></span>')) {
+        throw new RuntimeException('Expected Sed print command token handoff');
+    }
     if (!str_contains($sedWordpressBlock, '<style data-pandoc-highlight-style="tango">')) {
         throw new RuntimeException('Expected Sed WordPress style metadata');
     }

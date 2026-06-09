@@ -3637,7 +3637,35 @@ final class SyntaxHighlighter
             return;
         }
 
+        if ($this->tokenizeSedPrintCommandLine($line, $tokens)) {
+            return;
+        }
+
         $this->scanInto($line, self::sedPatterns(), $tokens);
+    }
+
+    /**
+     * @param list<array{type:string, text:string, class:string}> $tokens
+     */
+    private function tokenizeSedPrintCommandLine(string $line, array &$tokens): bool
+    {
+        if (preg_match('/^(\s*(?:(?:\d+(?:\s*,\s*\d+)?|\$|\/(?:\\\\.|[^\/\\\\\n])+\/(?:\s*,\s*(?:\d+|\$|\/(?:\\\\.|[^\/\\\\\n])+\/))?)\s*)?)(!?)([pP])(?=$|[;}\s])(.*)$/', $line, $matches) !== 1) {
+            return false;
+        }
+
+        if ($matches[1] !== '') {
+            $this->scanInto($matches[1], self::sedPatterns(), $tokens);
+        }
+        if ($matches[2] !== '') {
+            $this->appendToken($tokens, 'operator', $matches[2]);
+        }
+
+        $this->appendToken($tokens, 'keyword', $matches[3]);
+        if ($matches[4] !== '') {
+            $this->scanInto($matches[4], self::sedPatterns(), $tokens);
+        }
+
+        return true;
     }
 
     /**
