@@ -87,6 +87,42 @@ return [
         $t->same($markdown, (new MarkdownWriter())->write($document));
         $t->same('span', (new MarkdownReader())->read('[ordinary]{.review .smallcaps}')->children[0]->children[0]->type);
     },
+    'maps pandoc markdown semantic strikeout and script spans through writer and wordpress handoff' => static function (TestRunner $t): void {
+        $markdown = 'Review [removed **claim**]{.strikeout data-source="batch-62"}, [build 42]{#release-note .superscript}, and [H2O]{.subscript .chem}.';
+        $document = (new MarkdownReader())->read($markdown);
+        $paragraph = $document->children[0];
+        $strikeout = $paragraph->children[1] ?? new AstNode('missing');
+        $superscript = $paragraph->children[3] ?? new AstNode('missing');
+        $subscript = $paragraph->children[5] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('strikeout', $strikeout->type);
+        $t->same(['data-source' => 'batch-62'], $strikeout->attr('attributes'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $strikeout->children));
+        $t->same('removed ', $strikeout->children[0]->attr('text'));
+        $t->same('claim', $strikeout->children[1]->children[0]->attr('text'));
+        $t->same('superscript', $superscript->type);
+        $t->same('release-note', $superscript->attr('id'));
+        $t->same('build 42', $superscript->children[0]->attr('text'));
+        $t->same('subscript', $subscript->type);
+        $t->same(['chem'], $subscript->attr('classes'));
+        $t->same('H2O', $subscript->children[0]->attr('text'));
+        $t->contains('<del>removed <strong>claim</strong></del>', $blocks);
+        $t->contains('<sup>build 42</sup>', $blocks);
+        $t->contains('<sub>H2O</sub>', $blocks);
+        $t->same($markdown, (new MarkdownWriter())->write($document));
+
+        $plain = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('strikeout', [], [new AstNode('text', ['text' => 'deleted'])]),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('superscript', [], [new AstNode('text', ['text' => '2'])]),
+                new AstNode('text', ['text' => ' ']),
+                new AstNode('subscript', [], [new AstNode('text', ['text' => 'n'])]),
+            ]),
+        ]);
+        $t->same('~~deleted~~ ^2^ ~n~', (new MarkdownWriter())->write($plain));
+    },
     'maps upstream testsuite underscore emphasis strong and nested strong emphasis' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             'This is *emphasized*, and so _is this_.',

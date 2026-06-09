@@ -15640,6 +15640,9 @@ final class MarkdownReader
         $type = match ($semanticClass) {
             'smallcaps' => 'small_caps',
             'underline' => 'underline',
+            'strikeout' => 'strikeout',
+            'superscript' => 'superscript',
+            'subscript' => 'subscript',
             default => null,
         };
         if ($type === null) {

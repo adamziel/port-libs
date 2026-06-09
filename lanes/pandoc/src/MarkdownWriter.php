@@ -1698,9 +1698,9 @@ final class MarkdownWriter
             'code' => $this->renderCode($node),
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
             'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
-            'strikeout' => $this->delimitInlineContent('~~', '~~', $this->renderInlines($node->children)),
-            'superscript' => $this->delimitScriptContent('^', $this->renderInlines($node->children)),
-            'subscript' => $this->delimitScriptContent('~', $this->renderInlines($node->children)),
+            'strikeout' => $this->renderStrikeout($node),
+            'superscript' => $this->renderScript($node, 'superscript', '^'),
+            'subscript' => $this->renderScript($node, 'subscript', '~'),
             'small_caps' => $this->renderSmallCaps($node),
             'underline' => $this->renderUnderline($node),
             'span' => $this->renderSpan($node),
@@ -1839,6 +1839,32 @@ final class MarkdownWriter
     {
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'underline');
+
+        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+    }
+
+    private function renderStrikeout(AstNode $node): string
+    {
+        if ($this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []]) {
+            return $this->renderAttributedSemanticSpan($node, 'strikeout');
+        }
+
+        return $this->delimitInlineContent('~~', '~~', $this->renderInlines($node->children));
+    }
+
+    private function renderScript(AstNode $node, string $semanticClass, string $delimiter): string
+    {
+        if ($this->linkAttrTuple($node) !== ['id' => '', 'classes' => [], 'attributes' => []]) {
+            return $this->renderAttributedSemanticSpan($node, $semanticClass);
+        }
+
+        return $this->delimitScriptContent($delimiter, $this->renderInlines($node->children));
+    }
+
+    private function renderAttributedSemanticSpan(AstNode $node, string $semanticClass): string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        array_unshift($attrs['classes'], $semanticClass);
 
         return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
