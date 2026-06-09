@@ -4936,6 +4936,10 @@ CSS;
                         continue;
                     }
 
+                    if ($isBarePartial && $rendered === '(loop)') {
+                        $this->dropLeadingLineEndingAt($tokens, $index + 1, $end);
+                    }
+
                     $rendered = $this->nestMultiline($rendered, $autoNestPrefix);
                 }
             }

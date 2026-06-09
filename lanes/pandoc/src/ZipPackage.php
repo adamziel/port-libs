@@ -2320,9 +2320,14 @@ final class ZipPackage
      *     entryCount:int,
      *     collisionGroupCount:int,
      *     collisionEntryCount:int,
+     *     provenanceEntryCount:int,
+     *     legacyEncodedNameEntryCount:int,
+     *     unicodePathExtraEntryCount:int,
+     *     decodedNameDiffersFromRawNameEntryCount:int,
      *     collisionGroups:list<array{rawName:string, rawNameHex:string, entryNames:list<string>}>,
      *     collisionEntries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>,
-     *     entries:list<array{name:string, rawName:string, rawNameHex:string, equivalentEntryNames:list<string>, hasRawNameCollision:bool, issues:list<string>}>
+     *     provenanceEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
      * }
      */
     public function rawNamePreflight(): array
@@ -2348,22 +2353,61 @@ final class ZipPackage
 
         $entries = [];
         $collisionEntries = [];
+        $provenanceEntries = [];
+        $legacyEncodedNameEntryCount = 0;
+        $unicodePathExtraEntryCount = 0;
+        $decodedNameDiffersFromRawNameEntryCount = 0;
         foreach ($this->entries as $entry) {
             $rawNameHex = bin2hex($entry->rawName);
             $equivalentEntryNames = $entryNamesByRawNameHex[$rawNameHex] ?? [];
             $hasCollision = count($equivalentEntryNames) > 1;
-            $issues = $hasCollision ? ['raw-name-collision'] : [];
+            $rawNameMatchesDecodedName = $entry->rawName === $entry->name;
+            $usesLegacyNameEncoding = $entry->nameEncoding === 'cp437';
+            $usesUnicodePathExtraField = $entry->nameEncoding === 'info-zip-unicode-path';
+            $hasRawNameProvenance = !$rawNameMatchesDecodedName
+                || $usesLegacyNameEncoding
+                || $usesUnicodePathExtraField;
+            $issues = [];
+            if ($hasCollision) {
+                $issues[] = 'raw-name-collision';
+            }
+            if (!$rawNameMatchesDecodedName) {
+                $issues[] = 'raw-name-decoded-value-differs';
+            }
+            if ($usesLegacyNameEncoding) {
+                $issues[] = 'raw-name-legacy-encoding';
+            }
+            if ($usesUnicodePathExtraField) {
+                $issues[] = 'raw-name-info-zip-unicode-path';
+            }
             $summary = [
                 'name' => $entry->name,
                 'rawName' => $entry->rawName,
                 'rawNameHex' => $rawNameHex,
+                'nameEncoding' => $entry->nameEncoding,
                 'equivalentEntryNames' => $equivalentEntryNames,
                 'hasRawNameCollision' => $hasCollision,
+                'rawNameMatchesDecodedName' => $rawNameMatchesDecodedName,
+                'usesLegacyNameEncoding' => $usesLegacyNameEncoding,
+                'usesUnicodePathExtraField' => $usesUnicodePathExtraField,
+                'hasRawNameProvenance' => $hasRawNameProvenance,
                 'issues' => $issues,
             ];
             $entries[] = $summary;
             if ($hasCollision) {
                 $collisionEntries[] = $summary;
+            }
+            if ($hasRawNameProvenance) {
+                $provenanceEntries[] = $summary;
+            }
+            if ($usesLegacyNameEncoding) {
+                $legacyEncodedNameEntryCount++;
+            }
+            if ($usesUnicodePathExtraField) {
+                $unicodePathExtraEntryCount++;
+            }
+            if (!$rawNameMatchesDecodedName) {
+                $decodedNameDiffersFromRawNameEntryCount++;
             }
         }
 
@@ -2371,8 +2415,13 @@ final class ZipPackage
             'entryCount' => count($this->entries),
             'collisionGroupCount' => count($collisionGroups),
             'collisionEntryCount' => count($collisionEntries),
+            'provenanceEntryCount' => count($provenanceEntries),
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'collisionGroups' => $collisionGroups,
             'collisionEntries' => $collisionEntries,
+            'provenanceEntries' => $provenanceEntries,
             'entries' => $entries,
         ];
     }
@@ -2402,6 +2451,31 @@ final class ZipPackage
             throw new \RuntimeException(
                 'ZIP package contains raw ZIP entry name collisions that require explicit import review: '
                 . $groups
+            );
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function assertNoRawNameProvenanceReviewEntries(): array
+    {
+        $summary = $this->rawNamePreflight();
+        if ($summary['provenanceEntryCount'] > 0) {
+            $entries = implode(
+                ', ',
+                array_map(
+                    static fn (array $entry): string => $entry['name']
+                        . ' (' . implode('/', array_diff($entry['issues'], ['raw-name-collision'])) . ')',
+                    $summary['provenanceEntries']
+                )
+            );
+
+            throw new \RuntimeException(
+                'ZIP package contains raw entry-name provenance that requires explicit import review: '
+                . $entries
             );
         }
 

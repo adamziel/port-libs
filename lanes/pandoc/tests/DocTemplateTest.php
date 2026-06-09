@@ -4942,6 +4942,15 @@ TPL;
         ]));
     },
 
+    'matches upstream recursive bare partial loop sentinel newline handling' => static function (TestRunner $t): void {
+        $renderer = new DocTemplate();
+
+        $t->same("(loop)\n", $renderer->render('$loop1()$' . "\n\n", [], [
+            'loop1' => '$loop2()$' . "\n",
+            'loop2' => '$loop1()$' . "\n",
+        ]));
+    },
+
     'returns pandoc doctemplate loop literal before resolving over-limit partials' => static function (TestRunner $t): void {
         $renderer = new DocTemplate();
         $partials = [];

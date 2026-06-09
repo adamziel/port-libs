@@ -141,6 +141,19 @@ XML],
       <w:r><w:t>7.</w:t></w:r>
     </w:p>
     <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Generated page </w:t>
+        <w:pgNum/>
+        <w:t xml:space="preserve"> on </w:t>
+        <w:dayShort/>
+        <w:t>/</w:t>
+        <w:monthLong/>
+        <w:t>/</w:t>
+        <w:yearLong/>
+        <w:t> stays auditable.</w:t>
+      </w:r>
+    </w:p>
+    <w:p>
       <w:r><w:t xml:space="preserve">Reviewer status </w:t></w:r>
       <w:sdt>
         <w:sdtPr>
@@ -1371,6 +1384,7 @@ if (($argv[1] ?? '') === '--self-test') {
         '<span class="docx-break docx-rendered-page-break" data-docx-break-type="rendered-page" data-docx-last-rendered-page-break="true">DOCX rendered page break</span>',
         '<span class="docx-break docx-column-break docx-break-clear" data-docx-break-type="column" data-docx-break-clear="left">DOCX column break</span>',
         '<span class="docx-tab docx-positional-tab docx-positional-tab-right docx-positional-tab-leader docx-positional-tab-leader-dot" data-docx-tab-type="positional" data-docx-tab-alignment="right" data-docx-tab-relative-to="margin" data-docx-tab-leader="dot">DOCX positional tab</span>',
+        '<p>Generated page <span class="docx-run-field-marker docx-page-number-marker" data-docx-run-field-marker="page-number">DOCX page number</span> on <span class="docx-run-field-marker docx-date-field-marker docx-date-field-day-short" data-docx-run-field-marker="date" data-docx-date-field="dayShort">DOCX date field: dayShort</span>/<span class="docx-run-field-marker docx-date-field-marker docx-date-field-month-long" data-docx-run-field-marker="date" data-docx-date-field="monthLong">DOCX date field: monthLong</span>/<span class="docx-run-field-marker docx-date-field-marker docx-date-field-year-long" data-docx-run-field-marker="date" data-docx-date-field="yearLong">DOCX date field: yearLong</span> stays auditable.</p>',
         '<span class="docx-content-control docx-content-control-text" data-docx-sdt-id="42" data-docx-sdt-alias="Import Status" data-docx-sdt-tag="import_status" data-docx-sdt-type="text">Ready for import</span>',
         '<span class="docx-smart-tag" data-docx-smart-tag-uri="urn:schemas-microsoft-com:office:smarttags" data-docx-smart-tag-element="PersonName" data-docx-smart-tag-prop-normalized="Migration Desk" data-docx-smart-tag-prop-normalized-uri="https://example.test/docx/smart-tags" data-docx-smart-tag-prop-review-id="packet-42"><strong>Migration Desk</strong></span>',
         '<span class="docx-custom-xml" data-docx-custom-xml-uri="https://example.test/docx/custom" data-docx-custom-xml-element="packet-category" data-docx-custom-xml-prop-source-field="category" data-docx-custom-xml-prop-source-field-uri="https://example.test/docx/custom" data-docx-custom-xml-prop-review-id="packet-42"><em>Policy update</em></span>',

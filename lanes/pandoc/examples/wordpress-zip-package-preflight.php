@@ -3411,6 +3411,13 @@ try {
     $invalidDosTimestampStrictRejected = str_contains($exception->getMessage(), 'invalid-modification-times');
 }
 $unicodePathPackage = ZipPackage::fromString($buildUnicodePathBackedPackage());
+$unicodePathRawNamePreflight = $unicodePathPackage->rawNamePreflight();
+$unicodePathRawNameProvenanceRejected = false;
+try {
+    $unicodePathPackage->assertNoRawNameProvenanceReviewEntries();
+} catch (RuntimeException $exception) {
+    $unicodePathRawNameProvenanceRejected = str_contains($exception->getMessage(), 'raw entry-name provenance');
+}
 $centralUnicodePathMissingLocalRejected = false;
 try {
     ZipPackage::fromString($buildCentralUnicodePathMissingLocalBackedPackage());
@@ -6003,6 +6010,21 @@ if (in_array('--self-test', $argv, true)) {
         throw new RuntimeException('Expected ZIP Unicode path extra field to provide decoded media path');
     }
 
+    if (
+        !$unicodePathRawNameProvenanceRejected
+        || ($unicodePathRawNamePreflight['provenanceEntryCount'] ?? null) !== 1
+        || ($unicodePathRawNamePreflight['unicodePathExtraEntryCount'] ?? null) !== 1
+        || ($unicodePathRawNamePreflight['decodedNameDiffersFromRawNameEntryCount'] ?? null) !== 1
+        || ($unicodePathRawNamePreflight['provenanceEntries'][0]['rawName'] ?? null) !== $unicodePathRawName
+        || ($unicodePathRawNamePreflight['provenanceEntries'][0]['name'] ?? null) !== $unicodePathName
+        || ($unicodePathRawNamePreflight['provenanceEntries'][0]['issues'] ?? null) !== [
+            'raw-name-decoded-value-differs',
+            'raw-name-info-zip-unicode-path',
+        ]
+    ) {
+        throw new RuntimeException('Expected ZIP raw-name provenance preflight to expose Unicode path metadata before media import');
+    }
+
     if ($unicodePathEntry->comment !== $unicodeComment || $unicodePathEntry->commentEncoding !== 'info-zip-unicode-comment') {
         throw new RuntimeException('Expected ZIP Unicode comment extra field to provide decoded media review comment');
     }
@@ -6314,6 +6336,9 @@ $unicodePathEntry = $unicodePathPackage->entry('/' . $unicodePathName);
 echo 'unicodePath.name=' . $unicodePathEntry->name . "\n";
 echo 'unicodePath.rawName=' . $unicodePathEntry->rawName . "\n";
 echo 'unicodePath.encoding=' . $unicodePathEntry->nameEncoding . "\n";
+echo 'unicodePath.rawNameProvenanceEntries=' . $unicodePathRawNamePreflight['provenanceEntryCount'] . "\n";
+echo 'unicodePath.rawNameProvenanceIssues=' . implode(',', $unicodePathRawNamePreflight['provenanceEntries'][0]['issues'] ?? []) . "\n";
+echo 'unicodePath.rawNameProvenancePolicy=' . ($unicodePathRawNameProvenanceRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'unicodePath.comment=' . $unicodePathEntry->comment . "\n";
 echo 'zipCentralUnicodePathMissingLocalPolicy=' . ($centralUnicodePathMissingLocalRejected ? 'rejected' : 'not-rejected') . "\n";
 echo 'zipUtf8UnicodePathMismatchPolicy=' . ($utf8UnicodePathMismatchRejected ? 'rejected' : 'not-rejected') . "\n";

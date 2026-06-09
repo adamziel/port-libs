@@ -1733,6 +1733,26 @@ $runReferenceMarkerCommentsXml = <<<'XML'
 </w:comments>
 XML;
 
+$runFieldMarkerDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:t xml:space="preserve">Generated page </w:t>
+        <w:pgNum/>
+        <w:t xml:space="preserve"> on </w:t>
+        <w:dayShort/>
+        <w:t>/</w:t>
+        <w:monthLong/>
+        <w:t>/</w:t>
+        <w:yearLong/>
+        <w:t> stays auditable.</w:t>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $mathDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
@@ -4122,6 +4142,14 @@ $buildRunReferenceMarkerPackage = static function () use (
         ['name' => 'word/footnotes.xml', 'data' => $runReferenceMarkerFootnotesXml],
         ['name' => 'word/endnotes.xml', 'data' => $runReferenceMarkerEndnotesXml],
         ['name' => 'word/comments.xml', 'data' => $runReferenceMarkerCommentsXml],
+    ]);
+};
+
+$buildRunFieldMarkerPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $runFieldMarkerDocumentXml): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $runFieldMarkerDocumentXml],
     ]);
 };
 
@@ -6819,6 +6847,51 @@ return [
         $t->contains('Second note line.', $markdown);
         $t->contains('[DOCX endnote reference marker]{.docx-reference-marker .docx-endnote-reference-marker data-docx-reference-marker="endnote"} Endnote self label.', $markdown);
         $t->contains('[DOCX annotation reference marker]{.docx-reference-marker .docx-annotation-reference-marker data-docx-reference-marker="annotation"} Comment marker.', $markdown);
+    },
+    'preserves DOCX page number and date field run markers as reviewer spans' => static function (TestRunner $t) use ($buildRunFieldMarkerPackage): void {
+        $document = (new DocxReader())->readDocument($buildRunFieldMarkerPackage());
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same(9, count($paragraph->children));
+        $t->same('Generated page ', $paragraph->children[0]->attr('text'));
+
+        $pageNumber = $paragraph->children[1];
+        $t->same('span', $pageNumber->type);
+        $t->same(['docx-run-field-marker', 'docx-page-number-marker'], $pageNumber->attr('classes'));
+        $t->same('page-number', $pageNumber->attr('attributes')['data-docx-run-field-marker']);
+        $t->same('DOCX page number', $pageNumber->children[0]->attr('text'));
+
+        $t->same(' on ', $paragraph->children[2]->attr('text'));
+        $day = $paragraph->children[3];
+        $t->same('span', $day->type);
+        $t->same(['docx-run-field-marker', 'docx-date-field-marker', 'docx-date-field-day-short'], $day->attr('classes'));
+        $t->same('date', $day->attr('attributes')['data-docx-run-field-marker']);
+        $t->same('dayShort', $day->attr('attributes')['data-docx-date-field']);
+        $t->same('DOCX date field: dayShort', $day->children[0]->attr('text'));
+
+        $month = $paragraph->children[5];
+        $t->same(['docx-run-field-marker', 'docx-date-field-marker', 'docx-date-field-month-long'], $month->attr('classes'));
+        $t->same('monthLong', $month->attr('attributes')['data-docx-date-field']);
+        $t->same('DOCX date field: monthLong', $month->children[0]->attr('text'));
+
+        $year = $paragraph->children[7];
+        $t->same(['docx-run-field-marker', 'docx-date-field-marker', 'docx-date-field-year-long'], $year->attr('classes'));
+        $t->same('yearLong', $year->attr('attributes')['data-docx-date-field']);
+        $t->same('DOCX date field: yearLong', $year->children[0]->attr('text'));
+        $t->same(' stays auditable.', $paragraph->children[8]->attr('text'));
+
+        $t->contains('[DOCX page number]{.docx-run-field-marker .docx-page-number-marker data-docx-run-field-marker="page-number"}', $markdown);
+        $t->contains('[DOCX date field: dayShort]{.docx-run-field-marker .docx-date-field-marker .docx-date-field-day-short data-docx-run-field-marker="date" data-docx-date-field="dayShort"}', $markdown);
+        $t->contains('[DOCX date field: monthLong]{.docx-run-field-marker .docx-date-field-marker .docx-date-field-month-long data-docx-run-field-marker="date" data-docx-date-field="monthLong"}', $markdown);
+        $t->contains('[DOCX date field: yearLong]{.docx-run-field-marker .docx-date-field-marker .docx-date-field-year-long data-docx-run-field-marker="date" data-docx-date-field="yearLong"}', $markdown);
+
+        $t->contains('<span class="docx-run-field-marker docx-page-number-marker" data-docx-run-field-marker="page-number">DOCX page number</span>', $blocks);
+        $t->contains('<span class="docx-run-field-marker docx-date-field-marker docx-date-field-day-short" data-docx-run-field-marker="date" data-docx-date-field="dayShort">DOCX date field: dayShort</span>', $blocks);
+        $t->contains('<span class="docx-run-field-marker docx-date-field-marker docx-date-field-month-long" data-docx-run-field-marker="date" data-docx-date-field="monthLong">DOCX date field: monthLong</span>', $blocks);
+        $t->contains('<span class="docx-run-field-marker docx-date-field-marker docx-date-field-year-long" data-docx-run-field-marker="date" data-docx-date-field="yearLong">DOCX date field: yearLong</span>', $blocks);
     },
     'maps DOCX OMML inline and display formulas into math AST nodes' => static function (TestRunner $t) use ($buildMathPackage): void {
         $document = (new DocxReader())->readDocument($buildMathPackage());

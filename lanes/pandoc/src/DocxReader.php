@@ -5311,6 +5311,15 @@ final class DocxReader
             return $this->lastRenderedPageBreakNodes();
         }
 
+        if ($this->isWordElement($child, 'pgNum')) {
+            return $this->runFieldMarkerNodes('page-number');
+        }
+
+        $dateFieldMarker = $this->dateFieldMarkerName($child);
+        if ($dateFieldMarker !== null) {
+            return $this->runFieldMarkerNodes('date', $dateFieldMarker);
+        }
+
         if ($this->isWordElement($child, 'softHyphen')) {
             return [new AstNode('text', ['text' => "\u{00AD}"])];
         }
@@ -5412,6 +5421,60 @@ final class DocxReader
             'classes' => ['docx-reference-marker', 'docx-' . $kind . '-reference-marker'],
             'attributes' => ['data-docx-reference-marker' => $kind],
         ], [new AstNode('text', ['text' => 'DOCX ' . $kind . ' reference marker'])])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function runFieldMarkerNodes(string $kind, ?string $dateField = null): array
+    {
+        if ($kind === 'page-number') {
+            return [new AstNode('span', [
+                'classes' => ['docx-run-field-marker', 'docx-page-number-marker'],
+                'attributes' => ['data-docx-run-field-marker' => 'page-number'],
+            ], [new AstNode('text', ['text' => 'DOCX page number'])])];
+        }
+
+        if ($kind !== 'date' || $dateField === null) {
+            return [];
+        }
+
+        $classes = ['docx-run-field-marker', 'docx-date-field-marker'];
+        $suffix = $this->camelCaseClassSuffix($dateField);
+        if ($suffix !== null) {
+            $classes[] = 'docx-date-field-' . $suffix;
+        }
+
+        return [new AstNode('span', [
+            'classes' => $classes,
+            'attributes' => [
+                'data-docx-run-field-marker' => 'date',
+                'data-docx-date-field' => $dateField,
+            ],
+        ], [new AstNode('text', ['text' => 'DOCX date field: ' . $dateField])])];
+    }
+
+    private function dateFieldMarkerName(\DOMNode $node): ?string
+    {
+        if (!$node instanceof \DOMElement || $node->namespaceURI !== self::WORDPROCESSINGML_NS) {
+            return null;
+        }
+
+        return in_array($node->localName, [
+            'dayShort',
+            'dayLong',
+            'monthShort',
+            'monthLong',
+            'yearShort',
+            'yearLong',
+        ], true) ? $node->localName : null;
+    }
+
+    private function camelCaseClassSuffix(string $value): ?string
+    {
+        $hyphenated = preg_replace('/(?<!^)[A-Z]/', '-$0', $value) ?? $value;
+
+        return $this->metadataClassSuffix($hyphenated);
     }
 
     /**

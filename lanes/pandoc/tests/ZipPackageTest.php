@@ -2887,9 +2887,9 @@ return [
         $t->same(bin2hex($rawName), $summary['entries'][1]['rawNameHex']);
         $t->same([$firstName, $secondName], $summary['entries'][1]['equivalentEntryNames']);
         $t->same(true, $summary['entries'][1]['hasRawNameCollision']);
-        $t->same(['raw-name-collision'], $summary['entries'][1]['issues']);
+        $t->same(['raw-name-collision', 'raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $summary['entries'][1]['issues']);
         $t->same($secondName, $summary['entries'][2]['name']);
-        $t->same(['raw-name-collision'], $summary['entries'][2]['issues']);
+        $t->same(['raw-name-collision', 'raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $summary['entries'][2]['issues']);
         $t->same("first reviewer attachment placeholder\n", $collisionPackage->read('/' . $firstName));
         $t->same("second reviewer attachment placeholder\n", $collisionPackage->read('/' . $secondName));
 
@@ -2920,6 +2920,99 @@ return [
         $t->same(3, $safeSummary['entryCount']);
         $t->same(0, $safeSummary['collisionGroupCount']);
         $t->same(0, $safeSummary['collisionEntryCount']);
+        $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
+    },
+
+    'preflights raw zip name provenance before media review handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $cp437RawName = "word/media/caf\x82.png";
+        $cp437Name = "word/media/caf\u{00e9}.png";
+        $unicodeRawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $unicodeName);
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw name provenance review</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => $cp437RawName,
+                'data' => "cp437 media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+            ],
+            [
+                'name' => $unicodeRawName,
+                'localName' => $unicodeRawName,
+                'data' => "unicode path media placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $unicodePathExtra,
+                'centralExtra' => $unicodePathExtra,
+            ],
+            [
+                'name' => 'word/media/plain.txt',
+                'data' => "plain utf8 media placeholder\n",
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->rawNamePreflight();
+
+        $t->same([
+            'word/document.xml',
+            $cp437Name,
+            $unicodeName,
+            'word/media/plain.txt',
+        ], $package->names());
+        $t->same(4, $summary['entryCount']);
+        $t->same(0, $summary['collisionGroupCount']);
+        $t->same(0, $summary['collisionEntryCount']);
+        $t->same(2, $summary['provenanceEntryCount']);
+        $t->same(1, $summary['legacyEncodedNameEntryCount']);
+        $t->same(1, $summary['unicodePathExtraEntryCount']);
+        $t->same(2, $summary['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($cp437Name, $summary['provenanceEntries'][0]['name']);
+        $t->same($cp437RawName, $summary['provenanceEntries'][0]['rawName']);
+        $t->same('cp437', $summary['provenanceEntries'][0]['nameEncoding']);
+        $t->same(false, $summary['provenanceEntries'][0]['rawNameMatchesDecodedName']);
+        $t->same(true, $summary['provenanceEntries'][0]['usesLegacyNameEncoding']);
+        $t->same(false, $summary['provenanceEntries'][0]['usesUnicodePathExtraField']);
+        $t->same(true, $summary['provenanceEntries'][0]['hasRawNameProvenance']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-legacy-encoding'], $summary['provenanceEntries'][0]['issues']);
+        $t->same($unicodeName, $summary['provenanceEntries'][1]['name']);
+        $t->same($unicodeRawName, $summary['provenanceEntries'][1]['rawName']);
+        $t->same('info-zip-unicode-path', $summary['provenanceEntries'][1]['nameEncoding']);
+        $t->same(false, $summary['provenanceEntries'][1]['rawNameMatchesDecodedName']);
+        $t->same(false, $summary['provenanceEntries'][1]['usesLegacyNameEncoding']);
+        $t->same(true, $summary['provenanceEntries'][1]['usesUnicodePathExtraField']);
+        $t->same(['raw-name-decoded-value-differs', 'raw-name-info-zip-unicode-path'], $summary['provenanceEntries'][1]['issues']);
+        $t->same(false, $summary['entries'][0]['hasRawNameProvenance']);
+        $t->same('utf-8', $summary['entries'][0]['nameEncoding']);
+        $t->same(true, $summary['entries'][3]['rawNameMatchesDecodedName']);
+        $t->same(false, $summary['entries'][3]['hasRawNameProvenance']);
+        $t->same($summary, $package->strictImportPreflight(4096, 100.0, 4096)['rawNames']);
+        $t->same("cp437 media placeholder\n", $package->read('/' . $cp437Name));
+        $t->same("unicode path media placeholder\n", $package->read('/' . $unicodeName));
+        $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoRawNameProvenanceReviewEntries());
+
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>plain raw name provenance</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/plain.txt',
+                'data' => "plain media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $safeSummary = $safePackage->assertNoRawNameProvenanceReviewEntries();
+        $t->same(2, $safeSummary['entryCount']);
+        $t->same(0, $safeSummary['provenanceEntryCount']);
+        $t->same(0, $safeSummary['legacyEncodedNameEntryCount']);
+        $t->same(0, $safeSummary['unicodePathExtraEntryCount']);
+        $t->same([], $safeSummary['provenanceEntries']);
         $t->same(true, $safePackage->strictImportPreflight(4096, 100.0, 4096)['isValid']);
     },
 
