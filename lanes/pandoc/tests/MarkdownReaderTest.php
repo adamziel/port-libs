@@ -13036,6 +13036,31 @@ HTML;
         $t->contains('<p>After <strong>pre</strong> boundary.</p>', $blocks);
         $t->contains('<pre class="wp-block-code"><code>native code path stays structured</code></pre>', $blocks);
     },
+    'maps commonmark pre raw html closing boundaries without blank line separators' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<pre data-source="batch-60">',
+            '*raw markdown stays raw*',
+            '</pre>',
+            '## Parsed after pre raw block',
+            '',
+            'Tail **paragraph**.',
+        ]));
+        $rawPre = $document->children[0];
+        $heading = $document->children[1];
+        $paragraph = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('raw_html', $rawPre->type);
+        $t->same("<pre data-source=\"batch-60\">\n*raw markdown stays raw*\n</pre>", $rawPre->attr('html'));
+        $t->same('heading', $heading->type);
+        $t->same('Parsed after pre raw block', $heading->attr('text'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->contains('<!-- wp:html -->' . "\n" . '<pre data-source="batch-60">' . "\n" . '*raw markdown stays raw*', $blocks);
+        $t->contains('<h2 id="parsed-after-pre-raw-block">Parsed after pre raw block</h2>', $blocks);
+        $t->contains('<p>Tail <strong>paragraph</strong>.</p>', $blocks);
+    },
     'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
         $rawEmailDocument = (new MarkdownReader())->read('**@user**');
         $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
