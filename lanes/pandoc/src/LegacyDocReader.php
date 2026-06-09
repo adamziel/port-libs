@@ -79,9 +79,16 @@ final class LegacyDocReader
     private const FIB_LCB_PLF_LFO = 0x02ee;
     private const SPRM_CFR_MARK_DEL = 0x0800;
     private const SPRM_CFR_MARK_INS = 0x0801;
+    private const SPRM_CF_BOLD = 0x0835;
+    private const SPRM_CF_ITALIC = 0x0836;
+    private const SPRM_CF_STRIKE = 0x0837;
+    private const SPRM_CF_SMALL_CAPS = 0x083a;
+    private const SPRM_CF_CAPS = 0x083b;
+    private const SPRM_CF_VANISH = 0x083c;
     private const SPRM_C_PIC_LOCATION = 0x6a03;
     private const SPRM_CF_DATA = 0x0806;
     private const SPRM_CF_SPEC = 0x0855;
+    private const SPRM_C_KUL = 0x2a3e;
     private const SPRM_CIBST_RMARK = 0x4804;
     private const SPRM_CDTTM_RMARK = 0x6805;
     private const SPRM_CIBST_RMARK_DEL = 0x4863;
@@ -396,6 +403,14 @@ final class LegacyDocReader
             if ($pictureDataFormattingRunCount > 0) {
                 $metadata['pictureDataFormattingRunCount'] = $pictureDataFormattingRunCount;
                 $metadata['pictureDataExtractionPolicy'] = 'metadata-only-native-review';
+            }
+            $textPropertyFormattingRunCount = count(array_filter(
+                $formattingRuns,
+                static fn (array $run): bool => isset($run['textProperties']) && is_array($run['textProperties']) && $run['textProperties'] !== []
+            ));
+            if ($textPropertyFormattingRunCount > 0) {
+                $metadata['textPropertyFormattingRunCount'] = $textPropertyFormattingRunCount;
+                $metadata['textPropertyFormattingPolicy'] = 'metadata-only-native-review';
             }
             $metadata['formattingRuns'] = $formattingRuns;
         }
@@ -9133,6 +9148,12 @@ final class LegacyDocReader
                     $fcs[$index + 1]
                 );
                 if ($grpprl !== null) {
+                    $textProperties = $this->parseChpxTextProperties($grpprl);
+                    if ($textProperties !== []) {
+                        $run['textProperties'] = $textProperties;
+                        $run['textPropertyCount'] = count($textProperties);
+                        $run['textPropertyExtractionPolicy'] = 'metadata-only-native-review';
+                    }
                     $revisionMarks = $this->parseChpxRevisionMarks($grpprl, $revisionAuthors);
                     if ($revisionMarks !== []) {
                         $run['revisionMarks'] = $revisionMarks;
@@ -9280,6 +9301,107 @@ final class LegacyDocReader
         }
 
         return null;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private function parseChpxTextProperties(string $grpprl): array
+    {
+        $length = strlen($grpprl);
+        $cursor = 0;
+        $properties = [];
+
+        while ($cursor < $length) {
+            if ($cursor + 2 > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX text formatting metadata contains a truncated SPRM');
+            }
+
+            $sprm = self::u16($grpprl, $cursor);
+            $cursor += 2;
+            $operandByteCount = $this->sprmOperandByteCount($sprm, $grpprl, $cursor);
+            if ($cursor + $operandByteCount > $length) {
+                throw new \RuntimeException('Legacy DOC CHPX text formatting metadata contains a truncated SPRM operand');
+            }
+
+            $operandOffset = $cursor;
+            $cursor += $operandByteCount;
+
+            $property = match ($sprm) {
+                self::SPRM_CF_BOLD => $this->chpxToggleTextProperty('bold', 'sprmCFBold', $grpprl[$operandOffset]),
+                self::SPRM_CF_ITALIC => $this->chpxToggleTextProperty('italic', 'sprmCFItalic', $grpprl[$operandOffset]),
+                self::SPRM_CF_STRIKE => $this->chpxToggleTextProperty('strikethrough', 'sprmCFStrike', $grpprl[$operandOffset]),
+                self::SPRM_CF_SMALL_CAPS => $this->chpxToggleTextProperty('small-caps', 'sprmCFSmallCaps', $grpprl[$operandOffset]),
+                self::SPRM_CF_CAPS => $this->chpxToggleTextProperty('all-caps', 'sprmCFCaps', $grpprl[$operandOffset]),
+                self::SPRM_CF_VANISH => $this->chpxToggleTextProperty('hidden', 'sprmCFVanish', $grpprl[$operandOffset]),
+                self::SPRM_C_KUL => $this->chpxUnderlineTextProperty(ord($grpprl[$operandOffset])),
+                default => null,
+            };
+
+            if ($property !== null) {
+                $properties[] = $property;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function chpxToggleTextProperty(string $name, string $sourceSprm, string $operand): array
+    {
+        $rawOperand = ord($operand);
+        $state = match ($rawOperand) {
+            0 => 'off',
+            1 => 'on',
+            128 => 'toggle',
+            129 => 'preserve',
+            default => 'unknown',
+        };
+
+        return [
+            'name' => $name,
+            'source' => 'ChpxFkp',
+            'sourceSprm' => $sourceSprm,
+            'rawOperand' => $rawOperand,
+            'state' => $state,
+            'enabled' => $rawOperand === 1,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function chpxUnderlineTextProperty(int $underlineCode): array
+    {
+        return [
+            'name' => 'underline',
+            'source' => 'ChpxFkp',
+            'sourceSprm' => 'sprmCKul',
+            'rawOperand' => $underlineCode,
+            'style' => $this->legacyDocUnderlineStyleName($underlineCode),
+            'enabled' => $underlineCode !== 0,
+            'extractionPolicy' => 'metadata-only-native-review',
+        ];
+    }
+
+    private function legacyDocUnderlineStyleName(int $underlineCode): string
+    {
+        return match ($underlineCode) {
+            0 => 'none',
+            1 => 'single',
+            2 => 'by-word',
+            3 => 'double',
+            4 => 'dotted',
+            6 => 'thick',
+            7 => 'dash',
+            9 => 'dot-dash',
+            10 => 'dot-dot-dash',
+            11 => 'wave',
+            default => 'unknown',
+        };
     }
 
     /**

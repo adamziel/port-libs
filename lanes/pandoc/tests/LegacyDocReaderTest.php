@@ -1644,6 +1644,55 @@ $buildFormattingTableDocStreams = static function () use ($buildSimpleWordDocume
     ];
 };
 
+$buildDirectCharacterFormattingDocStreams = static function () use ($buildExtendedFibWordDocument, $u16, $u32): array {
+    $formattedRunText = 'Formatted review';
+    $plainRunText = " plain import\r";
+    $text = $formattedRunText . $plainRunText;
+    $wordDocument = $buildExtendedFibWordDocument($text);
+    $textStartFc = 768;
+    $formattedRunEndFc = $textStartFc + strlen($formattedRunText);
+    $textEndFc = $textStartFc + strlen($text);
+
+    $chpxFkpPage = intdiv(strlen($wordDocument) + 511, 512);
+    $chpxFkpOffset = $chpxFkpPage * 512;
+    $formattedGrpprl = $u16(0x0835) . "\x01"
+        . $u16(0x0836) . "\x01"
+        . $u16(0x2a3e) . "\x01";
+    $plainGrpprl = $u16(0x083c) . "\x00";
+    $formattedChpxOffset = 64;
+    $plainChpxOffset = 96;
+    $chpxFkp = str_repeat("\0", 512);
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        $u32($textStartFc) . $u32($formattedRunEndFc) . $u32($textEndFc),
+        0,
+        12
+    );
+    $chpxFkp = substr_replace(
+        $chpxFkp,
+        chr(intdiv($formattedChpxOffset, 2)) . chr(intdiv($plainChpxOffset, 2)),
+        12,
+        2
+    );
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($formattedGrpprl)) . $formattedGrpprl, $formattedChpxOffset, 1 + strlen($formattedGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(strlen($plainGrpprl)) . $plainGrpprl, $plainChpxOffset, 1 + strlen($plainGrpprl));
+    $chpxFkp = substr_replace($chpxFkp, chr(2), 511, 1);
+    $wordDocument = str_pad($wordDocument, $chpxFkpOffset, "\0") . $chpxFkp;
+
+    $plcBteChpx = $u32($textStartFc)
+        . $u32($formattedRunEndFc)
+        . $u32($textEndFc)
+        . $u32($chpxFkpPage)
+        . $u32($chpxFkpPage);
+    $wordDocument = substr_replace($wordDocument, $u32(0), 0x00fa, 4);
+    $wordDocument = substr_replace($wordDocument, $u32(strlen($plcBteChpx)), 0x00fe, 4);
+
+    return [
+        'WordDocument' => $wordDocument,
+        '0Table' => $plcBteChpx,
+    ];
+};
+
 $buildRevisionMarkedFormattingDocStreams = static function (int $insertedAuthorIndex = 1, int $deletedAuthorIndex = 2) use ($buildExtendedFibWordDocument, $sttbUnicode, $u16, $u32, $dttm): array {
     $firstRunText = "Inserted review\r";
     $secondRunText = "Deleted review\r";
@@ -5439,6 +5488,82 @@ return [
         $t->true(!isset($runs[2]['unusedPnFkpBits']), 'Zero PnFkp unused bits should stay omitted');
         $t->contains('<p>Styled first</p>', $blocks);
         $t->contains('<p>Plain second</p>', $blocks);
+    },
+    'preserves legacy DOC CHPX direct text formatting as metadata-only review state' => static function (TestRunner $t) use ($buildCfb, $buildDirectCharacterFormattingDocStreams): void {
+        $result = (new LegacyDocReader())->readBytes($buildCfb($buildDirectCharacterFormattingDocStreams()));
+        $document = $result['document'];
+        $runs = $result['formattingRuns'];
+        $metadata = $result['metadata'];
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same($runs, $document->attr('formattingRuns'));
+        $t->same($runs, $metadata['formattingRuns']);
+        $t->same(2, $metadata['formattingRunCount']);
+        $t->same(2, $metadata['characterFormattingRunCount']);
+        $t->same(2, $metadata['textPropertyFormattingRunCount']);
+        $t->same('metadata-only-native-review', $metadata['textPropertyFormattingPolicy']);
+
+        $formatted = $runs[0];
+        $t->same('character', $formatted['kind']);
+        $t->same('PlcBteChpx', $formatted['table']);
+        $t->same(768, $formatted['startFc']);
+        $t->same(784, $formatted['endFc']);
+        $t->same(16, $formatted['byteLength']);
+        $t->same(3, $formatted['textPropertyCount']);
+        $t->same('metadata-only-native-review', $formatted['textPropertyExtractionPolicy']);
+        $t->same([
+            [
+                'name' => 'bold',
+                'source' => 'ChpxFkp',
+                'sourceSprm' => 'sprmCFBold',
+                'rawOperand' => 1,
+                'state' => 'on',
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'italic',
+                'source' => 'ChpxFkp',
+                'sourceSprm' => 'sprmCFItalic',
+                'rawOperand' => 1,
+                'state' => 'on',
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+            [
+                'name' => 'underline',
+                'source' => 'ChpxFkp',
+                'sourceSprm' => 'sprmCKul',
+                'rawOperand' => 1,
+                'style' => 'single',
+                'enabled' => true,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+        ], $formatted['textProperties']);
+
+        $plain = $runs[1];
+        $t->same(784, $plain['startFc']);
+        $t->same(798, $plain['endFc']);
+        $t->same(1, $plain['textPropertyCount']);
+        $t->same([
+            [
+                'name' => 'hidden',
+                'source' => 'ChpxFkp',
+                'sourceSprm' => 'sprmCFVanish',
+                'rawOperand' => 0,
+                'state' => 'off',
+                'enabled' => false,
+                'extractionPolicy' => 'metadata-only-native-review',
+            ],
+        ], $plain['textProperties']);
+
+        $t->contains('<p>Formatted review plain import</p>', $blocks);
+        $t->contains('Formatted review plain import', $markdown);
+        foreach (['sprmCFBold', 'sprmCFItalic', 'sprmCKul', 'sprmCFVanish', 'metadata-only-native-review'] as $metadataText) {
+            $t->true(!str_contains($blocks, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into WordPress blocks');
+            $t->true(!str_contains($markdown, $metadataText), 'Legacy DOC CHPX formatting metadata should not render into Markdown');
+        }
     },
     'links legacy DOC CHPX revision-mark runs to SttbfRMark authors for review' => static function (TestRunner $t) use ($buildCfb, $buildRevisionMarkedFormattingDocStreams): void {
         $result = (new LegacyDocReader())->readBytes($buildCfb($buildRevisionMarkedFormattingDocStreams()));
