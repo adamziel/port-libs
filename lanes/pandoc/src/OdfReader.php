@@ -102,6 +102,7 @@ final class OdfReader
         $content = $this->readContent($package, $styleCatalog, $metadata, $settings);
         $contentStats = $this->contentNodeStats($content['blocks']);
         $styleCatalog = $content['styleCatalog'];
+        $styleDiagnostics = $this->styleDiagnostics($styleCatalog);
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
 
@@ -192,6 +193,9 @@ final class OdfReader
                     'fontFaceCount' => count($styleCatalog['fontFaces']),
                     'fontFaces' => array_values($styleCatalog['fontFaces']),
                     'styleMapCount' => $this->styleMapCount($styleCatalog['styles']),
+                    'diagnosticCount' => count($styleDiagnostics),
+                    'diagnosticCodeCounts' => $this->diagnosticCodeCounts($styleDiagnostics),
+                    'diagnostics' => $styleDiagnostics,
                 ],
                 'listStyles' => [
                     'count' => count($styleCatalog['listStyles']),
@@ -9492,6 +9496,265 @@ final class OdfReader
         }
 
         return $count;
+    }
+
+    /**
+     * @param array{styles:array<string, array<string, mixed>>, fontFaces:array<string, array<string, mixed>>, listStyles:array<string, array<string, mixed>>, dataStyles:array<string, array<string, mixed>>, tableTemplates:array<string, array<string, mixed>>, pageLayouts:array<string, array<string, mixed>>, masterPages:array<string, array<string, mixed>>} $catalog
+     * @return list<array<string, mixed>>
+     */
+    private function styleDiagnostics(array $catalog): array
+    {
+        $diagnostics = [];
+
+        foreach ($catalog['styles'] as $styleName => $style) {
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-style-missing-parent',
+                'style',
+                $styleName,
+                'parentName',
+                (string) ($style['parentName'] ?? ''),
+                $catalog['styles']
+            );
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-style-missing-list-style',
+                'style',
+                $styleName,
+                'listStyleName',
+                (string) ($style['listStyleName'] ?? ''),
+                $catalog['listStyles']
+            );
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-style-missing-master-page',
+                'style',
+                $styleName,
+                'masterPageName',
+                (string) ($style['masterPageName'] ?? ''),
+                $catalog['masterPages']
+            );
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-style-missing-data-style',
+                'style',
+                $styleName,
+                'dataStyleName',
+                (string) ($style['dataStyleName'] ?? ''),
+                $catalog['dataStyles']
+            );
+
+            $textProperties = $style['textProperties'] ?? [];
+            if (is_array($textProperties)) {
+                $this->appendMissingNamedReferenceDiagnostic(
+                    $diagnostics,
+                    'odf-style-missing-font-face',
+                    'style',
+                    $styleName,
+                    'fontName',
+                    (string) ($textProperties['fontName'] ?? ''),
+                    $catalog['fontFaces']
+                );
+            }
+
+            $styleMaps = $style['styleMaps'] ?? [];
+            if (!is_array($styleMaps)) {
+                continue;
+            }
+
+            foreach ($styleMaps as $index => $styleMap) {
+                if (!is_array($styleMap)) {
+                    continue;
+                }
+
+                $applyStyleName = (string) ($styleMap['applyStyleName'] ?? '');
+                if ($applyStyleName === '' || isset($catalog['styles'][$applyStyleName])) {
+                    continue;
+                }
+
+                $diagnostics[] = self::withoutEmpty([
+                    'code' => 'odf-style-map-missing-target',
+                    'styleName' => $styleName,
+                    'mapIndex' => $index,
+                    'applyStyleName' => $applyStyleName,
+                    'condition' => $styleMap['condition'] ?? null,
+                ]);
+            }
+        }
+
+        array_push($diagnostics, ...$this->styleParentCycleDiagnostics($catalog['styles']));
+
+        foreach ($catalog['listStyles'] as $listStyleName => $listStyle) {
+            $levels = $listStyle['levels'] ?? [];
+            if (!is_array($levels)) {
+                continue;
+            }
+
+            foreach ($levels as $level => $definition) {
+                if (!is_array($definition)) {
+                    continue;
+                }
+
+                $textProperties = $definition['textProperties'] ?? [];
+                if (!is_array($textProperties)) {
+                    continue;
+                }
+
+                $fontName = (string) ($textProperties['fontName'] ?? '');
+                if ($fontName === '' || isset($catalog['fontFaces'][$fontName])) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'code' => 'odf-list-style-missing-font-face',
+                    'listStyleName' => $listStyleName,
+                    'level' => is_int($level) ? $level : (int) $level,
+                    'fontName' => $fontName,
+                ];
+            }
+        }
+
+        foreach ($catalog['tableTemplates'] as $tableTemplateName => $template) {
+            $styles = $template['styles'] ?? [];
+            if (!is_array($styles)) {
+                continue;
+            }
+
+            foreach ($styles as $role => $styleName) {
+                $styleName = (string) $styleName;
+                if ($styleName === '' || isset($catalog['styles'][$styleName])) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'code' => 'odf-table-template-missing-style',
+                    'tableTemplateName' => $tableTemplateName,
+                    'templateRole' => (string) $role,
+                    'styleName' => $styleName,
+                ];
+            }
+        }
+
+        foreach ($catalog['masterPages'] as $masterPageName => $masterPage) {
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-master-page-missing-page-layout',
+                'masterPage',
+                $masterPageName,
+                'pageLayoutName',
+                (string) ($masterPage['pageLayoutName'] ?? ''),
+                $catalog['pageLayouts']
+            );
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-master-page-missing-next-master-page',
+                'masterPage',
+                $masterPageName,
+                'nextStyleName',
+                (string) ($masterPage['nextStyleName'] ?? ''),
+                $catalog['masterPages']
+            );
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-master-page-missing-draw-style',
+                'masterPage',
+                $masterPageName,
+                'drawStyleName',
+                (string) ($masterPage['drawStyleName'] ?? ''),
+                $catalog['styles']
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticCodeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = (string) ($diagnostic['code'] ?? '');
+            if ($code === '') {
+                continue;
+            }
+
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, mixed> $targets
+     */
+    private function appendMissingNamedReferenceDiagnostic(
+        array &$diagnostics,
+        string $code,
+        string $sourceKind,
+        string $sourceName,
+        string $referenceKey,
+        string $referenceName,
+        array $targets
+    ): void {
+        if ($referenceName === '' || isset($targets[$referenceName])) {
+            return;
+        }
+
+        $diagnostics[] = [
+            'code' => $code,
+            $sourceKind . 'Name' => $sourceName,
+            $referenceKey => $referenceName,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function styleParentCycleDiagnostics(array $styles): array
+    {
+        $diagnostics = [];
+        $reported = [];
+
+        foreach (array_keys($styles) as $styleName) {
+            $path = [];
+            $positions = [];
+            $current = $styleName;
+
+            while ($current !== '' && isset($styles[$current])) {
+                if (isset($positions[$current])) {
+                    $cycle = array_slice($path, $positions[$current]);
+                    $cycle[] = $current;
+                    $members = array_slice($cycle, 0, -1);
+                    $keyParts = $members;
+                    sort($keyParts);
+                    $key = implode("\0", $keyParts);
+                    if (!isset($reported[$key])) {
+                        $reported[$key] = true;
+                        $diagnostics[] = [
+                            'code' => 'odf-style-parent-cycle',
+                            'styleName' => $members[0] ?? $styleName,
+                            'styleNames' => $members,
+                            'cyclePath' => $cycle,
+                        ];
+                    }
+                    break;
+                }
+
+                $positions[$current] = count($path);
+                $path[] = $current;
+                $parentName = $styles[$current]['parentName'] ?? '';
+                $current = is_string($parentName) ? $parentName : '';
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**

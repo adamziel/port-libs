@@ -261,6 +261,91 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'reports ODT style reference diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPlainParagraph = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Style diagnostics packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $stylesWithBrokenReferences = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="DeclaredFont"/>
+  </office:font-face-decls>
+  <office:automatic-styles>
+    <number:number-style style:name="ExistingNumber">
+      <number:number number:decimal-places="2"/>
+    </number:number-style>
+    <style:page-layout style:name="ExistingLayout"/>
+  </office:automatic-styles>
+  <office:styles>
+    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
+      <style:text-properties style:font-name="MissingFont"/>
+    </style:style>
+    <style:style style:name="CycleA" style:family="paragraph" style:parent-style-name="CycleB"/>
+    <style:style style:name="CycleB" style:family="paragraph" style:parent-style-name="CycleA"/>
+    <style:style style:name="MappedCell" style:family="table-cell">
+      <style:map style:condition="value() &gt; 0" style:apply-style-name="MissingCell"/>
+    </style:style>
+    <text:list-style style:name="BrokenList">
+      <text:list-level-style-bullet text:level="1" text:bullet-char="*">
+        <style:text-properties style:font-name="MissingBulletFont"/>
+      </text:list-level-style-bullet>
+    </text:list-style>
+    <table:table-template table:name="AuditTemplate" table:first-row="MissingHeaderStyle" table:body="MappedCell"/>
+  </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="ReviewMaster" style:page-layout-name="MissingLayout" style:next-style-name="MissingNextMaster" draw:style-name="MissingDraw"/>
+  </office:master-styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPlainParagraph, null, $stylesWithBrokenReferences));
+        $styleReport = $result['importReport']['styles'];
+        $diagnostics = $styleReport['diagnostics'];
+        $diagnosticsByCode = [];
+        foreach ($diagnostics as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(4, $styleReport['count']);
+        $t->same(1, $styleReport['styleMapCount']);
+        $t->same(12, $styleReport['diagnosticCount']);
+        $t->same([
+            'odf-list-style-missing-font-face' => 1,
+            'odf-master-page-missing-draw-style' => 1,
+            'odf-master-page-missing-next-master-page' => 1,
+            'odf-master-page-missing-page-layout' => 1,
+            'odf-style-map-missing-target' => 1,
+            'odf-style-missing-data-style' => 1,
+            'odf-style-missing-font-face' => 1,
+            'odf-style-missing-list-style' => 1,
+            'odf-style-missing-master-page' => 1,
+            'odf-style-missing-parent' => 1,
+            'odf-style-parent-cycle' => 1,
+            'odf-table-template-missing-style' => 1,
+        ], $styleReport['diagnosticCodeCounts']);
+        $t->same('BrokenParagraph', $diagnosticsByCode['odf-style-missing-parent'][0]['styleName']);
+        $t->same('MissingParent', $diagnosticsByCode['odf-style-missing-parent'][0]['parentName']);
+        $t->same('MissingCell', $diagnosticsByCode['odf-style-map-missing-target'][0]['applyStyleName']);
+        $t->same(['CycleA', 'CycleB', 'CycleA'], $diagnosticsByCode['odf-style-parent-cycle'][0]['cyclePath']);
+        $t->same('MissingHeaderStyle', $diagnosticsByCode['odf-table-template-missing-style'][0]['styleName']);
+        $t->same('MissingLayout', $diagnosticsByCode['odf-master-page-missing-page-layout'][0]['pageLayoutName']);
+        $t->same('MissingBulletFont', $diagnosticsByCode['odf-list-style-missing-font-face'][0]['fontName']);
+    },
     'preserves ODT manifest version and preferred view mode provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPreferredViewModes = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
