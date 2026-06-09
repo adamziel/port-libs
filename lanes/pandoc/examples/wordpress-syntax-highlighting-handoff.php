@@ -532,6 +532,12 @@ if (!$commonLispCodeBlock instanceof PortLibs\Pandoc\AstNode || $commonLispCodeB
 }
 $commonLisp = $highlighter->highlightCodeBlock($commonLispCodeBlock, 'monochrome');
 $commonLispWordpressBlock = $highlighter->wordpressHtmlBlock($commonLispCodeBlock, 'monochrome');
+$pascalCodeBlock = $document->children[85] ?? null;
+if (!$pascalCodeBlock instanceof PortLibs\Pandoc\AstNode || $pascalCodeBlock->type !== 'code_block') {
+    throw new RuntimeException('Expected syntax highlight fixture to include a Pascal review packet code block');
+}
+$pascal = $highlighter->highlightCodeBlock($pascalCodeBlock, 'haddock');
+$pascalWordpressBlock = $highlighter->wordpressHtmlBlock($pascalCodeBlock, 'haddock');
 $customThemeJson = json_encode([
     'name' => 'Review Import',
     'text-color' => '#f8f8f2',
@@ -2330,6 +2336,30 @@ if (($argv[1] ?? '') === '--self-test') {
     if (!str_contains($commonLispWordpressBlock, '<span class="fu">remove-if-not</span> <span class="op">#&#039;</span><span class="fu">identity</span>')) {
         throw new RuntimeException('Expected Common Lisp function quote token handoff');
     }
+    if (($pascal['language'] ?? '') !== 'pascal') {
+        throw new RuntimeException('Expected Pascal language alias handoff');
+    }
+    if (($pascal['requestedLanguage'] ?? '') !== 'pascal') {
+        throw new RuntimeException('Expected Pascal requested-language metadata');
+    }
+    if (($pascal['lineNumbering']['start'] ?? null) !== 1360) {
+        throw new RuntimeException('Expected Pascal line-number start handoff');
+    }
+    if (!str_contains($pascal['html'], '<span class="pp">{$mode objfpc}{$H+}</span>')) {
+        throw new RuntimeException('Expected Pascal compiler directive token handoff');
+    }
+    if (!str_contains($pascal['html'], '<span class="kw">function</span> <span class="fu">NormalizedTitle</span>')) {
+        throw new RuntimeException('Expected Pascal function token handoff');
+    }
+    if (!str_contains($pascal['html'], '<span class="fu">Format</span><span class="op">(</span><span class="st">&#039;Import %d&#039;</span>')) {
+        throw new RuntimeException('Expected Pascal Format token handoff');
+    }
+    if (!str_contains($pascalWordpressBlock, '<style data-pandoc-highlight-style="haddock">')) {
+        throw new RuntimeException('Expected Pascal WordPress style metadata');
+    }
+    if (!str_contains($pascalWordpressBlock, '<span class="fu">WriteLn</span><span class="op">(</span><span class="fu">NormalizedTitle</span>')) {
+        throw new RuntimeException('Expected Pascal WordPress block token handoff');
+    }
     if (($customTheme['style'] ?? '') !== 'review-import') {
         throw new RuntimeException('Expected custom Pandoc JSON theme name handoff');
     }
@@ -2433,6 +2463,7 @@ echo "tclHighlightedHtml:\n" . $tcl['html'] . "\n";
 echo "lineHighlightHighlightedHtml:\n" . $lineHighlight['html'] . "\n";
 echo "dHighlightedHtml:\n" . $d['html'] . "\n";
 echo "commonLispHighlightedHtml:\n" . $commonLisp['html'] . "\n";
+echo "pascalHighlightedHtml:\n" . $pascal['html'] . "\n";
 echo "customThemeHighlightedHtml:\n" . $customTheme['html'] . "\n";
 echo "wordpressBlock:\n" . $wordpressBlock . "\n";
 echo "writerHighlightedBlocks:\n" . $writerHighlightedBlocks . "\n";
@@ -2507,4 +2538,5 @@ echo "tclWordpressBlock:\n" . $tclWordpressBlock . "\n";
 echo "lineHighlightWordpressBlock:\n" . $lineHighlightWordpressBlock . "\n";
 echo "dWordpressBlock:\n" . $dWordpressBlock . "\n";
 echo "commonLispWordpressBlock:\n" . $commonLispWordpressBlock . "\n";
+echo "pascalWordpressBlock:\n" . $pascalWordpressBlock . "\n";
 echo "customThemeWordpressBlock:\n" . $customThemeWordpressBlock . "\n";

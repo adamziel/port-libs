@@ -7383,6 +7383,141 @@ XML;
         $t->same($overlay, $result['importReport']['mediaOverlays']['mo-chapter-1']);
         $t->same(2, count($result['document']->children));
     },
+    'reports NCX label audio clips for navigation review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $audioBytes = 'NCX-AUDIO-DATA';
+        $opfWithAudio = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="ncx-audio" href="audio/nav-label.mp3" media-type="audio/mpeg"/>',
+            $opfXml
+        );
+        $navWithoutPageList = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Imported packet</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+        $ncxWithAudio = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="audio-point" playOrder="1">
+      <navLabel id="audio-point-label">
+        <text>Audio introduction</text>
+        <audio id="audio-point-clip" src="audio/nav-label.mp3" clipBegin="0:00:01.000" clipEnd="0:00:03.500"/>
+      </navLabel>
+      <content src="text/chapter1.xhtml#intro"/>
+    </navPoint>
+  </navMap>
+  <pageList id="print-pages">
+    <navLabel>
+      <text>Print pages</text>
+      <audio src="https://audio.example.test/pages.mp3"/>
+    </navLabel>
+    <pageTarget id="print-page-1" type="normal" value="1" playOrder="10">
+      <navLabel>
+        <text>1</text>
+        <audio src="audio/missing-page.mp3" clipBegin="bad-clock" clipEnd="0:00:04.000"/>
+      </navLabel>
+      <content src="text/chapter1.xhtml#page-1"/>
+    </pageTarget>
+  </pageList>
+  <navList id="figures" class="loi">
+    <navLabel>
+      <text>Figures</text>
+      <audio src="audio/nav-label.mp3" clipBegin="00:00:04.000" clipEnd="00:00:02.000"/>
+    </navLabel>
+    <navTarget id="figure-1" playOrder="11">
+      <navLabel>
+        <text>Figure one</text>
+        <audio src="audio/nav-label.mp3"/>
+      </navLabel>
+      <content src="text/chapter2.xhtml#media"/>
+    </navTarget>
+  </navList>
+</ncx>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithAudio,
+            null,
+            [
+                ['name' => 'OEBPS/audio/nav-label.mp3', 'data' => $audioBytes],
+            ],
+            $navWithoutPageList,
+            $ncxWithAudio
+        ));
+        $ncx = $result['ncx'];
+
+        $t->same(5, $ncx['audioLabelCount']);
+        $t->same(true, $ncx['audioLabelReport']['present']);
+        $t->same(5, $ncx['audioLabelReport']['count']);
+        $t->same(3, $ncx['audioLabelReport']['localCount']);
+        $t->same(1, $ncx['audioLabelReport']['externalCount']);
+        $t->same(1, $ncx['audioLabelReport']['missingCount']);
+        $t->same(0, $ncx['audioLabelReport']['encryptedCount']);
+        $t->same(4, $ncx['audioLabelReport']['diagnosticCount']);
+        $t->same('external-ncx-audio-reference', $ncx['audioLabelDiagnostics'][0]['type']);
+        $t->same('missing-ncx-audio-reference', $ncx['audioLabelDiagnostics'][1]['type']);
+        $t->same('invalid-ncx-audio-clip-begin', $ncx['audioLabelDiagnostics'][2]['type']);
+        $t->same('ncx-audio-clip-end-before-begin', $ncx['audioLabelReport']['diagnostics'][3]['type']);
+
+        $pointAudio = $ncx['items'][0]['labelAudio'][0];
+        $t->same('audio-point-clip', $pointAudio['id']);
+        $t->same('audio/nav-label.mp3', $pointAudio['src']);
+        $t->same('/OEBPS/audio/nav-label.mp3', $pointAudio['target']);
+        $t->same('/OEBPS/audio/nav-label.mp3', $pointAudio['part']);
+        $t->same('ncx-audio', $pointAudio['manifestId']);
+        $t->same('audio/mpeg', $pointAudio['mediaType']);
+        $t->same(strlen($audioBytes), $pointAudio['byteLength']);
+        $t->same(hash('crc32b', $audioBytes), $pointAudio['crc32']);
+        $t->same(hash('sha256', $audioBytes), $pointAudio['byteSha256']);
+        $t->same(1.0, $pointAudio['clipBeginSeconds']);
+        $t->same(3.5, $pointAudio['clipEndSeconds']);
+        $t->same(2.5, $pointAudio['clipDurationSeconds']);
+        $t->same(true, $pointAudio['clipValid']);
+        $t->same([], $pointAudio['diagnostics']);
+
+        $navigationNcxItem = $result['navigation']['items'][1];
+        $t->same('ncx', $navigationNcxItem['source']);
+        $t->same(1, $navigationNcxItem['labelAudioCount']);
+        $t->same(hash('sha256', $audioBytes), $navigationNcxItem['labelAudio'][0]['byteSha256']);
+        $t->same($result['navigation'], $result['document']->attr('navigation'));
+
+        $pageListLabel = $ncx['pageListReport']['labelAudio'][0];
+        $t->same(true, $pageListLabel['external']);
+        $t->same('https://audio.example.test/pages.mp3', $pageListLabel['target']);
+        $t->same('external-ncx-audio-reference', $pageListLabel['diagnostics'][0]['type']);
+
+        $pageTargetAudio = $ncx['pageList'][0]['labelAudio'][0];
+        $t->same(false, $pageTargetAudio['exists']);
+        $t->same('/OEBPS/audio/missing-page.mp3', $pageTargetAudio['part']);
+        $t->same('missing-ncx-audio-reference', $pageTargetAudio['diagnostics'][0]['type']);
+        $t->same('invalid-ncx-audio-clip-begin', $pageTargetAudio['clipDiagnostics'][0]['type']);
+
+        $pageBreak = $result['pageBreaks']['items'][0];
+        $t->same('ncx', $pageBreak['source']);
+        $t->same(1, $pageBreak['labelAudioCount']);
+        $t->same('audio/missing-page.mp3', $pageBreak['labelAudio'][0]['src']);
+        $t->same('missing-ncx-audio-reference', $pageBreak['labelAudio'][0]['diagnostics'][0]['type']);
+        $t->same('audio/missing-page.mp3', $result['document']->children[0]->attr('pageBreaks')[0]['labelAudio'][0]['src']);
+        $t->same('invalid-ncx-audio-clip-begin', $result['document']->children[0]->attr('pageBreaks')[0]['labelAudio'][0]['clipDiagnostics'][0]['type']);
+
+        $navListAudio = $ncx['navLists'][0]['labelAudio'][0];
+        $t->same('ncx-audio-clip-end-before-begin', $navListAudio['diagnostics'][0]['type']);
+        $t->same(false, $navListAudio['clipValid']);
+        $t->same(4.0, $navListAudio['clipBeginSeconds']);
+        $t->same(2.0, $navListAudio['clipEndSeconds']);
+        $t->same(null, $navListAudio['clipDurationSeconds']);
+        $t->same(1, $ncx['navLists'][0]['items'][0]['labelAudioCount']);
+        $t->same('/OEBPS/audio/nav-label.mp3', $ncx['navLists'][0]['items'][0]['labelAudio'][0]['target']);
+        $t->same(1, $result['navigation']['supplementalItems'][0]['labelAudioCount']);
+        $t->same(hash('sha256', $audioBytes), $result['navigation']['supplementalItems'][0]['labelAudio'][0]['byteSha256']);
+        $t->same($ncx['audioLabelReport'], $result['importReport']['ncx']['audioLabelReport']);
+    },
     'preserves EPUB CFI fragment targets across package handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $cfi = 'epubcfi(/6/2[chapter1]!/4/2/1:12)';
         $pageCfi = 'epubcfi(/6/2[chapter1]!/4/2/3:1)';

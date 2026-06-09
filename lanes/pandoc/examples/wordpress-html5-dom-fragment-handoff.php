@@ -15,6 +15,7 @@ $srcdoc = htmlspecialchars(
 );
 
 $source = <<<HTML
+<!-- legacy export marker -->
 <html lang="en-US" dir="ltr">
 <template><base href="https://inactive.example/assets/"><a href="template-note.html">Template fallback note</a></template>
 <base href="https://source.example.test/import/posts/post-42.html?draft=1" target="_blank">
@@ -114,6 +115,7 @@ if (($argv[1] ?? '') === '--self-test') {
     foreach ([
         '<span data-pandoc-meta-name="language" data-pandoc-meta-source="html" data-pandoc-meta-content="en-US">Language: en-US</span>',
         '<span data-pandoc-meta-name="direction" data-pandoc-meta-source="html" data-pandoc-meta-content="ltr">Direction: ltr</span>',
+        '<!-- legacy export marker -->',
         '<span data-pandoc-meta-name="base-target" data-pandoc-meta-source="base" data-pandoc-meta-content="_blank">Base target: _blank</span>',
         '<a href="https://source.example.test/import/posts/template-note.html">Template fallback note</a>',
         '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Legacy post title &amp; review packet">Title: Legacy post title &amp; review packet</span>',

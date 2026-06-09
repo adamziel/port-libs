@@ -1619,3 +1619,31 @@ struct ReviewPacket {
         :title (normalized-title packet)
         :blocks (remove-if-not #'identity (review-packet-blocks packet))))
 ```
+
+``` {.pascal #pascal-review .numberLines startFrom=1360}
+// Pascal WordPress import review helper
+program WPImportReview;
+
+{$mode objfpc}{$H+}
+
+type
+  TReviewPacket = record
+    SourceId: Integer;
+    Title: string;
+  end;
+
+function NormalizedTitle(const Packet: TReviewPacket): string;
+begin
+  Result := Trim(Packet.Title);
+  if Result = '' then
+    Result := Format('Import %d', [Packet.SourceId]);
+end;
+
+var
+  Packet: TReviewPacket;
+begin
+  Packet.SourceId := 42;
+  Packet.Title := ' Legacy ';
+  WriteLn(NormalizedTitle(Packet));
+end.
+```

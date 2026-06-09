@@ -4155,6 +4155,59 @@ return [
         $t->same('cl', $directCommonLisp['requestedLanguage']);
         $t->contains('<span class="kw">loop</span> <span class="kw">for</span> <span class="kw">block</span> <span class="kw">in</span> <span class="va">blocks</span> <span class="kw">collect</span>', $directCommonLisp['html']);
     },
+    'highlights pascal and delphi review packets with pandoc aliases' => static function (TestRunner $t): void {
+        $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-syntax-highlight.md');
+        if (!is_string($fixture)) {
+            throw new RuntimeException('Unable to read syntax highlight fixture');
+        }
+
+        $document = (new MarkdownReader())->read($fixture);
+        $codeBlock = $document->children[85] ?? null;
+        if (!$codeBlock instanceof AstNode || $codeBlock->type !== 'code_block') {
+            throw new RuntimeException('Expected syntax highlight fixture to include a Pascal review packet code block');
+        }
+
+        $highlighter = new SyntaxHighlighter();
+        $highlighted = $highlighter->highlightCodeBlock($codeBlock, 'haddock');
+        $wordpressBlock = $highlighter->wordpressHtmlBlock($codeBlock, 'haddock');
+        $directDelphi = $highlighter->highlight(
+            'function Queue(const Packet: TReviewPacket): string; begin WriteLn(Packet.SourceId); end;',
+            'delphi'
+        );
+
+        $t->same('pascal', SyntaxHighlighter::languageFromCodeBlock($codeBlock));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('pas'));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('pascal'));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('delphi'));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('object-pascal'));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('objectpascal'));
+        $t->same('pascal', SyntaxHighlighter::normalizeLanguage('language-pp'));
+        $t->same('pascal', $highlighted['language']);
+        $t->same('pascal', $highlighted['requestedLanguage']);
+        $t->same('haddock', $highlighted['style']);
+        $t->same([], $highlighted['diagnostics']);
+        $t->same(1360, $highlighted['lineNumbering']['start']);
+        $t->contains('<pre class="sourceCode numberSource pascal numberLines"><code class="sourceCode pascal" style="counter-reset: source-line 1359;">', $highlighted['html']);
+        $t->contains('<span id="pascal-review-1360"><a href="#pascal-review-1360"></a><span class="co">// Pascal WordPress import review helper</span></span>', $highlighted['html']);
+        $t->contains('<span class="kw">program</span> <span class="va">WPImportReview</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="pp">{$mode objfpc}{$H+}</span>', $highlighted['html']);
+        $t->contains('<span class="kw">type</span>', $highlighted['html']);
+        $t->contains('<span class="dt">TReviewPacket</span> <span class="op">=</span> <span class="kw">record</span>', $highlighted['html']);
+        $t->contains('<span class="va">SourceId</span><span class="op">:</span> <span class="dt">Integer</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="va">Title</span><span class="op">:</span> <span class="dt">string</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">function</span> <span class="fu">NormalizedTitle</span><span class="op">(</span><span class="kw">const</span> <span class="va">Packet</span><span class="op">:</span> <span class="dt">TReviewPacket</span><span class="op">):</span> <span class="dt">string</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Result</span> <span class="op">:=</span> <span class="fu">Trim</span><span class="op">(</span><span class="va">Packet</span><span class="op">.</span><span class="va">Title</span><span class="op">);</span>', $highlighted['html']);
+        $t->contains('<span class="kw">if</span> <span class="kw">Result</span> <span class="op">=</span> <span class="st">&#039;&#039;</span> <span class="kw">then</span>', $highlighted['html']);
+        $t->contains('<span class="kw">Result</span> <span class="op">:=</span> <span class="fu">Format</span><span class="op">(</span><span class="st">&#039;Import %d&#039;</span><span class="op">,</span> <span class="op">[</span><span class="va">Packet</span><span class="op">.</span><span class="va">SourceId</span><span class="op">]);</span>', $highlighted['html']);
+        $t->contains('<span class="va">Packet</span><span class="op">.</span><span class="va">SourceId</span> <span class="op">:=</span> <span class="dv">42</span><span class="op">;</span>', $highlighted['html']);
+        $t->contains('<span class="fu">WriteLn</span><span class="op">(</span><span class="fu">NormalizedTitle</span><span class="op">(</span><span class="va">Packet</span><span class="op">));</span>', $highlighted['html']);
+        $t->contains('<style data-pandoc-highlight-style="haddock">', $wordpressBlock);
+        $t->contains('<span class="fu">Format</span><span class="op">(</span><span class="st">&#039;Import %d&#039;</span>', $wordpressBlock);
+        $t->same('pascal', $directDelphi['language']);
+        $t->same('delphi', $directDelphi['requestedLanguage']);
+        $t->contains('<span class="kw">function</span> <span class="fu">Queue</span><span class="op">(</span><span class="kw">const</span> <span class="va">Packet</span><span class="op">:</span> <span class="dt">TReviewPacket</span><span class="op">):</span> <span class="dt">string</span><span class="op">;</span>', $directDelphi['html']);
+        $t->contains('<span class="fu">WriteLn</span><span class="op">(</span><span class="va">Packet</span><span class="op">.</span><span class="va">SourceId</span><span class="op">);</span>', $directDelphi['html']);
+    },
     'parses pandoc json theme files for custom syntax highlight css' => static function (TestRunner $t): void {
         $themeJson = json_encode([
             'name' => 'Review Import',

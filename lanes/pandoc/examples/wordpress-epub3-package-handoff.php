@@ -280,7 +280,7 @@ $ncxXml = <<<'XML'
   </docAuthor>
   <navMap>
     <navPoint id="source" class="source-toc-point" playOrder="1" xml:lang="en" dir="ltr">
-      <navLabel id="source-label" class="source-label"><text>Source chapter</text></navLabel>
+      <navLabel id="source-label" class="source-label"><text>Source chapter</text><audio id="source-label-audio" src="audio/chapter.mp3" clipBegin="0:00:01.000" clipEnd="0:00:03.000"/></navLabel>
       <content id="source-content" src="text/chapter.xhtml#source" data-review="chapter"/>
     </navPoint>
     <navPoint id="remote-note" playOrder="2">
@@ -656,6 +656,21 @@ if (($argv[1] ?? '') === '--self-test') {
     if (($result['ncx']['items'][0]['labelAttributes']['id'] ?? null) !== 'source-label' || ($result['ncx']['items'][0]['contentAttributes']['data-review'] ?? null) !== 'chapter') {
         throw new RuntimeException('Expected NCX navLabel/content attributes to remain visible for review');
     }
+    if (($result['ncx']['audioLabelCount'] ?? null) !== 1 || ($result['ncx']['audioLabelReport']['localCount'] ?? null) !== 1) {
+        throw new RuntimeException('Expected NCX label audio metadata to be summarized for review');
+    }
+    if (($result['ncx']['items'][0]['labelAudio'][0]['target'] ?? null) !== '/EPUB/audio/chapter.mp3') {
+        throw new RuntimeException('Expected NCX navLabel audio to resolve relative to the NCX part');
+    }
+    if (($result['ncx']['items'][0]['labelAudio'][0]['manifestId'] ?? null) !== 'audio-chapter' || ($result['ncx']['items'][0]['labelAudio'][0]['mediaType'] ?? null) !== 'audio/mpeg') {
+        throw new RuntimeException('Expected NCX navLabel audio to preserve OPF manifest provenance');
+    }
+    if (($result['ncx']['items'][0]['labelAudio'][0]['byteSha256'] ?? null) !== hash('sha256', 'MP3-DATA')) {
+        throw new RuntimeException('Expected NCX navLabel audio to expose package byte provenance');
+    }
+    if (($result['importReport']['ncx']['audioLabelDiagnostics'] ?? null) !== []) {
+        throw new RuntimeException('Expected local NCX navLabel audio to avoid review diagnostics');
+    }
     $firstNcxNavigationItem = null;
     foreach ($result['navigation']['items'] as $navigationItem) {
         if (($navigationItem['source'] ?? null) === 'ncx') {
@@ -665,6 +680,9 @@ if (($argv[1] ?? '') === '--self-test') {
     }
     if (($firstNcxNavigationItem['source'] ?? null) !== 'ncx' || ($firstNcxNavigationItem['class'] ?? null) !== 'source-toc-point') {
         throw new RuntimeException('Expected EPUB navigation report to preserve NCX navPoint provenance');
+    }
+    if (($firstNcxNavigationItem['labelAudio'][0]['manifestId'] ?? null) !== 'audio-chapter') {
+        throw new RuntimeException('Expected EPUB navigation report to preserve NCX label audio provenance');
     }
     if (($result['ncx']['docTitle'] ?? null) !== 'WordPress EPUB source packet') {
         throw new RuntimeException('Expected NCX docTitle metadata to remain visible for review');
@@ -1721,6 +1739,10 @@ echo 'ncxNavListFirstTarget=' . ($result['ncx']['navLists'][0]['items'][0]['targ
 echo 'ncxNavListRoles=' . implode(',', $result['ncx']['navListRoleReport']['roles'] ?? []) . "\n";
 echo 'ncxNavListRoleDiagnostics=' . ($result['ncx']['navListRoleReport']['diagnosticCount'] ?? 0) . "\n";
 echo 'ncxNavListDiagnostics=' . count($result['ncx']['navListDiagnostics'] ?? []) . "\n";
+echo 'ncxAudioLabels=' . ($result['ncx']['audioLabelCount'] ?? 0) . "\n";
+echo 'ncxAudioFirstTarget=' . ($result['ncx']['items'][0]['labelAudio'][0]['target'] ?? '') . "\n";
+echo 'ncxAudioFirstManifestId=' . ($result['ncx']['items'][0]['labelAudio'][0]['manifestId'] ?? '') . "\n";
+echo 'ncxAudioDiagnostics=' . count($result['ncx']['audioLabelDiagnostics'] ?? []) . "\n";
 echo 'navigationTargets=' . ($result['navigation']['targetCount'] ?? 0) . "\n";
 echo 'navigationMappedTargets=' . ($result['navigation']['mappedSpineTargetCount'] ?? 0) . "\n";
 echo 'navigationNcxNavListTargets=' . ($result['navigation']['ncxNavListTargetCount'] ?? 0) . "\n";

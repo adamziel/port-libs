@@ -260,6 +260,14 @@ final class SyntaxHighlighter
         'objective-c++' => 'objectivec',
         'objectivec' => 'objectivec',
         'objectivecpp' => 'objectivec',
+        'delphi' => 'pascal',
+        'fpc' => 'pascal',
+        'freepascal' => 'pascal',
+        'object-pascal' => 'pascal',
+        'objectpascal' => 'pascal',
+        'pas' => 'pascal',
+        'pascal' => 'pascal',
+        'pp' => 'pascal',
         'perl' => 'perl',
         'perl6' => 'raku',
         'pl' => 'perl',
@@ -843,6 +851,7 @@ final class SyntaxHighlighter
             'nix' => $this->tokenizeNix($code),
             'objectivec' => $this->tokenizeObjectiveC($code),
             'ocaml' => $this->tokenizeOcaml($code),
+            'pascal' => $this->tokenizePascal($code),
             'perl' => $this->tokenizePerl($code),
             'php' => $this->tokenizePhp($code),
             'powershell' => $this->tokenizePowerShell($code),
@@ -965,6 +974,30 @@ final class SyntaxHighlighter
             ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
             ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
             ['operator', '/^(?:::|->|\\.\\.\\.|\\?:|<<=|>>=|==|!=|<=|>=|&&|\\|\\||\\+\\+|--|<<|>>|[{}()[\\];,.+*\\/%=!<>?:&|^~@-])/'],
+        ]);
+    }
+
+    /**
+     * @return list<array{type:string, text:string, class:string}>
+     */
+    private function tokenizePascal(string $code): array
+    {
+        return $this->scan($code, [
+            ['preprocessor', '/^\\{\\$[\\s\\S]*?\\}/'],
+            ['comment', '/^\\(\\*[\\s\\S]*?\\*\\)/'],
+            ['comment', '/^\\{[\\s\\S]*?\\}/'],
+            ['comment', '/^\\/\\/[^\\n]*/'],
+            ['string', "/^'(?:''|[^'])*'/s"],
+            ['constant', '/^\\b(?:false|nil|true)\\b/i'],
+            ['keyword', '/^\\b(?:absolute|and|array|as|asm|begin|case|class|const|constructor|destructor|dispinterface|div|do|downto|else|end|except|exit|exports|file|finalization|finally|for|function|goto|if|implementation|in|inherited|initialization|inline|interface|is|label|library|mod|not|object|of|or|out|overload|override|packed|private|procedure|program|property|protected|public|published|raise|record|repeat|resourcestring|result|set|shl|shr|then|threadvar|to|try|type|unit|until|uses|var|while|with|xor)\\b/i'],
+            ['datatype', '/^\\b(?:ansistring|boolean|byte|cardinal|char|double|extended|integer|int64|longint|qword|real|shortint|single|string|tobject|word)\\b/i'],
+            ['function', '/^\\b(?:assigned|copy|format|inc|length|lowercase|pos|setlength|trim|uppercase|writeln)\\b(?=\\s*\\()/i'],
+            ['number', '/^\\$[0-9A-Fa-f]+\\b/'],
+            ['number', '/^-?\\b(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?\\b/'],
+            ['function', '/^\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*\\()/'],
+            ['datatype', '/^\\bT[A-Z][A-Za-z0-9_]*\\b/'],
+            ['variable', '/^\\b[A-Za-z_][A-Za-z0-9_]*\\b/'],
+            ['operator', '/^(?::=|\\.\\.|<>|<=|>=|[{}()[\\];,.+*\\/%=!<>:@^-])/'],
         ]);
     }
 

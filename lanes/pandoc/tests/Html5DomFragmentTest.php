@@ -2943,6 +2943,67 @@ return [
         $t->true(!str_contains($invalidHtml, 'Language:'), 'Expected invalid language metadata to stay hidden');
         $t->true(!str_contains($invalidHtml, 'Direction:'), 'Expected invalid direction metadata to stay hidden');
     },
+    'preserves html document metadata after leading comments before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "\n<!-- exported by legacy CMS -->\n<html lang=\" fr-ca \" dir=\"AUTO\"><head><title>Commented packet</title></head><body><p>Salut</p></body></html>"
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/commented-document-language-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnosticCodes(),
+            static fn (string $code): bool => $code !== 'libxml-repair'
+        ));
+
+        $expected = '<span data-pandoc-meta-name="language" data-pandoc-meta-source="html" data-pandoc-meta-content="fr-CA">Language: fr-CA</span>'
+            . '<span data-pandoc-meta-name="direction" data-pandoc-meta-source="html" data-pandoc-meta-content="auto">Direction: auto</span>'
+            . "\n"
+            . '<!-- exported by legacy CMS -->' . "\n"
+            . '<span data-pandoc-meta-name="title" data-pandoc-meta-source="title" data-pandoc-meta-content="Commented packet">Title: Commented packet</span>'
+            . '<p>Salut</p>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same("Language: fr-CADirection: auto\n\nTitle: Commented packetSalut", $fragment->textContent());
+        $t->same(7, $summary['topLevelNodes']);
+        $t->same(4, $summary['elements']);
+        $t->same(1, $summary['comments']);
+        $t->same(['p', 'span'], $summary['elementNames']);
+        $t->same(['title'], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+        $t->same(['document-metadata-review', 'document-metadata-review', 'blocked-tag'], $policyDiagnostics);
+        $t->same('span', $nodes[0]['name']);
+        $t->same([
+            'data-pandoc-meta-name' => 'language',
+            'data-pandoc-meta-source' => 'html',
+            'data-pandoc-meta-content' => 'fr-CA',
+        ], $nodes[0]['attrs']);
+        $t->same('span', $nodes[1]['name']);
+        $t->same([
+            'data-pandoc-meta-name' => 'direction',
+            'data-pandoc-meta-source' => 'html',
+            'data-pandoc-meta-content' => 'auto',
+        ], $nodes[1]['attrs']);
+        $t->same('text', $nodes[2]['type']);
+        $t->same("\n", $nodes[2]['text']);
+        $t->same('comment', $nodes[3]['type']);
+        $t->same(' exported by legacy CMS ', $nodes[3]['text']);
+        $t->same('text', $nodes[4]['type']);
+        $t->same("\n", $nodes[4]['text']);
+        $t->same('title', $nodes[5]['attrs']['data-pandoc-meta-name']);
+        $t->same('p', $nodes[6]['name']);
+        $t->same('/migration/commented-document-language-review.html', $document->children[0]->attr('part'));
+        $t->true(!str_contains($html, '<html'), 'Expected original html wrapper to be stripped from commented document output');
+        $t->true(!str_contains($html, '<body'), 'Expected original body wrapper to be stripped from commented document output');
+        $t->true(!str_contains($blocks, '<html'), 'Expected WordPress blocks to omit document wrapper elements');
+
+        $unterminated = Html5DomFragment::fromHtml('<!-- missing close <html lang="es"><p>Hola</p>');
+        $t->true(!str_contains($unterminated->serialize(), 'Language:'), 'Expected unterminated leading comment not to unlock html document metadata');
+    },
     'converts element language and direction attributes into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article lang=" EN-us " dir="RTL" data-pandoc-lang="source-spoof">'

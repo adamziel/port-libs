@@ -4232,7 +4232,8 @@ final class Html5DomFragment
      */
     private static function htmlDocumentElementMetadataNodes(string $html, array &$diagnostics): array
     {
-        if (preg_match('/^\s*<html(?:\s|>|\/)/i', $html) !== 1) {
+        $documentSource = self::htmlDocumentElementSource($html);
+        if ($documentSource === null) {
             return [];
         }
 
@@ -4240,7 +4241,7 @@ final class Html5DomFragment
         libxml_clear_errors();
 
         $dom = new \DOMDocument('1.0', 'UTF-8');
-        $loaded = $dom->loadHTML($html, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED);
+        $loaded = $dom->loadHTML($documentSource, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
@@ -4261,6 +4262,40 @@ final class Html5DomFragment
         }
 
         return $nodes;
+    }
+
+    private static function htmlDocumentElementSource(string $html): ?string
+    {
+        $offset = 0;
+        $length = strlen($html);
+        while ($offset < $length) {
+            if (preg_match('/\G\s+/A', $html, $match, 0, $offset) === 1) {
+                $offset += strlen($match[0]);
+                continue;
+            }
+
+            if (substr($html, $offset, 4) === '<!--') {
+                $end = strpos($html, '-->', $offset + 4);
+                if ($end === false) {
+                    return null;
+                }
+                $offset = $end + 3;
+                continue;
+            }
+
+            break;
+        }
+
+        if (strncasecmp(substr($html, $offset, 5), '<html', 5) !== 0) {
+            return null;
+        }
+
+        $next = $html[$offset + 5] ?? '';
+        if ($next !== '' && $next !== '>' && $next !== '/' && preg_match('/\s/', $next) !== 1) {
+            return null;
+        }
+
+        return substr($html, $offset);
     }
 
     /**

@@ -9106,6 +9106,9 @@ final class EpubReader
                 'attributes' => is_array($navItem['attributes'] ?? null) ? $navItem['attributes'] : [],
                 'labelAttributes' => is_array($navItem['labelAttributes'] ?? null) ? $navItem['labelAttributes'] : [],
                 'labelTextAttributes' => is_array($navItem['labelTextAttributes'] ?? null) ? $navItem['labelTextAttributes'] : [],
+                'labelAudioCount' => is_array($navItem['labelAudio'] ?? null) ? count($navItem['labelAudio']) : 0,
+                'labelAudio' => is_array($navItem['labelAudio'] ?? null) ? array_values($navItem['labelAudio']) : [],
+                'labelAudioDiagnostics' => is_array($navItem['labelAudioDiagnostics'] ?? null) ? array_values($navItem['labelAudioDiagnostics']) : [],
                 'contentAttributes' => is_array($navItem['contentAttributes'] ?? null) ? $navItem['contentAttributes'] : [],
                 'byteLength' => is_int($navItem['byteLength'] ?? null) ? $navItem['byteLength'] : null,
                 'crc32' => is_string($navItem['crc32'] ?? null) ? $navItem['crc32'] : null,
@@ -9929,6 +9932,9 @@ final class EpubReader
                 'navLists' => [],
                 'navListRoleReport' => self::ncxNavListRoleSummary([]),
                 'navListDiagnostics' => [],
+                'audioLabelCount' => 0,
+                'audioLabelReport' => self::ncxLabelAudioReport([], self::emptyNcxPageListReport(), []),
+                'audioLabelDiagnostics' => [],
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
             ];
@@ -9948,6 +9954,8 @@ final class EpubReader
         $navLists = $this->readNcxNavLists($package, $root, (string) $item['part'], $manifestByPart);
         $docTitleEntries = self::readNcxTextElementEntries($root, 'docTitle');
         $docAuthorDetails = self::readNcxTextElementEntries($root, 'docAuthor');
+        $navMapItems = $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part'], $manifestByPart) : [];
+        $audioLabelReport = self::ncxLabelAudioReport($navMapItems, $pageListReport, $navLists['items']);
 
         return [
             'part' => (string) $item['part'],
@@ -9961,7 +9969,7 @@ final class EpubReader
                 $docAuthorDetails
             ),
             'docAuthorDetails' => $docAuthorDetails,
-            'items' => $navMap instanceof \DOMElement ? $this->readNcxPoints($package, $navMap, (string) $item['part'], $manifestByPart) : [],
+            'items' => $navMapItems,
             'pageList' => $pageListReport['items'],
             'pageListCount' => $pageListReport['itemCount'],
             'pageListReport' => $pageListReport,
@@ -9970,6 +9978,9 @@ final class EpubReader
             'navLists' => $navLists['items'],
             'navListRoleReport' => self::ncxNavListRoleSummary($navLists['items']),
             'navListDiagnostics' => $navLists['diagnostics'],
+            'audioLabelCount' => $audioLabelReport['count'],
+            'audioLabelReport' => $audioLabelReport,
+            'audioLabelDiagnostics' => $audioLabelReport['diagnostics'],
         ];
     }
 
@@ -10116,6 +10127,9 @@ final class EpubReader
             'attributes' => [],
             'labelAttributes' => [],
             'labelTextAttributes' => [],
+            'labelAudioCount' => 0,
+            'labelAudio' => [],
+            'labelAudioDiagnostics' => [],
             'itemCount' => 0,
             'items' => [],
             'diagnosticCount' => 0,
@@ -10147,6 +10161,7 @@ final class EpubReader
         $label = $navLabel instanceof \DOMElement
             ? self::firstDescendantElement($navLabel, 'text', self::NCX_NS)
             : null;
+        $labelAudio = $this->readNcxLabelAudio($package, $navLabel, $ncxPart, $manifestByPart, 'page-list');
         $targets = $this->readNcxPageTargets($package, $pageList, $ncxPart, $manifestByPart);
         $diagnostics = [];
 
@@ -10162,6 +10177,18 @@ final class EpubReader
                 ] + $diagnostic;
             }
         }
+        foreach ($labelAudio as $audioIndex => $audio) {
+            foreach (($audio['diagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'audioIndex' => $audioIndex,
+                    'scope' => 'page-list-label',
+                ] + $diagnostic;
+            }
+        }
 
         return [
             'present' => true,
@@ -10174,6 +10201,9 @@ final class EpubReader
             'attributes' => self::elementAttributes($pageList),
             'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
             'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+            'labelAudioCount' => count($labelAudio),
+            'labelAudio' => $labelAudio,
+            'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
             'itemCount' => count($targets),
             'items' => $targets,
             'diagnosticCount' => count($diagnostics),
@@ -10223,6 +10253,7 @@ final class EpubReader
                 ? self::emptyPackageReference()
                 : $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx-page-list');
             $type = self::nullableAttribute($target, 'type');
+            $labelAudio = $this->readNcxLabelAudio($package, $navLabel, $ncxPart, $manifestByPart, 'page-target');
 
             $items[] = [
                 'id' => self::nullableAttribute($target, 'id'),
@@ -10254,6 +10285,9 @@ final class EpubReader
                 'attributes' => self::elementAttributes($target),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'labelAudioCount' => count($labelAudio),
+                'labelAudio' => $labelAudio,
+                'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
                 'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
                 'children' => [],
@@ -10432,6 +10466,7 @@ final class EpubReader
             $listId = self::nullableAttribute($navList, 'id');
             $classes = self::spaceDelimited($navList->getAttribute('class'));
             $roleReport = self::ncxNavListRoleReport($classes);
+            $labelAudio = $this->readNcxLabelAudio($package, $navLabel, $ncxPart, $manifestByPart, 'nav-list');
 
             foreach ($targets as $targetIndex => $target) {
                 foreach (($target['diagnostics'] ?? []) as $diagnostic) {
@@ -10444,6 +10479,22 @@ final class EpubReader
                         'listId' => $listId,
                         'targetIndex' => $targetIndex,
                         'targetId' => is_string($target['id'] ?? null) ? $target['id'] : null,
+                    ] + $diagnostic;
+                    $listDiagnostics[] = $entry;
+                    $diagnostics[] = $entry;
+                }
+            }
+            foreach ($labelAudio as $audioIndex => $audio) {
+                foreach (($audio['diagnostics'] ?? []) as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $entry = [
+                        'listIndex' => $listIndex,
+                        'listId' => $listId,
+                        'audioIndex' => $audioIndex,
+                        'scope' => 'nav-list-label',
                     ] + $diagnostic;
                     $listDiagnostics[] = $entry;
                     $diagnostics[] = $entry;
@@ -10469,6 +10520,9 @@ final class EpubReader
                 'attributes' => self::elementAttributes($navList),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'labelAudioCount' => count($labelAudio),
+                'labelAudio' => $labelAudio,
+                'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
                 'itemCount' => count($targets),
                 'items' => $targets,
                 'diagnostics' => $listDiagnostics,
@@ -10496,6 +10550,7 @@ final class EpubReader
             $content = self::firstChildElement($target, 'content', self::NCX_NS);
             $src = $content instanceof \DOMElement ? trim($content->getAttribute('src')) : '';
             $reference = $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx-nav-list');
+            $labelAudio = $this->readNcxLabelAudio($package, $navLabel, $ncxPart, $manifestByPart, 'nav-target');
 
             $items[] = [
                 'id' => self::nullableAttribute($target, 'id'),
@@ -10523,6 +10578,9 @@ final class EpubReader
                 'attributes' => self::elementAttributes($target),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'labelAudioCount' => count($labelAudio),
+                'labelAudio' => $labelAudio,
+                'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
                 'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
                 'children' => [],
@@ -10549,6 +10607,7 @@ final class EpubReader
                 ? self::emptyPackageReference()
                 : $this->packageReference($package, $ncxPart, $src, $manifestByPart, 'ncx');
             $classes = self::spaceDelimited($point->getAttribute('class'));
+            $labelAudio = $this->readNcxLabelAudio($package, $navLabel, $ncxPart, $manifestByPart, 'nav-point');
 
             $items[] = [
                 'id' => self::nullableAttribute($point, 'id'),
@@ -10576,6 +10635,9 @@ final class EpubReader
                 'attributes' => self::elementAttributes($point),
                 'labelAttributes' => $navLabel instanceof \DOMElement ? self::elementAttributes($navLabel) : [],
                 'labelTextAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
+                'labelAudioCount' => count($labelAudio),
+                'labelAudio' => $labelAudio,
+                'labelAudioDiagnostics' => self::labelAudioDiagnostics($labelAudio),
                 'contentAttributes' => $content instanceof \DOMElement ? self::elementAttributes($content) : [],
                 'diagnostics' => $reference['diagnostics'],
                 'children' => $this->readNcxPoints($package, $point, $ncxPart, $manifestByPart),
@@ -10583,6 +10645,322 @@ final class EpubReader
         }
 
         return $items;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function readNcxLabelAudio(
+        ZipPackage $package,
+        ?\DOMElement $navLabel,
+        string $ncxPart,
+        array $manifestByPart,
+        string $owner
+    ): array {
+        if (!$navLabel instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        foreach (self::childElements($navLabel, 'audio', self::NCX_NS) as $audio) {
+            $src = self::nullableAttribute($audio, 'src');
+            $reference = $this->ncxAudioReference($package, $ncxPart, $src, $manifestByPart);
+            $clipBegin = self::nullableAttribute($audio, 'clipBegin');
+            $clipEnd = self::nullableAttribute($audio, 'clipEnd');
+            $clipTiming = self::ncxAudioClipTiming($clipBegin, $clipEnd);
+            $diagnostics = array_merge($reference['diagnostics'], $clipTiming['diagnostics']);
+
+            if (
+                ($reference['mediaType'] ?? null) !== null
+                && ($reference['external'] ?? false) !== true
+                && ($reference['exists'] ?? false) === true
+                && !str_starts_with(strtolower((string) $reference['mediaType']), 'audio/')
+            ) {
+                $diagnostics[] = [
+                    'type' => 'unexpected-ncx-audio-media-type',
+                    'mediaType' => $reference['mediaType'],
+                    'part' => $reference['part'],
+                    'message' => 'EPUB NCX audio label target should resolve to an audio media type',
+                ];
+            }
+
+            $items[] = [
+                'index' => count($items),
+                'owner' => $owner,
+                'id' => self::nullableAttribute($audio, 'id'),
+                'class' => self::nullableAttribute($audio, 'class'),
+                'classes' => self::spaceDelimited($audio->getAttribute('class')),
+                'language' => self::xmlLang($audio),
+                'direction' => self::direction($audio),
+                'src' => $src,
+                'target' => $reference['target'],
+                'part' => $reference['part'],
+                'fragment' => $reference['fragment'],
+                'fragmentKind' => $reference['fragmentKind'],
+                'epubCfi' => $reference['epubCfi'],
+                'mediaFragment' => $reference['mediaFragment'],
+                'external' => $reference['external'],
+                'exists' => $reference['exists'],
+                'byteLength' => $reference['byteLength'],
+                'crc32' => $reference['crc32'],
+                'byteSha256' => $reference['byteSha256'],
+                'manifestId' => $reference['manifestId'],
+                'mediaType' => $reference['mediaType'],
+                'encrypted' => $reference['encrypted'],
+                'canExposeBytes' => $reference['canExposeBytes'],
+                'clipBegin' => $clipBegin,
+                'clipBeginSeconds' => $clipTiming['clipBeginSeconds'],
+                'clipEnd' => $clipEnd,
+                'clipEndSeconds' => $clipTiming['clipEndSeconds'],
+                'clipDurationSeconds' => $clipTiming['clipDurationSeconds'],
+                'clipValid' => $clipTiming['valid'],
+                'clipDiagnostics' => $clipTiming['diagnostics'],
+                'attributes' => self::elementAttributes($audio),
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array{target:?string, part:?string, fragment:?string, fragmentKind:?string, epubCfi:?array<string, mixed>, mediaFragment:?array<string, mixed>, external:bool, exists:bool, byteLength:?int, crc32:?string, byteSha256:?string, manifestId:?string, mediaType:?string, encrypted:bool, canExposeBytes:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private function ncxAudioReference(ZipPackage $package, string $ncxPart, ?string $src, array $manifestByPart): array
+    {
+        $reference = $this->packageReference($package, $ncxPart, (string) $src, $manifestByPart, 'ncx-audio');
+        $diagnostics = $reference['diagnostics'];
+        if (($reference['encrypted'] ?? false) === true) {
+            $diagnostics[] = [
+                'type' => 'encrypted-ncx-audio-reference',
+                'part' => $reference['part'],
+                'message' => 'EPUB NCX audio label target is encrypted and cannot expose source bytes',
+            ];
+        }
+
+        $byteSha256 = null;
+        if (
+            ($reference['external'] ?? false) !== true
+            && ($reference['exists'] ?? false) === true
+            && ($reference['canExposeBytes'] ?? false) === true
+            && is_string($reference['part'] ?? null)
+        ) {
+            try {
+                $byteSha256 = hash('sha256', $package->read((string) $reference['part']));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'ncx-audio-reference-bytes-unavailable',
+                    'part' => $reference['part'],
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'target' => $reference['target'],
+            'part' => $reference['part'],
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
+            'external' => $reference['external'],
+            'exists' => $reference['exists'],
+            'byteLength' => $reference['byteLength'],
+            'crc32' => $reference['crc32'],
+            'byteSha256' => $byteSha256,
+            'manifestId' => $reference['manifestId'],
+            'mediaType' => $reference['mediaType'],
+            'encrypted' => $reference['encrypted'],
+            'canExposeBytes' => $reference['canExposeBytes'],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{clipBeginSeconds:?float, clipEndSeconds:?float, clipDurationSeconds:?float, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function ncxAudioClipTiming(?string $clipBegin, ?string $clipEnd): array
+    {
+        $beginSeconds = is_string($clipBegin) ? self::smilClockSeconds($clipBegin) : null;
+        $endSeconds = is_string($clipEnd) ? self::smilClockSeconds($clipEnd) : null;
+        $diagnostics = [];
+
+        if (is_string($clipBegin) && trim($clipBegin) !== '' && $beginSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-ncx-audio-clip-begin',
+                'clipBegin' => $clipBegin,
+                'message' => 'EPUB NCX audio clipBegin must be a bounded clock value',
+            ];
+        }
+
+        if (is_string($clipEnd) && trim($clipEnd) !== '' && $endSeconds === null) {
+            $diagnostics[] = [
+                'type' => 'invalid-ncx-audio-clip-end',
+                'clipEnd' => $clipEnd,
+                'message' => 'EPUB NCX audio clipEnd must be a bounded clock value',
+            ];
+        }
+
+        $durationSeconds = null;
+        if ($beginSeconds !== null && $endSeconds !== null) {
+            if ($endSeconds < $beginSeconds) {
+                $diagnostics[] = [
+                    'type' => 'ncx-audio-clip-end-before-begin',
+                    'clipBegin' => $clipBegin,
+                    'clipEnd' => $clipEnd,
+                    'clipBeginSeconds' => $beginSeconds,
+                    'clipEndSeconds' => $endSeconds,
+                    'message' => 'EPUB NCX audio clipEnd must not be earlier than clipBegin',
+                ];
+            } else {
+                $durationSeconds = $endSeconds - $beginSeconds;
+            }
+        }
+
+        return [
+            'clipBeginSeconds' => $beginSeconds,
+            'clipEndSeconds' => $endSeconds,
+            'clipDurationSeconds' => $durationSeconds,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function labelAudioDiagnostics(array $items): array
+    {
+        $diagnostics = [];
+        foreach ($items as $audioIndex => $audio) {
+            foreach (($audio['diagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'audioIndex' => $audioIndex,
+                    'audioId' => is_string($audio['id'] ?? null) ? $audio['id'] : null,
+                    'owner' => is_string($audio['owner'] ?? null) ? $audio['owner'] : null,
+                ] + $diagnostic;
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $navMapItems
+     * @param array<string, mixed> $pageListReport
+     * @param list<array<string, mixed>> $navLists
+     *
+     * @return array<string, mixed>
+     */
+    private static function ncxLabelAudioReport(array $navMapItems, array $pageListReport, array $navLists): array
+    {
+        $items = [];
+        $byOwner = [];
+        $diagnostics = [];
+        $localCount = 0;
+        $externalCount = 0;
+        $missingCount = 0;
+        $encryptedCount = 0;
+
+        $appendAudio = static function (array $audio, string $scope, ?string $ownerId) use (&$items, &$byOwner, &$diagnostics, &$localCount, &$externalCount, &$missingCount, &$encryptedCount): void {
+            $index = count($items);
+            $entry = [
+                'reportIndex' => $index,
+                'scope' => $scope,
+                'ownerId' => $ownerId,
+            ] + $audio;
+
+            $items[] = $entry;
+            $byOwner[$scope][] = $entry;
+            if (($entry['external'] ?? false) === true) {
+                ++$externalCount;
+            } elseif (($entry['exists'] ?? false) === true) {
+                ++$localCount;
+            } else {
+                ++$missingCount;
+            }
+            if (($entry['encrypted'] ?? false) === true) {
+                ++$encryptedCount;
+            }
+
+            foreach (($entry['diagnostics'] ?? []) as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'index' => $index,
+                    'scope' => $scope,
+                    'ownerId' => $ownerId,
+                    'audioId' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                ] + $diagnostic;
+            }
+        };
+
+        $walkTargets = static function (array $targets, string $scope) use (&$walkTargets, $appendAudio): void {
+            foreach ($targets as $target) {
+                if (!is_array($target)) {
+                    continue;
+                }
+
+                $ownerId = is_string($target['id'] ?? null) ? $target['id'] : null;
+                foreach (is_array($target['labelAudio'] ?? null) ? $target['labelAudio'] : [] as $audio) {
+                    if (is_array($audio)) {
+                        $appendAudio($audio, $scope, $ownerId);
+                    }
+                }
+
+                if (is_array($target['children'] ?? null) && $target['children'] !== []) {
+                    $walkTargets($target['children'], $scope);
+                }
+            }
+        };
+
+        $walkTargets($navMapItems, 'nav-map');
+
+        foreach (is_array($pageListReport['labelAudio'] ?? null) ? $pageListReport['labelAudio'] : [] as $audio) {
+            if (is_array($audio)) {
+                $appendAudio($audio, 'page-list', is_string($pageListReport['id'] ?? null) ? $pageListReport['id'] : null);
+            }
+        }
+        $walkTargets(is_array($pageListReport['items'] ?? null) ? $pageListReport['items'] : [], 'page-target');
+
+        foreach ($navLists as $list) {
+            if (!is_array($list)) {
+                continue;
+            }
+
+            $listId = is_string($list['id'] ?? null) ? $list['id'] : null;
+            foreach (is_array($list['labelAudio'] ?? null) ? $list['labelAudio'] : [] as $audio) {
+                if (is_array($audio)) {
+                    $appendAudio($audio, 'nav-list', $listId);
+                }
+            }
+            $walkTargets(is_array($list['items'] ?? null) ? $list['items'] : [], 'nav-target');
+        }
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'localCount' => $localCount,
+            'externalCount' => $externalCount,
+            'missingCount' => $missingCount,
+            'encryptedCount' => $encryptedCount,
+            'items' => $items,
+            'byOwner' => $byOwner,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -10922,6 +11300,9 @@ final class EpubReader
             'attributes' => is_array($item['attributes'] ?? null) ? $item['attributes'] : [],
             'labelAttributes' => is_array($item['labelAttributes'] ?? null) ? $item['labelAttributes'] : [],
             'labelTextAttributes' => is_array($item['labelTextAttributes'] ?? null) ? $item['labelTextAttributes'] : [],
+            'labelAudioCount' => is_array($item['labelAudio'] ?? null) ? count($item['labelAudio']) : 0,
+            'labelAudio' => is_array($item['labelAudio'] ?? null) ? array_values($item['labelAudio']) : [],
+            'labelAudioDiagnostics' => is_array($item['labelAudioDiagnostics'] ?? null) ? array_values($item['labelAudioDiagnostics']) : [],
             'spineIndex' => is_array($spineItem) ? (int) ($spineItem['index'] ?? 0) : null,
             'spineIdref' => is_array($spineItem) ? (string) ($spineItem['idref'] ?? '') : null,
             'spineItemId' => is_array($spineItem) && is_string($spineItem['id'] ?? null) ? $spineItem['id'] : null,
