@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-09 08:30:23 UTC",
-    "sourceCommit": "cfe18701f659fe81a4aa09fb0fbcb2cad0e6e380",
-    "sourceCommitShort": "cfe18701f659",
+    "generated": "2026-06-09 08:31:57 UTC",
+    "sourceCommit": "42dc159808e358aae47ea695e1e34146f3bb597a",
+    "sourceCommitShort": "42dc159808e3",
     "sourceBranch": "unknown",
-    "dashboardCommit": "cfe18701f659fe81a4aa09fb0fbcb2cad0e6e380",
-    "dashboardCommitShort": "cfe18701f659",
+    "dashboardCommit": "42dc159808e358aae47ea695e1e34146f3bb597a",
+    "dashboardCommitShort": "42dc159808e3",
     "averageProgressPercent": "91.7",
     "lanes": [
         {
@@ -137,12 +137,12 @@
             "coverage": "2,896 / 2,276 (127.2%)",
             "mapPercent": "127.2%",
             "unmapped": "0",
-            "php": "2,527 pass / 0 fail",
-            "phase": "native PHP Pandoc current-base doctemplate support; user-data default...",
-            "audit": "2026-06-09 UTC isolated pandoc-doctemplates user-data default-templat...",
-            "currentWork": "Pandoc doctemplate resource lookup now honors WordPress/user-data default template ov...",
+            "php": "2,528 pass / 0 fail",
+            "phase": "native PHP Pandoc current-base HTML5 DOM/raw-review support; base tag...",
+            "audit": "2026-06-09 UTC isolated pandoc-html-base-tags current-base slice on a...",
+            "currentWork": "Pandoc HTML reader raw-control preservation now includes base tags alongside iframe/i...",
             "nextTarget": "Continue current-base Pandoc no-external-tooling slices acros...",
-            "remainingGate": "No new native support component is needed for this doctemplate user-d...",
+            "remainingGate": "No new native support component is needed for this HTML base-tag slice.",
             "commit": "pending fast ba..."
         },
         {

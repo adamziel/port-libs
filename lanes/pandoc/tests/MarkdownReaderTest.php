@@ -14020,6 +14020,35 @@ XML;
         $t->contains('<p>Before <meta content="batch-44" data-source="batch-44" name="review-source"> after.</p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document meta tag should not be dropped from the paragraph');
     },
+    'maps upstream html reader base tags as raw review markup' => static function (TestRunner $t): void {
+        $base = '<base href="https://example.test/imports/" target="_blank" data-source="batch-45">';
+        $blockDocument = (new MarkdownReader())->read($base . "\n\nAfter the base tag.");
+        $blockHtml = $blockDocument->children[0] ?? new AstNode('missing');
+        $blockParagraph = $blockDocument->children[1] ?? new AstNode('missing');
+        $blockOutput = (new WordPressBlockWriter())->write($blockDocument);
+
+        $t->same('raw_html', $blockHtml->type);
+        $t->same($base, $blockHtml->attr('html'));
+        $t->same('paragraph', $blockParagraph->type);
+        $t->same('After the base tag.', $blockParagraph->attr('text'));
+        $t->contains('<!-- wp:html -->' . "\n" . $base, $blockOutput);
+        $t->true(!str_contains($blockOutput, '&lt;base'), 'Standalone base tag should not be escaped into reviewer text');
+
+        $htmlDocument = (new MarkdownReader())->read(
+            '<!doctype html><html><body><p>Before '
+            . '<base href="https://example.test/imports/" target="_blank" data-source="batch-45">'
+            . ' after.</p></body></html>'
+        );
+        $paragraph = $htmlDocument->children[0] ?? new AstNode('missing');
+        $inlineBase = $paragraph->children[1] ?? new AstNode('missing');
+        $htmlOutput = (new WordPressBlockWriter())->write($htmlDocument);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'raw_html_inline', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('<base data-source="batch-45" href="https://example.test/imports/" target="_blank">', $inlineBase->attr('html'));
+        $t->contains('<p>Before <base data-source="batch-45" href="https://example.test/imports/" target="_blank"> after.</p>', $htmlOutput);
+        $t->true(!str_contains($htmlOutput, 'Before  after.'), 'HTML document base tag should not be dropped from the paragraph');
+    },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
         $blocks = (new WordPressBlockWriter())->write($document);
