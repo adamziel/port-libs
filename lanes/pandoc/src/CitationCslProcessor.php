@@ -3930,15 +3930,30 @@ final class CitationCslProcessor
                 return [];
             }
 
-            return [[
+            $normalizedLabel = $this->normalizedLocatorLabel($rawLabel);
+            $diagnostics = [[
                 'id' => (string) $citation->attr('id', ''),
                 'source' => $this->sourceCitationText($citation),
                 'rawLocator' => $rawLocator,
-                'locatorLabel' => $this->normalizedLocatorLabel($rawLabel),
+                'locatorLabel' => $normalizedLabel,
                 'locatorValue' => '',
                 'reason' => 'citation-locator-label-without-value',
                 'severity' => 'warning',
             ]];
+
+            if (!$this->supportedCitationLocatorLabel($normalizedLabel)) {
+                $diagnostics[] = [
+                    'id' => (string) $citation->attr('id', ''),
+                    'source' => $this->sourceCitationText($citation),
+                    'rawLocator' => $rawLocator,
+                    'locatorLabel' => $normalizedLabel,
+                    'locatorValue' => '',
+                    'reason' => 'citation-locator-unsupported-label',
+                    'severity' => 'warning',
+                ];
+            }
+
+            return $diagnostics;
         }
 
         $base = [

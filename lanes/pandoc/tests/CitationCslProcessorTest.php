@@ -14155,6 +14155,59 @@ XML
         $t->same('citation-locator-label-without-value', $processor->normalizeCitation($citation)->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
         $t->same('(Vale)', $processor->renderCitationCluster([$citation]));
     },
+    'applies bounded citation locator diagnostics when unsupported explicit labels omit values' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-unsupported-label-only-source',
+                'type' => 'report',
+                'title' => 'Unsupported Label Only Locator Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Unsupported Locator Label Only Diagnostics Review Style</title>
+    <id>https://example.test/styles/bounded-unsupported-locator-label-only-diagnostics-review</id>
+    <updated>2026-06-09T23:10:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+</style>
+XML
+        );
+
+        $citation = new AstNode('citation', [
+            'id' => 'locator-unsupported-label-only-source',
+            'text' => '[@locator-unsupported-label-only-source, scene]',
+            'locatorLabel' => 'scene',
+        ]);
+        $diagnostics = $processor->citationLocatorDiagnostics($citation);
+        $t->same(2, count($diagnostics));
+        $t->same(['citation-locator-label-without-value', 'citation-locator-unsupported-label'], array_column($diagnostics, 'reason'));
+        $t->same(['warning', 'warning'], array_column($diagnostics, 'severity'));
+        $t->same(['scene', 'scene'], array_column($diagnostics, 'locatorLabel'));
+        $t->same(['', ''], array_column($diagnostics, 'locatorValue'));
+        $t->same(['', ''], array_column($diagnostics, 'rawLocator'));
+        $t->same('[@locator-unsupported-label-only-source, scene]', $diagnostics[1]['source'] ?? null);
+
+        $normalized = $processor->normalizeCitation($citation);
+        $t->same(['citation-locator-label-without-value', 'citation-locator-unsupported-label'], array_column($normalized->attr('cslLocatorDiagnostics'), 'reason'));
+        $t->same('(Vale)', $processor->renderCitationCluster([$citation]));
+    },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
