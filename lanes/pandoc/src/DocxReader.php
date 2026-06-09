@@ -198,6 +198,7 @@ final class DocxReader
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
+        $numberingSummary = $this->numberingImportSummary($package, $graph, $documentPart, $numbering);
         $documentXml = $package->read($documentPart);
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
         $customXmlStore = $this->readCustomXmlStore($package, $graph);
@@ -238,6 +239,9 @@ final class DocxReader
         if ($theme !== []) {
             $metadata['docxTheme'] = $theme;
         }
+        if ($numberingSummary !== []) {
+            $metadata['docxNumbering'] = $numberingSummary;
+        }
         if ($glossary !== []) {
             $metadata['docxGlossary'] = $glossary;
         }
@@ -271,6 +275,7 @@ final class DocxReader
                 $docProperties,
                 $settings,
                 $theme,
+                $numberingSummary,
                 $glossary,
                 $customXmlStore,
             ),
@@ -286,6 +291,7 @@ final class DocxReader
      * @param array<string, mixed> $docProperties
      * @param array<string, mixed> $settings
      * @param array<string, mixed> $theme
+     * @param array<string, mixed> $numberingSummary
      * @param array<string, mixed> $glossary
      * @param array<string, mixed> $customXmlStore
      * @return array<string, mixed>
@@ -303,6 +309,7 @@ final class DocxReader
         array $docProperties,
         array $settings,
         array $theme,
+        array $numberingSummary,
         array $glossary,
         array $customXmlStore
     ): array {
@@ -341,6 +348,7 @@ final class DocxReader
             'properties' => $docProperties,
             'settings' => $settings,
             'theme' => $theme,
+            'numbering' => $numberingSummary,
             'glossary' => $glossary,
             'customXmlStore' => [
                 'count' => $customXmlStore['count'] ?? 0,
@@ -14483,6 +14491,72 @@ final class DocxReader
             'folHlink' => ['followedHyperlink', 'followed-hyperlink'],
             default => [],
         };
+    }
+
+    /**
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
+     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, exists:?bool, contentType:?string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
+     */
+    private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
+    {
+        $relationships = $graph->relationshipsForSource($documentPart);
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $relationships->firstOfType(self::REL_TYPE_NUMBERING);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $resolvedTarget = $relationships->resolveTarget($relationship);
+        $targetPart = null;
+        $exists = null;
+        $contentType = null;
+        $issues = [];
+
+        if ($relationship->isExternal()) {
+            $issues[] = 'external-numbering-relationship';
+        } else {
+            $targetPart = OpcPackagePath::stripQueryAndFragment(
+                $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart) ?? $resolvedTarget
+            );
+            $exists = $package->has($targetPart);
+            $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+            if (!$exists) {
+                $issues[] = 'missing-in-package';
+            }
+        }
+
+        $levelCount = 0;
+        $styleLinkedLevelCount = 0;
+        foreach ($numbering as $levels) {
+            $levelCount += count($levels);
+            foreach ($levels as $level) {
+                if (($level['paragraphStyleId'] ?? null) !== null && $level['paragraphStyleId'] !== '') {
+                    $styleLinkedLevelCount++;
+                }
+            }
+        }
+
+        return [
+            'relationship' => [
+                'id' => $relationship->id,
+                'type' => $relationship->type,
+                'sourcePart' => $documentPart,
+                'relationshipsPart' => $relationships->relationshipPartName(),
+                'target' => $relationship->target,
+                'targetMode' => $relationship->targetMode,
+                'resolvedTarget' => $resolvedTarget,
+                'targetPart' => $targetPart,
+                'exists' => $exists,
+                'contentType' => $contentType,
+                'issues' => $issues,
+            ],
+            'definitionCount' => count($numbering),
+            'levelCount' => $levelCount,
+            'styleLinkedLevelCount' => $styleLinkedLevelCount,
+        ];
     }
 
     /**

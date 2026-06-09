@@ -908,6 +908,23 @@ $stylesNumberingDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$numberingRelationshipContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/lists/review-numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+</Types>
+XML;
+
+$numberingRelationshipDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdReviewNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="lists/review-numbering.xml"/>
+</Relationships>
+XML;
+
 $stylesXml = <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2">
@@ -949,6 +966,31 @@ $numberingXml = <<<'XML'
   </w:abstractNum>
   <w:num w:numId="12">
     <w:abstractNumId w:val="20"/>
+  </w:num>
+</w:numbering>
+XML;
+
+$relationshipNumberingXml = <<<'XML'
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="110">
+    <w:lvl w:ilvl="0">
+      <w:pStyle w:val="ChecklistBullet"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="*"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="11">
+    <w:abstractNumId w:val="110"/>
+  </w:num>
+  <w:abstractNum w:abstractNumId="120">
+    <w:lvl w:ilvl="0">
+      <w:start w:val="6"/>
+      <w:numFmt w:val="lowerRoman"/>
+      <w:lvlText w:val="%1)"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="12">
+    <w:abstractNumId w:val="120"/>
   </w:num>
 </w:numbering>
 XML;
@@ -4529,6 +4571,24 @@ $buildStylesNumberingPackage = static function () use (
     ]);
 };
 
+$buildNumberingRelationshipPackage = static function () use (
+    $numberingRelationshipContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $numberingRelationshipDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml,
+    $relationshipNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $numberingRelationshipContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingRelationshipDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/lists/review-numbering.xml', 'data' => $relationshipNumberingXml],
+    ]);
+};
+
 $buildNumberingStyleLinkPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -6784,6 +6844,50 @@ return [
         $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
         $t->contains('<!-- wp:list {"ordered":true,"start":3} -->', $blocks);
         $t->contains('<ol start="3" type="a"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'reports DOCX numbering relationship provenance while resolving list definitions' => static function (TestRunner $t) use ($buildNumberingRelationshipPackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingRelationshipPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $bulletList = $document->children[1];
+        $t->same('bullet_list', $bulletList->type);
+        $t->same('11', $bulletList->attr('numId'));
+        $t->same(2, count($bulletList->children));
+        $t->same('Confirm media map', $bulletList->children[0]->children[0]->children[0]->attr('text'));
+
+        $orderedList = $document->children[2];
+        $t->same('ordered_list', $orderedList->type);
+        $t->same('12', $orderedList->attr('numId'));
+        $t->same('lower_roman', $orderedList->attr('style'));
+        $t->same('one_paren', $orderedList->attr('delimiter'));
+        $t->same(6, $orderedList->attr('start'));
+        $t->same('Legal review', $orderedList->children[0]->children[0]->children[0]->attr('text'));
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $relationship = $numbering['relationship'];
+        $t->same('rIdReviewNumbering', $relationship['id']);
+        $t->same(DocxReader::REL_TYPE_NUMBERING, $relationship['type']);
+        $t->same('/word/document.xml', $relationship['sourcePart']);
+        $t->same('/word/_rels/document.xml.rels', $relationship['relationshipsPart']);
+        $t->same('lists/review-numbering.xml', $relationship['target']);
+        $t->same('Internal', $relationship['targetMode']);
+        $t->same('/word/lists/review-numbering.xml', $relationship['resolvedTarget']);
+        $t->same('/word/lists/review-numbering.xml', $relationship['targetPart']);
+        $t->same(true, $relationship['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['contentType']);
+        $t->same([], $relationship['issues']);
+        $t->same(2, $numbering['definitionCount']);
+        $t->same(2, $numbering['levelCount']);
+        $t->same(1, $numbering['styleLinkedLevelCount']);
+        $t->same($numbering, $result['importReport']['numbering']);
+
+        $t->contains("- Confirm media map\n- Preserve footnotes", $markdown);
+        $t->contains('vi) Legal review', $markdown);
+        $t->contains('<ul><li>Confirm media map</li><li>Preserve footnotes</li></ul>', $blocks);
+        $t->contains('<ol start="6" type="i"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
     },
     'resolves DOCX numbering levels linked to paragraph styles into AST lists' => static function (TestRunner $t) use ($buildNumberingStyleLinkPackage): void {
         $document = (new DocxReader())->readDocument($buildNumberingStyleLinkPackage());
