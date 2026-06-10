@@ -1723,11 +1723,18 @@ final class XmlHtmlDom
     private static function htmlForeignContext(\DOMElement $element): ?string
     {
         $node = $element;
+        $child = null;
         $isSelf = true;
         while ($node instanceof \DOMElement) {
             $name = strtolower($node->localName);
             if (!$isSelf && self::isHtmlIntegrationPoint($node)) {
-                return null;
+                if (
+                    !self::isMathMlTextIntegrationPointName($name)
+                    || !$child instanceof \DOMElement
+                    || !self::isMathMlTextIntegrationExceptionName(strtolower($child->localName))
+                ) {
+                    return null;
+                }
             }
             if ($name === 'svg' || $name === 'math') {
                 return $name;
@@ -1737,6 +1744,7 @@ final class XmlHtmlDom
             }
 
             $parent = $node->parentNode;
+            $child = $node;
             $node = $parent instanceof \DOMElement ? $parent : null;
             $isSelf = false;
         }
@@ -1770,6 +1778,11 @@ final class XmlHtmlDom
     private static function isMathMlTextIntegrationPointName(string $name): bool
     {
         return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
+    }
+
+    private static function isMathMlTextIntegrationExceptionName(string $name): bool
+    {
+        return $name === 'mglyph' || $name === 'malignmark';
     }
 
     /**

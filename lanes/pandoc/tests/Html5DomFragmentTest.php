@@ -3696,6 +3696,34 @@ return [
         $t->same([], $summary['blockedTags']);
         $t->same([], $summary['filteredAttributes']);
     },
+    'keeps mathml mglyph and malignmark exception children in foreign casing in sanitized fragments' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<article><math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionURL="#html">HTML</span></mi></math></article>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $mi = $nodes[0]['children'][0]['children'][0];
+        $malignmark = $mi['children'][0];
+        $mglyph = $mi['children'][1];
+        $span = $mi['children'][2];
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/mathml-text-exception-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $expected = '<article><math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionurl="#html">HTML</span></mi></math></article>';
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same(['definitionURL' => '#mark'], $malignmark['attrs']);
+        $t->same('linearGradient', $malignmark['children'][0]['children'][0]['name']);
+        $t->same(['definitionURL' => '#glyph'], $mglyph['attrs']);
+        $t->same(['definitionurl' => '#html'], $span['attrs']);
+        $t->true(in_array('linearGradient', $summary['elementNames'], true), 'Expected nested SVG under MathML exception to retain foreign-content casing');
+        $t->same('/migration/mathml-text-exception-review.html', $document->children[0]->attr('part'));
+        $t->same([], $summary['blockedTags']);
+        $t->same([], $summary['filteredAttributes']);
+    },
     'preserves foreign-content cdata text before sanitized WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<figure><svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'

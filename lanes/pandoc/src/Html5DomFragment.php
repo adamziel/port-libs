@@ -419,7 +419,7 @@ final class Html5DomFragment
         }
 
         $rawName = self::rawElementName($node, $mode);
-        $elementForeignContext = self::elementForeignContext($rawName, $mode, $foreignContext);
+        $elementForeignContext = self::elementForeignContext($node, $rawName, $mode, $foreignContext);
         $name = self::normalizedElementName($rawName, $elementForeignContext);
         if (!self::isSafeElementName($name)) {
             $diagnostics[] = self::diagnosticWithSourceLine([
@@ -4107,7 +4107,12 @@ final class Html5DomFragment
             : $rawName;
     }
 
-    private static function elementForeignContext(string $rawName, string $mode, ?string $parentForeignContext): ?string
+    private static function elementForeignContext(
+        \DOMElement $element,
+        string $rawName,
+        string $mode,
+        ?string $parentForeignContext
+    ): ?string
     {
         if ($mode !== 'html') {
             return null;
@@ -4115,8 +4120,47 @@ final class Html5DomFragment
         if ($rawName === 'svg' || $rawName === 'math') {
             return $rawName;
         }
+        if (
+            $parentForeignContext === null
+            && self::isMathMlTextIntegrationExceptionName($rawName)
+            && self::hasMathMlTextIntegrationPointParent($element)
+        ) {
+            return 'math';
+        }
 
         return $parentForeignContext;
+    }
+
+    private static function hasMathMlTextIntegrationPointParent(\DOMElement $element): bool
+    {
+        $parent = $element->parentNode;
+        if (
+            !$parent instanceof \DOMElement
+            || !self::isMathMlTextIntegrationPointName(strtolower($parent->localName))
+        ) {
+            return false;
+        }
+
+        $node = $parent;
+        $isSelf = true;
+        while ($node instanceof \DOMElement) {
+            $name = strtolower($node->localName);
+            if (!$isSelf && self::isHtmlIntegrationPointElement($node)) {
+                return false;
+            }
+            if ($name === 'math') {
+                return true;
+            }
+            if ($name === 'html' || $name === 'body') {
+                return false;
+            }
+
+            $ancestor = $node->parentNode;
+            $node = $ancestor instanceof \DOMElement ? $ancestor : null;
+            $isSelf = false;
+        }
+
+        return false;
     }
 
     private static function childForeignContext(\DOMElement $element, string $rawName, ?string $elementForeignContext): ?string
@@ -4137,6 +4181,24 @@ final class Html5DomFragment
         return $elementForeignContext;
     }
 
+    private static function isHtmlIntegrationPointElement(\DOMElement $element): bool
+    {
+        $name = strtolower($element->localName);
+        if (self::isSvgHtmlIntegrationPointName($name)) {
+            return true;
+        }
+        if (self::isMathMlTextIntegrationPointName($name)) {
+            return true;
+        }
+        if ($name !== 'annotation-xml') {
+            return false;
+        }
+
+        $encoding = strtolower(trim($element->getAttribute('encoding')));
+
+        return $encoding === 'text/html' || $encoding === 'application/xhtml+xml';
+    }
+
     private static function isSvgHtmlIntegrationPointName(string $name): bool
     {
         return in_array($name, ['foreignobject', 'desc', 'title'], true);
@@ -4145,6 +4207,11 @@ final class Html5DomFragment
     private static function isMathMlTextIntegrationPointName(string $name): bool
     {
         return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
+    }
+
+    private static function isMathMlTextIntegrationExceptionName(string $name): bool
+    {
+        return $name === 'mglyph' || $name === 'malignmark';
     }
 
     /**

@@ -637,6 +637,26 @@ XML, 'package reader XML');
         $t->same('mglyph', $mo['children'][0]['name']);
         $t->same('<math><mtext><span viewbox="html attr"><textpath>HTML text</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext><mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>', $html);
     },
+    'keeps mathml mglyph and malignmark exceptions in foreign casing' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionURL="#html">HTML</span></mi></math>',
+            'mathml text integration-point exception fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $mi = $summary[0]['children'][0];
+        $malignmark = $mi['children'][0];
+        $mglyph = $mi['children'][1];
+        $span = $mi['children'][2];
+
+        $t->same(['definitionURL' => '#mark'], $malignmark['attributes']);
+        $t->same('svg', $malignmark['children'][0]['name']);
+        $t->same('linearGradient', $malignmark['children'][0]['children'][0]['name']);
+        $t->same(['definitionURL' => '#glyph'], $mglyph['attributes']);
+        $t->same(['definitionurl' => '#html'], $span['attributes']);
+        $t->same('<math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionurl="#html">HTML</span></mi></math>', $html);
+    },
     'preserves html foreign-content cdata sections as escaped text' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'

@@ -348,11 +348,18 @@ final class Html5Dom
     private static function isHtmlForeignElement(\DOMElement $element): bool
     {
         $node = $element;
+        $child = null;
         $isSelf = true;
         while ($node instanceof \DOMElement) {
             $name = strtolower($node->localName);
             if (!$isSelf && self::isHtmlIntegrationPoint($node)) {
-                return false;
+                if (
+                    !self::isMathMlTextIntegrationPointName($name)
+                    || !$child instanceof \DOMElement
+                    || !self::isMathMlTextIntegrationExceptionName(strtolower($child->localName))
+                ) {
+                    return false;
+                }
             }
             if ($name === 'svg' || $name === 'math') {
                 return true;
@@ -362,6 +369,7 @@ final class Html5Dom
             }
 
             $parent = $node->parentNode;
+            $child = $node;
             $node = $parent instanceof \DOMElement ? $parent : null;
             $isSelf = false;
         }
@@ -395,6 +403,11 @@ final class Html5Dom
     private static function isMathMlTextIntegrationPointName(string $name): bool
     {
         return in_array($name, ['mi', 'mn', 'mo', 'ms', 'mtext'], true);
+    }
+
+    private static function isMathMlTextIntegrationExceptionName(string $name): bool
+    {
+        return $name === 'mglyph' || $name === 'malignmark';
     }
 
     private static function textForNormalization(\DOMNode $node): string

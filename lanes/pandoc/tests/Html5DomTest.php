@@ -316,6 +316,25 @@ return [
         $t->same(['href' => '/review'], $link instanceof DOMElement ? Html5Dom::attributes($link) : []);
         $t->same('<math><mtext><span viewbox="html attr"><textpath>HTML text</textpath><svg viewBox="0 0 1 1"><linearGradient id="nested"></linearGradient></svg></span></mtext><mi><a href="/review">link</a></mi><mo><mglyph src="glyph.png"></mglyph></mo></math>', $serialized);
     },
+    'keeps mathml mglyph and malignmark in foreign content under text integration points' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionURL="#html">HTML</span></mi></math>'
+        );
+        $math = Html5Dom::firstChildElement($body, 'math');
+        $mi = $math instanceof DOMElement ? Html5Dom::firstChildElement($math, 'mi') : null;
+        $malignmark = $mi instanceof DOMElement ? Html5Dom::firstChildElement($mi, 'malignmark') : null;
+        $mglyph = $mi instanceof DOMElement ? Html5Dom::firstChildElement($mi, 'mglyph') : null;
+        $span = $mi instanceof DOMElement ? Html5Dom::firstChildElement($mi, 'span') : null;
+        $svg = $malignmark instanceof DOMElement ? Html5Dom::firstChildElement($malignmark, 'svg') : null;
+        $gradient = $svg instanceof DOMElement ? Html5Dom::firstChildElement($svg, 'linearGradient') : null;
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->same(['definitionURL' => '#mark'], $malignmark instanceof DOMElement ? Html5Dom::attributes($malignmark) : []);
+        $t->same(['definitionURL' => '#glyph'], $mglyph instanceof DOMElement ? Html5Dom::attributes($mglyph) : []);
+        $t->same(['definitionurl' => '#html'], $span instanceof DOMElement ? Html5Dom::attributes($span) : []);
+        $t->true($gradient instanceof DOMElement, 'Expected SVG nested below MathML exception to retain foreign-content casing');
+        $t->same('<math><mi><malignmark definitionURL="#mark"><svg viewBox="0 0 1 1"><linearGradient id="g"></linearGradient></svg></malignmark><mglyph definitionURL="#glyph"></mglyph><span definitionurl="#html">HTML</span></mi></math>', $serialized);
+    },
     'parses html foreign-content cdata sections as text for reader handoff' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<svg><desc><![CDATA[Reviewer <source> & notes]]></desc><text><![CDATA[A < B & C]]></text></svg>'
