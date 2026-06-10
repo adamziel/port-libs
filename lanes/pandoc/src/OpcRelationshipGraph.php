@@ -2197,7 +2197,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array{source:string, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, reachableReferences:list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, valid:bool, issues:list<string>}>
+     * @return list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array{source:string, id:string, type:string, target:string, targetPart:string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, reachableReferences:list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, valid:bool, issues:list<string>}>
      */
     public function packagePartReferenceInventory(string $reachableSourcePartName = '/', ?string $reachableRelationshipType = null): array
     {
@@ -2238,12 +2238,17 @@ final class OpcRelationshipGraph
                 $target['relationshipPartTarget'],
             );
 
+            $suffix = self::targetQueryAndFragment($target['target']);
             $entry['directReferences'][] = [
                 'source' => $target['source'],
                 'id' => $target['id'],
                 'type' => $target['type'],
                 'target' => $target['target'],
                 'targetPart' => $target['targetPart'],
+                'targetQuery' => $suffix['query'],
+                'targetFragment' => $suffix['fragment'],
+                'sameSourceReference' => self::partNameEquivalenceKey($target['targetPart'])
+                    === self::partNameEquivalenceKey($target['source']),
                 'contentType' => $target['contentType'],
                 'relationshipTypeValid' => $target['relationshipTypeValid'],
                 'relationshipTypeIssues' => $target['relationshipTypeIssues'],
@@ -2273,6 +2278,7 @@ final class OpcRelationshipGraph
                 $target['relationshipPartTarget'],
             );
 
+            $suffix = self::targetQueryAndFragment($target['target']);
             $entry['reachableReferences'][] = [
                 'source' => $target['source'],
                 'depth' => $target['depth'],
@@ -2280,6 +2286,10 @@ final class OpcRelationshipGraph
                 'type' => $target['type'],
                 'target' => $target['target'],
                 'targetPart' => $target['targetPart'],
+                'targetQuery' => $suffix['query'],
+                'targetFragment' => $suffix['fragment'],
+                'sameSourceReference' => self::partNameEquivalenceKey($target['targetPart'])
+                    === self::partNameEquivalenceKey($target['source']),
                 'contentType' => $target['contentType'],
                 'relationshipTypeValid' => $target['relationshipTypeValid'],
                 'relationshipTypeIssues' => $target['relationshipTypeIssues'],
@@ -2336,7 +2346,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{source:string, relationshipType:?string, valid:bool, inventoryPartCount:int, packagePartCount:int, relationshipPartCount:int, relationshipSourcePartCount:int, directReferencePartCount:int, reachableReferencePartCount:int, directReferenceCount:int, reachableReferenceCount:int, directOnlyPartCount:int, missingReferencedPartCount:int, unreferencedPackagePartCount:int, unreferencedRelationshipPartCount:int, invalidPartCount:int, externalDirectReferenceCount:int, externalReachableReferenceCount:int, invalidExternalReferenceCount:int, referencedPartNames:list<string>, reachablePartNames:list<string>, directOnlyPartNames:list<string>, missingReferencedPartNames:list<string>, unreferencedPackagePartNames:list<string>, unreferencedRelationshipPartNames:list<string>, invalidPartNames:list<string>, externalTargets:list<string>, reachableExternalTargets:list<string>, issueCounts:array<string,int>, issues:list<string>, parts:list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceLoaded:?bool, coverage:string, directReferenceCount:int, reachableReferenceCount:int, valid:bool, issues:list<string>}>}
+     * @return array{source:string, relationshipType:?string, valid:bool, inventoryPartCount:int, packagePartCount:int, relationshipPartCount:int, relationshipSourcePartCount:int, directReferencePartCount:int, reachableReferencePartCount:int, directReferenceCount:int, reachableReferenceCount:int, directQueryReferenceCount:int, directFragmentReferenceCount:int, directSameSourceReferenceCount:int, reachableQueryReferenceCount:int, reachableFragmentReferenceCount:int, reachableSameSourceReferenceCount:int, directOnlyPartCount:int, missingReferencedPartCount:int, unreferencedPackagePartCount:int, unreferencedRelationshipPartCount:int, invalidPartCount:int, externalDirectReferenceCount:int, externalReachableReferenceCount:int, invalidExternalReferenceCount:int, referencedPartNames:list<string>, reachablePartNames:list<string>, directOnlyPartNames:list<string>, missingReferencedPartNames:list<string>, unreferencedPackagePartNames:list<string>, unreferencedRelationshipPartNames:list<string>, invalidPartNames:list<string>, externalTargets:list<string>, reachableExternalTargets:list<string>, issueCounts:array<string,int>, issues:list<string>, parts:list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceLoaded:?bool, coverage:string, directReferenceCount:int, reachableReferenceCount:int, valid:bool, issues:list<string>}>}
      */
     public function packagePartRelationshipCoverageSummary(
         string $reachableSourcePartName = '/',
@@ -2355,6 +2365,12 @@ final class OpcRelationshipGraph
             'reachableReferencePartCount' => 0,
             'directReferenceCount' => 0,
             'reachableReferenceCount' => 0,
+            'directQueryReferenceCount' => 0,
+            'directFragmentReferenceCount' => 0,
+            'directSameSourceReferenceCount' => 0,
+            'reachableQueryReferenceCount' => 0,
+            'reachableFragmentReferenceCount' => 0,
+            'reachableSameSourceReferenceCount' => 0,
             'directOnlyPartCount' => 0,
             'missingReferencedPartCount' => 0,
             'unreferencedPackagePartCount' => 0,
@@ -2381,6 +2397,30 @@ final class OpcRelationshipGraph
             $summary['inventoryPartCount']++;
             $summary['directReferenceCount'] += $part['directReferenceCount'];
             $summary['reachableReferenceCount'] += $part['reachableReferenceCount'];
+
+            foreach ($part['directReferences'] as $reference) {
+                if ($reference['targetQuery'] !== null) {
+                    $summary['directQueryReferenceCount']++;
+                }
+                if ($reference['targetFragment'] !== null) {
+                    $summary['directFragmentReferenceCount']++;
+                }
+                if ($reference['sameSourceReference']) {
+                    $summary['directSameSourceReferenceCount']++;
+                }
+            }
+
+            foreach ($part['reachableReferences'] as $reference) {
+                if ($reference['targetQuery'] !== null) {
+                    $summary['reachableQueryReferenceCount']++;
+                }
+                if ($reference['targetFragment'] !== null) {
+                    $summary['reachableFragmentReferenceCount']++;
+                }
+                if ($reference['sameSourceReference']) {
+                    $summary['reachableSameSourceReferenceCount']++;
+                }
+            }
 
             if ($part['exists']) {
                 $summary['packagePartCount']++;

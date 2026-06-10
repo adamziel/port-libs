@@ -1994,6 +1994,41 @@ XML;
         $t->same('review=ready', $customXmlReferences[0]['targetQuery']);
         $t->same('packet', $customXmlReferences[0]['targetFragment']);
 
+        $partReferences = [];
+        foreach ($graph->packagePartReferenceInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $reference) {
+            $partReferences[$reference['partName']] = $reference;
+        }
+        $documentReferencesById = [];
+        foreach ($partReferences['/word/document.xml']['directReferences'] as $reference) {
+            $documentReferencesById[$reference['id']] = $reference;
+        }
+        $styleReferencesById = [];
+        foreach ($partReferences['/word/styles.xml']['directReferences'] as $reference) {
+            $styleReferencesById[$reference['id']] = $reference;
+        }
+
+        $t->same(3, $partReferences['/word/document.xml']['directReferenceCount']);
+        $t->same(null, $documentReferencesById['rIdBookmark']['targetQuery']);
+        $t->same('review-bookmark', $documentReferencesById['rIdBookmark']['targetFragment']);
+        $t->same(true, $documentReferencesById['rIdBookmark']['sameSourceReference']);
+        $t->same('review=ready', $documentReferencesById['rIdReviewerState']['targetQuery']);
+        $t->same('packet', $documentReferencesById['rIdReviewerState']['targetFragment']);
+        $t->same(true, $documentReferencesById['rIdReviewerState']['sameSourceReference']);
+        $t->same(null, $styleReferencesById['rIdStyles']['targetQuery']);
+        $t->same(null, $styleReferencesById['rIdStyles']['targetFragment']);
+        $t->same(false, $styleReferencesById['rIdStyles']['sameSourceReference']);
+
+        $coverage = $graph->packagePartRelationshipCoverageSummary(
+            '/',
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+        );
+        $t->same(1, $coverage['directQueryReferenceCount']);
+        $t->same(2, $coverage['directFragmentReferenceCount']);
+        $t->same(2, $coverage['directSameSourceReferenceCount']);
+        $t->same(1, $coverage['reachableQueryReferenceCount']);
+        $t->same(2, $coverage['reachableFragmentReferenceCount']);
+        $t->same(2, $coverage['reachableSameSourceReferenceCount']);
+
         $closureById = [];
         foreach ($graph->reachableTargetsForSource('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE) as $target) {
             $closureById[$target['id']] = $target;
