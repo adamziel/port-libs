@@ -91,6 +91,72 @@ return [
         $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
     },
 
+    'fake runner preserves typst dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Review Packet\n\n#image(\"figures/logo.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/review.pdf',
+            'source' => $source,
+            'engineOptions' => ['--root=.', '--deps=build/review.d', '--deps-format=make'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/review.pdf: build/review.typ figures/logo.svg \\',
+            '  shared\\ assets/chart.svg /usr/share/fonts/SourceSerif4-Regular.otf',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/review.d' => $depfile,
+                'build/review.pdf' => $pdfBytes,
+                'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                'shared assets/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]);
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/review.d' => $depfile,
+                'build/review.pdf' => $pdfBytes,
+                'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/review.d' => $depfile,
+                    'build/review.pdf' => $pdfBytes,
+                    'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                    'shared assets/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+                ],
+            ],
+        ]);
+
+        $t->same('typst', $plan['engine']);
+        $t->same('build/review.d', $plan['engineDependencyFile']);
+        $t->same(['build/review.d'], $plan['expectedEngineArtifacts']);
+        $t->contains('pdf-engine-dependency-file:build/review.d', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same(['build/review.d' => hash('sha256', $depfile)], $result['engineDependencyArtifactsSha256']);
+        $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $result['engineInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf'], $result['engineExternalInputFiles']);
+        $t->same(['build/review.pdf'], $result['engineOutputFiles']);
+        $t->same([], $result['artifactProvenanceReview']['missingExpectedEngineArtifacts']);
+        $t->same(['build/review.d'], $result['artifactProvenanceReview']['expectedEngineArtifacts']);
+        $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-files:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-external-input-files:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
+        $t->contains('artifact-provenance-review:ok', implode(',', $result['diagnostics']));
+        $t->same(false, $missing['ok']);
+        $t->same('missing-engine-input-file', $missing['reason']);
+        $t->same(['shared assets/chart.svg'], $missing['missingEngineInputFiles']);
+        $t->same(['build/review.d' => hash('sha256', $depfile)], $sequence['finalEngineDependencyArtifactsSha256']);
+        $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $sequence['finalEngineInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf'], $sequence['finalEngineExternalInputFiles']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
