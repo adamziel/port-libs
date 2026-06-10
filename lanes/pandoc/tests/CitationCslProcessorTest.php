@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
+use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $cslJson = static fn (): string => json_encode([
@@ -14050,6 +14051,127 @@ XML
         $blocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('<p>Locator diagnostics (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5).</p>', $blocks);
         $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Locator Diagnostics Packet.</dd>', $blocks);
+    },
+    'infers pandoc json citation suffix locators for diagnostics' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'suffix-locator-source',
+                'type' => 'report',
+                'title' => 'Suffix Locator Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Pandoc JSON Suffix Locator Diagnostics Review Style</title>
+    <id>https://example.test/styles/bounded-pandoc-json-suffix-locator-diagnostics-review</id>
+    <updated>2026-06-10T05:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $document = (new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Suffix'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'locators'],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [
+                            [
+                                'citationId' => 'suffix-locator-source',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [
+                                    ['t' => 'Str', 'c' => 'p.'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => '7'],
+                                ],
+                                'citationMode' => ['t' => 'NormalCitation'],
+                                'citationNoteNum' => 0,
+                                'citationHash' => 0,
+                            ],
+                            [
+                                'citationId' => 'suffix-locator-source',
+                                'citationPrefix' => [],
+                                'citationSuffix' => [
+                                    ['t' => 'Str', 'c' => 'plate'],
+                                    ['t' => 'Space'],
+                                    ['t' => 'Str', 'c' => 'A'],
+                                ],
+                                'citationMode' => ['t' => 'NormalCitation'],
+                                'citationNoteNum' => 0,
+                                'citationHash' => 0,
+                            ],
+                        ],
+                        [
+                            ['t' => 'Str', 'c' => '[@suffix-locator-source,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'p.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '7;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@suffix-locator-source,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'plate'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'A]'],
+                        ],
+                    ]],
+                    ['t' => 'Str', 'c' => '.'],
+                ]],
+            ],
+        ]);
+
+        $diagnostics = $processor->citationLocatorDiagnostics($document);
+        $t->same([
+            'citation-locator-suffix-inferred',
+            'citation-locator-suffix-inferred',
+            'citation-locator-unlabeled-page-fallback',
+        ], array_column($diagnostics, 'reason'));
+        $t->same(['p. 7', 'plate A', 'plate A'], array_column($diagnostics, 'rawLocator'));
+        $t->same(['7', 'plate A', 'plate A'], array_column($diagnostics, 'locatorValue'));
+
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = array_values(array_filter(
+            $processed->children[0]->children,
+            static fn (AstNode $node): bool => $node->type === 'citation_group'
+        ))[0] ?? new AstNode('missing');
+        $t->same('(Smith, p. 7; Smith, p. plate A)', $cluster->attr('rendered'));
+        $t->same('citation-locator-suffix-inferred', $cluster->children[0]->attr('cslLocatorDiagnostics')[0]['reason'] ?? null);
+        $t->same([
+            'citation-locator-suffix-inferred',
+            'citation-locator-unlabeled-page-fallback',
+        ], array_column($cluster->children[1]->attr('cslLocatorDiagnostics'), 'reason'));
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Suffix locators (Smith, p. 7; Smith, p. plate A).</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Suffix Locator Packet.</dd>', $blocks);
     },
     'applies bounded citation locator diagnostics when explicit values default to pages' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([

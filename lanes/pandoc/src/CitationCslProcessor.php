@@ -3923,6 +3923,8 @@ final class CitationCslProcessor
     {
         $rawLocator = $this->inlineValue($citation->attr('locator', ''));
         $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
+        $rawSuffix = $this->inlineValue($citation->attr('suffix', ''));
+        $diagnosticRawLocator = ($rawLocator !== '' || $explicitValue !== '') ? $rawLocator : $rawSuffix;
         $rawLabel = trim((string) $citation->attr('locatorLabel', ''));
         $parts = $this->citationLocatorParts($citation);
         if ($parts['value'] === '') {
@@ -3934,7 +3936,7 @@ final class CitationCslProcessor
             $diagnostics = [[
                 'id' => (string) $citation->attr('id', ''),
                 'source' => $this->sourceCitationText($citation),
-                'rawLocator' => $rawLocator,
+                'rawLocator' => $diagnosticRawLocator,
                 'rawLocatorLabel' => $rawLabel,
                 'locatorLabel' => $normalizedLabel,
                 'locatorValue' => '',
@@ -3946,7 +3948,7 @@ final class CitationCslProcessor
                 $diagnostics[] = [
                     'id' => (string) $citation->attr('id', ''),
                     'source' => $this->sourceCitationText($citation),
-                    'rawLocator' => $rawLocator,
+                    'rawLocator' => $diagnosticRawLocator,
                     'rawLocatorLabel' => $rawLabel,
                     'locatorLabel' => $normalizedLabel,
                     'locatorValue' => '',
@@ -3961,13 +3963,21 @@ final class CitationCslProcessor
         $base = [
             'id' => (string) $citation->attr('id', ''),
             'source' => $this->sourceCitationText($citation),
-            'rawLocator' => $rawLocator,
+            'rawLocator' => $diagnosticRawLocator,
             'rawLocatorLabel' => $rawLabel,
             'locatorLabel' => $parts['label'],
             'locatorValue' => $parts['value'],
         ];
 
         $diagnostics = [];
+        if ($rawLocator === '' && $explicitValue === '' && $rawSuffix !== '') {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-suffix-inferred',
+                'severity' => 'info',
+            ];
+        }
+
         if (!$this->supportedCitationLocatorLabel($parts['label'])) {
             $diagnostics[] = [
                 ...$base,
@@ -3997,9 +4007,9 @@ final class CitationCslProcessor
         }
 
         if (
-            $rawLocator !== ''
+            $diagnosticRawLocator !== ''
             && $parts['label'] === 'page'
-            && !$this->citationLocatorTextHasKnownLabel($rawLocator)
+            && !$this->citationLocatorTextHasKnownLabel($diagnosticRawLocator)
         ) {
             $diagnostics[] = [
                 ...$base,
@@ -11277,11 +11287,16 @@ final class CitationCslProcessor
         }
 
         $locator = $this->inlineValue($citation->attr('locator', ''));
-        if ($locator === '') {
-            return ['label' => 'page', 'value' => ''];
+        if ($locator !== '') {
+            return $this->inferCitationLocatorParts($locator);
         }
 
-        return $this->inferCitationLocatorParts($locator);
+        $suffix = $this->inlineValue($citation->attr('suffix', ''));
+        if ($suffix !== '') {
+            return $this->inferCitationLocatorParts($suffix);
+        }
+
+        return ['label' => 'page', 'value' => ''];
     }
 
     /**
