@@ -1372,6 +1372,7 @@ final class PandocFormatRegistry
      *     extensionPatternMetadata:array<string, array{format:string, kind:string, manualSection:bool}>,
      *     extensionInferredFormats:list<string>,
      *     nonExtensionInferredFormats:list<string>,
+     *     paritySummary:array<string, mixed>,
      *     unsupportedInputFormats:list<string>,
      *     unsupportedOutputFormats:list<string>,
      *     unsupportedFormatSummary:array{
@@ -1429,10 +1430,136 @@ final class PandocFormatRegistry
             'extensionPatternMetadata' => self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA,
             'extensionInferredFormats' => self::roffManualFormatsWithExtensionInference(),
             'nonExtensionInferredFormats' => self::roffManualFormatsWithoutExtensionInference(),
+            'paritySummary' => self::roffManualFormatParitySummary(),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
             'unsupportedFormatSummary' => self::roffManualUnsupportedFormatSummary(),
             'formats' => $formats,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamSourceCommit:string,
+     *     totalFormats:int,
+     *     uniqueFormatCount:int,
+     *     inputFormats:int,
+     *     inputFormatCount:int,
+     *     outputFormats:int,
+     *     outputFormatCount:int,
+     *     inputOutputFormats:int,
+     *     inputOnlyFormats:int,
+     *     outputOnlyFormats:int,
+     *     directionCounts:array{inputOutput:int, inputOnly:int, outputOnly:int},
+     *     inputSupportStatusCounts:array<string, int>,
+     *     outputSupportStatusCounts:array<string, int>,
+     *     extensionInferenceMappings:int,
+     *     extensionInferredFormats:int,
+     *     extensionInferredFormatCount:int,
+     *     nonExtensionInferredFormats:int,
+     *     nonExtensionInferredFormatCount:int,
+     *     manualSectionExtensionMappings:int,
+     *     literalExtensionMappings:int,
+     *     sectionSuffixExtensionInference:bool,
+     *     unsupportedInputFormats:int,
+     *     unsupportedInputCount:int,
+     *     unsupportedOutputFormats:int,
+     *     unsupportedOutputCount:int,
+     *     registeredInputImplementations:int,
+     *     registeredOutputImplementations:int,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     directParityClaimed:bool,
+     *     directParityStatus:string,
+     *     reviewNote:string
+     * }
+     */
+    public static function roffManualFormatParitySummary(): array
+    {
+        $directions = self::roffManualFormatDirections();
+        $inputSupport = self::roffManualInputSupport();
+        $outputSupport = self::roffManualOutputSupport();
+        $inputFormatCount = count(self::ROFF_MANUAL_INPUT_FORMATS);
+        $outputFormatCount = count(self::ROFF_MANUAL_OUTPUT_FORMATS);
+        $inputOutputFormats = count(self::roffManualBidirectionalFormats());
+        $inputOnlyFormats = count(self::roffManualInputOnlyFormats());
+        $outputOnlyFormats = count(self::roffManualOutputOnlyFormats());
+        $extensionInferredFormatCount = count(self::roffManualFormatsWithExtensionInference());
+        $nonExtensionInferredFormatCount = count(self::roffManualFormatsWithoutExtensionInference());
+        $unsupportedInputFormats = self::formatsWithStatus($inputSupport, 'unsupported');
+        $unsupportedOutputFormats = self::formatsWithStatus($outputSupport, 'unsupported');
+        $manualSectionExtensionMappings = 0;
+        $registeredInputImplementations = 0;
+        $registeredOutputImplementations = 0;
+        $directParityClaimed = false;
+        $directReaderParitySupported = $unsupportedInputFormats === [];
+        $directWriterParitySupported = $unsupportedOutputFormats === [];
+
+        foreach (self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA as $metadata) {
+            if ($metadata['manualSection']) {
+                ++$manualSectionExtensionMappings;
+            }
+        }
+
+        foreach ($directions as $format => $direction) {
+            $inputImplementation = $direction['input'] ? $inputSupport[$format]['implementation'] : '';
+            $outputImplementation = $direction['output'] ? $outputSupport[$format]['implementation'] : '';
+
+            if ($inputImplementation !== '') {
+                ++$registeredInputImplementations;
+            }
+            if ($outputImplementation !== '') {
+                ++$registeredOutputImplementations;
+            }
+            if (
+                $inputImplementation !== ''
+                || $outputImplementation !== ''
+                || !in_array($direction['inputStatus'], ['unsupported', 'not-applicable'], true)
+                || !in_array($direction['outputStatus'], ['unsupported', 'not-applicable'], true)
+            ) {
+                $directParityClaimed = true;
+            }
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'totalFormats' => count($directions),
+            'uniqueFormatCount' => count($directions),
+            'inputFormats' => $inputFormatCount,
+            'inputFormatCount' => $inputFormatCount,
+            'outputFormats' => $outputFormatCount,
+            'outputFormatCount' => $outputFormatCount,
+            'inputOutputFormats' => $inputOutputFormats,
+            'inputOnlyFormats' => $inputOnlyFormats,
+            'outputOnlyFormats' => $outputOnlyFormats,
+            'directionCounts' => [
+                'inputOutput' => $inputOutputFormats,
+                'inputOnly' => $inputOnlyFormats,
+                'outputOnly' => $outputOnlyFormats,
+            ],
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'outputSupportStatusCounts' => self::supportStatusCounts($outputSupport),
+            'extensionInferenceMappings' => count(self::ROFF_MANUAL_EXTENSION_INFERENCE),
+            'extensionInferredFormats' => $extensionInferredFormatCount,
+            'extensionInferredFormatCount' => $extensionInferredFormatCount,
+            'nonExtensionInferredFormats' => $nonExtensionInferredFormatCount,
+            'nonExtensionInferredFormatCount' => $nonExtensionInferredFormatCount,
+            'manualSectionExtensionMappings' => $manualSectionExtensionMappings,
+            'literalExtensionMappings' => count(self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA) - $manualSectionExtensionMappings,
+            'sectionSuffixExtensionInference' => array_key_exists('.[1-9][a-z]+', self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA),
+            'unsupportedInputFormats' => count($unsupportedInputFormats),
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'unsupportedOutputFormats' => count($unsupportedOutputFormats),
+            'unsupportedOutputCount' => count($unsupportedOutputFormats),
+            'registeredInputImplementations' => $registeredInputImplementations,
+            'registeredOutputImplementations' => $registeredOutputImplementations,
+            'directReaderParitySupported' => $directReaderParitySupported,
+            'directWriterParitySupported' => $directWriterParitySupported,
+            'directParityClaimed' => $directParityClaimed,
+            'directParityStatus' => $directReaderParitySupported && $directWriterParitySupported ? 'supported' : 'unsupported',
+            'reviewNote' => 'Pandoc roff/manual formats are tracked for registry review only; no native PHP roff/manual reader or writer is registered.',
         ];
     }
 

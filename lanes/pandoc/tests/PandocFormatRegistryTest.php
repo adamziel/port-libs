@@ -413,6 +413,78 @@ return [
         $t->same(['.ms', '.roff'], $ms['extensions']);
         $t->same('', $ms['outputImplementation']);
     },
+    'summarizes roff manual registry parity counts without registering converters' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::roffManualFormatParitySummary();
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+
+        $coreSummary = [
+            'totalFormats' => $summary['totalFormats'],
+            'inputFormats' => $summary['inputFormats'],
+            'outputFormats' => $summary['outputFormats'],
+            'inputOutputFormats' => $summary['inputOutputFormats'],
+            'inputOnlyFormats' => $summary['inputOnlyFormats'],
+            'outputOnlyFormats' => $summary['outputOnlyFormats'],
+            'extensionInferenceMappings' => $summary['extensionInferenceMappings'],
+            'extensionInferredFormats' => $summary['extensionInferredFormats'],
+            'nonExtensionInferredFormats' => $summary['nonExtensionInferredFormats'],
+            'manualSectionExtensionMappings' => $summary['manualSectionExtensionMappings'],
+            'literalExtensionMappings' => $summary['literalExtensionMappings'],
+            'unsupportedInputFormats' => $summary['unsupportedInputFormats'],
+            'unsupportedOutputFormats' => $summary['unsupportedOutputFormats'],
+            'registeredInputImplementations' => $summary['registeredInputImplementations'],
+            'registeredOutputImplementations' => $summary['registeredOutputImplementations'],
+            'directParityClaimed' => $summary['directParityClaimed'],
+        ];
+        $t->same([
+            'totalFormats' => 3,
+            'inputFormats' => 2,
+            'outputFormats' => 2,
+            'inputOutputFormats' => 1,
+            'inputOnlyFormats' => 1,
+            'outputOnlyFormats' => 1,
+            'extensionInferenceMappings' => 4,
+            'extensionInferredFormats' => 2,
+            'nonExtensionInferredFormats' => 1,
+            'manualSectionExtensionMappings' => 2,
+            'literalExtensionMappings' => 2,
+            'unsupportedInputFormats' => 2,
+            'unsupportedOutputFormats' => 2,
+            'registeredInputImplementations' => 0,
+            'registeredOutputImplementations' => 0,
+            'directParityClaimed' => false,
+        ], $coreSummary);
+
+        $t->same($summary, $packet['paritySummary']);
+        $t->same('2026-06-03', $summary['upstreamManualDate']);
+        $t->same(UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT, $summary['upstreamSourceCommit']);
+        $t->same(3, $summary['uniqueFormatCount']);
+        $t->same([
+            'inputOutput' => 1,
+            'inputOnly' => 1,
+            'outputOnly' => 1,
+        ], $summary['directionCounts']);
+        $t->same(['unsupported' => 2], $summary['inputSupportStatusCounts']);
+        $t->same(['unsupported' => 2], $summary['outputSupportStatusCounts']);
+        $t->same(2, $summary['inputFormatCount']);
+        $t->same(2, $summary['outputFormatCount']);
+        $t->same(2, $summary['extensionInferredFormatCount']);
+        $t->same(1, $summary['nonExtensionInferredFormatCount']);
+        $t->same(true, $summary['sectionSuffixExtensionInference']);
+        $t->same(2, $summary['unsupportedInputCount']);
+        $t->same(2, $summary['unsupportedOutputCount']);
+        $t->same(false, $summary['directReaderParitySupported']);
+        $t->same(false, $summary['directWriterParitySupported']);
+        $t->same('unsupported', $summary['directParityStatus']);
+        $t->contains('no native PHP roff/manual reader or writer is registered', $summary['reviewNote']);
+
+        $t->same(count($packet['formats']), $summary['totalFormats']);
+        $t->same(count($packet['directionBuckets']['inputOutput']), $summary['inputOutputFormats']);
+        $t->same(count($packet['directionBuckets']['inputOnly']), $summary['inputOnlyFormats']);
+        $t->same(count($packet['directionBuckets']['outputOnly']), $summary['outputOnlyFormats']);
+        $t->same(count($packet['extensionInference']), $summary['extensionInferenceMappings']);
+        $t->same(count($packet['unsupportedInputFormats']), $summary['unsupportedInputFormats']);
+        $t->same(count($packet['unsupportedOutputFormats']), $summary['unsupportedOutputFormats']);
+    },
     'tracks rich package formats and unsupported direct writer parity' => static function (TestRunner $t): void {
         $t->same([
             'docx',
