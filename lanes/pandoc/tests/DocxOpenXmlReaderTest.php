@@ -24,6 +24,11 @@ return [
         $t->same(['Migration Editor'], $meta['authors']);
         $t->same('word/document.xml', $docx['documentPart']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $docx['contentTypes']['overrides']['word/document.xml']);
+        $t->same('docProps/core.xml', $docx['corePropertiesPart']);
+        $t->same('word/styles.xml', $docx['stylesPart']);
+        $t->same('rCore', $docx['corePropertiesRelationship']['id']);
+        $t->same('docProps/core.xml', $docx['corePropertiesRelationship']['targetPart']);
+        $t->true(!isset($docx['stylesRelationship']), 'conventional DOCX styles fallback should not invent relationship metadata');
         $t->same('word/numbering.xml', $docx['numberingPart']);
         $t->true(!isset($docx['numberingRelationship']), 'conventional DOCX numbering fallback should not invent relationship metadata');
         $t->same('image/png', $docx['media']['word/media/review.png']['contentType']);
@@ -109,6 +114,69 @@ XML;
         $t->same('period', $ordered->attr('delimiter'));
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
+    },
+    'resolves docx styles and core properties from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/review-core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/review-styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            'Target="docProps/core.xml"',
+            'Target="customXml/review-core.xml"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="theme/review-styles.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/review-core.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+  <dc:title>Relationship DOCX Batch</dc:title>
+  <dc:creator>Relationship Editor</dc:creator>
+</cp:coreProperties>
+XML;
+        $parts['word/theme/review-styles.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Heading1">
+    <w:name w:val="Relationship Heading"/>
+    <w:pPr><w:outlineLvl w:val="1"/></w:pPr>
+  </w:style>
+</w:styles>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $meta = $document->attr('meta');
+        $docx = $document->attr('docx');
+        $heading = $document->children[0];
+
+        $t->same('Relationship DOCX Batch', $meta['title']);
+        $t->same(['Relationship Editor'], $meta['authors']);
+        $t->same('customXml/review-core.xml', $docx['corePropertiesPart']);
+        $t->same('rCore', $docx['corePropertiesRelationship']['id']);
+        $t->same('/', $docx['corePropertiesRelationship']['sourcePart']);
+        $t->same('_rels/.rels', $docx['corePropertiesRelationship']['relationshipsPart']);
+        $t->same('customXml/review-core.xml', $docx['corePropertiesRelationship']['target']);
+        $t->same('customXml/review-core.xml', $docx['corePropertiesRelationship']['targetPart']);
+        $t->same(true, $docx['corePropertiesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-package.core-properties+xml', $docx['corePropertiesRelationship']['contentType']);
+        $t->same('word/theme/review-styles.xml', $docx['stylesPart']);
+        $t->same('rStyles', $docx['stylesRelationship']['id']);
+        $t->same('word/document.xml', $docx['stylesRelationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $docx['stylesRelationship']['relationshipsPart']);
+        $t->same('theme/review-styles.xml', $docx['stylesRelationship']['target']);
+        $t->same('word/theme/review-styles.xml', $docx['stylesRelationship']['targetPart']);
+        $t->same(true, $docx['stylesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $docx['stylesRelationship']['contentType']);
+        $t->same(2, $heading->attr('level'));
+        $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());

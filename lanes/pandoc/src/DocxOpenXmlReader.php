@@ -16,6 +16,8 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
 
     public function readFile(string $path): AstNode
@@ -63,25 +65,49 @@ final class DocxOpenXmlReader
         }
 
         $documentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($documentPart));
-        $styles = $this->readStyles($parts['word/styles.xml'] ?? '');
+        $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
+        $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
-        $meta = $this->readCoreProperties($parts['docProps/core.xml'] ?? '');
+        $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
+        $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
         $media = $this->mediaMetadata($parts, $contentTypes);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering);
 
         $attrs = [
             'docx' => [
                 'documentPart' => $documentPart,
+                'corePropertiesPart' => $corePropertiesPart['partName'],
                 'contentTypes' => $contentTypes,
                 'rootRelationships' => $rootRelationships,
                 'documentRelationships' => $documentRelationships,
+                'stylesPart' => $stylesPart['partName'],
                 'styles' => $styles,
                 'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
                 'media' => $media,
             ],
         ];
+        if ($corePropertiesPart['relationship'] !== null) {
+            $attrs['docx']['corePropertiesRelationship'] = $this->relationshipSummary(
+                $corePropertiesPart['relationship'],
+                '/',
+                '_rels/.rels',
+                $corePropertiesPart['partName'],
+                $corePropertiesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($stylesPart['relationship'] !== null) {
+            $attrs['docx']['stylesRelationship'] = $this->relationshipSummary(
+                $stylesPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $stylesPart['partName'],
+                $stylesPart['exists'],
+                $contentTypes,
+            );
+        }
         if ($numberingPart['relationship'] !== null) {
             $attrs['docx']['numberingRelationship'] = $this->relationshipSummary(
                 $numberingPart['relationship'],
@@ -197,13 +223,13 @@ final class DocxOpenXmlReader
     /**
      * @return array<string, array{id:string, name:string, headingLevel:int|null}>
      */
-    private function readStyles(string $xml): array
+    private function readStyles(string $xml, string $partName): array
     {
         if ($xml === '') {
             return [];
         }
 
-        $dom = $this->loadXml($xml, 'word/styles.xml');
+        $dom = $this->loadXml($xml, $partName);
         $xpath = $this->xpath($dom);
         $styles = [];
         foreach ($this->elements($xpath, '/w:styles/w:style[@w:type="paragraph"]') as $style) {
@@ -231,6 +257,70 @@ final class DocxOpenXmlReader
         }
 
         return $styles;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function corePropertiesPart(array $parts, array $relationships): array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::CORE_PROPERTIES_REL || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = 'docProps/core.xml';
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function stylesPart(array $parts, array $relationships, string $documentPart): array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::STYLES_REL || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = $this->documentSiblingPart($documentPart, 'styles.xml');
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
     }
 
     /**
@@ -345,13 +435,13 @@ final class DocxOpenXmlReader
     /**
      * @return array<string, mixed>
      */
-    private function readCoreProperties(string $xml): array
+    private function readCoreProperties(string $xml, string $partName): array
     {
         if ($xml === '') {
             return [];
         }
 
-        $dom = $this->loadXml($xml, 'docProps/core.xml');
+        $dom = $this->loadXml($xml, $partName);
         $xpath = $this->xpath($dom);
         $meta = [];
         foreach ([
