@@ -524,12 +524,14 @@ final class EpubPackage
     ): array {
         $version = (string) ($metadata['version'] ?? '');
         $epub3 = preg_match('/^3(?:\.|$)/', trim($version)) === 1;
+        $rootfileReport = self::packageRootfileValidationReport($package, $rootfiles, $opfPartName);
         $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
         $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
         $spineReport = self::packageSpineValidationReport($spine);
         $ncxReport = self::packageNcxValidationReport($spineTocId, $manifestItems, $navigation);
         $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
         $diagnostics = array_merge(
+            $rootfileReport['diagnostics'],
             $metadataReport['diagnostics'],
             $manifestReport['diagnostics'],
             $spineReport['diagnostics'],
@@ -546,11 +548,121 @@ final class EpubPackage
             'alternateRootfileCount' => max(0, count($rootfiles) - 1),
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
+            'rootfiles' => $rootfileReport,
             'metadata' => $metadataReport,
             'manifest' => $manifestReport,
             'spine' => $spineReport,
             'ncx' => $ncxReport,
             'navigation' => $navigationReport,
+        ];
+    }
+
+    /**
+     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageRootfileValidationReport(ZipPackage $package, array $rootfiles, string $opfPartName): array
+    {
+        $items = [];
+        $opfRootfiles = [];
+        $alternateRootfiles = [];
+        $missingRootfiles = [];
+        $nonOpfRootfiles = [];
+        $parts = [];
+        $diagnostics = [];
+        $selectedIndex = null;
+
+        foreach ($rootfiles as $index => $rootfile) {
+            $partName = (string) ($rootfile['partName'] ?? '');
+            $mediaType = self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
+            $exists = $partName !== '' && $package->has($partName);
+            $selected = $selectedIndex === null && $partName === $opfPartName && $mediaType === self::OPF_MEDIA_TYPE;
+            if ($selected) {
+                $selectedIndex = $index;
+            }
+
+            $item = [
+                'index' => $index,
+                'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+                'partName' => $partName,
+                'mediaType' => $mediaType,
+                'exists' => $exists,
+                'selected' => $selected,
+            ];
+            $items[] = $item;
+
+            if ($mediaType === self::OPF_MEDIA_TYPE) {
+                $opfRootfiles[] = $item;
+            } else {
+                $nonOpfRootfiles[] = $item;
+                $diagnostics[] = [
+                    'type' => 'non-opf-container-rootfile',
+                    'index' => $index,
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                    'message' => 'EPUB container rootfile should identify an OPF package document',
+                ];
+            }
+
+            if (!$selected) {
+                $alternateRootfiles[] = $item;
+            }
+
+            if (!$exists) {
+                $missingRootfiles[] = $item;
+                $diagnostics[] = [
+                    'type' => 'missing-rootfile-package-part',
+                    'index' => $index,
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                    'message' => 'EPUB container rootfile points at a package part that is not present in the ZIP',
+                ];
+            }
+
+            if ($partName !== '') {
+                $parts[$partName][] = $item;
+            }
+        }
+
+        $duplicatePartItems = [];
+        foreach ($parts as $partName => $matches) {
+            if (count($matches) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'partName' => $partName,
+                'indexes' => array_column($matches, 'index'),
+                'mediaTypes' => array_values(array_unique(array_column($matches, 'mediaType'))),
+            ];
+            $duplicatePartItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-rootfile-package-part',
+                'partName' => $partName,
+                'indexes' => $duplicate['indexes'],
+                'message' => 'EPUB container declares the same rootfile package part more than once',
+            ];
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'selectedIndex' => $selectedIndex,
+            'selectedPart' => $opfPartName,
+            'rootfileCount' => count($items),
+            'opfRootfileCount' => count($opfRootfiles),
+            'alternateRootfileCount' => count($alternateRootfiles),
+            'missingRootfileCount' => count($missingRootfiles),
+            'nonOpfRootfileCount' => count($nonOpfRootfiles),
+            'duplicatePartCount' => count($duplicatePartItems),
+            'items' => $items,
+            'opfRootfiles' => $opfRootfiles,
+            'alternateRootfiles' => $alternateRootfiles,
+            'missingRootfiles' => $missingRootfiles,
+            'nonOpfRootfiles' => $nonOpfRootfiles,
+            'duplicatePartItems' => $duplicatePartItems,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
         ];
     }
 

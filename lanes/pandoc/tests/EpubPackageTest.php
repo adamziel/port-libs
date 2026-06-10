@@ -2056,6 +2056,59 @@ XML;
         $t->same('Legacy chapter', $missingTocEpub->navigation()['entries'][0]['label']);
     },
 
+    'reports compact EPUB container rootfile diagnostics for validation handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithAlternateRootfiles = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/missing-alternate.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/preview.xhtml" media-type="application/xhtml+xml"/>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithAlternateRootfiles],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/preview.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Preview</h1></body></html>'],
+        ]));
+        $validation = $epub->validationReport();
+        $rootfiles = $validation['rootfiles'];
+        $summary = $epub->summary();
+
+        $t->same(false, $validation['valid']);
+        $t->same(3, $validation['diagnosticCount']);
+        $t->same([
+            'missing-rootfile-package-part',
+            'non-opf-container-rootfile',
+            'duplicate-rootfile-package-part',
+        ], array_column($validation['diagnostics'], 'type'));
+        $t->same(false, $rootfiles['valid']);
+        $t->same(0, $rootfiles['selectedIndex']);
+        $t->same('/EPUB/package.opf', $rootfiles['selectedPart']);
+        $t->same(4, $rootfiles['rootfileCount']);
+        $t->same(3, $rootfiles['opfRootfileCount']);
+        $t->same(3, $rootfiles['alternateRootfileCount']);
+        $t->same(1, $rootfiles['missingRootfileCount']);
+        $t->same(1, $rootfiles['nonOpfRootfileCount']);
+        $t->same(1, $rootfiles['duplicatePartCount']);
+        $t->same(true, $rootfiles['items'][0]['selected']);
+        $t->same(false, $rootfiles['items'][3]['selected']);
+        $t->same('/EPUB/missing-alternate.opf', $rootfiles['missingRootfiles'][0]['partName']);
+        $t->same('/EPUB/preview.xhtml', $rootfiles['nonOpfRootfiles'][0]['partName']);
+        $t->same('/EPUB/package.opf', $rootfiles['duplicatePartItems'][0]['partName']);
+        $t->same([0, 3], $rootfiles['duplicatePartItems'][0]['indexes']);
+        $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
