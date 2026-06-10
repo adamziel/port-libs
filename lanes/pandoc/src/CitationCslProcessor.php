@@ -1090,6 +1090,11 @@ final class CitationCslProcessor
         if ($patentTypeLabel === '') {
             $patentTypeLabel = self::patentTypeLabel($patentType);
         }
+        $orcid = self::firstStringField($item, ['ORCID', 'orcid', 'orcid-id', 'orcidId', 'orcidid']);
+        $isni = self::firstStringField($item, ['ISNI', 'isni']);
+        $viaf = self::firstStringField($item, ['VIAF', 'viaf']);
+        $ror = self::firstStringField($item, ['ROR', 'ror']);
+        $wikidata = self::firstStringField($item, ['Wikidata', 'wikidata', 'wikidata-id', 'wikidataId', 'wikidataid', 'wd']);
 
         return [
             'id' => $id,
@@ -1197,6 +1202,18 @@ final class CitationCslProcessor
             'hdl' => self::firstStringField($item, ['HDL', 'hdl', 'handle']),
             'lccn' => self::firstStringField($item, ['LCCN', 'lccn']),
             'oclc' => self::firstStringField($item, ['OCLC', 'oclc']),
+            'orcid' => $orcid,
+            'isni' => $isni,
+            'viaf' => $viaf,
+            'ror' => $ror,
+            'wikidata' => $wikidata,
+            'authorityIdentifierSummary' => self::labeledIdentifierSummary([
+                ['ORCID', $orcid],
+                ['ISNI', $isni],
+                ['VIAF', $viaf],
+                ['ROR', $ror],
+                ['Wikidata', $wikidata],
+            ]),
             'archive' => $archive,
             'archiveCollection' => $archiveCollection,
             'archivePlace' => $archivePlace,
@@ -1324,6 +1341,24 @@ final class CitationCslProcessor
             'editorialRoles' => self::editorialRoles($item['editorial-roles'] ?? [], $id),
             'raw' => $item,
         ];
+    }
+
+    /**
+     * @param list<array{0:string, 1:string}> $identifiers
+     */
+    private static function labeledIdentifierSummary(array $identifiers): string
+    {
+        $parts = [];
+        foreach ($identifiers as [$label, $value]) {
+            $value = trim($value);
+            if ($value === '') {
+                continue;
+            }
+
+            $parts[] = $label . ' ' . $value;
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
@@ -6856,6 +6891,19 @@ final class CitationCslProcessor
             $parts[] = 'OCLC ' . $oclc . '.';
         }
 
+        foreach ([
+            ['orcid', 'ORCID'],
+            ['isni', 'ISNI'],
+            ['viaf', 'VIAF'],
+            ['ror', 'ROR'],
+            ['wikidata', 'Wikidata'],
+        ] as [$key, $label]) {
+            $value = trim((string) ($item[$key] ?? ''));
+            if ($value !== '') {
+                $parts[] = $label . ' ' . $value . '.';
+            }
+        }
+
         $archive = array_values(array_filter([
             (string) ($item['archive'] ?? ''),
             (string) ($item['archiveCollection'] ?? ''),
@@ -9047,6 +9095,12 @@ final class CitationCslProcessor
             'hdl', 'handle' => (string) ($item['hdl'] ?? ''),
             'lccn' => (string) ($item['lccn'] ?? ''),
             'oclc' => (string) ($item['oclc'] ?? ''),
+            'orcid', 'orcid-id', 'orcidid' => (string) ($item['orcid'] ?? ''),
+            'isni' => (string) ($item['isni'] ?? ''),
+            'viaf' => (string) ($item['viaf'] ?? ''),
+            'ror' => (string) ($item['ror'] ?? ''),
+            'wikidata', 'wikidata-id', 'wikidataid', 'wd' => (string) ($item['wikidata'] ?? ''),
+            'authority-identifiers', 'authority-identifier-summary', 'creator-identifiers', 'creator-identifier-summary' => (string) ($item['authorityIdentifierSummary'] ?? ''),
             'archive' => (string) $item['archive'],
             'archive_collection', 'archive-collection', 'archivecollection' => (string) ($item['archiveCollection'] ?? ''),
             'archive-place', 'archiveplace' => (string) $item['archivePlace'],

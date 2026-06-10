@@ -5382,6 +5382,112 @@ XML);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Review Score. 2025. ISMN 979-0-060-11561-5. ISWC T-034.524.680-1.</dd>', $blocks);
         $t->contains('<dt>Ng 2024</dt><dd>Ng, Nia. Source Import Technical Report. Migration Desk, 2024. ISRN NISTIR 8202.</dd>', $blocks);
     },
+    'maps bounded authority identifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{person-identifier-source,
+  author   = {Smith, Ada},
+  title    = {Identifier Review Packet},
+  date     = {2026},
+  orcid    = {0000-0002-1825-0097},
+  isni     = {0000000121032683},
+  viaf     = {12345678},
+  wikidata = {Q42}
+}
+
+@report{organization-identifier-source,
+  author      = {{Migration Review Institute}},
+  title       = {Organization Identifier Packet},
+  institution = {Migration Desk},
+  date        = {2025},
+  ror         = {https://ror.org/01abcde23}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('0000-0002-1825-0097', $items[0]['ORCID'] ?? null);
+        $t->same('0000000121032683', $items[0]['ISNI'] ?? null);
+        $t->same('12345678', $items[0]['VIAF'] ?? null);
+        $t->same('Q42', $items[0]['Wikidata'] ?? null);
+        $t->same('https://ror.org/01abcde23', $items[1]['ROR'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $person = $processor->item('person-identifier-source');
+        $organization = $processor->item('organization-identifier-source');
+        $t->same('0000-0002-1825-0097', $person['orcid'] ?? null);
+        $t->same('0000000121032683', $person['isni'] ?? null);
+        $t->same('12345678', $person['viaf'] ?? null);
+        $t->same('Q42', $person['wikidata'] ?? null);
+        $t->same('ORCID 0000-0002-1825-0097; ISNI 0000000121032683; VIAF 12345678; Wikidata Q42', $person['authorityIdentifierSummary'] ?? null);
+        $t->same('https://ror.org/01abcde23', $organization['ror'] ?? null);
+        $t->same('ROR https://ror.org/01abcde23', $organization['authorityIdentifierSummary'] ?? null);
+        $t->same('Smith, Ada. Identifier Review Packet. 2026. ORCID 0000-0002-1825-0097. ISNI 0000000121032683. VIAF 12345678. Wikidata Q42.', $processor->renderBibliographyEntry('person-identifier-source'));
+        $t->same('Migration Review Institute. Organization Identifier Packet. Migration Desk, 2025. ROR https://ror.org/01abcde23.', $processor->renderBibliographyEntry('organization-identifier-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Authority Identifier Review</title>
+    <id>https://example.test/styles/bounded-authority-identifier-review</id>
+    <updated>2026-06-10T11:57:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="authority-identifiers"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="ORCID"/>
+      <text variable="ISNI"/>
+      <text variable="VIAF"/>
+      <text variable="ROR"/>
+      <text variable="Wikidata"/>
+      <text variable="authority-identifier-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Authority Identifier Review', $summary['title'] ?? null);
+        $t->same('authority-identifiers', $citationChildren[1]['variable'] ?? null);
+        $t->same('[Smith | ORCID 0000-0002-1825-0097; ISNI 0000000121032683; VIAF 12345678; Wikidata Q42; Migration Review Institute | ROR https://ror.org/01abcde23]', $styled->renderCitationCluster([
+            $citation('person-identifier-source', '[@person-identifier-source]'),
+            $citation('organization-identifier-source', '[@organization-identifier-source]'),
+        ]));
+        $t->same('Identifier Review Packet :: 0000-0002-1825-0097 :: 0000000121032683 :: 12345678 :: Q42 :: ORCID 0000-0002-1825-0097; ISNI 0000000121032683; VIAF 12345678; Wikidata Q42', $styled->renderBibliographyEntry('person-identifier-source'));
+        $t->same('Organization Identifier Packet :: https://ror.org/01abcde23 :: ROR https://ror.org/01abcde23', $styled->renderBibliographyEntry('organization-identifier-source'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-authority-id',
+            'title' => 'Direct Authority Identifier Packet',
+            'ORCID' => '0000-0001-2345-6789',
+            'isni' => '0000000109402034',
+            'VIAF' => '987654321',
+            'ROR' => 'https://ror.org/05direct1',
+            'wikidata-id' => 'Q12345',
+        ]]);
+        $directItem = $direct->item('direct-authority-id');
+        $t->same('0000-0001-2345-6789', $directItem['orcid'] ?? null);
+        $t->same('0000000109402034', $directItem['isni'] ?? null);
+        $t->same('987654321', $directItem['viaf'] ?? null);
+        $t->same('https://ror.org/05direct1', $directItem['ror'] ?? null);
+        $t->same('Q12345', $directItem['wikidata'] ?? null);
+        $t->same('Direct Authority Identifier Packet. ORCID 0000-0001-2345-6789. ISNI 0000000109402034. VIAF 987654321. ROR https://ror.org/05direct1. Wikidata Q12345.', $direct->renderBibliographyEntry('direct-authority-id'));
+
+        $document = (new MarkdownReader())->read('Authority identifiers [@person-identifier-source; @organization-identifier-source] stay visible for source review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Authority identifiers (Smith 2026; Migration Review Institute 2025) stay visible for source review.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Identifier Review Packet. 2026. ORCID 0000-0002-1825-0097. ISNI 0000000121032683. VIAF 12345678. Wikidata Q42.</dd>', $blocks);
+        $t->contains('<dt>Migration Review Institute 2025</dt><dd>Migration Review Institute. Organization Identifier Packet. Migration Desk, 2025. ROR https://ror.org/01abcde23.</dd>', $blocks);
+    },
     'maps bounded biblatex media entry types into csl type conditionals' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
