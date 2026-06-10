@@ -564,6 +564,8 @@ final class NativeReader
             'Math' => $this->mathInline($attrs, $inline['c'] ?? []),
             'RawInline' => $this->rawInline($attrs, $inline['c'] ?? []),
             'Link' => $this->linkInline($attrs, $inline['c'] ?? []),
+            'Image' => $this->imageInline($attrs, $inline['c'] ?? []),
+            'Note' => new AstNode('note', $attrs, $this->blockNodes($inline['c'] ?? [])),
             'Span' => $this->spanInline($attrs, $inline['c'] ?? []),
             default => new AstNode('native_inline', $attrs),
         };
@@ -670,6 +672,34 @@ final class NativeReader
         ]);
 
         return new AstNode('link', $attrs, $this->inlines($content[1]));
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function imageInline(array $attrs, mixed $content): AstNode
+    {
+        if (!is_array($content) || !isset($content[0], $content[1], $content[2])) {
+            throw new \InvalidArgumentException('Pandoc native JSON Image inline content must contain attributes, label, and target');
+        }
+
+        $target = $content[2];
+        if (!is_array($target) || !is_string($target[0] ?? null) || !is_string($target[1] ?? null)) {
+            throw new \InvalidArgumentException('Pandoc native JSON Image target must contain URL and title strings');
+        }
+
+        $label = $this->inlines($content[1]);
+        $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]), [
+            'url' => $target[0],
+            'title' => $target[1],
+        ]);
+
+        $alt = trim($this->plainTextFromInlines($label));
+        if ($alt !== '') {
+            $attrs['alt'] = $alt;
+        }
+
+        return new AstNode('image', $attrs, $label);
     }
 
     /**

@@ -424,6 +424,18 @@ final class NativeWriter
                     [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
                 ],
             ]],
+            'image' => [[
+                't' => 'Image',
+                'c' => [
+                    $this->attrTuple($node),
+                    $this->inlines($this->imageLabelInlines($node)),
+                    [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
+                ],
+            ]],
+            'note' => [[
+                't' => 'Note',
+                'c' => $this->blocks($node->children),
+            ]],
             'span' => [[
                 't' => 'Span',
                 'c' => [$this->attrTuple($node), $this->inlines($node->children)],
@@ -432,6 +444,18 @@ final class NativeWriter
                 ? throw new \InvalidArgumentException('Native writer cannot emit unsupported shared AST inline nodes')
                 : $this->inlines($node->children),
         };
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function imageLabelInlines(AstNode $node): array
+    {
+        if ($node->children !== []) {
+            return $node->children;
+        }
+
+        return $this->textInlines((string) $node->attr('alt', ''));
     }
 
     /**
@@ -575,6 +599,8 @@ final class NativeWriter
             'raw_markdown',
             'raw_inline',
             'link',
+            'image',
+            'note',
             'span',
         ], true);
     }
