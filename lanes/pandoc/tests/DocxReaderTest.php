@@ -5642,8 +5642,17 @@ $buildSectionPropertiesPackage = static function () use (
     $sectionPropertiesDocumentRelationshipsXml,
     $sectionPropertiesDocumentXml
 ): ZipPackage {
+    $sectionContentTypesXml = str_replace(
+        '</Types>',
+        '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n"
+        . '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n"
+        . '  <Override PartName="/word/header-even.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n"
+        . '</Types>',
+        $contentTypesXml
+    );
+
     return ZipPackage::fromParts([
-        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+        ['name' => '[Content_Types].xml', 'data' => $sectionContentTypesXml],
         ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
         ['name' => 'word/document.xml', 'data' => $sectionPropertiesDocumentXml],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $sectionPropertiesDocumentRelationshipsXml],
@@ -12030,6 +12039,98 @@ return [
         $footerMarkdown = (new MarkdownWriter())->write(new AstNode('document', [], $defaultFooter['blocks']));
         $t->contains('<p>Default header <a href="https://example.test/header-source">source link</a></p>', $headerBlocks);
         $t->contains('Default footer note', $footerMarkdown);
+    },
+    'preflights DOCX section header and footer references before importing target bodies' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $sectionContentTypesXml = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header-good.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n"
+            . '  <Override PartName="/word/header-wrong-type.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n"
+            . '  <Override PartName="/word/header-wrong-content.xml" ContentType="application/xml"/>' . "\n"
+            . '  <Override PartName="/word/footer-missing.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n"
+            . '</Types>',
+            $contentTypesXml
+        );
+        $relationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdGoodHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-good.xml"/>
+  <Relationship Id="rIdWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="header-wrong-type.xml"/>
+  <Relationship Id="rIdWrongContent" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header-wrong-content.xml"/>
+  <Relationship Id="rIdMissingFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer-missing.xml"/>
+  <Relationship Id="rIdExternalFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="https://example.test/footer.docx" TargetMode="External"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:t>Section reference preflight body.</w:t></w:r></w:p>
+    <w:sectPr>
+      <w:headerReference w:type="default" r:id="rIdGoodHeader"/>
+      <w:headerReference w:type="even" r:id="rIdWrongType"/>
+      <w:headerReference w:type="first" r:id="rIdWrongContent"/>
+      <w:footerReference w:type="default" r:id="rIdMissingFooter"/>
+      <w:footerReference w:type="even" r:id="rIdExternalFooter"/>
+    </w:sectPr>
+  </w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $sectionContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relationshipsXml],
+            ['name' => 'word/header-good.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Good section header.</w:t></w:r></w:p></w:hdr>'],
+            ['name' => 'word/header-wrong-type.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Wrong type header must stay hidden.</w:t></w:r></w:p></w:hdr>'],
+            ['name' => 'word/header-wrong-content.xml', 'data' => '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Wrong content header must stay hidden.</w:t></w:r></w:p></w:hdr>'],
+        ]));
+
+        $sections = $result['importReport']['sections']['items'];
+        $t->same(1, $sections['count'] ?? count($sections));
+        $section = $sections[0];
+        $t->same('Section reference preflight body.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same(3, count($section['headers']));
+        $t->same(2, count($section['footers']));
+
+        $good = $section['headers'][0];
+        $t->same('rIdGoodHeader', $good['id']);
+        $t->same('/word/header-good.xml', $good['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $good['contentType']);
+        $t->same([], $good['issues']);
+        $t->same('Good section header.', $good['text']);
+        $t->same('Good section header.', $good['blocks'][0]->children[0]->attr('text'));
+
+        $wrongType = $section['headers'][1];
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrongType['relationshipType']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $wrongType['expectedRelationshipType']);
+        $t->same('/word/header-wrong-type.xml', $wrongType['targetPart']);
+        $t->same(true, $wrongType['exists']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+        $t->true(!isset($wrongType['blocks']), 'Wrong relationship type must not import a header body');
+
+        $wrongContent = $section['headers'][2];
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/header', $wrongContent['relationshipType']);
+        $t->same('/word/header-wrong-content.xml', $wrongContent['targetPart']);
+        $t->same('application/xml', $wrongContent['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml', $wrongContent['expectedContentType']);
+        $t->same(['unexpected-content-type'], $wrongContent['issues']);
+        $t->true(!isset($wrongContent['text']), 'Wrong content type must not import header text');
+
+        $missingFooter = $section['footers'][0];
+        $t->same('rIdMissingFooter', $missingFooter['id']);
+        $t->same('/word/footer-missing.xml', $missingFooter['targetPart']);
+        $t->same(false, $missingFooter['exists']);
+        $t->same(['missing-package-part'], $missingFooter['issues']);
+
+        $externalFooter = $section['footers'][1];
+        $t->same('rIdExternalFooter', $externalFooter['id']);
+        $t->same('https://example.test/footer.docx', $externalFooter['target']);
+        $t->same(true, $externalFooter['external']);
+        $t->same('absolute-uri', $externalFooter['externalTargetKind']);
+        $t->same('https', $externalFooter['externalTargetScheme']);
+        $t->same(true, $externalFooter['externalTargetAllowed']);
+        $t->same(['external-section-reference'], $externalFooter['issues']);
+        $t->true(!isset($externalFooter['blocks']), 'External footer references must not import a package body');
     },
     'reports DOCX footnote and endnote section policies with custom note marks' => static function (TestRunner $t) use ($buildNoteReferencePropertiesPackage): void {
         $reader = new DocxReader();

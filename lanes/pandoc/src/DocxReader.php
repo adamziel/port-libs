@@ -63,6 +63,8 @@ final class DocxReader
     public const REL_TYPE_THEME = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     public const REL_TYPE_ATTACHED_TEMPLATE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     public const REL_TYPE_GLOSSARY_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+    public const REL_TYPE_HEADER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+    public const REL_TYPE_FOOTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     public const REL_TYPE_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     public const REL_TYPE_EXTENDED_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
     public const REL_TYPE_CUSTOM_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
@@ -83,6 +85,8 @@ final class DocxReader
 
     private const WORDPROCESSINGML_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const WORDPROCESSINGML_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+    private const WORDPROCESSINGML_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
+    private const WORDPROCESSINGML_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
 
     /**
      * Bounded subset of Pandoc's DOCX symbol font table for common review
@@ -1750,7 +1754,9 @@ final class DocxReader
             $referencedNotes,
             $styles,
             $numbering,
-            'hdr'
+            'hdr',
+            self::REL_TYPE_HEADER,
+            self::WORDPROCESSINGML_HEADER_CONTENT_TYPE
         );
         if ($headers !== []) {
             $attrs['headers'] = $headers;
@@ -1764,7 +1770,9 @@ final class DocxReader
             $referencedNotes,
             $styles,
             $numbering,
-            'ftr'
+            'ftr',
+            self::REL_TYPE_FOOTER,
+            self::WORDPROCESSINGML_FOOTER_CONTENT_TYPE
         );
         if ($footers !== []) {
             $attrs['footers'] = $footers;
@@ -2011,7 +2019,9 @@ final class DocxReader
         array $referencedNotes,
         array $styles,
         array $numbering,
-        string $rootName
+        string $rootName,
+        string $expectedRelationshipType,
+        string $expectedContentType
     ): array {
         $references = [];
         foreach ($sectionProperties->childNodes as $child) {
@@ -2024,39 +2034,97 @@ final class DocxReader
                 continue;
             }
 
-            $relationship = $relationships instanceof OpcRelationships ? $relationships->byId($relationshipId) : null;
             $attrs = [
                 'id' => $relationshipId,
                 'type' => (string) ($this->wordAttr($child, 'type') ?? 'default'),
-                'target' => $relationship instanceof OpcRelationship ? $relationships->resolveTarget($relationship) : null,
-                'external' => $relationship instanceof OpcRelationship ? $relationship->isExternal() : null,
-                'relationshipType' => $relationship instanceof OpcRelationship ? $relationship->type : null,
+                'target' => null,
+                'targetPart' => null,
+                'contentType' => null,
+                'external' => null,
+                'exists' => null,
+                'relationshipType' => null,
+                'expectedRelationshipType' => $expectedRelationshipType,
+                'expectedContentType' => $expectedContentType,
+                'issues' => [],
             ];
 
-            if ($relationship instanceof OpcRelationship && !$relationship->isExternal()) {
-                $targetPart = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
-                $attrs['exists'] = $package->has($targetPart);
-                if ($attrs['exists'] === true) {
-                    if (OpcRelationships::packageHasRelationshipsForSource($package, $targetPart)) {
-                        $localRelationships = OpcRelationships::fromPackage($package, $targetPart);
-                        $attrs['relationshipsPart'] = $localRelationships->relationshipPartName();
-                        $attrs['relationshipCount'] = count($localRelationships->all());
-                        $attrs['relationships'] = $this->relationshipTargetSummaries($package, $localRelationships);
-                    }
-
-                    $blocks = $this->headerFooterBlocks(
-                        $package,
-                        $targetPart,
-                        $rootName,
-                        $referencedNotes,
-                        $styles,
-                        $numbering
-                    );
-                    $attrs['blocks'] = $blocks;
-                    $attrs['text'] = $this->plainBlockText($blocks);
-                }
+            if (!$relationships instanceof OpcRelationships) {
+                $attrs['issues'][] = 'missing-relationships';
+                $references[] = $attrs;
+                continue;
             }
 
+            $relationship = $relationships->byId($relationshipId);
+            if (!$relationship instanceof OpcRelationship) {
+                $attrs['issues'][] = 'missing-relationship';
+                $references[] = $attrs;
+                continue;
+            }
+
+            $attrs['relationshipType'] = $relationship->type;
+            $attrs['external'] = $relationship->isExternal();
+            if ($relationship->type !== $expectedRelationshipType) {
+                $attrs['issues'][] = 'unexpected-relationship-type';
+            }
+
+            try {
+                $target = $relationships->resolveTarget($relationship);
+            } catch (\InvalidArgumentException) {
+                $attrs['issues'][] = 'invalid-target';
+                $references[] = $attrs;
+                continue;
+            }
+
+            $attrs['target'] = $target;
+            if ($relationship->isExternal()) {
+                $externalTarget = $relationship->externalTargetPreflight();
+                $attrs['externalTargetKind'] = $externalTarget['kind'];
+                $attrs['externalTargetScheme'] = $externalTarget['scheme'];
+                $attrs['externalTargetAllowed'] = $externalTarget['allowed'];
+                $attrs['issues'] = array_values(array_unique(array_merge(
+                    $attrs['issues'],
+                    ['external-section-reference'],
+                    $externalTarget['issues'],
+                )));
+                $references[] = $attrs;
+                continue;
+            }
+
+            $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+            $attrs['targetPart'] = $targetPart;
+            $attrs['exists'] = $package->has($targetPart);
+            $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+            $attrs['contentType'] = $contentType;
+            if ($attrs['exists'] !== true) {
+                $attrs['issues'][] = 'missing-package-part';
+            }
+            if ($contentType !== $expectedContentType) {
+                $attrs['issues'][] = 'unexpected-content-type';
+            }
+
+            $attrs['issues'] = array_values(array_unique($attrs['issues']));
+            if ($attrs['issues'] !== []) {
+                $references[] = $attrs;
+                continue;
+            }
+
+            if (OpcRelationships::packageHasRelationshipsForSource($package, $targetPart)) {
+                $localRelationships = OpcRelationships::fromPackage($package, $targetPart);
+                $attrs['relationshipsPart'] = $localRelationships->relationshipPartName();
+                $attrs['relationshipCount'] = count($localRelationships->all());
+                $attrs['relationships'] = $this->relationshipTargetSummaries($package, $localRelationships);
+            }
+
+            $blocks = $this->headerFooterBlocks(
+                $package,
+                $targetPart,
+                $rootName,
+                $referencedNotes,
+                $styles,
+                $numbering
+            );
+            $attrs['blocks'] = $blocks;
+            $attrs['text'] = $this->plainBlockText($blocks);
             $references[] = $attrs;
         }
 
