@@ -737,6 +737,7 @@ final class EpubPackage
         $navItems = [];
         $usableNavItems = [];
         $invalidNavItems = [];
+        $hrefSuffixItems = [];
         $parts = [];
         $diagnostics = [];
 
@@ -745,6 +746,41 @@ final class EpubPackage
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            $hasQuery = ($item['hrefHasQuery'] ?? false) === true;
+            $hasFragment = ($item['hrefHasFragment'] ?? false) === true;
+            if ($hasQuery || $hasFragment) {
+                $suffixItem = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                    'query' => is_string($item['hrefQuery'] ?? null) ? $item['hrefQuery'] : null,
+                    'fragment' => is_string($item['hrefFragment'] ?? null) ? $item['hrefFragment'] : null,
+                ];
+                $hrefSuffixItems[] = $suffixItem;
+                if ($hasQuery) {
+                    $diagnostics[] = [
+                        'type' => 'manifest-href-query-component',
+                        'id' => $id,
+                        'href' => $suffixItem['href'],
+                        'partName' => $partName,
+                        'query' => $suffixItem['query'],
+                        'message' => 'EPUB OPF manifest href includes a query component; compact package ingestion loads the package part and preserves the suffix for review',
+                    ];
+                }
+                if ($hasFragment) {
+                    $diagnostics[] = [
+                        'type' => 'manifest-href-fragment-component',
+                        'id' => $id,
+                        'href' => $suffixItem['href'],
+                        'partName' => $partName,
+                        'fragment' => $suffixItem['fragment'],
+                        'message' => 'EPUB OPF manifest href includes a fragment component; compact package ingestion loads the package part and preserves the suffix for review',
+                    ];
+                }
+            }
+
             if ($partName !== '') {
                 $parts[$partName][] = [
                     'id' => $id,
@@ -822,10 +858,12 @@ final class EpubPackage
             'usableNavItemCount' => count($usableNavItems),
             'invalidNavItemCount' => count($invalidNavItems),
             'duplicatePartCount' => count($duplicatePartItems),
+            'hrefSuffixCount' => count($hrefSuffixItems),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
             'duplicatePartItems' => $duplicatePartItems,
+            'hrefSuffixItems' => $hrefSuffixItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3047,6 +3085,7 @@ final class EpubPackage
             }
 
             $partName = OpcPackagePath::stripQueryAndFragment($target);
+            $hrefSuffix = self::packageHrefSuffixReport($target);
             if (!$package->has($partName)) {
                 throw new \RuntimeException("EPUB manifest item {$id} references missing package part: {$partName}");
             }
@@ -3054,12 +3093,17 @@ final class EpubPackage
             $item = [
                 'id' => $id,
                 'href' => $href,
+                'target' => $target,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
                 'fallbackStyle' => $itemElement->hasAttribute('fallback-style') ? $itemElement->getAttribute('fallback-style') : null,
                 'mediaOverlay' => $itemElement->hasAttribute('media-overlay') ? $itemElement->getAttribute('media-overlay') : null,
+                'hrefHasQuery' => $hrefSuffix['hasQuery'],
+                'hrefQuery' => $hrefSuffix['query'],
+                'hrefHasFragment' => $hrefSuffix['hasFragment'],
+                'hrefFragment' => $hrefSuffix['fragment'],
             ];
 
             $byId[$id] = $item;
@@ -5396,6 +5440,25 @@ final class EpubPackage
     private static function mediaTypeBase(string $mediaType): string
     {
         return strtolower(trim(explode(';', $mediaType, 2)[0]));
+    }
+
+    /**
+     * @return array{hasQuery:bool, query:?string, hasFragment:bool, fragment:?string}
+     */
+    private static function packageHrefSuffixReport(string $target): array
+    {
+        $fragmentOffset = strpos($target, '#');
+        $withoutFragment = $fragmentOffset === false ? $target : substr($target, 0, $fragmentOffset);
+        $fragment = $fragmentOffset === false ? null : substr($target, $fragmentOffset + 1);
+        $queryOffset = strpos($withoutFragment, '?');
+        $query = $queryOffset === false ? null : substr($withoutFragment, $queryOffset + 1);
+
+        return [
+            'hasQuery' => $queryOffset !== false,
+            'query' => $query,
+            'hasFragment' => $fragmentOffset !== false,
+            'fragment' => $fragment,
+        ];
     }
 
     private static function coreMediaTypeKind(string $mediaType): ?string

@@ -179,6 +179,59 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves OPF manifest href query and fragment suffixes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithHrefSuffixes = str_replace(
+            'href="styles/book.css"',
+            'href="styles/book.css?revision=20260610"',
+            $epub3OpfXml
+        );
+        $opfWithHrefSuffixes = str_replace(
+            'href="text/chapter1.xhtml"',
+            'href="text/chapter1.xhtml?source=archive#start"',
+            $opfWithHrefSuffixes
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithHrefSuffixes],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $chapter = $epub->manifestItem('chapter1');
+        $style = $epub->manifestItem('style');
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/text/chapter1.xhtml?source=archive#start', $chapter['target']);
+        $t->same('/EPUB/text/chapter1.xhtml', $chapter['partName']);
+        $t->same(true, $chapter['hrefHasQuery']);
+        $t->same('source=archive', $chapter['hrefQuery']);
+        $t->same(true, $chapter['hrefHasFragment']);
+        $t->same('start', $chapter['hrefFragment']);
+        $t->same('/EPUB/styles/book.css?revision=20260610', $style['target']);
+        $t->same('/EPUB/styles/book.css', $style['partName']);
+        $t->same(true, $style['hrefHasQuery']);
+        $t->same('revision=20260610', $style['hrefQuery']);
+        $t->same(false, $style['hrefHasFragment']);
+        $t->same(null, $style['hrefFragment']);
+        $t->same('/EPUB/text/chapter1.xhtml', $epub->readingOrder()[0]['partName']);
+        $t->same('/EPUB/styles/book.css', $epub->assetSummary()['stylesheetParts'][0]);
+        $t->same(false, $validation['valid']);
+        $t->same(3, $validation['diagnosticCount']);
+        $t->same(2, $manifest['hrefSuffixCount']);
+        $t->same(['style', 'chapter1'], array_column($manifest['hrefSuffixItems'], 'id'));
+        $t->same(['manifest-href-query-component', 'manifest-href-query-component', 'manifest-href-fragment-component'], array_column($manifest['diagnostics'], 'type'));
+        $t->same('source=archive', $manifest['hrefSuffixItems'][1]['query']);
+        $t->same('start', $manifest['hrefSuffixItems'][1]['fragment']);
+        $t->same($manifest['hrefSuffixItems'], $summary['wordpressImport']['packageValidation']['manifest']['hrefSuffixItems']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSpineRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
@@ -1744,11 +1797,12 @@ XML;
         $t->same(false, $validation['valid']);
         $t->same('3.0', $validation['packageVersion']);
         $t->same(true, $validation['epub3']);
-        $t->same(6, $validation['diagnosticCount']);
+        $t->same(7, $validation['diagnosticCount']);
         $t->same([
             'missing-epub-metadata-language',
             'missing-epub3-modified-metadata',
             'nav-property-non-xhtml-manifest-item',
+            'manifest-href-fragment-component',
             'missing-epub3-nav-document',
             'duplicate-manifest-part-target',
             'non-content-document-spine-item',
@@ -1770,6 +1824,9 @@ XML;
         $t->same(1, $validation['manifest']['duplicatePartCount']);
         $t->same('/EPUB/chapter.xhtml', $validation['manifest']['duplicatePartItems'][0]['partName']);
         $t->same(['chapter', 'chapter-alias'], $validation['manifest']['duplicatePartItems'][0]['ids']);
+        $t->same(1, $validation['manifest']['hrefSuffixCount']);
+        $t->same('chapter-alias', $validation['manifest']['hrefSuffixItems'][0]['id']);
+        $t->same('duplicate', $validation['manifest']['hrefSuffixItems'][0]['fragment']);
 
         $t->same(false, $validation['spine']['valid']);
         $t->same(2, $validation['spine']['itemCount']);
