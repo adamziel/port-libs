@@ -17724,6 +17724,66 @@ HTML);
         $t->true(!str_contains($blocks, 'onclick'), 'Unsafe event handlers should not survive definition-list attribute handoff');
         $t->true(!str_contains($blocks, 'style='), 'Unsafe style attributes should not survive definition-list attribute handoff');
     },
+    'writes wordpress html writer attributes for nested definition blocks' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('definition_list', [
+                'id' => 'definition-attrs',
+                'classes' => ['review-glossary'],
+                'attributes' => [
+                    'data-pandoc-block' => 'definition-list',
+                ],
+            ], [
+                new AstNode('definition_item', [], [
+                    new AstNode('term', [], [new AstNode('text', ['text' => 'Reviewer term'])]),
+                    new AstNode('definition', [], [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Definition intro.']),
+                        ]),
+                        new AstNode('code_block', [
+                            'id' => 'definition-code',
+                            'classes' => ['php'],
+                            'attributes' => [
+                                'data-pandoc-block' => 'definition-code',
+                                'aria-label' => 'Definition code',
+                                'onclick' => 'alert(1)',
+                                'style' => 'display:none',
+                            ],
+                            'text' => "echo esc_html(\$title);\n",
+                        ]),
+                        new AstNode('blockquote', [
+                            'id' => 'definition-quote',
+                            'classes' => ['review-quote'],
+                            'attributes' => [
+                                'data-pandoc-block' => 'definition-quote',
+                                'onfocus' => 'alert(1)',
+                            ],
+                        ], [
+                            new AstNode('paragraph', [
+                                'id' => 'definition-quote-text',
+                                'attributes' => [
+                                    'data-pandoc-block' => 'definition-quote-paragraph',
+                                ],
+                            ], [new AstNode('text', ['text' => 'Nested quote.'])]),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains('<dl id="definition-attrs" class="review-glossary" data-pandoc-block="definition-list"><dt>Reviewer term</dt><dd>Definition intro.', $blocks);
+        $t->contains(
+            '<pre class="wp-block-code php" id="definition-code" data-pandoc-block="definition-code" aria-label="Definition code"><code class="language-php">echo esc_html($title);' . "\n" . '</code></pre>',
+            $blocks
+        );
+        $t->contains(
+            '<blockquote class="review-quote" id="definition-quote" data-pandoc-block="definition-quote"><p id="definition-quote-text" data-pandoc-block="definition-quote-paragraph">Nested quote.</p></blockquote>',
+            $blocks
+        );
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe nested definition code event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'onfocus'), 'Unsafe nested definition quote event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'style='), 'Unsafe nested definition styles should not survive HTML writer attribute handoff');
+    },
     'writes wordpress inline html writer xml lang attributes' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

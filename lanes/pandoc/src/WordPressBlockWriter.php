@@ -2590,6 +2590,11 @@ final class WordPressBlockWriter
                 $html .= $this->renderRawTexBlockHtml($child);
                 continue;
             }
+            if (!$this->isInlineNode($child)) {
+                $rendered = $this->renderBlocksAsHtml([$child]);
+                $html .= $rendered === '' ? $this->renderInlines($child) : $rendered;
+                continue;
+            }
 
             $html .= $this->renderInlineNode($child);
         }
