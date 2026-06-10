@@ -805,6 +805,17 @@ final class XmlHtmlDom
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
+        if ($name === 'details') {
+            $summaryElements = self::detailsSummaryElements($node);
+            $summary['disclosure'] = 'details';
+            $summary['open'] = $node->hasAttribute('open');
+            $summary['summaryText'] = $summaryElements === [] ? null : self::normalizedText($summaryElements[0]);
+            $summary['summaryElementCount'] = count($summaryElements);
+        }
+        if ($name === 'summary') {
+            $summary['disclosure'] = 'summary';
+            $summary['label'] = self::normalizedText($node);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -854,6 +865,21 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function detailsSummaryElements(\DOMElement $details): array
+    {
+        $summaries = [];
+        foreach ($details->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === 'summary') {
+                $summaries[] = $child;
+            }
+        }
+
+        return $summaries;
     }
 
     /**

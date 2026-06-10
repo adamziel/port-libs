@@ -377,6 +377,32 @@ XML, 'package reader XML');
         $t->same(10.0, $clamped['max']);
         $t->same('<label for="upload-progress">Upload</label><progress id="upload-progress" max="4" value="3">75%</progress><progress id="pending">Pending</progress><label>Quality <meter high="0.9" id="quality" low="0.4" max="1" min="0" optimum="0.95" value="0.82">82%</meter></label><meter id="clamped" max="10" min="2" value="12">Too high</meter>', $html);
     },
+    'summarizes html disclosure state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details>'
+                . '<details id="missing-summary"><p>No summary</p></details>',
+            'disclosure review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $details = $summary[0];
+        $detailsSummary = $details['children'][0];
+        $missingSummary = $summary[1];
+
+        $t->same('details', $details['name']);
+        $t->same('details', $details['disclosure']);
+        $t->same(true, $details['open']);
+        $t->same('Package review', $details['summaryText']);
+        $t->same(1, $details['summaryElementCount']);
+        $t->same('summary', $detailsSummary['name']);
+        $t->same('summary', $detailsSummary['disclosure']);
+        $t->same('Package review', $detailsSummary['label']);
+        $t->same(false, $missingSummary['open']);
+        $t->same(null, $missingSummary['summaryText']);
+        $t->same(0, $missingSummary['summaryElementCount']);
+        $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
