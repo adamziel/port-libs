@@ -104,6 +104,68 @@ $epub3Package = static function () use ($epubContainerXml, $epub3OpfXml, $epub3N
     ], 'epub3 preflight');
 };
 
+$buildZipPackage = static function (array $entries): ZipPackage {
+    $body = '';
+    $central = '';
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'] ?? '';
+        $method = $entry['method'] ?? 8;
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $crc = (int) sprintf('%u', crc32($data));
+        $offset = strlen($body);
+        $flags = 0x0800;
+        $externalAttributes = str_ends_with($name, '/') ? 0x10 : 0;
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            $externalAttributes,
+            $offset
+        );
+        $central .= $name;
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'preflights EPUB3 container OPF metadata manifest spine and nav handoff' => static function (TestRunner $t) use ($epub3Package): void {
         $epub = EpubPackage::fromPackage($epub3Package());
@@ -230,6 +292,69 @@ return [
         $t->same('start', $manifest['hrefSuffixItems'][1]['fragment']);
         $t->same($manifest['hrefSuffixItems'], $summary['wordpressImport']['packageValidation']['manifest']['hrefSuffixItems']);
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
+    'records EPUB manifest ZIP compression provenance without inflating unsupported parts' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $opfWithZipProvenance = str_replace(
+            '</metadata>',
+            '    <link id="review-source-link" rel="record" href="assets/source.bin" media-type="application/octet-stream"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithZipProvenance = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="review-source" href="assets/source.bin" media-type="application/octet-stream"/>',
+            $opfWithZipProvenance
+        );
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>';
+        $sourceBytes = 'UNSUPPORTED-RAW-REVIEW-PACKET';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithZipProvenance, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1, 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG', 'method' => 0],
+            ['name' => 'EPUB/assets/source.bin', 'data' => $sourceBytes, 'method' => 12],
+        ]));
+        $summary = $epub->summary();
+
+        $source = $epub->manifestItem('review-source');
+        $t->same(true, $source['exists']);
+        $t->same(strlen($sourceBytes), $source['byteLength']);
+        $t->same(strlen($sourceBytes), $source['compressedByteLength']);
+        $t->same(12, $source['compressionMethod']);
+        $t->same('unsupported', $source['compressionMethodName']);
+        $t->same(false, $source['compressionSupported']);
+        $t->same(hash('crc32b', $sourceBytes), $source['crc32']);
+        $t->same(false, $source['canExposeBytes']);
+
+        $cover = $epub->manifestItem('cover');
+        $t->same(0, $cover['compressionMethod']);
+        $t->same('stored', $cover['compressionMethodName']);
+        $t->same(3, $cover['compressedByteLength']);
+        $t->same(true, $cover['canExposeBytes']);
+
+        $chapter = $epub->manifestItem('chapter1');
+        $t->same(8, $chapter['compressionMethod']);
+        $t->same('deflated', $chapter['compressionMethodName']);
+        $t->same(strlen(gzdeflate($chapter1)), $chapter['compressedByteLength']);
+        $t->same(true, $chapter['compressionSupported']);
+        $t->same(true, $chapter['canExposeBytes']);
+
+        $link = $epub->packageLinks()[0];
+        $t->same('review-source-link', $link['id']);
+        $t->same('review-source', $link['manifestId']);
+        $t->same(12, $link['compressionMethod']);
+        $t->same('unsupported', $link['compressionMethodName']);
+        $t->same(false, $link['compressionSupported']);
+        $t->same(false, $link['canExposeBytes']);
+        $t->same($source, $summary['manifest'][5]);
+        $t->same($link, $summary['packageLinks'][0]);
     },
 
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
