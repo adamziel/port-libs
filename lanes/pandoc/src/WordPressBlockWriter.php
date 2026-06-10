@@ -2507,7 +2507,7 @@ final class WordPressBlockWriter
             $lines[] = $this->renderInlines($line);
         }
 
-        return '<p>' . implode('<br/>', $lines) . '</p>';
+        return '<p' . $this->renderParagraphAttrs($node) . '>' . implode('<br/>', $lines) . '</p>';
     }
 
     private function renderDivBlock(AstNode $node): string

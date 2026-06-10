@@ -17423,6 +17423,32 @@ MD;
         $t->contains('<p>Line block handoff:</p>', $blocks);
         $t->contains('<p>Reviewer import stanza<br/>' . str_repeat($nbsp, 2) . 'preserve source indentation<br/><br/>Continuation line</p>', $blocks);
     },
+    'writes wordpress html writer attributes for line blocks' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('line_block', [
+                'id' => 'lineblock-attrs',
+                'classes' => ['verse', 'review-line'],
+                'attributes' => [
+                    'data-pandoc-block' => 'line-block',
+                    'aria-label' => 'Reviewer stanza',
+                    'lang' => 'en-GB',
+                    'onclick' => 'alert(1)',
+                    'style' => 'white-space:pre',
+                ],
+            ], [
+                new AstNode('line', ['text' => 'First reviewer line']),
+                new AstNode('line', ['text' => 'Second reviewer line']),
+            ]),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->contains(
+            '<p id="lineblock-attrs" class="verse review-line" data-pandoc-block="line-block" aria-label="Reviewer stanza" lang="en-GB">First reviewer line<br/>Second reviewer line</p>',
+            $blocks
+        );
+        $t->true(!str_contains($blocks, 'onclick'), 'Unsafe line-block event handlers should not survive HTML writer attribute handoff');
+        $t->true(!str_contains($blocks, 'white-space:pre'), 'Unsafe line-block style attributes should not survive HTML writer attribute handoff');
+    },
     'writes wordpress quote block markup for migration reviewer notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
