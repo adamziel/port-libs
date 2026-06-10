@@ -3179,6 +3179,16 @@ $sdtCustomXmlStoreContentTypesXml = <<<'XML'
 </Types>
 XML;
 
+$sdtDuplicateCustomXmlStoreContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+  <Override PartName="/customXml/itemProps2.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>
+</Types>
+XML;
+
 $sdtCustomXmlStorePackageRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
@@ -3186,9 +3196,23 @@ $sdtCustomXmlStorePackageRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$sdtDuplicateCustomXmlStorePackageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/item1.xml"/>
+  <Relationship Id="rIdDuplicateCustomData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="customXml/item2.xml"/>
+</Relationships>
+XML;
+
 $sdtCustomXmlStoreItemRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml"/>
+</Relationships>
+XML;
+
+$sdtDuplicateCustomXmlStoreItem2RelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDuplicateCustomDataProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps2.xml"/>
 </Relationships>
 XML;
 
@@ -3199,11 +3223,25 @@ $sdtCustomXmlStoreItemXml = <<<'XML'
 </wpd:packet>
 XML;
 
+$sdtDuplicateCustomXmlStoreItem2Xml = <<<'XML'
+<wpd:packet xmlns:wpd="https://example.test/wp/docx" xmlns:review="https://example.test/review">
+  <review:summary>Duplicate summary block.</review:summary>
+</wpd:packet>
+XML;
+
 $sdtCustomXmlStorePropertiesXml = <<<'XML'
 <ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{33333333-4444-5555-6666-777777777777}">
   <ds:schemaRefs>
     <ds:schemaRef ds:uri="https://example.test/wp/docx/schema"/>
     <ds:schemaRef ds:uri="https://example.test/review/schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+$sdtDuplicateCustomXmlStoreProperties2Xml = <<<'XML'
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{33333333-4444-5555-6666-777777777777}">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="https://example.test/duplicate/schema"/>
   </ds:schemaRefs>
 </ds:datastoreItem>
 XML;
@@ -5396,6 +5434,30 @@ $buildSdtDataBindingCustomXmlStorePackage = static function () use (
         ['name' => 'customXml/item1.xml', 'data' => $sdtCustomXmlStoreItemXml],
         ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $sdtCustomXmlStoreItemRelationshipsXml],
         ['name' => 'customXml/itemProps1.xml', 'data' => $sdtCustomXmlStorePropertiesXml],
+    ]);
+};
+
+$buildDuplicateSdtCustomXmlStorePackage = static function () use (
+    $sdtDuplicateCustomXmlStoreContentTypesXml,
+    $sdtDuplicateCustomXmlStorePackageRelationshipsXml,
+    $sdtDataBindingPrefixDocumentXml,
+    $sdtCustomXmlStoreItemRelationshipsXml,
+    $sdtCustomXmlStoreItemXml,
+    $sdtCustomXmlStorePropertiesXml,
+    $sdtDuplicateCustomXmlStoreItem2RelationshipsXml,
+    $sdtDuplicateCustomXmlStoreItem2Xml,
+    $sdtDuplicateCustomXmlStoreProperties2Xml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $sdtDuplicateCustomXmlStoreContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $sdtDuplicateCustomXmlStorePackageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $sdtDataBindingPrefixDocumentXml],
+        ['name' => 'customXml/item1.xml', 'data' => $sdtCustomXmlStoreItemXml],
+        ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $sdtCustomXmlStoreItemRelationshipsXml],
+        ['name' => 'customXml/itemProps1.xml', 'data' => $sdtCustomXmlStorePropertiesXml],
+        ['name' => 'customXml/item2.xml', 'data' => $sdtDuplicateCustomXmlStoreItem2Xml],
+        ['name' => 'customXml/_rels/item2.xml.rels', 'data' => $sdtDuplicateCustomXmlStoreItem2RelationshipsXml],
+        ['name' => 'customXml/itemProps2.xml', 'data' => $sdtDuplicateCustomXmlStoreProperties2Xml],
     ]);
 };
 
@@ -10628,6 +10690,56 @@ return [
         $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $blocks);
         $t->contains('data-docx-sdt-custom-xml-root-name="wpd:packet"', $blocks);
         $t->contains('data-docx-sdt-custom-xml-schema-ref-1-uri="https://example.test/wp/docx/schema"', $blocks);
+    },
+    'reports DOCX duplicate custom XML store item ids without rebinding content controls' => static function (TestRunner $t) use ($buildDuplicateSdtCustomXmlStorePackage): void {
+        $result = (new DocxReader())->readPackage($buildDuplicateSdtCustomXmlStorePackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $store = $result['metadata']['docxCustomXmlStore'];
+        $t->same(2, $store['count']);
+        $t->same(1, $store['boundStoreItemCount']);
+        $t->same(1, $store['issueCount']);
+        $t->same(1, $store['duplicateStoreItemIDCount']);
+        $t->same(['{33333333-4444-5555-6666-777777777777}'], $store['duplicateStoreItemIDs']);
+        $t->same(0, $store['propertyIssueCount']);
+        $t->same([], $store['propertyIssueCodes']);
+        $t->same(['{33333333-4444-5555-6666-777777777777}'], array_keys($store['byStoreItemID']));
+        $t->same($store, $result['importReport']['customXmlStore']);
+
+        $firstItem = $store['items'][0];
+        $t->same('rIdCustomData', $firstItem['id']);
+        $t->same('/customXml/item1.xml', $firstItem['targetPart']);
+        $t->same('Migration packet Mapped summary block.', $firstItem['textPreview']);
+        $t->same('{33333333-4444-5555-6666-777777777777}', $firstItem['storeItemID']);
+        $t->same([], $firstItem['issues']);
+        $t->same($firstItem, $store['byStoreItemID']['{33333333-4444-5555-6666-777777777777}']);
+
+        $duplicateItem = $store['items'][1];
+        $t->same('rIdDuplicateCustomData', $duplicateItem['id']);
+        $t->same('/customXml/item2.xml', $duplicateItem['targetPart']);
+        $t->same('Duplicate summary block.', $duplicateItem['textPreview']);
+        $t->same('{33333333-4444-5555-6666-777777777777}', $duplicateItem['storeItemID']);
+        $t->same('/customXml/itemProps2.xml', $duplicateItem['propertiesPart']);
+        $t->same(['https://example.test/duplicate/schema'], $duplicateItem['schemaRefs']);
+        $t->same([], $duplicateItem['propertiesIssues']);
+        $t->same(['duplicate-store-item-id'], $duplicateItem['issues']);
+
+        $inlineAttrs = $document->children[0]->children[1]->attr('attributes');
+        $t->same('true', $inlineAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('/customXml/item1.xml', $inlineAttrs['data-docx-sdt-custom-xml-part']);
+        $t->same('Migration packet Mapped summary block.', $inlineAttrs['data-docx-sdt-custom-xml-text-preview']);
+
+        $blockAttrs = $document->children[1]->attr('attributes');
+        $t->same('true', $blockAttrs['data-docx-sdt-custom-xml-bound']);
+        $t->same('/customXml/item1.xml', $blockAttrs['data-docx-sdt-custom-xml-part']);
+        $t->same('wpd:packet', $blockAttrs['data-docx-sdt-custom-xml-root-name']);
+
+        $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-text-preview="Migration packet Mapped summary block."', $markdown);
+        $t->contains('data-docx-sdt-custom-xml-part="/customXml/item1.xml"', $blocks);
+        $t->contains('data-docx-sdt-custom-xml-text-preview="Migration packet Mapped summary block."', $blocks);
     },
     'reports DOCX custom XML property diagnostics for unbound content controls' => static function (TestRunner $t) use ($buildMalformedSdtCustomXmlStorePropertiesPackage): void {
         $result = (new DocxReader())->readPackage($buildMalformedSdtCustomXmlStorePropertiesPackage());
