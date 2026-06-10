@@ -157,9 +157,43 @@ final class NativeReader
             'LineBlock' => $this->lineBlock($attrs, $block['c'] ?? []),
             'HorizontalRule' => new AstNode('horizontal_rule', $attrs),
             'Div' => $this->divBlock($attrs, $block['c'] ?? []),
+            'Figure' => $this->figureBlock($attrs, $block['c'] ?? []),
             'Table' => $this->tableBlock($attrs, $block['c'] ?? []),
             default => new AstNode('native_block', $attrs),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function figureBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 3, 'Pandoc native JSON Figure content');
+        $attrs = array_replace(
+            $attrs,
+            $this->attrsFromTuple($tuple[0]),
+            $this->captionAttrs($tuple[1], 'Figure')
+        );
+
+        return new AstNode('figure', $attrs, $this->figureChildren($this->blockNodes($tuple[2])));
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function figureChildren(array $blocks): array
+    {
+        if (
+            count($blocks) === 1
+            && in_array($blocks[0]->type, ['plain', 'paragraph'], true)
+            && count($blocks[0]->children) === 1
+            && $blocks[0]->children[0]->type === 'image'
+        ) {
+            return [$blocks[0]->children[0]];
+        }
+
+        return $blocks;
     }
 
     /**
@@ -352,11 +386,19 @@ final class NativeReader
      */
     private function tableCaptionAttrs(mixed $caption): array
     {
-        $content = $this->constructorContent($caption, 'Caption', 'Pandoc native JSON Table caption', false);
-        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Table caption');
+        return $this->captionAttrs($caption, 'Table');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function captionAttrs(mixed $caption, string $context): array
+    {
+        $content = $this->constructorContent($caption, 'Caption', "Pandoc native JSON {$context} caption", false);
+        $tuple = $this->tuple($content, 2, "Pandoc native JSON {$context} caption");
         $attrs = [];
 
-        $shortCaptionInlines = $this->shortCaptionInlines($tuple[0]);
+        $shortCaptionInlines = $this->shortCaptionInlines($tuple[0], $context);
         if ($shortCaptionInlines !== []) {
             $attrs['shortCaptionInlines'] = $shortCaptionInlines;
             $attrs['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
@@ -383,7 +425,7 @@ final class NativeReader
     /**
      * @return list<AstNode>
      */
-    private function shortCaptionInlines(mixed $shortCaption): array
+    private function shortCaptionInlines(mixed $shortCaption, string $context = 'Table'): array
     {
         if ($shortCaption === null || $shortCaption === []) {
             return [];
@@ -399,7 +441,7 @@ final class NativeReader
         ) {
             $shortCaption = $shortCaption[0];
         }
-        $content = $this->constructorContent($shortCaption, 'ShortCaption', 'Pandoc native JSON Table short caption', false);
+        $content = $this->constructorContent($shortCaption, 'ShortCaption', "Pandoc native JSON {$context} short caption", false);
         if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
             $content = $content[0];
         }

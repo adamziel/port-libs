@@ -657,6 +657,101 @@ return [
         $t->same('definition_list', $generatedRoundTrip->children[5]->type);
         $t->same('Fallback line', $generatedRoundTrip->children[6]->children[1]->attr('text'));
     },
+    'maps native ast figure constructors through shared figure ast' => static function (TestRunner $t): void {
+        $nativeFigure = [
+            't' => 'Figure',
+            'c' => [
+                ['native-figure', ['wp-import'], [['data-source', 'native-json']]],
+                [
+                    [
+                        ['t' => 'Str', 'c' => 'Short'],
+                        ['t' => 'Space'],
+                        ['t' => 'Strong', 'c' => [
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Emph', 'c' => [
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                        ]],
+                    ],
+                ],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['native-image', ['asset'], [['data-image', 'source']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Alt'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'text'],
+                            ],
+                            ['media/figure.png', 'Figure title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$nativeFigure],
+        ];
+
+        $reader = new NativeReader();
+        $writer = new NativeWriter();
+        $document = $reader->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $figure = $document->children[0];
+        $image = $figure->children[0];
+        $captionInlines = $figure->attr('captionInlines');
+        $shortCaptionInlines = $figure->attr('shortCaptionInlines');
+        $roundTrip = json_decode($writer->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $generatedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('figure', [
+                'id' => 'generated-figure',
+                'classes' => ['native-review'],
+                'attributes' => ['data-source' => 'writer'],
+                'caption' => 'Generated caption',
+                'shortCaption' => 'Generated short',
+            ], [
+                new AstNode('image', [
+                    'classes' => ['generated-asset'],
+                    'url' => 'media/generated.png',
+                    'title' => 'Generated title',
+                    'alt' => 'Generated image',
+                ]),
+            ]),
+        ]);
+        $generated = json_decode($writer->write($generatedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $generatedRoundTrip = $reader->read(json_encode($generated, JSON_THROW_ON_ERROR));
+
+        $t->same('figure', $figure->type);
+        $t->same('native-figure', $figure->attr('id'));
+        $t->same(['wp-import'], $figure->attr('classes'));
+        $t->same(['data-source' => 'native-json'], $figure->attr('attributes'));
+        $t->same('Long caption', $figure->attr('caption'));
+        $t->same('Short figure', $figure->attr('shortCaption'));
+        $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $captionInlines));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
+        $t->same('image', $image->type);
+        $t->same('native-image', $image->attr('id'));
+        $t->same('Alt text', $image->attr('alt'));
+        $t->same('media/figure.png', $image->attr('url'));
+        $t->same($nativeFigure, $roundTrip['blocks'][0]);
+        $t->same('Figure', $generated['blocks'][0]['t']);
+        $t->same(['generated-figure', ['native-review'], [['data-source', 'writer']]], $generated['blocks'][0]['c'][0]);
+        $t->same('Generated', $generated['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Image', $generated['blocks'][0]['c'][2][0]['c'][0]['t']);
+        $t->same('figure', $generatedRoundTrip->children[0]->type);
+        $t->same('generated-figure', $generatedRoundTrip->children[0]->attr('id'));
+        $t->same('Generated caption', $generatedRoundTrip->children[0]->attr('caption'));
+        $t->same('image', $generatedRoundTrip->children[0]->children[0]->type);
+    },
     'maps native ast table captions into shared table metadata' => static function (TestRunner $t): void {
         $nativeTable = [
             't' => 'Table',
