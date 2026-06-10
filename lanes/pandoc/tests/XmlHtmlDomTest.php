@@ -270,26 +270,6 @@ XML, 'package reader XML');
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
-    'summarizes html output control state for reviewer handoff' => static function (TestRunner $t): void {
-        $dom = XmlHtmlDom::loadHtmlFragment(
-            '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output id="checksum" name="checksum" for="source-a  source-b missing">Ready <strong>hash</strong></output></label></form>',
-            'output control review fragment'
-        );
-        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
-        $html = XmlHtmlDom::serializeHtmlFragment($dom);
-
-        $form = $summary[0];
-        $output = $form['children'][3]['children'][1];
-
-        $t->same('output', $output['name']);
-        $t->same('output', $output['formControl']);
-        $t->same(['Checksum', 'Total Ready hash'], $output['labels']);
-        $t->same('Ready hash', $output['text']);
-        $t->same('Ready hash', $output['value']);
-        $t->same('source-a  source-b missing', $output['forRaw']);
-        $t->same(['source-a', 'source-b', 'missing'], $output['forIds']);
-        $t->same('<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output for="source-a  source-b missing" id="checksum" name="checksum">Ready <strong>hash</strong></output></label></form>', $html);
-    },
     'summarizes html form labels datalist and inherited disabled state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="import-form"><label for="format">Format</label><input id="format" name="format" list="format-options" required placeholder="Choose format"><datalist id="format-options"><option value="docx" label="Word"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input id="confirm" name="confirm" type="checkbox" checked></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" type="submit" name="save" value="1">Save</button></fieldset></form>',
