@@ -6102,6 +6102,87 @@ XML;
         $t->same($report, $result['importReport']['xhtmlResourceReport']);
         $t->same($report, $result['document']->attr('xhtmlResourceReport'));
     },
+    'reports EPUB XHTML image input package resources for form review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $imageInputXhtml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <form id="cover-review" action="../forms/review.xhtml" method="post">
+      <input id="cover-submit" name="cover" type="image" src="../images/cover.png" alt="Cover review" formaction="../forms/review.xhtml#cover"/>
+    </form>
+  </body>
+</html>
+XML;
+        $opfWithImageInput = str_replace(
+            '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            '<item id="image-input-content" href="text/image-input.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="form-review-target" href="forms/review.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+            $opfXml
+        );
+        $opfWithImageInput = str_replace(
+            '</spine>',
+            '<itemref idref="image-input-content"/></spine>',
+            $opfWithImageInput
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithImageInput,
+            null,
+            [
+                ['name' => 'OEBPS/text/image-input.xhtml', 'data' => $imageInputXhtml],
+                ['name' => 'OEBPS/forms/review.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><p id="cover">Review target</p></body></html>'],
+            ]
+        ));
+
+        $report = $result['xhtmlResourceReport'];
+        $asset = $report['itemsByPart']['/OEBPS/text/image-input.xhtml'];
+        $reference = $asset['references'][0];
+        $embedded = $asset['embeddedResources'][0];
+        $form = $asset['sideEffects'][0];
+        $submit = $asset['sideEffects'][1];
+        $scanBlock = $result['document']->children[2];
+
+        $t->same(1, $asset['referenceCount']);
+        $t->same('input', $reference['element']);
+        $t->same('src', $reference['attribute']);
+        $t->same('../images/cover.png', $reference['href']);
+        $t->same('/OEBPS/images/cover.png', $reference['part']);
+        $t->same('cover-image', $reference['manifestId']);
+        $t->same('image/png', $reference['mediaType']);
+        $t->same(7, $reference['byteLength']);
+        $t->same(true, $reference['canExposeBytes']);
+        $t->same([], $reference['diagnostics']);
+
+        $t->same(1, $asset['embeddedResourceCount']);
+        $t->same(['input-image'], $asset['embeddedResourceKinds']);
+        $t->same('input-image', $embedded['kind']);
+        $t->same('form-image-control', $embedded['policy']);
+        $t->same(0, $embedded['sourceReferenceIndex']);
+        $t->same(false, $embedded['requiresReview']);
+        $t->same('/OEBPS/images/cover.png', $embedded['part']);
+        $t->same('cover-image', $embedded['manifestId']);
+
+        $t->same(['side-effects'], $asset['reviewFlags']);
+        $t->same(2, $asset['sideEffectCount']);
+        $t->same('form', $form['kind']);
+        $t->same('image', $form['controls'][0]['type']);
+        $t->same(true, $form['controls'][0]['submit']);
+        $t->same('../images/cover.png', $form['controls'][0]['attributes']['src']);
+        $t->same('form-control', $submit['kind']);
+        $t->same('cover-submit', $submit['id']);
+        $t->same('../forms/review.xhtml#cover', $submit['formAction']);
+        $t->same('/OEBPS/forms/review.xhtml#cover', $submit['target']);
+        $t->same('form-review-target', $submit['manifestId']);
+
+        $t->same(['input-image'], $report['embeddedResourceKinds']);
+        $t->same(1, $report['embeddedResourceCount']);
+        $t->same(0, $report['externalEmbeddedResourceCount']);
+        $t->same(0, $report['missingEmbeddedResourceCount']);
+        $t->same($asset['references'], $scanBlock->attr('contentReferences'));
+        $t->same($asset['embeddedResources'], $scanBlock->attr('contentEmbeddedResources'));
+        $t->same($report, $result['importReport']['xhtmlResourceReport']);
+        $t->same($report, $result['document']->attr('xhtmlResourceReport'));
+    },
     'reports EPUB stylesheet resource references for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithCssAssets = str_replace(
             '<item id="style" href="styles/book.css" media-type="text/css"/>',

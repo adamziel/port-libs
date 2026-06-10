@@ -15910,6 +15910,9 @@ final class EpubReader
         if ($element === 'iframe' && $attribute === 'src') {
             return 'iframe';
         }
+        if ($element === 'input' && $attribute === 'src') {
+            return 'input-image';
+        }
 
         return null;
     }
@@ -15923,6 +15926,7 @@ final class EpubReader
             'track' => 'timed-text-track',
             'embed', 'object' => 'interactive-embedded-content',
             'iframe' => 'embedded-frame',
+            'input-image' => 'form-image-control',
             default => 'embedded-resource',
         };
     }
@@ -18933,6 +18937,7 @@ final class EpubReader
             'iframe' => ['src'],
             'image' => ['href', 'xlink:href'],
             'img' => ['src', 'srcset'],
+            'input' => ['src'],
             'link' => ['href'],
             'object' => ['data'],
             'script' => ['src'],
