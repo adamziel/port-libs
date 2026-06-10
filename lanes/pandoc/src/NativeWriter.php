@@ -130,6 +130,7 @@ final class NativeWriter
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->blocks($node->children)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->tableCaption($node), $this->figureBlocks($node)]],
             'table' => $this->tableBlock($node),
+            'null_block' => ['t' => 'Null'],
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
     }

@@ -159,6 +159,7 @@ final class NativeReader
             'Div' => $this->divBlock($attrs, $block['c'] ?? []),
             'Figure' => $this->figureBlock($attrs, $block['c'] ?? []),
             'Table' => $this->tableBlock($attrs, $block['c'] ?? []),
+            'Null' => new AstNode('null_block', $attrs),
             default => new AstNode('native_block', $attrs),
         };
     }

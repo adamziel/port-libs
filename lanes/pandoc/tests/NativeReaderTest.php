@@ -552,6 +552,7 @@ return [
                     ]],
                 ],
             ]],
+            ['t' => 'Null'],
             ['t' => 'HorizontalRule'],
         ];
         $native = [
@@ -576,6 +577,7 @@ return [
             'definition_list',
             'line_block',
             'div',
+            'null_block',
             'horizontal_rule',
         ], array_map(static fn (AstNode $node): string => $node->type, $document->children));
         $t->same(2, $document->children[0]->attr('level'));
@@ -629,6 +631,7 @@ return [
             new AstNode('div', ['id' => 'generated-div', 'attributes' => ['data-review' => 'native-core']], [
                 new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Generated div'])]),
             ]),
+            new AstNode('null_block'),
             new AstNode('horizontal_rule'),
         ]);
         $generated = json_decode($writer->write($generatedDocument), true, 512, JSON_THROW_ON_ERROR);
@@ -643,6 +646,7 @@ return [
             'DefinitionList',
             'LineBlock',
             'Div',
+            'Null',
             'HorizontalRule',
         ], array_map(static fn (array $block): string => $block['t'], $generated['blocks']));
         $t->same(['generated-heading', ['core-block'], []], $generated['blocks'][0]['c'][1]);
@@ -656,6 +660,7 @@ return [
         $t->same('Generated block', $generatedRoundTrip->children[0]->attr('text'));
         $t->same('definition_list', $generatedRoundTrip->children[5]->type);
         $t->same('Fallback line', $generatedRoundTrip->children[6]->children[1]->attr('text'));
+        $t->same('null_block', $generatedRoundTrip->children[8]->type);
     },
     'maps native ast figure constructors through shared figure ast' => static function (TestRunner $t): void {
         $nativeFigure = [

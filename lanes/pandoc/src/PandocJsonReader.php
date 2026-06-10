@@ -359,6 +359,7 @@ final class PandocJsonReader
             'Div' => $this->readDivBlock($content),
             'Figure' => $this->readFigureBlock($content),
             'Table' => $this->readTableBlock($content),
+            'Null' => new AstNode('null_block'),
             default => throw new \InvalidArgumentException("Unsupported Pandoc block constructor: {$tag}"),
         };
     }

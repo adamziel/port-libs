@@ -311,6 +311,7 @@ final class PandocJsonWriter
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),
+            'null_block' => ['t' => 'Null'],
             default => throw new \InvalidArgumentException("Unsupported AST block node for Pandoc JSON: {$node->type}"),
         };
     }
