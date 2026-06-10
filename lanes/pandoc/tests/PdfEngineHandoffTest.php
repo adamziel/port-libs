@@ -95,6 +95,7 @@ return [
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
             'engine' => 'typst',
+            'sourcePath' => 'workspace/build/boundary.typ',
             'outputPath' => 'build/boundary.pdf',
             'source' => '= Typst Boundary Packet',
             'engineOptions' => [
@@ -109,7 +110,7 @@ return [
             ],
         ]);
         $pdfBytes = "%PDF-1.7\n% fake Typst boundary provenance packet\n%%EOF\n";
-        $depfile = "build/boundary.pdf: build/boundary.typ\n";
+        $depfile = "build/boundary.pdf: workspace/build/boundary.typ\n";
         $expected = [
             'reviewStatus' => 'review',
             'root' => ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
@@ -285,21 +286,28 @@ return [
 
         $t->same('typst', $plan['engine']);
         $t->same('build/review.d', $plan['engineDependencyFile']);
+        $t->same('.', $plan['engineBoundaryRoot']);
         $t->same(['build/review.d'], $plan['expectedEngineArtifacts']);
         $t->contains('pdf-engine-dependency-file:build/review.d', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-engine-boundary-root:.', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same(['build/review.d' => hash('sha256', $depfile)], $result['engineDependencyArtifactsSha256']);
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $result['engineInputFiles']);
         $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
         $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
         $t->same(['build/review.pdf'], $result['engineOutputFiles']);
+        $t->same('.', $result['engineBoundaryRoot']);
+        $t->same([], $result['engineBoundaryViolations']);
         $t->same([], $result['artifactProvenanceReview']['missingExpectedEngineArtifacts']);
         $t->same(['build/review.d'], $result['artifactProvenanceReview']['expectedEngineArtifacts']);
+        $t->same('.', $result['artifactProvenanceReview']['engineBoundaryRoot']);
+        $t->same([], $result['artifactProvenanceReview']['engineBoundaryViolations']);
         $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
         $t->contains('engine-dependency-files:3', implode(',', $result['diagnostics']));
         $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
         $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
         $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-boundary-root:.', implode(',', $result['diagnostics']));
         $t->contains('artifact-provenance-review:ok', implode(',', $result['diagnostics']));
         $t->same(false, $missing['ok']);
         $t->same('missing-engine-input-file', $missing['reason']);
@@ -308,6 +316,53 @@ return [
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $sequence['finalEngineInputFiles']);
         $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineExternalInputFiles']);
         $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
+        $t->same('.', $sequence['finalEngineBoundaryRoot']);
+        $t->same([], $sequence['finalEngineBoundaryViolations']);
+    },
+
+    'fake runner rejects typst dependency inputs outside declared root boundary' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'docs/review.typ',
+            'outputPath' => 'build/review.pdf',
+            'source' => '= Review Packet',
+            'engineOptions' => ['--root=docs', '--deps=build/review.d', '--deps-format=make'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary packet\n%%EOF\n";
+        $depfile = 'build/review.pdf: docs/review.typ docs/figures/logo.svg shared/logo.svg';
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/review.d' => $depfile,
+                'build/review.pdf' => $pdfBytes,
+                'docs/figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                'shared/logo.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/review.d' => $depfile,
+                'build/review.pdf' => $pdfBytes,
+                'docs/figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                'shared/logo.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]]);
+
+        $t->same('docs', $plan['engineBoundaryRoot']);
+        $t->contains('pdf-engine-boundary-root:docs', implode(',', $plan['diagnostics']));
+        $t->same(false, $result['ok']);
+        $t->same('engine-boundary-violation', $result['reason']);
+        $t->same(['docs/figures/logo.svg', 'docs/review.typ', 'shared/logo.svg'], $result['engineInputFiles']);
+        $t->same([], $result['missingEngineInputFiles']);
+        $t->same('docs', $result['engineBoundaryRoot']);
+        $t->same(['shared/logo.svg'], $result['engineBoundaryViolations']);
+        $t->same('failed', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same('docs', $result['artifactProvenanceReview']['engineBoundaryRoot']);
+        $t->same(['shared/logo.svg'], $result['artifactProvenanceReview']['engineBoundaryViolations']);
+        $t->contains('engine-boundary-violations:1', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('engine-boundary-violation:shared/logo.svg', implode(',', $result['diagnostics']));
+        $t->same(['shared/logo.svg'], $sequence['finalEngineBoundaryViolations']);
     },
 
     'fake runner exposes structured typst package dependency provenance' => static function (TestRunner $t) use ($document): void {
