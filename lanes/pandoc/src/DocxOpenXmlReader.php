@@ -20,6 +20,7 @@ final class DocxOpenXmlReader
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
 
@@ -72,6 +73,8 @@ final class DocxOpenXmlReader
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
         $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
+        $webSettingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::WEB_SETTINGS_REL, 'webSettings.xml');
+        $webSettings = $this->readWebSettings($webSettingsPart['xml'], $webSettingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
@@ -94,6 +97,8 @@ final class DocxOpenXmlReader
                 'numbering' => $numbering,
                 'settingsPart' => $settingsPart['partName'],
                 'settings' => $settings,
+                'webSettingsPart' => $webSettingsPart['partName'],
+                'webSettings' => $webSettings,
                 'fontTablePart' => $fontTablePart['partName'],
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
@@ -138,6 +143,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $settingsPart['partName'],
                 $settingsPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($webSettingsPart['relationship'] !== null) {
+            $attrs['docx']['webSettingsRelationship'] = $this->relationshipSummary(
+                $webSettingsPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $webSettingsPart['partName'],
+                $webSettingsPart['exists'],
                 $contentTypes,
             );
         }
@@ -649,6 +664,55 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readWebSettings(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $webSettings = [];
+
+        foreach ([
+            'optimizeForBrowser' => 'optimizeForBrowser',
+            'allowPNG' => 'allowPng',
+            'relyOnVML' => 'relyOnVml',
+            'doNotRelyOnCSS' => 'doNotRelyOnCss',
+            'doNotSaveAsSingleFile' => 'doNotSaveAsSingleFile',
+            'doNotOrganizeInFolder' => 'doNotOrganizeInFolder',
+            'doNotUseLongFileNames' => 'doNotUseLongFileNames',
+        ] as $source => $target) {
+            $element = $this->firstElement($xpath, '/w:webSettings/w:' . $source, $dom);
+            if ($element instanceof \DOMElement) {
+                $webSettings[$target] = $this->wordBoolean($element);
+            }
+        }
+
+        foreach ([
+            'encoding' => 'encoding',
+            'targetScreenSz' => 'targetScreenSize',
+        ] as $source => $target) {
+            $element = $this->firstElement($xpath, '/w:webSettings/w:' . $source, $dom);
+            if ($element instanceof \DOMElement) {
+                $value = $element->getAttributeNS(self::NS_W, 'val');
+                if ($value !== '') {
+                    $webSettings[$target] = $value;
+                }
+            }
+        }
+
+        $pixelsPerInch = $this->firstElement($xpath, '/w:webSettings/w:pixelsPerInch', $dom);
+        if ($pixelsPerInch instanceof \DOMElement && is_numeric($pixelsPerInch->getAttributeNS(self::NS_W, 'val'))) {
+            $webSettings['pixelsPerInch'] = (int) $pixelsPerInch->getAttributeNS(self::NS_W, 'val');
+        }
+
+        return $webSettings;
     }
 
     /**

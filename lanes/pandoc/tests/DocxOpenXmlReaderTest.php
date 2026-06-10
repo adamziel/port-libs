@@ -283,6 +283,60 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/review-web-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="web/review-web-settings.xml?profile=browser#web"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/web/review-web-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser/>
+  <w:allowPNG w:val="0"/>
+  <w:relyOnVML w:val="off"/>
+  <w:doNotRelyOnCSS w:val="1"/>
+  <w:doNotSaveAsSingleFile/>
+  <w:doNotOrganizeInFolder w:val="true"/>
+  <w:doNotUseLongFileNames w:val="false"/>
+  <w:encoding w:val="UTF-8"/>
+  <w:targetScreenSz w:val="1024x768"/>
+  <w:pixelsPerInch w:val="144"/>
+</w:webSettings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $webSettings = $docx['webSettings'];
+
+        $t->same('word/web/review-web-settings.xml', $docx['webSettingsPart']);
+        $t->same('rWebSettings', $docx['webSettingsRelationship']['id']);
+        $t->same('word/document.xml', $docx['webSettingsRelationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $docx['webSettingsRelationship']['relationshipsPart']);
+        $t->same('web/review-web-settings.xml?profile=browser#web', $docx['webSettingsRelationship']['target']);
+        $t->same('word/web/review-web-settings.xml?profile=browser#web', $docx['webSettingsRelationship']['resolvedTarget']);
+        $t->same('word/web/review-web-settings.xml', $docx['webSettingsRelationship']['targetPart']);
+        $t->same(true, $docx['webSettingsRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $docx['webSettingsRelationship']['contentType']);
+        $t->same(true, $webSettings['optimizeForBrowser']);
+        $t->same(false, $webSettings['allowPng']);
+        $t->same(false, $webSettings['relyOnVml']);
+        $t->same(true, $webSettings['doNotRelyOnCss']);
+        $t->same(true, $webSettings['doNotSaveAsSingleFile']);
+        $t->same(true, $webSettings['doNotOrganizeInFolder']);
+        $t->same(false, $webSettings['doNotUseLongFileNames']);
+        $t->same('UTF-8', $webSettings['encoding']);
+        $t->same('1024x768', $webSettings['targetScreenSize']);
+        $t->same(144, $webSettings['pixelsPerInch']);
+    },
     'resolves docx theme font and color scheme from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
