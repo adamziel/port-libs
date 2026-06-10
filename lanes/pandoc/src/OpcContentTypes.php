@@ -20,8 +20,8 @@ final class OpcContentTypes
     public static function fromXml(string $xml): self
     {
         $dom = self::loadXml($xml);
-        $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'Types' || $root->namespaceURI !== self::NAMESPACE_URI) {
+        $root = XmlHtmlDom::rootElement($dom, 'Types', self::NAMESPACE_URI);
+        if (!$root instanceof \DOMElement) {
             throw new \InvalidArgumentException('OPC content-types XML must use the package content-types namespace');
         }
 
@@ -69,8 +69,8 @@ final class OpcContentTypes
 
         try {
             $dom = self::loadXml($xml);
-            $root = $dom->documentElement;
-            if (!$root instanceof \DOMElement || $root->localName !== 'Types' || $root->namespaceURI !== self::NAMESPACE_URI) {
+            $root = XmlHtmlDom::rootElement($dom, 'Types', self::NAMESPACE_URI);
+            if (!$root instanceof \DOMElement) {
                 throw new \InvalidArgumentException('OPC content-types XML must use the package content-types namespace');
             }
 

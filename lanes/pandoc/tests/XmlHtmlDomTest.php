@@ -44,6 +44,44 @@ return [
             'review PI XML'
         ));
     },
+    'queries namespaced XML DOM nodes for package reader handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<pkg:package xmlns:pkg="urn:pkg" xmlns:w="urn:word" xmlns:rel="urn:relationship" rel:id="root">
+  <pkg:metadata>
+    <w:title xml:lang="en">  Review
+      Packet </w:title>
+    <w:title xml:lang="fr">Ignored</w:title>
+  </pkg:metadata>
+  <pkg:body>
+    <w:p rel:id="rId1"> First <w:r> run </w:r></w:p>
+    <pkg:p>Package paragraph</pkg:p>
+  </pkg:body>
+</pkg:package>
+XML, 'package reader XML');
+        $root = XmlHtmlDom::rootElement($dom, 'package', 'urn:pkg');
+        $metadata = $root instanceof DOMElement ? XmlHtmlDom::firstChildElement($root, 'metadata', 'urn:pkg') : null;
+        $body = $root instanceof DOMElement ? XmlHtmlDom::firstChildElement($root, 'body', 'urn:pkg') : null;
+        $titles = $root instanceof DOMElement ? XmlHtmlDom::descendantElements($root, 'title', 'urn:word') : [];
+        $paragraph = $body instanceof DOMElement ? XmlHtmlDom::firstDescendantElement($body, 'p', 'urn:word') : null;
+
+        $t->true($root instanceof DOMElement);
+        $t->true(XmlHtmlDom::elementMatches($root, 'package', 'urn:pkg'));
+        $t->true(XmlHtmlDom::elementMatches($root, null, 'urn:pkg'));
+        $t->true(!XmlHtmlDom::elementMatches($root, 'package', 'urn:word'));
+        $t->same($root, XmlHtmlDom::rootElement($dom, null, 'urn:pkg'));
+        $t->same(null, XmlHtmlDom::rootElement($dom, 'package', 'urn:word'));
+        $t->true($metadata instanceof DOMElement);
+        $t->true($body instanceof DOMElement);
+        $t->same(2, count($titles));
+        $t->same('Review Packet', XmlHtmlDom::normalizedText($titles[0]));
+        $t->same('en', XmlHtmlDom::attribute($titles[0], 'lang', 'http://www.w3.org/XML/1998/namespace'));
+        $t->same('root', XmlHtmlDom::attribute($root, 'id', 'urn:relationship'));
+        $t->same(null, XmlHtmlDom::attribute($root, 'missing', 'urn:relationship'));
+        $t->same(0, count($root instanceof DOMElement ? XmlHtmlDom::childElements($root, 'p', 'urn:word') : []));
+        $t->true($paragraph instanceof DOMElement);
+        $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
+        $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',

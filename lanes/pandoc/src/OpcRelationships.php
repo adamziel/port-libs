@@ -25,8 +25,8 @@ final class OpcRelationships
     public static function fromXml(string $xml, string $sourcePartName = '/'): self
     {
         $dom = self::loadXml($xml);
-        $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'Relationships' || $root->namespaceURI !== self::NAMESPACE_URI) {
+        $root = XmlHtmlDom::rootElement($dom, 'Relationships', self::NAMESPACE_URI);
+        if (!$root instanceof \DOMElement) {
             throw new \InvalidArgumentException('OPC relationships XML must use the package relationships namespace');
         }
 

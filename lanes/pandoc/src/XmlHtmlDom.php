@@ -313,6 +313,132 @@ final class XmlHtmlDom
         return $dom;
     }
 
+    public static function rootElement(\DOMDocument $dom, ?string $localName = null, ?string $namespace = null): ?\DOMElement
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !self::elementMatches($root, $localName, $namespace)) {
+            return null;
+        }
+
+        return $root;
+    }
+
+    public static function elementMatches(\DOMElement $element, ?string $localName = null, ?string $namespace = null): bool
+    {
+        if ($localName !== null && $element->localName !== $localName) {
+            return false;
+        }
+
+        if ($namespace !== null && ($element->namespaceURI ?? '') !== $namespace) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    public static function childElements(\DOMElement $element, ?string $localName = null, ?string $namespace = null): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !self::elementMatches($child, $localName, $namespace)) {
+                continue;
+            }
+
+            $children[] = $child;
+        }
+
+        return $children;
+    }
+
+    public static function firstChildElement(\DOMElement $element, ?string $localName = null, ?string $namespace = null): ?\DOMElement
+    {
+        foreach (self::childElements($element, $localName, $namespace) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    public static function descendantElements(\DOMElement $element, ?string $localName = null, ?string $namespace = null): array
+    {
+        $descendants = [];
+        $stack = [];
+        for ($index = $element->childNodes->length - 1; $index >= 0; --$index) {
+            $child = $element->childNodes->item($index);
+            if ($child instanceof \DOMElement) {
+                $stack[] = $child;
+            }
+        }
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if (self::elementMatches($node, $localName, $namespace)) {
+                $descendants[] = $node;
+            }
+
+            for ($index = $node->childNodes->length - 1; $index >= 0; --$index) {
+                $child = $node->childNodes->item($index);
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        return $descendants;
+    }
+
+    public static function firstDescendantElement(\DOMElement $element, ?string $localName = null, ?string $namespace = null): ?\DOMElement
+    {
+        $stack = [];
+        for ($index = $element->childNodes->length - 1; $index >= 0; --$index) {
+            $child = $element->childNodes->item($index);
+            if ($child instanceof \DOMElement) {
+                $stack[] = $child;
+            }
+        }
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if (self::elementMatches($node, $localName, $namespace)) {
+                return $node;
+            }
+
+            for ($index = $node->childNodes->length - 1; $index >= 0; --$index) {
+                $child = $node->childNodes->item($index);
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public static function attribute(\DOMElement $element, string $localName, ?string $namespace = null): ?string
+    {
+        if ($namespace !== null && $namespace !== '') {
+            return $element->hasAttributeNS($namespace, $localName)
+                ? $element->getAttributeNS($namespace, $localName)
+                : null;
+        }
+
+        return $element->hasAttribute($localName) ? $element->getAttribute($localName) : null;
+    }
+
     public static function fragmentRoot(\DOMDocument $dom): ?\DOMElement
     {
         foreach ($dom->getElementsByTagName('div') as $element) {
