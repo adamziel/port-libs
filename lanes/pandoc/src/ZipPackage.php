@@ -4088,6 +4088,8 @@ final class ZipPackage
      *     missingEntryCount:int,
      *     missingRequiredEntryCount:int,
      *     missingOptionalEntryCount:int,
+     *     duplicateRequestGroupCount:int,
+     *     duplicateRequestedEntryCount:int,
      *     handoffEntryCount:int,
      *     readableEntryCount:int,
      *     failedEntryCount:int,
@@ -4097,6 +4099,8 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     duplicateRequestGroups:list<array<string, mixed>>,
+     *     duplicateRequestedEntries:list<array<string, mixed>>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -4117,9 +4121,12 @@ final class ZipPackage
         $optionalEntryCount = 0;
         $missingRequiredEntryCount = 0;
         $missingOptionalEntryCount = 0;
+        $duplicateRequestedEntryCount = 0;
         $directoryMismatchEntryCount = 0;
         $oversizedEntryCount = 0;
         $unreadableEntryCount = 0;
+        $normalizedRequests = [];
+        $requestsByDuplicateKey = [];
 
         foreach ($requests as $requestIndex => $request) {
             if (is_string($request)) {
@@ -4155,7 +4162,67 @@ final class ZipPackage
             $required ? $requiredEntryCount++ : $optionalEntryCount++;
 
             $name = $this->normalizeLookupPartName($requestedName);
+            $normalizedRequest = [
+                'requestIndex' => $requestIndex,
+                'requestedName' => $requestedName,
+                'name' => $name,
+                'role' => $role,
+                'required' => $required,
+                'expectedKind' => $expectedKind,
+                'maxUncompressedBytes' => $entryMaxUncompressedBytes,
+            ];
+            $normalizedRequests[] = $normalizedRequest;
+            $requestsByDuplicateKey[$name . "\0" . $expectedKind][] = $normalizedRequest;
+        }
+
+        $duplicateRequestGroups = [];
+        $duplicateRequestIndexesByKey = [];
+        foreach ($requestsByDuplicateKey as $duplicateKey => $requestGroup) {
+            if (count($requestGroup) < 2) {
+                continue;
+            }
+
+            $name = $requestGroup[0]['name'];
+            $requestIndexes = array_map(static fn (array $request): int => $request['requestIndex'], $requestGroup);
+            $roles = array_values(array_unique(array_filter(
+                array_map(static fn (array $request): ?string => $request['role'], $requestGroup),
+                static fn (?string $role): bool => $role !== null
+            )));
+            $expectedKinds = array_values(array_unique(array_map(
+                static fn (array $request): string => $request['expectedKind'],
+                $requestGroup
+            )));
+            $requiredCountForGroup = count(array_filter(
+                $requestGroup,
+                static fn (array $request): bool => $request['required']
+            ));
+
+            $duplicateRequestIndexesByKey[$duplicateKey] = $requestIndexes;
+            $duplicateRequestGroups[] = [
+                'name' => $name,
+                'requestIndexes' => $requestIndexes,
+                'requestedNames' => array_map(
+                    static fn (array $request): string => $request['requestedName'],
+                    $requestGroup
+                ),
+                'roles' => $roles,
+                'expectedKinds' => $expectedKinds,
+                'requiredCount' => $requiredCountForGroup,
+                'optionalCount' => count($requestGroup) - $requiredCountForGroup,
+            ];
+        }
+
+        foreach ($normalizedRequests as $request) {
+            $requestIndex = $request['requestIndex'];
+            $requestedName = $request['requestedName'];
+            $name = $request['name'];
+            $role = $request['role'];
+            $required = $request['required'];
+            $expectedKind = $request['expectedKind'];
+            $entryMaxUncompressedBytes = $request['maxUncompressedBytes'];
             $entry = $this->entriesByName[$name] ?? null;
+            $duplicateRequestIndexes = $duplicateRequestIndexesByKey[$name . "\0" . $expectedKind] ?? [];
+            $isDuplicateRequest = $duplicateRequestIndexes !== [];
             $entryIssues = [];
             $error = null;
             $bytesRead = null;
@@ -4179,6 +4246,8 @@ final class ZipPackage
                 'crc32' => null,
                 'crc32Hex' => null,
                 'maxUncompressedBytes' => $entryMaxUncompressedBytes,
+                'isDuplicateRequest' => $isDuplicateRequest,
+                'duplicateRequestIndexes' => $duplicateRequestIndexes,
                 'isReadable' => false,
                 'bytesRead' => null,
                 'contentSha256' => null,
@@ -4186,6 +4255,12 @@ final class ZipPackage
                 'error' => null,
                 'issues' => [],
             ];
+
+            if ($isDuplicateRequest) {
+                $entryIssues[] = 'duplicate-requested-entry';
+                $duplicateRequestedEntryCount++;
+                self::appendUniqueIssue($issues, 'duplicate-requested-entry');
+            }
 
             if ($entry === null) {
                 $status = $required ? 'missing-required' : 'missing-optional';
@@ -4275,6 +4350,8 @@ final class ZipPackage
             'missingEntryCount' => count($missingEntries),
             'missingRequiredEntryCount' => $missingRequiredEntryCount,
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
+            'duplicateRequestGroupCount' => count($duplicateRequestGroups),
+            'duplicateRequestedEntryCount' => $duplicateRequestedEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'readableEntryCount' => count($handoffEntries),
             'failedEntryCount' => count($failedEntries),
@@ -4284,6 +4361,11 @@ final class ZipPackage
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'duplicateRequestGroups' => $duplicateRequestGroups,
+            'duplicateRequestedEntries' => array_values(array_filter(
+                $entries,
+                static fn (array $entry): bool => $entry['isDuplicateRequest']
+            )),
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
