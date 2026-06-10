@@ -251,6 +251,66 @@ return [
         $t->same(1, $report['textBoxes']['count']);
         $t->same(1, $report['styles']['listCount']);
     },
+    'reports compact ODT manifest package inventory anomalies' => static function (TestRunner $t) use ($buildPackage): void {
+        $manifestWithInventory = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/" manifest:media-type=""/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="999"/>
+  <manifest:file-entry manifest:full-path="Pictures/encrypted.png" manifest:media-type="image/png" manifest:size="20">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="review-checksum"/>
+  </manifest:file-entry>
+</manifest:manifest>
+XML;
+
+        $result = (new OdtReader())->readPackage($buildPackage([
+            'META-INF/manifest.xml' => $manifestWithInventory,
+            'Pictures/encrypted.png' => 'LOCKEDDATA',
+            'Thumbnails/thumbnail.png' => 'THUMBDATA',
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['path']] = $item;
+        }
+        $manifestReport = $result['importReport']['manifest'];
+        $summary = $manifestReport['mediaTypeSummary'];
+        $groupsByMediaType = [];
+        foreach ($summary['items'] as $item) {
+            $groupsByMediaType[$item['mediaType']] = $item;
+        }
+
+        $t->same(7, $result['importReport']['manifestEntryCount']);
+        $t->same(7, $manifestReport['count']);
+        $t->same(true, $manifestByPath['Pictures/']['isDirectory']);
+        $t->same(true, $manifestByPath['Pictures/']['exists']);
+        $t->same(true, $manifestByPath['Pictures/hero.png']['declaredSizeMismatch']);
+        $t->same(999, $manifestByPath['Pictures/hero.png']['declaredSize']);
+        $t->same(7, $manifestByPath['Pictures/hero.png']['byteLength']);
+        $t->same(true, $manifestByPath['Pictures/encrypted.png']['encrypted']);
+        $t->same(false, $manifestByPath['Pictures/encrypted.png']['canExposeBytes']);
+        $t->same(1, $manifestReport['directoryCount']);
+        $t->same('Pictures/', $manifestReport['directoryEntries'][0]['path']);
+        $t->same(1, $manifestReport['declaredSizeMismatchCount']);
+        $t->same('Pictures/hero.png', $manifestReport['declaredSizeMismatches'][0]['path']);
+        $t->same(1, $manifestReport['undeclaredEntryCount']);
+        $t->same('Thumbnails/thumbnail.png', $manifestReport['undeclaredEntries'][0]['part']);
+        $t->same('odt-manifest-undeclared-package-entry', $manifestReport['undeclaredEntries'][0]['diagnostic']);
+        $t->same(1, $summary['directoryCount']);
+        $t->same(1, $summary['emptyMediaTypeCount']);
+        $t->same(['Pictures/'], $summary['emptyMediaTypeParts']);
+        $t->same(1, $summary['encryptedCount']);
+        $t->same(1, $summary['declaredSizeMismatchCount']);
+        $t->same(2, $groupsByMediaType['image/png']['count']);
+        $t->same(['Pictures/hero.png', 'Pictures/encrypted.png'], $groupsByMediaType['image/png']['parts']);
+        $t->same(1, $groupsByMediaType['image/png']['encryptedCount']);
+        $t->same(1, $groupsByMediaType['image/png']['declaredSizeMismatchCount']);
+        $t->same(17, $groupsByMediaType['image/png']['storedByteLength']);
+        $t->same(7, $groupsByMediaType['image/png']['exposableByteLength']);
+        $t->same(1019, $groupsByMediaType['image/png']['declaredSize']);
+    },
     'reports ODT style reference diagnostics for import review' => static function (TestRunner $t) use ($buildPackage): void {
         $contentWithPlainParagraph = <<<'XML'
 <office:document-content

@@ -22,7 +22,7 @@ final class OdtReader
     public const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
 
     /**
-     * @return array{document:AstNode, metadata:array<string, string>, importReport:array<string, mixed>, manifest:list<array{path:string, mediaType:string, encrypted:bool, size:?int}>}
+     * @return array{document:AstNode, metadata:array<string, string>, importReport:array<string, mixed>, manifest:list<array<string, mixed>>}
      */
     public function readPackage(ZipPackage $package): array
     {
@@ -70,7 +70,7 @@ final class OdtReader
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, encrypted:bool, size:?int}>
+     * @return list<array<string, mixed>>
      */
     private function readManifest(ZipPackage $package): array
     {
@@ -96,11 +96,27 @@ final class OdtReader
             }
 
             $size = $this->manifestAttr($child, 'size');
+            $declaredSize = $size !== null && preg_match('/^\d+$/', $size) === 1 ? (int) $size : null;
+            $part = $path === '/' ? null : $this->manifestPackagePart($path);
+            $isDirectory = is_string($part) && str_ends_with($part, '/');
+            $exists = $part === null || $isDirectory || $package->has($part);
+            $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
+            $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $encrypted = $this->firstChildElement($child, self::MANIFEST_NS, 'encryption-data') instanceof \DOMElement;
             $entries[] = [
                 'path' => $path,
+                'fullPath' => $path,
+                'part' => $part,
                 'mediaType' => (string) ($this->manifestAttr($child, 'media-type') ?? ''),
-                'encrypted' => $this->firstChildElement($child, self::MANIFEST_NS, 'encryption-data') instanceof \DOMElement,
-                'size' => $size !== null && preg_match('/^\d+$/', $size) === 1 ? (int) $size : null,
+                'encrypted' => $encrypted,
+                'size' => $declaredSize,
+                'declaredSize' => $declaredSize,
+                'exists' => $exists,
+                'isDirectory' => $isDirectory,
+                'byteLength' => $byteLength,
+                'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSizeMismatch' => !$encrypted && $declaredSize !== null && $byteLength !== null && $declaredSize !== $byteLength,
+                'canExposeBytes' => !$encrypted && !$isDirectory,
             ];
         }
 
@@ -1044,7 +1060,7 @@ final class OdtReader
     }
 
     /**
-     * @param list<array{path:string, mediaType:string, encrypted:bool, size:?int}> $manifest
+     * @param list<array<string, mixed>> $manifest
      * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styleCatalog
      * @return array<string, mixed>
      */
@@ -1061,12 +1077,14 @@ final class OdtReader
             static fn (array $entry): bool => $entry['encrypted'] === true
         ));
         $styleDiagnostics = $this->styleDiagnostics($styleCatalog);
+        $manifestReport = $this->manifestImportReport($package, $manifest);
 
         return [
             'mimetype' => $mimetype === '' ? self::ODT_MIMETYPE : $mimetype,
             'manifestEntryCount' => count($manifest),
             'encryptedEntryCount' => count($encrypted),
             'encryptedEntries' => array_map(static fn (array $entry): string => $entry['path'], $encrypted),
+            'manifest' => $manifestReport,
             'media' => $images,
             'styles' => [
                 'count' => count($styleCatalog['styles']),
@@ -1094,6 +1112,205 @@ final class OdtReader
                 'count' => $this->countNodesOfType($document, 'div', null, 'odt-text-box'),
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestImportReport(ZipPackage $package, array $manifest): array
+    {
+        $directoryEntries = array_values(array_filter(
+            $manifest,
+            static fn (array $entry): bool => ($entry['isDirectory'] ?? false) === true
+        ));
+        $declaredSizeMismatches = array_values(array_filter(
+            $manifest,
+            static fn (array $entry): bool => ($entry['declaredSizeMismatch'] ?? false) === true
+        ));
+        $missingItems = array_values(array_filter(
+            $manifest,
+            static fn (array $entry): bool => ($entry['exists'] ?? false) !== true
+        ));
+        $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
+
+        return [
+            'count' => count($manifest),
+            'directoryCount' => count($directoryEntries),
+            'directoryEntries' => $directoryEntries,
+            'missingCount' => count($missingItems),
+            'missingItems' => $missingItems,
+            'undeclaredEntryCount' => count($undeclaredEntries),
+            'undeclaredEntries' => $undeclaredEntries,
+            'declaredSizeMismatchCount' => count($declaredSizeMismatches),
+            'declaredSizeMismatches' => array_map(
+                static fn (array $entry): array => self::withoutEmpty([
+                    'path' => $entry['path'] ?? null,
+                    'mediaType' => $entry['mediaType'] ?? null,
+                    'declaredSize' => $entry['declaredSize'] ?? null,
+                    'byteLength' => $entry['byteLength'] ?? null,
+                    'crc32' => $entry['crc32'] ?? null,
+                ]),
+                $declaredSizeMismatches
+            ),
+            'mediaTypeSummary' => $this->manifestMediaTypeSummary($manifest),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function manifestUndeclaredPackageEntries(ZipPackage $package, array $manifest): array
+    {
+        $declared = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        foreach ($manifest as $entry) {
+            $part = $entry['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $declared[$part] = true;
+            }
+        }
+
+        $entries = [];
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory() || isset($declared[$entry->name])) {
+                continue;
+            }
+
+            $entries[] = [
+                'part' => $entry->name,
+                'diagnostic' => 'odt-manifest-undeclared-package-entry',
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'crc32' => $entry->crc32Hex(),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestMediaTypeSummary(array $manifest): array
+    {
+        $groups = [];
+        $groupOrder = [];
+        $emptyMediaTypeParts = [];
+        $summary = [
+            'manifestItemCount' => count($manifest),
+            'typedItemCount' => 0,
+            'mediaTypeCount' => 0,
+            'emptyMediaTypeCount' => 0,
+            'emptyMediaTypeParts' => [],
+            'directoryCount' => 0,
+            'missingCount' => 0,
+            'encryptedCount' => 0,
+            'declaredSizeMismatchCount' => 0,
+            'storedByteLength' => 0,
+            'exposableByteLength' => 0,
+            'declaredSize' => 0,
+            'items' => [],
+        ];
+
+        foreach ($manifest as $entry) {
+            $part = (string) ($entry['path'] ?? $entry['part'] ?? '/');
+            $mediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $exists = ($entry['exists'] ?? false) === true;
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declaredSizeMismatch = ($entry['declaredSizeMismatch'] ?? false) === true;
+            $byteLength = $entry['byteLength'] ?? null;
+            $declaredSize = $entry['declaredSize'] ?? null;
+
+            if ($isDirectory) {
+                ++$summary['directoryCount'];
+            }
+            if (!$exists) {
+                ++$summary['missingCount'];
+            }
+            if ($encrypted) {
+                ++$summary['encryptedCount'];
+            }
+            if ($declaredSizeMismatch) {
+                ++$summary['declaredSizeMismatchCount'];
+            }
+            if (is_int($byteLength)) {
+                $summary['storedByteLength'] += $byteLength;
+                if (($entry['canExposeBytes'] ?? false) === true) {
+                    $summary['exposableByteLength'] += $byteLength;
+                }
+            }
+            if (is_int($declaredSize)) {
+                $summary['declaredSize'] += $declaredSize;
+            }
+
+            if ($mediaType === '') {
+                $emptyMediaTypeParts[] = $part;
+                continue;
+            }
+
+            if (!isset($groups[$mediaType])) {
+                $groups[$mediaType] = [
+                    'mediaType' => $mediaType,
+                    'count' => 0,
+                    'parts' => [],
+                    'existsCount' => 0,
+                    'missingCount' => 0,
+                    'directoryCount' => 0,
+                    'encryptedCount' => 0,
+                    'declaredSizeMismatchCount' => 0,
+                    'storedByteLength' => 0,
+                    'exposableByteLength' => 0,
+                    'declaredSize' => 0,
+                ];
+                $groupOrder[] = $mediaType;
+            }
+
+            ++$summary['typedItemCount'];
+            ++$groups[$mediaType]['count'];
+            $groups[$mediaType]['parts'][] = $part;
+            if ($exists) {
+                ++$groups[$mediaType]['existsCount'];
+            } else {
+                ++$groups[$mediaType]['missingCount'];
+            }
+            if ($isDirectory) {
+                ++$groups[$mediaType]['directoryCount'];
+            }
+            if ($encrypted) {
+                ++$groups[$mediaType]['encryptedCount'];
+            }
+            if ($declaredSizeMismatch) {
+                ++$groups[$mediaType]['declaredSizeMismatchCount'];
+            }
+            if (is_int($byteLength)) {
+                $groups[$mediaType]['storedByteLength'] += $byteLength;
+                if (($entry['canExposeBytes'] ?? false) === true) {
+                    $groups[$mediaType]['exposableByteLength'] += $byteLength;
+                }
+            }
+            if (is_int($declaredSize)) {
+                $groups[$mediaType]['declaredSize'] += $declaredSize;
+            }
+        }
+
+        $items = [];
+        foreach ($groupOrder as $mediaType) {
+            $items[] = $groups[$mediaType];
+        }
+
+        $summary['mediaTypeCount'] = count($items);
+        $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
+        $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
+        $summary['items'] = $items;
+
+        return $summary;
     }
 
     /**
@@ -1665,6 +1882,24 @@ final class OdtReader
     private function manifestAttr(\DOMElement $element, string $localName): ?string
     {
         return $this->namespacedAttr($element, self::MANIFEST_NS, $localName);
+    }
+
+    private function manifestPackagePart(string $path): string
+    {
+        $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
+        $path = rawurldecode($path);
+        $path = ltrim($path, '/');
+        while (str_starts_with($path, './')) {
+            $path = substr($path, 2);
+        }
+        if ($path === '') {
+            throw new \RuntimeException('ODT package part path must not be empty');
+        }
+        if (str_contains($path, '..') || str_contains($path, '\\') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+            throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
+        }
+
+        return $path;
     }
 
     private function namespacedAttr(\DOMElement $element, string $namespace, string $localName): ?string
