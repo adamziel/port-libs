@@ -144,6 +144,84 @@ return [
         $t->same('Native AST roundtrip with code and link next line.', $roundTrip->children[0]->attr('text'));
         $t->same($markdown, $roundTripMarkdown);
     },
+    'writes shared inline constructors as pandoc native ast constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('underline', [], [new AstNode('text', ['text' => 'under'])]),
+                new AstNode('strikeout', [], [new AstNode('text', ['text' => 'old'])]),
+                new AstNode('superscript', [], [new AstNode('text', ['text' => '2'])]),
+                new AstNode('subscript', [], [new AstNode('text', ['text' => 'n'])]),
+                new AstNode('small_caps', [], [new AstNode('text', ['text' => 'caps'])]),
+                new AstNode('quoted', ['kind' => 'single'], [new AstNode('text', ['text' => 'quote'])]),
+                new AstNode('math', ['display' => true, 'text' => 'E = mc^2']),
+                new AstNode('raw_html_inline', ['html' => '<span data-review="raw">html</span>']),
+                new AstNode('raw_tex', ['tex' => '\\alpha']),
+                new AstNode('raw_markdown', ['format' => 'markdown+tex_math_dollars', 'markdown' => '$raw$']),
+                new AstNode('raw_inline', ['format' => 'opml', 'text' => '<outline/>']),
+                new AstNode('span', [
+                    'id' => 'review-span',
+                    'classes' => ['native-review'],
+                    'attributes' => ['data-source' => 'shared-ast'],
+                ], [new AstNode('text', ['text' => 'span'])]),
+            ]),
+        ]);
+
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $nativeInlines = $native['blocks'][0]['c'];
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $roundTripChildren = $roundTrip->children[0]->children;
+
+        $t->same([
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Quoted',
+            'Math',
+            'RawInline',
+            'RawInline',
+            'RawInline',
+            'RawInline',
+            'Span',
+        ], array_map(static fn (array $inline): string => $inline['t'], $nativeInlines));
+        $t->same('SingleQuote', $nativeInlines[5]['c'][0]['t']);
+        $t->same('DisplayMath', $nativeInlines[6]['c'][0]['t']);
+        $t->same('E = mc^2', $nativeInlines[6]['c'][1]);
+        $t->same('html', $nativeInlines[7]['c'][0]);
+        $t->same('<span data-review="raw">html</span>', $nativeInlines[7]['c'][1]);
+        $t->same('latex', $nativeInlines[8]['c'][0]);
+        $t->same('\\alpha', $nativeInlines[8]['c'][1]);
+        $t->same('markdown+tex_math_dollars', $nativeInlines[9]['c'][0]);
+        $t->same('$raw$', $nativeInlines[9]['c'][1]);
+        $t->same('opml', $nativeInlines[10]['c'][0]);
+        $t->same(['review-span', ['native-review'], [['data-source', 'shared-ast']]], $nativeInlines[11]['c'][0]);
+        $t->same([
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
+            'math',
+            'raw_html_inline',
+            'raw_tex',
+            'raw_markdown',
+            'raw_inline',
+            'span',
+        ], array_map(static fn (AstNode $node): string => $node->type, $roundTripChildren));
+        $t->same('single', $roundTripChildren[5]->attr('kind'));
+        $t->same(true, $roundTripChildren[6]->attr('display'));
+        $t->same('<span data-review="raw">html</span>', $roundTripChildren[7]->attr('html'));
+        $t->same('\\alpha', $roundTripChildren[8]->attr('tex'));
+        $t->same('$raw$', $roundTripChildren[9]->attr('markdown'));
+        $t->same('opml', $roundTripChildren[10]->attr('format'));
+        $t->same('review-span', $roundTripChildren[11]->attr('id'));
+        $t->same(['native-review'], $roundTripChildren[11]->attr('classes'));
+        $t->same(['data-source' => 'shared-ast'], $roundTripChildren[11]->attr('attributes'));
+    },
     'maps native ast table captions into shared table metadata' => static function (TestRunner $t): void {
         $nativeTable = [
             't' => 'Table',

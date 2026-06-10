@@ -389,9 +389,32 @@ final class NativeWriter
             'linebreak' => [['t' => 'LineBreak']],
             'emph' => [['t' => 'Emph', 'c' => $this->inlines($node->children)]],
             'strong' => [['t' => 'Strong', 'c' => $this->inlines($node->children)]],
+            'underline' => [['t' => 'Underline', 'c' => $this->inlines($node->children)]],
+            'strikeout' => [['t' => 'Strikeout', 'c' => $this->inlines($node->children)]],
+            'superscript' => [['t' => 'Superscript', 'c' => $this->inlines($node->children)]],
+            'subscript' => [['t' => 'Subscript', 'c' => $this->inlines($node->children)]],
+            'small_caps' => [['t' => 'SmallCaps', 'c' => $this->inlines($node->children)]],
+            'quoted' => [[
+                't' => 'Quoted',
+                'c' => [
+                    ['t' => $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'],
+                    $this->inlines($node->children),
+                ],
+            ]],
             'code' => [[
                 't' => 'Code',
                 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')],
+            ]],
+            'math' => [[
+                't' => 'Math',
+                'c' => [
+                    ['t' => $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'],
+                    (string) $node->attr('text', ''),
+                ],
+            ]],
+            'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => [[
+                't' => 'RawInline',
+                'c' => [$this->rawFormat($node), $this->rawText($node)],
             ]],
             'link' => [[
                 't' => 'Link',
@@ -400,6 +423,10 @@ final class NativeWriter
                     $this->inlines($node->children),
                     [(string) $node->attr('url', ''), (string) $node->attr('title', '')],
                 ],
+            ]],
+            'span' => [[
+                't' => 'Span',
+                'c' => [$this->attrTuple($node), $this->inlines($node->children)],
             ]],
             default => $node->children === []
                 ? throw new \InvalidArgumentException('Native writer cannot emit unsupported shared AST inline nodes')
@@ -473,6 +500,31 @@ final class NativeWriter
         };
     }
 
+    private function rawFormat(AstNode $node): string
+    {
+        $format = (string) $node->attr('format', '');
+        if ($format !== '') {
+            return $format;
+        }
+
+        return match ($node->type) {
+            'raw_html_inline' => 'html',
+            'raw_tex' => 'latex',
+            'raw_markdown' => 'markdown',
+            default => 'plain',
+        };
+    }
+
+    private function rawText(AstNode $node): string
+    {
+        return match ($node->type) {
+            'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
+            'raw_tex' => (string) $node->attr('text', $node->attr('tex', '')),
+            'raw_markdown' => (string) $node->attr('text', $node->attr('markdown', '')),
+            default => (string) $node->attr('text', ''),
+        };
+    }
+
     /**
      * @param list<mixed> $values
      */
@@ -510,8 +562,20 @@ final class NativeWriter
             'linebreak',
             'emph',
             'strong',
+            'underline',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
             'code',
+            'math',
+            'raw_html_inline',
+            'raw_tex',
+            'raw_markdown',
+            'raw_inline',
             'link',
+            'span',
         ], true);
     }
 }
