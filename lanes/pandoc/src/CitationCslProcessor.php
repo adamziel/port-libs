@@ -6329,8 +6329,19 @@ final class CitationCslProcessor
         if ($names === []) {
             $names = $item['translators'];
         }
+        if ($names === [] && $this->authorityFallbackApplies($item)) {
+            $names = $item['authorities'] ?? [];
+        }
 
         return is_array($names) ? array_values($names) : [];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function authorityFallbackApplies(array $item): bool
+    {
+        return (string) ($item['type'] ?? '') === 'report';
     }
 
     /**
@@ -6410,6 +6421,9 @@ final class CitationCslProcessor
         $names = $item['authors'];
         if ($names === []) {
             $names = $item['editors'];
+        }
+        if ($names === [] && $this->authorityFallbackApplies($item)) {
+            $names = $item['authorities'] ?? [];
         }
 
         if (!is_array($names) || $names === []) {

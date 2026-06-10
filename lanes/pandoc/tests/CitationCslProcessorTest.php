@@ -6089,6 +6089,89 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.</dd>', $blocks);
     },
+    'uses bounded biblatex institutional authority as report creator fallback' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@report{institutional-report,
+  institution = {Migration Review Institute},
+  title       = {Institutional Source Report},
+  date        = {2026},
+  url         = {https://example.test/institutional-report}
+}
+
+@legislation{title-led-rule,
+  title        = {Title Led Import Rule},
+  organization = {Oregon Legislature},
+  date         = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('report', $items[0]['type']);
+        $t->same('Migration Review Institute', $items[0]['authority']);
+        $t->same('Migration Review Institute', $items[0]['publisher']);
+        $t->same('Migration Review Institute', $items[0]['rawBibtex']['fields']['institution'] ?? null);
+        $t->same('legislation', $items[1]['type']);
+        $t->same('Oregon Legislature', $items[1]['authority']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $report = $processor->item('institutional-report');
+        $rule = $processor->item('title-led-rule');
+        $t->same('Migration Review Institute', $report['authority'] ?? null);
+        $t->same('Migration Review Institute', $report['authorities'][0]['literal'] ?? null);
+        $t->same([], $report['authors'] ?? null);
+        $t->same('Oregon Legislature', $rule['authority'] ?? null);
+        $t->same('(Migration Review Institute 2026; Title Led Import Rule 2025)', $processor->renderCitationCluster([
+            $citation('institutional-report', '[@institutional-report]'),
+            $citation('title-led-rule', '[@title-led-rule]'),
+        ]));
+        $t->same('Migration Review Institute (2026)', $processor->renderCitationCluster([
+            $citation('institutional-report', '@institutional-report', 'author_in_text'),
+        ]));
+        $t->same(
+            'Migration Review Institute. Institutional Source Report. Migration Review Institute, 2026. https://example.test/institutional-report.',
+            $processor->renderBibliographyEntry('institutional-report')
+        );
+        $t->same(
+            'Title Led Import Rule. Oregon Legislature, 2025. Authority: Oregon Legislature.',
+            $processor->renderBibliographyEntry('title-led-rule')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Report Authority Review</title>
+    <id>https://example.test/styles/bounded-report-authority-review</id>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="authority"/>
+        <text variable="type"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="authority"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Migration Review Institute | report; Oregon Legislature | legislation]', $styled->renderCitationCluster([
+            $citation('institutional-report', '[@institutional-report]'),
+            $citation('title-led-rule', '[@title-led-rule]'),
+        ]));
+        $t->same('Institutional Source Report :: Migration Review Institute', $styled->renderBibliographyEntry('institutional-report'));
+
+        $document = (new MarkdownReader())->read('Institutional source @institutional-report keeps report authority while legal rule [@title-led-rule] stays title-led.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Institutional source Migration Review Institute (2026) keeps report authority while legal rule (Title Led Import Rule 2025) stays title-led.</p>', $blocks);
+        $t->contains('<dt>Migration Review Institute 2026</dt><dd>Migration Review Institute. Institutional Source Report. Migration Review Institute, 2026. https://example.test/institutional-report.</dd>', $blocks);
+        $t->contains('<dt>Title Led Import Rule 2025</dt><dd>Title Led Import Rule. Oregon Legislature, 2025. Authority: Oregon Legislature.</dd>', $blocks);
+    },
     'maps bounded biblatex journal abbreviations into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{short-journal-detail,
