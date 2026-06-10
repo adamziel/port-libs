@@ -4781,7 +4781,7 @@ return [
         $t->same(['central-directory-signature-unverified'], $signedSummary['diagnostics']);
     },
 
-    'preflights split zip archive disk markers before bounded package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
+    'preflights split zip archive disk markers before bounded package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory, $buildCentralDirectorySignaturePackage): void {
         $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
@@ -4806,6 +4806,19 @@ return [
         $t->same(0, $summary['splitArchiveEntryCount']);
         $t->same(['word/document.xml', 'word/media/review.png'], array_column($summary['entries'], 'name'));
         $t->same([0, 0], array_column($summary['entries'], 'diskStart'));
+
+        $signedZip = $buildCentralDirectorySignaturePackage(true);
+        $signedSummary = ZipPackage::splitArchivePreflight($signedZip);
+
+        $t->same(1, $signedSummary['entryCount']);
+        $t->same(true, $signedSummary['isSingleDisk']);
+        $t->same(false, $signedSummary['hasSplitArchiveMarkers']);
+        $t->same(true, $signedSummary['isSupportedByBoundedReader']);
+        $t->same([], $signedSummary['issues']);
+        $t->same(1, $signedSummary['centralDirectoryNonEntryRecordCount']);
+        $t->same('central-directory-digital-signature', $signedSummary['centralDirectoryNonEntryRecords'][0]['type']);
+        $t->same(strlen('central-signature') + 6, $signedSummary['centralDirectoryNonEntryRecords'][0]['length']);
+        $t->same(['word/document.xml'], array_column($signedSummary['entries'], 'name'));
 
         $splitZip = $rewriteEndOfCentralDirectory($buildZipPackage([
             [

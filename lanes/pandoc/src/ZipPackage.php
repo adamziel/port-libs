@@ -4968,9 +4968,11 @@ final class ZipPackage
      *     centralDirectorySize:int,
      *     isSingleDisk:bool,
      *     hasSplitArchiveMarkers:bool,
+     *     centralDirectoryNonEntryRecordCount:int,
      *     splitArchiveEntryCount:int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     centralDirectoryNonEntryRecords:list<array{type:string, offset:int, length:int, endOffset:int}>,
      *     splitArchiveEntries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>,
      *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>
      * }
@@ -4994,9 +4996,22 @@ final class ZipPackage
 
         $entries = [];
         $splitArchiveEntries = [];
+        $centralDirectoryNonEntryRecords = [];
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
-        while ($cursor < $archive['centralDirectoryEnd']) {
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $centralDirectoryNonEntryRecords[] = [
+                    'type' => 'archive-extra-data-record',
+                    'offset' => $archiveExtraDataRecord['offset'],
+                    'length' => $archiveExtraDataRecord['endOffset'] - $archiveExtraDataRecord['offset'],
+                    'endOffset' => $archiveExtraDataRecord['endOffset'],
+                ];
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
             if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
                 throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
             }
@@ -5040,8 +5055,36 @@ final class ZipPackage
             $index++;
         }
 
-        if ($cursor !== $archive['centralDirectoryEnd']) {
-            throw new \RuntimeException('ZIP central directory size does not match scanned entry records');
+        if ($cursor > $archive['centralDirectoryEnd']) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned split-archive records');
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $centralDirectoryNonEntryRecords[] = [
+                    'type' => 'archive-extra-data-record',
+                    'offset' => $archiveExtraDataRecord['offset'],
+                    'length' => $archiveExtraDataRecord['endOffset'] - $archiveExtraDataRecord['offset'],
+                    'endOffset' => $archiveExtraDataRecord['endOffset'],
+                ];
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $centralDirectoryNonEntryRecords[] = [
+                    'type' => 'central-directory-digital-signature',
+                    'offset' => $signature['offset'],
+                    'length' => $signature['endOffset'] - $signature['offset'],
+                    'endOffset' => $signature['endOffset'],
+                ];
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
         }
 
         $issues = [];
@@ -5062,9 +5105,11 @@ final class ZipPackage
             'centralDirectorySize' => $archive['centralDirectorySize'],
             'isSingleDisk' => $archive['isSingleDisk'],
             'hasSplitArchiveMarkers' => $issues !== [],
+            'centralDirectoryNonEntryRecordCount' => count($centralDirectoryNonEntryRecords),
             'splitArchiveEntryCount' => count($splitArchiveEntries),
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
+            'centralDirectoryNonEntryRecords' => $centralDirectoryNonEntryRecords,
             'splitArchiveEntries' => $splitArchiveEntries,
             'entries' => $entries,
         ];
