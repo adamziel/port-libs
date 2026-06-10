@@ -793,6 +793,31 @@ final class CitationCslProcessor
             $parts[] = 'Original language: ' . $originalLanguage . '.';
         }
 
+        $originalCollectionTitle = (string) ($item['originalCollectionTitle'] ?? '');
+        $originalCollectionNumber = (string) ($item['originalCollectionNumber'] ?? '');
+        if ($originalCollectionTitle !== '' && $originalCollectionNumber !== '') {
+            $parts[] = 'Original series: ' . $originalCollectionTitle . ', ' . $this->style->term('number', 'short') . ' ' . $originalCollectionNumber . '.';
+        } elseif ($originalCollectionTitle !== '') {
+            $parts[] = 'Original series: ' . rtrim($originalCollectionTitle, '.') . '.';
+        } elseif ($originalCollectionNumber !== '') {
+            $parts[] = 'Original series ' . $this->style->term('number', 'short') . ' ' . $originalCollectionNumber . '.';
+        }
+
+        $originalVolume = (string) ($item['originalVolume'] ?? '');
+        if ($originalVolume !== '') {
+            $parts[] = 'Original volume: ' . $originalVolume . '.';
+        }
+
+        $originalEdition = (string) ($item['originalEdition'] ?? '');
+        if ($originalEdition !== '') {
+            $parts[] = 'Original edition: ' . $originalEdition . '.';
+        }
+
+        $originalPage = (string) ($item['originalPage'] ?? '');
+        if ($originalPage !== '') {
+            $parts[] = 'Original pages: ' . $this->formatCslPageRanges($originalPage) . '.';
+        }
+
         $doi = (string) $item['doi'];
         if ($doi !== '') {
             $parts[] = 'DOI ' . $doi . '.';
@@ -1023,6 +1048,11 @@ final class CitationCslProcessor
             $originalLanguage = implode('; ', $originalLanguageList);
         }
         $originalGenre = self::firstStringField($item, ['original-genre', 'originalGenre', 'origtype', 'origgenre']);
+        $originalCollectionTitle = self::firstStringField($item, ['original-collection-title', 'originalCollectionTitle', 'origseries', 'originalseries']);
+        $originalCollectionNumber = self::firstStringField($item, ['original-collection-number', 'originalCollectionNumber', 'origseriesnumber', 'originalseriesnumber']);
+        $originalVolume = self::firstStringField($item, ['original-volume', 'originalVolume', 'origvolume', 'originalvolume']);
+        $originalEdition = self::firstStringField($item, ['original-edition', 'originalEdition', 'origedition', 'originaledition']);
+        $originalPage = self::firstStringField($item, ['original-page', 'originalPage', 'original-pages', 'originalPages', 'origpage', 'origpages']);
         $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace']);
         $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList']);
         if ($eventPlace === '' && $eventPlaceList !== []) {
@@ -1282,6 +1312,11 @@ final class CitationCslProcessor
             'originalLanguage' => $originalLanguage,
             'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
             'originalGenre' => $originalGenre,
+            'originalCollectionTitle' => $originalCollectionTitle,
+            'originalCollectionNumber' => $originalCollectionNumber,
+            'originalVolume' => $originalVolume,
+            'originalEdition' => $originalEdition,
+            'originalPage' => $originalPage,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'orig-date-addon']),
             'submittedDate' => $submittedDate,
@@ -9035,6 +9070,11 @@ final class CitationCslProcessor
             'original-title', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
             'original-title-addon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
+            'original-collection-title', 'origseries', 'originalseries' => (string) ($item['originalCollectionTitle'] ?? ''),
+            'original-collection-number', 'origseriesnumber', 'originalseriesnumber' => (string) ($item['originalCollectionNumber'] ?? ''),
+            'original-volume', 'origvolume', 'originalvolume' => (string) ($item['originalVolume'] ?? ''),
+            'original-edition', 'origedition', 'originaledition' => (string) ($item['originalEdition'] ?? ''),
+            'original-page', 'original-pages', 'origpage', 'origpages' => $this->formatCslPageRanges((string) ($item['originalPage'] ?? '')),
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],

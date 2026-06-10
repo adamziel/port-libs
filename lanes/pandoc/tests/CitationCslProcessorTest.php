@@ -2075,6 +2075,91 @@ XML);
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original genre: source manual. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
+    'maps bounded biblatex original series and extent metadata into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{original-series-manual,
+  author           = {Roe, Pat},
+  title            = {Facsimile Review Manual},
+  origtitle        = {Source Manual},
+  date             = {2026},
+  origdate         = {1912},
+  publisher        = {Review Press},
+  origseries       = {Source Manuals},
+  origseriesnumber = {4},
+  origvolume       = {2},
+  origedition      = {revised archive edition},
+  origpages        = {12--18}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Source Manuals', $items[0]['original-collection-title'] ?? null);
+        $t->same('4', $items[0]['original-collection-number'] ?? null);
+        $t->same('2', $items[0]['original-volume'] ?? null);
+        $t->same('revised archive edition', $items[0]['original-edition'] ?? null);
+        $t->same('12-18', $items[0]['original-page'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('original-series-manual');
+        $t->same('Source Manuals', $item['originalCollectionTitle'] ?? null);
+        $t->same('4', $item['originalCollectionNumber'] ?? null);
+        $t->same('2', $item['originalVolume'] ?? null);
+        $t->same('revised archive edition', $item['originalEdition'] ?? null);
+        $t->same('12-18', $item['originalPage'] ?? null);
+        $t->same(
+            'Roe, Pat. Facsimile Review Manual. Review Press, 2026. Original title: Source Manual. Original work published 1912. Original series: Source Manuals, no. 4. Original volume: 2. Original edition: revised archive edition. Original pages: 12-18.',
+            $processor->renderBibliographyEntry('original-series-manual')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-collection-title"/>
+        <text variable="original-collection-number"/>
+        <text variable="original-volume"/>
+        <text variable="original-edition"/>
+        <text variable="original-page"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-collection-title"/>
+      <text variable="original-collection-number"/>
+      <text variable="original-volume"/>
+      <text variable="original-edition"/>
+      <text variable="original-page"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe | Source Manuals | 4 | 2 | revised archive edition | 12-18]', $styled->renderCitationCluster([$citation('original-series-manual', '[@original-series-manual]')]));
+        $t->same('Facsimile Review Manual :: Source Manuals :: 4 :: 2 :: revised archive edition :: 12-18', $styled->renderBibliographyEntry('original-series-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-original-series',
+            'title' => 'Manual Original Series',
+            'originalCollectionTitle' => 'Legacy Series',
+            'originalCollectionNumber' => 'B',
+            'originalVolume' => '3',
+            'originalEdition' => 'second source edition',
+            'originalPage' => '1-3',
+        ]]);
+        $directItem = $direct->item('manual-original-series');
+        $t->same('Legacy Series', $directItem['originalCollectionTitle'] ?? null);
+        $t->same('B', $directItem['originalCollectionNumber'] ?? null);
+        $t->same('Manual Original Series. Original series: Legacy Series, no. B. Original volume: 3. Original edition: second source edition. Original pages: 1-3.', $direct->renderBibliographyEntry('manual-original-series'));
+
+        $document = (new MarkdownReader())->read('Original series source @original-series-manual keeps original extent metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original series source Roe (2026) keeps original extent metadata visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Facsimile Review Manual. Review Press, 2026. Original title: Source Manual. Original work published 1912. Original series: Source Manuals, no. 4. Original volume: 2. Original edition: revised archive edition. Original pages: 12-18.</dd>', $blocks);
+    },
     'exposes bounded biblatex original publisher variables to csl styles' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-archive,
