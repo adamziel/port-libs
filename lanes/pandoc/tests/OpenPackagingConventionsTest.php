@@ -7376,6 +7376,16 @@ XML;
             'officeDocument/relationships/hyperlink',
         ], array_keys($documentInventory));
         $t->same(2, $documentInventory[$imageType]['relationshipCount']);
+
+        $caseEquivalentDocumentInventory = [];
+        foreach ($graph->relationshipTypeInventory('/WORD/DOCUMENT.XML') as $type) {
+            $caseEquivalentDocumentInventory[$type['type']] = $type;
+        }
+
+        $t->same(array_keys($documentInventory), array_keys($caseEquivalentDocumentInventory));
+        $t->same(['/word/document.xml'], $caseEquivalentDocumentInventory[$imageType]['sources']);
+        $t->same(['rIdHero', 'rIdMissingImage'], $caseEquivalentDocumentInventory[$imageType]['idsBySource']['/word/document.xml']);
+        $t->same(false, isset($caseEquivalentDocumentInventory[$imageType]['idsBySource']['/WORD/DOCUMENT.XML']));
         $t->same([], $graph->relationshipTypeInventory('/word/missing.xml'));
     },
     'classifies OPC relationship type scope and singleton policy for import review' => static function (TestRunner $t): void {

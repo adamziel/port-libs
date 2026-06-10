@@ -1163,7 +1163,7 @@ final class OpcRelationshipGraph
     {
         $sourcePartNames = $sourcePartName === null
             ? $this->sourcePartNames()
-            : [OpcPackagePath::canonicalPartName($sourcePartName, true)];
+            : [$this->relationshipSourceNameForEquivalent($sourcePartName)];
 
         $byType = [];
         foreach ($sourcePartNames as $source) {
