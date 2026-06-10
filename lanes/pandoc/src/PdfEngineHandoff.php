@@ -265,6 +265,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
             }
+            if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
+                $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5481,8 +5484,9 @@ final class PdfEngineHandoff
         $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path']);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path']);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache']);
+        $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input']);
         $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp']);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $creationTimestampValue === null) {
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
             return [];
         }
 
@@ -5494,9 +5498,13 @@ final class PdfEngineHandoff
         );
         $packagePath = $packagePathValues === [] ? null : $this->typstBoundaryPathEntry($packagePathValues[count($packagePathValues) - 1], 'package-path');
         $packageCache = $packageCacheValues === [] ? null : $this->typstBoundaryPathEntry($packageCacheValues[count($packageCacheValues) - 1], 'package-cache');
+        $inputVariables = array_map(
+            fn (string $value): array => $this->typstInputVariableEntry($value),
+            $inputVariableValues
+        );
         $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths)) as $entry) {
+        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5512,6 +5520,7 @@ final class PdfEngineHandoff
             'fontPaths' => $fontPaths,
             'packagePath' => $packagePath,
             'packageCache' => $packageCache,
+            'inputVariables' => $inputVariables,
             'issues' => $issues,
         ];
         if ($creationTimestamp !== null) {
@@ -5575,6 +5584,33 @@ final class PdfEngineHandoff
                 'issues' => [$kind . '-invalid-boundary'],
             ];
         }
+    }
+
+    /**
+     * @return array{raw:string, name:string, value:string, safe:bool, issues:list<string>}
+     */
+    private function typstInputVariableEntry(string $raw): array
+    {
+        $assignment = trim($raw);
+        $separator = strpos($assignment, '=');
+        $issues = [];
+        $name = $separator === false ? $assignment : substr($assignment, 0, $separator);
+        $value = $separator === false ? '' : substr($assignment, $separator + 1);
+
+        if ($separator === false || $separator === 0 || preg_match('/\A[A-Za-z_][A-Za-z0-9_-]*\z/', $name) !== 1) {
+            $issues[] = 'input-variable-invalid-boundary';
+        }
+        if (str_contains($value, "\0")) {
+            $issues[] = 'input-value-invalid-boundary';
+        }
+
+        return [
+            'raw' => $raw,
+            'name' => $name,
+            'value' => $value,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
     }
 
     /**

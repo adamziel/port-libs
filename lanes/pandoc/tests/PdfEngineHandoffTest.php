@@ -120,6 +120,7 @@ return [
             ],
             'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'inputVariables' => [],
             'issues' => ['package-cache-external-boundary'],
         ];
 
@@ -153,6 +154,55 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/input-boundary.pdf',
+            'source' => '= Typst Input Boundary Packet',
+            'engineOptions' => [
+                '--input=audience=reviewer',
+                '--input',
+                'draft=true',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst input boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [
+                ['raw' => 'audience=reviewer', 'name' => 'audience', 'value' => 'reviewer', 'safe' => true, 'issues' => []],
+                ['raw' => 'draft=true', 'name' => 'draft', 'value' => 'true', 'safe' => true, 'issues' => []],
+            ],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/input-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/input-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-inputs:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst creation timestamp boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
@@ -163,6 +213,7 @@ return [
             'fontPaths' => [],
             'packagePath' => null,
             'packageCache' => null,
+            'inputVariables' => [],
             'issues' => [],
             'creationTimestamp' => [
                 'raw' => $timestamp,
@@ -216,6 +267,7 @@ return [
             'fontPaths' => [],
             'packagePath' => null,
             'packageCache' => null,
+            'inputVariables' => [],
             'issues' => ['creation-timestamp-invalid-boundary'],
             'creationTimestamp' => [
                 'raw' => 'not-a-unix-time',
