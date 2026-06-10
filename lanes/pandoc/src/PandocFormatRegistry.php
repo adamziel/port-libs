@@ -165,6 +165,19 @@ final class PandocFormatRegistry
     ];
 
     /** @var array<string, string> */
+    private const WIKI_FORMAT_LABELS = [
+        'creole' => 'Creole',
+        'dokuwiki' => 'DokuWiki',
+        'jira' => 'Jira wiki',
+        'mediawiki' => 'MediaWiki',
+        'tikiwiki' => 'TikiWiki',
+        'twiki' => 'TWiki',
+        'vimwiki' => 'Vimwiki',
+        'xwiki' => 'XWiki',
+        'zimwiki' => 'ZimWiki',
+    ];
+
+    /** @var array<string, string> */
     private const WIKI_EXTENSION_INFERENCE = [
         '.dokuwiki' => 'dokuwiki',
         '.wiki' => 'mediawiki',
@@ -792,6 +805,38 @@ final class PandocFormatRegistry
         }
 
         return $sources;
+    }
+
+    /**
+     * @return array<string, array{format:string, label:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string, readerFixturePaths:list<string>, writerFixturePaths:list<string>, upstreamFixturePaths:list<string>, upstreamTemplatePath:?string}>
+     */
+    public static function wikiFormatRegistryMetadata(): array
+    {
+        $fixtures = self::wikiFixtureSources();
+        $templates = self::wikiTemplateResources();
+        $metadata = [];
+
+        foreach (self::wikiFormatDirections() as $format => $direction) {
+            $formatFixtures = $fixtures[$format] ?? ['reader' => [], 'writer' => []];
+            $readerFixtures = $direction['input'] ? $formatFixtures['reader'] : [];
+            $writerFixtures = $direction['output'] ? $formatFixtures['writer'] : [];
+
+            $metadata[$format] = [
+                'format' => $format,
+                'label' => self::WIKI_FORMAT_LABELS[$format] ?? $format,
+                'input' => $direction['input'],
+                'output' => $direction['output'],
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'readerFixturePaths' => $readerFixtures,
+                'writerFixturePaths' => $writerFixtures,
+                'upstreamFixturePaths' => array_values(array_merge($readerFixtures, $writerFixtures)),
+                'upstreamTemplatePath' => $templates[$format] ?? null,
+            ];
+        }
+
+        return $metadata;
     }
 
     /**

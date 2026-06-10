@@ -1307,6 +1307,103 @@ return [
             $t->same('', $evidence['outputImplementation'], "Wiki evidence packet {$format} must not register an output implementation");
         }
     },
+    'builds compact wiki registry metadata from audited evidence' => static function (TestRunner $t): void {
+        $metadata = PandocFormatRegistry::wikiFormatRegistryMetadata();
+        $labels = [];
+        $directions = [];
+        foreach ($metadata as $format => $entry) {
+            $labels[$format] = $entry['label'];
+            $directions[$format] = [
+                'input' => $entry['input'],
+                'output' => $entry['output'],
+                'direction' => $entry['direction'],
+                'inputStatus' => $entry['inputStatus'],
+                'outputStatus' => $entry['outputStatus'],
+            ];
+        }
+
+        $t->same([
+            'creole',
+            'dokuwiki',
+            'jira',
+            'mediawiki',
+            'tikiwiki',
+            'twiki',
+            'vimwiki',
+            'xwiki',
+            'zimwiki',
+        ], array_keys($metadata));
+        $t->same([
+            'creole' => 'Creole',
+            'dokuwiki' => 'DokuWiki',
+            'jira' => 'Jira wiki',
+            'mediawiki' => 'MediaWiki',
+            'tikiwiki' => 'TikiWiki',
+            'twiki' => 'TWiki',
+            'vimwiki' => 'Vimwiki',
+            'xwiki' => 'XWiki',
+            'zimwiki' => 'ZimWiki',
+        ], $labels);
+        $t->same(PandocFormatRegistry::wikiFormatDirections(), $directions);
+        $t->same([
+            'format' => 'creole',
+            'label' => 'Creole',
+            'input' => true,
+            'output' => false,
+            'direction' => 'input-only',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'not-applicable',
+            'readerFixturePaths' => ['test/creole-reader.txt'],
+            'writerFixturePaths' => [],
+            'upstreamFixturePaths' => ['test/creole-reader.txt'],
+            'upstreamTemplatePath' => null,
+        ], $metadata['creole']);
+        $t->same([
+            'format' => 'dokuwiki',
+            'label' => 'DokuWiki',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'readerFixturePaths' => [
+                'test/dokuwiki_inline_formatting.dokuwiki',
+                'test/dokuwiki_external_images.dokuwiki',
+                'test/dokuwiki_multiblock_table.dokuwiki',
+            ],
+            'writerFixturePaths' => [
+                'test/tables.dokuwiki',
+                'test/writer.dokuwiki',
+            ],
+            'upstreamFixturePaths' => [
+                'test/dokuwiki_inline_formatting.dokuwiki',
+                'test/dokuwiki_external_images.dokuwiki',
+                'test/dokuwiki_multiblock_table.dokuwiki',
+                'test/tables.dokuwiki',
+                'test/writer.dokuwiki',
+            ],
+            'upstreamTemplatePath' => 'data/templates/default.dokuwiki',
+        ], $metadata['dokuwiki']);
+        $t->same([
+            'format' => 'xwiki',
+            'label' => 'XWiki',
+            'input' => false,
+            'output' => true,
+            'direction' => 'output-only',
+            'inputStatus' => 'not-applicable',
+            'outputStatus' => 'unsupported',
+            'readerFixturePaths' => [],
+            'writerFixturePaths' => [
+                'test/tables.xwiki',
+                'test/writer.xwiki',
+            ],
+            'upstreamFixturePaths' => [
+                'test/tables.xwiki',
+                'test/writer.xwiki',
+            ],
+            'upstreamTemplatePath' => 'data/templates/default.xwiki',
+        ], $metadata['xwiki']);
+    },
     'tracks wiki upstream reader writer source provenance without direct parity claims' => static function (TestRunner $t): void {
         $inputProvenance = PandocFormatRegistry::wikiInputSourceProvenance();
         $outputProvenance = PandocFormatRegistry::wikiOutputSourceProvenance();
