@@ -4233,6 +4233,46 @@ XML;
         $t->same($mediaTypes, $result['importReport']['mediaTypes']);
         $t->same($mediaTypes, $result['document']->attr('mediaTypes'));
     },
+    'uses OPF manifest media type base values for EPUB content and CSS ingestion' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithParameterizedMediaTypes = str_replace(
+            [
+                '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+                '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            ],
+            [
+                '<item id="chapter-1" href="text/chapter1.xhtml" media-type="application/xhtml+xml; charset=UTF-8"/>',
+                '<item id="style" href="styles/book.css" media-type="text/css; charset=UTF-8"/>',
+            ],
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithParameterizedMediaTypes));
+        $manifestById = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestById[$item['id']] = $item;
+        }
+        $assetById = [];
+        foreach ($result['assets'] as $asset) {
+            $assetById[$asset['id']] = $asset;
+        }
+
+        $t->same('application/xhtml+xml; charset=UTF-8', $manifestById['chapter-1']['mediaType']);
+        $t->same('application/xhtml+xml', $manifestById['chapter-1']['mediaTypeReport']['baseMediaType']);
+        $t->same(['charset' => 'UTF-8'], $manifestById['chapter-1']['mediaTypeReport']['mediaTypeParameters']);
+        $t->same(true, $manifestById['chapter-1']['epubContentDocument']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['contentPart']);
+        $t->same('application/xhtml+xml; charset=UTF-8', $result['spine'][0]['contentMediaType']);
+        $t->same(3, count($result['xhtmlAssets']));
+        $t->same(2, count($result['document']->children));
+        $t->same('/OEBPS/text/chapter1.xhtml', $result['document']->children[0]->attr('part'));
+
+        $t->same('text/css; charset=UTF-8', $assetById['style']['mediaType']);
+        $t->same('text/css', $manifestById['style']['mediaTypeReport']['baseMediaType']);
+        $t->same(['charset' => 'UTF-8'], $manifestById['style']['mediaTypeReport']['mediaTypeParameters']);
+        $t->same('stylesheet', $assetById['style']['role']);
+        $t->same(1, $result['cssResourceReport']['assetCount']);
+        $t->same('/OEBPS/styles/book.css', $result['cssResourceReport']['items'][0]['part']);
+    },
     'reports invalid OPF manifest fallback chains in media type preflight' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $fallbackXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml"><body><p>Fallback content remains reviewable.</p></body></html>

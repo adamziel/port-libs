@@ -275,7 +275,7 @@ final class EpubReader
         $selected = null;
         $selectedIndex = null;
         foreach ($rootfiles as $index => $rootfile) {
-            if ($rootfile['mediaType'] === self::OPF_MEDIA_TYPE) {
+            if (self::mediaTypeBaseEquals($rootfile['mediaType'], self::OPF_MEDIA_TYPE)) {
                 $selected = $rootfile;
                 $selectedIndex = $index;
                 break;
@@ -286,7 +286,7 @@ final class EpubReader
             $selectedIndex = 0;
         }
 
-        if ($selected['mediaType'] !== self::OPF_MEDIA_TYPE) {
+        if (!self::mediaTypeBaseEquals($selected['mediaType'], self::OPF_MEDIA_TYPE)) {
             throw new \RuntimeException('EPUB rootfile media-type must be application/oebps-package+xml');
         }
 
@@ -6195,7 +6195,7 @@ final class EpubReader
                     $item['manifestMediaType'] = (string) ($manifestItem['mediaType'] ?? '');
                     $item['referencedBy'] = $overlayReferences[$subjectId] ?? [];
 
-                    if (($manifestItem['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+                    if (!self::mediaTypeBaseEquals($manifestItem['mediaType'] ?? null, self::SMIL_MEDIA_TYPE)) {
                         $itemDiagnostics[] = [
                             'type' => 'media-duration-refines-non-overlay-manifest-item',
                             'subjectId' => $subjectId,
@@ -6338,7 +6338,7 @@ final class EpubReader
                     $item['manifestMediaType'] = (string) ($manifestItem['mediaType'] ?? '');
                     $item['referencedBy'] = $overlayReferences[$subjectId] ?? [];
 
-                    if (($manifestItem['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+                    if (!self::mediaTypeBaseEquals($manifestItem['mediaType'] ?? null, self::SMIL_MEDIA_TYPE)) {
                         $itemDiagnostics[] = [
                             'type' => 'media-overlay-style-refines-non-overlay-manifest-item',
                             'subjectId' => $subjectId,
@@ -6640,12 +6640,13 @@ final class EpubReader
      */
     private static function bindingForMediaType(array $bindings, string $mediaType): ?array
     {
+        $baseMediaType = self::baseMediaType($mediaType);
         foreach ($bindings['items'] ?? [] as $binding) {
             if (!is_array($binding)) {
                 continue;
             }
 
-            if (($binding['mediaType'] ?? null) === $mediaType) {
+            if (self::baseMediaType($binding['mediaType'] ?? null) === $baseMediaType) {
                 return $binding;
             }
         }
@@ -6777,7 +6778,7 @@ final class EpubReader
         $bindingHandled = is_array($binding)
             && ($binding['handlerExists'] ?? false) === true
             && ($binding['handlerCanExposeBytes'] ?? false) === true
-            && ($binding['handlerMediaType'] ?? null) === self::XHTML_MEDIA_TYPE;
+            && self::mediaTypeBaseEquals($binding['handlerMediaType'] ?? null, self::XHTML_MEDIA_TYPE);
 
         $reviewFlags = [];
         $diagnostics = is_array($parts['diagnostics'] ?? null) ? array_values($parts['diagnostics']) : [];
@@ -7066,6 +7067,16 @@ final class EpubReader
             'valid' => $diagnostics === [],
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    private static function baseMediaType(mixed $mediaType): string
+    {
+        return self::mediaTypeParts(is_string($mediaType) ? $mediaType : '')['base'];
+    }
+
+    private static function mediaTypeBaseEquals(mixed $mediaType, string $expectedBase): bool
+    {
+        return self::baseMediaType($mediaType) === strtolower($expectedBase);
     }
 
     private static function coreMediaTypeKind(string $mediaType): ?string
@@ -7971,7 +7982,7 @@ final class EpubReader
             ]];
         }
 
-        if (($handler['mediaType'] ?? null) !== self::XHTML_MEDIA_TYPE) {
+        if (!self::mediaTypeBaseEquals($handler['mediaType'] ?? null, self::XHTML_MEDIA_TYPE)) {
             return [[
                 'type' => 'non-xhtml-spine-binding-handler',
                 'mediaType' => $mediaType,
@@ -9072,7 +9083,7 @@ final class EpubReader
         }
 
         foreach ($manifest as $item) {
-            if ($item['mediaType'] === self::NCX_MEDIA_TYPE) {
+            if (self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::NCX_MEDIA_TYPE)) {
                 return $item;
             }
         }
@@ -13143,7 +13154,7 @@ final class EpubReader
         array $manifestByPart
     ): array {
         $diagnostics = [];
-        if (($item['mediaType'] ?? null) !== self::SMIL_MEDIA_TYPE) {
+        if (!self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::SMIL_MEDIA_TYPE)) {
             $diagnostics[] = [
                 'type' => 'unexpected-media-overlay-type',
                 'id' => $item['id'],
@@ -13179,7 +13190,7 @@ final class EpubReader
         if (
             ($item['exists'] ?? false) === true
             && !self::isEncryptedManifestItem($item)
-            && ($item['mediaType'] ?? null) === self::SMIL_MEDIA_TYPE
+            && self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::SMIL_MEDIA_TYPE)
         ) {
             $dom = self::loadXml($package->read((string) $item['part']), 'EPUB SMIL media overlay XML');
             $root = $dom->documentElement;
@@ -13658,7 +13669,7 @@ final class EpubReader
         $assets = [];
         foreach ($manifest as $item) {
             if (
-                $item['mediaType'] !== self::XHTML_MEDIA_TYPE
+                !self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::XHTML_MEDIA_TYPE)
                 || ($item['exists'] ?? false) !== true
                 || self::isEncryptedManifestItem($item)
             ) {
@@ -13859,14 +13870,15 @@ final class EpubReader
             }
 
             $mediaType = is_string($declared['mediaType'] ?? null) ? $declared['mediaType'] : null;
+            $isXhtml = self::mediaTypeBaseEquals($mediaType, self::XHTML_MEDIA_TYPE);
             $diagnostic = [
-                'type' => $mediaType === self::XHTML_MEDIA_TYPE
+                'type' => $isXhtml
                     ? 'declared-remote-resources-not-observed'
                     : 'declared-remote-resources-unscanned-resource',
                 'id' => (string) ($declared['id'] ?? ''),
                 'part' => $part,
                 'mediaType' => $mediaType,
-                'message' => $mediaType === self::XHTML_MEDIA_TYPE
+                'message' => $isXhtml
                     ? 'EPUB OPF manifest item declares remote-resources but the bounded XHTML scan did not observe resource-loading remote references'
                     : 'EPUB OPF manifest item declares remote-resources on a media type outside the bounded XHTML scanner',
             ];
@@ -13964,7 +13976,7 @@ final class EpubReader
 
         foreach ($manifest as $asset) {
             if (
-                ($asset['mediaType'] ?? null) !== 'text/css'
+                !self::mediaTypeBaseEquals($asset['mediaType'] ?? null, 'text/css')
                 || ($asset['exists'] ?? false) !== true
                 || self::isEncryptedManifestItem($asset)
                 || !is_string($asset['part'] ?? null)
@@ -18167,7 +18179,7 @@ final class EpubReader
         }
 
         $declaredType = self::nullableAttribute($element, 'type');
-        if ($policy === 'stylesheet' && $declaredType !== null && strtolower($declaredType) !== 'text/css') {
+        if ($policy === 'stylesheet' && $declaredType !== null && !self::mediaTypeBaseEquals($declaredType, 'text/css')) {
             $diagnostics[] = [
                 'type' => 'xhtml-stylesheet-link-non-css-type',
                 'typeAttribute' => $declaredType,
@@ -19083,7 +19095,7 @@ final class EpubReader
                 $manifestParts[$part] = true;
             }
 
-            if ($item['mediaType'] === self::XHTML_MEDIA_TYPE) {
+            if (self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::XHTML_MEDIA_TYPE)) {
                 continue;
             }
 
@@ -19729,22 +19741,23 @@ final class EpubReader
         }
 
         $mediaType = strtolower((string) ($item['mediaType'] ?? ''));
-        if ($mediaType === self::NCX_MEDIA_TYPE) {
+        $baseMediaType = self::baseMediaType($mediaType);
+        if ($baseMediaType === self::NCX_MEDIA_TYPE) {
             return 'navigation';
         }
-        if ($mediaType === self::SMIL_MEDIA_TYPE) {
+        if ($baseMediaType === self::SMIL_MEDIA_TYPE) {
             return 'media-overlay';
         }
-        if ($mediaType === 'text/css') {
+        if ($baseMediaType === 'text/css') {
             return 'stylesheet';
         }
-        if (str_starts_with($mediaType, 'image/')) {
+        if (str_starts_with($baseMediaType, 'image/')) {
             return 'image';
         }
-        if (str_starts_with($mediaType, 'audio/')) {
+        if (str_starts_with($baseMediaType, 'audio/')) {
             return 'audio';
         }
-        if (str_starts_with($mediaType, 'video/')) {
+        if (str_starts_with($baseMediaType, 'video/')) {
             return 'video';
         }
         if (self::isFontResource($mediaType, (string) ($item['part'] ?? ''))) {
@@ -19773,10 +19786,11 @@ final class EpubReader
         }
 
         $mediaType = strtolower((string) $mediaType);
+        $baseMediaType = self::baseMediaType($mediaType);
 
-        return str_starts_with($mediaType, 'image/')
-            || str_starts_with($mediaType, 'audio/')
-            || str_starts_with($mediaType, 'video/')
+        return str_starts_with($baseMediaType, 'image/')
+            || str_starts_with($baseMediaType, 'audio/')
+            || str_starts_with($baseMediaType, 'video/')
             || self::isFontResource($mediaType, $part);
     }
 
@@ -19787,13 +19801,14 @@ final class EpubReader
         }
 
         $mediaType = strtolower((string) $mediaType);
-        if (str_starts_with($mediaType, 'image/')) {
+        $baseMediaType = self::baseMediaType($mediaType);
+        if (str_starts_with($baseMediaType, 'image/')) {
             return 'image';
         }
-        if (str_starts_with($mediaType, 'audio/')) {
+        if (str_starts_with($baseMediaType, 'audio/')) {
             return 'audio';
         }
-        if (str_starts_with($mediaType, 'video/')) {
+        if (str_starts_with($baseMediaType, 'video/')) {
             return 'video';
         }
         if (self::isFontResource($mediaType, $part)) {
@@ -19890,7 +19905,7 @@ final class EpubReader
         $children = [];
         foreach ($spine as $item) {
             $contentMediaType = $item['contentMediaType'] ?? $item['mediaType'];
-            if ($contentMediaType !== self::XHTML_MEDIA_TYPE) {
+            if (!self::mediaTypeBaseEquals($contentMediaType, self::XHTML_MEDIA_TYPE)) {
                 continue;
             }
 
@@ -20224,7 +20239,7 @@ final class EpubReader
      */
     private static function canExposeXhtmlContent(array $item): bool
     {
-        return ($item['mediaType'] ?? null) === self::XHTML_MEDIA_TYPE
+        return self::mediaTypeBaseEquals($item['mediaType'] ?? null, self::XHTML_MEDIA_TYPE)
             && ($item['exists'] ?? false) === true
             && !self::isEncryptedManifestItem($item)
             && ($item['canExposeBytes'] ?? true) === true;
@@ -20252,26 +20267,27 @@ final class EpubReader
         if ($normalizedMediaType === '') {
             $normalizedMediaType = (string) (self::mediaTypeFromPart($part) ?? '');
         }
+        $baseMediaType = self::baseMediaType($normalizedMediaType);
 
-        if ($normalizedMediaType === self::XHTML_MEDIA_TYPE) {
+        if ($baseMediaType === self::XHTML_MEDIA_TYPE) {
             return 'xhtml';
         }
-        if ($normalizedMediaType === self::NCX_MEDIA_TYPE) {
+        if ($baseMediaType === self::NCX_MEDIA_TYPE) {
             return 'navigation';
         }
-        if ($normalizedMediaType === self::SMIL_MEDIA_TYPE) {
+        if ($baseMediaType === self::SMIL_MEDIA_TYPE) {
             return 'media-overlay';
         }
-        if ($normalizedMediaType === 'text/css') {
+        if ($baseMediaType === 'text/css') {
             return 'stylesheet';
         }
-        if (str_starts_with($normalizedMediaType, 'image/')) {
+        if (str_starts_with($baseMediaType, 'image/')) {
             return 'image';
         }
-        if (str_starts_with($normalizedMediaType, 'audio/')) {
+        if (str_starts_with($baseMediaType, 'audio/')) {
             return 'audio';
         }
-        if (str_starts_with($normalizedMediaType, 'video/')) {
+        if (str_starts_with($baseMediaType, 'video/')) {
             return 'video';
         }
         if (self::isFontResource($normalizedMediaType, $part)) {
