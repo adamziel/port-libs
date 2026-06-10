@@ -22858,6 +22858,106 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Range Supplement Packet :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
         $t->contains('<dt>Roe 2024</dt><dd>Named Supplement Packet :: printing number advance press :: supplement number legacy appendix</dd>', $blocks);
     },
+    'maps bounded bibtex printing and supplement number fields into csl variables' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{printed-manual,
+  author = {Smith, Ada},
+  title = {Second Printing Manual},
+  date = {2026},
+  printingnumber = {2},
+  supplement-number = {1}
+}
+
+@book{range-manual,
+  author = {Ng, Nia},
+  title = {Range Printing Manual},
+  date = {2025},
+  printing-number = {3-4},
+  supplementnumber = {2-3}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('2', $items[0]['printing-number'] ?? null);
+        $t->same('1', $items[0]['supplement-number'] ?? null);
+        $t->same('3-4', $items[1]['printing-number'] ?? null);
+        $t->same('2-3', $items[1]['supplement-number'] ?? null);
+        $t->same('2', $items[0]['rawBibtex']['fields']['printingnumber'] ?? null);
+        $t->same('1', $items[0]['rawBibtex']['fields']['supplement-number'] ?? null);
+        $t->same('3-4', $items[1]['rawBibtex']['fields']['printing-number'] ?? null);
+        $t->same('2-3', $items[1]['rawBibtex']['fields']['supplementnumber'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibTeX Printing Supplement Number Review</title>
+    <id>https://example.test/styles/bounded-bibtex-printing-supplement-number-review</id>
+    <updated>2026-06-10T15:54:52+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <label variable="printing-number" form="short"/>
+        <number variable="printing-number" form="ordinal"/>
+        <label variable="supplement-number" form="short"/>
+        <number variable="supplement-number" form="roman"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <group delimiter=" ">
+        <label variable="printing-number" plural="contextual"/>
+        <text variable="printing-number" form="long-ordinal"/>
+      </group>
+      <group delimiter=" ">
+        <label variable="supplement-number" plural="contextual"/>
+        <text variable="supplement-number" form="roman"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyPrinting = $summary['bibliographyRendering'][1]['children'] ?? [];
+        $bibliographySupplement = $summary['bibliographyRendering'][2]['children'] ?? [];
+        $t->same('Bounded BibTeX Printing Supplement Number Review', $summary['title'] ?? null);
+        $t->same('printing-number', $citationChildren[1]['variable'] ?? null);
+        $t->same('short', $citationChildren[1]['form'] ?? null);
+        $t->same('printing-number', $citationChildren[2]['variable'] ?? null);
+        $t->same('ordinal', $citationChildren[2]['form'] ?? null);
+        $t->same('supplement-number', $citationChildren[3]['variable'] ?? null);
+        $t->same('short', $citationChildren[3]['form'] ?? null);
+        $t->same('supplement-number', $citationChildren[4]['variable'] ?? null);
+        $t->same('roman', $citationChildren[4]['form'] ?? null);
+        $t->same('printing-number', $bibliographyPrinting[0]['variable'] ?? null);
+        $t->same('long-ordinal', $bibliographyPrinting[1]['form'] ?? null);
+        $t->same('supplement-number', $bibliographySupplement[0]['variable'] ?? null);
+        $t->same('roman', $bibliographySupplement[1]['form'] ?? null);
+        $t->same('2', $processor->item('printed-manual')['printingNumber'] ?? null);
+        $t->same('1', $processor->item('printed-manual')['supplementNumber'] ?? null);
+        $t->same('3-4', $processor->item('range-manual')['printingNumber'] ?? null);
+        $t->same('2-3', $processor->item('range-manual')['supplementNumber'] ?? null);
+
+        $t->same('[Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'printed-manual', 'text' => '[@printed-manual]']),
+            new AstNode('citation', ['id' => 'range-manual', 'text' => '[@range-manual]']),
+        ]));
+        $t->same('Second Printing Manual :: printing number second :: supplement number i', $processor->renderBibliographyEntry('printed-manual'));
+        $t->same('Range Printing Manual :: printing numbers third-fourth :: supplement numbers ii-iii', $processor->renderBibliographyEntry('range-manual'));
+
+        $document = (new MarkdownReader())->read('BibTeX printing metadata [@printed-manual; @range-manual] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibTeX printing metadata [Smith printing no. 2nd supp. no. i; Ng printing nos. 3rd-4th supp. nos. ii-iii] stays visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Second Printing Manual :: printing number second :: supplement number i</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Range Printing Manual :: printing numbers third-fourth :: supplement numbers ii-iii</dd>', $blocks);
+    },
     'maps bounded bibtex volume and part titles into csl output' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{volume-part-source,
