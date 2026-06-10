@@ -2514,11 +2514,12 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, packagePartCount:int, invalidPackagePartCount:int, contentTypeOverrideCount:int, invalidContentTypeOverrideCount:int, relationshipTargetCount:int, invalidRelationshipTargetCount:int, relationshipTypePolicyCount:int, invalidRelationshipTypePolicyCount:int, invalidPackagePartNames:list<string>, invalidContentTypeOverrideParts:list<string>, invalidRelationshipTargetKeys:list<string>, invalidRelationshipTypePolicyTypes:list<string>, issueCounts:array<string,int>, sectionIssueCounts:array<string,array<string,int>>, issues:list<string>}
+     * @return array{valid:bool, packagePartsValid:bool, contentTypeOverridesValid:bool, relationshipTargetsValid:bool, relationshipTypePoliciesValid:bool, relationshipPartsValid:bool, packagePartCount:int, invalidPackagePartCount:int, contentTypeOverrideCount:int, invalidContentTypeOverrideCount:int, relationshipTargetCount:int, invalidRelationshipTargetCount:int, relationshipTypePolicyCount:int, invalidRelationshipTypePolicyCount:int, relationshipPartCount:int, loadedRelationshipPartCount:int, skippedRelationshipPartCount:int, invalidRelationshipPartCount:int, invalidPackagePartNames:list<string>, invalidContentTypeOverrideParts:list<string>, invalidRelationshipTargetKeys:list<string>, invalidRelationshipTypePolicyTypes:list<string>, invalidRelationshipPartNames:list<string>, issueCounts:array<string,int>, sectionIssueCounts:array<string,array<string,int>>, relationshipPartLoadReasonCounts:array<string,int>, relationshipPartIssueCounts:array<string,int>, relationshipPartIssues:list<string>, issues:list<string>}
      */
     public function packageConsistencySummary(): array
     {
         $consistency = $this->preflightPackageConsistency();
+        $relationshipPartLoadSummary = self::relationshipPartLoadSummary($this->package);
         $sectionIssueCounts = [
             'packageParts' => [],
             'contentTypeOverrides' => [],
@@ -2531,6 +2532,7 @@ final class OpcRelationshipGraph
         $invalidContentTypeOverrideParts = [];
         $invalidRelationshipTargetKeys = [];
         $invalidRelationshipTypePolicyTypes = [];
+        $invalidRelationshipPartNames = [];
 
         $recordIssue = static function (string $section, string $issue) use (&$sectionIssueCounts, &$issueCounts, &$issues): void {
             $sectionIssueCounts[$section][$issue] = ($sectionIssueCounts[$section][$issue] ?? 0) + 1;
@@ -2578,6 +2580,12 @@ final class OpcRelationshipGraph
             }
         }
 
+        foreach ($relationshipPartLoadSummary['partNamesByIssue'] as $partNames) {
+            foreach ($partNames as $partName) {
+                self::appendUniqueString($invalidRelationshipPartNames, $partName);
+            }
+        }
+
         foreach ($sectionIssueCounts as &$counts) {
             ksort($counts, SORT_STRING);
         }
@@ -2587,6 +2595,7 @@ final class OpcRelationshipGraph
         sort($invalidContentTypeOverrideParts, SORT_STRING);
         sort($invalidRelationshipTargetKeys, SORT_STRING);
         sort($invalidRelationshipTypePolicyTypes, SORT_STRING);
+        sort($invalidRelationshipPartNames, SORT_STRING);
         ksort($issueCounts, SORT_STRING);
         sort($issues, SORT_STRING);
 
@@ -2596,6 +2605,7 @@ final class OpcRelationshipGraph
             'contentTypeOverridesValid' => $consistency['contentTypeOverridesValid'],
             'relationshipTargetsValid' => $consistency['relationshipTargetsValid'],
             'relationshipTypePoliciesValid' => $consistency['relationshipTypePoliciesValid'],
+            'relationshipPartsValid' => $relationshipPartLoadSummary['valid'],
             'packagePartCount' => count($consistency['packageParts']),
             'invalidPackagePartCount' => count($invalidPackagePartNames),
             'contentTypeOverrideCount' => count($consistency['contentTypeOverrides']),
@@ -2604,12 +2614,20 @@ final class OpcRelationshipGraph
             'invalidRelationshipTargetCount' => count($invalidRelationshipTargetKeys),
             'relationshipTypePolicyCount' => count($consistency['relationshipTypePolicies']),
             'invalidRelationshipTypePolicyCount' => count($invalidRelationshipTypePolicyTypes),
+            'relationshipPartCount' => $relationshipPartLoadSummary['relationshipPartCount'],
+            'loadedRelationshipPartCount' => $relationshipPartLoadSummary['loadedCount'],
+            'skippedRelationshipPartCount' => $relationshipPartLoadSummary['skippedCount'],
+            'invalidRelationshipPartCount' => $relationshipPartLoadSummary['invalidCount'],
             'invalidPackagePartNames' => $invalidPackagePartNames,
             'invalidContentTypeOverrideParts' => $invalidContentTypeOverrideParts,
             'invalidRelationshipTargetKeys' => $invalidRelationshipTargetKeys,
             'invalidRelationshipTypePolicyTypes' => $invalidRelationshipTypePolicyTypes,
+            'invalidRelationshipPartNames' => $invalidRelationshipPartNames,
             'issueCounts' => $issueCounts,
             'sectionIssueCounts' => $sectionIssueCounts,
+            'relationshipPartLoadReasonCounts' => $relationshipPartLoadSummary['loadReasonCounts'],
+            'relationshipPartIssueCounts' => $relationshipPartLoadSummary['issueCounts'],
+            'relationshipPartIssues' => $relationshipPartLoadSummary['issues'],
             'issues' => $issues,
         ];
     }

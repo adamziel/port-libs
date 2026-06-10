@@ -7481,6 +7481,7 @@ XML;
         $t->same(false, $summary['contentTypeOverridesValid']);
         $t->same(false, $summary['relationshipTargetsValid']);
         $t->same(false, $summary['relationshipTypePoliciesValid']);
+        $t->same(false, $summary['relationshipPartsValid']);
         $t->same(7, $summary['packagePartCount']);
         $t->same(1, $summary['invalidPackagePartCount']);
         $t->same(6, $summary['contentTypeOverrideCount']);
@@ -7489,10 +7490,15 @@ XML;
         $t->same(1, $summary['invalidRelationshipTargetCount']);
         $t->same(2, $summary['relationshipTypePolicyCount']);
         $t->same(1, $summary['invalidRelationshipTypePolicyCount']);
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(2, $summary['loadedRelationshipPartCount']);
+        $t->same(1, $summary['skippedRelationshipPartCount']);
+        $t->same(1, $summary['invalidRelationshipPartCount']);
         $t->same(['/word/_rels/draft.xml.rels'], $summary['invalidPackagePartNames']);
         $t->same(['/word/_rels/draft.xml.rels', '/word/media/stale.png'], $summary['invalidContentTypeOverrideParts']);
         $t->same(['/word/document.xml:rIdMissingImage'], $summary['invalidRelationshipTargetKeys']);
         $t->same([OpcRelationshipGraph::CORE_PROPERTIES_RELATIONSHIP_TYPE], $summary['invalidRelationshipTypePolicyTypes']);
+        $t->same(['/word/_rels/draft.xml.rels'], $summary['invalidRelationshipPartNames']);
         $t->same([
             'invalid-relationship-content-type' => 2,
             'missing-in-package' => 1,
@@ -7520,6 +7526,18 @@ XML;
         ], $summary['sectionIssueCounts']['contentTypeOverrides']);
         $t->same(['missing-in-package' => 1], $summary['sectionIssueCounts']['relationshipTargets']);
         $t->same(['multiple-core-properties-relationships' => 1], $summary['sectionIssueCounts']['relationshipTypePolicies']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'loaded' => 2,
+        ], $summary['relationshipPartLoadReasonCounts']);
+        $t->same([
+            'invalid-relationship-content-type' => 1,
+            'orphan-relationship-part' => 1,
+        ], $summary['relationshipPartIssueCounts']);
+        $t->same([
+            'invalid-relationship-content-type',
+            'orphan-relationship-part',
+        ], $summary['relationshipPartIssues']);
     },
     'summarizes package-wide OPC relationship type inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
