@@ -469,9 +469,21 @@ final class BibtexCslProcessor
             'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
             'event-organizer' => ['eventorganizer', 'event-organizer', 'organizer'],
             'interviewer' => ['interviewer'],
+            'compiler' => ['compiler'],
             'director' => ['director'],
+            'editorial-director' => ['editorialdirector', 'editorial-director'],
             'illustrator' => ['illustrator'],
             'collection-editor' => ['serieseditor', 'series-editor', 'collectioneditor', 'collection-editor'],
+            'redactor' => ['redactor'],
+            'commentator' => ['commentator'],
+            'annotator' => ['annotator'],
+            'founder' => ['founder'],
+            'continuator' => ['continuator'],
+            'reviser' => ['reviser'],
+            'collaborator' => ['collaborator'],
+            'introduction' => ['introduction'],
+            'foreword' => ['foreword'],
+            'afterword' => ['afterword'],
         ];
 
         foreach ($nameFields as $target => $names) {

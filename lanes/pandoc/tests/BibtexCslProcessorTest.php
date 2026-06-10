@@ -238,6 +238,48 @@ BIB;
         $t->same('11-13', $item['page']);
         $t->same('Sam Speaker. Conference Packet. Proceedings of Migration Review. 2026. 11-13.', $bibliography);
     },
+    'carries secondary csl contributor names in legacy biblatex handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{secondary-credits,
+  author            = {Writer, Willa},
+  compiler          = {Compiler, Cal},
+  editorialdirector = {Director, Edna},
+  redactor          = {Redactor, Rae},
+  commentator       = {Commentator, Cam},
+  annotator         = {Annotator, Ada},
+  founder           = {Founder, Fran},
+  continuator       = {Continuator, Chen},
+  reviser           = {Reviser, Remy},
+  collaborator      = {Collaborator, Cora and Partner, Priya},
+  introduction      = {Intro, Ira},
+  foreword          = {Foreword, Finn},
+  afterword         = {Afterword, Ari},
+  title             = {Secondary Credit Packet},
+  year              = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['secondary-credits'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('book', $item['type']);
+        $t->same('Writer', $item['author'][0]['family']);
+        $t->same('Compiler', $item['compiler'][0]['family']);
+        $t->same('Director', $item['editorial-director'][0]['family']);
+        $t->same('Redactor', $item['redactor'][0]['family']);
+        $t->same('Commentator', $item['commentator'][0]['family']);
+        $t->same('Annotator', $item['annotator'][0]['family']);
+        $t->same('Founder', $item['founder'][0]['family']);
+        $t->same('Continuator', $item['continuator'][0]['family']);
+        $t->same('Reviser', $item['reviser'][0]['family']);
+        $t->same('Collaborator', $item['collaborator'][0]['family']);
+        $t->same('Partner', $item['collaborator'][1]['family']);
+        $t->same('Intro', $item['introduction'][0]['family']);
+        $t->same('Foreword', $item['foreword'][0]['family']);
+        $t->same('Afterword', $item['afterword'][0]['family']);
+        $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
+        $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
+    },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-manual,
