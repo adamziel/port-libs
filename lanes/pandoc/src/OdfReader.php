@@ -112,6 +112,7 @@ final class OdfReader
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
+        $directoryItems = $this->manifestDirectoryItems($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
 
         $document = new AstNode('document', [
@@ -189,6 +190,8 @@ final class OdfReader
                     'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
+                    'directoryCount' => count($directoryItems),
+                    'directoryItems' => $directoryItems,
                     'missingItems' => array_values(array_filter(
                         $manifest,
                         static fn (array $item): bool => ($item['exists'] ?? false) !== true,
@@ -421,8 +424,9 @@ final class OdfReader
             } else {
                 $rootMediaType = $mediaType;
             }
-            $exists = $part === null ? true : $package->has($part);
-            $zipEntry = $exists && $part !== null ? $package->entry($part) : null;
+            $isDirectory = is_string($part) && str_ends_with($part, '/');
+            $exists = $part === null || $isDirectory || $package->has($part);
+            $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
             $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $declaredSizeMismatch = !$encrypted
                 && $declaredSize !== null
@@ -436,12 +440,13 @@ final class OdfReader
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
+                'isDirectory' => $isDirectory,
                 'byteLength' => $byteLength,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
-                'canExposeBytes' => !$encrypted,
+                'canExposeBytes' => !$encrypted && !$isDirectory,
                 'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
             ];
         }
@@ -11072,6 +11077,18 @@ final class OdfReader
         return array_values(array_filter(
             $manifest,
             static fn (array $item): bool => ($item['encrypted'] ?? false) === true
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function manifestDirectoryItems(array $manifest): array
+    {
+        return array_values(array_filter(
+            $manifest,
+            static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         ));
     }
 

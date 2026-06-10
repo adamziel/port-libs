@@ -8805,6 +8805,54 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(8, count($result['document']->children));
     },
+    'treats ODT manifest directory declarations as logical package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithDirectories = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/" manifest:media-type=""/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/" manifest:media-type=""/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDirectories, null, null, [
+            ['name' => 'Object 1/content.xml', 'data' => '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>'],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestReport = $result['importReport']['manifest'];
+
+        $t->same(9, $manifestReport['count']);
+        $t->same(3, $manifestReport['directoryCount']);
+        $t->same(['Pictures/', 'Object 1/', 'Configurations2/'], array_column($manifestReport['directoryItems'], 'part'));
+        $t->same([], $manifestReport['missingItems']);
+        $t->same(0, $manifestReport['undeclaredEntryCount']);
+        $t->same(1, count($result['media']), 'manifest directory entries must stay out of media byte handoff');
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+
+        $picturesDirectory = $manifestByPath['Pictures/'];
+        $objectDirectory = $manifestByPath['Object 1/'];
+        $configurationDirectory = $manifestByPath['Configurations2/'];
+        $t->same(true, $picturesDirectory['isDirectory']);
+        $t->same(true, $picturesDirectory['exists']);
+        $t->same(false, $picturesDirectory['canExposeBytes']);
+        $t->same(null, $picturesDirectory['byteLength']);
+        $t->same(null, $picturesDirectory['crc32']);
+        $t->same(true, $objectDirectory['isDirectory']);
+        $t->same('application/vnd.oasis.opendocument.formula', $objectDirectory['mediaType']);
+        $t->same(true, $objectDirectory['exists']);
+        $t->same(false, $objectDirectory['canExposeBytes']);
+        $t->same('Object 1/content.xml', $manifestByPath['Object 1/content.xml']['part']);
+        $t->same(true, $manifestByPath['Object 1/content.xml']['exists']);
+        $t->same(false, $configurationDirectory['canExposeBytes']);
+        $t->same($manifestReport['directoryItems'], array_values(array_filter(
+            $result['document']->attr('manifest')['items'],
+            static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
+        )));
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
