@@ -1317,49 +1317,67 @@ final class CitationCslProcessor
             'biblatexRefsegment' => $biblatexRefsegment,
             'biblatexReferenceContextSummary' => self::biblatexReferenceContextSummary($biblatexRefsection, $biblatexRefsegment),
             'issuedYear' => $issuedDate['year'],
-            'authors' => self::names($item['author'] ?? [], $id, 'author'),
-            'editors' => self::names($item['editor'] ?? [], $id, 'editor'),
-            'shortAuthors' => self::names($item['short-author'] ?? $item['shortAuthor'] ?? [], $id, 'short-author'),
-            'shortEditors' => self::names($item['short-editor'] ?? $item['shortEditor'] ?? [], $id, 'short-editor'),
-            'holders' => self::names($item['holder'] ?? [], $id, 'holder'),
+            'authors' => self::namesFromFirstItemField($item, $id, 'author', ['author', 'authors']),
+            'editors' => self::namesFromFirstItemField($item, $id, 'editor', ['editor', 'editors']),
+            'shortAuthors' => self::namesFromFirstItemField($item, $id, 'short-author', ['short-author', 'shortAuthor', 'short-authors', 'shortAuthors']),
+            'shortEditors' => self::namesFromFirstItemField($item, $id, 'short-editor', ['short-editor', 'shortEditor', 'short-editors', 'shortEditors']),
+            'holders' => self::namesFromFirstItemField($item, $id, 'holder', ['holder', 'holders']),
             'authorities' => $authorityNames,
-            'translators' => self::names($item['translator'] ?? [], $id, 'translator'),
-            'chairs' => self::names($item['chair'] ?? $item['chairs'] ?? [], $id, 'chair'),
-            'containerAuthors' => self::names($item['container-author'] ?? $item['containerAuthor'] ?? [], $id, 'container-author'),
-            'collectionEditors' => self::names($item['collection-editor'] ?? $item['collectionEditor'] ?? [], $id, 'collection-editor'),
-            'composers' => self::names($item['composer'] ?? [], $id, 'composer'),
-            'contributors' => self::names($item['contributor'] ?? [], $id, 'contributor'),
-            'editorTranslators' => self::names($item['editor-translator'] ?? $item['editorTranslator'] ?? [], $id, 'editor-translator'),
-            'executiveProducers' => self::names($item['executive-producer'] ?? $item['executiveProducer'] ?? [], $id, 'executive-producer'),
-            'eventOrganizers' => self::names($item['event-organizer'] ?? $item['eventOrganizer'] ?? [], $id, 'event-organizer'),
-            'guests' => self::names($item['guest'] ?? [], $id, 'guest'),
-            'hosts' => self::names($item['host'] ?? [], $id, 'host'),
-            'narrators' => self::names($item['narrator'] ?? [], $id, 'narrator'),
-            'originalAuthors' => self::names($item['original-author'] ?? $item['originalAuthor'] ?? [], $id, 'original-author'),
-            'performers' => self::names($item['performer'] ?? [], $id, 'performer'),
-            'producers' => self::names($item['producer'] ?? [], $id, 'producer'),
-            'recipients' => self::names($item['recipient'] ?? [], $id, 'recipient'),
-            'scriptWriters' => self::names($item['script-writer'] ?? $item['scriptWriter'] ?? [], $id, 'script-writer'),
-            'compilers' => self::names($item['compiler'] ?? [], $id, 'compiler'),
-            'curators' => self::names($item['curator'] ?? [], $id, 'curator'),
-            'directors' => self::names($item['director'] ?? [], $id, 'director'),
-            'editorialDirectors' => self::names($item['editorial-director'] ?? $item['editorialDirector'] ?? [], $id, 'editorial-director'),
-            'illustrators' => self::names($item['illustrator'] ?? [], $id, 'illustrator'),
-            'interviewers' => self::names($item['interviewer'] ?? [], $id, 'interviewer'),
-            'reviewedAuthors' => self::names($item['reviewed-author'] ?? $item['reviewedAuthor'] ?? [], $id, 'reviewed-author'),
-            'redactors' => self::names($item['redactor'] ?? [], $id, 'redactor'),
-            'founders' => self::names($item['founder'] ?? [], $id, 'founder'),
-            'continuators' => self::names($item['continuator'] ?? [], $id, 'continuator'),
-            'revisers' => self::names($item['reviser'] ?? [], $id, 'reviser'),
-            'collaborators' => self::names($item['collaborator'] ?? [], $id, 'collaborator'),
-            'commentators' => self::names($item['commentator'] ?? [], $id, 'commentator'),
-            'annotators' => self::names($item['annotator'] ?? [], $id, 'annotator'),
-            'introductionAuthors' => self::names($item['introduction'] ?? [], $id, 'introduction'),
-            'forewordAuthors' => self::names($item['foreword'] ?? [], $id, 'foreword'),
-            'afterwordAuthors' => self::names($item['afterword'] ?? [], $id, 'afterword'),
+            'translators' => self::namesFromFirstItemField($item, $id, 'translator', ['translator', 'translators']),
+            'chairs' => self::namesFromFirstItemField($item, $id, 'chair', ['chair', 'chairs']),
+            'containerAuthors' => self::namesFromFirstItemField($item, $id, 'container-author', ['container-author', 'containerAuthor', 'container-authors', 'containerAuthors']),
+            'collectionEditors' => self::namesFromFirstItemField($item, $id, 'collection-editor', ['collection-editor', 'collectionEditor', 'collection-editors', 'collectionEditors']),
+            'composers' => self::namesFromFirstItemField($item, $id, 'composer', ['composer', 'composers']),
+            'contributors' => self::namesFromFirstItemField($item, $id, 'contributor', ['contributor', 'contributors']),
+            'editorTranslators' => self::namesFromFirstItemField($item, $id, 'editor-translator', ['editor-translator', 'editorTranslator', 'editor-translators', 'editorTranslators']),
+            'executiveProducers' => self::namesFromFirstItemField($item, $id, 'executive-producer', ['executive-producer', 'executiveProducer', 'executive-producers', 'executiveProducers']),
+            'eventOrganizers' => self::namesFromFirstItemField($item, $id, 'event-organizer', ['event-organizer', 'eventOrganizer', 'event-organizers', 'eventOrganizers', 'organizer', 'organizers']),
+            'guests' => self::namesFromFirstItemField($item, $id, 'guest', ['guest', 'guests']),
+            'hosts' => self::namesFromFirstItemField($item, $id, 'host', ['host', 'hosts']),
+            'narrators' => self::namesFromFirstItemField($item, $id, 'narrator', ['narrator', 'narrators']),
+            'originalAuthors' => self::namesFromFirstItemField($item, $id, 'original-author', ['original-author', 'originalAuthor', 'original-authors', 'originalAuthors']),
+            'performers' => self::namesFromFirstItemField($item, $id, 'performer', ['performer', 'performers']),
+            'producers' => self::namesFromFirstItemField($item, $id, 'producer', ['producer', 'producers']),
+            'recipients' => self::namesFromFirstItemField($item, $id, 'recipient', ['recipient', 'recipients']),
+            'scriptWriters' => self::namesFromFirstItemField($item, $id, 'script-writer', ['script-writer', 'scriptWriter', 'script-writers', 'scriptWriters']),
+            'compilers' => self::namesFromFirstItemField($item, $id, 'compiler', ['compiler', 'compilers']),
+            'curators' => self::namesFromFirstItemField($item, $id, 'curator', ['curator', 'curators']),
+            'directors' => self::namesFromFirstItemField($item, $id, 'director', ['director', 'directors']),
+            'editorialDirectors' => self::namesFromFirstItemField($item, $id, 'editorial-director', ['editorial-director', 'editorialDirector', 'editorial-directors', 'editorialDirectors']),
+            'illustrators' => self::namesFromFirstItemField($item, $id, 'illustrator', ['illustrator', 'illustrators']),
+            'interviewers' => self::namesFromFirstItemField($item, $id, 'interviewer', ['interviewer', 'interviewers']),
+            'reviewedAuthors' => self::namesFromFirstItemField($item, $id, 'reviewed-author', ['reviewed-author', 'reviewedAuthor', 'reviewed-authors', 'reviewedAuthors']),
+            'redactors' => self::namesFromFirstItemField($item, $id, 'redactor', ['redactor', 'redactors']),
+            'founders' => self::namesFromFirstItemField($item, $id, 'founder', ['founder', 'founders']),
+            'continuators' => self::namesFromFirstItemField($item, $id, 'continuator', ['continuator', 'continuators']),
+            'revisers' => self::namesFromFirstItemField($item, $id, 'reviser', ['reviser', 'revisers']),
+            'collaborators' => self::namesFromFirstItemField($item, $id, 'collaborator', ['collaborator', 'collaborators']),
+            'commentators' => self::namesFromFirstItemField($item, $id, 'commentator', ['commentator', 'commentators']),
+            'annotators' => self::namesFromFirstItemField($item, $id, 'annotator', ['annotator', 'annotators']),
+            'introductionAuthors' => self::namesFromFirstItemField($item, $id, 'introduction', ['introduction', 'introductions', 'introductionAuthor', 'introductionAuthors']),
+            'forewordAuthors' => self::namesFromFirstItemField($item, $id, 'foreword', ['foreword', 'forewords', 'forewordAuthor', 'forewordAuthors']),
+            'afterwordAuthors' => self::namesFromFirstItemField($item, $id, 'afterword', ['afterword', 'afterwords', 'afterwordAuthor', 'afterwordAuthors']),
             'editorialRoles' => self::editorialRoles($item['editorial-roles'] ?? [], $id),
             'raw' => $item,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $keys
+     * @return list<array{family:string, given:string, literal:string, short:string, nonDroppingParticle:string, droppingParticle:string, suffix:string, commaSuffix:bool, staticOrdering:bool, parseNames:bool, annotations:list<array{part:string, value:string}>}>
+     */
+    private static function namesFromFirstItemField(array $item, string $id, string $field, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $item) || $item[$key] === null || $item[$key] === []) {
+                continue;
+            }
+
+            return self::names($item[$key], $id, $field);
+        }
+
+        return [];
     }
 
     /**

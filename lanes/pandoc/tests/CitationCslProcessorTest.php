@@ -23977,6 +23977,95 @@ XML);
         $t->contains('<p>Camel creator source [Smith | Source Review Forum | Legacy | Director | Reviewer] preserves direct CSL creator aliases.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
     },
+    'renders bounded csl plural creator aliases from direct items' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'plural-creator-packet',
+                'type' => 'motion_picture',
+                'title' => 'Plural Creator Alias Packet',
+                'authors' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'editors' => [
+                    ['family' => 'Editor', 'given' => 'Eli'],
+                ],
+                'translators' => [
+                    ['family' => 'Translator', 'given' => 'Tess'],
+                ],
+                'eventOrganizers' => [
+                    ['literal' => 'Plural Review Forum'],
+                ],
+                'directors' => [
+                    ['family' => 'Director', 'given' => 'Drew'],
+                ],
+                'reviewedAuthors' => [
+                    ['family' => 'Reviewer', 'given' => 'Rae'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Plural Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-plural-creator-alias-review</id>
+    <updated>2026-06-10T19:16:28+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="author editor translator event-organizer director reviewed-author" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <names variable="editor"/>
+            <names variable="translator"/>
+            <names variable="event-organizer"/>
+            <names variable="director"/>
+            <names variable="reviewed-author"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-plural-creators"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="author"/>
+      <names variable="editor"/>
+      <names variable="translator"/>
+      <names variable="event-organizer"/>
+      <names variable="director"/>
+      <names variable="reviewed-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('plural-creator-packet');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Plural Creator Alias Review', $summary['title'] ?? null);
+        $t->same(['author', 'editor', 'translator', 'event-organizer', 'director', 'reviewed-author'], $branch['variables'] ?? null);
+        $t->same('Smith', $item['authors'][0]['family'] ?? null);
+        $t->same('Editor', $item['editors'][0]['family'] ?? null);
+        $t->same('Translator', $item['translators'][0]['family'] ?? null);
+        $t->same('Plural Review Forum', $item['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Director', $item['directors'][0]['family'] ?? null);
+        $t->same('Reviewer', $item['reviewedAuthors'][0]['family'] ?? null);
+
+        $t->same('[Smith | Editor | Translator | Plural Review Forum | Director | Reviewer]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'plural-creator-packet', 'text' => '[@plural-creator-packet]']),
+        ]));
+        $t->same('Plural Creator Alias Packet :: Smith, Ada :: Editor, Eli :: Translator, Tess :: Plural Review Forum :: Director, Drew :: Reviewer, Rae', $processor->renderBibliographyEntry('plural-creator-packet'));
+
+        $document = (new MarkdownReader())->read('Plural creator source [@plural-creator-packet] preserves direct CSL aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Plural creator source [Smith | Editor | Translator | Plural Review Forum | Director | Reviewer] preserves direct CSL aliases.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Plural Creator Alias Packet :: Smith, Ada :: Editor, Eli :: Translator, Tess :: Plural Review Forum :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
+    },
     'renders bounded csl archive collection aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
