@@ -13495,6 +13495,16 @@ final class DocxReader
         } else {
             $attrs['format'] = $definition['format'];
         }
+        if (isset($definition['pictureBulletId']) && is_string($definition['pictureBulletId'])) {
+            $attrs['pictureBulletId'] = $definition['pictureBulletId'];
+        }
+        if (isset($definition['pictureBullet']) && is_array($definition['pictureBullet'])) {
+            $attrs['pictureBullet'] = $definition['pictureBullet'];
+            $htmlAttributes = $this->numberingPictureBulletHtmlAttributes($definition['pictureBullet']);
+            if ($htmlAttributes !== []) {
+                $attrs['htmlAttributes'] = $htmlAttributes;
+            }
+        }
 
         return [
             'type' => $definition['ordered'] ? 'ordered_list' : 'bullet_list',
@@ -13507,7 +13517,7 @@ final class DocxReader
     /**
      * @param array{type:string, key:string, attrs:array<string, mixed>, children:list<array<string, mixed>>} $list
      * @param array<int, array{key:string, lastItem:array<string, mixed>}> $stack
-     * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
+     * @param array<string, mixed> $definition
      */
     private function appendMutableListItem(array &$list, array &$stack, AstNode $paragraph, array $definition): void
     {
@@ -13539,7 +13549,7 @@ final class DocxReader
     }
 
     /**
-     * @param array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string} $definition
+     * @param array<string, mixed> $definition
      */
     private function listDefinitionKey(array $definition): string
     {
@@ -13549,7 +13559,54 @@ final class DocxReader
             $definition['ordered'] ? 'ordered' : 'bullet',
             $definition['style'],
             $definition['delimiter'],
+            (string) ($definition['pictureBulletId'] ?? ''),
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $pictureBullet
+     * @return array<string, string>
+     */
+    private function numberingPictureBulletHtmlAttributes(array $pictureBullet): array
+    {
+        $attrs = [];
+        foreach ([
+            'id' => 'data-docx-numbering-picture-bullet-id',
+            'relationshipId' => 'data-docx-numbering-picture-relationship-id',
+            'relationshipType' => 'data-docx-numbering-picture-relationship-type',
+            'target' => 'data-docx-numbering-picture-target',
+            'targetPart' => 'data-docx-numbering-picture-target-part',
+            'contentType' => 'data-docx-numbering-picture-content-type',
+            'title' => 'data-docx-numbering-picture-title',
+        ] as $source => $target) {
+            $value = $pictureBullet[$source] ?? null;
+            if (is_scalar($value) && (string) $value !== '') {
+                $attrs[$target] = (string) $value;
+            }
+        }
+
+        foreach ([
+            'external' => 'data-docx-numbering-picture-external',
+            'exists' => 'data-docx-numbering-picture-exists',
+        ] as $source => $target) {
+            if (is_bool($pictureBullet[$source] ?? null)) {
+                $attrs[$target] = $pictureBullet[$source] ? 'true' : 'false';
+            }
+        }
+
+        if (is_int($pictureBullet['bytes'] ?? null)) {
+            $attrs['data-docx-numbering-picture-bytes'] = (string) $pictureBullet['bytes'];
+        }
+
+        $issues = $pictureBullet['issues'] ?? [];
+        if (is_array($issues) && $issues !== []) {
+            $attrs['data-docx-numbering-picture-issues'] = implode(' ', array_filter(
+                $issues,
+                static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+            ));
+        }
+
+        return $attrs;
     }
 
     /**
@@ -14496,8 +14553,8 @@ final class DocxReader
     }
 
     /**
-     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
-     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int, issues:list<string>}|array{}
+     * @param array<string, array<int, array<string, mixed>>> $numbering
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, levelCount:int, styleLinkedLevelCount:int, pictureBulletCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14517,6 +14574,10 @@ final class DocxReader
         $targetSuffix = ['query' => null, 'fragment' => null];
         $exists = null;
         $contentType = null;
+        $numberingRelationshipsPart = null;
+        $numberingRelationshipCount = 0;
+        $numberingRelationshipItems = [];
+        $pictureBullets = [];
         $issues = count($numberingRelationships) > 1 ? ['multiple-numbering-relationships'] : [];
         $relationshipIssues = [];
 
@@ -14535,6 +14596,25 @@ final class DocxReader
                 $relationshipIssues[] = 'missing-content-type';
             } elseif (strcasecmp($contentType, self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE) !== 0) {
                 $relationshipIssues[] = 'invalid-numbering-content-type';
+            }
+
+            if ($exists) {
+                $numberingPartRelationships = $graph->relationshipsForSource($targetPart);
+                if ($numberingPartRelationships instanceof OpcRelationships) {
+                    $numberingRelationshipsPart = $numberingPartRelationships->relationshipPartName();
+                    $numberingRelationshipItems = $graph->summarizeTargetsForSource($targetPart);
+                    $numberingRelationshipCount = count($numberingRelationshipItems);
+                }
+
+                $dom = self::loadXml($package->read($targetPart), 'DOCX numbering XML');
+                $root = $dom->documentElement;
+                if ($root instanceof \DOMElement && $this->isWordElement($root, 'numbering')) {
+                    $pictureBullets = array_values($this->numberingPictureBullets(
+                        $root,
+                        $package,
+                        $numberingPartRelationships instanceof OpcRelationships ? $numberingPartRelationships : null
+                    ));
+                }
             }
         }
         $issues = array_values(array_unique(array_merge($issues, $relationshipIssues)));
@@ -14570,9 +14650,14 @@ final class DocxReader
                 'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
                 'issues' => $relationshipIssues,
             ],
+            'relationshipsPart' => $numberingRelationshipsPart,
+            'numberingRelationshipCount' => $numberingRelationshipCount,
+            'numberingRelationships' => $numberingRelationshipItems,
             'definitionCount' => count($numbering),
             'levelCount' => $levelCount,
             'styleLinkedLevelCount' => $styleLinkedLevelCount,
+            'pictureBulletCount' => count($pictureBullets),
+            'pictureBullets' => $pictureBullets,
             'issues' => $issues,
         ];
     }
@@ -14605,7 +14690,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>>
+     * @return array<string, array<int, array<string, mixed>>>
      */
     private function loadNumbering(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
     {
@@ -14623,6 +14708,13 @@ final class DocxReader
         if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'numbering')) {
             return [];
         }
+
+        $numberingRelationships = $graph->relationshipsForSource($numberingPart);
+        $pictureBullets = $this->numberingPictureBullets(
+            $root,
+            $package,
+            $numberingRelationships instanceof OpcRelationships ? $numberingRelationships : null
+        );
 
         $abstractLevels = [];
         foreach ($root->childNodes as $child) {
@@ -14642,7 +14734,7 @@ final class DocxReader
                 }
 
                 $level = $this->intWordAttr($levelElement, 'ilvl', 0);
-                $levels[$level] = $this->numberingLevelDefinition($levelElement);
+                $levels[$level] = $this->numberingLevelDefinition($levelElement, $pictureBullets);
             }
 
             $abstractLevels[$abstractNumId] = $levels;
@@ -14671,7 +14763,7 @@ final class DocxReader
                 $level = $this->intWordAttr($override, 'ilvl', 0);
                 $overrideLevel = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'lvl');
                 if ($overrideLevel instanceof \DOMElement) {
-                    $levels[$level] = $this->numberingLevelDefinition($overrideLevel);
+                    $levels[$level] = $this->numberingLevelDefinition($overrideLevel, $pictureBullets);
                 }
 
                 $startOverride = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'startOverride');
@@ -14694,6 +14786,173 @@ final class DocxReader
         return $numbering;
     }
 
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function numberingPictureBullets(
+        \DOMElement $numberingRoot,
+        ZipPackage $package,
+        ?OpcRelationships $relationships
+    ): array {
+        $pictureBullets = [];
+        foreach ($numberingRoot->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'numPicBullet')) {
+                continue;
+            }
+
+            $pictureBulletId = $this->wordAttr($child, 'numPicBulletId');
+            if ($pictureBulletId === null || $pictureBulletId === '') {
+                continue;
+            }
+
+            $pictureBullets[$pictureBulletId] = $this->numberingPictureBulletSummary(
+                $pictureBulletId,
+                $child,
+                $package,
+                $relationships,
+            );
+        }
+
+        return $pictureBullets;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function numberingPictureBulletSummary(
+        string $pictureBulletId,
+        \DOMElement $pictureBullet,
+        ZipPackage $package,
+        ?OpcRelationships $relationships
+    ): array {
+        $summary = [
+            'id' => $pictureBulletId,
+            'relationshipId' => null,
+            'relationshipType' => null,
+            'target' => null,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => null,
+            'exists' => null,
+            'bytes' => null,
+            'title' => null,
+            'issues' => [],
+        ];
+
+        $imageData = null;
+        foreach ($pictureBullet->getElementsByTagNameNS(self::VML_NS, 'imagedata') as $candidate) {
+            if ($candidate instanceof \DOMElement) {
+                $imageData = $candidate;
+                break;
+            }
+        }
+
+        if (!$imageData instanceof \DOMElement) {
+            $summary['issues'][] = 'missing-image-data';
+
+            return $summary;
+        }
+
+        $title = $this->namespacedAttr($imageData, self::OFFICE_VML_NS, 'title');
+        if ($title !== null && $title !== '') {
+            $summary['title'] = $title;
+        }
+
+        $relationshipId = $this->relationshipAttr($imageData, 'id');
+        if ($relationshipId === null || $relationshipId === '') {
+            $summary['issues'][] = 'missing-relationship-id';
+
+            return $summary;
+        }
+
+        $summary['relationshipId'] = $relationshipId;
+        if (!$relationships instanceof OpcRelationships) {
+            $summary['issues'][] = 'missing-numbering-relationships';
+
+            return $summary;
+        }
+
+        $relationship = $relationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $summary['issues'][] = 'missing-relationship';
+
+            return $summary;
+        }
+
+        foreach ($this->numberingRelationshipTargetSummary($relationship, $package, $relationships) as $key => $value) {
+            $summary[$key] = $value;
+        }
+
+        if ($relationship->type !== self::REL_TYPE_IMAGE) {
+            $summary['issues'][] = 'unexpected-relationship-type';
+        }
+
+        if (
+            is_string($summary['contentType'])
+            && !str_starts_with(strtolower(trim(explode(';', $summary['contentType'], 2)[0])), 'image/')
+        ) {
+            $summary['issues'][] = 'unexpected-content-type';
+        }
+
+        $summary['issues'] = array_values(array_unique($summary['issues']));
+
+        return $summary;
+    }
+
+    /**
+     * @return array{relationshipType:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, bytes:?int, issues:list<string>}
+     */
+    private function numberingRelationshipTargetSummary(
+        OpcRelationship $relationship,
+        ZipPackage $package,
+        OpcRelationships $relationships
+    ): array {
+        $summary = [
+            'relationshipType' => $relationship->type,
+            'target' => $relationship->target,
+            'targetPart' => null,
+            'contentType' => null,
+            'external' => $relationship->isExternal(),
+            'exists' => null,
+            'bytes' => null,
+            'issues' => [],
+        ];
+
+        if ($relationship->isExternal()) {
+            $summary['target'] = $relationships->resolveTarget($relationship);
+            $externalTarget = $relationship->externalTargetPreflight();
+            if (!$externalTarget['allowed']) {
+                $summary['issues'] = $externalTarget['issues'];
+            }
+
+            return $summary;
+        }
+
+        try {
+            $target = $relationships->resolveTarget($relationship);
+        } catch (\InvalidArgumentException) {
+            $summary['issues'][] = 'invalid-target';
+
+            return $summary;
+        }
+
+        $targetPart = OpcPackagePath::stripQueryAndFragment($target);
+        $summary['target'] = $target;
+        $summary['targetPart'] = $targetPart;
+        $summary['contentType'] = $this->contentTypeForPackagePart($package, $targetPart);
+        $summary['exists'] = $package->has($targetPart);
+        if ($summary['exists'] === true) {
+            $summary['bytes'] = strlen($package->read($targetPart));
+        } else {
+            $summary['issues'][] = 'missing-in-package';
+        }
+        if ($summary['contentType'] === null) {
+            $summary['issues'][] = 'missing-content-type';
+        }
+
+        return $summary;
+    }
+
     private function numberingPartName(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): ?string
     {
         $relationshipTarget = $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart);
@@ -14710,8 +14969,8 @@ final class DocxReader
 
     /**
      * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
-     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
-     * @return array{numId:string, level:int, ordered:bool, style:string, delimiter:string, start:int, format:string}|null
+     * @param array<string, array<int, array<string, mixed>>> $numbering
+     * @return array<string, mixed>|null
      */
     private function listDefinitionForParagraph(\DOMElement $paragraph, array $styles, array $numbering): ?array
     {
@@ -14734,7 +14993,7 @@ final class DocxReader
             return null;
         }
 
-        return [
+        $definition = [
             'numId' => $numId,
             'level' => $level,
             'ordered' => $levelDefinition['ordered'],
@@ -14743,6 +15002,13 @@ final class DocxReader
             'start' => $levelDefinition['start'],
             'format' => $levelDefinition['format'],
         ];
+        foreach (['pictureBulletId', 'pictureBullet'] as $key) {
+            if (array_key_exists($key, $levelDefinition)) {
+                $definition[$key] = $levelDefinition[$key];
+            }
+        }
+
+        return $definition;
     }
 
     /**
@@ -16601,9 +16867,10 @@ final class DocxReader
     }
 
     /**
-     * @return array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}
+     * @param array<string, array<string, mixed>> $pictureBullets
+     * @return array<string, mixed>
      */
-    private function numberingLevelDefinition(\DOMElement $levelElement): array
+    private function numberingLevelDefinition(\DOMElement $levelElement, array $pictureBullets = []): array
     {
         $formatElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'numFmt');
         $format = $formatElement instanceof \DOMElement ? strtolower((string) $this->wordAttr($formatElement, 'val')) : 'decimal';
@@ -16625,6 +16892,17 @@ final class DocxReader
         ];
         if ($paragraphStyleId !== '') {
             $definition['paragraphStyleId'] = $paragraphStyleId;
+        }
+
+        $pictureBulletElement = $this->firstChildElement($levelElement, self::WORDPROCESSINGML_NS, 'lvlPicBulletId');
+        $pictureBulletId = $pictureBulletElement instanceof \DOMElement
+            ? trim((string) ($this->wordAttr($pictureBulletElement, 'val') ?? ''))
+            : '';
+        if ($pictureBulletId !== '') {
+            $definition['pictureBulletId'] = $pictureBulletId;
+            if (isset($pictureBullets[$pictureBulletId])) {
+                $definition['pictureBullet'] = $pictureBullets[$pictureBulletId];
+            }
         }
 
         return $definition;

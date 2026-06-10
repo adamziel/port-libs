@@ -1085,6 +1085,70 @@ $numberingStyleLinkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$numberingPictureBulletContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
+</Types>
+XML;
+
+$numberingPictureBulletDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+</Relationships>
+XML;
+
+$numberingPictureBulletRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPictureBullet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/picture-bullet.png"/>
+</Relationships>
+XML;
+
+$numberingPictureBulletNumberingXml = <<<'XML'
+<w:numbering
+  xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+  <w:numPicBullet w:numPicBulletId="7">
+    <w:pict>
+      <v:shape alt="Picture bullet">
+        <v:imagedata r:id="rIdPictureBullet" o:title="Picture bullet title"/>
+      </v:shape>
+    </w:pict>
+  </w:numPicBullet>
+  <w:abstractNum w:abstractNumId="90">
+    <w:lvl w:ilvl="0">
+      <w:start w:val="1"/>
+      <w:numFmt w:val="bullet"/>
+      <w:lvlText w:val="•"/>
+      <w:lvlPicBulletId w:val="7"/>
+    </w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="91">
+    <w:abstractNumId w:val="90"/>
+  </w:num>
+</w:numbering>
+XML;
+
+$numberingPictureBulletDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="91"/></w:numPr></w:pPr>
+      <w:r><w:t>Review picture bullet relationship</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="91"/></w:numPr></w:pPr>
+      <w:r><w:t>Keep fallback list rendering stable</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
 $paragraphStyleMetadataStylesXml = <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="ReviewLayoutBase">
@@ -4681,6 +4745,25 @@ $buildNumberingStyleLinkPackage = static function () use (
     ]);
 };
 
+$buildNumberingPictureBulletPackage = static function () use (
+    $stylesNumberingRelationshipsXml,
+    $numberingPictureBulletContentTypesXml,
+    $numberingPictureBulletDocumentRelationshipsXml,
+    $numberingPictureBulletRelationshipsXml,
+    $numberingPictureBulletDocumentXml,
+    $numberingPictureBulletNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $numberingPictureBulletContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $numberingPictureBulletDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingPictureBulletDocumentRelationshipsXml],
+        ['name' => 'word/numbering.xml', 'data' => $numberingPictureBulletNumberingXml],
+        ['name' => 'word/_rels/numbering.xml.rels', 'data' => $numberingPictureBulletRelationshipsXml],
+        ['name' => 'word/media/picture-bullet.png', 'data' => 'PICTUREBULLET'],
+    ]);
+};
+
 $buildNumberingLevelOverridePackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -7044,6 +7127,52 @@ return [
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['expectedContentType']);
         $t->same(['invalid-numbering-content-type'], $relationship['issues']);
         $t->same($result['metadata']['docxNumbering'], $result['importReport']['numbering']);
+    },
+    'preserves DOCX numbering picture-bullet relationships in list metadata' => static function (TestRunner $t) use ($buildNumberingPictureBulletPackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingPictureBulletPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(1, count($document->children));
+        $list = $document->children[0];
+        $t->same('bullet_list', $list->type);
+        $t->same('91', $list->attr('numId'));
+        $t->same('7', $list->attr('pictureBulletId'));
+        $t->same(2, count($list->children));
+        $t->same('Review picture bullet relationship', $list->children[0]->children[0]->children[0]->attr('text'));
+
+        $pictureBullet = $list->attr('pictureBullet');
+        $t->true(is_array($pictureBullet), 'Picture-bullet metadata should be attached to the list');
+        $t->same('7', $pictureBullet['id']);
+        $t->same('rIdPictureBullet', $pictureBullet['relationshipId']);
+        $t->same(DocxReader::REL_TYPE_IMAGE, $pictureBullet['relationshipType']);
+        $t->same('/word/media/picture-bullet.png', $pictureBullet['target']);
+        $t->same('/word/media/picture-bullet.png', $pictureBullet['targetPart']);
+        $t->same('image/png', $pictureBullet['contentType']);
+        $t->same(false, $pictureBullet['external']);
+        $t->same(true, $pictureBullet['exists']);
+        $t->same(13, $pictureBullet['bytes']);
+        $t->same('Picture bullet title', $pictureBullet['title']);
+        $t->same([], $pictureBullet['issues']);
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $t->same('/word/numbering.xml', $numbering['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $numbering['contentType']);
+        $t->same('rIdNumbering', $numbering['relationship']['id']);
+        $t->same('/word/_rels/numbering.xml.rels', $numbering['relationshipsPart']);
+        $t->same(1, $numbering['numberingRelationshipCount']);
+        $t->same(1, $numbering['definitionCount']);
+        $t->same(1, $numbering['levelCount']);
+        $t->same(0, $numbering['styleLinkedLevelCount']);
+        $t->same(1, $numbering['pictureBulletCount']);
+        $t->same($pictureBullet, $numbering['pictureBullets'][0]);
+        $t->same($numbering, $result['importReport']['numbering']);
+
+        $t->contains("- Review picture bullet relationship\n- Keep fallback list rendering stable", $markdown);
+        $t->contains('<ul data-docx-numbering-picture-bullet-id="7" data-docx-numbering-picture-relationship-id="rIdPictureBullet"', $blocks);
+        $t->contains('data-docx-numbering-picture-target-part="/word/media/picture-bullet.png"', $blocks);
+        $t->contains('data-docx-numbering-picture-bytes="13"', $blocks);
     },
     'resolves DOCX numbering levels linked to paragraph styles into AST lists' => static function (TestRunner $t) use ($buildNumberingStyleLinkPackage): void {
         $document = (new DocxReader())->readDocument($buildNumberingStyleLinkPackage());
