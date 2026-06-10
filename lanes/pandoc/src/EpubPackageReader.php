@@ -211,7 +211,7 @@ final class EpubPackageReader
             }
 
             $type = $this->epubType($element);
-            if ($type !== 'toc' && $type !== 'landmarks') {
+            if ($type !== 'toc' && $type !== 'landmarks' && $type !== 'page-list') {
                 continue;
             }
 
@@ -668,7 +668,7 @@ final class EpubPackageReader
         }
 
         foreach ($this->tokens($value) as $token) {
-            if ($token === 'toc' || $token === 'landmarks') {
+            if ($token === 'toc' || $token === 'landmarks' || $token === 'page-list') {
                 return $token;
             }
         }

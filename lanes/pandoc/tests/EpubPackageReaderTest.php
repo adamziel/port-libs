@@ -88,6 +88,24 @@ return [
         $t->same(3, $ncx[1]['playOrder']);
         $t->same('details', $ncx[1]['fragment']);
     },
+    'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
+        $document = (new EpubPackageReader())->readDirectory($fixture());
+        $epub = $document->attr('epub');
+        $pageList = array_values(array_filter(
+            $epub['toc'],
+            static fn (array $entry): bool => $entry['type'] === 'page-list'
+        ));
+
+        $t->same(2, count($pageList));
+        $t->same('1', $pageList[0]['label']);
+        $t->same('chapter1.xhtml#opening-title', $pageList[0]['href']);
+        $t->same('EPUB/chapter1.xhtml', $pageList[0]['path']);
+        $t->same('opening-title', $pageList[0]['fragment']);
+        $t->same('page-list', $pageList[0]['type']);
+        $t->same('2', $pageList[1]['label']);
+        $t->same('EPUB/chapter2.xhtml', $pageList[1]['path']);
+        $t->same('details', $pageList[1]['fragment']);
+    },
     'maps epub spine xhtml assets into shared ast and wordpress blocks' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
         $blocks = (new WordPressBlockWriter())->write($document);
