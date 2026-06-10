@@ -312,6 +312,7 @@ final class PandocJsonWriter
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),
+            'native_block' => $this->nativeTaggedConstructor($node, 'block'),
             default => throw new \InvalidArgumentException("Unsupported AST block node for Pandoc JSON: {$node->type}"),
         };
     }
@@ -674,8 +675,22 @@ final class PandocJsonWriter
             'image' => ['t' => 'Image', 'c' => [$this->attrTuple($node), $this->writeInlines($this->imageLabelInlines($node)), [(string) $node->attr('url', ''), (string) $node->attr('title', '')]]],
             'note' => ['t' => 'Note', 'c' => $this->writeBlocks($node->children)],
             'span' => ['t' => 'Span', 'c' => [$this->attrTuple($node), $this->writeInlines($node->children)]],
+            'native_inline' => $this->nativeTaggedConstructor($node, 'inline'),
             default => throw new \InvalidArgumentException("Unsupported AST inline node for Pandoc JSON: {$node->type}"),
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function nativeTaggedConstructor(AstNode $node, string $context): array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null) || $native['t'] === '') {
+            throw new \InvalidArgumentException("Pandoc JSON {$context} native fallback node must carry a tagged native constructor");
+        }
+
+        return $native;
     }
 
     /**

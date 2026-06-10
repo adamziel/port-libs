@@ -812,6 +812,42 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'emits native fallback constructors through pandoc json writer' => static function (TestRunner $t): void {
+        $nativePacket = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'VendorBlock', 'c' => [
+                    'source' => 'filter-extension',
+                    'payload' => [['t' => 'Str', 'c' => 'opaque']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                    ['t' => 'Space'],
+                    ['t' => 'VendorInline', 'c' => ['name' => 'review-anchor', 'value' => 42]],
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+        $encoded = (new PandocJsonWriter())->toArray($document);
+
+        $t->same('native_block', $document->children[0]->type);
+        $t->same('VendorBlock', $encoded['blocks'][0]['t']);
+        $t->same($nativePacket['blocks'][0]['c'], $encoded['blocks'][0]['c']);
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('native_inline', $document->children[1]->children[1]->type);
+        $t->same('VendorInline', $encoded['blocks'][1]['c'][1]['t']);
+        $t->same(['name' => 'review-anchor', 'value' => 42], $encoded['blocks'][1]['c'][1]['c']);
+
+        $writer = new PandocJsonWriter();
+        $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [
+            new AstNode('native_block'),
+        ])));
+        $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [new AstNode('native_inline')]),
+        ])));
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
