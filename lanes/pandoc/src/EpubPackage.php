@@ -74,6 +74,7 @@ final class EpubPackage
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
      * @param array<string, mixed> $encryption
+     * @param ?string $spineTocId
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
      * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
      */
@@ -92,6 +93,7 @@ final class EpubPackage
         private readonly array $mediaOverlays,
         private readonly array $manifestFallbacks,
         private readonly array $encryption,
+        private readonly ?string $spineTocId,
         private readonly ?array $navigation,
         private readonly array $navigationSections,
     ) {
@@ -145,6 +147,7 @@ final class EpubPackage
             $opf['mediaOverlays'],
             $opf['manifestFallbacks'],
             $opf['encryption'],
+            $opf['spineTocId'],
             $navigation['navigation'],
             $navigation['sections'],
         );
@@ -368,6 +371,7 @@ final class EpubPackage
             $this->metadata,
             $this->manifestItems,
             $this->spine,
+            $this->spineTocId,
             $this->navigation,
             $this->navigationSections,
         );
@@ -501,6 +505,7 @@ final class EpubPackage
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $manifestItems
      * @param list<array<string, mixed>> $spine
+     * @param ?string $spineTocId
      * @param array<string, mixed>|null $navigation
      * @param list<array<string, mixed>> $navigationSections
      *
@@ -513,6 +518,7 @@ final class EpubPackage
         array $metadata,
         array $manifestItems,
         array $spine,
+        ?string $spineTocId,
         ?array $navigation,
         array $navigationSections
     ): array {
@@ -521,11 +527,13 @@ final class EpubPackage
         $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
         $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
         $spineReport = self::packageSpineValidationReport($spine);
+        $ncxReport = self::packageNcxValidationReport($spineTocId, $manifestItems, $navigation);
         $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
         $diagnostics = array_merge(
             $metadataReport['diagnostics'],
             $manifestReport['diagnostics'],
             $spineReport['diagnostics'],
+            $ncxReport['diagnostics'],
             $navigationReport['diagnostics'],
         );
 
@@ -541,6 +549,7 @@ final class EpubPackage
             'metadata' => $metadataReport,
             'manifest' => $manifestReport,
             'spine' => $spineReport,
+            'ncx' => $ncxReport,
             'navigation' => $navigationReport,
         ];
     }
@@ -752,6 +761,95 @@ final class EpubPackage
             'nonContentDocumentItems' => $nonContentDocumentItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     * @param array<string, mixed>|null $navigation
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageNcxValidationReport(?string $spineTocId, array $manifestItems, ?array $navigation): array
+    {
+        $manifestById = [];
+        $ncxItems = [];
+        foreach ($manifestItems as $item) {
+            $id = (string) ($item['id'] ?? '');
+            if ($id !== '') {
+                $manifestById[$id] = $item;
+            }
+
+            if (self::mediaTypeBase((string) ($item['mediaType'] ?? '')) === self::NCX_MEDIA_TYPE) {
+                $ncxItems[] = self::compactManifestBindingItem($item);
+            }
+        }
+
+        $tocId = is_string($spineTocId) && trim($spineTocId) !== '' ? trim($spineTocId) : null;
+        $tocItem = $tocId !== null && isset($manifestById[$tocId])
+            ? self::compactManifestBindingItem($manifestById[$tocId])
+            : null;
+        $selectedPart = is_array($navigation) && ($navigation['type'] ?? null) === 'ncx'
+            ? (string) ($navigation['partName'] ?? '')
+            : null;
+        $selectedItem = null;
+        foreach ($ncxItems as $item) {
+            if ($selectedPart !== null && $item['partName'] === $selectedPart) {
+                $selectedItem = $item;
+                break;
+            }
+        }
+
+        $diagnostics = [];
+        if ($tocId !== null && $tocItem === null) {
+            $diagnostics[] = [
+                'type' => 'missing-spine-toc-manifest-item',
+                'tocId' => $tocId,
+                'message' => 'EPUB spine toc attribute references a manifest item id that is not present',
+            ];
+        } elseif ($tocItem !== null && $tocItem['mediaType'] !== self::NCX_MEDIA_TYPE) {
+            $diagnostics[] = [
+                'type' => 'spine-toc-non-ncx-manifest-item',
+                'tocId' => $tocId,
+                'partName' => $tocItem['partName'],
+                'mediaType' => $tocItem['mediaType'],
+                'message' => 'EPUB spine toc attribute should reference an NCX manifest item',
+            ];
+        }
+
+        $selectedBy = null;
+        if ($selectedItem !== null) {
+            $selectedBy = $tocItem !== null && $tocItem['id'] === $selectedItem['id'] && $tocItem['mediaType'] === self::NCX_MEDIA_TYPE
+                ? 'spine-toc'
+                : 'manifest-scan';
+        }
+
+        return [
+            'valid' => $diagnostics === [],
+            'tocSpecified' => $tocId !== null,
+            'tocId' => $tocId,
+            'tocItem' => $tocItem,
+            'manifestNcxItemCount' => count($ncxItems),
+            'manifestNcxItems' => $ncxItems,
+            'selectedBy' => $selectedBy,
+            'selectedItem' => $selectedItem,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array{id:string, href:string, partName:string, mediaType:string}
+     */
+    private static function compactManifestBindingItem(array $item): array
+    {
+        return [
+            'id' => (string) ($item['id'] ?? ''),
+            'href' => (string) ($item['href'] ?? ''),
+            'partName' => (string) ($item['partName'] ?? ''),
+            'mediaType' => self::mediaTypeBase((string) ($item['mediaType'] ?? '')),
         ];
     }
 
@@ -2669,11 +2767,11 @@ final class EpubPackage
         }
 
         $ncxItem = null;
-        if ($spineTocId !== null && isset($manifestById[$spineTocId])) {
+        if ($spineTocId !== null && isset($manifestById[$spineTocId]) && self::mediaTypeBase($manifestById[$spineTocId]['mediaType']) === self::NCX_MEDIA_TYPE) {
             $ncxItem = $manifestById[$spineTocId];
         } else {
             foreach ($manifestById as $item) {
-                if ($item['mediaType'] === self::NCX_MEDIA_TYPE) {
+                if (self::mediaTypeBase($item['mediaType']) === self::NCX_MEDIA_TYPE) {
                     $ncxItem = $item;
                     break;
                 }

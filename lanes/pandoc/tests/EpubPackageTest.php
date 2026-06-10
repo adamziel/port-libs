@@ -1954,6 +1954,108 @@ XML;
         $t->same($documentDiagnostics, $summary['wordpressImport']['navDocumentDiagnostics']);
     },
 
+    'reports compact EPUB NCX spine toc binding diagnostics for validation handoff' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $ncxXml = <<<'XML'
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="chapter" playOrder="1">
+      <navLabel><text>Legacy chapter</text></navLabel>
+      <content src="chapter.xhtml"/>
+    </navPoint>
+  </navMap>
+</ncx>
+XML;
+        $opfWithNonNcxToc = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:ncx-binding-diagnostics</dc:identifier>
+    <dc:title>NCX binding diagnostics</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="wrong-toc" href="wrong-toc.xhtml" media-type="application/xhtml+xml"/>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="wrong-toc">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithNonNcxToc],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/wrong-toc.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Wrong toc</body></html>'],
+            ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
+        ]));
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+        $ncx = $validation['ncx'];
+
+        $t->same(false, $validation['valid']);
+        $t->same(1, $validation['diagnosticCount']);
+        $t->same(['spine-toc-non-ncx-manifest-item'], array_column($validation['diagnostics'], 'type'));
+        $t->same(false, $ncx['valid']);
+        $t->same(true, $ncx['tocSpecified']);
+        $t->same('wrong-toc', $ncx['tocId']);
+        $t->same('wrong-toc', $ncx['tocItem']['id']);
+        $t->same('/EPUB/wrong-toc.xhtml', $ncx['tocItem']['partName']);
+        $t->same('application/xhtml+xml', $ncx['tocItem']['mediaType']);
+        $t->same(1, $ncx['manifestNcxItemCount']);
+        $t->same('toc', $ncx['manifestNcxItems'][0]['id']);
+        $t->same('manifest-scan', $ncx['selectedBy']);
+        $t->same('toc', $ncx['selectedItem']['id']);
+        $t->same('/EPUB/toc.ncx', $ncx['selectedItem']['partName']);
+        $t->same('spine-toc-non-ncx-manifest-item', $ncx['diagnostics'][0]['type']);
+        $t->same('/EPUB/wrong-toc.xhtml', $ncx['diagnostics'][0]['partName']);
+        $t->same('ncx', $validation['navigation']['source']);
+        $t->same(1, $validation['navigation']['entryCount']);
+        $t->same(1, $validation['navigation']['localTargetCount']);
+        $t->same('/EPUB/toc.ncx', $epub->navigation()['partName']);
+        $t->same('Legacy chapter', $epub->navigation()['entries'][0]['label']);
+        $t->same('/EPUB/chapter.xhtml', $epub->navigation()['entries'][0]['target']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($ncx, $summary['wordpressImport']['packageValidation']['ncx']);
+
+        $opfWithMissingToc = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:ncx-missing-binding-diagnostics</dc:identifier>
+    <dc:title>Missing NCX binding diagnostics</dc:title>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+  </manifest>
+  <spine toc="missing-toc">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
+XML;
+
+        $missingTocEpub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMissingToc],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body>Chapter</body></html>'],
+            ['name' => 'EPUB/toc.ncx', 'data' => $ncxXml],
+        ]));
+        $missingValidation = $missingTocEpub->validationReport();
+
+        $t->same(false, $missingValidation['valid']);
+        $t->same(['missing-spine-toc-manifest-item'], array_column($missingValidation['diagnostics'], 'type'));
+        $t->same('missing-toc', $missingValidation['ncx']['tocId']);
+        $t->same(null, $missingValidation['ncx']['tocItem']);
+        $t->same('manifest-scan', $missingValidation['ncx']['selectedBy']);
+        $t->same('toc', $missingValidation['ncx']['selectedItem']['id']);
+        $t->same('ncx', $missingValidation['navigation']['source']);
+        $t->same('Legacy chapter', $missingTocEpub->navigation()['entries'][0]['label']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
