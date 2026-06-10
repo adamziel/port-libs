@@ -36,6 +36,7 @@ final class ZipPackage
     private const DOS_VOLUME_LABEL_ATTRIBUTE = 0x08;
     private const DOS_DIRECTORY_ATTRIBUTE = 0x10;
     private const DOS_ARCHIVE_ATTRIBUTE = 0x20;
+    private const INTERNAL_TEXT_ATTRIBUTE = 0x0001;
     private const UNIX_FILE_TYPE_MASK = 0xf000;
     private const UNIX_FIFO_TYPE = 0x1000;
     private const UNIX_CHARACTER_DEVICE_TYPE = 0x2000;
@@ -5686,6 +5687,155 @@ final class ZipPackage
     /**
      * @return array{
      *     entryCount:int,
+     *     internalAttributeEntryCount:int,
+     *     textInternalAttributeEntryCount:int,
+     *     unknownInternalAttributeEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     internalAttributeEntries:list<array<string, mixed>>,
+     *     textInternalAttributeEntries:list<array<string, mixed>>,
+     *     unknownInternalAttributeEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function internalAttributePolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before internal attributes can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $internalAttributeEntries = [];
+        $textInternalAttributeEntries = [];
+        $unknownInternalAttributeEntries = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $internalAttributes = self::readUInt16($bytes, $cursor + 36);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $hasText = ($internalAttributes & self::INTERNAL_TEXT_ATTRIBUTE) !== 0;
+            $unknownBits = $internalAttributes & ~self::INTERNAL_TEXT_ATTRIBUTE;
+            $hasUnknownBits = $unknownBits !== 0;
+            $hasInternalAttributes = $internalAttributes !== 0;
+            $entryIssues = [];
+
+            if ($hasText) {
+                $entryIssues[] = 'internal-text-attribute';
+            }
+
+            if ($hasUnknownBits) {
+                $entryIssues[] = 'unknown-internal-file-attribute-bits';
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'isDirectory' => str_ends_with($decodedName['text'], '/'),
+                'internalFileAttributes' => $internalAttributes,
+                'internalAttributeNames' => self::internalAttributeNamesFromBits($internalAttributes),
+                'hasTextInternalAttribute' => $hasText,
+                'unknownInternalAttributeBits' => $unknownBits,
+                'hasUnknownInternalAttributeBits' => $hasUnknownBits,
+                'hasInternalFileAttributes' => $hasInternalAttributes,
+                'policy' => $hasInternalAttributes ? 'blocked' : 'metadata',
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+
+            if ($hasInternalAttributes) {
+                $internalAttributeEntries[] = $entry;
+            }
+
+            if ($hasText) {
+                $textInternalAttributeEntries[] = $entry;
+            }
+
+            if ($hasUnknownBits) {
+                $unknownInternalAttributeEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($internalAttributeEntries !== []) {
+            $issues[] = 'internal-file-attributes';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'internalAttributeEntryCount' => count($internalAttributeEntries),
+            'textInternalAttributeEntryCount' => count($textInternalAttributeEntries),
+            'unknownInternalAttributeEntryCount' => count($unknownInternalAttributeEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
      *     unicodeExtraFieldEntryCount:int,
      *     centralUnicodePathEntryCount:int,
      *     localUnicodePathEntryCount:int,
@@ -7408,6 +7558,7 @@ final class ZipPackage
      *     compressionMethods:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
+     *     internalAttributes:?array<string, mixed>,
      *     centralDirectoryNameCollisions:?array<string, mixed>,
      *     centralDirectoryPathHierarchy:?array<string, mixed>,
      *     platformMetadata:?array<string, mixed>,
@@ -7518,6 +7669,7 @@ final class ZipPackage
                 'compressionMethods' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
+                'internalAttributes' => null,
                 'centralDirectoryNameCollisions' => null,
                 'centralDirectoryPathHierarchy' => null,
                 'platformMetadata' => null,
@@ -7551,6 +7703,7 @@ final class ZipPackage
         $compressionMethods = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
+        $internalAttributes = null;
         $centralDirectoryNameCollisions = null;
         $centralDirectoryPathHierarchy = null;
         $platformMetadata = null;
@@ -7662,6 +7815,14 @@ final class ZipPackage
             );
             if ($externalAttributes !== null && !$externalAttributes['isSupportedByBoundedReader']) {
                 $addDiagnostics($externalAttributes['issues']);
+            }
+
+            $internalAttributes = $runPreflight(
+                'internal-attribute-policy',
+                static fn (): array => self::internalAttributePolicyPreflight($bytes)
+            );
+            if ($internalAttributes !== null && !$internalAttributes['isSupportedByBoundedReader']) {
+                $addDiagnostics($internalAttributes['issues']);
             }
 
             $centralDirectoryNameCollisions = $runPreflight(
@@ -7784,6 +7945,7 @@ final class ZipPackage
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
+            ?? $internalAttributes['entryCount']
             ?? $centralDirectoryNameCollisions['entryCount']
             ?? $centralDirectoryPathHierarchy['entryCount']
             ?? $platformMetadata['entryCount']
@@ -7825,6 +7987,7 @@ final class ZipPackage
             'compressionMethods' => $compressionMethods,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
+            'internalAttributes' => $internalAttributes,
             'centralDirectoryNameCollisions' => $centralDirectoryNameCollisions,
             'centralDirectoryPathHierarchy' => $centralDirectoryPathHierarchy,
             'platformMetadata' => $platformMetadata,
@@ -11698,6 +11861,24 @@ final class ZipPackage
         }
         if (($attributes & self::DOS_ARCHIVE_ATTRIBUTE) !== 0) {
             $names[] = 'archive';
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function internalAttributeNamesFromBits(int $attributes): array
+    {
+        $names = [];
+        if (($attributes & self::INTERNAL_TEXT_ATTRIBUTE) !== 0) {
+            $names[] = 'apparently-text';
+        }
+
+        $unknownBits = $attributes & ~self::INTERNAL_TEXT_ATTRIBUTE;
+        if ($unknownBits !== 0) {
+            $names[] = sprintf('unknown-0x%04x', $unknownBits);
         }
 
         return $names;

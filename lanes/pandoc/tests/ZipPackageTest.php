@@ -2020,6 +2020,59 @@ return [
         $t->same(true, $safePackage->strictImportPreflight(2048, 100.0, 2048)['isValid']);
     },
 
+    'preflights raw zip internal file attributes before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/document-local-spoof.xml',
+                'data' => '<w:document><w:p>raw internal text flag</w:p></w:document>',
+                'method' => 0,
+                'internalAttributes' => 0x0001,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => "binary media provenance\n",
+                'method' => 0,
+                'internalAttributes' => 0x8002,
+            ],
+            [
+                'name' => 'word/media/plain.txt',
+                'data' => 'ordinary media note',
+                'method' => 0,
+            ],
+        ]);
+        $summary = ZipPackage::internalAttributePolicyPreflight($zip);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['internalAttributeEntryCount']);
+        $t->same(1, $summary['textInternalAttributeEntryCount']);
+        $t->same(1, $summary['unknownInternalAttributeEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['internal-file-attributes'], $summary['issues']);
+        $t->same('word/document.xml', $summary['textInternalAttributeEntries'][0]['name']);
+        $t->same(0x0001, $summary['textInternalAttributeEntries'][0]['internalFileAttributes']);
+        $t->same(['apparently-text'], $summary['textInternalAttributeEntries'][0]['internalAttributeNames']);
+        $t->same(['internal-text-attribute'], $summary['textInternalAttributeEntries'][0]['issues']);
+        $t->same('word/media/review.bin', $summary['unknownInternalAttributeEntries'][0]['name']);
+        $t->same(0x8002, $summary['unknownInternalAttributeEntries'][0]['unknownInternalAttributeBits']);
+        $t->same(['unknown-0x8002'], $summary['unknownInternalAttributeEntries'][0]['internalAttributeNames']);
+        $t->same(['unknown-internal-file-attribute-bits'], $summary['unknownInternalAttributeEntries'][0]['issues']);
+        $t->same(false, $summary['entries'][2]['hasInternalFileAttributes']);
+        $t->same('metadata', $summary['entries'][2]['policy']);
+
+        $t->same(false, $raw['isValid']);
+        $t->same(false, $raw['canInstantiate']);
+        $t->same(3, $raw['entryCount']);
+        $t->same($summary, $raw['internalAttributes']);
+        $t->same(1, $raw['localHeaderNames']['mismatchedEntryCount']);
+        $t->contains('internal-file-attributes', implode(',', $raw['diagnostics']));
+        $t->contains('local-header-name-issues', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
+        $t->same(null, $raw['strictImport']);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights unix executable permissions before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $package = ZipPackage::fromString($buildZipPackage([
             [
