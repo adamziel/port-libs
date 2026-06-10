@@ -8781,6 +8781,40 @@ XML;
         $t->same(8, count($result['document']->children));
         $t->same('Imported ODT Packet', $result['document']->children[0]->children[0]->attr('text'));
     },
+    'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $manifestWithDeclaredSizes = str_replace(
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:size="1"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048"/>',
+            ],
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDeclaredSizes));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $mismatches = $result['importReport']['manifest']['declaredSizeMismatches'];
+
+        $t->same(2, $result['importReport']['manifest']['declaredSizeMismatchCount']);
+        $t->same('content.xml', $mismatches[0]['part']);
+        $t->same(1, $mismatches[0]['declaredSize']);
+        $t->same(strlen($contentXml), $mismatches[0]['byteLength']);
+        $t->same('Pictures/hero.png', $mismatches[1]['part']);
+        $t->same(2048, $mismatches[1]['declaredSize']);
+        $t->same(7, $mismatches[1]['byteLength']);
+        $t->same(true, $manifestByPath['content.xml']['declaredSizeMismatch']);
+        $t->same(true, $manifestByPath['Pictures/hero.png']['declaredSizeMismatch']);
+        $t->same(2048, $result['media'][0]['declaredSize']);
+        $t->same(true, $result['media'][0]['declaredSizeMismatch']);
+        $t->same(0, $result['importReport']['manifest']['encryptedCount']);
+        $t->same(8, count($result['document']->children));
+    },
     'reports encrypted ODT manifest resources without exposing media bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $encryptedEntry = <<<'XML'
 <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">

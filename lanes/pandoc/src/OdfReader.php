@@ -108,6 +108,7 @@ final class OdfReader
         );
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
+        $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -186,6 +187,8 @@ final class OdfReader
                     )),
                     'encryptedCount' => count($encryptedItems),
                     'encryptedItems' => $encryptedItems,
+                    'declaredSizeMismatchCount' => count($declaredSizeMismatches),
+                    'declaredSizeMismatches' => $declaredSizeMismatches,
                 ],
                 'metadata' => $metadata,
                 'styles' => [
@@ -406,6 +409,11 @@ final class OdfReader
             }
             $exists = $part === null ? true : $package->has($part);
             $zipEntry = $exists && $part !== null ? $package->entry($part) : null;
+            $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $declaredSizeMismatch = !$encrypted
+                && $declaredSize !== null
+                && $byteLength !== null
+                && $declaredSize !== $byteLength;
 
             $items[] = [
                 'fullPath' => $fullPath,
@@ -414,9 +422,10 @@ final class OdfReader
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
-                'byteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'byteLength' => $byteLength,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
+                'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => !$encrypted,
                 'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
@@ -10743,6 +10752,7 @@ final class OdfReader
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => !$encrypted,
@@ -10789,6 +10799,31 @@ final class OdfReader
             $manifest,
             static fn (array $item): bool => ($item['encrypted'] ?? false) === true
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function manifestDeclaredSizeMismatches(array $manifest): array
+    {
+        $mismatches = [];
+        foreach ($manifest as $item) {
+            if (($item['declaredSizeMismatch'] ?? false) !== true) {
+                continue;
+            }
+
+            $mismatches[] = self::withoutEmpty([
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $item['part'] ?? null,
+                'mediaType' => $item['mediaType'] ?? null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'byteLength' => $item['byteLength'] ?? null,
+                'crc32' => $item['crc32'] ?? null,
+            ]);
+        }
+
+        return $mismatches;
     }
 
     /**
