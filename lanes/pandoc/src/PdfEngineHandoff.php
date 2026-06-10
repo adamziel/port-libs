@@ -303,6 +303,7 @@ final class PdfEngineHandoff
      *     engineInputFiles: list<string>,
      *     engineExternalInputFiles: list<string>,
      *     engineTypstPackageInputs: list<string>,
+     *     engineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
      *     engineOutputFiles: list<string>,
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
@@ -325,7 +326,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -666,6 +667,7 @@ final class PdfEngineHandoff
             $engineExternalInputFileList,
             static fn (string $input): bool => str_starts_with($input, 'typst-package:')
         ));
+        $engineTypstPackageDependencies = $this->typstPackageDependenciesFor($engineTypstPackageInputList);
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
                 continue;
@@ -700,6 +702,9 @@ final class PdfEngineHandoff
         }
         if ($engineTypstPackageInputList !== []) {
             $diagnostics[] = 'engine-typst-package-inputs:' . count($engineTypstPackageInputList);
+        }
+        if ($engineTypstPackageDependencies !== []) {
+            $diagnostics[] = 'engine-typst-package-dependencies:' . count($engineTypstPackageDependencies);
         }
         if ($engineOutputFileList !== []) {
             $diagnostics[] = 'engine-output-files:' . count($engineOutputFileList);
@@ -3993,6 +3998,7 @@ final class PdfEngineHandoff
             'bibliographyErrors' => $bibliographyMessages['errors'],
             'bibliographyNeeded' => $bibliographyMessages['needed'],
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
+            'typstPackageDependencies' => $engineTypstPackageDependencies,
             'issues' => $artifactProvenanceIssues,
         ];
         $diagnostics[] = 'artifact-provenance-review:' . $artifactProvenanceReviewStatus;
@@ -4016,6 +4022,7 @@ final class PdfEngineHandoff
             'engineInputFiles' => $engineInputFileList,
             'engineExternalInputFiles' => $engineExternalInputFileList,
             'engineTypstPackageInputs' => $engineTypstPackageInputList,
+            'engineTypstPackageDependencies' => $engineTypstPackageDependencies,
             'engineOutputFiles' => $engineOutputFileList,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
             'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
@@ -4343,6 +4350,7 @@ final class PdfEngineHandoff
      *     finalEngineInputFiles: list<string>,
      *     finalEngineExternalInputFiles: list<string>,
      *     finalEngineTypstPackageInputs: list<string>,
+     *     finalEngineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
      *     finalEngineOutputFiles: list<string>,
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
@@ -4649,6 +4657,7 @@ final class PdfEngineHandoff
             'finalEngineInputFiles' => is_array($finalRun) && is_array($finalRun['engineInputFiles'] ?? null) ? $finalRun['engineInputFiles'] : [],
             'finalEngineExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineExternalInputFiles'] ?? null) ? $finalRun['engineExternalInputFiles'] : [],
             'finalEngineTypstPackageInputs' => is_array($finalRun) && is_array($finalRun['engineTypstPackageInputs'] ?? null) ? $finalRun['engineTypstPackageInputs'] : [],
+            'finalEngineTypstPackageDependencies' => is_array($finalRun) && is_array($finalRun['engineTypstPackageDependencies'] ?? null) ? $finalRun['engineTypstPackageDependencies'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
@@ -5588,6 +5597,36 @@ final class PdfEngineHandoff
     private function isTypstPackageReference(string $path): bool
     {
         return preg_match('/\A@[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+:[A-Za-z0-9][A-Za-z0-9_.+\-]*(?:\/[^\s]+)?\z/', $path) === 1;
+    }
+
+    /**
+     * @param list<string> $inputs
+     * @return list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>
+     */
+    private function typstPackageDependenciesFor(array $inputs): array
+    {
+        $dependencies = [];
+        foreach ($inputs as $input) {
+            if (!str_starts_with($input, 'typst-package:')) {
+                continue;
+            }
+
+            $reference = substr($input, strlen('typst-package:'));
+            if (preg_match('/\A@([A-Za-z0-9_-]+)\/([A-Za-z0-9_.-]+):([A-Za-z0-9][A-Za-z0-9_.+\-]*)(?:\/(.+))?\z/', $reference, $matches) !== 1) {
+                continue;
+            }
+
+            $dependencies[] = [
+                'input' => $input,
+                'reference' => $reference,
+                'namespace' => $matches[1],
+                'package' => $matches[2],
+                'version' => $matches[3],
+                'subpath' => $matches[4] ?? null,
+            ];
+        }
+
+        return $dependencies;
     }
 
     /**

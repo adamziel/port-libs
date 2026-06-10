@@ -160,6 +160,64 @@ return [
         $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
     },
 
+    'fake runner exposes structured typst package dependency provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Provenance Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-provenance.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-provenance.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package provenance packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-provenance.pdf: build/typst-provenance.typ @preview/cetz:0.3.2/src/lib.typ \\',
+            '  @typst/symbols:0.1.0 /usr/share/fonts/LibertinusSerif-Regular.otf',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-provenance.d' => $depfile,
+                'build/typst-provenance.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-provenance.d' => $depfile,
+                    'build/typst-provenance.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@typst/symbols:0.1.0',
+                'reference' => '@typst/symbols:0.1.0',
+                'namespace' => 'typst',
+                'package' => 'symbols',
+                'version' => '0.1.0',
+                'subpath' => null,
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(['typst-package:@preview/cetz:0.3.2/src/lib.typ', 'typst-package:@typst/symbols:0.1.0'], $result['engineTypstPackageInputs']);
+        $t->same($expected, $result['engineTypstPackageDependencies']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstPackageDependencies']);
+        $t->contains('engine-typst-package-inputs:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-dependencies:2', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
