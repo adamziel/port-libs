@@ -2295,6 +2295,7 @@ XML;
     <nav id="main-toc" epub:type="toc">
       <h1>Contents</h1>
       <ol>
+        <li id="hidden-entry" hidden="hidden"><a id="hidden-entry-link" href="text/chapter1.xhtml#hidden-start">Hidden start</a></li>
         <li id="empty-label"><a id="empty-label-link" href="text/chapter1.xhtml#intro"> </a></li>
         <li id="missing-href"><a id="missing-href-link">Untargeted chapter</a></li>
         <li id="missing-label"><ol><li><a href="text/chapter2.xhtml#media">Nested recovery</a></li></ol></li>
@@ -2317,28 +2318,36 @@ XML;
         $t->same(1, $report['sectionCount']);
         $t->same(1, $report['tocSectionCount']);
         $t->same(1, $report['missingPrimaryItemLabelCount']);
+        $t->same(1, $report['hiddenItemCount']);
         $t->same(1, $report['emptyItemLabelCount']);
         $t->same(1, $report['missingItemHrefCount']);
         $t->same(1, $report['missingItemLabelCount']);
-        $t->same(3, $report['itemDiagnosticCount']);
-        $t->same(4, $report['diagnosticCount']);
+        $t->same(4, $report['itemDiagnosticCount']);
+        $t->same(5, $report['diagnosticCount']);
         $t->same([
             'missing-primary-nav-item-label',
+            'hidden-nav-item',
             'empty-nav-item-label',
             'missing-nav-item-href',
             'missing-nav-item-label',
         ], array_column($report['diagnostics'], 'type'));
-        $t->same('empty-label', $report['diagnostics'][1]['itemId']);
-        $t->same('empty-label-link', $report['diagnostics'][1]['labelId']);
-        $t->same('Untargeted chapter', $report['diagnostics'][2]['label']);
-        $t->same('missing-label', $report['diagnostics'][3]['itemId']);
-        $t->same(4, $nav['documentDiagnosticCount']);
+        $t->same('hidden-entry', $report['diagnostics'][1]['itemId']);
+        $t->same('hidden-entry-link', $report['diagnostics'][1]['labelId']);
+        $t->same('Hidden start', $report['diagnostics'][1]['label']);
+        $t->same('empty-label', $report['diagnostics'][2]['itemId']);
+        $t->same('empty-label-link', $report['diagnostics'][2]['labelId']);
+        $t->same('Untargeted chapter', $report['diagnostics'][3]['label']);
+        $t->same('missing-label', $report['diagnostics'][4]['itemId']);
+        $t->same(5, $nav['documentDiagnosticCount']);
+        $t->same(1, $nav['hiddenItemCount']);
+        $t->same(1, $nav['sections'][0]['hiddenItemCount'] ?? 0);
         $t->same(1, $nav['sections'][0]['emptyItemLabelCount'] ?? 0);
-        $t->same('empty-nav-item-label', $nav['items'][0]['documentDiagnostics'][0]['type']);
-        $t->same('missing-nav-item-href', $nav['items'][1]['documentDiagnostics'][0]['type']);
-        $t->same('missing-nav-item-label', $nav['items'][2]['documentDiagnostics'][0]['type']);
-        $t->same('missing-navigation-target', $navigation['items'][1]['diagnostics'][0]['type']);
+        $t->same('hidden-nav-item', $nav['items'][0]['documentDiagnostics'][0]['type']);
+        $t->same('empty-nav-item-label', $nav['items'][1]['documentDiagnostics'][0]['type']);
+        $t->same('missing-nav-item-href', $nav['items'][2]['documentDiagnostics'][0]['type']);
+        $t->same('missing-nav-item-label', $nav['items'][3]['documentDiagnostics'][0]['type']);
         $t->same('missing-navigation-target', $navigation['items'][2]['diagnostics'][0]['type']);
+        $t->same('missing-navigation-target', $navigation['items'][3]['diagnostics'][0]['type']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
     'reports EPUB nav leaf link and duplicate target diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {

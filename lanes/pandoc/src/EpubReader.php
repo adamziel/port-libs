@@ -8915,6 +8915,7 @@ final class EpubReader
                 'title' => self::navHeading($nav),
                 'hasOrderedList' => $list instanceof \DOMElement,
                 'itemCount' => count(self::flattenNavigationItems($items)),
+                'hiddenItemCount' => $itemDiagnosticSummary['hiddenCount'],
                 'missingItemLabelCount' => $itemDiagnosticSummary['missingLabelCount'],
                 'emptyItemLabelCount' => $itemDiagnosticSummary['emptyLabelCount'],
                 'missingItemHrefCount' => $itemDiagnosticSummary['missingHrefCount'],
@@ -9012,6 +9013,7 @@ final class EpubReader
         $emptyItemLabelCount = 0;
         $missingItemHrefCount = 0;
         $missingItemLinkCount = 0;
+        $hiddenItemCount = 0;
         $itemDiagnosticCount = 0;
         $itemDiagnostics = [];
         $navItemCount = 0;
@@ -9231,6 +9233,8 @@ final class EpubReader
                         ++$missingItemHrefCount;
                     } elseif (($itemDiagnostic['type'] ?? null) === 'missing-nav-item-link') {
                         ++$missingItemLinkCount;
+                    } elseif (($itemDiagnostic['type'] ?? null) === 'hidden-nav-item') {
+                        ++$hiddenItemCount;
                     }
 
                     ++$itemDiagnosticCount;
@@ -9403,6 +9407,7 @@ final class EpubReader
             'emptyItemLabelCount' => $emptyItemLabelCount,
             'missingItemHrefCount' => $missingItemHrefCount,
             'missingItemLinkCount' => $missingItemLinkCount,
+            'hiddenItemCount' => $hiddenItemCount,
             'itemDiagnosticCount' => $itemDiagnosticCount,
             'itemDiagnostics' => $itemDiagnostics,
             'diagnosticCount' => count($diagnostics),
@@ -9413,10 +9418,11 @@ final class EpubReader
     /**
      * @param list<array<string, mixed>> $items
      *
-     * @return array{missingLabelCount:int, emptyLabelCount:int, missingHrefCount:int, missingLinkCount:int, diagnosticCount:int}
+     * @return array{hiddenCount:int, missingLabelCount:int, emptyLabelCount:int, missingHrefCount:int, missingLinkCount:int, diagnosticCount:int}
      */
     private static function navItemDocumentDiagnosticSummary(array $items): array
     {
+        $hiddenCount = 0;
         $missingLabelCount = 0;
         $emptyLabelCount = 0;
         $missingHrefCount = 0;
@@ -9431,7 +9437,9 @@ final class EpubReader
                 }
 
                 ++$diagnosticCount;
-                if (($diagnostic['type'] ?? null) === 'missing-nav-item-label') {
+                if (($diagnostic['type'] ?? null) === 'hidden-nav-item') {
+                    ++$hiddenCount;
+                } elseif (($diagnostic['type'] ?? null) === 'missing-nav-item-label') {
                     ++$missingLabelCount;
                 } elseif (($diagnostic['type'] ?? null) === 'empty-nav-item-label') {
                     ++$emptyLabelCount;
@@ -9444,6 +9452,7 @@ final class EpubReader
         }
 
         return [
+            'hiddenCount' => $hiddenCount,
             'missingLabelCount' => $missingLabelCount,
             'emptyLabelCount' => $emptyLabelCount,
             'missingHrefCount' => $missingHrefCount,
@@ -10725,6 +10734,19 @@ final class EpubReader
             $classes = array_values(array_unique(array_merge($itemClasses, $labelClasses)));
             $title = $label instanceof \DOMElement ? self::normalizedText($label) : self::normalizedText($li);
             $documentDiagnostics = [];
+            $hidden = self::elementHidden($li) || ($label instanceof \DOMElement && self::elementHidden($label));
+
+            if ($hidden) {
+                $documentDiagnostics[] = [
+                    'type' => 'hidden-nav-item',
+                    'itemId' => self::nullableAttribute($li, 'id'),
+                    'labelElement' => $label instanceof \DOMElement ? $label->localName : null,
+                    'labelId' => $label instanceof \DOMElement ? self::nullableAttribute($label, 'id') : null,
+                    'label' => $title,
+                    'href' => $link instanceof \DOMElement && $href !== '' ? $href : null,
+                    'message' => 'EPUB navigation item is hidden and may be skipped by reading systems',
+                ];
+            }
 
             if (!$label instanceof \DOMElement) {
                 $documentDiagnostics[] = [
@@ -10777,7 +10799,7 @@ final class EpubReader
                 'labelClasses' => $labelClasses,
                 'language' => $label instanceof \DOMElement ? (self::xmlLang($label) ?? self::xmlLang($li)) : self::xmlLang($li),
                 'direction' => $label instanceof \DOMElement ? (self::direction($label) ?? self::direction($li)) : self::direction($li),
-                'hidden' => self::elementHidden($li) || ($label instanceof \DOMElement && self::elementHidden($label)),
+                'hidden' => $hidden,
                 'attributes' => self::elementAttributes($li),
                 'labelAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
                 'title' => $title,
