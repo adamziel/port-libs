@@ -68,6 +68,7 @@ final class EpubPackage
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestItems
      * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}> $spine
+     * @param ?string $spinePageProgressionDirection
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
@@ -87,6 +88,7 @@ final class EpubPackage
         private readonly array $manifestById,
         private readonly array $manifestItems,
         private readonly array $spine,
+        private readonly ?string $spinePageProgressionDirection,
         private readonly array $guideReferences,
         private readonly array $collections,
         private readonly array $bindings,
@@ -141,6 +143,7 @@ final class EpubPackage
             $opf['manifestById'],
             $opf['manifestItems'],
             $opf['spine'],
+            $opf['spinePageProgressionDirection'],
             $opf['guideReferences'],
             $opf['collections'],
             $opf['bindings'],
@@ -217,6 +220,11 @@ final class EpubPackage
     public function readingOrder(): array
     {
         return $this->spine;
+    }
+
+    public function spinePageProgressionDirection(): ?string
+    {
+        return $this->spinePageProgressionDirection;
     }
 
     /**
@@ -371,6 +379,7 @@ final class EpubPackage
             $this->metadata,
             $this->manifestItems,
             $this->spine,
+            $this->spinePageProgressionDirection,
             $this->spineTocId,
             $this->navigation,
             $this->navigationSections,
@@ -406,6 +415,7 @@ final class EpubPackage
             'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
+            'spinePageProgressionDirection' => $this->spinePageProgressionDirection,
             'guide' => $this->guideReferences,
             'collections' => $this->collections,
             'bindings' => $this->bindings,
@@ -452,6 +462,7 @@ final class EpubPackage
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
+                'spinePageProgressionDirection' => $this->spinePageProgressionDirection,
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
@@ -505,6 +516,7 @@ final class EpubPackage
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $manifestItems
      * @param list<array<string, mixed>> $spine
+     * @param ?string $spinePageProgressionDirection
      * @param ?string $spineTocId
      * @param array<string, mixed>|null $navigation
      * @param list<array<string, mixed>> $navigationSections
@@ -518,6 +530,7 @@ final class EpubPackage
         array $metadata,
         array $manifestItems,
         array $spine,
+        ?string $spinePageProgressionDirection,
         ?string $spineTocId,
         ?array $navigation,
         array $navigationSections
@@ -527,7 +540,7 @@ final class EpubPackage
         $rootfileReport = self::packageRootfileValidationReport($package, $rootfiles, $opfPartName);
         $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
         $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
-        $spineReport = self::packageSpineValidationReport($spine);
+        $spineReport = self::packageSpineValidationReport($spine, $spinePageProgressionDirection);
         $ncxReport = self::packageNcxValidationReport($spineTocId, $manifestItems, $navigation);
         $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
         $diagnostics = array_merge(
@@ -828,12 +841,22 @@ final class EpubPackage
      *
      * @return array<string, mixed>
      */
-    private static function packageSpineValidationReport(array $spine): array
+    private static function packageSpineValidationReport(array $spine, ?string $pageProgressionDirection): array
     {
         $linearCount = 0;
         $nonLinearCount = 0;
         $nonContentDocumentItems = [];
         $diagnostics = [];
+        $pageProgressionValid = $pageProgressionDirection === null
+            || in_array($pageProgressionDirection, ['default', 'ltr', 'rtl'], true);
+
+        if (!$pageProgressionValid) {
+            $diagnostics[] = [
+                'type' => 'invalid-spine-page-progression-direction',
+                'pageProgressionDirection' => $pageProgressionDirection,
+                'message' => 'EPUB spine page-progression-direction should be default, ltr, or rtl',
+            ];
+        }
 
         foreach ($spine as $index => $item) {
             if (($item['linear'] ?? true) === false) {
@@ -869,6 +892,9 @@ final class EpubPackage
             'itemCount' => count($spine),
             'linearCount' => $linearCount,
             'nonLinearCount' => $nonLinearCount,
+            'pageProgressionDirection' => $pageProgressionDirection,
+            'pageProgressionDirectionSpecified' => $pageProgressionDirection !== null,
+            'pageProgressionDirectionValid' => $pageProgressionValid,
             'nonContentDocumentCount' => count($nonContentDocumentItems),
             'nonContentDocumentItems' => $nonContentDocumentItems,
             'diagnosticCount' => count($diagnostics),
@@ -1387,6 +1413,7 @@ final class EpubPackage
      *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
      *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
+     *     spinePageProgressionDirection:?string,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
@@ -1442,6 +1469,9 @@ final class EpubPackage
             'manifestById' => $manifestById,
             'manifestItems' => $manifestItems,
             'spine' => $spine,
+            'spinePageProgressionDirection' => $spineElement->hasAttribute('page-progression-direction')
+                ? self::emptyToNull($spineElement->getAttribute('page-progression-direction'))
+                : null,
             'guideReferences' => $guideReferences,
             'collections' => $collections,
             'bindings' => $bindings,

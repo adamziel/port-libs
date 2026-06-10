@@ -179,6 +179,52 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves OPF spine page progression direction for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $packageWithOpf = static function (string $opfXml) use ($epubContainerXml, $epub3NavXml): ZipPackage {
+            return ZipPackage::fromParts([
+                ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+                ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+                ['name' => 'EPUB/package.opf', 'data' => $opfXml],
+                ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+                ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+                ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+                ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+                ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ]);
+        };
+        $opfWithRtlSpine = str_replace(
+            '<spine>',
+            '<spine page-progression-direction="rtl">',
+            $epub3OpfXml
+        );
+        $epub = EpubPackage::fromPackage($packageWithOpf($opfWithRtlSpine));
+        $summary = $epub->summary();
+        $spineValidation = $summary['validation']['spine'];
+
+        $t->same('rtl', $epub->spinePageProgressionDirection());
+        $t->same('rtl', $summary['spinePageProgressionDirection']);
+        $t->same('rtl', $summary['wordpressImport']['spinePageProgressionDirection']);
+        $t->same('rtl', $spineValidation['pageProgressionDirection']);
+        $t->same(true, $spineValidation['pageProgressionDirectionSpecified']);
+        $t->same(true, $spineValidation['pageProgressionDirectionValid']);
+        $t->same([], $spineValidation['diagnostics']);
+
+        $opfWithInvalidProgression = str_replace(
+            '<spine>',
+            '<spine page-progression-direction="sideways">',
+            $epub3OpfXml
+        );
+        $invalidSummary = EpubPackage::fromPackage($packageWithOpf($opfWithInvalidProgression))->summary();
+        $invalidSpineValidation = $invalidSummary['validation']['spine'];
+
+        $t->same('sideways', $invalidSummary['spinePageProgressionDirection']);
+        $t->same(false, $invalidSpineValidation['pageProgressionDirectionValid']);
+        $t->same(1, $invalidSpineValidation['diagnosticCount']);
+        $t->same('invalid-spine-page-progression-direction', $invalidSpineValidation['diagnostics'][0]['type']);
+        $t->same('sideways', $invalidSpineValidation['diagnostics'][0]['pageProgressionDirection']);
+        $t->same($invalidSpineValidation['diagnostics'], $invalidSummary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'summarizes OPF media-type bindings for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Slideshow fallback</h1></body></html>';
         $opfWithBindings = str_replace(
