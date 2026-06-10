@@ -2143,6 +2143,72 @@ XML);
         $t->contains('<p>Original publisher handoff [García | Archivo Press; Migration Desk | Madrid; Barcelona] keeps source imprint metadata visible.</p>', $blocks);
         $t->contains('<dt>García 2026</dt><dd>Migration Manual :: Archivo Press; Migration Desk :: Madrid; Barcelona :: Archivo Press; Migration Desk :: Madrid; Barcelona</dd>', $blocks);
     },
+    'labels bounded original publisher place only imprints in csl bibliography' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{place-only-original-imprint,
+  author       = {Roe, Pat},
+  title        = {Place Only Original Imprint},
+  date         = {2026},
+  publisher    = {Review Press},
+  origlocation = {{Paris} and {Lyon}},
+  origdate     = {1988}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('', $items[0]['original-publisher'] ?? null);
+        $t->same('Paris; Lyon', $items[0]['original-publisher-place'] ?? null);
+        $t->same(['Paris', 'Lyon'], $items[0]['original-publisher-place-list'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('place-only-original-imprint');
+        $t->same('', $item['originalPublisher'] ?? null);
+        $t->same('Paris; Lyon', $item['originalPublisherPlace'] ?? null);
+        $t->same(['Paris', 'Lyon'], $item['originalPublisherPlaceList'] ?? null);
+        $t->same('(Roe 2026)', $processor->renderCitationCluster([$citation('place-only-original-imprint', '[@place-only-original-imprint]')]));
+        $t->same(
+            'Roe, Pat. Place Only Original Imprint. Review Press, 2026. Original work published 1988. Original publisher places: Paris; Lyon.',
+            $processor->renderBibliographyEntry('place-only-original-imprint')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-publisher-place"/>
+        <text variable="original-publisher-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-publisher-place"/>
+      <text variable="original-publisher-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Roe | Paris; Lyon | Paris; Lyon]', $styled->renderCitationCluster([$citation('place-only-original-imprint', '[@place-only-original-imprint]')]));
+        $t->same('Place Only Original Imprint :: Paris; Lyon :: Paris; Lyon', $styled->renderBibliographyEntry('place-only-original-imprint'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-place-only-original-imprint',
+            'title' => 'Manual Place Only Original Imprint',
+            'originalPublisherPlace' => 'Lisbon',
+        ]]);
+        $manualItem = $manual->item('manual-place-only-original-imprint');
+        $t->same('Lisbon', $manualItem['originalPublisherPlace'] ?? null);
+        $t->same('Manual Place Only Original Imprint. Original publisher place: Lisbon.', $manual->renderBibliographyEntry('manual-place-only-original-imprint'));
+
+        $document = (new MarkdownReader())->read('Original place source @place-only-original-imprint keeps original imprint place metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original place source Roe (2026) keeps original imprint place metadata visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Place Only Original Imprint. Review Press, 2026. Original work published 1988. Original publisher places: Paris; Lyon.</dd>', $blocks);
+    },
     'maps bounded biblatex translated title metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{translated-title-source,

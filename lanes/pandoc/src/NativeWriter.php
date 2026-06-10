@@ -104,7 +104,30 @@ final class NativeWriter
         return match ($node->type) {
             'paragraph' => ['t' => 'Para', 'c' => $this->inlines($node->children)],
             'plain' => ['t' => 'Plain', 'c' => $this->inlines($node->children)],
+            'heading' => ['t' => 'Header', 'c' => [
+                (int) $node->attr('level', 1),
+                $this->attrTuple($node),
+                $this->inlines($this->inlineChildrenOrText($node)),
+            ]],
+            'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
+            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->blocks($node->children)],
+            'ordered_list' => ['t' => 'OrderedList', 'c' => [
+                [
+                    (int) $node->attr('start', 1),
+                    ['t' => $this->listStyleConstructor((string) $node->attr('style', 'default'))],
+                    ['t' => $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))],
+                ],
+                $this->listItems($node->children),
+            ]],
+            'bullet_list' => ['t' => 'BulletList', 'c' => $this->listItems($node->children)],
+            'definition_list' => ['t' => 'DefinitionList', 'c' => $this->definitionItems($node->children)],
+            'line_block' => ['t' => 'LineBlock', 'c' => array_map(
+                fn (AstNode $line): array => $this->inlines($this->inlineChildrenOrText($line)),
+                $node->children
+            )],
+            'horizontal_rule' => ['t' => 'HorizontalRule'],
+            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->blocks($node->children)]],
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
@@ -353,6 +376,53 @@ final class NativeWriter
         }
 
         return $this->blocks($node->children);
+    }
+
+    /**
+     * @param list<AstNode> $items
+     * @return list<list<array<string, mixed>>>
+     */
+    private function listItems(array $items): array
+    {
+        $encoded = [];
+        foreach ($items as $item) {
+            if (!$item instanceof AstNode || $item->type !== 'list_item') {
+                continue;
+            }
+            $encoded[] = $this->childrenAsBlocks($item);
+        }
+
+        return $encoded;
+    }
+
+    /**
+     * @param list<AstNode> $items
+     * @return list<array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>>>
+     */
+    private function definitionItems(array $items): array
+    {
+        $encoded = [];
+        foreach ($items as $item) {
+            if (!$item instanceof AstNode || $item->type !== 'definition_item') {
+                continue;
+            }
+
+            $term = $item->children[0] ?? new AstNode('text', ['text' => (string) $item->attr('term', '')]);
+            if (!$term instanceof AstNode) {
+                $term = new AstNode('text', ['text' => (string) $item->attr('term', '')]);
+            }
+            $termInlines = $this->isInlineNode($term) ? [$term] : $this->inlineChildrenOrText($term);
+            $definitions = [];
+            foreach (array_slice($item->children, 1) as $definition) {
+                if ($definition instanceof AstNode && $definition->type === 'definition') {
+                    $definitions[] = $this->childrenAsBlocks($definition);
+                }
+            }
+
+            $encoded[] = [$this->inlines($termInlines), $definitions];
+        }
+
+        return $encoded;
     }
 
     /**
@@ -662,6 +732,20 @@ final class NativeWriter
     }
 
     /**
+     * @return list<AstNode>
+     */
+    private function inlineChildrenOrText(AstNode $node): array
+    {
+        if ($node->children !== []) {
+            return $node->children;
+        }
+
+        $text = (string) $node->attr('text', '');
+
+        return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    /**
      * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}
      */
     private function attrTuple(AstNode $node): array
@@ -688,6 +772,29 @@ final class NativeWriter
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    private function listStyleConstructor(string $style): string
+    {
+        return match ($style) {
+            'decimal' => 'Decimal',
+            'example' => 'Example',
+            'lower_roman' => 'LowerRoman',
+            'upper_roman' => 'UpperRoman',
+            'lower_alpha' => 'LowerAlpha',
+            'upper_alpha' => 'UpperAlpha',
+            default => 'DefaultStyle',
+        };
+    }
+
+    private function listDelimiterConstructor(string $delimiter): string
+    {
+        return match ($delimiter) {
+            'period' => 'Period',
+            'one_paren' => 'OneParen',
+            'two_parens' => 'TwoParens',
+            default => 'DefaultDelim',
+        };
     }
 
     private function tableAlignmentConstructor(string $alignment): string

@@ -772,8 +772,20 @@ final class CitationCslProcessor
 
         $originalPublisher = (string) $item['originalPublisher'];
         $originalPublisherPlace = (string) $item['originalPublisherPlace'];
-        if ($originalPublisher !== '' || $originalPublisherPlace !== '') {
-            $parts[] = 'Original publisher: ' . trim($originalPublisher . ($originalPublisher !== '' && $originalPublisherPlace !== '' ? ', ' : '') . $originalPublisherPlace) . '.';
+        if ($originalPublisher !== '' && $originalPublisherPlace !== '') {
+            $parts[] = 'Original publisher: ' . $originalPublisher . ', ' . $originalPublisherPlace . '.';
+        } elseif ($originalPublisher !== '') {
+            $parts[] = 'Original publisher: ' . $originalPublisher . '.';
+        } elseif ($originalPublisherPlace !== '') {
+            $originalPublisherPlaceList = $item['originalPublisherPlaceList'] ?? [];
+            $places = is_array($originalPublisherPlaceList)
+                ? array_values(array_filter(
+                    array_map(static fn (mixed $place): string => trim((string) $place), $originalPublisherPlaceList),
+                    static fn (string $place): bool => $place !== ''
+                ))
+                : [];
+            $plural = count($places) > 1 || str_contains($originalPublisherPlace, ';');
+            $parts[] = ($plural ? 'Original publisher places: ' : 'Original publisher place: ') . $originalPublisherPlace . '.';
         }
 
         $originalLanguage = (string) $item['originalLanguage'];

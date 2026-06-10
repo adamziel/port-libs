@@ -143,7 +143,20 @@ final class NativeReader
         return match ($block['t']) {
             'Para' => $this->inlineBlock('paragraph', $attrs, $block['c'] ?? []),
             'Plain' => $this->inlineBlock('plain', $attrs, $block['c'] ?? []),
+            'Header' => $this->headerBlock($attrs, $block['c'] ?? []),
+            'CodeBlock' => $this->codeBlock($attrs, $block['c'] ?? []),
             'RawBlock' => $this->rawBlock($attrs, $block['c'] ?? []),
+            'BlockQuote' => new AstNode('blockquote', $attrs, $this->blockNodes($block['c'] ?? [])),
+            'OrderedList' => $this->orderedList($attrs, $block['c'] ?? []),
+            'BulletList' => new AstNode(
+                'bullet_list',
+                $attrs,
+                $this->listItems($block['c'] ?? [], 'Pandoc native JSON BulletList items')
+            ),
+            'DefinitionList' => $this->definitionList($attrs, $block['c'] ?? []),
+            'LineBlock' => $this->lineBlock($attrs, $block['c'] ?? []),
+            'HorizontalRule' => new AstNode('horizontal_rule', $attrs),
+            'Div' => $this->divBlock($attrs, $block['c'] ?? []),
             'Table' => $this->tableBlock($attrs, $block['c'] ?? []),
             default => new AstNode('native_block', $attrs),
         };
@@ -181,6 +194,128 @@ final class NativeReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function headerBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 3, 'Pandoc native JSON Header content');
+        if (!is_int($tuple[0])) {
+            throw new \InvalidArgumentException('Pandoc native JSON Header level must be an integer');
+        }
+
+        $children = $this->inlines($tuple[2]);
+        $attrs = array_replace($attrs, $this->attrsFromTuple($tuple[1]), [
+            'level' => $tuple[0],
+            'text' => $this->plainTextFromInlines($children),
+        ]);
+
+        return new AstNode('heading', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function codeBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON CodeBlock content');
+        if (!is_string($tuple[1])) {
+            throw new \InvalidArgumentException('Pandoc native JSON CodeBlock text must be a string');
+        }
+
+        return new AstNode('code_block', array_replace($attrs, $this->attrsFromTuple($tuple[0]), [
+            'text' => $tuple[1],
+        ]));
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function orderedList(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON OrderedList content');
+        $listAttributes = $this->tuple($tuple[0], 3, 'Pandoc native JSON OrderedList attributes');
+        if (!is_int($listAttributes[0])) {
+            throw new \InvalidArgumentException('Pandoc native JSON OrderedList start number must be an integer');
+        }
+
+        return new AstNode('ordered_list', array_replace($attrs, [
+            'start' => $listAttributes[0],
+            'style' => $this->listStyle($listAttributes[1]),
+            'delimiter' => $this->listDelimiter($listAttributes[2]),
+        ]), $this->listItems($tuple[1], 'Pandoc native JSON OrderedList items'));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function listItems(mixed $items, string $context): array
+    {
+        return array_map(
+            fn (mixed $item): AstNode => new AstNode(
+                'list_item',
+                [],
+                $this->blockNodes($this->listContent($item, 'Pandoc native JSON list item'))
+            ),
+            $this->listContent($items, $context)
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function definitionList(array $attrs, mixed $content): AstNode
+    {
+        $items = [];
+        foreach ($this->listContent($content, 'Pandoc native JSON DefinitionList items') as $item) {
+            $tuple = $this->tuple($item, 2, 'Pandoc native JSON DefinitionList item');
+            $definitions = [];
+            foreach ($this->listContent($tuple[1], 'Pandoc native JSON DefinitionList definitions') as $definition) {
+                $definitions[] = new AstNode(
+                    'definition',
+                    [],
+                    $this->blockNodes($this->listContent($definition, 'Pandoc native JSON definition blocks'))
+                );
+            }
+
+            $termInlines = $this->inlines($tuple[0]);
+            $items[] = new AstNode('definition_item', [], [
+                new AstNode('definition_term', ['text' => $this->plainTextFromInlines($termInlines)], $termInlines),
+                ...$definitions,
+            ]);
+        }
+
+        return new AstNode('definition_list', $attrs, $items);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function lineBlock(array $attrs, mixed $content): AstNode
+    {
+        $lines = [];
+        foreach ($this->listContent($content, 'Pandoc native JSON LineBlock lines') as $line) {
+            $inlines = $this->inlines($line);
+            $lines[] = new AstNode('line', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+        }
+
+        return new AstNode('line_block', $attrs, $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function divBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Div content');
+
+        return new AstNode(
+            'div',
+            array_replace($attrs, $this->attrsFromTuple($tuple[0])),
+            $this->blockNodes($tuple[1])
+        );
     }
 
     /**
@@ -897,6 +1032,31 @@ final class NativeReader
         }
 
         return $value['c'] ?? null;
+    }
+
+    private function listStyle(mixed $style): string
+    {
+        return match ($this->constructorTag($style, 'Pandoc native JSON list style')) {
+            'DefaultStyle' => 'default',
+            'Decimal' => 'decimal',
+            'Example' => 'example',
+            'LowerRoman' => 'lower_roman',
+            'UpperRoman' => 'upper_roman',
+            'LowerAlpha' => 'lower_alpha',
+            'UpperAlpha' => 'upper_alpha',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON list style'),
+        };
+    }
+
+    private function listDelimiter(mixed $delimiter): string
+    {
+        return match ($this->constructorTag($delimiter, 'Pandoc native JSON list delimiter')) {
+            'DefaultDelim' => 'default',
+            'Period' => 'period',
+            'OneParen' => 'one_paren',
+            'TwoParens' => 'two_parens',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON list delimiter'),
+        };
     }
 
     /**

@@ -452,6 +452,211 @@ return [
         $t->same('citation_group', $generatedRoundTrip->children[1]->children[0]->type);
         $t->same('image', $generatedRoundTrip->children[1]->children[2]->type);
     },
+    'maps core block constructors through pandoc native ast json' => static function (TestRunner $t): void {
+        $nativeBlocks = [
+            ['t' => 'Header', 'c' => [
+                2,
+                ['native-heading', ['review'], [['data-kind', 'header']]],
+                [
+                    ['t' => 'Str', 'c' => 'Review'],
+                    ['t' => 'Space'],
+                    ['t' => 'Strong', 'c' => [
+                        ['t' => 'Str', 'c' => 'source'],
+                    ]],
+                ],
+            ]],
+            ['t' => 'CodeBlock', 'c' => [
+                ['cli', ['bash'], [['data-review', 'code']]],
+                "wp post get 42\nwp post meta list 42",
+            ]],
+            ['t' => 'BlockQuote', 'c' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Quoted'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'source'],
+                ]],
+            ]],
+            ['t' => 'BulletList', 'c' => [
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Check'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'media'],
+                    ]],
+                ],
+            ]],
+            ['t' => 'OrderedList', 'c' => [
+                [3, ['t' => 'UpperAlpha'], ['t' => 'OneParen']],
+                [
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Review'],
+                        ]],
+                    ],
+                ],
+            ]],
+            ['t' => 'DefinitionList', 'c' => [
+                [
+                    [
+                        ['t' => 'Str', 'c' => 'source'],
+                        ['t' => 'Space'],
+                        ['t' => 'Code', 'c' => [
+                            ['', ['term-code'], [['data-term', 'source']]],
+                            'packet',
+                        ]],
+                    ],
+                    [
+                        [
+                            ['t' => 'Para', 'c' => [
+                                ['t' => 'Str', 'c' => 'keeps'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'definition'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'text'],
+                            ]],
+                            ['t' => 'CodeBlock', 'c' => [
+                                ['', ['bash'], []],
+                                'wp post meta get 42 _source',
+                            ]],
+                        ],
+                        [
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'alternate'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'definition'],
+                            ]],
+                        ],
+                    ],
+                ],
+            ]],
+            ['t' => 'LineBlock', 'c' => [
+                [
+                    ['t' => 'Str', 'c' => 'Address'],
+                    ['t' => 'Space'],
+                    ['t' => 'Emph', 'c' => [
+                        ['t' => 'Str', 'c' => 'line'],
+                    ]],
+                ],
+                [
+                    ['t' => 'Code', 'c' => [
+                        ['', [], []],
+                        'fallback',
+                    ]],
+                ],
+            ]],
+            ['t' => 'Div', 'c' => [
+                ['packet', ['native-review'], [['data-source', 'core-blocks']]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Wrapped'],
+                    ]],
+                ],
+            ]],
+            ['t' => 'HorizontalRule'],
+        ];
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => $nativeBlocks,
+        ];
+
+        $reader = new NativeReader();
+        $writer = new NativeWriter();
+        $document = $reader->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $roundTrip = json_decode($writer->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $definitionItem = $document->children[5]->children[0];
+        $lineBlock = $document->children[6];
+
+        $t->same([
+            'heading',
+            'code_block',
+            'blockquote',
+            'bullet_list',
+            'ordered_list',
+            'definition_list',
+            'line_block',
+            'div',
+            'horizontal_rule',
+        ], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(2, $document->children[0]->attr('level'));
+        $t->same('native-heading', $document->children[0]->attr('id'));
+        $t->same('Review source', $document->children[0]->attr('text'));
+        $t->same(['bash'], $document->children[1]->attr('classes'));
+        $t->same("wp post get 42\nwp post meta list 42", $document->children[1]->attr('text'));
+        $t->same('Quoted source', $document->children[2]->children[0]->attr('text'));
+        $t->same('Check media', $document->children[3]->children[0]->children[0]->attr('text'));
+        $t->same(3, $document->children[4]->attr('start'));
+        $t->same('upper_alpha', $document->children[4]->attr('style'));
+        $t->same('one_paren', $document->children[4]->attr('delimiter'));
+        $t->same('source packet', $definitionItem->children[0]->attr('text'));
+        $t->same(['term-code'], $definitionItem->children[0]->children[1]->attr('classes'));
+        $t->same('wp post meta get 42 _source', $definitionItem->children[1]->children[1]->attr('text'));
+        $t->same('Address line', $lineBlock->children[0]->attr('text'));
+        $t->same('fallback', $lineBlock->children[1]->attr('text'));
+        $t->same('packet', $document->children[7]->attr('id'));
+        $t->same(['data-source' => 'core-blocks'], $document->children[7]->attr('attributes'));
+        $t->same($nativeBlocks, $roundTrip['blocks']);
+
+        $generatedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('heading', ['level' => 3, 'id' => 'generated-heading', 'classes' => ['core-block']], [
+                new AstNode('text', ['text' => 'Generated']),
+                new AstNode('space'),
+                new AstNode('emph', [], [new AstNode('text', ['text' => 'block'])]),
+            ]),
+            new AstNode('code_block', ['text' => 'wp media import file.png', 'classes' => ['bash']]),
+            new AstNode('blockquote', [], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Generated quote'])]),
+            ]),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Generated bullet'])])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 5, 'style' => 'lower_roman', 'delimiter' => 'period'], [
+                new AstNode('list_item', [], [new AstNode('plain', [], [new AstNode('text', ['text' => 'Generated order'])])]),
+            ]),
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', [], [
+                    new AstNode('definition_term', [], [new AstNode('strong', [], [new AstNode('text', ['text' => 'term'])])]),
+                    new AstNode('definition', [], [
+                        new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Generated definition'])]),
+                        new AstNode('code_block', ['text' => 'wp option get siteurl']),
+                    ]),
+                ]),
+            ]),
+            new AstNode('line_block', [], [
+                new AstNode('line', [], [new AstNode('text', ['text' => 'First line'])]),
+                new AstNode('line', ['text' => 'Fallback line']),
+            ]),
+            new AstNode('div', ['id' => 'generated-div', 'attributes' => ['data-review' => 'native-core']], [
+                new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Generated div'])]),
+            ]),
+            new AstNode('horizontal_rule'),
+        ]);
+        $generated = json_decode($writer->write($generatedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $generatedRoundTrip = $reader->read(json_encode($generated, JSON_THROW_ON_ERROR));
+
+        $t->same([
+            'Header',
+            'CodeBlock',
+            'BlockQuote',
+            'BulletList',
+            'OrderedList',
+            'DefinitionList',
+            'LineBlock',
+            'Div',
+            'HorizontalRule',
+        ], array_map(static fn (array $block): string => $block['t'], $generated['blocks']));
+        $t->same(['generated-heading', ['core-block'], []], $generated['blocks'][0]['c'][1]);
+        $t->same('Emph', $generated['blocks'][0]['c'][2][2]['t']);
+        $t->same([5, ['t' => 'LowerRoman'], ['t' => 'Period']], $generated['blocks'][4]['c'][0]);
+        $t->same('Strong', $generated['blocks'][5]['c'][0][0][0]['t']);
+        $t->same('CodeBlock', $generated['blocks'][5]['c'][0][1][0][1]['t']);
+        $t->same('Fallback', $generated['blocks'][6]['c'][1][0]['c']);
+        $t->same(['generated-div', [], [['data-review', 'native-core']]], $generated['blocks'][7]['c'][0]);
+        $t->same('heading', $generatedRoundTrip->children[0]->type);
+        $t->same('Generated block', $generatedRoundTrip->children[0]->attr('text'));
+        $t->same('definition_list', $generatedRoundTrip->children[5]->type);
+        $t->same('Fallback line', $generatedRoundTrip->children[6]->children[1]->attr('text'));
+    },
     'maps native ast table captions into shared table metadata' => static function (TestRunner $t): void {
         $nativeTable = [
             't' => 'Table',
