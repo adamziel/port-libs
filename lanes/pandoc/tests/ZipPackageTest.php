@@ -2441,6 +2441,92 @@ return [
         $t->same('read-only archive bit stays review metadata', $safePackage->read('/word/media/read-only-review.txt'));
     },
 
+    'preflights raw zip DOS attributes before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw DOS attribute package</w:p></w:document>',
+                'method' => 0,
+                'flags' => 0x0840,
+                'externalAttributes' => 0x81a40020,
+            ],
+            [
+                'name' => 'word/media/hidden-review.txt',
+                'data' => 'hidden media bytes require raw review',
+                'method' => 0,
+                'flags' => 0x0840,
+                'externalAttributes' => 0x81a40022,
+            ],
+            [
+                'name' => 'word/media/system-review.txt',
+                'data' => 'system media bytes require raw review',
+                'method' => 0,
+                'flags' => 0x0840,
+                'externalAttributes' => 0x81a40024,
+            ],
+            [
+                'name' => 'word/media/VOLUME',
+                'data' => '',
+                'method' => 0,
+                'flags' => 0x0840,
+                'externalAttributes' => 0x00000008,
+            ],
+            [
+                'name' => 'word/media/read-only-review.txt',
+                'data' => 'read-only media bytes stay metadata only',
+                'method' => 0,
+                'flags' => 0x0840,
+                'externalAttributes' => 0x81a40021,
+            ],
+        ]);
+
+        $summary = ZipPackage::dosAttributePolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+
+        $t->same(5, $summary['entryCount']);
+        $t->same(5, $summary['dosAttributeEntryCount']);
+        $t->same(1, $summary['readOnlyEntryCount']);
+        $t->same(1, $summary['hiddenEntryCount']);
+        $t->same(1, $summary['systemEntryCount']);
+        $t->same(1, $summary['volumeLabelEntryCount']);
+        $t->same(0, $summary['directoryAttributeEntryCount']);
+        $t->same(4, $summary['archiveEntryCount']);
+        $t->same(3, $summary['hiddenSystemOrVolumeLabelEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['hidden-system-or-volume-label-entries'], $summary['issues']);
+
+        $hidden = $summary['hiddenSystemOrVolumeLabelEntries'][0];
+        $t->same('word/media/hidden-review.txt', $hidden['name']);
+        $t->same(['hidden', 'archive'], $hidden['dosAttributeNames']);
+        $t->same('blocked', $hidden['policy']);
+        $t->same(['dos-hidden-entry'], $hidden['issues']);
+
+        $system = $summary['hiddenSystemOrVolumeLabelEntries'][1];
+        $t->same('word/media/system-review.txt', $system['name']);
+        $t->same(['system', 'archive'], $system['dosAttributeNames']);
+        $t->same(['dos-system-entry'], $system['issues']);
+
+        $volume = $summary['hiddenSystemOrVolumeLabelEntries'][2];
+        $t->same('word/media/VOLUME', $volume['name']);
+        $t->same(['volume-label'], $volume['dosAttributeNames']);
+        $t->same(['dos-volume-label-entry'], $volume['issues']);
+
+        $readOnly = $summary['entries'][4];
+        $t->same('word/media/read-only-review.txt', $readOnly['name']);
+        $t->same(['read-only', 'archive'], $readOnly['dosAttributeNames']);
+        $t->same('metadata', $readOnly['policy']);
+        $t->same([], $readOnly['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($summary, $rawStrict['dosAttributes']);
+        $t->contains('hidden-system-or-volume-label-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('encrypted-zip-entries', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects zip symlink entries before office package import preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
