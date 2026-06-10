@@ -1171,6 +1171,36 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{format:string, input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function roffManualExtensionDirections(): array
+    {
+        $formatDirections = self::roffManualFormatDirections();
+        $extensionDirections = [];
+
+        foreach (self::ROFF_MANUAL_EXTENSION_INFERENCE as $extension => $format) {
+            $direction = $formatDirections[$format] ?? [
+                'input' => false,
+                'output' => false,
+                'direction' => 'unknown',
+                'inputStatus' => 'not-applicable',
+                'outputStatus' => 'not-applicable',
+            ];
+
+            $extensionDirections[$extension] = [
+                'format' => $format,
+                'input' => $direction['input'],
+                'output' => $direction['output'],
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+            ];
+        }
+
+        return $extensionDirections;
+    }
+
+    /**
      * @return string|null
      */
     public static function inferRoffManualFormatFromExtension(string $extension): ?string

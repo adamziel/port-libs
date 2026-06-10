@@ -147,6 +147,36 @@ return [
             $t->same($hasOutput ? 'unsupported' : 'not-applicable', $direction['outputStatus'], "Roff manual format {$format} output status mismatch");
         }
     },
+    'tracks roff manual extension inference buckets without direct parity claims' => static function (TestRunner $t): void {
+        $directions = PandocFormatRegistry::roffManualExtensionDirections();
+
+        $t->same(['.ms', '.roff', '.[1-9]', '.[1-9][a-z]+'], array_keys($directions));
+
+        $t->same('ms', $directions['.ms']['format']);
+        $t->same(false, $directions['.ms']['input']);
+        $t->same(true, $directions['.ms']['output']);
+        $t->same('output-only', $directions['.ms']['direction']);
+        $t->same('not-applicable', $directions['.ms']['inputStatus']);
+        $t->same('unsupported', $directions['.ms']['outputStatus']);
+
+        $t->same('ms', $directions['.roff']['format']);
+        $t->same(false, $directions['.roff']['input']);
+        $t->same(true, $directions['.roff']['output']);
+        $t->same('output-only', $directions['.roff']['direction']);
+        $t->same('not-applicable', $directions['.roff']['inputStatus']);
+        $t->same('unsupported', $directions['.roff']['outputStatus']);
+
+        foreach (['.[1-9]', '.[1-9][a-z]+'] as $pattern) {
+            $t->same('man', $directions[$pattern]['format']);
+            $t->same(true, $directions[$pattern]['input']);
+            $t->same(true, $directions[$pattern]['output']);
+            $t->same('input-output', $directions[$pattern]['direction']);
+            $t->same('unsupported', $directions[$pattern]['inputStatus']);
+            $t->same('unsupported', $directions[$pattern]['outputStatus']);
+        }
+
+        $t->same([], array_keys(array_filter($directions, static fn (array $direction): bool => $direction['format'] === 'mdoc')));
+    },
     'builds roff manual review packets with extension inference and unsupported parity' => static function (TestRunner $t): void {
         $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('.ms'));
         $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('MS'));
