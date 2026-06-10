@@ -310,6 +310,88 @@ return [
         $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
     },
 
+    'preserves inherited OPF metadata language and direction for package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMetadataContext = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="ar" dir="rtl">',
+            $epub3OpfXml
+        );
+        $opfWithMetadataContext = str_replace(
+            '<dc:title>WordPress Migration Guide</dc:title>',
+            '<dc:title id="localized-title">Localized migration title</dc:title>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>',
+            '<dc:creator id="creator" xml:lang="en">Data Liberation Team</dc:creator>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:subject dir="ltr">Data Liberation</dc:subject>
+    <dc:language>en-US</dc:language>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#localized-title" property="alternate-script">Migration import title</meta>
+    <link id="localized-review-record" rel="record" href="meta/localized-review.json" media-type="application/ld+json"/>',
+            $opfWithMetadataContext
+        );
+        $opfWithMetadataContext = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series" xml:lang="en" dir="rtl">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration packets</dc:title>
+      <meta property="group-position">2</meta>
+    </metadata>
+  </collection>',
+            $opfWithMetadataContext
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMetadataContext],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/localized-review.json', 'data' => '{"name":"localized review"}'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+
+        $t->same('ar', $metadata['titleDetails'][0]['language']);
+        $t->same('rtl', $metadata['titleDetails'][0]['direction']);
+        $t->same('ar', $metadata['dc']['title'][0]['language']);
+        $t->same('rtl', $metadata['dc']['title'][0]['direction']);
+        $t->same('en', $metadata['creatorDetails'][0]['language']);
+        $t->same('rtl', $metadata['creatorDetails'][0]['direction']);
+        $t->same('ar', $metadata['dc']['subject'][0]['language']);
+        $t->same('ltr', $metadata['dc']['subject'][0]['direction']);
+        $t->same('ar', $metadata['metaProperties']['dcterms:modified'][0]['language']);
+        $t->same('rtl', $metadata['metaProperties']['dcterms:modified'][0]['direction']);
+        $t->same('Migration import title', $metadata['titleDetails'][0]['alternateScripts'][0]['text']);
+        $t->same('ar', $metadata['titleDetails'][0]['alternateScripts'][0]['language']);
+        $t->same('rtl', $metadata['titleDetails'][0]['alternateScripts'][0]['direction']);
+        $t->same('ar', $metadata['links'][0]['language']);
+        $t->same('rtl', $metadata['links'][0]['direction']);
+        $t->same('/EPUB/meta/localized-review.json', $metadata['links'][0]['target']);
+
+        $series = $epub->collections()[0];
+        $t->same('en', $series['metadata']['titleDetails'][0]['language']);
+        $t->same('rtl', $series['metadata']['titleDetails'][0]['direction']);
+        $t->same('en', $series['metadata']['metaProperties']['group-position'][0]['language']);
+        $t->same('rtl', $series['metadata']['metaProperties']['group-position'][0]['direction']);
+        $t->same($metadata['titleDetails'], $summary['wordpressImport']['metadataDetails']['titleDetails']);
+        $t->same($series['metadata']['titleDetails'], $summary['wordpressImport']['collections'][0]['metadata']['titleDetails']);
+    },
+
     'preflights OPF unique identifier and duplicate identifier diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithIdentifierDiagnostics = str_replace(
             '<dc:identifier id="bookid">urn:isbn:9780000000001</dc:identifier>',

@@ -2742,16 +2742,43 @@ final class EpubPackage
 
     private static function metadataElementLanguage(\DOMElement $element): ?string
     {
-        if ($element->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang')) {
-            return self::emptyToNull($element->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            if ($current->hasAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang')) {
+                $language = self::emptyToNull($current->getAttributeNS('http://www.w3.org/XML/1998/namespace', 'lang'));
+                if ($language !== null) {
+                    return $language;
+                }
+            }
+
+            if ($current->hasAttribute('xml:lang')) {
+                $language = self::emptyToNull($current->getAttribute('xml:lang'));
+                if ($language !== null) {
+                    return $language;
+                }
+            }
+
+            $current = $current->parentNode instanceof \DOMElement ? $current->parentNode : null;
         }
 
-        return self::emptyToNull($element->getAttribute('xml:lang'));
+        return null;
     }
 
     private static function metadataElementDirection(\DOMElement $element): ?string
     {
-        return self::emptyToNull($element->getAttribute('dir'));
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            if ($current->hasAttribute('dir')) {
+                $direction = self::emptyToNull($current->getAttribute('dir'));
+                if ($direction !== null) {
+                    return $direction;
+                }
+            }
+
+            $current = $current->parentNode instanceof \DOMElement ? $current->parentNode : null;
+        }
+
+        return null;
     }
 
     private static function emptyToNull(string $value): ?string
