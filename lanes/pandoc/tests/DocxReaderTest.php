@@ -12730,6 +12730,67 @@ return [
 
         $t->same($mailMerge, $result['importReport']['settings']['mailMerge']);
     },
+    'reports DOCX package-root relationship roles for reviewer handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/EncryptedPackage" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
+  <Relationship Id="rIdEncrypted" Type="http://schemas.openxmlformats.org/package/2006/relationships/encrypted-package" Target="EncryptedPackage"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Package relationship packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'docProps/thumbnail.png', 'data' => 'PNG'],
+            ['name' => 'EncryptedPackage', 'data' => 'encrypted'],
+        ]));
+        $packageRelationships = $result['importReport']['packageRelationships'];
+        $relationshipsById = [];
+        foreach ($packageRelationships['relationships'] as $relationship) {
+            $relationshipsById[$relationship['id']] = $relationship;
+        }
+
+        $t->same('/', $packageRelationships['source']);
+        $t->same(3, $packageRelationships['roleTargetCount']);
+        $t->same(3, $packageRelationships['validRoleTargetCount']);
+        $t->same(0, $packageRelationships['invalidRoleTargetCount']);
+        $t->same([
+            'encrypted-package' => 1,
+            'office-document' => 1,
+            'thumbnail' => 1,
+        ], $packageRelationships['roleCounts']);
+        $t->same([], $packageRelationships['issues']);
+
+        $t->same('thumbnail', $relationshipsById['rIdThumbnail']['role']);
+        $t->same('/docProps/thumbnail.png', $relationshipsById['rIdThumbnail']['targetPart']);
+        $t->same('image/png', $relationshipsById['rIdThumbnail']['contentType']);
+        $t->same(false, $relationshipsById['rIdThumbnail']['external']);
+        $t->same(true, $relationshipsById['rIdThumbnail']['exists']);
+        $t->same([], $relationshipsById['rIdThumbnail']['issues']);
+
+        $t->same('encrypted-package', $relationshipsById['rIdEncrypted']['role']);
+        $t->same('/EncryptedPackage', $relationshipsById['rIdEncrypted']['targetPart']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $relationshipsById['rIdEncrypted']['contentType']);
+        $t->same('application/vnd.openxmlformats-package.encrypted-package', $relationshipsById['rIdEncrypted']['expectedContentType']);
+        $t->same(true, $relationshipsById['rIdEncrypted']['sourceAllowed']);
+        $t->same([], $relationshipsById['rIdEncrypted']['issues']);
+    },
     'rejects DOCX office document relationship content-type mismatches before body parsing' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentXml): void {
         $reader = new DocxReader();
         $wrongContentTypesXml = str_replace(
