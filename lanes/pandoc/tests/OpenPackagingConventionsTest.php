@@ -380,6 +380,76 @@ return [
         $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
         $t->same('directory', $entries['word/media/']['handoffKind']);
     },
+    'summarizes OPC ZIP entry manifest compression profile before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships>'
+            . str_repeat('<Relationship Id="rIdDocument" Type="officeDocument" Target="word/document.xml"/>', 8)
+            . '</Relationships>';
+        $documentXml = '<w:document>'
+            . str_repeat('<w:p>Repeated migration review packet text.</w:p>', 32)
+            . '</w:document>';
+        $imageBytes = str_repeat('PNGDATA', 6);
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 8],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 8],
+            ['name' => 'word/media/', 'data' => ''],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $compressedRelationshipsBytes = strlen(gzdeflate($rootRelationshipsXml));
+        $compressedDocumentBytes = strlen(gzdeflate($documentXml));
+        $deflatedCompressedBytes = $compressedRelationshipsBytes + $compressedDocumentBytes;
+        $deflatedUncompressedBytes = strlen($rootRelationshipsXml) + strlen($documentXml);
+        $storedBytes = strlen($contentTypesXml) + strlen($imageBytes);
+        $relationshipSavedBytes = strlen($rootRelationshipsXml) - $compressedRelationshipsBytes;
+        $documentSavedBytes = strlen($documentXml) - $compressedDocumentBytes;
+
+        $t->same(3, $summary['storedEntryCount']);
+        $t->same(2, $summary['deflatedEntryCount']);
+        $t->same(0, $summary['unsupportedCompressionMethodCount']);
+        $t->same(2, $summary['entriesWithCompressionSavingsCount']);
+        $t->same(0, $summary['entriesWithCompressionOverheadCount']);
+        $t->same($relationshipSavedBytes + $documentSavedBytes, $summary['compressionSavingsBytes']);
+        $t->same(0, $summary['compressionOverheadBytes']);
+        $t->same([
+            'deflated' => 2,
+            'stored' => 3,
+        ], $summary['compressionMethodCounts']);
+        $t->same([
+            'deflated' => [
+                'entryCount' => 2,
+                'compressedBytes' => $deflatedCompressedBytes,
+                'uncompressedBytes' => $deflatedUncompressedBytes,
+            ],
+            'stored' => [
+                'entryCount' => 3,
+                'compressedBytes' => $storedBytes,
+                'uncompressedBytes' => $storedBytes,
+            ],
+        ], $summary['byteCountsByCompressionMethod']);
+        $t->same([
+            'entryName' => 'word/document.xml',
+            'partName' => '/word/document.xml',
+            'role' => 'xml-part',
+            'handoffKind' => 'xml',
+            'compressionMethod' => 8,
+            'compressionMethodName' => 'deflated',
+            'compressedSize' => $compressedDocumentBytes,
+            'uncompressedSize' => strlen($documentXml),
+            'savedBytes' => $documentSavedBytes,
+        ], $summary['largestCompressionSavingsEntry']);
+        $t->same(null, $summary['largestCompressionOverheadEntry']);
+        $t->same('deflated', $entries['_rels/.rels']['compressionMethodName']);
+        $t->same('stored', $entries['word/media/image.png']['compressionMethodName']);
+        $t->same('stored', $entries['word/media/']['compressionMethodName']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');

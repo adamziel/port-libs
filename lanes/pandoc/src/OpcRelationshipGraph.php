@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, compressedPayloadBytes:int, uncompressedPayloadBytes:int, fileCompressedBytes:int, fileUncompressedBytes:int, directoryCompressedBytes:int, directoryUncompressedBytes:int, storedEntryCount:int, deflatedEntryCount:int, unsupportedCompressionMethodCount:int, entriesWithCompressionSavingsCount:int, entriesWithCompressionOverheadCount:int, compressionSavingsBytes:int, compressionOverheadBytes:int, contentTypesItemCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, byteCountsByRole:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, byteCountsByHandoffKind:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, compressionMethodCounts:array<string, int>, byteCountsByCompressionMethod:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}>, largestPayloadEntry:array{entryName:string, partName:?string, role:string, handoffKind:string, compressedSize:int, uncompressedSize:int}|null, largestCompressionSavingsEntry:array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int, savedBytes:int}|null, largestCompressionOverheadEntry:array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int, overheadBytes:int}|null, contentTypesItems:list<string>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -309,6 +309,7 @@ final class OpcRelationshipGraph
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::zipEntryManifestCompressionMethodName($entry->compressionMethod),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'crc32Hex' => $entry->crc32Hex(),
@@ -398,6 +399,8 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $compressionMethodCounts = [];
+        $byteCountsByCompressionMethod = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -406,6 +409,13 @@ final class OpcRelationshipGraph
         $fileUncompressedBytes = 0;
         $directoryCompressedBytes = 0;
         $directoryUncompressedBytes = 0;
+        $storedEntryCount = 0;
+        $deflatedEntryCount = 0;
+        $unsupportedCompressionMethodCount = 0;
+        $entriesWithCompressionSavingsCount = 0;
+        $entriesWithCompressionOverheadCount = 0;
+        $compressionSavingsBytes = 0;
+        $compressionOverheadBytes = 0;
         $relationshipPartCount = 0;
         $rootRelationshipPartCount = 0;
         $partRelationshipPartCount = 0;
@@ -421,6 +431,8 @@ final class OpcRelationshipGraph
         $xmlPayloadPartCount = 0;
         $binaryPayloadPartCount = 0;
         $largestPayloadEntry = null;
+        $largestCompressionSavingsEntry = null;
+        $largestCompressionOverheadEntry = null;
 
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = 1;
@@ -442,6 +454,7 @@ final class OpcRelationshipGraph
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
+            $compressionMethodCounts[$entry['compressionMethodName']] = ($compressionMethodCounts[$entry['compressionMethodName']] ?? 0) + 1;
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByRole,
                 $entry['role'],
@@ -454,6 +467,20 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            self::incrementZipEntryManifestByteBucket(
+                $byteCountsByCompressionMethod,
+                $entry['compressionMethodName'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize'],
+            );
+
+            if ($entry['compressionMethod'] === 0) {
+                $storedEntryCount++;
+            } elseif ($entry['compressionMethod'] === 8) {
+                $deflatedEntryCount++;
+            } else {
+                $unsupportedCompressionMethodCount++;
+            }
 
             if (
                 $largestPayloadEntry === null
@@ -467,6 +494,48 @@ final class OpcRelationshipGraph
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
                 ];
+            }
+
+            $compressionDelta = $entry['uncompressedSize'] - $entry['compressedSize'];
+            if ($compressionDelta > 0) {
+                $entriesWithCompressionSavingsCount++;
+                $compressionSavingsBytes += $compressionDelta;
+                if (
+                    $largestCompressionSavingsEntry === null
+                    || $compressionDelta > $largestCompressionSavingsEntry['savedBytes']
+                ) {
+                    $largestCompressionSavingsEntry = [
+                        'entryName' => $entry['entryName'],
+                        'partName' => $entry['partName'],
+                        'role' => $entry['role'],
+                        'handoffKind' => $entry['handoffKind'],
+                        'compressionMethod' => $entry['compressionMethod'],
+                        'compressionMethodName' => $entry['compressionMethodName'],
+                        'compressedSize' => $entry['compressedSize'],
+                        'uncompressedSize' => $entry['uncompressedSize'],
+                        'savedBytes' => $compressionDelta,
+                    ];
+                }
+            } elseif ($compressionDelta < 0) {
+                $entriesWithCompressionOverheadCount++;
+                $overheadBytes = -$compressionDelta;
+                $compressionOverheadBytes += $overheadBytes;
+                if (
+                    $largestCompressionOverheadEntry === null
+                    || $overheadBytes > $largestCompressionOverheadEntry['overheadBytes']
+                ) {
+                    $largestCompressionOverheadEntry = [
+                        'entryName' => $entry['entryName'],
+                        'partName' => $entry['partName'],
+                        'role' => $entry['role'],
+                        'handoffKind' => $entry['handoffKind'],
+                        'compressionMethod' => $entry['compressionMethod'],
+                        'compressionMethodName' => $entry['compressionMethodName'],
+                        'compressedSize' => $entry['compressedSize'],
+                        'uncompressedSize' => $entry['uncompressedSize'],
+                        'overheadBytes' => $overheadBytes,
+                    ];
+                }
             }
 
             foreach ($entry['issues'] as $issue) {
@@ -532,6 +601,8 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        ksort($compressionMethodCounts);
+        ksort($byteCountsByCompressionMethod);
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -551,6 +622,13 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'storedEntryCount' => $storedEntryCount,
+            'deflatedEntryCount' => $deflatedEntryCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'entriesWithCompressionSavingsCount' => $entriesWithCompressionSavingsCount,
+            'entriesWithCompressionOverheadCount' => $entriesWithCompressionOverheadCount,
+            'compressionSavingsBytes' => $compressionSavingsBytes,
+            'compressionOverheadBytes' => $compressionOverheadBytes,
             'contentTypesItemCount' => count($contentTypesItems),
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
@@ -571,7 +649,11 @@ final class OpcRelationshipGraph
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'compressionMethodCounts' => $compressionMethodCounts,
+            'byteCountsByCompressionMethod' => $byteCountsByCompressionMethod,
             'largestPayloadEntry' => $largestPayloadEntry,
+            'largestCompressionSavingsEntry' => $largestCompressionSavingsEntry,
+            'largestCompressionOverheadEntry' => $largestCompressionOverheadEntry,
             'contentTypesItems' => $contentTypesItems,
             'relationshipParts' => $relationshipParts,
             'entries' => $entries,
@@ -6284,6 +6366,15 @@ final class OpcRelationshipGraph
             'embedded-package-candidate' => 'embedded-package',
             'media' => 'media',
             default => self::isXmlLikePartName($partName) ? 'xml' : 'binary',
+        };
+    }
+
+    private static function zipEntryManifestCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
         };
     }
 
