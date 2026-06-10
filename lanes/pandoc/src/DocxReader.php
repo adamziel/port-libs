@@ -175,9 +175,28 @@ final class DocxReader
         $this->currentCustomXmlPartsByStoreItemId = [];
         $this->currentCustomXmlStoreItems = [];
         $graph = OpcRelationshipGraph::fromPackage($package);
-        $documentPart = $graph->firstTargetOfType(OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+        $officeDocumentPreflight = $graph->preflightOfficeDocumentRoot(
+            OpcRelationshipGraph::WORDPROCESSING_OFFICE_DOCUMENT_CONTENT_TYPES,
+        );
+        if (!$officeDocumentPreflight['valid']) {
+            throw new \RuntimeException(
+                'DOCX package officeDocument relationship is not readable: '
+                . implode(', ', $this->officeDocumentPreflightIssues($officeDocumentPreflight))
+            );
+        }
+
+        $documentPart = null;
+        foreach ($officeDocumentPreflight['relationships'] as $relationship) {
+            if ($relationship['external'] || !is_string($relationship['targetPart'])) {
+                continue;
+            }
+
+            $documentPart = $relationship['targetPart'];
+            break;
+        }
+
         if ($documentPart === null) {
-            throw new \RuntimeException('DOCX package does not contain an officeDocument relationship');
+            throw new \RuntimeException('DOCX package does not contain a readable officeDocument relationship');
         }
 
         $documentPart = OpcPackagePath::stripQueryAndFragment($documentPart);
@@ -268,6 +287,7 @@ final class DocxReader
                 $package,
                 $documentPart,
                 $documentRelationships,
+                $officeDocumentPreflight,
                 $relationshipPreflight,
                 $reachableRelationships,
                 $document,
@@ -285,6 +305,26 @@ final class DocxReader
     }
 
     /**
+     * @param array{issues:list<string>, relationships:list<array{issues:list<string>}>} $officeDocumentPreflight
+     * @return list<string>
+     */
+    private function officeDocumentPreflightIssues(array $officeDocumentPreflight): array
+    {
+        $issues = $officeDocumentPreflight['issues'];
+        foreach ($officeDocumentPreflight['relationships'] as $relationship) {
+            foreach ($relationship['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return $issues;
+    }
+
+    /**
+     * @param array{relationshipCount:int, expectedContentTypes:list<string>, valid:bool, issues:list<string>, relationships:list<array{source:string, id:string, type:string, relationshipTypeKind:string, relationshipTypeScheme:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>} $officeDocumentPreflight
      * @param list<array{id:string, type:string, target:string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $relationshipPreflight
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
@@ -302,6 +342,7 @@ final class DocxReader
         ZipPackage $package,
         string $documentPart,
         ?OpcRelationships $documentRelationships,
+        array $officeDocumentPreflight,
         array $relationshipPreflight,
         array $reachableRelationships,
         AstNode $document,
@@ -338,6 +379,7 @@ final class DocxReader
         return [
             'documentPart' => $documentPart,
             'relationshipsPart' => $documentRelationships instanceof OpcRelationships ? $documentRelationships->relationshipPartName() : null,
+            'officeDocument' => $officeDocumentPreflight,
             'relationshipCount' => count($relationshipPreflight),
             'reachableRelationshipCount' => count($reachableRelationships),
             'relationshipIssues' => $relationshipIssues,

@@ -5737,6 +5737,14 @@ return [
         $t->same('Reviewer', $result['metadata']['lastModifiedBy']);
         $t->same(4, count($result['relationships']));
 
+        $officeDocument = $result['importReport']['officeDocument'];
+        $t->same(true, $officeDocument['valid']);
+        $t->same(1, $officeDocument['relationshipCount']);
+        $t->same([], $officeDocument['issues']);
+        $t->same('/word/document.xml', $officeDocument['relationships'][0]['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $officeDocument['relationships'][0]['contentType']);
+        $t->same([], $officeDocument['relationships'][0]['issues']);
+
         $heading = $document->children[0];
         $t->same('heading', $heading->type);
         $t->same(1, $heading->attr('level'));
@@ -12592,6 +12600,28 @@ return [
 
         $t->same($mailMerge, $result['importReport']['settings']['mailMerge']);
     },
+    'rejects DOCX office document relationship content-type mismatches before body parsing' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentXml): void {
+        $reader = new DocxReader();
+        $wrongContentTypesXml = str_replace(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/xml',
+            $contentTypesXml
+        );
+        $exception = null;
+
+        try {
+            $reader->readPackage(ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $wrongContentTypesXml],
+                ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+                ['name' => 'word/document.xml', 'data' => $documentXml],
+            ]));
+        } catch (\RuntimeException $caught) {
+            $exception = $caught;
+        }
+
+        $t->true($exception instanceof \RuntimeException, 'Invalid DOCX office document content type should stop package ingestion');
+        $t->contains('invalid-office-document-content-type', $exception->getMessage());
+    },
     'rejects malformed DOCX packages without shelling out to office tooling' => static function (TestRunner $t) use ($contentTypesXml, $documentXml): void {
         $reader = new DocxReader();
 
@@ -12607,7 +12637,7 @@ return [
             ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
             ['name' => 'word/document.xml', 'data' => '<document/>'],
         ])));
-        $t->throws(\InvalidArgumentException::class, static fn (): AstNode => $reader->readDocument(ZipPackage::fromParts([
+        $t->throws(\RuntimeException::class, static fn (): AstNode => $reader->readDocument(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
             ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="../evil.xml"/></Relationships>'],
             ['name' => 'word/document.xml', 'data' => $documentXml],
