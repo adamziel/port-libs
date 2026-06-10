@@ -78,6 +78,7 @@ $buildOdtPackage = static function (
     string $mimetype = OpenDocumentPackage::TEXT_MIMETYPE,
     bool $mimetypeFirst = true,
     int $mimetypeCompression = 0,
+    array $extraParts = [],
 ) use ($manifestXml, $contentXml, $stylesXml, $metaXml): ZipPackage {
     $parts = [
         ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression],
@@ -90,6 +91,10 @@ $buildOdtPackage = static function (
 
     if (!$mimetypeFirst) {
         $parts = [$parts[1], $parts[0], $parts[2], $parts[3], $parts[4], $parts[5]];
+    }
+
+    foreach ($extraParts as $part) {
+        $parts[] = $part;
     }
 
     return ZipPackage::fromParts($parts, 'odt package');
@@ -159,6 +164,49 @@ XML;
         $t->same(20, $hero['encryption']['startKeyGeneration']['keySize']);
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
+    },
+    'reports compact ODT manifest package review gaps without exposing undeclared media' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            'manifest:full-path="Pictures/hero.png" manifest:size="7"',
+            'manifest:full-path="Pictures/hero.png" manifest:size="99"',
+            $manifestXml
+        );
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg" manifest:size="123"/>' . "\n" . '</manifest:manifest>',
+            $manifest
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => '<events/>', 'compressionMethod' => 0],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+
+        $t->same(6, $review['count']);
+        $t->same(8, $review['packageEntryCount']);
+        $t->same(1, $review['missingItemCount']);
+        $t->same('Pictures/missing.jpg', $review['missingItems'][0]['part']);
+        $t->same('image/jpeg', $review['missingItems'][0]['mediaType']);
+        $t->same(123, $review['missingItems'][0]['declaredSize']);
+        $t->same(false, $review['missingItems'][0]['encrypted']);
+        $t->same('odf-manifest-missing-package-entry', $review['missingItems'][0]['diagnostic']);
+        $t->same(2, $review['undeclaredEntryCount']);
+        $t->same('Pictures/orphan.png', $review['undeclaredEntries'][0]['part']);
+        $t->same('odf-manifest-undeclared-package-entry', $review['undeclaredEntries'][0]['diagnostic']);
+        $t->same(9, $review['undeclaredEntries'][0]['byteLength']);
+        $t->same(sprintf('%08x', crc32('ORPHANPNG')), $review['undeclaredEntries'][0]['crc32']);
+        $t->same('Configurations2/accelerator/current.xml', $review['undeclaredEntries'][1]['part']);
+        $t->same(0, $review['undeclaredEntries'][1]['compressionMethod']);
+        $t->same(1, $review['declaredSizeMismatchCount']);
+        $t->same('Pictures/hero.png', $review['declaredSizeMismatches'][0]['part']);
+        $t->same(99, $review['declaredSizeMismatches'][0]['declaredSize']);
+        $t->same(7, $review['declaredSizeMismatches'][0]['byteLength']);
+        $t->same(['Pictures/hero.png', 'Pictures/missing.jpg'], array_column($summary['mediaParts'], 'path'));
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();

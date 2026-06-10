@@ -183,6 +183,7 @@ final class OpenDocumentPackage
      *     stylesXml:bool,
      *     metaXml:bool,
      *     mediaParts:list<array{path:string, mediaType:string}>,
+     *     manifestReview:array<string, mixed>,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
      *     metadata:array<string, mixed>,
@@ -213,11 +214,100 @@ final class OpenDocumentPackage
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
             'mediaParts' => $mediaParts,
+            'manifestReview' => $this->manifestReview(),
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     count:int,
+     *     packageEntryCount:int,
+     *     missingItemCount:int,
+     *     missingItems:list<array{part:string, mediaType:string, declaredSize:int|null, encrypted:bool, diagnostic:string}>,
+     *     undeclaredEntryCount:int,
+     *     undeclaredEntries:list<array{part:string, diagnostic:string, byteLength:int, compressedByteLength:int, compressionMethod:int, crc32:string}>,
+     *     declaredSizeMismatchCount:int,
+     *     declaredSizeMismatches:list<array{part:string, mediaType:string, declaredSize:int, byteLength:int, crc32:string}>
+     * }
+     */
+    private function manifestReview(): array
+    {
+        $declaredParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        $missingItems = [];
+        $declaredSizeMismatches = [];
+
+        foreach ($this->manifestEntries as $entry) {
+            $path = $entry['path'];
+            if ($path !== '/') {
+                $declaredParts[$path] = true;
+            }
+
+            if ($path === '/' || str_ends_with($path, '/')) {
+                continue;
+            }
+
+            if (!$this->package->has($path)) {
+                $missingItems[] = [
+                    'part' => $path,
+                    'mediaType' => $entry['mediaType'],
+                    'declaredSize' => $entry['size'],
+                    'encrypted' => $entry['encrypted'],
+                    'diagnostic' => 'odf-manifest-missing-package-entry',
+                ];
+                continue;
+            }
+
+            if ($entry['encrypted'] || $entry['size'] === null) {
+                continue;
+            }
+
+            $zipEntry = $this->package->entry($path);
+            if ($zipEntry->isDirectory() || $zipEntry->uncompressedSize === $entry['size']) {
+                continue;
+            }
+
+            $declaredSizeMismatches[] = [
+                'part' => $path,
+                'mediaType' => $entry['mediaType'],
+                'declaredSize' => $entry['size'],
+                'byteLength' => $zipEntry->uncompressedSize,
+                'crc32' => $zipEntry->crc32Hex(),
+            ];
+        }
+
+        $undeclaredEntries = [];
+        foreach ($this->package->entries() as $entry) {
+            if ($entry->isDirectory() || isset($declaredParts[$entry->name])) {
+                continue;
+            }
+
+            $undeclaredEntries[] = [
+                'part' => $entry->name,
+                'diagnostic' => 'odf-manifest-undeclared-package-entry',
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'crc32' => $entry->crc32Hex(),
+            ];
+        }
+
+        return [
+            'count' => count($this->manifestEntries),
+            'packageEntryCount' => count($this->package->entries()),
+            'missingItemCount' => count($missingItems),
+            'missingItems' => $missingItems,
+            'undeclaredEntryCount' => count($undeclaredEntries),
+            'undeclaredEntries' => $undeclaredEntries,
+            'declaredSizeMismatchCount' => count($declaredSizeMismatches),
+            'declaredSizeMismatches' => $declaredSizeMismatches,
         ];
     }
 
