@@ -15,8 +15,11 @@ final class DocxOpenXmlReader
     private const NS_DCTERMS = 'http://purl.org/dc/terms/';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+    private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+    private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
@@ -81,6 +84,11 @@ final class DocxOpenXmlReader
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
+        $extendedPropertiesPart = $this->extendedPropertiesPart($parts, $rootRelationships);
+        $extendedProperties = $this->readExtendedProperties($extendedPropertiesPart['xml'], $extendedPropertiesPart['partName']);
+        if ($extendedProperties !== []) {
+            $meta['docxExtendedProperties'] = $extendedProperties;
+        }
         $media = $this->mediaMetadata($parts, $contentTypes);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering);
 
@@ -103,6 +111,8 @@ final class DocxOpenXmlReader
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
+                'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
+                'extendedProperties' => $extendedProperties,
                 'media' => $media,
             ],
         ];
@@ -173,6 +183,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $themePart['partName'],
                 $themePart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($extendedPropertiesPart['relationship'] !== null) {
+            $attrs['docx']['extendedPropertiesRelationship'] = $this->relationshipSummary(
+                $extendedPropertiesPart['relationship'],
+                '/',
+                '_rels/.rels',
+                $extendedPropertiesPart['partName'],
+                $extendedPropertiesPart['exists'],
                 $contentTypes,
             );
         }
@@ -340,6 +360,38 @@ final class DocxOpenXmlReader
         }
 
         $partName = 'docProps/core.xml';
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function extendedPropertiesPart(array $parts, array $relationships): array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::EXTENDED_PROPERTIES_REL || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = 'docProps/app.xml';
 
         return [
             'partName' => $partName,
@@ -563,6 +615,76 @@ final class DocxOpenXmlReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readExtendedProperties(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_EP || $root->localName !== 'Properties') {
+            return [];
+        }
+
+        $properties = [];
+        foreach ([
+            'template' => 'Template',
+            'manager' => 'Manager',
+            'company' => 'Company',
+            'application' => 'Application',
+            'appVersion' => 'AppVersion',
+            'hyperlinkBase' => 'HyperlinkBase',
+        ] as $target => $source) {
+            $value = $this->docPropsChildText($root, self::NS_EP, $source);
+            if ($value !== null) {
+                $properties[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'pages' => 'Pages',
+            'words' => 'Words',
+            'characters' => 'Characters',
+            'charactersWithSpaces' => 'CharactersWithSpaces',
+            'lines' => 'Lines',
+            'paragraphs' => 'Paragraphs',
+            'docSecurity' => 'DocSecurity',
+        ] as $target => $source) {
+            $value = $this->docPropsChildText($root, self::NS_EP, $source);
+            if ($value !== null && preg_match('/^-?\d+$/', $value) === 1) {
+                $properties[$target] = (int) $value;
+            }
+        }
+
+        foreach ([
+            'scaleCrop' => 'ScaleCrop',
+            'linksUpToDate' => 'LinksUpToDate',
+            'sharedDoc' => 'SharedDoc',
+            'hyperlinksChanged' => 'HyperlinksChanged',
+        ] as $target => $source) {
+            $bool = $this->docPropsBoolValue($this->docPropsChildText($root, self::NS_EP, $source));
+            if ($bool !== null) {
+                $properties[$target] = $bool;
+            }
+        }
+
+        $headingPairs = $this->docPropsHeadingPairs($root);
+        if ($headingPairs !== []) {
+            $properties['headingPairs'] = $headingPairs;
+        }
+
+        $titlesOfParts = $this->docPropsVectorStrings($root, 'TitlesOfParts');
+        if ($titlesOfParts !== []) {
+            $properties['titlesOfParts'] = $titlesOfParts;
+        }
+
+        return $properties;
     }
 
     /**
@@ -1678,6 +1800,21 @@ final class DocxOpenXmlReader
         return null;
     }
 
+    private function childElementInNamespace(?\DOMElement $parent, string $namespace, string $localName): ?\DOMElement
+    {
+        if (!$parent instanceof \DOMElement) {
+            return null;
+        }
+
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespace && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
     private function childAttr(\DOMElement $parent, string $childLocalName, string $attrLocalName): string
     {
         $child = $this->childElement($parent, $childLocalName);
@@ -1707,5 +1844,144 @@ final class DocxOpenXmlReader
         }
 
         return $attributes;
+    }
+
+    private function docPropsChildText(\DOMElement $root, string $namespace, string $localName): ?string
+    {
+        $node = $this->childElementInNamespace($root, $namespace, $localName);
+        if (!$node instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($node->textContent);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return list<array{name:string, count:?int}>
+     */
+    private function docPropsHeadingPairs(\DOMElement $root): array
+    {
+        $node = $this->childElementInNamespace($root, self::NS_EP, 'HeadingPairs');
+        if (!$node instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = $this->docPropsVectorValues($node);
+        $pairs = [];
+        $count = count($values);
+        for ($index = 0; $index < $count; $index += 2) {
+            $name = $values[$index]['value'] ?? null;
+            if (!is_scalar($name) || trim((string) $name) === '') {
+                continue;
+            }
+
+            $rawCount = $values[$index + 1]['value'] ?? null;
+            $pairs[] = [
+                'name' => trim((string) $name),
+                'count' => is_int($rawCount) ? $rawCount : (is_numeric($rawCount) ? (int) $rawCount : null),
+            ];
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function docPropsVectorStrings(\DOMElement $root, string $localName): array
+    {
+        $node = $this->childElementInNamespace($root, self::NS_EP, $localName);
+        if (!$node instanceof \DOMElement) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($this->docPropsVectorValues($node) as $typedValue) {
+            if (is_scalar($typedValue['value']) && trim((string) $typedValue['value']) !== '') {
+                $strings[] = trim((string) $typedValue['value']);
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @return list<array{type:string, value:mixed}>
+     */
+    private function docPropsVectorValues(\DOMElement $container): array
+    {
+        $vector = $this->childElementInNamespace($container, self::NS_VT, 'vector');
+        if (!$vector instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($vector->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_VT) {
+                $values[] = $this->docPropsTypedValue($child);
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @return array{type:string, value:mixed}
+     */
+    private function docPropsTypedValue(\DOMElement $element): array
+    {
+        if ($element->namespaceURI === self::NS_VT && $element->localName === 'variant') {
+            foreach ($element->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    return $this->docPropsTypedValue($child);
+                }
+            }
+
+            return ['type' => 'variant', 'value' => null];
+        }
+
+        $type = strtolower($element->localName);
+        $text = trim($element->textContent);
+
+        if (in_array($type, ['lpstr', 'lpwstr', 'bstr'], true)) {
+            return ['type' => $type, 'value' => $text];
+        }
+
+        if (in_array($type, ['i1', 'i2', 'i4', 'i8', 'int', 'ui1', 'ui2', 'ui4', 'ui8', 'uint'], true)) {
+            return ['type' => $type, 'value' => preg_match('/^-?\d+$/', $text) === 1 ? (int) $text : null];
+        }
+
+        if (in_array($type, ['r4', 'r8', 'decimal'], true)) {
+            return ['type' => $type, 'value' => is_numeric($text) ? (float) $text : null];
+        }
+
+        if ($type === 'bool') {
+            return ['type' => $type, 'value' => $this->docPropsBoolValue($text)];
+        }
+
+        if (in_array($type, ['empty', 'null'], true)) {
+            return ['type' => $type, 'value' => null];
+        }
+
+        return ['type' => $type, 'value' => $text];
+    }
+
+    private function docPropsBoolValue(?string $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = strtolower(trim($value));
+        if (in_array($value, ['1', 'true', 'on'], true)) {
+            return true;
+        }
+        if (in_array($value, ['0', 'false', 'off'], true)) {
+            return false;
+        }
+
+        return null;
     }
 }

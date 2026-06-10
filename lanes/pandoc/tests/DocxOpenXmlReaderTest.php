@@ -179,6 +179,95 @@ XML;
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
+    'resolves docx extended package properties from relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/review-app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="customXml/review-app.xml?profile=review#app"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['customXml/review-app.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Template>Review.dotm</Template>
+  <Manager>Migration Lead</Manager>
+  <Company>WordPress Migration Desk</Company>
+  <Pages>12</Pages>
+  <Words>3456</Words>
+  <Characters>12000</Characters>
+  <CharactersWithSpaces>13025</CharactersWithSpaces>
+  <Lines>123</Lines>
+  <Paragraphs>48</Paragraphs>
+  <DocSecurity>4</DocSecurity>
+  <Application>Microsoft Word</Application>
+  <AppVersion>16.0000</AppVersion>
+  <HyperlinkBase>https://example.test/review/</HyperlinkBase>
+  <ScaleCrop>false</ScaleCrop>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>0</SharedDoc>
+  <HyperlinksChanged>true</HyperlinksChanged>
+  <HeadingPairs>
+    <vt:vector size="4" baseType="variant">
+      <vt:variant><vt:lpstr>Title</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>2</vt:i4></vt:variant>
+      <vt:variant><vt:lpstr>Heading 1</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>4</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="2" baseType="lpstr">
+      <vt:lpstr>DOCX source packet</vt:lpstr>
+      <vt:lpstr>Reviewer checklist</vt:lpstr>
+    </vt:vector>
+  </TitlesOfParts>
+</Properties>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $meta = $document->attr('meta');
+        $docx = $document->attr('docx');
+        $extended = $docx['extendedProperties'];
+
+        $t->same('customXml/review-app.xml', $docx['extendedPropertiesPart']);
+        $t->same('rApp', $docx['extendedPropertiesRelationship']['id']);
+        $t->same('/', $docx['extendedPropertiesRelationship']['sourcePart']);
+        $t->same('_rels/.rels', $docx['extendedPropertiesRelationship']['relationshipsPart']);
+        $t->same('customXml/review-app.xml?profile=review#app', $docx['extendedPropertiesRelationship']['target']);
+        $t->same('customXml/review-app.xml?profile=review#app', $docx['extendedPropertiesRelationship']['resolvedTarget']);
+        $t->same('customXml/review-app.xml', $docx['extendedPropertiesRelationship']['targetPart']);
+        $t->same(true, $docx['extendedPropertiesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $docx['extendedPropertiesRelationship']['contentType']);
+        $t->same('Review.dotm', $extended['template']);
+        $t->same('Migration Lead', $extended['manager']);
+        $t->same('WordPress Migration Desk', $extended['company']);
+        $t->same(12, $extended['pages']);
+        $t->same(3456, $extended['words']);
+        $t->same(12000, $extended['characters']);
+        $t->same(13025, $extended['charactersWithSpaces']);
+        $t->same(123, $extended['lines']);
+        $t->same(48, $extended['paragraphs']);
+        $t->same(4, $extended['docSecurity']);
+        $t->same('Microsoft Word', $extended['application']);
+        $t->same('16.0000', $extended['appVersion']);
+        $t->same('https://example.test/review/', $extended['hyperlinkBase']);
+        $t->same(false, $extended['scaleCrop']);
+        $t->same(false, $extended['linksUpToDate']);
+        $t->same(false, $extended['sharedDoc']);
+        $t->same(true, $extended['hyperlinksChanged']);
+        $t->same('Title', $extended['headingPairs'][0]['name']);
+        $t->same(2, $extended['headingPairs'][0]['count']);
+        $t->same('Heading 1', $extended['headingPairs'][1]['name']);
+        $t->same(4, $extended['headingPairs'][1]['count']);
+        $t->same(['DOCX source packet', 'Reviewer checklist'], $extended['titlesOfParts']);
+        $t->same('Microsoft Word', $meta['docxExtendedProperties']['application']);
+    },
     'resolves docx settings and font table from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
