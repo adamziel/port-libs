@@ -9009,6 +9009,7 @@ final class EpubReader
         $missingPrimaryItemLabelCount = 0;
         $missingOrderedListSectionCount = 0;
         $missingEntryLabelCount = 0;
+        $multiPrimarySectionCount = 0;
         $untypedSectionCount = 0;
         $missingItemLabelCount = 0;
         $emptyItemLabelCount = 0;
@@ -9119,6 +9120,18 @@ final class EpubReader
                 $sectionTypes,
                 static fn (string $type): bool => isset($primaryTypes[$type]),
             ));
+            if (count($primarySectionTypes) > 1) {
+                ++$multiPrimarySectionCount;
+                $diagnostics[] = [
+                    'type' => 'multi-primary-nav-section-types',
+                    'part' => $part,
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                    'primarySectionTypes' => $primarySectionTypes,
+                    'message' => 'EPUB navigation section declares multiple primary nav types; import review should choose a single role',
+                ];
+            }
             if ($primarySectionTypes !== [] && ($section['hidden'] ?? false) === true) {
                 ++$hiddenPrimarySectionCount;
                 $diagnostics[] = [
@@ -9406,6 +9419,7 @@ final class EpubReader
             'missingPrimaryItemLabelCount' => $missingPrimaryItemLabelCount,
             'missingOrderedListSectionCount' => $missingOrderedListSectionCount,
             'missingEntryLabelCount' => $missingEntryLabelCount,
+            'multiPrimarySectionCount' => $multiPrimarySectionCount,
             'untypedSectionCount' => $untypedSectionCount,
             'missingItemLabelCount' => $missingItemLabelCount,
             'emptyItemLabelCount' => $emptyItemLabelCount,

@@ -2125,6 +2125,7 @@ XML;
         $t->same(2, $report['emptySectionCount']);
         $t->same(1, $report['hiddenPrimarySectionCount']);
         $t->same(2, $report['missingOrderedListSectionCount']);
+        $t->same(0, $report['multiPrimarySectionCount']);
         $t->same(1, $report['untypedSectionCount']);
         $t->same(7, $report['diagnosticCount']);
         $t->same([
@@ -2143,6 +2144,43 @@ XML;
         $t->same([0, 1], $report['diagnostics'][6]['sectionIndexes']);
         $t->same(['hidden-toc', 'visible-toc'], $report['diagnostics'][6]['sectionIds']);
         $t->same(7, $result['nav']['documentDiagnosticCount']);
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
+    'reports EPUB nav document sections with multiple primary roles' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithAmbiguousPrimaryRole = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="ambiguous-primary" epub:type="toc page-list">
+      <h1>Contents and pages</h1>
+      <ol>
+        <li><a href="text/chapter1.xhtml#intro">Start reading</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithAmbiguousPrimaryRole,
+        ));
+
+        $report = $result['nav']['documentDiagnostics'];
+        $t->same(true, $report['present']);
+        $t->same('/OEBPS/nav.xhtml', $report['part']);
+        $t->same(1, $report['sectionCount']);
+        $t->same(2, $report['primarySectionCount']);
+        $t->same(1, $report['tocSectionCount']);
+        $t->same(1, $report['pageListSectionCount']);
+        $t->same(1, $report['multiPrimarySectionCount']);
+        $t->same(0, $report['duplicatePrimaryTypeCount']);
+        $t->same(0, $report['emptySectionCount']);
+        $t->same(0, $report['missingOrderedListSectionCount']);
+        $t->same(1, $report['diagnosticCount']);
+        $t->same('multi-primary-nav-section-types', $report['diagnostics'][0]['type']);
+        $t->same('ambiguous-primary', $report['diagnostics'][0]['sectionId']);
+        $t->same(['toc', 'page-list'], $report['diagnostics'][0]['sectionTypes']);
+        $t->same(['toc', 'page-list'], $report['diagnostics'][0]['primarySectionTypes']);
+        $t->same(1, $result['nav']['documentDiagnosticCount']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
     'reports EPUB nav document heading diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
