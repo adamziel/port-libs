@@ -112,6 +112,35 @@ return [
         }
         $t->contains('{"literal":"&colon;&semi;"}', $serialized);
     },
+    'keeps noscript fallback markup inert in fragments and complete documents' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<noscript><img src=tracking.png><p>Fallback &amp; note</p></noscript><p>after</p>'
+        );
+        $noscript = Html5Dom::firstChildElement($body, 'noscript');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($noscript instanceof DOMElement, 'Expected noscript fragment element to parse');
+        $t->same('<img src=tracking.png><p>Fallback &amp; note</p>', $noscript instanceof DOMElement ? $noscript->textContent : null);
+        $t->same([], $noscript instanceof DOMElement ? Html5Dom::childElements($noscript) : ['missing']);
+        $t->same(
+            '<noscript>&lt;img src=tracking.png&gt;&lt;p&gt;Fallback &amp;amp; note&lt;/p&gt;</noscript><p>after</p>',
+            $serialized
+        );
+
+        $dom = Html5Dom::parseHtmlDocument(
+            '<!doctype html><html><body><noscript><section data-mode=fallback>Fallback</section></noscript><main>Live</main></body></html>'
+        );
+        $documentBody = $dom->getElementsByTagName('body')->item(0);
+        $documentNoscript = $documentBody instanceof DOMElement ? Html5Dom::firstChildElement($documentBody, 'noscript') : null;
+
+        $t->true($documentNoscript instanceof DOMElement, 'Expected complete document noscript element to parse');
+        $t->same('<section data-mode=fallback>Fallback</section>', $documentNoscript instanceof DOMElement ? $documentNoscript->textContent : null);
+        $t->same([], $documentNoscript instanceof DOMElement ? Html5Dom::childElements($documentNoscript) : ['missing']);
+        $t->same(
+            '<noscript>&lt;section data-mode=fallback&gt;Fallback&lt;/section&gt;</noscript><main>Live</main>',
+            $documentBody instanceof DOMElement ? Html5Dom::serializeHtmlChildren($documentBody) : ''
+        );
+    },
     'maps HTML fragment attributes and descendant elements for reviewer links' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<article id="post-42" class="legacy source" data-source="html" aria-label="Packet"><h1>Packet</h1><p><a href="/edit" title="Edit &amp; verify">edit</a></p></article>'

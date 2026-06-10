@@ -415,7 +415,7 @@ final class XmlHtmlDom
     {
         $offset = 0;
         $protected = '';
-        $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext'
+        $rawTextNames = 'script|style|xmp|noembed|noframes|noscript|title|textarea|plaintext'
             . ($protectIframeContent ? '|iframe' : '')
             . ($protectTemplateContent ? '|template' : '');
         $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';

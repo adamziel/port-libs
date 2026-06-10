@@ -448,6 +448,10 @@ final class Html5DomFragment
                 }
             }
 
+            if ($name === 'noscript') {
+                return self::normalizeHtmlNoscriptFallback($node, $diagnostics, $baseUrl);
+            }
+
             $children = self::normalizeChildren(
                 $node,
                 $mode,
@@ -7386,6 +7390,53 @@ final class Html5DomFragment
         }
 
         return $trimmed;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeHtmlNoscriptFallback(
+        \DOMElement $element,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): array {
+        $fallbackHtml = $element->textContent;
+        if ($fallbackHtml === '') {
+            return [];
+        }
+
+        try {
+            self::assertSafeHtmlSource($fallbackHtml, 'noscript fallback');
+            $fallbackDiagnostics = [];
+            $dom = self::loadHtmlDocument($fallbackHtml, $fallbackDiagnostics);
+        } catch (\InvalidArgumentException $error) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'invalid-noscript-fallback',
+                'tag' => 'noscript',
+                'message' => $error->getMessage(),
+            ], $element);
+
+            return [];
+        }
+
+        foreach ($fallbackDiagnostics as $diagnostic) {
+            $diagnostic['context'] ??= 'noscript-fallback';
+            $diagnostics[] = $diagnostic;
+        }
+
+        $wrapper = self::htmlWrapper($dom);
+        if (!$wrapper instanceof \DOMElement) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'invalid-noscript-fallback',
+                'tag' => 'noscript',
+                'message' => 'Unable to parse noscript fallback wrapper',
+            ], $element);
+
+            return [];
+        }
+
+        return self::normalizeChildren($wrapper, 'html', $diagnostics, baseUrl: $baseUrl);
     }
 
     private static function assertSafeHtmlSource(string $html, string $label): void

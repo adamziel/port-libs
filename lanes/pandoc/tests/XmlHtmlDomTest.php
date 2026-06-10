@@ -145,6 +145,25 @@ return [
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'keeps noscript fallback markup inert during html fragment serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<noscript><img src=tracking.png><p>Fallback &amp; note</p></noscript><p>after</p>',
+            'noscript fallback HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('noscript', $summary[0]['name']);
+        $t->same('<img src=tracking.png><p>Fallback &amp; note</p>', $summary[0]['text']);
+        $t->same([
+            ['type' => 'text', 'text' => '<img src=tracking.png><p>Fallback &amp; note</p>'],
+        ], $summary[0]['children']);
+        $t->same('p', $summary[1]['name']);
+        $t->same(
+            '<noscript>&lt;img src=tracking.png&gt;&lt;p&gt;Fallback &amp;amp; note&lt;/p&gt;</noscript><p>after</p>',
+            $html
+        );
+    },
     'summarizes html select option state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<select name="review-status" multiple><option value="draft">Draft<option selected value="review">Review<optgroup label="Archive" disabled><option value="a1">Archive One<option selected>Archive Two</optgroup></select><p>after</p>',
