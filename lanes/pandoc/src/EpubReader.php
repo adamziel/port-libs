@@ -8918,6 +8918,7 @@ final class EpubReader
                 'missingItemLabelCount' => $itemDiagnosticSummary['missingLabelCount'],
                 'emptyItemLabelCount' => $itemDiagnosticSummary['emptyLabelCount'],
                 'missingItemHrefCount' => $itemDiagnosticSummary['missingHrefCount'],
+                'missingItemLinkCount' => $itemDiagnosticSummary['missingLinkCount'],
                 'itemDiagnosticCount' => $itemDiagnosticSummary['diagnosticCount'],
                 'items' => $items,
             ];
@@ -9010,7 +9011,12 @@ final class EpubReader
         $missingItemLabelCount = 0;
         $emptyItemLabelCount = 0;
         $missingItemHrefCount = 0;
+        $missingItemLinkCount = 0;
         $itemDiagnosticCount = 0;
+        $itemDiagnostics = [];
+        $navItemCount = 0;
+        $targetedNavItemCount = 0;
+        $targetsBySection = [];
 
         if ($encrypted) {
             $diagnostics[] = [
@@ -9038,6 +9044,29 @@ final class EpubReader
             $itemCount = is_int($section['itemCount'] ?? null)
                 ? $section['itemCount']
                 : count($flatItems);
+            $navItemCount += count($flatItems);
+
+            foreach ($flatItems as $flatIndex => $flat) {
+                $item = is_array($flat['item'] ?? null) ? $flat['item'] : [];
+                $target = is_string($item['target'] ?? null) ? trim($item['target']) : '';
+                if ($target === '') {
+                    continue;
+                }
+
+                ++$targetedNavItemCount;
+                $targetsBySection[$sectionIndex . "\0" . $target][] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                    'itemIndex' => $flatIndex,
+                    'depth' => (int) ($flat['depth'] ?? 0),
+                    'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
+                    'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
+                    'title' => is_string($item['title'] ?? null) ? $item['title'] : '',
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                    'target' => $target,
+                ];
+            }
 
             if ($sectionTypes === []) {
                 ++$untypedSectionCount;
@@ -9179,10 +9208,12 @@ final class EpubReader
                         ++$emptyItemLabelCount;
                     } elseif (($itemDiagnostic['type'] ?? null) === 'missing-nav-item-href') {
                         ++$missingItemHrefCount;
+                    } elseif (($itemDiagnostic['type'] ?? null) === 'missing-nav-item-link') {
+                        ++$missingItemLinkCount;
                     }
 
                     ++$itemDiagnosticCount;
-                    $diagnostics[] = [
+                    $normalizedItemDiagnostic = [
                         'part' => $part,
                         'sectionIndex' => $sectionIndex,
                         'sectionId' => $sectionId,
@@ -9190,8 +9221,45 @@ final class EpubReader
                         'itemIndex' => $flatIndex,
                         'depth' => (int) ($flat['depth'] ?? 0),
                     ] + $itemDiagnostic;
+                    $itemDiagnostics[] = $normalizedItemDiagnostic;
+                    $diagnostics[] = $normalizedItemDiagnostic;
                 }
             }
+        }
+
+        $duplicateTargetDiagnostics = [];
+        $duplicateTargetItemCount = 0;
+        foreach ($targetsBySection as $matches) {
+            if (count($matches) <= 1) {
+                continue;
+            }
+
+            $duplicateTargetItemCount += count($matches);
+            $diagnostic = [
+                'type' => 'duplicate-nav-item-target',
+                'part' => $part,
+                'sectionIndex' => $matches[0]['sectionIndex'],
+                'sectionId' => $matches[0]['sectionId'],
+                'sectionTypes' => $matches[0]['sectionTypes'],
+                'target' => $matches[0]['target'],
+                'itemCount' => count($matches),
+                'itemIndexes' => array_column($matches, 'itemIndex'),
+                'itemIds' => array_values(array_filter(
+                    array_column($matches, 'itemId'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'labelIds' => array_values(array_filter(
+                    array_column($matches, 'labelId'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'titles' => array_values(array_filter(
+                    array_column($matches, 'title'),
+                    static fn (mixed $title): bool => is_string($title) && $title !== '',
+                )),
+                'message' => 'EPUB navigation section contains multiple items targeting the same package location',
+            ];
+            $duplicateTargetDiagnostics[] = $diagnostic;
+            $diagnostics[] = $diagnostic;
         }
 
         $duplicatePrimaryTypeCount = 0;
@@ -9231,7 +9299,12 @@ final class EpubReader
             'tocSectionCount' => count($typeSections['toc']),
             'landmarksSectionCount' => count($typeSections['landmarks']),
             'pageListSectionCount' => count($typeSections['page-list']),
+            'itemCount' => $navItemCount,
+            'targetedItemCount' => $targetedNavItemCount,
             'duplicatePrimaryTypeCount' => $duplicatePrimaryTypeCount,
+            'duplicateTargetGroupCount' => count($duplicateTargetDiagnostics),
+            'duplicateTargetItemCount' => $duplicateTargetItemCount,
+            'duplicateTargetDiagnostics' => $duplicateTargetDiagnostics,
             'emptySectionCount' => $emptySectionCount,
             'hiddenPrimarySectionCount' => $hiddenPrimarySectionCount,
             'missingHeadingSectionCount' => $missingHeadingSectionCount,
@@ -9242,7 +9315,9 @@ final class EpubReader
             'missingItemLabelCount' => $missingItemLabelCount,
             'emptyItemLabelCount' => $emptyItemLabelCount,
             'missingItemHrefCount' => $missingItemHrefCount,
+            'missingItemLinkCount' => $missingItemLinkCount,
             'itemDiagnosticCount' => $itemDiagnosticCount,
+            'itemDiagnostics' => $itemDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -9251,13 +9326,14 @@ final class EpubReader
     /**
      * @param list<array<string, mixed>> $items
      *
-     * @return array{missingLabelCount:int, emptyLabelCount:int, missingHrefCount:int, diagnosticCount:int}
+     * @return array{missingLabelCount:int, emptyLabelCount:int, missingHrefCount:int, missingLinkCount:int, diagnosticCount:int}
      */
     private static function navItemDocumentDiagnosticSummary(array $items): array
     {
         $missingLabelCount = 0;
         $emptyLabelCount = 0;
         $missingHrefCount = 0;
+        $missingLinkCount = 0;
         $diagnosticCount = 0;
 
         foreach (self::flattenNavigationItems($items) as $flat) {
@@ -9274,6 +9350,8 @@ final class EpubReader
                     ++$emptyLabelCount;
                 } elseif (($diagnostic['type'] ?? null) === 'missing-nav-item-href') {
                     ++$missingHrefCount;
+                } elseif (($diagnostic['type'] ?? null) === 'missing-nav-item-link') {
+                    ++$missingLinkCount;
                 }
             }
         }
@@ -9282,6 +9360,7 @@ final class EpubReader
             'missingLabelCount' => $missingLabelCount,
             'emptyLabelCount' => $emptyLabelCount,
             'missingHrefCount' => $missingHrefCount,
+            'missingLinkCount' => $missingLinkCount,
             'diagnosticCount' => $diagnosticCount,
         ];
     }
@@ -10584,6 +10663,14 @@ final class EpubReader
                         'label' => $title,
                         'labelId' => self::nullableAttribute($label, 'id'),
                         'message' => 'EPUB navigation link item is missing an href target',
+                    ];
+                } elseif (!$link instanceof \DOMElement && !$childList instanceof \DOMElement) {
+                    $documentDiagnostics[] = [
+                        'type' => 'missing-nav-item-link',
+                        'itemId' => self::nullableAttribute($li, 'id'),
+                        'label' => $title,
+                        'labelId' => self::nullableAttribute($label, 'id'),
+                        'message' => 'EPUB navigation leaf item has a label but no anchor target',
                     ];
                 }
             }

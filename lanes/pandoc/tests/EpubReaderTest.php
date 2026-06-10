@@ -2341,6 +2341,58 @@ XML;
         $t->same('missing-navigation-target', $navigation['items'][2]['diagnostics'][0]['type']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
+    'reports EPUB nav leaf link and duplicate target diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithDuplicateTargets = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc-review" epub:type="toc">
+      <h1>Reviewer contents</h1>
+      <ol>
+        <li id="missing-link"><span id="missing-link-label">Chapter without target</span></li>
+        <li id="duplicate-a"><a id="duplicate-a-link" href="text/chapter2.xhtml#media">Media audit</a></li>
+        <li id="duplicate-b"><a id="duplicate-b-link" href="text/chapter2.xhtml#media">Media audit copy</a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithDuplicateTargets,
+        ));
+
+        $nav = $result['nav'];
+        $report = $nav['documentDiagnostics'];
+
+        $t->same(3, $report['itemCount']);
+        $t->same(2, $report['targetedItemCount']);
+        $t->same(1, $report['missingItemLinkCount']);
+        $t->same(1, $report['itemDiagnosticCount']);
+        $t->same(1, $report['duplicateTargetGroupCount']);
+        $t->same(2, $report['duplicateTargetItemCount']);
+        $t->same(2, $report['diagnosticCount']);
+        $t->same([
+            'missing-nav-item-link',
+            'duplicate-nav-item-target',
+        ], array_column($report['diagnostics'], 'type'));
+
+        $t->same('missing-link', $report['itemDiagnostics'][0]['itemId']);
+        $t->same('missing-link-label', $report['itemDiagnostics'][0]['labelId']);
+        $t->same('Chapter without target', $report['itemDiagnostics'][0]['label']);
+
+        $duplicate = $report['duplicateTargetDiagnostics'][0];
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $duplicate['target']);
+        $t->same([1, 2], $duplicate['itemIndexes']);
+        $t->same(['duplicate-a', 'duplicate-b'], $duplicate['itemIds']);
+        $t->same(['duplicate-a-link', 'duplicate-b-link'], $duplicate['labelIds']);
+        $t->same(['Media audit', 'Media audit copy'], $duplicate['titles']);
+
+        $t->same(1, $nav['sections'][0]['missingItemLinkCount']);
+        $t->same('missing-nav-item-link', $nav['items'][0]['documentDiagnostics'][0]['type']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $nav['items'][1]['target']);
+        $t->same('/OEBPS/text/chapter2.xhtml#media', $nav['items'][2]['target']);
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
