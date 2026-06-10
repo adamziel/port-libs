@@ -271,6 +271,64 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
     },
 
+    'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/edge-review.pdf',
+            'source' => '= Typst Dependency Edge Packet',
+            'engineOptions' => ['--deps=build/edge-review.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency edge packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/edge-review.pdf: build/edge-review.typ figures/chart.svg @preview/cetz:0.3.2',
+            'build/edge-review.pdf: data/series.csv',
+            '',
+        ]);
+        $expectedEdges = [
+            [
+                'outputFiles' => ['build/edge-review.pdf'],
+                'inputFiles' => ['build/edge-review.typ', 'figures/chart.svg'],
+                'externalInputFiles' => ['typst-package:@preview/cetz:0.3.2'],
+                'artifact' => 'build/edge-review.d',
+            ],
+            [
+                'outputFiles' => ['build/edge-review.pdf'],
+                'inputFiles' => ['data/series.csv'],
+                'externalInputFiles' => [],
+                'artifact' => 'build/edge-review.d',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/edge-review.d' => $depfile,
+                'build/edge-review.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'data/series.csv' => "series,value\nA,12\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/edge-review.d' => $depfile,
+                    'build/edge-review.pdf' => $pdfBytes,
+                    'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                    'data/series.csv' => "series,value\nA,12\n",
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['build/edge-review.typ', 'data/series.csv', 'figures/chart.svg'], $result['engineInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
+        $t->same(['build/edge-review.pdf'], $result['engineOutputFiles']);
+        $t->same($expectedEdges, $result['engineDependencyEdges']);
+        $t->same($expectedEdges, $result['artifactProvenanceReview']['engineDependencyEdges']);
+        $t->contains('engine-dependency-edges:2', implode(',', $result['diagnostics']));
+        $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
