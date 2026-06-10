@@ -302,6 +302,7 @@ final class PdfEngineHandoff
      *     engineDependencyArtifactsSha256: array<string, string>,
      *     engineInputFiles: list<string>,
      *     engineExternalInputFiles: list<string>,
+     *     engineTypstPackageInputs: list<string>,
      *     engineOutputFiles: list<string>,
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
@@ -661,6 +662,10 @@ final class PdfEngineHandoff
         sort($engineExternalInputFileList);
         $engineOutputFileList = array_keys($engineOutputFiles);
         sort($engineOutputFileList);
+        $engineTypstPackageInputList = array_values(array_filter(
+            $engineExternalInputFileList,
+            static fn (string $input): bool => str_starts_with($input, 'typst-package:')
+        ));
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
                 continue;
@@ -692,6 +697,9 @@ final class PdfEngineHandoff
         }
         if ($engineExternalInputFileList !== []) {
             $diagnostics[] = 'engine-external-input-files:' . count($engineExternalInputFileList);
+        }
+        if ($engineTypstPackageInputList !== []) {
+            $diagnostics[] = 'engine-typst-package-inputs:' . count($engineTypstPackageInputList);
         }
         if ($engineOutputFileList !== []) {
             $diagnostics[] = 'engine-output-files:' . count($engineOutputFileList);
@@ -4007,6 +4015,7 @@ final class PdfEngineHandoff
             'engineDependencyArtifactsSha256' => $engineDependencyArtifactsSha256,
             'engineInputFiles' => $engineInputFileList,
             'engineExternalInputFiles' => $engineExternalInputFileList,
+            'engineTypstPackageInputs' => $engineTypstPackageInputList,
             'engineOutputFiles' => $engineOutputFileList,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
             'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
@@ -4333,6 +4342,7 @@ final class PdfEngineHandoff
      *     finalEngineDependencyArtifactsSha256: array<string, string>,
      *     finalEngineInputFiles: list<string>,
      *     finalEngineExternalInputFiles: list<string>,
+     *     finalEngineTypstPackageInputs: list<string>,
      *     finalEngineOutputFiles: list<string>,
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
@@ -4638,6 +4648,7 @@ final class PdfEngineHandoff
             'finalEngineDependencyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['engineDependencyArtifactsSha256'] ?? null) ? $finalRun['engineDependencyArtifactsSha256'] : [],
             'finalEngineInputFiles' => is_array($finalRun) && is_array($finalRun['engineInputFiles'] ?? null) ? $finalRun['engineInputFiles'] : [],
             'finalEngineExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineExternalInputFiles'] ?? null) ? $finalRun['engineExternalInputFiles'] : [],
+            'finalEngineTypstPackageInputs' => is_array($finalRun) && is_array($finalRun['engineTypstPackageInputs'] ?? null) ? $finalRun['engineTypstPackageInputs'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
@@ -5556,6 +5567,9 @@ final class PdfEngineHandoff
                 $path = rawurldecode($uriPath);
             }
         }
+        if ($this->isTypstPackageReference($path)) {
+            return ['path' => 'typst-package:' . $path, 'local' => false];
+        }
         if (
             str_starts_with($path, '/')
             || preg_match('/\A[A-Za-z]:\//', $path) === 1
@@ -5569,6 +5583,11 @@ final class PdfEngineHandoff
         } catch (\InvalidArgumentException) {
             return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
         }
+    }
+
+    private function isTypstPackageReference(string $path): bool
+    {
+        return preg_match('/\A@[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+:[A-Za-z0-9][A-Za-z0-9_.+\-]*(?:\/[^\s]+)?\z/', $path) === 1;
     }
 
     /**

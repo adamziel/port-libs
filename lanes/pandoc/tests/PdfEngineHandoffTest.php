@@ -102,7 +102,7 @@ return [
         ]);
         $pdfBytes = "%PDF-1.7\n% fake Typst boundary packet\n%%EOF\n";
         $depfile = implode("\n", [
-            'build/review.pdf: build/review.typ figures/logo.svg \\',
+            'build/review.pdf: build/review.typ figures/logo.svg @preview/cetz:0.3.2 \\',
             '  shared\\ assets/chart.svg /usr/share/fonts/SourceSerif4-Regular.otf',
             '',
         ]);
@@ -140,13 +140,15 @@ return [
         $t->same(true, $result['ok']);
         $t->same(['build/review.d' => hash('sha256', $depfile)], $result['engineDependencyArtifactsSha256']);
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $result['engineInputFiles']);
-        $t->same(['SourceSerif4-Regular.otf'], $result['engineExternalInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
         $t->same(['build/review.pdf'], $result['engineOutputFiles']);
         $t->same([], $result['artifactProvenanceReview']['missingExpectedEngineArtifacts']);
         $t->same(['build/review.d'], $result['artifactProvenanceReview']['expectedEngineArtifacts']);
         $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
         $t->contains('engine-dependency-files:3', implode(',', $result['diagnostics']));
-        $t->contains('engine-external-input-files:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
         $t->contains('engine-output-files:1', implode(',', $result['diagnostics']));
         $t->contains('artifact-provenance-review:ok', implode(',', $result['diagnostics']));
         $t->same(false, $missing['ok']);
@@ -154,7 +156,8 @@ return [
         $t->same(['shared assets/chart.svg'], $missing['missingEngineInputFiles']);
         $t->same(['build/review.d' => hash('sha256', $depfile)], $sequence['finalEngineDependencyArtifactsSha256']);
         $t->same(['build/review.typ', 'figures/logo.svg', 'shared assets/chart.svg'], $sequence['finalEngineInputFiles']);
-        $t->same(['SourceSerif4-Regular.otf'], $sequence['finalEngineExternalInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
     },
 
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
