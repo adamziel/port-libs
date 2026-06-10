@@ -403,6 +403,86 @@ return [
         $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
     },
 
+    'fake runner preserves typst escaped depfile paths and phony targets' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/escaped.pdf',
+            'source' => '= Typst Escaped Dependency Packet',
+            'engineOptions' => ['--deps=build/escaped.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst escaped dependency packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/escaped.pdf: build/escaped.typ figures/review\\ chart.svg data/series\\#final.csv \\',
+            '  @preview/cetz:0.3.2/src/lib.typ C\\:/Users/Reviewer/AppData/Local/typst/packages/preview/tablex/0.0.9/lib.typ',
+            'figures/review\\ chart.svg:',
+            'data/series\\#final.csv:',
+            '@preview/cetz\\:0.3.2/src/lib.typ:',
+            'C\\:/Users/Reviewer/AppData/Local/typst/packages/preview/tablex/0.0.9/lib.typ:',
+            '',
+        ]);
+        $expectedLocalInputs = ['build/escaped.typ', 'data/series#final.csv', 'figures/review chart.svg'];
+        $expectedExternalInputs = [
+            'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'typst-package:@preview/tablex:0.0.9/lib.typ',
+        ];
+        $expectedEdges = [
+            [
+                'outputFiles' => ['build/escaped.pdf'],
+                'inputFiles' => $expectedLocalInputs,
+                'externalInputFiles' => $expectedExternalInputs,
+                'artifact' => 'build/escaped.d',
+            ],
+        ];
+        $expectedPhonyTargets = [
+            'data/series#final.csv',
+            'figures/review chart.svg',
+            'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'typst-package:@preview/tablex:0.0.9/lib.typ',
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'ok',
+            'declaredOutputFile' => 'build/escaped.pdf',
+            'dependencyOutputFiles' => ['build/escaped.pdf'],
+            'declaredOutputPresent' => true,
+            'extraOutputFiles' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/escaped.d' => $depfile,
+                'build/escaped.pdf' => $pdfBytes,
+                'figures/review chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'data/series#final.csv' => "series,value\nA,12\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/escaped.d' => $depfile,
+                    'build/escaped.pdf' => $pdfBytes,
+                    'figures/review chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                    'data/series#final.csv' => "series,value\nA,12\n",
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedLocalInputs, $result['engineInputFiles']);
+        $t->same($expectedExternalInputs, $result['engineExternalInputFiles']);
+        $t->same($expectedExternalInputs, $result['engineTypstPackageInputs']);
+        $t->same(['build/escaped.pdf'], $result['engineOutputFiles']);
+        $t->same($expectedEdges, $result['engineDependencyEdges']);
+        $t->same($expectedPhonyTargets, $result['engineDependencyPhonyTargets']);
+        $t->same($expectedPhonyTargets, $result['artifactProvenanceReview']['engineDependencyPhonyTargets']);
+        $t->same($expectedPolicy, $result['typstDependencyOutputPolicy']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('engine-dependency-phony-targets:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-policy:ok', implode(',', $result['diagnostics']));
+        $t->same($expectedPhonyTargets, $sequence['finalEngineDependencyPhonyTargets']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
