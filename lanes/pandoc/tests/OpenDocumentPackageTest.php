@@ -78,6 +78,7 @@ $buildOdtPackage = static function (
     string $mimetype = OpenDocumentPackage::TEXT_MIMETYPE,
     bool $mimetypeFirst = true,
     int $mimetypeCompression = 0,
+    array $extraParts = [],
 ) use ($manifestXml, $contentXml, $stylesXml, $metaXml): ZipPackage {
     $parts = [
         ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression],
@@ -87,6 +88,7 @@ $buildOdtPackage = static function (
         ['name' => 'meta.xml', 'data' => $meta ?? $metaXml],
         ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA'],
     ];
+    array_push($parts, ...$extraParts);
 
     if (!$mimetypeFirst) {
         $parts = [$parts[1], $parts[0], $parts[2], $parts[3], $parts[4], $parts[5]];
@@ -113,7 +115,17 @@ return [
         $t->same(true, $summary['contentXml']);
         $t->same(true, $summary['stylesXml']);
         $t->same(true, $summary['metaXml']);
-        $t->same([['path' => 'Pictures/hero.png', 'mediaType' => 'image/png']], $summary['mediaParts']);
+        $t->same(1, count($summary['mediaParts']));
+        $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
+        $t->same('image/png', $summary['mediaParts'][0]['mediaType']);
+        $t->same(true, $summary['mediaParts'][0]['exists']);
+        $t->same(7, $summary['mediaParts'][0]['byteLength']);
+        $t->same(7, $summary['mediaParts'][0]['declaredSize']);
+        $t->same('db1a1847', $summary['mediaParts'][0]['crc32']);
+        $t->same(true, $summary['mediaParts'][0]['canExposeBytes']);
+        $t->same(0, $summary['missingMediaPartCount']);
+        $t->same([], $summary['missingMediaParts']);
+        $t->same(1, $summary['exposableMediaPartCount']);
         $t->same(0, $summary['encryptedCount']);
         $t->same([], $summary['encryptedParts']);
         $t->same(3, $summary['contentBlocks']);
@@ -148,6 +160,9 @@ XML;
         $t->same('presentation-slide-show', $hero['preferredViewMode']);
         $t->same(true, $hero['encrypted']);
         $t->same(2048, $hero['size']);
+        $t->same(true, $hero['exists']);
+        $t->same(7, $hero['byteLength']);
+        $t->same(false, $hero['canExposeBytes']);
         $t->same('SHA1/1K', $hero['encryption']['checksumType']);
         $t->same('checksum-base64', $hero['encryption']['checksum']);
         $t->same('Blowfish CFB', $hero['encryption']['algorithm']['name']);
@@ -159,6 +174,51 @@ XML;
         $t->same(20, $hero['encryption']['startKeyGeneration']['keySize']);
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
+    },
+    'reports compact ODT manifest media package exposure and missing parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            <<<'XML'
+  <manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg" manifest:size="12"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/secret.png" manifest:size="9">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="secret-checksum"/>
+  </manifest:file-entry>
+</manifest:manifest>
+XML,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/secret.png', 'data' => 'SECRETDAT']],
+        ));
+        $summary = $odt->summarize();
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $missing = $odt->manifestEntry('Pictures/missing.jpg');
+        $secret = $odt->manifestEntry('Pictures/secret.png');
+
+        $t->same(true, $hero['exists']);
+        $t->same(false, $hero['encrypted']);
+        $t->same(true, $hero['canExposeBytes']);
+        $t->same(7, $hero['byteLength']);
+        $t->same('db1a1847', $hero['crc32']);
+
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(null, $missing['crc32']);
+        $t->same(false, $missing['canExposeBytes']);
+
+        $t->same(true, $secret['exists']);
+        $t->same(true, $secret['encrypted']);
+        $t->same(9, $secret['byteLength']);
+        $t->same(false, $secret['canExposeBytes']);
+
+        $t->same(3, count($summary['mediaParts']));
+        $t->same(1, $summary['missingMediaPartCount']);
+        $t->same([['path' => 'Pictures/missing.jpg', 'mediaType' => 'image/jpeg']], $summary['missingMediaParts']);
+        $t->same(1, $summary['exposableMediaPartCount']);
+        $t->same(1, $summary['encryptedCount']);
+        $t->same(['Pictures/secret.png'], $summary['encryptedParts']);
     },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);

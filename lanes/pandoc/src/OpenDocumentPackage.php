@@ -16,11 +16,12 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
 
-    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> */
+    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}> */
     private array $manifestEntriesByPath;
 
     /**
-     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> $manifestEntries
+     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}> $manifestEntries
+     * @param array<string, array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}> $manifestEntriesByPath
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
      */
@@ -44,7 +45,7 @@ final class OpenDocumentPackage
         }
 
         $manifest = self::parseManifest($package->read('META-INF/manifest.xml'));
-        $manifestEntries = $manifest['entries'];
+        $manifestEntries = self::withPackageEntryMetadata($manifest['entries'], $package);
         $manifestEntriesByPath = [];
         foreach ($manifestEntries as $entry) {
             if (isset($manifestEntriesByPath[$entry['path']])) {
@@ -90,7 +91,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}>
      */
     public function manifestEntries(): array
     {
@@ -98,7 +99,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}|null
+     * @return array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}|null
      */
     public function manifestEntry(string $path): ?array
     {
@@ -182,7 +183,10 @@ final class OpenDocumentPackage
      *     contentXml:bool,
      *     stylesXml:bool,
      *     metaXml:bool,
-     *     mediaParts:list<array{path:string, mediaType:string}>,
+     *     mediaParts:list<array{path:string, mediaType:string, exists:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, declaredSize:int|null, encrypted:bool, canExposeBytes:bool}>,
+     *     missingMediaPartCount:int,
+     *     missingMediaParts:list<array{path:string, mediaType:string}>,
+     *     exposableMediaPartCount:int,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
      *     metadata:array<string, mixed>,
@@ -193,13 +197,31 @@ final class OpenDocumentPackage
     public function summarize(): array
     {
         $mediaParts = [];
+        $missingMediaParts = [];
+        $exposableMediaPartCount = 0;
         $encryptedParts = [];
         foreach ($this->manifestEntries as $entry) {
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
                     'path' => $entry['path'],
                     'mediaType' => $entry['mediaType'],
+                    'exists' => $entry['exists'],
+                    'byteLength' => $entry['byteLength'],
+                    'compressedByteLength' => $entry['compressedByteLength'],
+                    'crc32' => $entry['crc32'],
+                    'declaredSize' => $entry['size'],
+                    'encrypted' => $entry['encrypted'],
+                    'canExposeBytes' => $entry['canExposeBytes'],
                 ];
+                if (!$entry['exists']) {
+                    $missingMediaParts[] = [
+                        'path' => $entry['path'],
+                        'mediaType' => $entry['mediaType'],
+                    ];
+                }
+                if ($entry['canExposeBytes']) {
+                    ++$exposableMediaPartCount;
+                }
             }
             if ($entry['encrypted']) {
                 $encryptedParts[] = $entry['path'];
@@ -213,12 +235,42 @@ final class OpenDocumentPackage
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
             'mediaParts' => $mediaParts,
+            'missingMediaPartCount' => count($missingMediaParts),
+            'missingMediaParts' => $missingMediaParts,
+            'exposableMediaPartCount' => $exposableMediaPartCount,
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
         ];
+    }
+
+    /**
+     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> $entries
+     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null, exists:bool, isDirectory:bool, byteLength:int|null, compressedByteLength:int|null, crc32:string|null, canExposeBytes:bool}>
+     */
+    private static function withPackageEntryMetadata(array $entries, ZipPackage $package): array
+    {
+        $hydrated = [];
+        foreach ($entries as $entry) {
+            $isRoot = $entry['path'] === '/';
+            $isDirectory = !$isRoot && str_ends_with($entry['path'], '/');
+            $zipEntry = (!$isRoot && !$isDirectory && $package->has($entry['path']))
+                ? $package->entry($entry['path'])
+                : null;
+
+            $hydrated[] = $entry + [
+                'exists' => $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry,
+                'isDirectory' => $isDirectory,
+                'byteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'canExposeBytes' => $zipEntry instanceof ZipPackageEntry && !$entry['encrypted'],
+            ];
+        }
+
+        return $hydrated;
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
