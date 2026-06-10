@@ -2317,35 +2317,44 @@ XML;
         $t->same('/OEBPS/nav.xhtml', $report['part']);
         $t->same(1, $report['sectionCount']);
         $t->same(1, $report['tocSectionCount']);
-        $t->same(1, $report['missingPrimaryItemLabelCount']);
+        $t->same(2, $report['missingPrimaryItemLabelCount']);
         $t->same(1, $report['hiddenItemCount']);
         $t->same(1, $report['emptyItemLabelCount']);
         $t->same(1, $report['missingItemHrefCount']);
         $t->same(1, $report['missingItemLabelCount']);
-        $t->same(4, $report['itemDiagnosticCount']);
-        $t->same(5, $report['diagnosticCount']);
+        $t->same(1, $report['unlabeledParentItemCount']);
+        $t->same(5, $report['itemDiagnosticCount']);
+        $t->same(7, $report['diagnosticCount']);
         $t->same([
+            'missing-primary-nav-item-label',
             'missing-primary-nav-item-label',
             'hidden-nav-item',
             'empty-nav-item-label',
             'missing-nav-item-href',
             'missing-nav-item-label',
+            'nav-item-child-list-without-label',
         ], array_column($report['diagnostics'], 'type'));
-        $t->same('hidden-entry', $report['diagnostics'][1]['itemId']);
-        $t->same('hidden-entry-link', $report['diagnostics'][1]['labelId']);
-        $t->same('Hidden start', $report['diagnostics'][1]['label']);
-        $t->same('empty-label', $report['diagnostics'][2]['itemId']);
-        $t->same('empty-label-link', $report['diagnostics'][2]['labelId']);
-        $t->same('Untargeted chapter', $report['diagnostics'][3]['label']);
-        $t->same('missing-label', $report['diagnostics'][4]['itemId']);
-        $t->same(5, $nav['documentDiagnosticCount']);
+        $t->same('missing-label', $report['diagnostics'][1]['itemId']);
+        $t->same('hidden-entry', $report['diagnostics'][2]['itemId']);
+        $t->same('hidden-entry-link', $report['diagnostics'][2]['labelId']);
+        $t->same('Hidden start', $report['diagnostics'][2]['label']);
+        $t->same('empty-label', $report['diagnostics'][3]['itemId']);
+        $t->same('empty-label-link', $report['diagnostics'][3]['labelId']);
+        $t->same('Untargeted chapter', $report['diagnostics'][4]['label']);
+        $t->same('missing-label', $report['diagnostics'][5]['itemId']);
+        $t->same('missing-label', $report['diagnostics'][6]['itemId']);
+        $t->same(7, $nav['documentDiagnosticCount']);
         $t->same(1, $nav['hiddenItemCount']);
         $t->same(1, $nav['sections'][0]['hiddenItemCount'] ?? 0);
         $t->same(1, $nav['sections'][0]['emptyItemLabelCount'] ?? 0);
+        $t->same(1, $nav['sections'][0]['unlabeledParentItemCount'] ?? 0);
         $t->same('hidden-nav-item', $nav['items'][0]['documentDiagnostics'][0]['type']);
         $t->same('empty-nav-item-label', $nav['items'][1]['documentDiagnostics'][0]['type']);
         $t->same('missing-nav-item-href', $nav['items'][2]['documentDiagnostics'][0]['type']);
         $t->same('missing-nav-item-label', $nav['items'][3]['documentDiagnostics'][0]['type']);
+        $t->same('nav-item-child-list-without-label', $nav['items'][3]['documentDiagnostics'][1]['type']);
+        $t->same('', $nav['items'][3]['title']);
+        $t->same('Nested recovery', $nav['items'][3]['children'][0]['title']);
         $t->same('missing-navigation-target', $navigation['items'][2]['diagnostics'][0]['type']);
         $t->same('missing-navigation-target', $navigation['items'][3]['diagnostics'][0]['type']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
