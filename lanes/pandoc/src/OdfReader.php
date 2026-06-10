@@ -112,6 +112,7 @@ final class OdfReader
         $media = $this->mediaReport($package, $manifest);
         $encryptedItems = $this->encryptedManifestItems($manifest);
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
+        $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -190,6 +191,8 @@ final class OdfReader
                         $manifest,
                         static fn (array $item): bool => ($item['exists'] ?? false) !== true,
                     )),
+                    'undeclaredEntryCount' => count($undeclaredEntries),
+                    'undeclaredEntries' => $undeclaredEntries,
                     'encryptedCount' => count($encryptedItems),
                     'encryptedItems' => $encryptedItems,
                     'declaredSizeMismatchCount' => count($declaredSizeMismatches),
@@ -11090,6 +11093,42 @@ final class OdfReader
         }
 
         return $mismatches;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function manifestUndeclaredPackageEntries(ZipPackage $package, array $manifest): array
+    {
+        $declaredParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $declaredParts[$part] = true;
+            }
+        }
+
+        $entries = [];
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory() || isset($declaredParts[$entry->name])) {
+                continue;
+            }
+
+            $entries[] = [
+                'part' => $entry->name,
+                'diagnostic' => 'odf-manifest-undeclared-package-entry',
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'crc32' => $entry->crc32Hex(),
+            ];
+        }
+
+        return $entries;
     }
 
     /**
