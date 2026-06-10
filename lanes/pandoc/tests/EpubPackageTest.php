@@ -1730,6 +1730,56 @@ XML;
         $t->same(['missing-manifest-fallback-item', 'cyclic-manifest-fallback-chain', 'cyclic-manifest-fallback-chain', 'non-css-manifest-fallback-style', 'missing-manifest-fallback-style-item', 'cyclic-manifest-fallback-style-chain', 'cyclic-manifest-fallback-style-chain'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
     },
 
+    'reports OPF non core manifest resources without fallback for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMissingFallback = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="orphan-widget" href="widgets/orphan.bin" media-type="application/x-review-widget"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMissingFallback],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/orphan.bin', 'data' => 'ORPHAN-WIDGET'],
+        ]));
+
+        $fallbacks = $epub->manifestFallbacks();
+        $summary = $epub->summary();
+        $orphan = $fallbacks['itemsById']['orphan-widget'];
+        $diagnostic = $orphan['fallbackDiagnostics'][0];
+
+        $t->same(true, $fallbacks['present']);
+        $t->same(1, $fallbacks['itemCount']);
+        $t->same(0, $fallbacks['fallbackCount']);
+        $t->same(0, $fallbacks['fallbackStyleCount']);
+        $t->same(1, $fallbacks['missingFallbackCount']);
+        $t->same(1, $fallbacks['missingFallbackDiagnosticCount']);
+        $t->same(1, count($fallbacks['diagnostics']));
+
+        $t->same('orphan-widget', $orphan['id']);
+        $t->same('/EPUB/widgets/orphan.bin', $orphan['partName']);
+        $t->same('application/x-review-widget', $orphan['mediaType']);
+        $t->same(null, $orphan['fallbackId']);
+        $t->same(false, $orphan['fallbackResolved']);
+        $t->same(false, $orphan['fallbackUsable']);
+        $t->same([], $orphan['fallbackChain']);
+        $t->same('missing-manifest-fallback-for-non-core-media-type', $diagnostic['type']);
+        $t->same('/EPUB/widgets/orphan.bin', $diagnostic['partName']);
+        $t->same('application/x-review-widget', $diagnostic['mediaType']);
+
+        $t->same(['orphan-widget'], array_column($fallbacks['missingFallbackItems'], 'id'));
+        $t->same([], $summary['wordpressImport']['manifestFallbackItems']);
+        $t->same($fallbacks['missingFallbackItems'], $summary['wordpressImport']['manifestFallbacks']['missingFallbackItems']);
+        $t->same(['missing-manifest-fallback-for-non-core-media-type'], array_column($summary['wordpressImport']['manifestFallbackDiagnostics'], 'type'));
+    },
+
     'summarizes OPF manifest resource properties for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithResourceProperties = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

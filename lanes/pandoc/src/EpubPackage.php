@@ -4986,14 +4986,19 @@ final class EpubPackage
         $itemsById = [];
         $fallbackItems = [];
         $fallbackStyleItems = [];
+        $missingFallbackItems = [];
         $diagnostics = [];
         $fallbackDiagnosticCount = 0;
         $fallbackStyleDiagnosticCount = 0;
+        $missingFallbackDiagnosticCount = 0;
 
         foreach ($manifestById as $item) {
             $fallbackId = self::nullableManifestId($item['fallback'] ?? null);
             $fallbackStyleId = self::nullableManifestId($item['fallbackStyle'] ?? null);
-            if ($fallbackId === null && $fallbackStyleId === null) {
+            $requiresFallbackReview = $fallbackId === null
+                && $fallbackStyleId === null
+                && self::manifestItemRequiresFallbackReview($item);
+            if ($fallbackId === null && $fallbackStyleId === null && !$requiresFallbackReview) {
                 continue;
             }
 
@@ -5009,6 +5014,11 @@ final class EpubPackage
             if ($fallbackStyleId !== null) {
                 $fallbackStyleItems[] = $report;
                 $fallbackStyleDiagnosticCount += count($report['fallbackStyleDiagnostics']);
+            }
+
+            if ($requiresFallbackReview) {
+                $missingFallbackItems[] = $report;
+                $missingFallbackDiagnosticCount += count($report['fallbackDiagnostics']);
             }
 
             foreach ($report['fallbackDiagnostics'] as $diagnostic) {
@@ -5045,10 +5055,13 @@ final class EpubPackage
                 static fn (array $item): bool => ($item['fallbackStyleResolved'] ?? false) === true,
             )),
             'fallbackStyleDiagnosticCount' => $fallbackStyleDiagnosticCount,
+            'missingFallbackCount' => count($missingFallbackItems),
+            'missingFallbackDiagnosticCount' => $missingFallbackDiagnosticCount,
             'items' => $items,
             'itemsById' => $itemsById,
             'fallbackItems' => $fallbackItems,
             'fallbackStyleItems' => $fallbackStyleItems,
+            'missingFallbackItems' => $missingFallbackItems,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -5066,6 +5079,19 @@ final class EpubPackage
     ): array {
         $fallback = self::manifestFallbackChainReport($item, $manifestById, $package, 'fallback');
         $fallbackStyle = self::manifestFallbackChainReport($item, $manifestById, $package, 'fallbackStyle');
+        if (
+            $fallback['id'] === null
+            && $fallbackStyle['id'] === null
+            && self::manifestItemRequiresFallbackReview($item)
+        ) {
+            $fallback['diagnostics'][] = [
+                'type' => 'missing-manifest-fallback-for-non-core-media-type',
+                'id' => (string) ($item['id'] ?? ''),
+                'partName' => (string) ($item['partName'] ?? ''),
+                'mediaType' => (string) ($item['mediaType'] ?? ''),
+                'message' => 'EPUB OPF manifest non-core media type resource declares no fallback item for reviewer handoff',
+            ];
+        }
 
         return [
             'id' => (string) ($item['id'] ?? ''),
@@ -5093,6 +5119,19 @@ final class EpubPackage
             'fallbackStyleChain' => $fallbackStyle['chain'],
             'fallbackStyleDiagnostics' => $fallbackStyle['diagnostics'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function manifestItemRequiresFallbackReview(array $item): bool
+    {
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        if (trim($mediaType) === '') {
+            return false;
+        }
+
+        return self::coreMediaTypeKind($mediaType) === null;
     }
 
     /**
