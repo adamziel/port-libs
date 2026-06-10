@@ -6503,9 +6503,14 @@ XML;
         $t->same(null, $transforms[4]['referenceContentType']);
         $t->same(null, $transforms[4]['referenceContentTypeMatches']);
         $t->same(false, $transforms[4]['valid']);
-        $t->same(['invalid-reference-content-type-query'], $transforms[4]['issues']);
-        $t->same('/customXml/_rels/item1.xml.rels', $transforms[4]['relationshipPartName']);
-        $t->same(['rIdCustomImage'], $transforms[4]['relationshipIds']);
+        $t->same([
+            'invalid-reference-uri',
+            'relationship-transform-reference-malformed-percent-escape',
+            'invalid-reference-content-type-query',
+        ], $transforms[4]['issues']);
+        $t->same(null, $transforms[4]['relationshipPartName']);
+        $t->same(null, $transforms[4]['source']);
+        $t->same([], $transforms[4]['relationshipIds']);
         $t->contains('malformed percent escape', $transforms[4]['parseError'] ?? '');
 
         $t->same('/word/_rels/settings.xml.rels?ContentType=application/xml%20bad', $transforms[5]['referenceUri']);
@@ -11951,17 +11956,25 @@ XML;
     'rejects malformed percent escapes and URI authorities in internal OPC relationship targets' => static function (TestRunner $t): void {
         $relationships = new OpcRelationships('/word/document.xml');
         $relationships->add(new OpcRelationship('rIdBadEscape', 't', 'media/bad%ZZ.png'));
+        $relationships->add(new OpcRelationship('rIdBadQueryEscape', 't', 'media/image.png?review=%ZZ'));
+        $relationships->add(new OpcRelationship('rIdBadFragmentEscape', 't', 'media/image.png#review%ZZ'));
         $relationships->add(new OpcRelationship('rIdAuthority', 't', '//example.test/media.png'));
         $relationships->add(new OpcRelationship('rIdEncodedSlash', 't', 'media%2Fhidden.png'));
         $relationships->add(new OpcRelationship('rIdEncodedBackslash', 't', 'media%5Chidden.png'));
         $relationships->add(new OpcRelationship('rIdEncodedNul', 't', 'media%00hidden.png'));
+        $relationships->add(new OpcRelationship('rIdEncodedQueryNul', 't', 'media/image.png?review=%00'));
+        $relationships->add(new OpcRelationship('rIdEncodedFragmentDelete', 't', 'media/image.png#review%7F'));
         $relationships->add(new OpcRelationship('rIdTrailingDotSegment', 't', 'media/trailing./image.png'));
 
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdBadEscape'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdBadQueryEscape'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdBadFragmentEscape'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdAuthority'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedSlash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedBackslash'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedNul'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedQueryNul'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdEncodedFragmentDelete'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $relationships->resolveTarget('rIdTrailingDotSegment'));
     },
     'rejects raw whitespace in internal OPC relationship target URI references' => static function (TestRunner $t): void {
@@ -12058,6 +12071,7 @@ XML;
         $t->same('/word/document.xml', OpcPackagePath::canonicalPartName('word/./document.xml'));
         $t->same('/word/styles.xml#section', OpcPackagePath::resolveInternalTarget('/word/document.xml', './styles.xml#section'));
         $t->same('/media/image.png?variant=review', OpcPackagePath::resolveInternalTarget('/word/document.xml', '../media/image.png?variant=review'));
+        $t->same('/word/styles.xml?review=%20ready#note%20one', OpcPackagePath::resolveInternalTarget('/word/document.xml', 'styles.xml?review=%20ready#note%20one'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/document.xml#frag'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartName('/word/trailing./document.xml'));
@@ -12065,5 +12079,8 @@ XML;
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', '../../evil.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'file:///tmp/evil.xml'));
         $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'media/trailing./image.png'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'styles.xml?review=%ZZ'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'styles.xml#note%ZZ'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::resolveInternalTarget('/word/document.xml', 'styles.xml?review=%00'));
     },
 ];

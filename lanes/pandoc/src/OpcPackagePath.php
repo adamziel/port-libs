@@ -120,6 +120,7 @@ final class OpcPackagePath
         $split = strcspn($target, '?#');
         $path = substr($target, 0, $split);
         $suffix = substr($target, $split);
+        self::assertUriReferenceSuffix($suffix, 'OPC internal relationship target');
         if ($path === '') {
             $source = self::canonicalPartName($sourcePartName, true);
             if ($source === '/') {
@@ -172,5 +173,27 @@ final class OpcPackagePath
         }
 
         return implode('/', $segments);
+    }
+
+    private static function assertUriReferenceSuffix(string $suffix, string $label): void
+    {
+        if ($suffix === '') {
+            return;
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $suffix) === 1) {
+            throw new \InvalidArgumentException($label . ' query or fragment contains malformed percent escape');
+        }
+
+        if (preg_match_all('/%([0-9A-Fa-f]{2})/', $suffix, $matches) === 0) {
+            return;
+        }
+
+        foreach ($matches[1] as $hex) {
+            $byte = hexdec($hex);
+            if ($byte < 0x20 || $byte === 0x7F) {
+                throw new \InvalidArgumentException($label . ' query or fragment contains unsafe percent-encoded byte');
+            }
+        }
     }
 }
