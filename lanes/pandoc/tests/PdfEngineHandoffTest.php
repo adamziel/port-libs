@@ -91,6 +91,83 @@ return [
         $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
     },
 
+    'plans typst compile boundary provenance without executing a renderer' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'pdf/typst-review.pdf',
+            'source' => '#show: review => review',
+            'engineOptions' => [
+                '--root=review-workspace',
+                '--font-path=fonts',
+                '--font-path',
+                'theme/fonts',
+                '--package-path=vendor/typst/packages',
+                '--package-cache-path=.typst-cache',
+                '--input',
+                'reviewer=Migration Desk',
+                '--input=packet=wp-42',
+                '--ignore-system-fonts',
+            ],
+        ]);
+        $review = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'pdf/typst-review.pdf',
+            'source' => '#show: review => review',
+            'engineOptions' => [
+                '--root=/tmp/outside',
+                '--font-path=../fonts',
+                '--input',
+                'bad name=value',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake typst handoff\n%%EOF\n";
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'pdf/typst-review.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'pdf/typst-review.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'ok',
+            'engine' => 'typst',
+            'engineFamily' => 'typst',
+            'root' => 'review-workspace',
+            'fontPaths' => ['fonts', 'theme/fonts'],
+            'packagePaths' => ['vendor/typst/packages'],
+            'packageCachePaths' => ['.typst-cache'],
+            'inputVariables' => [
+                'packet' => 'wp-42',
+                'reviewer' => 'Migration Desk',
+            ],
+            'ignoreSystemFonts' => true,
+            'unsafePaths' => [],
+            'issues' => [],
+        ];
+
+        $t->same($expected, $plan['engineBoundaryProvenance']);
+        $t->contains('pdf-engine-boundary-provenance:typst', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-root:review-workspace', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-font-paths:2', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-package-paths:1', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-package-cache-paths:1', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-inputs:2', implode(',', $plan['diagnostics']));
+        $t->contains('pdf-typst-boundary-ignore-system-fonts', implode(',', $plan['diagnostics']));
+        $t->same($expected, $result['engineBoundaryProvenance']);
+        $t->same($expected, $sequence['finalEngineBoundaryProvenance']);
+        $t->same('review', $review['engineBoundaryProvenance']['reviewStatus']);
+        $t->same(null, $review['engineBoundaryProvenance']['root']);
+        $t->same(['--font-path:../fonts', '--root:/tmp/outside'], $review['engineBoundaryProvenance']['unsafePaths']);
+        $t->same(['typst-boundary-invalid-input', 'typst-boundary-unsafe-path'], $review['engineBoundaryProvenance']['issues']);
+        $t->contains('pdf-typst-boundary-issues:2', implode(',', $review['diagnostics']));
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

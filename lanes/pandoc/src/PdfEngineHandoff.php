@@ -123,6 +123,7 @@ final class PdfEngineHandoff
      *     outputFile: string,
      *     argv: list<string>,
      *     engineOptions: list<string>,
+     *     engineBoundaryProvenance: array<string, mixed>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
      *     templateFile: string|null,
@@ -164,6 +165,7 @@ final class PdfEngineHandoff
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
             : $this->deriveSourcePath($outputFile, $profile['extension']);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
+        $engineBoundaryProvenance = $this->engineBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
             : $this->renderIntermediateSource($document, $profile['intermediate']);
@@ -239,6 +241,28 @@ final class PdfEngineHandoff
         if ($expectedEngineArtifacts !== []) {
             $diagnostics[] = 'pdf-engine-artifacts:' . count($expectedEngineArtifacts);
         }
+        if ($engineBoundaryProvenance !== []) {
+            $diagnostics[] = 'pdf-engine-boundary-provenance:' . $engineBoundaryProvenance['engineFamily'];
+            if (is_string($engineBoundaryProvenance['root'] ?? null) && $engineBoundaryProvenance['root'] !== '') {
+                $diagnostics[] = 'pdf-typst-boundary-root:' . $engineBoundaryProvenance['root'];
+            }
+            foreach ([
+                'fontPaths' => 'font-paths',
+                'packagePaths' => 'package-paths',
+                'packageCachePaths' => 'package-cache-paths',
+                'inputVariables' => 'inputs',
+            ] as $key => $diagnosticName) {
+                if (isset($engineBoundaryProvenance[$key]) && is_array($engineBoundaryProvenance[$key]) && $engineBoundaryProvenance[$key] !== []) {
+                    $diagnostics[] = 'pdf-typst-boundary-' . $diagnosticName . ':' . count($engineBoundaryProvenance[$key]);
+                }
+            }
+            if (($engineBoundaryProvenance['ignoreSystemFonts'] ?? false) === true) {
+                $diagnostics[] = 'pdf-typst-boundary-ignore-system-fonts';
+            }
+            if (isset($engineBoundaryProvenance['issues']) && is_array($engineBoundaryProvenance['issues']) && $engineBoundaryProvenance['issues'] !== []) {
+                $diagnostics[] = 'pdf-typst-boundary-issues:' . count($engineBoundaryProvenance['issues']);
+            }
+        }
 
         return [
             'kind' => 'pandoc-pdf-engine-handoff',
@@ -252,6 +276,7 @@ final class PdfEngineHandoff
             'outputFile' => $outputFile,
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
+            'engineBoundaryProvenance' => $engineBoundaryProvenance,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
             'templateFile' => $templateFile,
@@ -280,6 +305,7 @@ final class PdfEngineHandoff
      *     status: string,
      *     reason: string|null,
      *     engine: string,
+     *     engineBoundaryProvenance: array<string, mixed>,
      *     engineMissingProgram: bool,
      *     engineMissingProgramName: string|null,
      *     outputFile: string,
@@ -469,6 +495,9 @@ final class PdfEngineHandoff
         $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
             ? $plan['engineProgram']
             : $engine;
+        $engineBoundaryProvenance = isset($plan['engineBoundaryProvenance']) && is_array($plan['engineBoundaryProvenance'])
+            ? $plan['engineBoundaryProvenance']
+            : [];
         $exitCode = (int) ($result['exitCode'] ?? 0);
         $files = $this->normalizeFileMap($result['files'] ?? []);
         $planDiagnostics = $plan['diagnostics'] ?? [];
@@ -3936,6 +3965,7 @@ final class PdfEngineHandoff
             'status' => $status,
             'reason' => $reason,
             'engine' => $engine,
+            'engineBoundaryProvenance' => $engineBoundaryProvenance,
             'engineMissingProgram' => $missingProgram['missing'],
             'engineMissingProgramName' => $missingProgram['program'],
             'outputFile' => $outputFile,
@@ -4123,6 +4153,7 @@ final class PdfEngineHandoff
      *     status: string,
      *     reason: string|null,
      *     engine: string,
+     *     finalEngineBoundaryProvenance: array<string, mixed>,
      *     outputFile: string,
      *     attempts: int,
      *     successfulAttempts: int,
@@ -4426,6 +4457,7 @@ final class PdfEngineHandoff
             'status' => $status,
             'reason' => $reason,
             'engine' => $engine,
+            'finalEngineBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['engineBoundaryProvenance'] ?? null) ? $finalRun['engineBoundaryProvenance'] : [],
             'outputFile' => $outputFile,
             'attempts' => count($runs),
             'successfulAttempts' => $successfulAttempts,
@@ -5057,6 +5089,187 @@ final class PdfEngineHandoff
         $lastSlash = strrpos($path, '/');
 
         return $lastSlash === false ? $path : substr($path, $lastSlash + 1);
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return array<string, mixed>
+     */
+    private function engineBoundaryProvenanceFor(string $engine, string $family, array $engineOptions): array
+    {
+        if ($engine !== 'typst' || $family !== 'typst') {
+            return [];
+        }
+
+        return $this->typstBoundaryProvenance($engineOptions);
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return array<string, mixed>
+     */
+    private function typstBoundaryProvenance(array $engineOptions): array
+    {
+        $issues = [];
+        $unsafePaths = [];
+        $root = null;
+        $rootValues = $this->engineOptionValues($engineOptions, ['--root']);
+        if ($rootValues !== []) {
+            $root = $this->normalizeTypstBoundaryPath(end($rootValues), '--root', $issues, $unsafePaths);
+        }
+
+        $fontPaths = $this->normalizeTypstBoundaryPaths($this->engineOptionValues($engineOptions, ['--font-path']), '--font-path', $issues, $unsafePaths);
+        $packagePaths = $this->normalizeTypstBoundaryPaths($this->engineOptionValues($engineOptions, ['--package-path']), '--package-path', $issues, $unsafePaths);
+        $packageCachePaths = $this->normalizeTypstBoundaryPaths($this->engineOptionValues($engineOptions, ['--package-cache-path']), '--package-cache-path', $issues, $unsafePaths);
+        $inputVariables = $this->typstInputVariables($this->engineOptionValues($engineOptions, ['--input']), $issues);
+        ksort($inputVariables);
+        ksort($issues);
+        $unsafePaths = array_values(array_unique($unsafePaths));
+        sort($unsafePaths);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'engine' => 'typst',
+            'engineFamily' => 'typst',
+            'root' => $root,
+            'fontPaths' => $fontPaths,
+            'packagePaths' => $packagePaths,
+            'packageCachePaths' => $packageCachePaths,
+            'inputVariables' => $inputVariables,
+            'ignoreSystemFonts' => $this->engineOptionPresent($engineOptions, '--ignore-system-fonts'),
+            'unsafePaths' => $unsafePaths,
+            'issues' => array_keys($issues),
+        ];
+    }
+
+    /**
+     * @param list<string> $values
+     * @param array<string, bool> $issues
+     * @param list<string> $unsafePaths
+     * @return list<string>
+     */
+    private function normalizeTypstBoundaryPaths(array $values, string $option, array &$issues, array &$unsafePaths): array
+    {
+        $paths = [];
+        foreach ($values as $value) {
+            $path = $this->normalizeTypstBoundaryPath($value, $option, $issues, $unsafePaths);
+            if ($path !== null) {
+                $paths[$path] = true;
+            }
+        }
+
+        $normalized = array_keys($paths);
+        sort($normalized);
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, bool> $issues
+     * @param list<string> $unsafePaths
+     */
+    private function normalizeTypstBoundaryPath(string $value, string $option, array &$issues, array &$unsafePaths): ?string
+    {
+        $value = str_replace('\\', '/', trim($value));
+        if ($value === '') {
+            $issues['typst-boundary-empty-path'] = true;
+            $unsafePaths[] = $option . ':<empty>';
+            return null;
+        }
+        if ($value === '.') {
+            return '.';
+        }
+        if (
+            str_starts_with($value, '~')
+            || $this->isUriResourceReference($value)
+            || str_starts_with($value, '/')
+            || preg_match('/\A[A-Za-z]:\//', $value) === 1
+        ) {
+            $issues['typst-boundary-unsafe-path'] = true;
+            $unsafePaths[] = $option . ':' . $value;
+            return null;
+        }
+
+        try {
+            return $this->normalizeRelativePath($value, 'Typst boundary path');
+        } catch (\InvalidArgumentException) {
+            $issues['typst-boundary-unsafe-path'] = true;
+            $unsafePaths[] = $option . ':' . $value;
+            return null;
+        }
+    }
+
+    /**
+     * @param list<string> $values
+     * @param array<string, bool> $issues
+     * @return array<string, string>
+     */
+    private function typstInputVariables(array $values, array &$issues): array
+    {
+        $variables = [];
+        foreach ($values as $value) {
+            $equals = strpos($value, '=');
+            if ($equals === false) {
+                $issues['typst-boundary-invalid-input'] = true;
+                continue;
+            }
+
+            $name = trim(substr($value, 0, $equals));
+            $inputValue = substr($value, $equals + 1);
+            if ($name === '' || preg_match('/\A[A-Za-z_][A-Za-z0-9_.-]*\z/', $name) !== 1) {
+                $issues['typst-boundary-invalid-input'] = true;
+                continue;
+            }
+
+            $variables[$name] = $inputValue;
+        }
+
+        return $variables;
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private function engineOptionValues(array $engineOptions, array $names): array
+    {
+        $values = [];
+        $count = count($engineOptions);
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            foreach ($names as $name) {
+                if (
+                    $option === $name
+                    && $index + 1 < $count
+                    && trim($engineOptions[$index + 1]) !== ''
+                    && !str_starts_with(trim($engineOptions[$index + 1]), '-')
+                ) {
+                    $values[] = trim($engineOptions[$index + 1]);
+                    continue;
+                }
+                if (str_starts_with($option, $name . '=')) {
+                    $values[] = trim(substr($option, strlen($name) + 1));
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     */
+    private function engineOptionPresent(array $engineOptions, string $name): bool
+    {
+        foreach ($engineOptions as $option) {
+            $option = trim($option);
+            if ($option === $name || str_starts_with($option, $name . '=')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

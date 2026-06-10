@@ -45,6 +45,19 @@ $redirectedArtifactPlan = $handoff->plan($document, [
     'outputPath' => 'handoff/pdf-review-packet.pdf',
     'engineOptions' => ['-jobname=pdf-review-final', '-output-directory=handoff/engine', '-recorder', '-synctex=1'],
 ]);
+$typstBoundaryPlan = $handoff->plan($document, [
+    'engine' => 'typst',
+    'outputPath' => 'handoff/typst-review-packet.pdf',
+    'source' => '#show: review => review',
+    'engineOptions' => [
+        '--root=review-workspace',
+        '--font-path=fonts',
+        '--package-path=vendor/typst/packages',
+        '--package-cache-path=.typst-cache',
+        '--input=packet=wp-42',
+        '--ignore-system-fonts',
+    ],
+]);
 $fakeXmpMetadata = implode("\n", [
     '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>',
     '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
@@ -992,6 +1005,11 @@ $summary = [
         'expectedEngineArtifacts' => $redirectedArtifactPlan['expectedEngineArtifacts'],
         'diagnostics' => $redirectedArtifactPlan['diagnostics'],
     ],
+    'typstBoundaryPlan' => [
+        'argv' => $typstBoundaryPlan['argv'],
+        'engineBoundaryProvenance' => $typstBoundaryPlan['engineBoundaryProvenance'],
+        'diagnostics' => $typstBoundaryPlan['diagnostics'],
+    ],
     'templateVariables' => $plan['templateVariables'],
     'metadata' => $plan['metadata'],
     'sourceSha256' => $plan['sourceSha256'],
@@ -1375,6 +1393,13 @@ if (in_array('--self-test', $argv, true)) {
         'handoff/engine/pdf-review-final.fls',
         'handoff/engine/pdf-review-final.synctex.gz',
         'pdf-engine-artifact-stem:handoff/engine/pdf-review-final',
+        'typstBoundaryPlan',
+        'engineBoundaryProvenance',
+        'pdf-typst-boundary-root:review-workspace',
+        'pdf-typst-boundary-font-paths:1',
+        'pdf-typst-boundary-package-paths:1',
+        'pdf-typst-boundary-package-cache-paths:1',
+        'pdf-typst-boundary-inputs:1',
         'documentclass=scrartcl',
         '-recorder',
         '-synctex=1',
