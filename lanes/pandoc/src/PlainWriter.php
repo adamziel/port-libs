@@ -38,6 +38,16 @@ final class PlainWriter
      *     maxOverColumnDisplayWidth:int,
      *     forcedWrapBreakCount:int,
      *     maxForcedWrapSegmentDisplayWidth:int,
+     *     maxUnbreakableDisplayWidth:int,
+     *     overlongUnbreakableSpanCount:int,
+     *     overlongUnbreakableSpans:list<array{
+     *       blockIndex:int,
+     *       lineIndex:int,
+     *       displayWidth:int,
+     *       columns:int,
+     *       text:string,
+     *       truncated:bool
+     *     }>,
      *     hardBreakCount:int,
      *     lineFeedBreakCount:int,
      *     lineSeparatorBreakCount:int,
@@ -110,6 +120,9 @@ final class PlainWriter
         $maxOverColumnDisplayWidth = 0;
         $forcedWrapBreakCount = 0;
         $maxForcedWrapSegmentDisplayWidth = 0;
+        $maxUnbreakableDisplayWidth = 0;
+        $overlongUnbreakableSpanCount = 0;
+        $overlongUnbreakableSpans = [];
         $hardBreakCount = 0;
         $lineFeedBreakCount = 0;
         $lineSeparatorBreakCount = 0;
@@ -160,6 +173,7 @@ final class PlainWriter
             $outputMax = $this->maxDisplayWidth($wrappedLines, $ambiguousWidth);
             $overColumn = $this->overColumnLineMetrics($wrappedLines, $columns, $ambiguousWidth);
             $forcedWrap = $this->forcedWrapMetrics($sourceLines, $columns, $wrapMode, $ambiguousWidth);
+            $unbreakable = $this->overlongUnbreakableSpanDiagnostics($sourceLines, $columns, $ambiguousWidth);
             $maxOutputDisplayWidth = max($maxOutputDisplayWidth, $outputMax);
             $overColumnLineCount += $overColumn['count'];
             $maxOverColumnDisplayWidth = max($maxOverColumnDisplayWidth, $overColumn['maxDisplayWidth']);
@@ -168,6 +182,16 @@ final class PlainWriter
                 $maxForcedWrapSegmentDisplayWidth,
                 $forcedWrap['maxForcedWrapSegmentDisplayWidth']
             );
+            $maxUnbreakableDisplayWidth = max($maxUnbreakableDisplayWidth, $unbreakable['maxUnbreakableDisplayWidth']);
+            $overlongUnbreakableSpanCount += $unbreakable['overlongUnbreakableSpanCount'];
+            foreach ($unbreakable['overlongUnbreakableSpans'] as $span) {
+                if (count($overlongUnbreakableSpans) >= 16) {
+                    break;
+                }
+                $overlongUnbreakableSpans[] = [
+                    'blockIndex' => $index,
+                ] + $span;
+            }
             $outputLineCount += $this->nonEmptyLineCount($wrappedLines);
             $blankSourceLineCount += $blockBlankSourceLineCount;
             $blankOutputLineCount += $blockBlankOutputLineCount;
@@ -242,6 +266,9 @@ final class PlainWriter
                 'maxOverColumnDisplayWidth' => $maxOverColumnDisplayWidth,
                 'forcedWrapBreakCount' => $forcedWrapBreakCount,
                 'maxForcedWrapSegmentDisplayWidth' => $maxForcedWrapSegmentDisplayWidth,
+                'maxUnbreakableDisplayWidth' => $maxUnbreakableDisplayWidth,
+                'overlongUnbreakableSpanCount' => $overlongUnbreakableSpanCount,
+                'overlongUnbreakableSpans' => $overlongUnbreakableSpans,
                 'hardBreakCount' => $hardBreakCount,
                 'lineFeedBreakCount' => $lineFeedBreakCount,
                 'lineSeparatorBreakCount' => $lineSeparatorBreakCount,
@@ -649,6 +676,51 @@ final class PlainWriter
     }
 
     /**
+     * @param list<string> $sourceLines
+     * @return array{
+     *   maxUnbreakableDisplayWidth:int,
+     *   overlongUnbreakableSpanCount:int,
+     *   overlongUnbreakableSpans:list<array{lineIndex:int, displayWidth:int, columns:int, text:string, truncated:bool}>
+     * }
+     */
+    private function overlongUnbreakableSpanDiagnostics(array $sourceLines, int $columns, string $ambiguousWidth): array
+    {
+        $maxUnbreakableDisplayWidth = 0;
+        $overlongUnbreakableSpanCount = 0;
+        $overlongSpans = [];
+
+        foreach ($sourceLines as $lineIndex => $line) {
+            foreach ($this->unbreakableWrapSegments($line) as $span) {
+                $displayWidth = UnicodeText::displayWidth($span, $ambiguousWidth);
+                $maxUnbreakableDisplayWidth = max($maxUnbreakableDisplayWidth, $displayWidth);
+                if ($columns <= 0 || $displayWidth <= $columns) {
+                    continue;
+                }
+
+                ++$overlongUnbreakableSpanCount;
+                if (count($overlongSpans) >= 16) {
+                    continue;
+                }
+
+                [$text, $truncated] = $this->diagnosticTextSample($span);
+                $overlongSpans[] = [
+                    'lineIndex' => $lineIndex,
+                    'displayWidth' => $displayWidth,
+                    'columns' => $columns,
+                    'text' => $text,
+                    'truncated' => $truncated,
+                ];
+            }
+        }
+
+        return [
+            'maxUnbreakableDisplayWidth' => $maxUnbreakableDisplayWidth,
+            'overlongUnbreakableSpanCount' => $overlongUnbreakableSpanCount,
+            'overlongUnbreakableSpans' => $overlongSpans,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private function unbreakableWrapSegments(string $line): array
@@ -709,6 +781,19 @@ final class PlainWriter
             "\u{205F}",
             "\u{3000}",
         ], true);
+    }
+
+    /**
+     * @return array{0:string, 1:bool}
+     */
+    private function diagnosticTextSample(string $text): array
+    {
+        $graphemes = UnicodeText::graphemes($text);
+        if (count($graphemes) <= 40) {
+            return [$text, false];
+        }
+
+        return [implode('', array_slice($graphemes, 0, 40)), true];
     }
 
     /**

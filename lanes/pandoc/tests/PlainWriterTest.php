@@ -350,6 +350,42 @@ return [
             'lineEndingNormalizationCount' => 1,
         ], $result['diagnostics']['blocks'][0]);
     },
+    'reports overlong unbreakable spans in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => "review\u{00A0}packet"]),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'supercalifragilistic']),
+            ]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 10]))->writeWithDiagnostics($document);
+
+        $t->same("review\u{00A0}pac\nket\nsupercalif\nragilistic", $result['text']);
+        $t->same(1, $result['diagnostics']['protectedSeparatorCount']);
+        $t->same(20, $result['diagnostics']['maxUnbreakableDisplayWidth']);
+        $t->same(2, $result['diagnostics']['overlongUnbreakableSpanCount']);
+        $t->same(2, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(20, $result['diagnostics']['maxForcedWrapSegmentDisplayWidth']);
+        $t->same([
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 0,
+                'displayWidth' => 13,
+                'columns' => 10,
+                'text' => "review\u{00A0}packet",
+                'truncated' => false,
+            ],
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 0,
+                'displayWidth' => 20,
+                'columns' => 10,
+                'text' => 'supercalifragilistic',
+                'truncated' => false,
+            ],
+        ], $result['diagnostics']['overlongUnbreakableSpans']);
+    },
     'reports wrap control break opportunities in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha\u{00AD}Beta Gamma\u{200B}Delta Tibetan\u{0F0B}mark"]),
