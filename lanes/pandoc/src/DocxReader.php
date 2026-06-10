@@ -223,6 +223,7 @@ final class DocxReader
         $numberingSummary = $this->numberingImportSummary($package, $graph, $documentPart, $numbering);
         $documentXml = $package->read($documentPart);
         $specialNotes = $this->specialNoteImportReport($package, $graph, $documentPart);
+        $packageRelationships = $graph->preflightRelationshipRoleTargets('/');
         $customXmlStore = $this->readCustomXmlStore($package, $graph);
         $this->currentCustomXmlPartsByStoreItemId = $customXmlStore['lookupByStoreItemID'] ?? [];
         $this->currentCustomXmlStoreItems = $customXmlStore['items'] ?? [];
@@ -300,6 +301,7 @@ final class DocxReader
                 $theme,
                 $numberingSummary,
                 $glossary,
+                $packageRelationships,
                 $customXmlStore,
             ),
         ];
@@ -336,6 +338,7 @@ final class DocxReader
      * @param array<string, mixed> $theme
      * @param array<string, mixed> $numberingSummary
      * @param array<string, mixed> $glossary
+     * @param array<string, mixed> $packageRelationships
      * @param array<string, mixed> $customXmlStore
      * @return array<string, mixed>
      */
@@ -355,6 +358,7 @@ final class DocxReader
         array $theme,
         array $numberingSummary,
         array $glossary,
+        array $packageRelationships,
         array $customXmlStore
     ): array {
         $relationshipIssues = [];
@@ -395,6 +399,7 @@ final class DocxReader
             'theme' => $theme,
             'numbering' => $numberingSummary,
             'glossary' => $glossary,
+            'packageRelationships' => $packageRelationships,
             'customXmlStore' => [
                 'count' => $customXmlStore['count'] ?? 0,
                 'boundStoreItemCount' => $customXmlStore['boundStoreItemCount'] ?? 0,
