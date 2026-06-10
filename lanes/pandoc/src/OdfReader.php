@@ -10407,6 +10407,39 @@ final class OdfReader
      */
     private function readRdfMetadata(ZipPackage $package, array $manifest): array
     {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            if (!$this->isRdfManifestItem($item)) {
+                continue;
+            }
+
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '' && !str_ends_with($part, '/')) {
+                $item['declared'] = true;
+                $candidatesByPart[$part] = $item;
+            }
+        }
+
+        $undeclaredCandidates = [];
+        foreach ($package->entries() as $entry) {
+            if (!$entry instanceof ZipPackageEntry || $entry->isDirectory() || !$this->isRdfPartName($entry->name)) {
+                continue;
+            }
+            if (!isset($candidatesByPart[$entry->name])) {
+                $undeclaredCandidates[$entry->name] = [
+                    'fullPath' => $entry->name,
+                    'part' => $entry->name,
+                    'mediaType' => null,
+                    'exists' => true,
+                    'encrypted' => false,
+                    'canExposeBytes' => true,
+                    'declared' => false,
+                ];
+            }
+        }
+        ksort($undeclaredCandidates);
+        $candidatesByPart += $undeclaredCandidates;
+
         $parts = [];
         $subjectsBySubject = [];
         $parsedPartCount = 0;
@@ -10415,23 +10448,15 @@ final class OdfReader
         $resourceCount = 0;
         $parseErrorCount = 0;
 
-        foreach ($manifest as $item) {
-            if (!$this->isRdfManifestItem($item)) {
-                continue;
-            }
-
-            $part = $item['part'] ?? null;
-            if (!is_string($part) || $part === '' || str_ends_with($part, '/')) {
-                continue;
-            }
-
+        foreach ($candidatesByPart as $part => $item) {
             $encrypted = ($item['encrypted'] ?? false) === true;
             $entry = $package->has($part) ? $package->entry($part) : null;
             $partMetadata = [
-                'fullPath' => $item['fullPath'],
+                'fullPath' => $item['fullPath'] ?? $part,
                 'part' => $part,
-                'mediaType' => $item['mediaType'],
+                'mediaType' => $item['mediaType'] ?? null,
                 'exists' => $entry instanceof ZipPackageEntry,
+                'declared' => ($item['declared'] ?? false) === true,
                 'encrypted' => $encrypted,
                 'canExposeBytes' => !$encrypted,
                 'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
@@ -10460,7 +10485,7 @@ final class OdfReader
             }
 
             try {
-                $parsed = $this->parseRdfMetadataPart($package->read($part), $part);
+                $parsed = $this->parseRdfMetadataPart($package->read($part, 1048576), $part);
             } catch (\InvalidArgumentException $exception) {
                 $partMetadata['parseable'] = false;
                 $partMetadata['diagnostic'] = 'invalid-rdf-xml';
@@ -10471,6 +10496,9 @@ final class OdfReader
             }
 
             $partMetadata = array_merge($partMetadata, $parsed, ['parseable' => true]);
+            if (($partMetadata['declared'] ?? false) !== true) {
+                $partMetadata['diagnostic'] = 'odf-rdf-package-undeclared-part';
+            }
             $parsedPartCount++;
             $tripleCount += (int) ($parsed['tripleCount'] ?? 0);
             $literalCount += (int) ($parsed['literalCount'] ?? 0);
@@ -10535,7 +10563,12 @@ final class OdfReader
         $mediaType = strtolower(trim(explode(';', (string) ($item['mediaType'] ?? ''), 2)[0]));
         $part = (string) ($item['part'] ?? '');
 
-        return $mediaType === 'application/rdf+xml' || strtolower(basename($part)) === 'manifest.rdf';
+        return $mediaType === 'application/rdf+xml' || $this->isRdfPartName($part);
+    }
+
+    private function isRdfPartName(string $part): bool
+    {
+        return strtolower(basename($part)) === 'manifest.rdf';
     }
 
     /**

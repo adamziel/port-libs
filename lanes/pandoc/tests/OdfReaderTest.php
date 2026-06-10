@@ -9163,6 +9163,60 @@ XML;
         $t->same('ready', $triplesByPredicate['content.xml|wp:review-status']['object']);
         $t->same('image/png', $triplesByPredicate['Pictures/hero.png|dc:format']['object']);
     },
+    'discovers undeclared ODT manifest RDF sidecars by package path' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $rdfXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="meta.xml">
+    <dc:title>Undeclared package metadata</dc:title>
+    <dc:relation rdf:resource="Pictures/hero.png"/>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
+            ['name' => 'manifest.rdf', 'data' => $rdfXml],
+            ['name' => 'metadata/review.rdf', 'data' => $rdfXml],
+        ]));
+        $rdf = $result['rdfMetadata'];
+
+        $t->same(1, $rdf['partCount']);
+        $t->same(1, $rdf['parsedPartCount']);
+        $t->same(0, $rdf['parseErrorCount']);
+        $t->same(2, $rdf['tripleCount']);
+        $t->same(1, $rdf['literalCount']);
+        $t->same(1, $rdf['resourceCount']);
+        $t->same(1, $rdf['subjectCount']);
+        $t->same($rdf, $result['document']->attr('rdfMetadata'));
+        $t->same($rdf, $result['importReport']['rdfMetadata']);
+        $t->same(1, count($result['media']), 'undeclared RDF sidecars must stay out of media byte handoff');
+
+        $part = $rdf['parts'][0];
+        $t->same('manifest.rdf', $part['part']);
+        $t->same(false, $part['declared']);
+        $t->same('odf-rdf-package-undeclared-part', $part['diagnostic']);
+        $t->same(null, $part['mediaType']);
+        $t->same(true, $part['exists']);
+        $t->same(true, $part['parseable']);
+        $t->same(strlen($rdfXml), $part['byteLength']);
+
+        $subject = $rdf['subjectsBySubject']['meta.xml'];
+        $t->same(2, $subject['tripleCount']);
+        $t->same(['dc:relation', 'dc:title'], $subject['predicates']);
+
+        $triplesByPredicate = [];
+        foreach ($part['triples'] as $triple) {
+            $triplesByPredicate[$triple['predicate']] = $triple;
+        }
+        $t->same('Undeclared package metadata', $triplesByPredicate['dc:title']['object']);
+        $t->same('Pictures/hero.png', $triplesByPredicate['dc:relation']['object']);
+        $t->same('resource', $triplesByPredicate['dc:relation']['objectType']);
+
+        $undeclaredParts = array_column($result['importReport']['manifest']['undeclaredEntries'], 'part');
+        $t->same(2, $result['importReport']['manifest']['undeclaredEntryCount']);
+        $t->same(['manifest.rdf', 'metadata/review.rdf'], $undeclaredParts);
+    },
     'maps ODT XML signature sidecars into package review metadata without validation' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSignatures = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
