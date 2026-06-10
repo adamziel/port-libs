@@ -3686,6 +3686,116 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory entry names for file/directory hierarchy
+     * collisions before package construction.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     collisionEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     collisionEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>,
+     *     inventory:array<string, mixed>
+     * }
+     */
+    public static function centralDirectoryPathHierarchyPreflight(string $bytes): array
+    {
+        $inventory = self::centralDirectoryInventoryPreflight($bytes);
+        $entries = $inventory['entries'];
+        $fileNamesByPath = [];
+        $directoryNamesByPath = [];
+        $pathsByName = [];
+
+        foreach ($entries as $entry) {
+            $path = rtrim($entry['name'], '/');
+            $pathsByName[$entry['name']] = $path;
+            if (str_ends_with($entry['name'], '/')) {
+                $directoryNamesByPath[$path] = $entry['name'];
+            } else {
+                $fileNamesByPath[$path] = $entry['name'];
+            }
+        }
+
+        $ancestorFileNamesByEntryName = [];
+        $descendantEntryNamesByFileName = [];
+        foreach ($fileNamesByPath as $fileName) {
+            $descendantEntryNamesByFileName[$fileName] = [];
+        }
+
+        foreach ($entries as $entry) {
+            $path = $pathsByName[$entry['name']];
+            $segments = $path === '' ? [] : explode('/', $path);
+            for ($depth = 1, $segmentCount = count($segments); $depth < $segmentCount; $depth++) {
+                $ancestorPath = implode('/', array_slice($segments, 0, $depth));
+                if (!isset($fileNamesByPath[$ancestorPath])) {
+                    continue;
+                }
+
+                $ancestorFileName = $fileNamesByPath[$ancestorPath];
+                $ancestorFileNamesByEntryName[$entry['name']][] = $ancestorFileName;
+                $descendantEntryNamesByFileName[$ancestorFileName][] = $entry['name'];
+            }
+        }
+
+        $entrySummaries = [];
+        $collisionEntries = [];
+        foreach ($entries as $entry) {
+            $name = $entry['name'];
+            $path = $pathsByName[$name];
+            $isDirectory = str_ends_with($name, '/');
+            $samePathFileName = $isDirectory ? ($fileNamesByPath[$path] ?? null) : null;
+            $samePathDirectoryName = $isDirectory ? null : ($directoryNamesByPath[$path] ?? null);
+            $ancestorFileNames = $ancestorFileNamesByEntryName[$name] ?? [];
+            $descendantEntryNames = $isDirectory ? [] : ($descendantEntryNamesByFileName[$name] ?? []);
+            $issues = [];
+
+            if ($samePathFileName !== null || $samePathDirectoryName !== null) {
+                $issues[] = 'file-directory-same-path';
+            }
+
+            if ($ancestorFileNames !== []) {
+                $issues[] = 'ancestor-file-entry';
+            }
+
+            if ($descendantEntryNames !== []) {
+                $issues[] = 'file-used-as-directory';
+            }
+
+            $summary = [
+                'name' => $name,
+                'rawName' => $entry['rawName'],
+                'nameEncoding' => $entry['nameEncoding'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'centralDirectoryOffset' => $entry['offset'],
+                'localHeaderOffset' => $entry['localHeaderOffset'],
+                'path' => $path,
+                'isDirectory' => $isDirectory,
+                'samePathFileName' => $samePathFileName,
+                'samePathDirectoryName' => $samePathDirectoryName,
+                'ancestorFileNames' => $ancestorFileNames,
+                'descendantEntryNames' => $descendantEntryNames,
+                'hasPathHierarchyCollision' => $issues !== [],
+                'issues' => $issues,
+            ];
+            $entrySummaries[] = $summary;
+            if ($issues !== []) {
+                $collisionEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($entrySummaries),
+            'collisionEntryCount' => count($collisionEntries),
+            'isSupportedByBoundedReader' => $collisionEntries === [],
+            'issues' => $collisionEntries === [] ? [] : ['path-hierarchy-collisions'],
+            'collisionEntries' => $collisionEntries,
+            'entries' => $entrySummaries,
+            'inventory' => $inventory,
+        ];
+    }
+
+    /**
      * Classify platform metadata entries that should not be imported as
      * document content or package assets.
      *
@@ -7299,6 +7409,7 @@ final class ZipPackage
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
      *     centralDirectoryNameCollisions:?array<string, mixed>,
+     *     centralDirectoryPathHierarchy:?array<string, mixed>,
      *     platformMetadata:?array<string, mixed>,
      *     extraFieldStructure:?array<string, mixed>,
      *     extraFields:?array<string, mixed>,
@@ -7408,6 +7519,7 @@ final class ZipPackage
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
                 'centralDirectoryNameCollisions' => null,
+                'centralDirectoryPathHierarchy' => null,
                 'platformMetadata' => null,
                 'extraFieldStructure' => null,
                 'extraFields' => null,
@@ -7440,6 +7552,7 @@ final class ZipPackage
         $creatorHostSystems = null;
         $externalAttributes = null;
         $centralDirectoryNameCollisions = null;
+        $centralDirectoryPathHierarchy = null;
         $platformMetadata = null;
         $extraFieldStructure = null;
         $extraFields = null;
@@ -7563,6 +7676,18 @@ final class ZipPackage
                 $addDiagnostics($centralDirectoryNameCollisions['issues']);
             }
 
+            $centralDirectoryPathHierarchy = $runPreflight(
+                'central-directory-path-hierarchy-policy',
+                static fn (): array => self::centralDirectoryPathHierarchyPreflight($bytes)
+            );
+            if (
+                $centralDirectoryPathHierarchy !== null
+                && !$centralDirectoryPathHierarchy['isSupportedByBoundedReader']
+            ) {
+                $addDiagnostic('central-directory-path-hierarchy-issues');
+                $addDiagnostics($centralDirectoryPathHierarchy['issues']);
+            }
+
             $platformMetadata = $runPreflight(
                 'platform-metadata-policy',
                 static fn (): array => self::platformMetadataPolicyPreflight($bytes)
@@ -7660,6 +7785,7 @@ final class ZipPackage
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
             ?? $centralDirectoryNameCollisions['entryCount']
+            ?? $centralDirectoryPathHierarchy['entryCount']
             ?? $platformMetadata['entryCount']
             ?? $extraFieldStructure['entryCount']
             ?? $extraFields['entryCount']
@@ -7700,6 +7826,7 @@ final class ZipPackage
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
             'centralDirectoryNameCollisions' => $centralDirectoryNameCollisions,
+            'centralDirectoryPathHierarchy' => $centralDirectoryPathHierarchy,
             'platformMetadata' => $platformMetadata,
             'extraFieldStructure' => $extraFieldStructure,
             'extraFields' => $extraFields,

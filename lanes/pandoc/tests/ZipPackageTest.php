@@ -2825,6 +2825,60 @@ return [
         $t->same("PNG reviewer attachment placeholder\n", $safePackage->read('/word/media/review.png'));
     },
 
+    'preflights raw central directory path hierarchy collisions before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/other.xml',
+                'data' => '<w:document><w:p>raw hierarchy local spoof</w:p></w:document>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media',
+                'data' => 'file shadows package media directory',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "PNG reviewer attachment placeholder\n",
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::centralDirectoryPathHierarchyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 20.0, 2048);
+
+        $t->same(4, $summary['entryCount']);
+        $t->same(3, $summary['collisionEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['path-hierarchy-collisions'], $summary['issues']);
+        $t->same('word/document.xml', $summary['entries'][0]['name']);
+        $t->same(false, $summary['entries'][0]['hasPathHierarchyCollision']);
+        $t->same('word/media', $summary['entries'][1]['name']);
+        $t->same('word/media/', $summary['entries'][1]['samePathDirectoryName']);
+        $t->same(['word/media/review.png'], $summary['entries'][1]['descendantEntryNames']);
+        $t->same(['file-directory-same-path', 'file-used-as-directory'], $summary['entries'][1]['issues']);
+        $t->same('word/media/', $summary['entries'][2]['name']);
+        $t->same('word/media', $summary['entries'][2]['samePathFileName']);
+        $t->same(['file-directory-same-path'], $summary['entries'][2]['issues']);
+        $t->same(['word/media'], $summary['entries'][3]['ancestorFileNames']);
+        $t->same(['ancestor-file-entry'], $summary['entries'][3]['issues']);
+        $t->same($summary, $rawStrict['centralDirectoryPathHierarchy']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->contains('central-directory-path-hierarchy-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('path-hierarchy-collisions', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights case-insensitive zip entry name collisions before media handoff' => static function (TestRunner $t): void {
         $collisionPackage = ZipPackage::fromParts([
             [
@@ -7326,6 +7380,8 @@ return [
         $t->same(0, $safeRaw['extraFieldStructure']['issueEntryCount']);
         $t->same(true, $safeRaw['extraFields']['isSupportedByBoundedReader']);
         $t->same(0, $safeRaw['extraFields']['duplicateExtraFieldEntryCount']);
+        $t->same(true, $safeRaw['centralDirectoryPathHierarchy']['isSupportedByBoundedReader']);
+        $t->same(0, $safeRaw['centralDirectoryPathHierarchy']['collisionEntryCount']);
         $t->same(0, $safeRaw['zip64ExtraFields']['zip64ExtraFieldEntryCount']);
         $t->same(0, $safeRaw['dataDescriptors']['mismatchedDescriptorEntryCount']);
         $t->same(true, $safeRaw['strictImport']['isValid']);
