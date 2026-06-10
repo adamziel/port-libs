@@ -223,6 +223,68 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'inherits bounded biblatex crossref metadata into child csl items' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@proceedings{migration-conf,
+  editor       = {Editor, Erin},
+  title        = {Migration Proceedings},
+  subtitle     = {Native CSL Appendix},
+  titleaddon   = {review packet},
+  date         = {2026-06},
+  location     = {Lisbon},
+  publisher    = {Review Press},
+  series       = {CSL Core},
+  shortseries  = {CC},
+  seriesnumber = {4},
+  isbn         = {978-1-4028-9462-6}
+}
+@inproceedings{bounded-talk,
+  author   = {Speaker, Sam},
+  title    = {Bounded Citation Handoff},
+  pages    = {11--14},
+  crossref = {migration-conf}
+}
+@inproceedings{dated-talk,
+  author   = {Writer, Wynn},
+  title    = {Child Date Wins},
+  year     = {2025},
+  crossref = {migration-conf}
+}
+BIB;
+
+        $items = (new BibtexCslProcessor())->cslItems($source);
+        $item = $items['bounded-talk'];
+        $dated = $items['dated-talk'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('paper-conference', $item['type']);
+        $t->same('Bounded Citation Handoff', $item['title']);
+        $t->same('Migration Proceedings: Native CSL Appendix', $item['container-title']);
+        $t->same('review packet', $item['container-title-addon']);
+        $t->same([2026, 6], $item['issued']['date-parts'][0]);
+        $t->same('Lisbon', $item['publisher-place']);
+        $t->same('Review Press', $item['publisher']);
+        $t->same('Editor', $item['editor'][0]['family']);
+        $t->same('CSL Core', $item['collection-title']);
+        $t->same('CC', $item['collection-title-short']);
+        $t->same('4', $item['collection-number']);
+        $t->same('978-1-4028-9462-6', $item['ISBN']);
+        $t->same('11-14', $item['page']);
+        $t->same(['author', 'title', 'pages', 'crossref'], array_keys($item['rawBibtex']['fields']));
+        $t->same([
+            'source' => 'migration-conf',
+            'field' => 'title',
+            'value' => 'Migration Proceedings',
+        ], $item['rawBibtex']['inheritedFields']['booktitle']);
+        $t->same([
+            'source' => 'migration-conf',
+            'field' => 'date',
+            'value' => '2026-06',
+        ], $item['rawBibtex']['inheritedFields']['date']);
+        $t->same([2025], $dated['issued']['date-parts'][0]);
+        $t->same(false, isset($dated['rawBibtex']['inheritedFields']['date']));
+        $t->same('Sam Speaker. Bounded Citation Handoff. Migration Proceedings: Native CSL Appendix. 2026. 11-14.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

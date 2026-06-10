@@ -77,8 +77,13 @@ final class BibtexCslProcessor
                 'id' => $key,
                 'type' => $type,
                 'fields' => $fields,
-                'csl' => $this->toCslItem($key, $type, $fields),
+                'csl' => [],
             ];
+        }
+
+        foreach ($entries as $key => $entry) {
+            [$resolvedFields, $inheritedFields] = $this->resolveCrossrefFields($key, $entry, $entries);
+            $entries[$key]['csl'] = $this->toCslItem($key, $entry['type'], $resolvedFields, $inheritedFields, $entry['fields']);
         }
 
         return $entries;
@@ -382,18 +387,23 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
+     * @param array<string, array{source:string, field:string, value:string}> $inheritedFields
+     * @param array<string, string>|null $rawFields
      * @return array<string, mixed>
      */
-    private function toCslItem(string $key, string $type, array $fields): array
+    private function toCslItem(string $key, string $type, array $fields, array $inheritedFields = [], ?array $rawFields = null): array
     {
         $item = [
             'id' => $key,
             'type' => $this->cslType($type),
             'rawBibtex' => [
                 'type' => $type,
-                'fields' => $fields,
+                'fields' => $rawFields ?? $fields,
             ],
         ];
+        if ($inheritedFields !== []) {
+            $item['rawBibtex']['inheritedFields'] = $inheritedFields;
+        }
 
         $title = $this->composedTitle($fields, ['title'], ['subtitle']);
         if ($title !== null && $title !== '') {
@@ -504,6 +514,141 @@ final class BibtexCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>} $entry
+     * @param array<string, array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}> $entries
+     * @return array{0:array<string, string>, 1:array<string, array{source:string, field:string, value:string}>}
+     */
+    private function resolveCrossrefFields(string $key, array $entry, array $entries): array
+    {
+        $fields = $entry['fields'];
+        $parentKey = $this->firstField($fields, ['crossref', 'xref']);
+        if ($parentKey === null || $parentKey === '' || $parentKey === $key || !isset($entries[$parentKey])) {
+            return [$fields, []];
+        }
+
+        $inherited = [];
+        $parentFields = $entries[$parentKey]['fields'];
+        $containerTarget = $this->crossrefContainerTitleTarget($entry['type']);
+        $containerSubtitleTarget = $containerTarget === 'journaltitle' ? 'journalsubtitle' : 'booksubtitle';
+        $containerAddonTarget = $containerTarget === 'journaltitle' ? 'journaltitleaddon' : 'booktitleaddon';
+
+        $titleMappings = [
+            'title' => $containerTarget,
+            'subtitle' => $containerSubtitleTarget,
+            'titleaddon' => $containerAddonTarget,
+        ];
+        foreach ($titleMappings as $parentField => $targetField) {
+            if (($parentFields[$parentField] ?? '') === '' || !$this->fieldMissing($fields, $targetField)) {
+                continue;
+            }
+            $fields[$targetField] = $parentFields[$parentField];
+            $inherited[$targetField] = [
+                'source' => $parentKey,
+                'field' => $parentField,
+                'value' => $parentFields[$parentField],
+            ];
+        }
+
+        $this->inheritCrossrefDateFields($fields, $inherited, $parentKey, $parentFields);
+
+        foreach ($this->crossrefDirectFields() as $field) {
+            if (($parentFields[$field] ?? '') === '' || !$this->fieldMissing($fields, $field)) {
+                continue;
+            }
+            $fields[$field] = $parentFields[$field];
+            $inherited[$field] = [
+                'source' => $parentKey,
+                'field' => $field,
+                'value' => $parentFields[$field],
+            ];
+        }
+
+        return [$fields, $inherited];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param array<string, array{source:string, field:string, value:string}> $inherited
+     * @param array<string, string> $parentFields
+     */
+    private function inheritCrossrefDateFields(array &$fields, array &$inherited, string $parentKey, array $parentFields): void
+    {
+        if (!$this->fieldMissing($fields, 'date') || !$this->fieldMissing($fields, 'year')) {
+            return;
+        }
+
+        if (($parentFields['date'] ?? '') !== '') {
+            $fields['date'] = $parentFields['date'];
+            $inherited['date'] = [
+                'source' => $parentKey,
+                'field' => 'date',
+                'value' => $parentFields['date'],
+            ];
+
+            return;
+        }
+
+        foreach (['year', 'month', 'day'] as $field) {
+            if (($parentFields[$field] ?? '') === '') {
+                continue;
+            }
+            $fields[$field] = $parentFields[$field];
+            $inherited[$field] = [
+                'source' => $parentKey,
+                'field' => $field,
+                'value' => $parentFields[$field],
+            ];
+        }
+    }
+
+    private function crossrefContainerTitleTarget(string $type): string
+    {
+        return match ($type) {
+            'article' => 'journaltitle',
+            default => 'booktitle',
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function crossrefDirectFields(): array
+    {
+        return [
+            'booktitle',
+            'booksubtitle',
+            'booktitleaddon',
+            'journaltitle',
+            'journal',
+            'journalsubtitle',
+            'publisher',
+            'institution',
+            'organization',
+            'address',
+            'location',
+            'editor',
+            'series',
+            'shortseries',
+            'seriesnumber',
+            'volume',
+            'edition',
+            'isbn',
+            'issn',
+            'language',
+            'langid',
+            'hyphenation',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function fieldMissing(array $fields, string $field): bool
+    {
+        return ($fields[$field] ?? '') === '';
     }
 
     /**
