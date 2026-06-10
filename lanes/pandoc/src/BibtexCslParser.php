@@ -690,10 +690,10 @@ final class BibtexCslParser
         $page = self::normalizePages(self::firstField($fields, ['pages', 'page']));
         $publisherList = self::literalListFromFirstField($fields, ['publisher', 'institution', 'school', 'organization']);
         $publisherPlaceList = self::literalListFromFirstField($fields, self::publisherPlaceFieldNames($type, $fields));
-        $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher']);
-        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress']);
+        $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher', 'originalpublisher', 'original-publisher']);
+        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place']);
         $languageList = self::literalListFromFirstField($fields, ['language']);
-        $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage']);
+        $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage', 'originallanguage', 'original-language']);
         $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'eventlocation', 'eventplace', 'venue']);
         $eventPlace = self::literalListDisplay($eventPlaceList);
         if ($eventPlace === '') {
@@ -824,8 +824,8 @@ final class BibtexCslParser
             'author-type' => self::firstField($fields, ['authortype', 'author-type']),
             'container-author-type' => self::firstField($fields, ['bookauthortype', 'bookauthor-type', 'container-author-type']),
             'date-addon' => self::firstField($fields, ['dateaddon', 'date-addon', 'dateaddendum', 'date-addendum']),
-            'original-title' => self::composedTitle($fields, ['origtitle'], ['origsubtitle']),
-            'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon']),
+            'original-title' => self::composedTitle($fields, ['origtitle', 'originaltitle', 'original-title'], ['origsubtitle', 'originalsubtitle', 'original-subtitle']),
+            'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon']),
             'original-genre' => self::firstField($fields, ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
@@ -1091,7 +1091,7 @@ final class BibtexCslParser
             $item['issued'] = $issued;
         }
 
-        $originalDate = self::dateFromFields($fields, ['origdate'], ['origyear', 'origmonth', 'origday'], [
+        $originalDate = self::dateFromFields($fields, ['origdate', 'originaldate', 'original-date'], ['origyear', 'origmonth', 'origday'], [
             'hour' => 'orighour',
             'minute' => 'origminute',
             'second' => 'origsecond',
@@ -1101,6 +1101,9 @@ final class BibtexCslParser
             'endsecond' => 'origendsecond',
             'endtimezone' => 'origendtimezone',
         ], ['origendyear', 'origendmonth', 'origendday']);
+        if ($originalDate === null) {
+            $originalDate = self::dateFromFields($fields, [], ['originalyear', 'originalmonth', 'originalday'], [], ['originalendyear', 'originalendmonth', 'originalendday']);
+        }
         if ($originalDate !== null) {
             $originalDate = self::dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
             $item['original-date'] = $originalDate;

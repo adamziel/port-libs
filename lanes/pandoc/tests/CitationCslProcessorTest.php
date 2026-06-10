@@ -24033,6 +24033,130 @@ XML);
         $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
         $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
     },
+    'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-original,
+  author                   = {Diaz, Dee},
+  title                    = {Alias Review Manual},
+  date                     = {2026},
+  publisher                = {Review Press},
+  original-title           = {Manual Fuente},
+  original-subtitle        = {Archivo Appendix},
+  original-title-addon     = {source leaf},
+  original-date            = {1999-03},
+  original-publisher       = {{Archivo Press} and {Migration Desk}},
+  original-publisher-place = {{Madrid} and {Barcelona}},
+  original-language        = {{spanish} and {catalan}}
+}
+
+@book{compact-original,
+  author                 = {Ng, Nia},
+  title                  = {Compact Alias Manual},
+  date                   = {2025},
+  originaltitle          = {Manual Original},
+  originalsubtitle       = {Compact Appendix},
+  originaltitleaddon     = {compact source leaf},
+  originalyear           = {2001},
+  originalmonth          = {4},
+  originalday            = {5},
+  originalpublisher      = {Legacy Press},
+  originalpublisherplace = {Lyon},
+  originallanguage       = {french}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Manual Fuente: Archivo Appendix', $items[0]['original-title'] ?? null);
+        $t->same('source leaf', $items[0]['original-title-addon'] ?? null);
+        $t->same(['date-parts' => [[1999, 3]]], $items[0]['original-date'] ?? null);
+        $t->same('Archivo Press; Migration Desk', $items[0]['original-publisher'] ?? null);
+        $t->same('Madrid; Barcelona', $items[0]['original-publisher-place'] ?? null);
+        $t->same(['spanish', 'catalan'], $items[0]['original-language-list'] ?? null);
+        $t->same('Manual Original: Compact Appendix', $items[1]['original-title'] ?? null);
+        $t->same('compact source leaf', $items[1]['original-title-addon'] ?? null);
+        $t->same(['date-parts' => [[2001, 4, 5]]], $items[1]['original-date'] ?? null);
+        $t->same('Legacy Press', $items[1]['original-publisher'] ?? null);
+        $t->same('Lyon', $items[1]['original-publisher-place'] ?? null);
+        $t->same('french', $items[1]['original-language'] ?? null);
+        $t->same('Manual Fuente', $items[0]['rawBibtex']['fields']['original-title'] ?? null);
+        $t->same('2001', $items[1]['rawBibtex']['fields']['originalyear'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-original');
+        $compact = $processor->item('compact-original');
+        $t->same('Manual Fuente: Archivo Appendix', $hyphen['originalTitle'] ?? null);
+        $t->same('source leaf', $hyphen['originalTitleAddon'] ?? null);
+        $t->same('1999-03', $hyphen['originalDate']['display'] ?? null);
+        $t->same(['Archivo Press', 'Migration Desk'], $hyphen['originalPublisherList'] ?? null);
+        $t->same(['Madrid', 'Barcelona'], $hyphen['originalPublisherPlaceList'] ?? null);
+        $t->same(['spanish', 'catalan'], $hyphen['originalLanguageList'] ?? null);
+        $t->same('Manual Original: Compact Appendix', $compact['originalTitle'] ?? null);
+        $t->same('2001-04-05', $compact['originalDate']['display'] ?? null);
+        $t->same('Legacy Press', $compact['originalPublisher'] ?? null);
+        $t->same('Lyon', $compact['originalPublisherPlace'] ?? null);
+        $t->same('french', $compact['originalLanguage'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Original Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-original-alias-review</id>
+    <updated>2026-06-10T16:26:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-title"/>
+        <date variable="original-date"/>
+        <text variable="original-publisher"/>
+        <text variable="original-publisher-place"/>
+        <text variable="original-language"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <date variable="original-date"/>
+      <text variable="original-publisher-list"/>
+      <text variable="original-publisher-place-list"/>
+      <text variable="original-language-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Original Alias Review', $summary['title'] ?? null);
+        $t->same('original-title', $citationChildren[1]['variable'] ?? null);
+        $t->same('original-date', $citationChildren[2]['variable'] ?? null);
+        $t->same('original-publisher', $citationChildren[3]['variable'] ?? null);
+        $t->same('original-publisher-place', $citationChildren[4]['variable'] ?? null);
+        $t->same('original-language', $citationChildren[5]['variable'] ?? null);
+        $t->same('[Diaz | Manual Fuente: Archivo Appendix | 1999-03 | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; catalan; Ng | Manual Original: Compact Appendix | 2001-04-05 | Legacy Press | Lyon | french]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'hyphen-original', 'text' => '[@hyphen-original]']),
+            new AstNode('citation', ['id' => 'compact-original', 'text' => '[@compact-original]']),
+        ]));
+        $t->same('Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan', $styled->renderBibliographyEntry('hyphen-original'));
+        $t->same('Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french', $styled->renderBibliographyEntry('compact-original'));
+
+        $default = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same(
+            'Diaz, Dee. Alias Review Manual. Review Press, 2026. Original title: Manual Fuente: Archivo Appendix. Original title addendum: source leaf. Original work published 1999-03. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. Original language: spanish; catalan.',
+            $default->renderBibliographyEntry('hyphen-original')
+        );
+
+        $document = (new MarkdownReader())->read('Original alias sources [@hyphen-original; @compact-original] keep source publication metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original alias sources [Diaz | Manual Fuente: Archivo Appendix | 1999-03 | Archivo Press; Migration Desk | Madrid; Barcelona | spanish; catalan; Ng | Manual Original: Compact Appendix | 2001-04-05 | Legacy Press | Lyon | french] keep source publication metadata visible.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
