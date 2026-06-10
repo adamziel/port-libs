@@ -4780,6 +4780,146 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
     },
+    'maps bounded biblatex hyphenated title aliases into csl variables' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-title-manual,
+  author             = {Smith, Ada},
+  title              = {Hyphen Alias Manual},
+  subtitle           = {Source Edition},
+  short-title        = {Alias Manual},
+  title-addon        = {Reviewer appendix},
+  main-title         = {Migration Dossier},
+  main-subtitle      = {Archive Set},
+  main-title-addon   = {Set addendum},
+  volume-title       = {Volume Review},
+  part-title         = {Part Review},
+  issue-title        = {Issue Packet},
+  issue-subtitle     = {Special Review},
+  issue-title-addon  = {Issue supplement},
+  date               = {2026},
+  publisher          = {Review Press}
+}
+
+@inproceedings{hyphen-event-paper,
+  author             = {Ng, Nia},
+  title              = {Event Alias Paper},
+  book-title         = {Review Proceedings},
+  book-subtitle      = {Reviewer Track},
+  book-title-addon   = {Container supplement},
+  event-title        = {Import Summit},
+  event-title-addon  = {Hyphen event note},
+  event-type         = {workshop},
+  date               = {2025},
+  pages              = {5--8}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Alias Manual', $items[0]['short-title'] ?? null);
+        $t->same('Reviewer appendix', $items[0]['title-addon'] ?? null);
+        $t->same('Migration Dossier: Archive Set', $items[0]['main-title'] ?? null);
+        $t->same('Set addendum', $items[0]['main-title-addon'] ?? null);
+        $t->same('Volume Review', $items[0]['volume-title'] ?? null);
+        $t->same('Part Review', $items[0]['part-title'] ?? null);
+        $t->same('Issue Packet: Special Review', $items[0]['issue-title'] ?? null);
+        $t->same('Issue supplement', $items[0]['issue-title-addon'] ?? null);
+        $t->same('Review Proceedings: Reviewer Track', $items[1]['container-title'] ?? null);
+        $t->same('Container supplement', $items[1]['container-title-addon'] ?? null);
+        $t->same('Import Summit', $items[1]['event'] ?? null);
+        $t->same('Hyphen event note', $items[1]['event-title-addon'] ?? null);
+        $t->same('workshop', $items[1]['event-type'] ?? null);
+        $t->same('Alias Manual', $items[0]['rawBibtex']['fields']['short-title'] ?? null);
+        $t->same('Review Proceedings', $items[1]['rawBibtex']['fields']['book-title'] ?? null);
+        $t->same('Hyphen event note', $items[1]['rawBibtex']['fields']['event-title-addon'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('hyphen-title-manual');
+        $paper = $processor->item('hyphen-event-paper');
+        $t->same('Alias Manual', $manual['shortTitle'] ?? null);
+        $t->same('Reviewer appendix', $manual['titleAddon'] ?? null);
+        $t->same('Migration Dossier: Archive Set', $manual['mainTitle'] ?? null);
+        $t->same('Set addendum', $manual['mainTitleAddon'] ?? null);
+        $t->same('Volume Review', $manual['volumeTitle'] ?? null);
+        $t->same('Part Review', $manual['partTitle'] ?? null);
+        $t->same('Issue Packet: Special Review', $manual['issueTitle'] ?? null);
+        $t->same('Issue supplement', $manual['issueTitleAddon'] ?? null);
+        $t->same('Review Proceedings: Reviewer Track', $paper['containerTitle'] ?? null);
+        $t->same('Container supplement', $paper['containerTitleAddon'] ?? null);
+        $t->same('Import Summit', $paper['eventTitle'] ?? null);
+        $t->same('Hyphen event note', $paper['eventTitleAddon'] ?? null);
+        $t->same('workshop', $paper['eventType'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Hyphen Title Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-hyphen-title-alias-review</id>
+    <updated>2026-06-10T18:05:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="short-title"/>
+        <text variable="title"/>
+        <text variable="title-addon"/>
+        <text variable="main-title"/>
+        <text variable="main-title-addon"/>
+        <text variable="volume-title"/>
+        <text variable="part-title"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+        <text variable="container-title"/>
+        <text variable="container-title-addon"/>
+        <text variable="event"/>
+        <text variable="event-title-addon"/>
+        <text variable="event-type"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="short-title"/>
+      <text variable="title-addon"/>
+      <text variable="main-title"/>
+      <text variable="main-title-addon"/>
+      <text variable="volume-title"/>
+      <text variable="part-title"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+      <text variable="event"/>
+      <text variable="event-title-addon"/>
+      <text variable="event-type"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Hyphen Title Alias Review', $summary['title'] ?? null);
+        $t->same('short-title', $citationChildren[0]['variable'] ?? null);
+        $t->same('main-title-addon', $citationChildren[4]['variable'] ?? null);
+        $t->same('event-type', $citationChildren[13]['variable'] ?? null);
+        $t->same('[Alias Manual | Hyphen Alias Manual: Source Edition | Reviewer appendix | Migration Dossier: Archive Set | Set addendum | Volume Review | Part Review | Issue Packet: Special Review | Issue supplement; Event Alias Paper | Review Proceedings: Reviewer Track | Container supplement | Import Summit | Hyphen event note | workshop]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'hyphen-title-manual', 'text' => '[@hyphen-title-manual]']),
+            new AstNode('citation', ['id' => 'hyphen-event-paper', 'text' => '[@hyphen-event-paper]']),
+        ]));
+        $t->same('Hyphen Alias Manual: Source Edition :: Alias Manual :: Reviewer appendix :: Migration Dossier: Archive Set :: Set addendum :: Volume Review :: Part Review :: Issue Packet: Special Review :: Issue supplement', $styled->renderBibliographyEntry('hyphen-title-manual'));
+        $t->same('Event Alias Paper :: Review Proceedings: Reviewer Track :: Container supplement :: Import Summit :: Hyphen event note :: workshop', $styled->renderBibliographyEntry('hyphen-event-paper'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography(
+            (new MarkdownReader())->read('Hyphen title aliases [@hyphen-title-manual; @hyphen-event-paper] stay visible.'),
+            'Works Cited'
+        ));
+        $t->contains('<p>Hyphen title aliases [Alias Manual | Hyphen Alias Manual: Source Edition | Reviewer appendix | Migration Dossier: Archive Set | Set addendum | Volume Review | Part Review | Issue Packet: Special Review | Issue supplement; Event Alias Paper | Review Proceedings: Reviewer Track | Container supplement | Import Summit | Hyphen event note | workshop] stay visible.</p>', $blocks);
+        $t->contains('<dd>Hyphen Alias Manual: Source Edition :: Alias Manual :: Reviewer appendix :: Migration Dossier: Archive Set :: Set addendum :: Volume Review :: Part Review :: Issue Packet: Special Review :: Issue supplement</dd>', $blocks);
+        $t->contains('<dd>Event Alias Paper :: Review Proceedings: Reviewer Track :: Container supplement :: Import Summit :: Hyphen event note :: workshop</dd>', $blocks);
+    },
     'applies bounded csl short form text variables for titles and containers' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [

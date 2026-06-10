@@ -600,7 +600,7 @@ final class BibtexCslParser
             }
         }
 
-        unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon']);
+        unset($inherited['title'], $inherited['subtitle'], $inherited['titleaddon'], $inherited['title-addon']);
 
         return $inherited;
     }
@@ -628,14 +628,14 @@ final class BibtexCslParser
     private static function crossrefParentContainerTitleParts(string $containerField, array $parentFields): array
     {
         $subtitleFields = $containerField === 'journal'
-            ? ['journalsubtitle', 'booksubtitle', 'subtitle']
-            : ['booksubtitle', 'journalsubtitle', 'subtitle'];
+            ? ['journalsubtitle', 'journal-subtitle', 'booksubtitle', 'book-subtitle', 'container-subtitle', 'subtitle']
+            : ['booksubtitle', 'book-subtitle', 'journalsubtitle', 'journal-subtitle', 'container-subtitle', 'subtitle'];
         $titleAddonFields = $containerField === 'journal'
-            ? ['journaltitleaddon', 'booktitleaddon', 'titleaddon']
-            : ['booktitleaddon', 'journaltitleaddon', 'titleaddon'];
+            ? ['journaltitleaddon', 'journal-title-addon', 'booktitleaddon', 'book-title-addon', 'container-title-addon', 'titleaddon', 'title-addon']
+            : ['booktitleaddon', 'book-title-addon', 'journaltitleaddon', 'journal-title-addon', 'container-title-addon', 'titleaddon', 'title-addon'];
 
         return [
-            'title' => self::firstRawField($parentFields, ['booktitle', 'journaltitle', 'journal', 'title']),
+            'title' => self::firstRawField($parentFields, ['booktitle', 'book-title', 'journaltitle', 'journal-title', 'journal', 'container-title', 'title']),
             'subtitle' => self::firstRawField($parentFields, $subtitleFields),
             'titleAddon' => self::firstRawField($parentFields, $titleAddonFields),
         ];
@@ -731,22 +731,22 @@ final class BibtexCslParser
             'extra-date' => self::firstField($fields, ['extradate', 'extra-date']),
             'extra-title' => self::firstField($fields, ['extratitle', 'extra-title']),
             'title' => self::composedTitle($fields, ['title'], ['subtitle']),
-            'short-title' => self::firstField($fields, ['shorttitle']),
-            'title-addon' => self::firstField($fields, ['titleaddon']),
+            'short-title' => self::firstField($fields, ['shorttitle', 'short-title', 'title-short']),
+            'title-addon' => self::firstField($fields, ['titleaddon', 'title-addon']),
             'translated-title' => self::firstField($fields, ['titletranslation', 'title-translation', 'translatedtitle', 'translated-title']),
             'reviewed-title' => self::composedTitle($fields, ['reviewtitle', 'reviewedtitle', 'reviewed-title'], ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']),
-            'container-title' => self::composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']),
+            'container-title' => self::composedTitle($fields, ['journaltitle', 'journal-title', 'journal', 'booktitle', 'book-title', 'container-title'], ['journalsubtitle', 'journal-subtitle', 'booksubtitle', 'book-subtitle', 'container-subtitle']),
             'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation']),
             'journalAbbreviation' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation']),
-            'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon']),
-            'main-title' => self::composedTitle($fields, ['maintitle'], ['mainsubtitle']),
-            'main-title-addon' => self::firstField($fields, ['maintitleaddon']),
-            'volume-title' => self::firstField($fields, ['volumetitle']),
-            'part-title' => self::firstField($fields, ['parttitle']),
-            'event' => self::firstField($fields, ['eventtitle']),
-            'event-title-addon' => self::firstField($fields, ['eventtitleaddon']),
+            'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'journal-title-addon', 'booktitleaddon', 'book-title-addon', 'containertitleaddon', 'container-title-addon']),
+            'main-title' => self::composedTitle($fields, ['maintitle', 'main-title'], ['mainsubtitle', 'main-subtitle']),
+            'main-title-addon' => self::firstField($fields, ['maintitleaddon', 'main-title-addon']),
+            'volume-title' => self::firstField($fields, ['volumetitle', 'volume-title']),
+            'part-title' => self::firstField($fields, ['parttitle', 'part-title']),
+            'event' => self::firstField($fields, ['eventtitle', 'event-title']),
+            'event-title-addon' => self::firstField($fields, ['eventtitleaddon', 'event-title-addon']),
             'event-place' => $eventPlace,
-            'event-type' => self::firstField($fields, ['eventtype']),
+            'event-type' => self::firstField($fields, ['eventtype', 'event-type']),
             'publisher' => self::literalListDisplay($publisherList),
             'publisher-place' => self::literalListDisplay($publisherPlaceList),
             'page' => $page,
@@ -761,8 +761,8 @@ final class BibtexCslParser
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),
-            'issue-title' => self::composedTitle($fields, ['issuetitle'], ['issuesubtitle']),
-            'issue-title-addon' => self::firstField($fields, ['issuetitleaddon']),
+            'issue-title' => self::composedTitle($fields, ['issuetitle', 'issue-title'], ['issuesubtitle', 'issue-subtitle']),
+            'issue-title-addon' => self::firstField($fields, ['issuetitleaddon', 'issue-title-addon']),
             'edition' => self::firstField($fields, ['edition']),
             'collection-title' => self::firstField($fields, ['series']),
             'collection-title-short' => self::firstField($fields, ['shortseries', 'short-series', 'series-short', 'shortcollection', 'collection-title-short', 'collectiontitleshort']),
