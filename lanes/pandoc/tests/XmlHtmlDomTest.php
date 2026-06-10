@@ -420,6 +420,56 @@ XML, 'package reader XML');
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes html embedded image and media source candidates for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<picture><source media="(min-width: 60em)" type="image/avif" srcset="hero.avif 1x, hero@2x.avif 2x"><source type="image/webp" srcset="hero.webp 800w"><img src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w" sizes="100vw" alt="Hero &amp; Source" loading="lazy" decoding="async"></picture>'
+                . '<video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source src="clip.mp4" type="video/mp4" media="screen"><track kind="captions" srclang="en" label="English" src="captions.vtt" default></video>'
+                . '<audio src="chapter.mp3" controls><source src="chapter.ogg" type="audio/ogg"></audio>',
+            'embedded media review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $picture = $summary[0];
+        $image = $picture['image'];
+        $video = $summary[1];
+        $audio = $summary[2];
+
+        $t->same('picture', $picture['embeddedResource']);
+        $t->same(2, count($picture['pictureSources']));
+        $t->same('image/avif', $picture['pictureSources'][0]['type']);
+        $t->same('(min-width: 60em)', $picture['pictureSources'][0]['media']);
+        $t->same('hero.avif', $picture['pictureSources'][0]['srcsetCandidates'][0]['url']);
+        $t->same(['2x'], $picture['pictureSources'][0]['srcsetCandidates'][1]['descriptors']);
+        $t->same('image', $image['embeddedResource']);
+        $t->same('hero.jpg', $image['src']);
+        $t->same('Hero & Source', $image['alt']);
+        $t->same('hero-small.jpg', $image['srcsetCandidates'][0]['url']);
+        $t->same('1200w', $image['srcsetCandidates'][1]['descriptor']);
+        $t->same('100vw', $image['sizes']);
+        $t->same('lazy', $image['loading']);
+        $t->same('async', $image['decoding']);
+
+        $t->same('video', $video['embeddedResource']);
+        $t->same(true, $video['controls']);
+        $t->same('poster.jpg', $video['poster']);
+        $t->same('metadata', $video['preload']);
+        $t->same('clip.webm', $video['mediaSources'][0]['src']);
+        $t->same('video/mp4', $video['mediaSources'][1]['type']);
+        $t->same('screen', $video['mediaSources'][1]['media']);
+        $t->same('captions', $video['tracks'][0]['kind']);
+        $t->same('en', $video['tracks'][0]['srclang']);
+        $t->same('English', $video['tracks'][0]['label']);
+        $t->same('captions.vtt', $video['tracks'][0]['src']);
+        $t->same(true, $video['tracks'][0]['default']);
+
+        $t->same('audio', $audio['embeddedResource']);
+        $t->same('chapter.mp3', $audio['src']);
+        $t->same(true, $audio['controls']);
+        $t->same('chapter.ogg', $audio['mediaSources'][0]['src']);
+        $t->same('audio/ogg', $audio['mediaSources'][0]['type']);
+        $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

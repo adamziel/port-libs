@@ -835,22 +835,8 @@ final class XmlHtmlDom
                 }
             }
         }
-        if ($name === 'audio' || $name === 'video') {
-            $summary['media'] = $name;
-            $summary['sources'] = self::mediaSourceSummaries($node);
-            $summary['tracks'] = self::mediaTrackSummaries($node);
-            $summary['controls'] = $node->hasAttribute('controls');
-            $summary['autoplay'] = $node->hasAttribute('autoplay');
-            $summary['loop'] = $node->hasAttribute('loop');
-            $summary['muted'] = $node->hasAttribute('muted');
-            $summary['preload'] = self::mediaPreload($node);
-            if ($name === 'video' && $node->hasAttribute('poster')) {
-                $summary['poster'] = $node->getAttribute('poster');
-            }
-            $fallbackText = self::normalizedTextWithoutMediaResourceChildren($node);
-            if ($fallbackText !== '') {
-                $summary['fallbackText'] = $fallbackText;
-            }
+        if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track'], true)) {
+            $summary += self::embeddedResourceSummary($node, $name);
         }
 
         return [$summary];
@@ -868,6 +854,161 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function embeddedResourceSummary(\DOMElement $element, string $name): array
+    {
+        return match ($name) {
+            'picture' => self::pictureSummary($element),
+            'img' => self::imageSummary($element),
+            'audio', 'video' => self::mediaElementSummary($element, $name),
+            'source' => ['embeddedResource' => 'source'] + self::sourceElementSummary($element),
+            'track' => ['embeddedResource' => 'track'] + self::trackElementSummary($element),
+            default => [],
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function pictureSummary(\DOMElement $picture): array
+    {
+        $image = self::firstDescendantHtmlElement($picture, 'img');
+
+        return [
+            'embeddedResource' => 'picture',
+            'pictureSources' => array_map(
+                static fn (\DOMElement $source): array => self::sourceElementSummary($source),
+                self::descendantHtmlElements($picture, 'source'),
+            ),
+            'image' => $image instanceof \DOMElement ? self::imageSummary($image) : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageSummary(\DOMElement $image): array
+    {
+        $srcset = self::attributeOrNull($image, 'srcset');
+
+        return [
+            'embeddedResource' => 'image',
+            'src' => self::attributeOrNull($image, 'src'),
+            'alt' => self::attributeOrNull($image, 'alt'),
+            'srcset' => $srcset,
+            'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
+            'sizes' => self::attributeOrNull($image, 'sizes'),
+            'loading' => self::attributeOrNull($image, 'loading'),
+            'decoding' => self::attributeOrNull($image, 'decoding'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaElementSummary(\DOMElement $element, string $name): array
+    {
+        $summary = [
+            'embeddedResource' => $name,
+            'media' => $name,
+            'src' => self::attributeOrNull($element, 'src'),
+            'controls' => $element->hasAttribute('controls'),
+            'autoplay' => $element->hasAttribute('autoplay'),
+            'loop' => $element->hasAttribute('loop'),
+            'muted' => $element->hasAttribute('muted'),
+            'preload' => self::mediaPreload($element),
+            'sources' => self::mediaSourceSummaries($element),
+            'mediaSources' => array_map(
+                static fn (\DOMElement $source): array => self::sourceElementSummary($source),
+                self::mediaResourceElements($element, 'source'),
+            ),
+            'tracks' => self::mediaTrackSummaries($element),
+        ];
+
+        if ($name === 'video') {
+            $summary['poster'] = self::attributeOrNull($element, 'poster');
+        }
+
+        $fallbackText = self::normalizedTextWithoutMediaResourceChildren($element);
+        if ($fallbackText !== '') {
+            $summary['fallbackText'] = $fallbackText;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{src:?string, srcset:?string, srcsetCandidates:list<array<string, mixed>>, type:?string, media:?string, sizes:?string}
+     */
+    private static function sourceElementSummary(\DOMElement $source): array
+    {
+        $srcset = self::attributeOrNull($source, 'srcset');
+
+        return [
+            'src' => self::attributeOrNull($source, 'src'),
+            'srcset' => $srcset,
+            'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
+            'type' => self::attributeOrNull($source, 'type'),
+            'media' => self::attributeOrNull($source, 'media'),
+            'sizes' => self::attributeOrNull($source, 'sizes'),
+        ];
+    }
+
+    /**
+     * @return array{src:?string, kind:string, srclang:?string, label:?string, default:bool}
+     */
+    private static function trackElementSummary(\DOMElement $track): array
+    {
+        return [
+            'src' => self::attributeOrNull($track, 'src'),
+            'kind' => self::trackKind($track),
+            'srclang' => self::attributeOrNull($track, 'srclang'),
+            'label' => self::attributeOrNull($track, 'label'),
+            'default' => $track->hasAttribute('default'),
+        ];
+    }
+
+    /**
+     * @return list<array{url:string, descriptor:string, descriptors:list<string>, raw:string}>
+     */
+    private static function srcsetCandidateSummaries(?string $srcset): array
+    {
+        if ($srcset === null || trim($srcset) === '') {
+            return [];
+        }
+
+        $candidates = [];
+        foreach (explode(',', $srcset) as $candidate) {
+            $raw = trim($candidate);
+            if ($raw === '') {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+            if (!is_array($parts) || $parts === []) {
+                continue;
+            }
+
+            $url = array_shift($parts);
+            $descriptors = array_values($parts);
+            $candidates[] = [
+                'url' => (string) $url,
+                'descriptor' => implode(' ', $descriptors),
+                'descriptors' => $descriptors,
+                'raw' => $raw,
+            ];
+        }
+
+        return $candidates;
+    }
+
+    private static function attributeOrNull(\DOMElement $element, string $name): ?string
+    {
+        return $element->hasAttribute($name) ? $element->getAttribute($name) : null;
     }
 
     private static function mediaPreload(\DOMElement $media): string
@@ -1114,6 +1255,30 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    private static function firstDescendantHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        foreach (self::descendantHtmlElements($element, $name) as $descendant) {
+            return $descendant;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function descendantHtmlElements(\DOMElement $element, string $name): array
+    {
+        $descendants = [];
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement && strtolower(self::htmlElementName($descendant)) === $name) {
+                $descendants[] = $descendant;
+            }
+        }
+
+        return $descendants;
     }
 
     private static function isDescendantOrSame(\DOMElement $element, \DOMElement $ancestor): bool
