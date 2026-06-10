@@ -9019,6 +9019,10 @@ final class EpubReader
         $hiddenItemCount = 0;
         $itemDiagnosticCount = 0;
         $itemDiagnostics = [];
+        $sourceDiagnosticCount = 0;
+        $sourceDiagnostics = [];
+        $invalidFragmentTargetCount = 0;
+        $invalidFragmentDiagnostics = [];
         $navItemCount = 0;
         $targetedNavItemCount = 0;
         $targetsBySection = [];
@@ -9066,12 +9070,48 @@ final class EpubReader
                     'itemId' => $itemId,
                     'labelId' => $labelId,
                     'title' => is_string($item['title'] ?? null) ? $item['title'] : '',
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                    'part' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                    'fragmentKind' => is_string($item['fragmentKind'] ?? null) ? $item['fragmentKind'] : null,
                 ];
                 if ($itemId !== null && $itemId !== '') {
                     $itemIds[$itemId][] = $itemContext;
                 }
                 if ($labelId !== null && $labelId !== '') {
                     $labelIds[$labelId][] = $itemContext;
+                }
+
+                foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $sourceDiagnostic) {
+                    if (!is_array($sourceDiagnostic)) {
+                        continue;
+                    }
+
+                    ++$sourceDiagnosticCount;
+                    $normalizedSourceDiagnostic = $itemContext + $sourceDiagnostic;
+                    $sourceDiagnostics[] = $normalizedSourceDiagnostic;
+                    $diagnostics[] = $normalizedSourceDiagnostic;
+                }
+
+                foreach (['epubCfi' => 'epub-cfi', 'mediaFragment' => 'media-fragment'] as $field => $fragmentKind) {
+                    $fragment = is_array($item[$field] ?? null) ? $item[$field] : null;
+                    if ($fragment === null || ($fragment['valid'] ?? true) === true) {
+                        continue;
+                    }
+
+                    ++$invalidFragmentTargetCount;
+                    foreach (is_array($fragment['diagnostics'] ?? null) ? $fragment['diagnostics'] : [] as $fragmentDiagnostic) {
+                        if (!is_array($fragmentDiagnostic)) {
+                            continue;
+                        }
+
+                        $normalizedFragmentDiagnostic = $itemContext + [
+                            'fragmentKind' => $fragmentKind,
+                            'fragmentReport' => $fragment,
+                        ] + $fragmentDiagnostic;
+                        $invalidFragmentDiagnostics[] = $normalizedFragmentDiagnostic;
+                        $diagnostics[] = $normalizedFragmentDiagnostic;
+                    }
                 }
 
                 $target = is_string($item['target'] ?? null) ? trim($item['target']) : '';
@@ -9395,6 +9435,20 @@ final class EpubReader
             ];
         }
 
+        $diagnosticTypes = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+
+            $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+        }
+
         return [
             'present' => $sections !== [],
             'part' => $part,
@@ -9429,6 +9483,11 @@ final class EpubReader
             'hiddenItemCount' => $hiddenItemCount,
             'itemDiagnosticCount' => $itemDiagnosticCount,
             'itemDiagnostics' => $itemDiagnostics,
+            'sourceDiagnosticCount' => $sourceDiagnosticCount,
+            'sourceDiagnostics' => $sourceDiagnostics,
+            'invalidFragmentTargetCount' => $invalidFragmentTargetCount,
+            'invalidFragmentDiagnostics' => $invalidFragmentDiagnostics,
+            'diagnosticTypes' => $diagnosticTypes,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];

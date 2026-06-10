@@ -2502,6 +2502,78 @@ XML;
 
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
+    'reports EPUB nav source and fragment diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithSourceDiagnostics = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc-a" epub:type="toc">
+      <h1>Main contents</h1>
+      <ol>
+        <li id="bad-cfi"><a id="bad-cfi-link" href="text/chapter1.xhtml#epubcfi(">Broken CFI</a></li>
+        <li id="missing-target"><a href="text/missing.xhtml#lost">Missing target</a></li>
+      </ol>
+    </nav>
+    <nav id="toc-b" epub:type="toc">
+      <h2>Duplicate contents</h2>
+      <ol>
+        <li id="bad-media-fragment"><a href="text/chapter2.xhtml#xywh=percent:10,-1,30,40">Bad crop</a></li>
+      </ol>
+    </nav>
+    <nav id="untagged">
+      <h2>Untyped auxiliary list</h2>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithSourceDiagnostics,
+        ));
+
+        $nav = $result['nav'];
+        $report = $nav['documentDiagnostics'];
+
+        $t->same(3, $nav['sectionCount']);
+        $t->same(3, $report['sectionCount']);
+        $t->same(2, $report['invalidFragmentTargetCount']);
+        $t->same(1, $report['sourceDiagnosticCount']);
+        $t->same(1, $report['untypedSectionCount']);
+        $t->same(1, $report['emptySectionCount']);
+        $t->same(1, $report['duplicatePrimaryTypeCount']);
+        $t->same(7, $report['diagnosticCount']);
+        $t->same([
+            'invalid-epub-cfi-fragment' => 1,
+            'missing-nav-reference' => 1,
+            'invalid-media-fragment-xywh-bounds' => 1,
+            'missing-nav-section-type' => 1,
+            'missing-nav-section-ordered-list' => 1,
+            'empty-nav-section' => 1,
+            'duplicate-primary-nav-section' => 1,
+        ], $report['diagnosticTypes']);
+
+        $t->same('missing-nav-reference', $report['sourceDiagnostics'][0]['type']);
+        $t->same('text/missing.xhtml#lost', $report['sourceDiagnostics'][0]['href']);
+        $t->same('/OEBPS/text/missing.xhtml', $report['sourceDiagnostics'][0]['part']);
+        $t->same([
+            'invalid-epub-cfi-fragment',
+            'invalid-media-fragment-xywh-bounds',
+        ], array_column($report['invalidFragmentDiagnostics'], 'type'));
+        $t->same('/OEBPS/text/chapter1.xhtml#epubcfi(', $report['invalidFragmentDiagnostics'][0]['target']);
+        $t->same('epub-cfi', $report['invalidFragmentDiagnostics'][0]['fragmentKind']);
+        $t->same('/OEBPS/text/chapter2.xhtml#xywh=percent:10,-1,30,40', $report['invalidFragmentDiagnostics'][1]['target']);
+        $t->same('media-fragment', $report['invalidFragmentDiagnostics'][1]['fragmentKind']);
+        $t->same([
+            'invalid-epub-cfi-fragment',
+            'missing-nav-reference',
+            'invalid-media-fragment-xywh-bounds',
+            'missing-nav-section-type',
+            'missing-nav-section-ordered-list',
+            'empty-nav-section',
+            'duplicate-primary-nav-section',
+        ], array_column($report['diagnostics'], 'type'));
+        $t->same($report['diagnosticCount'], $nav['documentDiagnosticCount']);
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
