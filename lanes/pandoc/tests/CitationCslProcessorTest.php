@@ -1994,6 +1994,7 @@ XML);
   translator    = {Curator, Eli and de la Cruz, Ana Maria},
   title         = {Migration Manual},
   origtitle     = {Manual de Migraci{\'o}n},
+  origtype      = {source manual},
   date          = {2026},
   origdate      = {2020-05},
   publisher     = {Review Press},
@@ -2009,6 +2010,7 @@ BIB;
         $t->same('translated-manual', $items[0]['id']);
         $t->same('Migration Manual', $items[0]['title']);
         $t->same('Manual de Migración', $items[0]['original-title']);
+        $t->same('source manual', $items[0]['original-genre']);
         $t->same(['date-parts' => [[2020, 5]]], $items[0]['original-date']);
         $t->same('Archivo Press', $items[0]['original-publisher']);
         $t->same('Madrid', $items[0]['original-publisher-place']);
@@ -2021,6 +2023,7 @@ BIB;
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $item = $processor->item('translated-manual');
         $t->same('Manual de Migración', $item['originalTitle'] ?? null);
+        $t->same('source manual', $item['originalGenre'] ?? null);
         $t->same([2020, 5], $item['originalDate']['parts'] ?? null);
         $t->same('2020-05', $item['originalDate']['display'] ?? null);
         $t->same('Archivo Press', $item['originalPublisher'] ?? null);
@@ -2030,14 +2033,47 @@ BIB;
         $t->same('Ana Maria', $item['translators'][1]['given'] ?? null);
         $t->same('(García 2026)', $processor->renderCitationCluster([$citation('translated-manual', '[@translated-manual]')]));
         $t->same(
-            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
+            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original genre: source manual. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
             $processor->renderBibliographyEntry('translated-manual')
         );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="original-genre"/>
+        <text variable="origtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-genre"/>
+      <text variable="origgenre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[García | source manual | source manual]', $styled->renderCitationCluster([$citation('translated-manual', '[@translated-manual]')]));
+        $t->same('Migration Manual :: source manual :: source manual', $styled->renderBibliographyEntry('translated-manual'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-original-genre',
+            'title' => 'Direct Original Genre Packet',
+            'originalGenre' => 'archive facsimile',
+        ]]);
+        $directItem = $direct->item('direct-original-genre');
+        $t->same('archive facsimile', $directItem['originalGenre'] ?? null);
+        $t->same('Direct Original Genre Packet. Original genre: archive facsimile.', $direct->renderBibliographyEntry('direct-original-genre'));
 
         $document = (new MarkdownReader())->read('Review cites translated source @translated-manual for original publication audit.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Review cites translated source García (2026) for original publication audit.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli; de la Cruz, Ana Maria. Original title: Manual de Migración. Original genre: source manual. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
     'exposes bounded biblatex original publisher variables to csl styles' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'

@@ -819,6 +819,7 @@ final class BibtexCslParser
             'date-addon' => self::firstField($fields, ['dateaddon', 'date-addon', 'dateaddendum', 'date-addendum']),
             'original-title' => self::composedTitle($fields, ['origtitle'], ['origsubtitle']),
             'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon']),
+            'original-genre' => self::firstField($fields, ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),

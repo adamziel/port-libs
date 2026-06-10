@@ -760,6 +760,11 @@ final class CitationCslProcessor
             $parts[] = 'Original title addendum: ' . $originalTitleAddon . '.';
         }
 
+        $originalGenre = (string) ($item['originalGenre'] ?? '');
+        if ($originalGenre !== '') {
+            $parts[] = 'Original genre: ' . $originalGenre . '.';
+        }
+
         $originalDate = $item['originalDate'] ?? null;
         if (is_array($originalDate) && (string) ($originalDate['display'] ?? '') !== '') {
             $parts[] = 'Original work published ' . (string) $originalDate['display'] . '.';
@@ -1005,6 +1010,7 @@ final class CitationCslProcessor
         if ($originalLanguage === '' && $originalLanguageList !== []) {
             $originalLanguage = implode('; ', $originalLanguageList);
         }
+        $originalGenre = self::firstStringField($item, ['original-genre', 'originalGenre', 'origtype', 'origgenre']);
         $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace']);
         $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList']);
         if ($eventPlace === '' && $eventPlaceList !== []) {
@@ -1246,6 +1252,7 @@ final class CitationCslProcessor
             'originalPublisherPlaceList' => $originalPublisherPlaceList !== [] ? $originalPublisherPlaceList : ($originalPublisherPlace !== '' ? [$originalPublisherPlace] : []),
             'originalLanguage' => $originalLanguage,
             'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
+            'originalGenre' => $originalGenre,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'orig-date-addon']),
             'submittedDate' => $submittedDate,
@@ -8967,6 +8974,7 @@ final class CitationCslProcessor
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
             'original-title-addon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
+            'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],
