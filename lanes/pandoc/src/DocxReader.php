@@ -290,6 +290,10 @@ final class DocxReader
                 'byStoreItemID' => $customXmlStore['byStoreItemID'],
             ];
         }
+        $packageRelationshipSummary = $this->packageRelationshipMetadataSummary($packageRelationships);
+        if ($packageRelationshipSummary['roleTargetCount'] > 0) {
+            $metadata['docxPackageRelationships'] = $packageRelationshipSummary;
+        }
 
         return [
             'document' => $document,
@@ -431,6 +435,55 @@ final class DocxReader
                 'count' => count($document->attr('sectionProperties', [])),
                 'items' => $document->attr('sectionProperties', []),
             ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageRelationships
+     * @return array{source:?string, valid:bool, roleTargetCount:int, validRoleTargetCount:int, invalidRoleTargetCount:int, roleCounts:array<string,int>, issueCounts:array<string,int>, issues:list<string>, invalidRelationships:list<array<string,mixed>>}
+     */
+    private function packageRelationshipMetadataSummary(array $packageRelationships): array
+    {
+        $invalidRelationships = [];
+        $relationships = $packageRelationships['relationships'] ?? [];
+        if (is_array($relationships)) {
+            foreach ($relationships as $relationship) {
+                if (!is_array($relationship) || ($relationship['valid'] ?? false) === true) {
+                    continue;
+                }
+
+                $invalidRelationships[] = [
+                    'source' => $relationship['source'] ?? null,
+                    'id' => $relationship['id'] ?? null,
+                    'role' => $relationship['role'] ?? null,
+                    'type' => $relationship['type'] ?? null,
+                    'target' => $relationship['target'] ?? null,
+                    'targetPart' => $relationship['targetPart'] ?? null,
+                    'contentType' => $relationship['contentType'] ?? null,
+                    'expectedContentType' => $relationship['expectedContentType'] ?? null,
+                    'expectedContentTypePrefix' => $relationship['expectedContentTypePrefix'] ?? null,
+                    'expectedExternal' => $relationship['expectedExternal'] ?? null,
+                    'external' => $relationship['external'] ?? null,
+                    'exists' => $relationship['exists'] ?? null,
+                    'sourceAllowed' => $relationship['sourceAllowed'] ?? null,
+                    'issues' => array_values(array_filter(
+                        is_array($relationship['issues'] ?? null) ? $relationship['issues'] : [],
+                        static fn (mixed $issue): bool => is_string($issue) && $issue !== '',
+                    )),
+                ];
+            }
+        }
+
+        return [
+            'source' => is_string($packageRelationships['source'] ?? null) ? $packageRelationships['source'] : null,
+            'valid' => ($packageRelationships['valid'] ?? false) === true,
+            'roleTargetCount' => (int) ($packageRelationships['roleTargetCount'] ?? 0),
+            'validRoleTargetCount' => (int) ($packageRelationships['validRoleTargetCount'] ?? 0),
+            'invalidRoleTargetCount' => (int) ($packageRelationships['invalidRoleTargetCount'] ?? 0),
+            'roleCounts' => is_array($packageRelationships['roleCounts'] ?? null) ? $packageRelationships['roleCounts'] : [],
+            'issueCounts' => is_array($packageRelationships['issueCounts'] ?? null) ? $packageRelationships['issueCounts'] : [],
+            'issues' => is_array($packageRelationships['issues'] ?? null) ? $packageRelationships['issues'] : [],
+            'invalidRelationships' => $invalidRelationships,
         ];
     }
 
@@ -15425,12 +15478,22 @@ final class DocxReader
      */
     private function readCoreProperties(ZipPackage $package, OpcRelationshipGraph $graph): array
     {
-        $corePart = $graph->firstTargetOfType(self::REL_TYPE_CORE_PROPERTIES);
-        if ($corePart === null) {
+        $packageRelationships = $graph->relationshipsForSource('/');
+        if (!$packageRelationships instanceof OpcRelationships) {
             return [];
         }
 
-        $corePart = OpcPackagePath::stripQueryAndFragment($corePart);
+        $relationship = $packageRelationships->firstOfType(self::REL_TYPE_CORE_PROPERTIES);
+        if (!$relationship instanceof OpcRelationship || $relationship->isExternal()) {
+            return [];
+        }
+
+        try {
+            $corePart = OpcPackagePath::stripQueryAndFragment($packageRelationships->resolveTarget($relationship));
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
         if (!$package->has($corePart)) {
             return [];
         }
