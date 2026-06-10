@@ -1397,6 +1397,8 @@ XML;
             '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
     <meta id="fixed-layout" property="rendition:layout" xml:lang="en" dir="ltr">pre-paginated</meta>
     <meta property="rendition:layout">reflowable</meta>
+    <meta id="scroll-flow" property="rendition:flow" xml:lang="en" dir="ltr">scrolled-continuous</meta>
+    <meta property="rendition:flow">sideways</meta>
     <meta property="rendition:orientation" content="landscape"/>
     <meta property="rendition:spread">diagonal</meta>
     <meta property="rendition:spread">none</meta>
@@ -1428,6 +1430,13 @@ XML;
         $t->same('ltr', $rendition['layoutProperty']['selected']['direction']);
         $t->same(false, $rendition['layoutProperty']['valid']);
         $t->same(['pre-paginated', 'reflowable'], $rendition['layoutProperty']['diagnostics'][0]['values']);
+        $t->same('scrolled-continuous', $rendition['flow']);
+        $t->same('scrolled-continuous', $rendition['flowRaw']);
+        $t->same('scroll-flow', $rendition['flowProperty']['selected']['id']);
+        $t->same('en', $rendition['flowProperty']['selected']['language']);
+        $t->same('ltr', $rendition['flowProperty']['selected']['direction']);
+        $t->same(1, $rendition['flowProperty']['invalidCount']);
+        $t->same('invalid-rendition-flow-value', $rendition['flowProperty']['diagnostics'][0]['type']);
         $t->same('landscape', $rendition['orientation']);
         $t->same('none', $rendition['spread']);
         $t->same(1, $rendition['spreadProperty']['invalidCount']);
@@ -1443,7 +1452,7 @@ XML;
         $t->same('bad-viewport', $rendition['viewports'][1]['id']);
         $t->same(false, $rendition['viewports'][1]['valid']);
         $t->same(['width' => 'cover', 'height' => '0', 'scale' => '1'], $rendition['viewports'][1]['parameters']);
-        $t->same(['conflicting-rendition-layout-values', 'invalid-rendition-spread-value', 'invalid-rendition-viewport-width', 'invalid-rendition-viewport-height', 'unknown-rendition-viewport-parameter'], array_column($rendition['diagnostics'], 'type'));
+        $t->same(['conflicting-rendition-layout-values', 'invalid-rendition-flow-value', 'invalid-rendition-spread-value', 'invalid-rendition-viewport-width', 'invalid-rendition-viewport-height', 'unknown-rendition-viewport-parameter'], array_column($rendition['diagnostics'], 'type'));
 
         $t->same($rendition, $summary['renditionLayout']);
         $t->same($rendition, $summary['metadata']['renditionLayout']);

@@ -2343,11 +2343,12 @@ final class EpubPackage
     private static function metadataRenditionLayoutReport(array $metaProperties): array
     {
         $layout = self::renditionMetadataScalarReport($metaProperties, 'layout', ['reflowable', 'pre-paginated']);
+        $flow = self::renditionMetadataScalarReport($metaProperties, 'flow', ['auto', 'paginated', 'scrolled-continuous', 'scrolled-doc']);
         $orientation = self::renditionMetadataScalarReport($metaProperties, 'orientation', ['auto', 'landscape', 'portrait']);
         $spread = self::renditionMetadataScalarReport($metaProperties, 'spread', ['auto', 'none', 'both', 'landscape', 'portrait']);
         $viewportEntries = is_array($metaProperties['rendition:viewport'] ?? null) ? $metaProperties['rendition:viewport'] : [];
         $viewports = [];
-        $diagnostics = array_merge($layout['diagnostics'], $orientation['diagnostics'], $spread['diagnostics']);
+        $diagnostics = array_merge($layout['diagnostics'], $flow['diagnostics'], $orientation['diagnostics'], $spread['diagnostics']);
 
         foreach ($viewportEntries as $index => $entry) {
             if (!is_array($entry)) {
@@ -2372,11 +2373,14 @@ final class EpubPackage
         $selectedViewport = $validViewports[0] ?? ($viewports[0] ?? self::emptyRenditionViewportReport());
 
         return [
-            'present' => $layout['present'] || $orientation['present'] || $spread['present'] || $viewports !== [],
+            'present' => $layout['present'] || $flow['present'] || $orientation['present'] || $spread['present'] || $viewports !== [],
             'fixedLayout' => ($layout['value'] ?? null) === 'pre-paginated',
             'layout' => $layout['value'],
             'layoutRaw' => $layout['raw'],
             'layoutProperty' => $layout,
+            'flow' => $flow['value'],
+            'flowRaw' => $flow['raw'],
+            'flowProperty' => $flow,
             'orientation' => $orientation['value'],
             'orientationRaw' => $orientation['raw'],
             'orientationProperty' => $orientation,
