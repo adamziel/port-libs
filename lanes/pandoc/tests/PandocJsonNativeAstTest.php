@@ -812,6 +812,46 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'preserves unknown pandoc json constructors as native fallback ast nodes' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'VendorBlock', 'c' => [
+                    'source' => 'json-filter-extension',
+                    'payload' => [
+                        ['t' => 'Str', 'c' => 'opaque'],
+                    ],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                    ['t' => 'Space'],
+                    ['t' => 'VendorInline', 'c' => [
+                        'name' => 'review-anchor',
+                        'value' => 42,
+                    ]],
+                ]],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $document = $reader->readPacket($packet);
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $nativeEncoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = $reader->readPacket($encoded);
+
+        $t->same('native_block', $document->children[0]->type);
+        $t->same('VendorBlock', $document->children[0]->attr('constructor'));
+        $t->same($packet['blocks'][0], $document->children[0]->attr('native'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('native_inline', $document->children[1]->children[2]->type);
+        $t->same('VendorInline', $document->children[1]->children[2]->attr('constructor'));
+        $t->same($packet['blocks'][1]['c'][2], $document->children[1]->children[2]->attr('native'));
+        $t->same($packet['blocks'], $encoded['blocks']);
+        $t->same($packet['blocks'], $nativeEncoded['blocks']);
+        $t->same('native_block', $roundTrip->children[0]->type);
+        $t->same('native_inline', $roundTrip->children[1]->children[2]->type);
+    },
     'emits native fallback constructors through pandoc json writer' => static function (TestRunner $t): void {
         $nativePacket = [
             'pandoc-api-version' => [1, 23, 1],
