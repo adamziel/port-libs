@@ -4505,6 +4505,36 @@ $settingsXml = <<<'XML'
 </w:settings>
 XML;
 
+$webSettingsContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>
+</Types>
+XML;
+
+$webSettingsDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="webSettings.xml"/>
+</Relationships>
+XML;
+
+$webSettingsXml = <<<'XML'
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser/>
+  <w:allowPNG w:val="1"/>
+  <w:doNotSaveAsSingleFile w:val="0"/>
+  <w:doNotOrganizeInFolder/>
+  <w:doNotRelyOnCSS w:val="false"/>
+  <w:doNotUseLongFileNames/>
+  <w:saveSmartTagsAsXml w:val="true"/>
+  <w:encoding w:val="UTF-8"/>
+  <w:targetScreenSz w:val="1024x768"/>
+  <w:pixelsPerInch w:val="144"/>
+</w:webSettings>
+XML;
+
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
@@ -5792,6 +5822,21 @@ $buildSettingsPackage = static function () use (
         ['name' => 'word/settings.xml', 'data' => $settingsXml],
         ['name' => 'word/_rels/settings.xml.rels', 'data' => $settingsRelationshipsXml],
         ['name' => 'mailmerge/header-source.xml', 'data' => '<headers><field name="ReviewerEmail"/><field name="SourcePacket"/></headers>'],
+    ]);
+};
+
+$buildWebSettingsPackage = static function () use (
+    $webSettingsContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $webSettingsDocumentRelationshipsXml,
+    $webSettingsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $webSettingsContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Web settings packet body.</w:t></w:r></w:p></w:body></w:document>'],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $webSettingsDocumentRelationshipsXml],
+        ['name' => 'word/webSettings.xml', 'data' => $webSettingsXml],
     ]);
 };
 
@@ -12729,6 +12774,56 @@ return [
         $t->same([], $headerSource['issues']);
 
         $t->same($mailMerge, $result['importReport']['settings']['mailMerge']);
+    },
+    'reports DOCX web settings support-part metadata for reviewer handoff' => static function (TestRunner $t) use ($buildWebSettingsPackage): void {
+        $result = (new DocxReader())->readPackage($buildWebSettingsPackage());
+        $webSettings = $result['metadata']['docxWebSettings'];
+
+        $t->same('Web settings packet body.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same('/word/webSettings.xml', $webSettings['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $webSettings['contentType']);
+        $t->same('rIdWebSettings', $webSettings['relationship']['id']);
+        $t->same(DocxReader::REL_TYPE_WEB_SETTINGS, $webSettings['relationship']['type']);
+        $t->same('/word/webSettings.xml', $webSettings['relationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $webSettings['relationship']['expectedContentType']);
+        $t->same(true, $webSettings['relationship']['exists']);
+        $t->same([], $webSettings['relationship']['issues']);
+        $t->same(true, $webSettings['optimizeForBrowser']);
+        $t->same(true, $webSettings['allowPng']);
+        $t->same(false, $webSettings['doNotSaveAsSingleFile']);
+        $t->same(true, $webSettings['doNotOrganizeInFolder']);
+        $t->same(false, $webSettings['doNotRelyOnCss']);
+        $t->same(true, $webSettings['doNotUseLongFileNames']);
+        $t->same(true, $webSettings['saveSmartTagsAsXml']);
+        $t->same('UTF-8', $webSettings['encoding']);
+        $t->same('1024x768', $webSettings['targetScreenSize']);
+        $t->same(144, $webSettings['pixelsPerInch']);
+        $t->same($webSettings, $result['importReport']['webSettings']);
+    },
+    'reports DOCX web settings content-type mismatches without blocking body import' => static function (TestRunner $t) use ($webSettingsContentTypesXml, $stylesNumberingRelationshipsXml, $webSettingsDocumentRelationshipsXml, $webSettingsXml): void {
+        $wrongContentTypesXml = str_replace(
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml',
+            'application/xml',
+            $webSettingsContentTypesXml
+        );
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $wrongContentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Wrong web settings type body.</w:t></w:r></w:p></w:body></w:document>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $webSettingsDocumentRelationshipsXml],
+            ['name' => 'word/webSettings.xml', 'data' => $webSettingsXml],
+        ]));
+        $webSettings = $result['metadata']['docxWebSettings'];
+
+        $t->same('Wrong web settings type body.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same('/word/webSettings.xml', $webSettings['part']);
+        $t->same('application/xml', $webSettings['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml', $webSettings['relationship']['expectedContentType']);
+        $t->same(['invalid-web-settings-content-type'], $webSettings['relationship']['issues']);
+        $t->same(['invalid-web-settings-content-type'], $webSettings['issues']);
+        $t->same(true, $webSettings['optimizeForBrowser']);
+        $t->same($webSettings, $result['importReport']['webSettings']);
     },
     'reports DOCX package-root relationship roles for reviewer handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
