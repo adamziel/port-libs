@@ -710,6 +710,72 @@ return [
         $t->same($expectedEdges, $sequence['finalEngineDependencyEdges']);
     },
 
+    'fake runner reviews typst root read boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/rooted.pdf',
+            'sourcePath' => 'project/main.typ',
+            'source' => '= Typst Root Boundary Packet',
+            'engineOptions' => ['--root=project', '--deps=build/rooted.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst root boundary packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/rooted.pdf: project/main.typ project/assets/chart.svg shared/chart.svg',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'root' => 'project',
+            'sourceFile' => 'project/main.typ',
+            'inputFiles' => ['project/assets/chart.svg', 'project/main.typ', 'shared/chart.svg'],
+            'insideRootFiles' => ['project/assets/chart.svg', 'project/main.typ'],
+            'outsideRootFiles' => ['shared/chart.svg'],
+            'issues' => ['input-outside-root:1'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/rooted.d' => $depfile,
+                'build/rooted.pdf' => $pdfBytes,
+                'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'shared/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/rooted.d' => $depfile,
+                    'build/rooted.pdf' => $pdfBytes,
+                    'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                    'shared/chart.svg' => '<svg viewBox="0 0 2 2"/>',
+                ],
+            ],
+        ]);
+
+        $t->same('project', $plan['typstBoundaryProvenance']['root']['path']);
+        $t->same(true, $plan['typstBoundaryProvenance']['root']['safe']);
+        $t->contains('typst-root-boundary:project', implode(',', $plan['diagnostics']));
+        $t->same(false, $result['ok']);
+        $t->same('engine-boundary-violation', $result['reason']);
+        $t->same(['project/assets/chart.svg', 'project/main.typ', 'shared/chart.svg'], $result['engineInputFiles']);
+        $t->same('project', $result['engineBoundaryRoot']);
+        $t->same(['shared/chart.svg'], $result['engineBoundaryViolations']);
+        $t->same($expectedPolicy, $result['typstReadBoundaryPolicy']);
+        $t->same('project', $result['artifactProvenanceReview']['engineBoundaryRoot']);
+        $t->same(['shared/chart.svg'], $result['artifactProvenanceReview']['engineBoundaryViolations']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstReadBoundaryPolicy']);
+        $t->same('failed', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('engine-boundary-violations:1', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('engine-boundary-violation:shared/chart.svg', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-inputs:3', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-outside-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-root-boundary-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same(['shared/chart.svg'], $sequence['finalEngineBoundaryViolations']);
+        $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
