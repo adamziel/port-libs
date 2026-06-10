@@ -3,7 +3,11 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\MediaBag;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
     'maps pandoc media bag resources to safe extraction paths' => static function (TestRunner $t): void {
@@ -434,6 +438,46 @@ return [
             'media-resource-mapped:' . $encodedSource,
         ], $extracted['diagnostics']);
         $t->same(2, count(array_unique(array_column($extracted['entries'], 'path'))));
+    },
+
+    'preserves media bag provenance through markdown json and wordpress handoff' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "review image bytes\n";
+        $bag->insertMedia('Pictures/review.png', 'image/png', $bytes);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'Pictures/review.png',
+                    'title' => 'Review image',
+                ], [new AstNode('text', ['text' => 'Review image'])]),
+            ]),
+        ]);
+
+        $extracted = $bag->extractMedia($document, 'media');
+        $image = $extracted['document']->children[0]->children[0];
+        $attributes = $image->attr('attributes');
+
+        $t->same('media/Pictures/review.png', $image->attr('url'));
+        $t->same('Pictures/review.png', $attributes['data-pandoc-media-source']);
+        $t->same('Pictures/review.png', $attributes['data-pandoc-media-path']);
+        $t->same('media/Pictures/review.png', $attributes['data-pandoc-media-target']);
+        $t->same('image/png', $attributes['data-pandoc-media-type']);
+        $t->same((string) strlen($bytes), $attributes['data-pandoc-media-bytes']);
+        $t->same(sha1($bytes), $attributes['data-pandoc-media-sha1']);
+
+        $markdown = (new MarkdownWriter())->write($extracted['document']);
+        $t->contains('![Review image](media/Pictures/review.png "Review image"){', $markdown);
+        $t->contains('data-pandoc-media-source="Pictures/review.png"', $markdown);
+        $t->contains('data-pandoc-media-sha1="' . sha1($bytes) . '"', $markdown);
+
+        $blocks = (new WordPressBlockWriter())->write($extracted['document']);
+        $t->contains('<img src="media/Pictures/review.png"', $blocks);
+        $t->contains('data-pandoc-media-source="Pictures/review.png"', $blocks);
+
+        $roundTrip = (new PandocJsonReader())->read((new PandocJsonWriter())->write($extracted['document']));
+        $roundTripImage = $roundTrip->children[0]->children[0];
+        $t->same('media/Pictures/review.png', $roundTripImage->attr('url'));
+        $t->same(sha1($bytes), $roundTripImage->attr('attributes')['data-pandoc-media-sha1']);
     },
 
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {

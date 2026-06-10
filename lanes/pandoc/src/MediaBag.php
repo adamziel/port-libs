@@ -221,7 +221,10 @@ final class MediaBag
             }
 
             $attrs = $image->attrs;
-            $attrs['url'] = $destination . '/' . ($plannedPaths[$item['canonicalSource']] ?? $item['path']);
+            $mediaPath = $plannedPaths[$item['canonicalSource']] ?? $item['path'];
+            $mappedUrl = $destination . '/' . $mediaPath;
+            $attrs['url'] = $mappedUrl;
+            $attrs['attributes'] = $this->mediaProvenanceAttributes($attrs, $item, $mediaPath, $mappedUrl);
             $diagnostics[] = 'media-resource-mapped:' . self::diagnosticSource($source);
 
             return new AstNode($image->type, $attrs, $image->children);
@@ -232,6 +235,40 @@ final class MediaBag
             'entries' => $entries,
             'diagnostics' => $diagnostics,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param array{source:string, canonicalSource:string, path:string, mimeType:string, contents:string, sha1:string, byteLength:int} $item
+     * @return array<string, string>
+     */
+    private function mediaProvenanceAttributes(array $attrs, array $item, string $mediaPath, string $mappedUrl): array
+    {
+        $attributes = [];
+        $existingAttributes = $attrs['attributes'] ?? [];
+        if (is_array($existingAttributes)) {
+            foreach ($existingAttributes as $name => $value) {
+                if (!is_string($name)) {
+                    continue;
+                }
+
+                $value = (string) $value;
+                if ($value === '') {
+                    continue;
+                }
+
+                $attributes[$name] = $value;
+            }
+        }
+
+        return array_replace($attributes, [
+            'data-pandoc-media-source' => $item['source'],
+            'data-pandoc-media-path' => $mediaPath,
+            'data-pandoc-media-target' => $mappedUrl,
+            'data-pandoc-media-type' => $item['mimeType'],
+            'data-pandoc-media-bytes' => (string) $item['byteLength'],
+            'data-pandoc-media-sha1' => $item['sha1'],
+        ]);
     }
 
     /**
