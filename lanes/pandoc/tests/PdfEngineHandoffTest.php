@@ -218,6 +218,80 @@ return [
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
     },
 
+    'fake runner normalizes typst package cache paths into dependency provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Cache Packet\n\n#import \"@preview/cetz:0.3.2/src/lib.typ\": canvas\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-cache.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-cache.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package cache packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-cache.pdf: build/typst-cache.typ \\',
+            '  /home/reviewer/.cache/typst/packages/preview/cetz/0.3.2/src/lib.typ \\',
+            '  file:///home/reviewer/.cache/typst/packages/preview/tablex/0.0.9/lib.typ \\',
+            '  C:/Users/Reviewer/AppData/Local/typst/packages/typst/symbols/0.1.0/symbols.typ',
+            '',
+        ]);
+        $expected = [
+            [
+                'input' => 'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+                'reference' => '@preview/cetz:0.3.2/src/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'cetz',
+                'version' => '0.3.2',
+                'subpath' => 'src/lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@preview/tablex:0.0.9/lib.typ',
+                'reference' => '@preview/tablex:0.0.9/lib.typ',
+                'namespace' => 'preview',
+                'package' => 'tablex',
+                'version' => '0.0.9',
+                'subpath' => 'lib.typ',
+            ],
+            [
+                'input' => 'typst-package:@typst/symbols:0.1.0/symbols.typ',
+                'reference' => '@typst/symbols:0.1.0/symbols.typ',
+                'namespace' => 'typst',
+                'package' => 'symbols',
+                'version' => '0.1.0',
+                'subpath' => 'symbols.typ',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-cache.d' => $depfile,
+                'build/typst-cache.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-cache.d' => $depfile,
+                    'build/typst-cache.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['build/typst-cache.typ'], $result['engineInputFiles']);
+        $t->same([
+            'typst-package:@preview/cetz:0.3.2/src/lib.typ',
+            'typst-package:@preview/tablex:0.0.9/lib.typ',
+            'typst-package:@typst/symbols:0.1.0/symbols.typ',
+        ], $result['engineExternalInputFiles']);
+        $t->same($result['engineExternalInputFiles'], $result['engineTypstPackageInputs']);
+        $t->same($expected, $result['engineTypstPackageDependencies']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstPackageDependencies']);
+        $t->contains('engine-typst-package-inputs:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-dependencies:3', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
+    },
+
     'fake runner reviews typst dependency output target provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Output Policy Packet\n\n#image(\"figures/chart.svg\")\n";

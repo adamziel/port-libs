@@ -5640,8 +5640,9 @@ final class PdfEngineHandoff
                 $path = rawurldecode($uriPath);
             }
         }
-        if ($this->isTypstPackageReference($path)) {
-            return ['path' => 'typst-package:' . $path, 'local' => false];
+        $typstPackageInput = $this->typstPackageInputForDependencyPath($path);
+        if ($typstPackageInput !== null) {
+            return ['path' => $typstPackageInput, 'local' => false];
         }
         if (
             str_starts_with($path, '/')
@@ -5661,6 +5662,32 @@ final class PdfEngineHandoff
     private function isTypstPackageReference(string $path): bool
     {
         return preg_match('/\A@[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+:[A-Za-z0-9][A-Za-z0-9_.+\-]*(?:\/[^\s]+)?\z/', $path) === 1;
+    }
+
+    private function typstPackageInputForDependencyPath(string $path): ?string
+    {
+        if (str_starts_with($path, 'typst-package:')) {
+            $reference = substr($path, strlen('typst-package:'));
+
+            return $this->isTypstPackageReference($reference) ? 'typst-package:' . $reference : null;
+        }
+        if ($this->isTypstPackageReference($path)) {
+            return 'typst-package:' . $path;
+        }
+        if (preg_match('~(?:\A|/)typst/packages/([A-Za-z0-9_-]+)/([A-Za-z0-9_.-]+)/([A-Za-z0-9][A-Za-z0-9_.+\-]*)(?:/(.+))?\z~', $path, $matches) !== 1) {
+            return null;
+        }
+
+        $reference = '@' . $matches[1] . '/' . $matches[2] . ':' . $matches[3];
+        if (isset($matches[4]) && $matches[4] !== '') {
+            try {
+                $reference .= '/' . $this->normalizeRelativePath($matches[4], 'Typst package dependency subpath');
+            } catch (\InvalidArgumentException) {
+                return null;
+            }
+        }
+
+        return 'typst-package:' . $reference;
     }
 
     /**
