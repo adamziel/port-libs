@@ -1415,6 +1415,106 @@ return [
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'space', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
     },
+    'reads maybe-wrapped pandoc json short caption constructors' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Table', 'c' => [
+                    ['captioned-table', [], []],
+                    ['t' => 'Caption', 'c' => [
+                        ['t' => 'Just', 'c' => [
+                            ['t' => 'ShortCaption', 'c' => [[
+                                ['t' => 'Str', 'c' => 'Queue'],
+                                ['t' => 'Space'],
+                                ['t' => 'Code', 'c' => [['', ['status'], []], 'short']],
+                            ]],
+                        ]]],
+                        [
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'Long'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                        ],
+                    ]],
+                    [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            ['t' => 'RowHeadColumns', 'c' => 0],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            ['t' => 'AlignDefault'],
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 1],
+                                            [
+                                                ['t' => 'Plain', 'c' => [
+                                                    ['t' => 'Str', 'c' => 'Cell'],
+                                                ]],
+                                            ],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+                ['t' => 'Figure', 'c' => [
+                    ['captioned-figure', [], []],
+                    ['t' => 'Caption', 'c' => [
+                        ['t' => 'Nothing'],
+                        [
+                            ['t' => 'Plain', 'c' => [
+                                ['t' => 'Str', 'c' => 'Figure'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                        ],
+                    ]],
+                    [
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Image', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Str', 'c' => 'Alt'],
+                                ],
+                                ['media/figure.png', 'Figure title'],
+                            ]],
+                        ]],
+                    ],
+                ]],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket($packet);
+        $table = $document->children[0];
+        $figure = $document->children[1];
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+
+        $t->same('table', $table->type);
+        $t->same('Queue short', $table->attr('shortCaption'));
+        $t->same(['text', 'space', 'code'], array_map(static fn (AstNode $node): string => $node->type, $table->attr('shortCaptionInlines')));
+        $t->same('Long caption', $table->attr('caption'));
+        $t->same('figure', $figure->type);
+        $t->same('', $figure->attr('shortCaption', ''));
+        $t->same('Figure caption', $figure->attr('caption'));
+        $t->same('Queue', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Code', $encoded['blocks'][0]['c'][1][0][2]['t']);
+        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same('Queue short', $roundTrip->children[0]->attr('shortCaption'));
+        $t->same('Figure caption', $roundTrip->children[1]->attr('caption'));
+    },
     'maps pandoc definition lists into term and definition ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
