@@ -9115,6 +9115,7 @@ final class EpubReader
                 'auxiliaryNavigation' => self::auxiliaryNavReport([]),
                 'auxiliarySections' => [],
                 'auxiliaryItems' => [],
+                'accessibility' => self::navAccessibilityReport([], $part),
                 'encrypted' => true,
                 'encryption' => $item['encryption'] ?? null,
                 'documentDiagnostics' => $documentDiagnostics,
@@ -9123,6 +9124,7 @@ final class EpubReader
         }
 
         $dom = self::loadXml($package->read($part), 'EPUB navigation XHTML');
+        $navTextById = self::elementTextById($dom);
         $sections = [];
         $sectionsByType = [];
         $hiddenSectionCount = 0;
@@ -9132,8 +9134,10 @@ final class EpubReader
         foreach (self::navigationElements($dom) as $nav) {
             $types = self::epubTypes($nav);
             $list = self::firstChildElement($nav, 'ol', self::XHTML_NS);
-            $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, $part, $manifestByPart) : [];
+            $items = $list instanceof \DOMElement ? $this->readNavList($package, $list, $part, $manifestByPart, $navTextById) : [];
             $itemDiagnosticSummary = self::navItemDocumentDiagnosticSummary($items);
+            $sectionTitle = self::navHeading($nav);
+            $sectionAccessibility = self::navAccessibilityLabelReport($nav, $navTextById, $sectionTitle, 'heading');
             $section = [
                 'id' => self::nullableAttribute($nav, 'id'),
                 'class' => self::nullableAttribute($nav, 'class'),
@@ -9144,7 +9148,16 @@ final class EpubReader
                 'attributes' => self::elementAttributes($nav),
                 'type' => $types[0] ?? null,
                 'types' => $types,
-                'title' => self::navHeading($nav),
+                'title' => $sectionTitle,
+                'accessibleLabel' => $sectionAccessibility['label'],
+                'accessibleLabelSource' => $sectionAccessibility['labelSource'],
+                'ariaLabel' => $sectionAccessibility['ariaLabel'],
+                'ariaLabelledby' => $sectionAccessibility['ariaLabelledby'],
+                'ariaLabelledbyIds' => $sectionAccessibility['ariaLabelledbyIds'],
+                'ariaLabelledbyResolvedIds' => $sectionAccessibility['ariaLabelledbyResolvedIds'],
+                'ariaLabelledbyMissingIds' => $sectionAccessibility['ariaLabelledbyMissingIds'],
+                'ariaLabelledbyText' => $sectionAccessibility['ariaLabelledbyText'],
+                'accessibilityLabel' => $sectionAccessibility,
                 'hasOrderedList' => $list instanceof \DOMElement,
                 'itemCount' => count(self::flattenNavigationItems($items)),
                 'hiddenItemCount' => $itemDiagnosticSummary['hiddenCount'],
@@ -9191,12 +9204,14 @@ final class EpubReader
                 'auxiliaryNavigation' => self::auxiliaryNavReport([]),
                 'auxiliarySections' => [],
                 'auxiliaryItems' => [],
+                'accessibility' => self::navAccessibilityReport([], $part),
                 'documentDiagnostics' => $documentDiagnostics,
                 'documentDiagnosticCount' => $documentDiagnostics['diagnosticCount'],
             ];
         }
 
         $auxiliaryNavigation = self::auxiliaryNavReport($sections);
+        $accessibility = self::navAccessibilityReport($sections, $part);
         $documentDiagnostics = self::navDocumentDiagnosticReport($sections, $part);
 
         return [
@@ -9212,8 +9227,314 @@ final class EpubReader
             'auxiliaryNavigation' => $auxiliaryNavigation,
             'auxiliarySections' => $auxiliaryNavigation['sections'],
             'auxiliaryItems' => $auxiliaryNavigation['items'],
+            'accessibility' => $accessibility,
             'documentDiagnostics' => $documentDiagnostics,
             'documentDiagnosticCount' => $documentDiagnostics['diagnosticCount'],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     *
+     * @return array<string, mixed>
+     */
+    private static function navAccessibilityReport(array $sections, string $part = ''): array
+    {
+        $sectionReports = [];
+        $itemReports = [];
+        $diagnostics = [];
+        $sectionAriaLabelCount = 0;
+        $sectionAriaLabelledbyCount = 0;
+        $sectionMissingReferenceCount = 0;
+        $labelledSectionCount = 0;
+        $itemAriaLabelCount = 0;
+        $itemAriaLabelledbyCount = 0;
+        $itemMissingReferenceCount = 0;
+        $labelledItemCount = 0;
+
+        foreach ($sections as $sectionIndex => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionTypes = array_values(array_filter(
+                is_array($section['types'] ?? null) ? $section['types'] : [],
+                static fn (mixed $type): bool => is_string($type) && $type !== '',
+            ));
+            $sectionAccessibility = is_array($section['accessibilityLabel'] ?? null)
+                ? $section['accessibilityLabel']
+                : [];
+            $sectionMissingIds = is_array($sectionAccessibility['ariaLabelledbyMissingIds'] ?? null)
+                ? array_values($sectionAccessibility['ariaLabelledbyMissingIds'])
+                : [];
+            $sectionReport = [
+                'sectionIndex' => $sectionIndex,
+                'id' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                'type' => is_string($section['type'] ?? null) ? $section['type'] : null,
+                'types' => $sectionTypes,
+                'title' => is_string($section['title'] ?? null) ? $section['title'] : '',
+            ] + self::navAccessibilitySummaryFields($sectionAccessibility);
+            $sectionReports[] = $sectionReport;
+
+            if (is_string($sectionReport['ariaLabel'] ?? null) && $sectionReport['ariaLabel'] !== '') {
+                ++$sectionAriaLabelCount;
+            }
+            if (($sectionReport['ariaLabelledbyIds'] ?? []) !== []) {
+                ++$sectionAriaLabelledbyCount;
+            }
+            if (is_string($sectionReport['label'] ?? null) && $sectionReport['label'] !== '') {
+                ++$labelledSectionCount;
+            }
+            $sectionMissingReferenceCount += count($sectionMissingIds);
+
+            foreach (is_array($sectionReport['diagnostics'] ?? null) ? $sectionReport['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $diagnostics[] = [
+                    'part' => $part,
+                    'scope' => 'section',
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                    'sectionTypes' => $sectionTypes,
+                ] + $diagnostic;
+            }
+
+            $sectionItems = is_array($section['items'] ?? null) ? $section['items'] : [];
+            foreach (self::flattenNavigationItems($sectionItems) as $itemIndex => $flat) {
+                $item = is_array($flat['item'] ?? null) ? $flat['item'] : [];
+                $itemAccessibility = is_array($item['accessibilityLabel'] ?? null)
+                    ? $item['accessibilityLabel']
+                    : [];
+                $itemMissingIds = is_array($itemAccessibility['ariaLabelledbyMissingIds'] ?? null)
+                    ? array_values($itemAccessibility['ariaLabelledbyMissingIds'])
+                    : [];
+                $itemReport = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                    'sectionType' => is_string($section['type'] ?? null) ? $section['type'] : null,
+                    'sectionTypes' => $sectionTypes,
+                    'itemIndex' => $itemIndex,
+                    'depth' => (int) ($flat['depth'] ?? 0),
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
+                    'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
+                    'labelElement' => is_string($item['labelElement'] ?? null) ? $item['labelElement'] : null,
+                    'title' => is_string($item['title'] ?? null) ? $item['title'] : '',
+                    'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
+                    'target' => is_string($item['target'] ?? null) ? $item['target'] : null,
+                ] + self::navAccessibilitySummaryFields($itemAccessibility);
+                $itemReports[] = $itemReport;
+
+                if (is_string($itemReport['ariaLabel'] ?? null) && $itemReport['ariaLabel'] !== '') {
+                    ++$itemAriaLabelCount;
+                }
+                if (($itemReport['ariaLabelledbyIds'] ?? []) !== []) {
+                    ++$itemAriaLabelledbyCount;
+                }
+                if (is_string($itemReport['label'] ?? null) && $itemReport['label'] !== '') {
+                    ++$labelledItemCount;
+                }
+                $itemMissingReferenceCount += count($itemMissingIds);
+
+                foreach (is_array($itemReport['diagnostics'] ?? null) ? $itemReport['diagnostics'] : [] as $diagnostic) {
+                    if (!is_array($diagnostic)) {
+                        continue;
+                    }
+
+                    $diagnostics[] = [
+                        'part' => $part,
+                        'scope' => 'item',
+                        'sectionIndex' => $sectionIndex,
+                        'sectionId' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                        'sectionTypes' => $sectionTypes,
+                        'itemIndex' => $itemIndex,
+                        'depth' => (int) ($flat['depth'] ?? 0),
+                        'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
+                        'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
+                    ] + $diagnostic;
+                }
+            }
+        }
+
+        $diagnosticTypes = [];
+        foreach ($diagnostics as $diagnostic) {
+            $type = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+            if ($type === '') {
+                continue;
+            }
+
+            $diagnosticTypes[$type] = ($diagnosticTypes[$type] ?? 0) + 1;
+        }
+
+        return [
+            'present' => $sections !== [],
+            'part' => $part,
+            'sectionCount' => count($sectionReports),
+            'itemCount' => count($itemReports),
+            'labelledSectionCount' => $labelledSectionCount,
+            'labelledItemCount' => $labelledItemCount,
+            'sectionAriaLabelCount' => $sectionAriaLabelCount,
+            'sectionAriaLabelledbyCount' => $sectionAriaLabelledbyCount,
+            'itemAriaLabelCount' => $itemAriaLabelCount,
+            'itemAriaLabelledbyCount' => $itemAriaLabelledbyCount,
+            'ariaLabelCount' => $sectionAriaLabelCount + $itemAriaLabelCount,
+            'ariaLabelledbyCount' => $sectionAriaLabelledbyCount + $itemAriaLabelledbyCount,
+            'missingReferenceCount' => $sectionMissingReferenceCount + $itemMissingReferenceCount,
+            'sectionMissingReferenceCount' => $sectionMissingReferenceCount,
+            'itemMissingReferenceCount' => $itemMissingReferenceCount,
+            'diagnosticTypes' => $diagnosticTypes,
+            'diagnosticCount' => count($diagnostics),
+            'sections' => $sectionReports,
+            'items' => $itemReports,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     *
+     * @return array<string, mixed>
+     */
+    private static function navAccessibilitySummaryFields(array $report): array
+    {
+        return [
+            'element' => is_string($report['element'] ?? null) ? $report['element'] : null,
+            'elementId' => is_string($report['elementId'] ?? null) ? $report['elementId'] : null,
+            'label' => is_string($report['label'] ?? null) ? $report['label'] : null,
+            'labelSource' => is_string($report['labelSource'] ?? null) ? $report['labelSource'] : null,
+            'ariaLabel' => is_string($report['ariaLabel'] ?? null) ? $report['ariaLabel'] : null,
+            'ariaLabelledby' => is_string($report['ariaLabelledby'] ?? null) ? $report['ariaLabelledby'] : null,
+            'ariaLabelledbyIds' => is_array($report['ariaLabelledbyIds'] ?? null)
+                ? array_values($report['ariaLabelledbyIds'])
+                : [],
+            'ariaLabelledbyResolvedIds' => is_array($report['ariaLabelledbyResolvedIds'] ?? null)
+                ? array_values($report['ariaLabelledbyResolvedIds'])
+                : [],
+            'ariaLabelledbyMissingIds' => is_array($report['ariaLabelledbyMissingIds'] ?? null)
+                ? array_values($report['ariaLabelledbyMissingIds'])
+                : [],
+            'ariaLabelledbyText' => is_string($report['ariaLabelledbyText'] ?? null) ? $report['ariaLabelledbyText'] : null,
+            'diagnosticCount' => is_array($report['diagnostics'] ?? null) ? count($report['diagnostics']) : 0,
+            'diagnostics' => is_array($report['diagnostics'] ?? null) ? array_values($report['diagnostics']) : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     *
+     * @return array<string, mixed>
+     */
+    private static function navAccessibilityExportFields(array $source): array
+    {
+        return [
+            'accessibleLabel' => is_string($source['accessibleLabel'] ?? null) ? $source['accessibleLabel'] : null,
+            'accessibleLabelSource' => is_string($source['accessibleLabelSource'] ?? null) ? $source['accessibleLabelSource'] : null,
+            'ariaLabel' => is_string($source['ariaLabel'] ?? null) ? $source['ariaLabel'] : null,
+            'ariaLabelledby' => is_string($source['ariaLabelledby'] ?? null) ? $source['ariaLabelledby'] : null,
+            'ariaLabelledbyIds' => is_array($source['ariaLabelledbyIds'] ?? null) ? array_values($source['ariaLabelledbyIds']) : [],
+            'ariaLabelledbyResolvedIds' => is_array($source['ariaLabelledbyResolvedIds'] ?? null) ? array_values($source['ariaLabelledbyResolvedIds']) : [],
+            'ariaLabelledbyMissingIds' => is_array($source['ariaLabelledbyMissingIds'] ?? null) ? array_values($source['ariaLabelledbyMissingIds']) : [],
+            'ariaLabelledbyText' => is_string($source['ariaLabelledbyText'] ?? null) ? $source['ariaLabelledbyText'] : null,
+            'accessibilityLabel' => is_array($source['accessibilityLabel'] ?? null) ? $source['accessibilityLabel'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $elementTextById
+     *
+     * @return array<string, mixed>
+     */
+    private static function navAccessibilityLabelReport(
+        \DOMElement $element,
+        array $elementTextById,
+        ?string $fallbackLabel,
+        string $fallbackSource
+    ): array {
+        $elementName = strtolower($element->localName);
+        $ariaLabel = null;
+        $ariaLabelledby = null;
+        $diagnostics = [];
+
+        if ($element->hasAttribute('aria-label')) {
+            $ariaLabel = trim($element->getAttribute('aria-label'));
+            if ($ariaLabel === '') {
+                $ariaLabel = null;
+                $diagnostics[] = [
+                    'type' => 'empty-nav-aria-label',
+                    'element' => $elementName,
+                    'elementId' => self::nullableAttribute($element, 'id'),
+                    'message' => 'EPUB navigation element has an empty aria-label value',
+                ];
+            }
+        }
+
+        if ($element->hasAttribute('aria-labelledby')) {
+            $ariaLabelledby = trim($element->getAttribute('aria-labelledby'));
+            if ($ariaLabelledby === '') {
+                $ariaLabelledby = null;
+                $diagnostics[] = [
+                    'type' => 'empty-nav-aria-labelledby',
+                    'element' => $elementName,
+                    'elementId' => self::nullableAttribute($element, 'id'),
+                    'message' => 'EPUB navigation element has an empty aria-labelledby value',
+                ];
+            }
+        }
+
+        $labelledbyIds = $ariaLabelledby === null ? [] : self::spaceDelimited($ariaLabelledby);
+        $resolvedIds = [];
+        $missingIds = [];
+        $resolvedText = [];
+        foreach ($labelledbyIds as $id) {
+            if (!array_key_exists($id, $elementTextById)) {
+                $missingIds[] = $id;
+                $diagnostics[] = [
+                    'type' => 'missing-nav-aria-labelledby-reference',
+                    'element' => $elementName,
+                    'elementId' => self::nullableAttribute($element, 'id'),
+                    'referencedId' => $id,
+                    'ariaLabelledby' => $ariaLabelledby,
+                    'message' => 'EPUB navigation aria-labelledby value references an id that is not present in the nav document',
+                ];
+                continue;
+            }
+
+            $resolvedIds[] = $id;
+            $text = trim($elementTextById[$id]);
+            if ($text !== '') {
+                $resolvedText[] = $text;
+            }
+        }
+
+        $ariaLabelledbyText = $resolvedText === [] ? null : trim(preg_replace('/\s+/u', ' ', implode(' ', $resolvedText)) ?? implode(' ', $resolvedText));
+        $fallback = is_string($fallbackLabel) ? trim($fallbackLabel) : '';
+        $label = null;
+        $labelSource = null;
+        if ($ariaLabel !== null && $ariaLabel !== '') {
+            $label = $ariaLabel;
+            $labelSource = 'aria-label';
+        } elseif ($ariaLabelledbyText !== null && $ariaLabelledbyText !== '') {
+            $label = $ariaLabelledbyText;
+            $labelSource = 'aria-labelledby';
+        } elseif ($fallback !== '') {
+            $label = $fallback;
+            $labelSource = $fallbackSource;
+        }
+
+        return [
+            'element' => $elementName,
+            'elementId' => self::nullableAttribute($element, 'id'),
+            'label' => $label,
+            'labelSource' => $labelSource,
+            'ariaLabel' => $ariaLabel,
+            'ariaLabelledby' => $ariaLabelledby,
+            'ariaLabelledbyIds' => $labelledbyIds,
+            'ariaLabelledbyResolvedIds' => $resolvedIds,
+            'ariaLabelledbyMissingIds' => $missingIds,
+            'ariaLabelledbyText' => $ariaLabelledbyText,
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -9913,7 +10234,7 @@ final class EpubReader
                 'title' => is_string($section['title'] ?? null) ? $section['title'] : '',
                 'itemCount' => count($flatItems),
                 'items' => $sectionItems,
-            ];
+            ] + self::navAccessibilityExportFields($section);
 
             $reportedSections[] = $summary;
             foreach ($constrainedTypes as $type) {
@@ -10125,7 +10446,7 @@ final class EpubReader
             'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
             'sourceDiagnostics' => $sourceDiagnostics,
             'diagnostics' => $diagnostics,
-        ];
+        ] + self::navAccessibilityExportFields($item);
     }
 
     /**
@@ -10186,7 +10507,7 @@ final class EpubReader
                 'title' => is_string($section['title'] ?? null) ? $section['title'] : '',
                 'itemCount' => count($flatItems),
                 'items' => $sectionItems,
-            ];
+            ] + self::navAccessibilityExportFields($section);
 
             $reportedSections[] = $summary;
             foreach ($auxiliaryTypes as $type) {
@@ -10367,7 +10688,7 @@ final class EpubReader
                 'sourceDiagnostics' => $sourceDiagnostics,
                 'navDiagnostics' => $sourceDiagnostics,
                 'diagnostics' => $itemDiagnostics,
-            ];
+            ] + self::navAccessibilityExportFields($navItem);
         }
 
         $itemsByPart = [];
@@ -11031,7 +11352,7 @@ final class EpubReader
     /**
      * @return list<array<string, mixed>>
      */
-    private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart, array $manifestByPart): array
+    private function readNavList(ZipPackage $package, \DOMElement $list, string $navPart, array $manifestByPart, array $elementTextById = []): array
     {
         $items = [];
         foreach (self::childElements($list, 'li', self::XHTML_NS) as $li) {
@@ -11049,6 +11370,8 @@ final class EpubReader
             $title = $label instanceof \DOMElement ? self::normalizedText($label) : '';
             $documentDiagnostics = [];
             $hidden = self::elementHidden($li) || ($label instanceof \DOMElement && self::elementHidden($label));
+            $accessibilityElement = $label instanceof \DOMElement ? $label : $li;
+            $accessibility = self::navAccessibilityLabelReport($accessibilityElement, $elementTextById, $title, 'text');
 
             if ($hidden) {
                 $documentDiagnostics[] = [
@@ -11124,6 +11447,15 @@ final class EpubReader
                 'attributes' => self::elementAttributes($li),
                 'labelAttributes' => $label instanceof \DOMElement ? self::elementAttributes($label) : [],
                 'title' => $title,
+                'accessibleLabel' => $accessibility['label'],
+                'accessibleLabelSource' => $accessibility['labelSource'],
+                'ariaLabel' => $accessibility['ariaLabel'],
+                'ariaLabelledby' => $accessibility['ariaLabelledby'],
+                'ariaLabelledbyIds' => $accessibility['ariaLabelledbyIds'],
+                'ariaLabelledbyResolvedIds' => $accessibility['ariaLabelledbyResolvedIds'],
+                'ariaLabelledbyMissingIds' => $accessibility['ariaLabelledbyMissingIds'],
+                'ariaLabelledbyText' => $accessibility['ariaLabelledbyText'],
+                'accessibilityLabel' => $accessibility,
                 'href' => $href === '' ? null : $href,
                 'target' => $reference['target'],
                 'part' => $reference['part'],
@@ -11146,7 +11478,7 @@ final class EpubReader
                 'labelTypes' => $typeReport['labelTypes'],
                 'typeSource' => $typeReport['typeSource'],
                 'typeSources' => $typeReport['typeSources'],
-                'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart, $manifestByPart) : [],
+                'children' => $childList instanceof \DOMElement ? $this->readNavList($package, $childList, $navPart, $manifestByPart, $elementTextById) : [],
             ];
         }
 
@@ -12692,6 +13024,15 @@ final class EpubReader
             $sourceDiagnostics = is_array($navigationItem['sourceDiagnostics'] ?? null)
                 ? array_values($navigationItem['sourceDiagnostics'])
                 : (is_array($sourceItem['diagnostics'] ?? null) ? array_values($sourceItem['diagnostics']) : []);
+            $accessibilitySource = $navigationItem;
+            foreach (self::navAccessibilityExportFields($sourceItem) as $key => $value) {
+                if ($value === null || $value === []) {
+                    continue;
+                }
+                if (!array_key_exists($key, $accessibilitySource) || $accessibilitySource[$key] === null || $accessibilitySource[$key] === []) {
+                    $accessibilitySource[$key] = $value;
+                }
+            }
 
             $items[] = [
                 'index' => $currentSourceIndex,
@@ -12736,7 +13077,7 @@ final class EpubReader
                 'diagnostics' => $diagnostics,
                 'childCount' => count($children),
                 'children' => $children,
-            ];
+            ] + self::navAccessibilityExportFields($accessibilitySource);
         }
 
         return $items;
@@ -12987,7 +13328,7 @@ final class EpubReader
             'pageSpread' => is_array($spineItem) ? ($spineItem['pageSpread'] ?? null) : null,
             'sourceDiagnostics' => $sourceDiagnostics,
             'diagnostics' => $diagnostics,
-        ];
+        ] + self::navAccessibilityExportFields($item);
     }
 
     /**
@@ -20328,6 +20669,34 @@ final class EpubReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function elementTextById(\DOMDocument $dom): array
+    {
+        $texts = [];
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query('//*[@id]');
+        if ($nodes === false) {
+            return $texts;
+        }
+
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $id = trim($node->getAttribute('id'));
+            if ($id === '' || isset($texts[$id])) {
+                continue;
+            }
+
+            $texts[$id] = self::normalizedText($node);
+        }
+
+        return $texts;
     }
 
     private static function normalizedText(\DOMElement $element): string

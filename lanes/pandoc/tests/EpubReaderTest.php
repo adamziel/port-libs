@@ -2054,6 +2054,99 @@ XML;
         $t->same($nav, $result['importReport']['nav']);
         $t->same($navigation, $result['document']->attr('navigation'));
     },
+    'reports EPUB nav ARIA labels for accessibility review handoff' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithAriaLabels = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <span id="appendix-label">External appendix label</span>
+    <nav id="toc-a11y" epub:type="toc" aria-labelledby="toc-heading missing-heading">
+      <h1 id="toc-heading">Accessible contents</h1>
+      <ol>
+        <li id="chapter-li"><a id="chapter-link" aria-label="Chapter one accessible" href="text/chapter1.xhtml#intro"><span aria-hidden="true">I</span></a></li>
+        <li id="appendix-li"><a id="appendix-link" aria-labelledby="appendix-label" href="text/chapter2.xhtml#media">Appendix visible</a></li>
+      </ol>
+    </nav>
+    <nav id="landmarks-a11y" epub:type="landmarks" aria-label="Accessible landmarks">
+      <h2>Landmarks visible heading</h2>
+      <ol>
+        <li id="body-li"><a id="body-link" epub:type="bodymatter" aria-labelledby="body-label missing-item-label" href="text/chapter1.xhtml#intro"><span id="body-label">Body start</span></a></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithAriaLabels,
+        ));
+
+        $nav = $result['nav'];
+        $accessibility = $nav['accessibility'];
+        $t->same(true, $accessibility['present']);
+        $t->same('/OEBPS/nav.xhtml', $accessibility['part']);
+        $t->same(2, $accessibility['sectionCount']);
+        $t->same(3, $accessibility['itemCount']);
+        $t->same(2, $accessibility['labelledSectionCount']);
+        $t->same(3, $accessibility['labelledItemCount']);
+        $t->same(1, $accessibility['sectionAriaLabelCount']);
+        $t->same(1, $accessibility['sectionAriaLabelledbyCount']);
+        $t->same(1, $accessibility['itemAriaLabelCount']);
+        $t->same(2, $accessibility['itemAriaLabelledbyCount']);
+        $t->same(2, $accessibility['missingReferenceCount']);
+        $t->same(2, $accessibility['diagnosticCount']);
+        $t->same([
+            'missing-nav-aria-labelledby-reference',
+            'missing-nav-aria-labelledby-reference',
+        ], array_column($accessibility['diagnostics'], 'type'));
+        $t->same(['section', 'item'], array_column($accessibility['diagnostics'], 'scope'));
+        $t->same('missing-heading', $accessibility['diagnostics'][0]['referencedId']);
+        $t->same('missing-item-label', $accessibility['diagnostics'][1]['referencedId']);
+
+        $toc = $nav['sections'][0];
+        $t->same('Accessible contents', $toc['accessibleLabel']);
+        $t->same('aria-labelledby', $toc['accessibleLabelSource']);
+        $t->same('toc-heading missing-heading', $toc['ariaLabelledby']);
+        $t->same(['toc-heading', 'missing-heading'], $toc['ariaLabelledbyIds']);
+        $t->same(['toc-heading'], $toc['ariaLabelledbyResolvedIds']);
+        $t->same(['missing-heading'], $toc['ariaLabelledbyMissingIds']);
+        $t->same('Accessible contents', $toc['ariaLabelledbyText']);
+
+        $landmarks = $nav['sections'][1];
+        $t->same('Accessible landmarks', $landmarks['accessibleLabel']);
+        $t->same('aria-label', $landmarks['accessibleLabelSource']);
+        $t->same('Accessible landmarks', $landmarks['ariaLabel']);
+
+        $chapter = $nav['items'][0];
+        $t->same('Chapter one accessible', $chapter['accessibleLabel']);
+        $t->same('aria-label', $chapter['accessibleLabelSource']);
+        $t->same('Chapter one accessible', $chapter['ariaLabel']);
+        $t->same('Chapter one accessible', $accessibility['items'][0]['label']);
+
+        $appendix = $nav['items'][1];
+        $t->same('External appendix label', $appendix['accessibleLabel']);
+        $t->same('aria-labelledby', $appendix['accessibleLabelSource']);
+        $t->same(['appendix-label'], $appendix['ariaLabelledbyResolvedIds']);
+        $t->same('External appendix label', $appendix['ariaLabelledbyText']);
+
+        $body = $nav['landmarks'][0];
+        $t->same('Body start', $body['accessibleLabel']);
+        $t->same('aria-labelledby', $body['accessibleLabelSource']);
+        $t->same(['body-label', 'missing-item-label'], $body['ariaLabelledbyIds']);
+        $t->same(['body-label'], $body['ariaLabelledbyResolvedIds']);
+        $t->same(['missing-item-label'], $body['ariaLabelledbyMissingIds']);
+
+        $policy = $nav['primaryNavigationTargetPolicy'];
+        $t->same('Accessible contents', $policy['sectionsByType']['toc'][0]['accessibleLabel']);
+        $t->same('Accessible landmarks', $policy['sectionsByType']['landmarks'][0]['accessibleLabel']);
+        $t->same('Body start', $policy['itemsBySectionType']['landmarks'][0]['accessibleLabel']);
+        $t->same(['missing-item-label'], $policy['itemsBySectionType']['landmarks'][0]['ariaLabelledbyMissingIds']);
+
+        $navigation = $result['navigation'];
+        $t->same('Chapter one accessible', $navigation['items'][0]['accessibleLabel']);
+        $t->same('External appendix label', $navigation['items'][1]['accessibleLabel']);
+        $t->same($accessibility, $result['importReport']['nav']['accessibility']);
+        $t->same($navigation, $result['document']->attr('navigation'));
+    },
     'preserves EPUB nav item semantic type sources for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
         $navWithItemTypes = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
