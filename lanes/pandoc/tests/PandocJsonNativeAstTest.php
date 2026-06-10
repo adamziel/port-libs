@@ -1456,6 +1456,49 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
     },
+    'preserves opaque pandoc json constructors as native ast placeholders' => static function (TestRunner $t): void {
+        $opaqueBlock = [
+            't' => 'ReviewBlock',
+            'c' => [
+                'source' => 'future-pandoc',
+                'payload' => [
+                    ['t' => 'Str', 'c' => 'opaque'],
+                ],
+            ],
+        ];
+        $opaqueInline = [
+            't' => 'ReviewInline',
+            'c' => [
+                'source' => 'future-pandoc',
+                'payload' => 42,
+            ],
+        ];
+        $packet = [
+            'blocks' => [
+                $opaqueBlock,
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Known'],
+                    ['t' => 'Space'],
+                    $opaqueInline,
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'tail'],
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $block = $document->children[0];
+        $inline = $document->children[1]->children[2];
+        $encoded = (new PandocJsonWriter())->toArray($document);
+
+        $t->same('native_block', $block->type);
+        $t->same('ReviewBlock', $block->attr('constructor'));
+        $t->same($opaqueBlock, $block->attr('native'));
+        $t->same('native_inline', $inline->type);
+        $t->same('ReviewInline', $inline->attr('constructor'));
+        $t->same($opaqueInline, $inline->attr('native'));
+        $t->same($packet['blocks'], $encoded['blocks']);
+    },
     'round trips pandoc json cite inlines with csl metadata for wordpress handoff' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

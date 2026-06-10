@@ -293,6 +293,11 @@ final class PandocJsonWriter
      */
     private function writeBlock(AstNode $node): array
     {
+        $native = $node->attr('native');
+        if (is_array($native) && is_string($native['t'] ?? null)) {
+            return $native;
+        }
+
         return match ($node->type) {
             'plain' => ['t' => 'Plain', 'c' => $this->writeInlines($this->inlineChildrenOrText($node))],
             'paragraph' => ['t' => 'Para', 'c' => $this->writeInlines($this->inlineChildrenOrText($node))],
@@ -652,6 +657,11 @@ final class PandocJsonWriter
      */
     private function writeInline(AstNode $node): array
     {
+        $native = $node->attr('native');
+        if (is_array($native) && is_string($native['t'] ?? null)) {
+            return $native;
+        }
+
         return match ($node->type) {
             'text' => ['t' => 'Str', 'c' => (string) $node->attr('text', '')],
             'space' => ['t' => 'Space'],

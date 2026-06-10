@@ -360,7 +360,10 @@ final class PandocJsonReader
             'Div' => $this->readDivBlock($content),
             'Figure' => $this->readFigureBlock($content),
             'Table' => $this->readTableBlock($content),
-            default => throw new \InvalidArgumentException("Unsupported Pandoc block constructor: {$tag}"),
+            default => new AstNode('native_block', [
+                'constructor' => $tag,
+                'native' => $value,
+            ]),
         };
     }
 
@@ -781,7 +784,10 @@ final class PandocJsonReader
             'Image' => $this->readTargetInline('image', $content),
             'Note' => new AstNode('note', [], $this->readBlocks($this->listContent($content, 'Note'))),
             'Span' => $this->readSpanInline($content),
-            default => throw new \InvalidArgumentException("Unsupported Pandoc inline constructor: {$tag}"),
+            default => new AstNode('native_inline', [
+                'constructor' => $tag,
+                'native' => $value,
+            ]),
         };
     }
 
