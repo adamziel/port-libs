@@ -203,6 +203,49 @@ XML, 'package reader XML');
         ], $summary[0]['selectOptions']);
         $t->same('<select multiple name="review-status"><option value="draft">Draft</option><option selected value="review">Review</option><optgroup disabled label="Archive"><option value="a1">Archive One</option><option selected>Archive Two</option></optgroup></select><p>after</p>', $html);
     },
+    'summarizes html input textarea and button state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="review-form"><input name="title" value="Draft &amp; Source"><input type="checkbox" name="publish" checked disabled><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button type="reset" disabled>Clear</button></form>',
+            'form control review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $textInput = $form['children'][0];
+        $checkbox = $form['children'][1];
+        $textarea = $form['children'][2];
+        $submitButton = $form['children'][3];
+        $resetButton = $form['children'][4];
+
+        $t->same('form', $form['name']);
+        $t->same(['id' => 'review-form'], $form['attributes']);
+        $t->same('input', $textInput['formControl']);
+        $t->same('text', $textInput['inputType']);
+        $t->same('Draft & Source', $textInput['value']);
+        $t->same(false, $textInput['checked']);
+        $t->same(false, $textInput['disabled']);
+        $t->same('input', $checkbox['formControl']);
+        $t->same('checkbox', $checkbox['inputType']);
+        $t->same('', $checkbox['value']);
+        $t->same(true, $checkbox['checked']);
+        $t->same(true, $checkbox['disabled']);
+        $t->same('textarea', $textarea['formControl']);
+        $t->same("Reviewer & editor\nnote", $textarea['value']);
+        $t->same(false, $textarea['disabled']);
+        $t->same(true, $textarea['readonly']);
+        $t->same('button', $submitButton['formControl']);
+        $t->same('submit', $submitButton['buttonType']);
+        $t->same('publish', $submitButton['value']);
+        $t->same('Publish now', $submitButton['label']);
+        $t->same(false, $submitButton['disabled']);
+        $t->same('button', $resetButton['formControl']);
+        $t->same('reset', $resetButton['buttonType']);
+        $t->same('', $resetButton['value']);
+        $t->same('Clear', $resetButton['label']);
+        $t->same(true, $resetButton['disabled']);
+        $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

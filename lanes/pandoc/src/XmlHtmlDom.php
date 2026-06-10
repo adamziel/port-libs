@@ -738,8 +738,42 @@ final class XmlHtmlDom
                 array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
             ));
         }
+        if ($name === 'input') {
+            $summary['formControl'] = 'input';
+            $summary['inputType'] = self::inputType($node);
+            $summary['value'] = $node->getAttribute('value');
+            $summary['checked'] = $node->hasAttribute('checked');
+            $summary['disabled'] = $node->hasAttribute('disabled');
+        }
+        if ($name === 'textarea') {
+            $summary['formControl'] = 'textarea';
+            $summary['value'] = $node->textContent;
+            $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['readonly'] = $node->hasAttribute('readonly');
+        }
+        if ($name === 'button') {
+            $summary['formControl'] = 'button';
+            $summary['buttonType'] = self::buttonType($node);
+            $summary['value'] = $node->getAttribute('value');
+            $summary['label'] = self::normalizedText($node);
+            $summary['disabled'] = $node->hasAttribute('disabled');
+        }
 
         return [$summary];
+    }
+
+    private static function inputType(\DOMElement $input): string
+    {
+        $type = strtolower(trim($input->getAttribute('type')));
+
+        return $type === '' ? 'text' : $type;
+    }
+
+    private static function buttonType(\DOMElement $button): string
+    {
+        $type = strtolower(trim($button->getAttribute('type')));
+
+        return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
     }
 
     private static function serializeNode(\DOMNode $node): string
