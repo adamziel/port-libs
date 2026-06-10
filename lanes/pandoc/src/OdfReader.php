@@ -436,12 +436,19 @@ final class OdfReader
             $exists = $part === null || $isDirectory || $package->has($part);
             $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
             $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
+            $hasSupportedCompression = $compressionMethod === 0 || $compressionMethod === 8;
             $declaredSizeMismatch = !$encrypted
                 && $declaredSize !== null
                 && $byteLength !== null
                 && $declaredSize !== $byteLength;
 
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
+            $canExposeBytes = !$encrypted
+                && !$isDirectory
+                && !$scriptPackagePart
+                && $zipEntry instanceof ZipPackageEntry
+                && $hasSupportedCompression;
             $items[] = [
                 'fullPath' => $fullPath,
                 'part' => $part,
@@ -451,11 +458,14 @@ final class OdfReader
                 'exists' => $exists,
                 'isDirectory' => $isDirectory,
                 'byteLength' => $byteLength,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
-                'canExposeBytes' => !$encrypted && !$isDirectory && !$scriptPackagePart,
+                'canExposeBytes' => $canExposeBytes,
                 'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
             ];
         }
@@ -516,6 +526,15 @@ final class OdfReader
         }
 
         return self::withoutEmpty($data);
+    }
+
+    private static function compressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     /**
@@ -7911,6 +7930,10 @@ final class OdfReader
         $part = $this->manifestPackagePart($href);
         $manifestItem = $this->manifestByPart[$part] ?? null;
         $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+        $canExposeBytes = !$encrypted;
+        if (is_array($manifestItem) && array_key_exists('canExposeBytes', $manifestItem)) {
+            $canExposeBytes = ($manifestItem['canExposeBytes'] ?? false) === true;
+        }
         $attrs = [
             'url' => $href,
             'alt' => $alt,
@@ -7942,14 +7965,17 @@ final class OdfReader
         if (is_array($manifestItem)) {
             $attrs['mediaType'] = $manifestItem['mediaType'] ?? null;
             $attrs['encrypted'] = $encrypted;
-            $attrs['canExposeBytes'] = !$encrypted;
+            $attrs['canExposeBytes'] = $canExposeBytes;
             $attrs['declaredSize'] = $manifestItem['declaredSize'] ?? null;
+            $attrs['compressedByteLength'] = $manifestItem['compressedByteLength'] ?? null;
+            $attrs['compressionMethod'] = $manifestItem['compressionMethod'] ?? null;
+            $attrs['compressionMethodName'] = $manifestItem['compressionMethodName'] ?? null;
             $attrs['encryption'] = $manifestItem['encryption'] ?? null;
         }
         if ($title instanceof \DOMElement) {
             $attrs['title'] = self::normalizedText($title);
         }
-        if ($package instanceof ZipPackage && $package->has($part) && !$encrypted) {
+        if ($package instanceof ZipPackage && $package->has($part) && $canExposeBytes) {
             $attrs['bytes'] = strlen($package->read($part));
         }
 
@@ -11453,20 +11479,24 @@ final class OdfReader
 
             $encrypted = ($item['encrypted'] ?? false) === true;
             $entry = $package->has($part) ? $package->entry($part) : null;
+            $canExposeBytes = ($item['canExposeBytes'] ?? false) === true && $entry instanceof ZipPackageEntry;
             $media[] = [
                 'fullPath' => $item['fullPath'],
                 'part' => $part,
                 'mediaType' => $mediaType,
                 'exists' => $entry instanceof ZipPackageEntry,
-                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'byteLength' => $canExposeBytes ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => $canExposeBytes ? $entry->crc32Hex() : null,
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'encrypted' => $encrypted,
-                'canExposeBytes' => !$encrypted,
+                'canExposeBytes' => $canExposeBytes,
                 'encryption' => $item['encryption'] ?? null,
             ];
         }
@@ -11544,8 +11574,12 @@ final class OdfReader
             'encryptedCount' => 0,
             'declaredSizeMismatchCount' => 0,
             'storedByteLength' => 0,
+            'compressedByteLength' => 0,
             'exposableByteLength' => 0,
             'declaredSize' => 0,
+            'storedCompressionMethodCount' => 0,
+            'deflatedCompressionMethodCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
             'items' => [],
         ];
 
@@ -11557,7 +11591,9 @@ final class OdfReader
             $encrypted = ($item['encrypted'] ?? false) === true;
             $declaredSizeMismatch = ($item['declaredSizeMismatch'] ?? false) === true;
             $byteLength = $item['byteLength'] ?? null;
+            $compressedByteLength = $item['compressedByteLength'] ?? null;
             $declaredSize = $item['declaredSize'] ?? null;
+            $compressionMethod = $item['compressionMethod'] ?? null;
 
             if ($isDirectory) {
                 ++$summary['directoryCount'];
@@ -11577,8 +11613,18 @@ final class OdfReader
                     $summary['exposableByteLength'] += $byteLength;
                 }
             }
+            if (is_int($compressedByteLength)) {
+                $summary['compressedByteLength'] += $compressedByteLength;
+            }
             if (is_int($declaredSize)) {
                 $summary['declaredSize'] += $declaredSize;
+            }
+            if ($compressionMethod === 0) {
+                ++$summary['storedCompressionMethodCount'];
+            } elseif ($compressionMethod === 8) {
+                ++$summary['deflatedCompressionMethodCount'];
+            } elseif (is_int($compressionMethod)) {
+                ++$summary['unsupportedCompressionMethodCount'];
             }
 
             if ($mediaType === '') {
@@ -11597,8 +11643,12 @@ final class OdfReader
                     'encryptedCount' => 0,
                     'declaredSizeMismatchCount' => 0,
                     'storedByteLength' => 0,
+                    'compressedByteLength' => 0,
                     'exposableByteLength' => 0,
                     'declaredSize' => 0,
+                    'storedCompressionMethodCount' => 0,
+                    'deflatedCompressionMethodCount' => 0,
+                    'unsupportedCompressionMethodCount' => 0,
                 ];
                 $groupOrder[] = $mediaType;
             }
@@ -11626,8 +11676,18 @@ final class OdfReader
                     $groups[$mediaType]['exposableByteLength'] += $byteLength;
                 }
             }
+            if (is_int($compressedByteLength)) {
+                $groups[$mediaType]['compressedByteLength'] += $compressedByteLength;
+            }
             if (is_int($declaredSize)) {
                 $groups[$mediaType]['declaredSize'] += $declaredSize;
+            }
+            if ($compressionMethod === 0) {
+                ++$groups[$mediaType]['storedCompressionMethodCount'];
+            } elseif ($compressionMethod === 8) {
+                ++$groups[$mediaType]['deflatedCompressionMethodCount'];
+            } elseif (is_int($compressionMethod)) {
+                ++$groups[$mediaType]['unsupportedCompressionMethodCount'];
             }
         }
 
@@ -11716,6 +11776,7 @@ final class OdfReader
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
             ];
         }
