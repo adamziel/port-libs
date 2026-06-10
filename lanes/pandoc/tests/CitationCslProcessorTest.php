@@ -24033,6 +24033,93 @@ XML);
         $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
         $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
     },
+    'maps bounded biblatex semantic scholar identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{semantic-source,
+  author       = {Ng, Nia},
+  title        = {Semantic Citation Packet},
+  journaltitle = {Review Graphs},
+  date         = {2026},
+  doi          = {10.5555/semantic},
+  s2cid        = {123456789}
+}
+
+@inproceedings{semantic-alias,
+  author              = {{Archive Graph Desk}},
+  title               = {Proceedings Graph Packet},
+  booktitle           = {Migration Graph Review},
+  date                = {2025},
+  semantic-scholar-id = {987654321}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('123456789', $items[0]['S2CID'] ?? null);
+        $t->same('987654321', $items[1]['S2CID'] ?? null);
+        $t->same('123456789', $items[0]['rawBibtex']['fields']['s2cid'] ?? null);
+        $t->same('987654321', $items[1]['rawBibtex']['fields']['semantic-scholar-id'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('semantic-source');
+        $alias = $processor->item('semantic-alias');
+        $t->same('123456789', $source['s2cid'] ?? null);
+        $t->same('987654321', $alias['s2cid'] ?? null);
+        $t->same('Ng, Nia. Semantic Citation Packet. Review Graphs. 2026. DOI 10.5555/semantic. S2CID 123456789.', $processor->renderBibliographyEntry('semantic-source'));
+        $t->same('Archive Graph Desk. Proceedings Graph Packet. Migration Graph Review. 2025. S2CID 987654321.', $processor->renderBibliographyEntry('semantic-alias'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Semantic Scholar Identifier Review</title>
+    <id>https://example.test/styles/bounded-semantic-scholar-identifier-review</id>
+    <updated>2026-06-10T16:40:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="S2CID"/>
+        <text variable="semantic-scholar-id"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="s2cid-id"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Semantic Scholar Identifier Review', $summary['title'] ?? null);
+        $t->same('S2CID', $citationChildren[1]['variable'] ?? null);
+        $t->same('semantic-scholar-id', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | 123456789 | 123456789; Archive Graph Desk | 987654321 | 987654321]', $styled->renderCitationCluster([
+            $citation('semantic-source', '[@semantic-source]'),
+            $citation('semantic-alias', '[@semantic-alias]'),
+        ]));
+        $t->same('Semantic Citation Packet :: 123456789', $styled->renderBibliographyEntry('semantic-source'));
+        $t->same('Proceedings Graph Packet :: 987654321', $styled->renderBibliographyEntry('semantic-alias'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-semantic',
+            'title' => 'Direct Semantic Packet',
+            'S2CID' => '246801357',
+        ]]);
+        $t->same('246801357', $direct->item('direct-semantic')['s2cid'] ?? null);
+        $t->same('Direct Semantic Packet. S2CID 246801357.', $direct->renderBibliographyEntry('direct-semantic'));
+
+        $document = (new MarkdownReader())->read('Semantic Scholar identifiers [@semantic-source; @semantic-alias] stay visible for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Semantic Scholar identifiers (Ng 2026; Archive Graph Desk 2025) stay visible for review.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Semantic Citation Packet. Review Graphs. 2026. DOI 10.5555/semantic. S2CID 123456789.</dd>', $blocks);
+        $t->contains('<dt>Archive Graph Desk 2025</dt><dd>Archive Graph Desk. Proceedings Graph Packet. Migration Graph Review. 2025. S2CID 987654321.</dd>', $blocks);
+    },
     'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{hyphen-original,

@@ -1207,6 +1207,7 @@ final class CitationCslProcessor
             'iswc' => self::firstStringField($item, ['ISWC', 'iswc']),
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
+            's2cid' => self::firstStringField($item, ['S2CID', 's2cid', 's2cid-id', 's2cidId', 's2cidid', 'SemanticScholarID', 'SemanticScholarId', 'semantic-scholar-id', 'semanticScholarId', 'semanticscholarid', 'semantic-scholar', 'semanticscholar']),
             'mrNumber' => self::firstStringField($item, ['MRNumber', 'mrNumber', 'mrnumber', 'mr-number', 'mr']),
             'mrClass' => self::firstStringField($item, ['MRClass', 'mrClass', 'mrclass', 'mr-class']),
             'zbl' => self::firstStringField($item, ['Zbl', 'zbl', 'zbmath']),
@@ -6868,6 +6869,11 @@ final class CitationCslProcessor
             $parts[] = 'PMCID ' . $pmcid . '.';
         }
 
+        $s2cid = (string) ($item['s2cid'] ?? '');
+        if ($s2cid !== '') {
+            $parts[] = 'S2CID ' . $s2cid . '.';
+        }
+
         $mrNumber = (string) ($item['mrNumber'] ?? '');
         if ($mrNumber !== '') {
             $parts[] = 'MR ' . $mrNumber . '.';
@@ -9100,6 +9106,7 @@ final class CitationCslProcessor
             'iswc' => (string) ($item['iswc'] ?? ''),
             'pmid' => (string) ($item['pmid'] ?? ''),
             'pmcid' => (string) ($item['pmcid'] ?? ''),
+            's2cid', 's2cid-id', 'semanticscholarid', 'semantic-scholar-id', 'semantic-scholar' => (string) ($item['s2cid'] ?? ''),
             'mrnumber', 'mr-number', 'mathscinet' => (string) ($item['mrNumber'] ?? ''),
             'mrclass', 'mr-class' => (string) ($item['mrClass'] ?? ''),
             'zbl', 'zbmath' => (string) ($item['zbl'] ?? ''),

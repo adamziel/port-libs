@@ -796,6 +796,7 @@ final class BibtexCslParser
             'ISWC' => self::firstField($fields, ['iswc']),
             'PMID' => self::firstField($fields, ['pmid']),
             'PMCID' => self::firstField($fields, ['pmcid']),
+            'S2CID' => self::firstField($fields, ['s2cid', 's2cidid', 's2cid-id', 'semantic-scholar-id', 'semanticscholarid', 'semantic-scholar', 'semanticscholar']),
             'MRNumber' => self::firstField($fields, ['mrnumber', 'mr-number', 'mr']),
             'MRClass' => self::firstField($fields, ['mrclass', 'mr-class']),
             'Zbl' => self::firstField($fields, ['zbl', 'zbmath']),
