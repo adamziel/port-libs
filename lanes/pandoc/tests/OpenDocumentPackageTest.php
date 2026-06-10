@@ -160,6 +160,16 @@ XML;
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
     },
+    'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
+        $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
+        $t->same(7, $leadingZero->manifestEntry('Pictures/hero.png')['size']);
+
+        foreach (['7bytes', '-7', '+7', '7.0', '922337203685477580799'] as $size) {
+            $manifest = str_replace('manifest:size="7"', 'manifest:size="' . $size . '"', $manifestXml);
+            $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest)));
+        }
+    },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
 

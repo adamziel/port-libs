@@ -268,13 +268,16 @@ final class OpenDocumentPackage
                 throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
             }
 
-            $size = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size');
+            $size = self::manifestSize(
+                self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size'),
+                $path
+            );
             $encryption = self::manifestEncryption($child);
             $entries[] = [
                 'path' => $path,
                 'mediaType' => $mediaType,
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
-                'size' => $size === null || $size === '' ? null : (int) $size,
+                'size' => $size,
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
@@ -668,6 +671,27 @@ final class OpenDocumentPackage
         $value = $value === null ? '' : trim($value);
 
         return ctype_digit($value) ? (int) $value : null;
+    }
+
+    private static function manifestSize(?string $value, string $path): ?int
+    {
+        $value = $value === null ? '' : trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!ctype_digit($value)) {
+            throw new \InvalidArgumentException('ODF manifest:size for ' . $path . ' must be a non-negative integer');
+        }
+
+        $normalized = ltrim($value, '0');
+        $normalized = $normalized === '' ? '0' : $normalized;
+        $max = (string) PHP_INT_MAX;
+        if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
+            throw new \InvalidArgumentException('ODF manifest:size for ' . $path . ' exceeds platform integer bounds');
+        }
+
+        return (int) $normalized;
     }
 
     /**
