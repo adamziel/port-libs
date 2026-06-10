@@ -404,4 +404,22 @@ return [
             '\end{quote}',
         ]), (new LatexWriter())->write($document));
     },
+    'renders inline hard line break commands distinctly from soft breaks' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer first line'),
+                new AstNode('linebreak'),
+                $text('forced next line'),
+                new AstNode('softbreak'),
+                $text('soft wrapped line'),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer first line\\\\' . "\n" . 'forced next line' . "\n" . 'soft wrapped line',
+            (new LatexWriter())->write($document)
+        );
+    },
 ];

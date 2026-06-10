@@ -564,7 +564,8 @@ final class LatexWriter
             $text .= match ($node->type) {
                 'text' => $this->escapeText((string) $node->attr('text', '')),
                 'space' => ' ',
-                'softbreak', 'linebreak' => "\n",
+                'softbreak' => "\n",
+                'linebreak' => '\\\\' . "\n",
                 'emph' => $this->renderCommand('emph', $this->renderInlines($node->children)),
                 'strong' => $this->renderCommand('textbf', $this->renderInlines($node->children)),
                 'strikeout' => $this->renderCommand('sout', $this->renderInlines($node->children)),
