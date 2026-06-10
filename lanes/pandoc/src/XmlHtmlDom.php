@@ -805,6 +805,15 @@ final class XmlHtmlDom
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
+        if ($name === 'details') {
+            $explicitSummary = self::firstChildHtmlElement($node, 'summary');
+            $summary['disclosure'] = 'details';
+            $summary['open'] = $node->hasAttribute('open');
+            $summary['explicitSummary'] = $explicitSummary instanceof \DOMElement;
+            $summary['summaryLabel'] = $explicitSummary instanceof \DOMElement
+                ? self::normalizedText($explicitSummary)
+                : 'Details';
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);

@@ -341,6 +341,32 @@ XML, 'package reader XML');
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html details disclosure state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<details id="release" open><summary>Release <strong>notes</strong></summary><p>Accepted</p></details><details id="audit"><p>No explicit summary</p></details>',
+            'details disclosure review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $release = $summary[0];
+        $audit = $summary[1];
+
+        $t->same('details', $release['name']);
+        $t->same('details', $release['disclosure']);
+        $t->same(true, $release['open']);
+        $t->same(true, $release['explicitSummary']);
+        $t->same('Release notes', $release['summaryLabel']);
+        $t->same('summary', $release['children'][0]['name']);
+        $t->same('Release notes', $release['children'][0]['text']);
+        $t->same('Accepted', $release['children'][1]['text']);
+        $t->same('details', $audit['disclosure']);
+        $t->same(false, $audit['open']);
+        $t->same(false, $audit['explicitSummary']);
+        $t->same('Details', $audit['summaryLabel']);
+        $t->same('No explicit summary', $audit['children'][0]['text']);
+        $t->same('<details id="release" open><summary>Release <strong>notes</strong></summary><p>Accepted</p></details><details id="audit"><p>No explicit summary</p></details>', $html);
+    },
     'summarizes html progress and meter state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<label for="upload-progress">Upload</label><progress id="upload-progress" value="3" max="4">75%</progress><progress id="pending">Pending</progress><label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label><meter id="clamped" value="12" min="2" max="10">Too high</meter>',
