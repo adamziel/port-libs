@@ -8951,6 +8951,80 @@ XML;
         $t->same('ready', $triplesByPredicate['content.xml|wp:review-status']['object']);
         $t->same('image/png', $triplesByPredicate['Pictures/hero.png|dc:format']['object']);
     },
+    'maps ODT XML signature sidecars into package review metadata without validation' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSignatures = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/macrosignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="review-signature">
+    <dsig:SignedInfo>
+      <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <dsig:Reference URI="content.xml" Type="http://example.test/odf/content">
+        <dsig:Transforms>
+          <dsig:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+        </dsig:Transforms>
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>contentdigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Pictures/hero.png#manifest">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>picturedigest</dsig:DigestValue>
+      </dsig:Reference>
+    </dsig:SignedInfo>
+    <dsig:SignatureValue>signature-bytes</dsig:SignatureValue>
+    <dsig:KeyInfo/>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignatures, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
+            ['name' => 'META-INF/macrosignatures.xml', 'data' => '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature'],
+        ]));
+        $signatures = $result['signatureMetadata'];
+
+        $t->same($signatures, $result['document']->attr('signatureMetadata'));
+        $t->same($signatures, $result['importReport']['signatureMetadata']);
+        $t->same(2, $signatures['partCount']);
+        $t->same(1, $signatures['parsedPartCount']);
+        $t->same(1, $signatures['parseErrorCount']);
+        $t->same(1, $signatures['signatureCount']);
+        $t->same(2, $signatures['referenceCount']);
+        $t->same(['Pictures/hero.png', 'content.xml'], $signatures['signedParts']);
+        $t->same(7, $result['importReport']['manifest']['count']);
+        $t->same(1, count($result['media']), 'signature XML sidecars must stay out of media byte handoff');
+
+        $documentSignatures = $signatures['parts'][0];
+        $macroSignatures = $signatures['parts'][1];
+        $t->same('META-INF/documentsignatures.xml', $documentSignatures['part']);
+        $t->same('text/xml', $documentSignatures['mediaType']);
+        $t->same(true, $documentSignatures['exists']);
+        $t->same(true, $documentSignatures['parseable']);
+        $t->same(1, $documentSignatures['signatureCount']);
+        $t->same(2, $documentSignatures['referenceCount']);
+        $t->same('META-INF/macrosignatures.xml', $macroSignatures['part']);
+        $t->same(false, $macroSignatures['parseable']);
+        $t->same('invalid-signature-xml', $macroSignatures['diagnostic']);
+
+        $signature = $documentSignatures['signatures'][0];
+        $t->same('review-signature', $signature['id']);
+        $t->same('http://www.w3.org/2001/04/xmldsig-more#rsa-sha256', $signature['signatureMethod']);
+        $t->same('http://www.w3.org/TR/2001/REC-xml-c14n-20010315', $signature['canonicalizationMethod']);
+        $t->same(strlen('signature-bytes'), $signature['signatureValueLength']);
+        $t->same(true, $signature['hasKeyInfo']);
+        $t->same('content.xml', $signature['references'][0]['part']);
+        $t->same('http://example.test/odf/content', $signature['references'][0]['type']);
+        $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $signature['references'][0]['digestMethod']);
+        $t->same(strlen('contentdigest'), $signature['references'][0]['digestValueLength']);
+        $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
+        $t->same('Pictures/hero.png', $signature['references'][1]['part']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

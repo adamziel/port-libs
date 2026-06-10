@@ -27,6 +27,7 @@ final class OdfReader
     private const XML_NS = 'http://www.w3.org/XML/1998/namespace';
     private const RDF_NS = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
     private const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+    private const DSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -84,6 +85,7 @@ final class OdfReader
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     rdfMetadata:array<string, mixed>,
+     *     signatureMetadata:array<string, mixed>,
      *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
      * }
@@ -95,6 +97,7 @@ final class OdfReader
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
         $rdfMetadata = $this->readRdfMetadata($package, $manifest);
+        $signatureMetadata = $this->readSignatureMetadata($package, $manifest);
         $this->packageRdfMetadata = $rdfMetadata;
         $styleCatalog = $this->readStyles($package);
         $metadata = $this->readMeta($package);
@@ -153,6 +156,7 @@ final class OdfReader
             'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'rdfMetadata' => $rdfMetadata,
+            'signatureMetadata' => $signatureMetadata,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -174,6 +178,7 @@ final class OdfReader
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
             'rdfMetadata' => $rdfMetadata,
+            'signatureMetadata' => $signatureMetadata,
             'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
                 'mimetype' => self::MIMETYPE,
@@ -229,6 +234,7 @@ final class OdfReader
                     'items' => $media,
                 ],
                 'rdfMetadata' => $rdfMetadata,
+                'signatureMetadata' => $signatureMetadata,
                 'trackedChanges' => [
                     'count' => count($content['trackedChanges']),
                     'items' => $content['trackedChanges'],
@@ -10719,6 +10725,266 @@ final class OdfReader
 
     /**
      * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function readSignatureMetadata(ZipPackage $package, array $manifest): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            if (!$this->isSignatureManifestItem($item)) {
+                continue;
+            }
+
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '' && !str_ends_with($part, '/')) {
+                $candidatesByPart[$part] = $item;
+            }
+        }
+
+        foreach ($package->entries() as $entry) {
+            if (!$entry instanceof ZipPackageEntry || !$this->isSignaturePartName($entry->name)) {
+                continue;
+            }
+            if (!isset($candidatesByPart[$entry->name])) {
+                $candidatesByPart[$entry->name] = [
+                    'fullPath' => $entry->name,
+                    'part' => $entry->name,
+                    'mediaType' => null,
+                    'exists' => true,
+                    'encrypted' => false,
+                    'canExposeBytes' => true,
+                ];
+            }
+        }
+
+        ksort($candidatesByPart);
+        $parts = [];
+        $signatures = [];
+        $parsedPartCount = 0;
+        $parseErrorCount = 0;
+        $signatureCount = 0;
+        $referenceCount = 0;
+        $signedParts = [];
+
+        foreach ($candidatesByPart as $part => $item) {
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $partMetadata = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'mediaType' => $item['mediaType'] ?? null,
+                'exists' => $entry instanceof ZipPackageEntry,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => !$encrypted,
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'signatureCount' => 0,
+                'referenceCount' => 0,
+                'signedParts' => [],
+                'signatures' => [],
+            ];
+
+            if (!$entry instanceof ZipPackageEntry) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'missing-signature-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            if ($encrypted) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'encrypted-signature-part';
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            try {
+                $parsed = $this->parseSignatureMetadataPart($package->read($part, 1048576), $part);
+            } catch (\InvalidArgumentException|\RuntimeException $exception) {
+                $partMetadata['parseable'] = false;
+                $partMetadata['diagnostic'] = 'invalid-signature-xml';
+                $partMetadata['error'] = $exception->getMessage();
+                $parseErrorCount++;
+                $parts[] = $partMetadata;
+                continue;
+            }
+
+            $partMetadata = array_merge($partMetadata, $parsed, ['parseable' => true]);
+            $parsedPartCount++;
+            $signatureCount += (int) ($parsed['signatureCount'] ?? 0);
+            $referenceCount += (int) ($parsed['referenceCount'] ?? 0);
+            foreach ($parsed['signedParts'] ?? [] as $signedPart) {
+                if (is_string($signedPart) && $signedPart !== '') {
+                    $signedParts[] = $signedPart;
+                }
+            }
+            foreach ($parsed['signatures'] ?? [] as $signature) {
+                if (is_array($signature)) {
+                    $signatures[] = ['part' => $part] + $signature;
+                }
+            }
+            $parts[] = $partMetadata;
+        }
+
+        $signedParts = array_values(array_unique($signedParts));
+        sort($signedParts);
+
+        return [
+            'count' => count($parts),
+            'partCount' => count($parts),
+            'parsedPartCount' => $parsedPartCount,
+            'parseErrorCount' => $parseErrorCount,
+            'signatureCount' => $signatureCount,
+            'referenceCount' => $referenceCount,
+            'signedPartCount' => count($signedParts),
+            'signedParts' => $signedParts,
+            'parts' => $parts,
+            'signatures' => $signatures,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function isSignatureManifestItem(array $item): bool
+    {
+        $part = $item['part'] ?? null;
+
+        return is_string($part) && $part !== '' && $this->isSignaturePartName($part);
+    }
+
+    private function isSignaturePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/')
+            && str_ends_with($normalized, 'signatures.xml');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseSignatureMetadataPart(string $xml, string $part): array
+    {
+        $dom = self::loadXml($xml, 'ODT signature metadata ' . $part);
+        $signatureElements = $dom->getElementsByTagNameNS(self::DSIG_NS, 'Signature');
+        $signatures = [];
+        $referenceCount = 0;
+        $signedParts = [];
+
+        foreach ($signatureElements as $signatureElement) {
+            if (!$signatureElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $signature = $this->signatureElementMetadata($signatureElement);
+            $referenceCount += (int) ($signature['referenceCount'] ?? 0);
+            foreach ($signature['references'] ?? [] as $reference) {
+                if (is_array($reference) && is_string($reference['part'] ?? null) && $reference['part'] !== '') {
+                    $signedParts[] = $reference['part'];
+                }
+            }
+            $signatures[] = $signature;
+        }
+
+        $signedParts = array_values(array_unique($signedParts));
+        sort($signedParts);
+
+        return [
+            'signatureCount' => count($signatures),
+            'referenceCount' => $referenceCount,
+            'signedPartCount' => count($signedParts),
+            'signedParts' => $signedParts,
+            'signatures' => $signatures,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureElementMetadata(\DOMElement $signature): array
+    {
+        $signedInfo = self::firstChildElement($signature, 'SignedInfo', self::DSIG_NS);
+        $signatureValue = self::firstChildElement($signature, 'SignatureValue', self::DSIG_NS);
+        $keyInfo = self::firstChildElement($signature, 'KeyInfo', self::DSIG_NS);
+        $signatureMethod = $signedInfo instanceof \DOMElement
+            ? self::firstChildElement($signedInfo, 'SignatureMethod', self::DSIG_NS)
+            : null;
+        $canonicalizationMethod = $signedInfo instanceof \DOMElement
+            ? self::firstChildElement($signedInfo, 'CanonicalizationMethod', self::DSIG_NS)
+            : null;
+
+        $references = [];
+        if ($signedInfo instanceof \DOMElement) {
+            foreach (self::childElements($signedInfo, 'Reference', self::DSIG_NS) as $reference) {
+                $references[] = $this->signatureReferenceMetadata($reference);
+            }
+        }
+
+        return self::withoutEmpty([
+            'id' => self::domAttribute($signature, 'Id') ?: self::domAttribute($signature, 'ID'),
+            'signatureMethod' => $signatureMethod instanceof \DOMElement ? self::nullable(self::domAttribute($signatureMethod, 'Algorithm')) : null,
+            'canonicalizationMethod' => $canonicalizationMethod instanceof \DOMElement ? self::nullable(self::domAttribute($canonicalizationMethod, 'Algorithm')) : null,
+            'signatureValueLength' => $signatureValue instanceof \DOMElement ? strlen(trim($signatureValue->textContent)) : null,
+            'hasKeyInfo' => $keyInfo instanceof \DOMElement,
+            'referenceCount' => count($references),
+            'references' => $references,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function signatureReferenceMetadata(\DOMElement $reference): array
+    {
+        $digestMethod = self::firstChildElement($reference, 'DigestMethod', self::DSIG_NS);
+        $digestValue = self::firstChildElement($reference, 'DigestValue', self::DSIG_NS);
+        $transformsElement = self::firstChildElement($reference, 'Transforms', self::DSIG_NS);
+        $transforms = [];
+        if ($transformsElement instanceof \DOMElement) {
+            foreach (self::childElements($transformsElement, 'Transform', self::DSIG_NS) as $transform) {
+                $algorithm = self::domAttribute($transform, 'Algorithm');
+                if ($algorithm !== '') {
+                    $transforms[] = $algorithm;
+                }
+            }
+        }
+
+        $uri = self::domAttribute($reference, 'URI');
+        $part = $this->signatureReferencePart($uri);
+
+        return self::withoutEmpty([
+            'uri' => self::nullable($uri),
+            'part' => $part,
+            'type' => self::nullable(self::domAttribute($reference, 'Type')),
+            'id' => self::nullable(self::domAttribute($reference, 'Id') ?: self::domAttribute($reference, 'ID')),
+            'digestMethod' => $digestMethod instanceof \DOMElement ? self::nullable(self::domAttribute($digestMethod, 'Algorithm')) : null,
+            'digestValueLength' => $digestValue instanceof \DOMElement ? strlen(trim($digestValue->textContent)) : null,
+            'transformCount' => count($transforms),
+            'transforms' => $transforms,
+        ]);
+    }
+
+    private function signatureReferencePart(string $uri): ?string
+    {
+        $path = preg_replace('/[#?].*$/', '', $uri) ?? $uri;
+        if ($path === '' || str_starts_with($path, '#')) {
+            return null;
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+            return null;
+        }
+
+        try {
+            return $this->manifestPackagePart($path);
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            return null;
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
      * @return list<array<string, mixed>>
      */
     private function mediaReport(ZipPackage $package, array $manifest): array
@@ -11411,6 +11677,11 @@ final class OdfReader
     private static function attr(\DOMElement $element, string $namespace, string $name): string
     {
         return trim($element->getAttributeNS($namespace, $name));
+    }
+
+    private static function domAttribute(\DOMElement $element, string $name): string
+    {
+        return trim($element->getAttribute($name));
     }
 
     private static function intAttr(\DOMElement $element, string $namespace, string $name, int $default): int
