@@ -23616,6 +23616,115 @@ XML);
         $t->contains('<dt>Ng 2025</dt><dd>Field Notes Packet :: Audit Series :: Field Notes Library:Audit Series:Folder 2</dd>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>City Archive Packet :: Migration Papers :: City Archive:Migration Papers:Box 4 [Portland]</dd>', $blocks);
     },
+    'maps bounded biblatex registry identifiers into csl metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@article{math-review,
+  author       = {Noether, Emmy},
+  title        = {Invariant Review Packet},
+  journaltitle = {Migration Mathematics Review},
+  date         = {2026},
+  mrnumber     = {MR1234567},
+  mrclass      = {13A50},
+  zbl          = {1234.56789},
+  jstor        = {10.2307/9999999}
+}
+
+@book{library-review,
+  author    = {{Archive Library Desk}},
+  title     = {Catalog Review Manual},
+  date      = {2025},
+  publisher = {Review Press},
+  hdl       = {20.500.12345/source-review},
+  lccn      = {2026123456},
+  oclc      = {987654321}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('MR1234567', $items[0]['MRNumber'] ?? null);
+        $t->same('13A50', $items[0]['MRClass'] ?? null);
+        $t->same('1234.56789', $items[0]['Zbl'] ?? null);
+        $t->same('10.2307/9999999', $items[0]['JSTOR'] ?? null);
+        $t->same('20.500.12345/source-review', $items[1]['HDL'] ?? null);
+        $t->same('2026123456', $items[1]['LCCN'] ?? null);
+        $t->same('987654321', $items[1]['OCLC'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $math = $processor->item('math-review');
+        $library = $processor->item('library-review');
+        $t->same('MR1234567', $math['mrNumber'] ?? null);
+        $t->same('13A50', $math['mrClass'] ?? null);
+        $t->same('1234.56789', $math['zbl'] ?? null);
+        $t->same('10.2307/9999999', $math['jstor'] ?? null);
+        $t->same('20.500.12345/source-review', $library['hdl'] ?? null);
+        $t->same('2026123456', $library['lccn'] ?? null);
+        $t->same('987654321', $library['oclc'] ?? null);
+        $t->same('Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.', $processor->renderBibliographyEntry('math-review'));
+        $t->same('Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.', $processor->renderBibliographyEntry('library-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Registry Identifier Review</title>
+    <id>https://example.test/styles/bounded-biblatex-registry-identifier-review</id>
+    <updated>2026-06-10T11:15:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="mrnumber"/>
+        <text variable="mrclass"/>
+        <text variable="zbl"/>
+        <text variable="jstor"/>
+        <text variable="hdl"/>
+        <text variable="lccn"/>
+        <text variable="oclc"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mr-number"/>
+      <text variable="zbmath"/>
+      <text variable="handle"/>
+      <text variable="oclc"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Registry Identifier Review', $summary['title'] ?? null);
+        $t->same('mrnumber', $citationChildren[1]['variable'] ?? null);
+        $t->same('oclc', $citationChildren[7]['variable'] ?? null);
+        $t->same('[Noether | MR1234567 | 13A50 | 1234.56789 | 10.2307/9999999; Archive Library Desk | 20.500.12345/source-review | 2026123456 | 987654321]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'math-review', 'text' => '[@math-review]']),
+            new AstNode('citation', ['id' => 'library-review', 'text' => '[@library-review]']),
+        ]));
+        $t->same('Invariant Review Packet :: MR1234567 :: 1234.56789', $styled->renderBibliographyEntry('math-review'));
+        $t->same('Catalog Review Manual :: 20.500.12345/source-review :: 987654321', $styled->renderBibliographyEntry('library-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-registry',
+            'title' => 'Direct Registry Packet',
+            'mr-number' => 'MR7654321',
+            'zbl' => '7654.32109',
+            'handle' => '20.500/direct',
+        ]]);
+        $t->same('MR7654321', $direct->item('direct-registry')['mrNumber'] ?? null);
+        $t->same('20.500/direct', $direct->item('direct-registry')['hdl'] ?? null);
+
+        $document = (new MarkdownReader())->read('Registry identifiers [@math-review; @library-review] stay visible for review.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Registry identifiers (Noether 2026; Archive Library Desk 2025) stay visible for review.</p>', $blocks);
+        $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
+        $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

@@ -1184,6 +1184,13 @@ final class CitationCslProcessor
             'iswc' => self::firstStringField($item, ['ISWC', 'iswc']),
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
+            'mrNumber' => self::firstStringField($item, ['MRNumber', 'mrNumber', 'mrnumber', 'mr-number', 'mr']),
+            'mrClass' => self::firstStringField($item, ['MRClass', 'mrClass', 'mrclass', 'mr-class']),
+            'zbl' => self::firstStringField($item, ['Zbl', 'zbl', 'zbmath']),
+            'jstor' => self::firstStringField($item, ['JSTOR', 'jstor']),
+            'hdl' => self::firstStringField($item, ['HDL', 'hdl', 'handle']),
+            'lccn' => self::firstStringField($item, ['LCCN', 'lccn']),
+            'oclc' => self::firstStringField($item, ['OCLC', 'oclc']),
             'archive' => $archive,
             'archiveCollection' => $archiveCollection,
             'archivePlace' => $archivePlace,
@@ -6807,6 +6814,41 @@ final class CitationCslProcessor
             $parts[] = 'PMCID ' . $pmcid . '.';
         }
 
+        $mrNumber = (string) ($item['mrNumber'] ?? '');
+        if ($mrNumber !== '') {
+            $parts[] = 'MR ' . $mrNumber . '.';
+        }
+
+        $mrClass = (string) ($item['mrClass'] ?? '');
+        if ($mrClass !== '') {
+            $parts[] = 'MR class ' . $mrClass . '.';
+        }
+
+        $zbl = (string) ($item['zbl'] ?? '');
+        if ($zbl !== '') {
+            $parts[] = 'Zbl ' . $zbl . '.';
+        }
+
+        $jstor = (string) ($item['jstor'] ?? '');
+        if ($jstor !== '') {
+            $parts[] = 'JSTOR ' . $jstor . '.';
+        }
+
+        $hdl = (string) ($item['hdl'] ?? '');
+        if ($hdl !== '') {
+            $parts[] = 'HDL ' . $hdl . '.';
+        }
+
+        $lccn = (string) ($item['lccn'] ?? '');
+        if ($lccn !== '') {
+            $parts[] = 'LCCN ' . $lccn . '.';
+        }
+
+        $oclc = (string) ($item['oclc'] ?? '');
+        if ($oclc !== '') {
+            $parts[] = 'OCLC ' . $oclc . '.';
+        }
+
         $archive = array_values(array_filter([
             (string) ($item['archive'] ?? ''),
             (string) ($item['archiveCollection'] ?? ''),
@@ -8990,6 +9032,13 @@ final class CitationCslProcessor
             'iswc' => (string) ($item['iswc'] ?? ''),
             'pmid' => (string) ($item['pmid'] ?? ''),
             'pmcid' => (string) ($item['pmcid'] ?? ''),
+            'mrnumber', 'mr-number', 'mathscinet' => (string) ($item['mrNumber'] ?? ''),
+            'mrclass', 'mr-class' => (string) ($item['mrClass'] ?? ''),
+            'zbl', 'zbmath' => (string) ($item['zbl'] ?? ''),
+            'jstor' => (string) ($item['jstor'] ?? ''),
+            'hdl', 'handle' => (string) ($item['hdl'] ?? ''),
+            'lccn' => (string) ($item['lccn'] ?? ''),
+            'oclc' => (string) ($item['oclc'] ?? ''),
             'archive' => (string) $item['archive'],
             'archive_collection', 'archive-collection', 'archivecollection' => (string) ($item['archiveCollection'] ?? ''),
             'archive-place', 'archiveplace' => (string) $item['archivePlace'],
