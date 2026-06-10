@@ -443,7 +443,8 @@ final class XmlHtmlDom
 
             $endPattern = '~</\s*' . preg_quote($name, '~') . '\s*>~i';
             if (preg_match($endPattern, $html, $endMatches, PREG_OFFSET_CAPTURE, $contentStart) !== 1) {
-                $protected .= substr($html, $contentStart);
+                $protected .= self::protectHtmlRcdataElementContent($name, substr($html, $contentStart))
+                    . '</' . $name . '>';
 
                 return $protected;
             }
@@ -451,13 +452,7 @@ final class XmlHtmlDom
             $endTag = (string) $endMatches[0][0];
             $endOffset = (int) $endMatches[0][1];
             $content = substr($html, $contentStart, $endOffset - $contentStart);
-            if (in_array($name, ['script', 'style'], true)) {
-                $protected .= $content;
-            } elseif (in_array($name, ['title', 'textarea'], true)) {
-                $protected .= self::escapeHtmlRcdataContent(self::normalizeHtml5NamedCharacterReferences($content));
-            } else {
-                $protected .= self::escapeHtmlRawTextContent($content);
-            }
+            $protected .= self::protectHtmlRcdataElementContent($name, $content);
             $protected .= $endTag;
             $offset = $endOffset + strlen($endTag);
         }
@@ -465,6 +460,19 @@ final class XmlHtmlDom
         return $protected . self::normalizeHtml5NamedCharacterReferences(
             self::protectHtmlCdataSections(substr($html, $offset))
         );
+    }
+
+    private static function protectHtmlRcdataElementContent(string $name, string $content): string
+    {
+        if (in_array($name, ['script', 'style'], true)) {
+            return $content;
+        }
+
+        if (in_array($name, ['title', 'textarea'], true)) {
+            return self::escapeHtmlRcdataContent(self::normalizeHtml5NamedCharacterReferences($content));
+        }
+
+        return self::escapeHtmlRawTextContent($content);
     }
 
     private static function isHtmlTitleStartInSvgContext(string $html, int $startOffset): bool

@@ -376,6 +376,27 @@ return [
             $html
         );
     },
+    'keeps unterminated html rcdata source as escaped text through fragment end' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<textarea data-source="legacy">Reviewer <script>alert(1)</script> &amp; <b>note</b><p>after</p>',
+            'unterminated rcdata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $expectedText = 'Reviewer <script>alert(1)</script> & <b>note</b><p>after</p>';
+        $expectedHtml = '<textarea data-source="legacy">Reviewer &lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;note&lt;/b&gt;&lt;p&gt;after&lt;/p&gt;</textarea>';
+
+        $t->same(1, count($summary));
+        $t->same('textarea', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same($expectedText, $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same($expectedText, $summary[0]['children'][0]['text']);
+        $t->same($expectedHtml, $html);
+        $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected unterminated textarea script-looking source to stay escaped');
+        $t->true(!str_contains($html, '<p>after</p>'), 'Expected unterminated textarea following source to stay escaped');
+    },
     'serializes obsolete html raw text fallback elements as escaped source text' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<xmp data-source="legacy">Reviewer <script>alert(1)</script> &amp; <textarea><b>note</b></textarea></xmp>'
