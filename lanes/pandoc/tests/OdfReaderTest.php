@@ -9077,6 +9077,81 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'reports ODT manifest ZIP compression provenance for package media' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $sourceBytes = 'SIDECAR-RAW';
+        $manifestWithCompression = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/source.raw" manifest:media-type="application/octet-stream" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithCompression],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/source.raw', 'data' => $sourceBytes, 'compressionMethod' => 12],
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $summaryByType = [];
+        foreach ($summary['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
+
+        $hero = $manifestByPath['Pictures/hero.png'];
+        $t->same(0, $hero['compressionMethod']);
+        $t->same('stored', $hero['compressionMethodName']);
+        $t->same(7, $hero['compressedByteLength']);
+        $t->same(true, $hero['canExposeBytes']);
+        $t->same('deflated', $manifestByPath['content.xml']['compressionMethodName']);
+
+        $sidecar = $manifestByPath['Pictures/source.raw'];
+        $t->same(strlen($sourceBytes), $sidecar['byteLength']);
+        $t->same(strlen($sourceBytes), $sidecar['compressedByteLength']);
+        $t->same(12, $sidecar['compressionMethod']);
+        $t->same('unsupported', $sidecar['compressionMethodName']);
+        $t->same(false, $sidecar['canExposeBytes']);
+        $t->same(sprintf('%08x', crc32($sourceBytes)), $sidecar['crc32']);
+
+        $sidecarMedia = $mediaByPart['Pictures/source.raw'];
+        $t->same(true, $sidecarMedia['exists']);
+        $t->same(null, $sidecarMedia['byteLength']);
+        $t->same(strlen($sourceBytes), $sidecarMedia['storedByteLength']);
+        $t->same(strlen($sourceBytes), $sidecarMedia['compressedByteLength']);
+        $t->same(12, $sidecarMedia['compressionMethod']);
+        $t->same('unsupported', $sidecarMedia['compressionMethodName']);
+        $t->same(false, $sidecarMedia['canExposeBytes']);
+        $t->same(null, $sidecarMedia['crc32']);
+        $t->same(sprintf('%08x', crc32($sourceBytes)), $sidecarMedia['storedCrc32']);
+
+        $t->same(1, $summary['storedCompressionMethodCount']);
+        $t->same(3, $summary['deflatedCompressionMethodCount']);
+        $t->same(1, $summary['unsupportedCompressionMethodCount']);
+        $t->same(1, $summaryByType['application/octet-stream']['unsupportedCompressionMethodCount']);
+        $t->same(strlen($sourceBytes), $summaryByType['application/octet-stream']['compressedByteLength']);
+        $t->same(0, $summaryByType['application/octet-stream']['exposableByteLength']);
+        $t->same(1, $summaryByType['image/png']['storedCompressionMethodCount']);
+        $t->same(3, $summaryByType['text/xml']['deflatedCompressionMethodCount']);
+        $t->same(['Pictures/hero.png', 'Pictures/source.raw'], array_column($result['media'], 'part'));
+
+        $image = $result['document']->children[5]->children[0];
+        $t->same(0, $image->attr('compressionMethod'));
+        $t->same('stored', $image->attr('compressionMethodName'));
+        $t->same(7, $image->attr('compressedByteLength'));
+        $t->same(7, $image->attr('bytes'));
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
