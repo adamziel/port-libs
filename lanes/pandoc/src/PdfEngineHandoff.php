@@ -137,6 +137,7 @@ final class PdfEngineHandoff
      *     sourceArtifacts: list<string>,
      *     engineLogFile: string|null,
      *     engineArtifactStem: string,
+     *     engineDependencyFile: string|null,
      *     expectedEngineArtifacts: list<string>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
@@ -189,6 +190,10 @@ final class PdfEngineHandoff
         if ($recorderFile !== null && !in_array($recorderFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $recorderFile;
         }
+        $engineDependencyFile = $this->engineDependencyFileFor($engine, $profile['family'], $engineArtifactStem, $engineOptions);
+        if ($engineDependencyFile !== null && !in_array($engineDependencyFile, $expectedEngineArtifacts, true)) {
+            $expectedEngineArtifacts[] = $engineDependencyFile;
+        }
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $sourceMapFile;
@@ -230,6 +235,9 @@ final class PdfEngineHandoff
         if ($recorderFile !== null) {
             $diagnostics[] = 'pdf-engine-recorder:' . $recorderFile;
         }
+        if ($engineDependencyFile !== null) {
+            $diagnostics[] = 'pdf-engine-dependency-file:' . $engineDependencyFile;
+        }
         if ($sourceMapFile !== null) {
             $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
@@ -266,6 +274,7 @@ final class PdfEngineHandoff
             'sourceArtifacts' => $sourceArtifacts,
             'engineLogFile' => $engineLogFile,
             'engineArtifactStem' => $engineArtifactStem,
+            'engineDependencyFile' => $engineDependencyFile,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
@@ -4982,6 +4991,34 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
+    private function engineDependencyFileFor(string $engine, string $family, string $artifactStem, array $engineOptions): ?string
+    {
+        if ($engine !== 'typst' || $family !== 'typst') {
+            return null;
+        }
+
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            if (preg_match('/\A--(?:make-)?deps=(.+)\z/i', $option, $matches) === 1) {
+                return $this->normalizeRelativePath($matches[1], 'Typst dependency file path');
+            }
+
+            if (!in_array(strtolower($option), ['--deps', '--make-deps'], true)) {
+                continue;
+            }
+
+            $next = $engineOptions[$index + 1] ?? null;
+            if (is_string($next) && $next !== '' && !$this->looksLikeEngineOption($next)) {
+                return $this->normalizeRelativePath($next, 'Typst dependency file path');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     */
     private function recorderFileFor(string $engine, string $family, string $artifactStem, array $engineOptions): ?string
     {
         if ($family !== 'latex') {
@@ -5018,6 +5055,11 @@ final class PdfEngineHandoff
         }
 
         return preg_match('/recorder\s*=\s*(?:0|false|off|no)\b/i', $option) !== 1;
+    }
+
+    private function looksLikeEngineOption(string $value): bool
+    {
+        return str_starts_with(trim($value), '-');
     }
 
     /**
@@ -5149,6 +5191,8 @@ final class PdfEngineHandoff
                 'synctex.gz',
                 'toc',
                 'tuc',
+                'd',
+                'deps',
                 'xdv',
             ], true)) {
                 return true;
@@ -5170,7 +5214,7 @@ final class PdfEngineHandoff
 
     private function isEngineDependencyArtifactPath(string $path): bool
     {
-        return preg_match('/\.fls\z/i', $path) === 1;
+        return preg_match('/\.(?:fls|d|deps)\z/i', $path) === 1;
     }
 
     private function isSourceMapArtifactPath(string $path): bool
@@ -5256,7 +5300,7 @@ final class PdfEngineHandoff
 
     private function isLikelyEngineTranscriptPath(string $candidate): bool
     {
-        return preg_match('/\.(?:tex|sty|cls|clo|def|cfg|fd|map|enc|mf|tfm|otf|ttf|bib|bst|bbx|cbx|lbx|aux|out|toc|lof|lot|bbl|bcf|run\.xml|png|jpe?g|pdf|eps|svg|xdv)\z/i', $candidate) === 1;
+        return preg_match('/\.(?:typ|tex|sty|cls|clo|def|cfg|fd|map|enc|mf|tfm|otf|ttf|bib|bst|bbx|cbx|lbx|aux|out|toc|lof|lot|bbl|bcf|run\.xml|png|jpe?g|pdf|eps|svg|xdv)\z/i', $candidate) === 1;
     }
 
     /**
@@ -5271,6 +5315,7 @@ final class PdfEngineHandoff
         $inputFiles = [];
         $externalInputFiles = [];
         $outputFiles = [];
+        $recorderRows = false;
 
         foreach (preg_split('/\R/u', $bytes) ?: [] as $line) {
             $line = trim($line);
@@ -5281,6 +5326,7 @@ final class PdfEngineHandoff
                 continue;
             }
 
+            $recorderRows = true;
             $classified = $this->normalizeEngineDependencyPath($matches[2], $path);
             if (strtoupper($matches[1]) === 'INPUT') {
                 if ($classified['local']) {
@@ -5296,6 +5342,19 @@ final class PdfEngineHandoff
             }
         }
 
+        if (!$recorderRows && preg_match('/\.(?:d|deps)\z/i', $path) === 1) {
+            $makeDependencies = $this->extractMakeDependencyArtifact($path, $bytes);
+            foreach ($makeDependencies['inputFiles'] as $inputFile) {
+                $inputFiles[$inputFile] = true;
+            }
+            foreach ($makeDependencies['externalInputFiles'] as $externalInputFile) {
+                $externalInputFiles[$externalInputFile] = true;
+            }
+            foreach ($makeDependencies['outputFiles'] as $outputFile) {
+                $outputFiles[$outputFile] = true;
+            }
+        }
+
         $inputFileList = array_keys($inputFiles);
         sort($inputFileList);
         $externalInputFileList = array_keys($externalInputFiles);
@@ -5308,6 +5367,119 @@ final class PdfEngineHandoff
             'externalInputFiles' => $externalInputFileList,
             'outputFiles' => $outputFileList,
         ];
+    }
+
+    /**
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>}
+     */
+    private function extractMakeDependencyArtifact(string $path, string $bytes): array
+    {
+        $inputFiles = [];
+        $externalInputFiles = [];
+        $outputFiles = [];
+        $text = preg_replace("/\\\\\r?\n/", ' ', $bytes) ?? $bytes;
+
+        foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+
+            $colonOffset = $this->findMakeDependencyColon($line);
+            if ($colonOffset === null) {
+                continue;
+            }
+
+            foreach ($this->tokenizeMakeDependencyWords(substr($line, 0, $colonOffset)) as $target) {
+                $classified = $this->normalizeEngineDependencyPath($target, $path);
+                if ($classified['local']) {
+                    $outputFiles[$classified['path']] = true;
+                }
+            }
+
+            foreach ($this->tokenizeMakeDependencyWords(substr($line, $colonOffset + 1)) as $dependency) {
+                $classified = $this->normalizeEngineDependencyPath($dependency, $path);
+                if ($classified['local']) {
+                    $inputFiles[$classified['path']] = true;
+                } else {
+                    $externalInputFiles[$classified['path']] = true;
+                }
+            }
+        }
+
+        $inputFileList = array_keys($inputFiles);
+        sort($inputFileList);
+        $externalInputFileList = array_keys($externalInputFiles);
+        sort($externalInputFileList);
+        $outputFileList = array_keys($outputFiles);
+        sort($outputFileList);
+
+        return [
+            'inputFiles' => $inputFileList,
+            'externalInputFiles' => $externalInputFileList,
+            'outputFiles' => $outputFileList,
+        ];
+    }
+
+    private function findMakeDependencyColon(string $line): ?int
+    {
+        $length = strlen($line);
+        for ($index = 0; $index < $length; $index++) {
+            if ($line[$index] !== ':') {
+                continue;
+            }
+
+            $slashes = 0;
+            for ($previous = $index - 1; $previous >= 0 && $line[$previous] === '\\'; $previous--) {
+                $slashes++;
+            }
+            if ($slashes % 2 === 0) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenizeMakeDependencyWords(string $text): array
+    {
+        $tokens = [];
+        $current = '';
+        $escaping = false;
+        $length = strlen($text);
+
+        for ($index = 0; $index < $length; $index++) {
+            $character = $text[$index];
+            if ($escaping) {
+                $current .= $character;
+                $escaping = false;
+                continue;
+            }
+            if ($character === '\\') {
+                $escaping = true;
+                continue;
+            }
+            if (ctype_space($character)) {
+                if ($current !== '') {
+                    $tokens[] = $current;
+                    $current = '';
+                }
+                continue;
+            }
+
+            $current .= $character;
+        }
+        if ($escaping) {
+            $current .= '\\';
+        }
+        if ($current !== '') {
+            $tokens[] = $current;
+        }
+
+        return $tokens;
     }
 
     /**
@@ -5706,6 +5878,9 @@ final class PdfEngineHandoff
     private function engineMissingDependencyKindForFile(string $name): string
     {
         $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        if ($extension === 'typ') {
+            return 'typst-file';
+        }
         if (in_array($extension, ['sty', 'cls', 'clo', 'def', 'cfg', 'lco', 'fd', 'map', 'enc'], true)) {
             return 'tex-file';
         }
