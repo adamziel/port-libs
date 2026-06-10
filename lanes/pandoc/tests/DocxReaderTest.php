@@ -1460,6 +1460,58 @@ $themeFontDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$fontTableContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>
+  <Override PartName="/word/fonts/aptos-Regular.odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>
+</Types>
+XML;
+
+$fontTableDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml?review=1#fonts"/>
+</Relationships>
+XML;
+
+$fontTableRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdAptosRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/aptos-Regular.odttf"/>
+  <Relationship Id="rIdMissingBold" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/missing-bold.odttf"/>
+  <Relationship Id="rIdUnsafeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="file:///C:/Windows/Fonts/source-code-pro.ttf" TargetMode="External"/>
+</Relationships>
+XML;
+
+$fontTableXml = <<<'XML'
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:font w:name="Aptos">
+    <w:altName w:val="Body Font"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+    <w:panose1 w:val="020F0502020204030204"/>
+    <w:sig w:usb0="E0002EFF" w:usb1="C0007843" w:usb2="00000009" w:usb3="00000000" w:csb0="000001FF" w:csb1="00000000"/>
+    <w:embedRegular r:id="rIdAptosRegular" w:fontKey="{00112233-4455-6677-8899-AABBCCDDEEFF}"/>
+    <w:embedBold r:id="rIdMissingBold" w:fontKey="{11112233-4455-6677-8899-AABBCCDDEEFF}"/>
+  </w:font>
+  <w:font w:name="Source Code Pro">
+    <w:charset w:val="00"/>
+    <w:family w:val="modern"/>
+    <w:pitch w:val="fixed"/>
+    <w:embedItalic r:id="rIdUnsafeExternal"/>
+  </w:font>
+</w:fonts>
+XML;
+
+$fontTableDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Font table packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
 $themeColorContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -5011,6 +5063,25 @@ $buildThemeFontPackage = static function () use (
     ]);
 };
 
+$buildFontTablePackage = static function () use (
+    $fontTableContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $fontTableDocumentRelationshipsXml,
+    $fontTableRelationshipsXml,
+    $fontTableDocumentXml,
+    $fontTableXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $fontTableContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $fontTableDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $fontTableDocumentRelationshipsXml],
+        ['name' => 'word/fontTable.xml', 'data' => $fontTableXml],
+        ['name' => 'word/_rels/fontTable.xml.rels', 'data' => $fontTableRelationshipsXml],
+        ['name' => 'word/fonts/aptos-Regular.odttf', 'data' => 'OBFUSCATEDFONT'],
+    ]);
+};
+
 $buildThemeColorPackage = static function () use (
     $themeColorContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -7826,6 +7897,79 @@ return [
         $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="majorHAnsi" data-docx-font-ascii="Aptos Display"', $blocks);
         $t->contains('<span class="docx-theme-font docx-font" data-docx-theme-font-ascii="minorHAnsi" data-docx-font-ascii="Aptos"', $blocks);
         $t->contains('<span class="docx-font docx-theme-font" data-docx-font-ascii="Source Serif" data-docx-font-hansi="Source Serif" data-docx-theme-font-east-asia="minorEastAsia"', $blocks);
+    },
+    'reports DOCX font table declarations and embedded font relationship preflight' => static function (TestRunner $t) use ($buildFontTablePackage): void {
+        $result = (new DocxReader())->readPackage($buildFontTablePackage());
+        $fontTable = $result['metadata']['docxFontTable'];
+
+        $t->same('Font table packet.', $result['document']->children[0]->children[0]->attr('text'));
+        $t->same('/word/fontTable.xml', $fontTable['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml', $fontTable['contentType']);
+        $t->same('rIdFontTable', $fontTable['relationship']['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable', $fontTable['relationship']['type']);
+        $t->same('/word/fontTable.xml?review=1#fonts', $fontTable['relationship']['target']);
+        $t->same('/word/fontTable.xml', $fontTable['relationship']['targetPart']);
+        $t->same(false, $fontTable['relationship']['external']);
+        $t->same(true, $fontTable['relationship']['exists']);
+        $t->same([], $fontTable['relationship']['issues']);
+        $t->same('/word/_rels/fontTable.xml.rels', $fontTable['relationshipsPart']);
+        $t->same(3, $fontTable['relationshipCount']);
+        $t->same(2, $fontTable['fontCount']);
+        $t->same(3, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(2, $fontTable['embeddedFontIssueCount']);
+        $t->same(['Aptos', 'Source Code Pro'], $fontTable['declaredNames']);
+        $t->same([], $fontTable['issues']);
+
+        $aptos = $fontTable['byName']['Aptos'];
+        $t->same('Body Font', $aptos['alternateName']);
+        $t->same('00', $aptos['charset']);
+        $t->same('swiss', $aptos['family']);
+        $t->same('variable', $aptos['pitch']);
+        $t->same('020F0502020204030204', $aptos['panose1']);
+        $t->same('E0002EFF', $aptos['signature']['usb0']);
+        $t->same('000001FF', $aptos['signature']['csb0']);
+        $t->same(2, $aptos['embeddedFontCount']);
+
+        $regular = $aptos['embeddedFonts'][0];
+        $t->same('regular', $regular['style']);
+        $t->same('rIdAptosRegular', $regular['id']);
+        $t->same('/word/fontTable.xml', $regular['sourcePart']);
+        $t->same('/word/_rels/fontTable.xml.rels', $regular['relationshipsPart']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/font', $regular['relationshipType']);
+        $t->same('/word/fonts/aptos-Regular.odttf', $regular['target']);
+        $t->same('/word/fonts/aptos-Regular.odttf', $regular['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.obfuscatedFont', $regular['contentType']);
+        $t->same(false, $regular['external']);
+        $t->same(true, $regular['exists']);
+        $t->same(strlen('OBFUSCATEDFONT'), $regular['byteCount']);
+        $t->same(true, $regular['fontKeyPresent']);
+        $t->same(hash('sha256', '{00112233-4455-6677-8899-AABBCCDDEEFF}'), $regular['fontKeySha256']);
+        $t->true(!isset($regular['fontKey']), 'Raw DOCX embedded font key should not be exposed');
+        $t->same([], $regular['issues']);
+
+        $missing = $aptos['embeddedFonts'][1];
+        $t->same('bold', $missing['style']);
+        $t->same('rIdMissingBold', $missing['id']);
+        $t->same('/word/fonts/missing-bold.odttf', $missing['targetPart']);
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
+
+        $sourceCode = $fontTable['byName']['Source Code Pro'];
+        $t->same('modern', $sourceCode['family']);
+        $t->same('fixed', $sourceCode['pitch']);
+        $t->same(1, $sourceCode['embeddedFontCount']);
+        $external = $sourceCode['embeddedFonts'][0];
+        $t->same('italic', $external['style']);
+        $t->same('rIdUnsafeExternal', $external['id']);
+        $t->same('file:///C:/Windows/Fonts/source-code-pro.ttf', $external['target']);
+        $t->same(true, $external['external']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('file', $external['externalTargetScheme']);
+        $t->same(false, $external['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $external['issues']);
+
+        $t->same($fontTable, $result['importReport']['fontTable']);
     },
     'resolves DOCX theme color scheme into reviewer run metadata spans' => static function (TestRunner $t) use ($buildThemeColorPackage): void {
         $result = (new DocxReader())->readPackage($buildThemeColorPackage());
