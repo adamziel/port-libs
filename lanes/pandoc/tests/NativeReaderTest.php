@@ -222,6 +222,103 @@ return [
         $t->same(['native-review'], $roundTripChildren[11]->attr('classes'));
         $t->same(['data-source' => 'shared-ast'], $roundTripChildren[11]->attr('attributes'));
     },
+    'round trips native image and note inline constructors through shared ast' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                [
+                    't' => 'Para',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Screenshot'],
+                        ['t' => 'Space'],
+                        ['t' => 'Image', 'c' => [
+                            ['native-image', ['asset'], [['data-source', 'media-bag']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Alt'],
+                                ['t' => 'Space'],
+                                ['t' => 'Strong', 'c' => [
+                                    ['t' => 'Str', 'c' => 'text'],
+                                ]],
+                            ],
+                            ['media/diagram.png', 'Diagram title'],
+                        ]],
+                        ['t' => 'Space'],
+                        ['t' => 'Note', 'c' => [
+                            ['t' => 'Para', 'c' => [
+                                ['t' => 'Str', 'c' => 'Footnote'],
+                                ['t' => 'Space'],
+                                ['t' => 'Link', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Str', 'c' => 'source'],
+                                    ],
+                                    ['https://example.test/source', 'Source'],
+                                ]],
+                            ]],
+                        ]],
+                    ],
+                ],
+            ],
+        ];
+
+        $reader = new NativeReader();
+        $writer = new NativeWriter();
+        $document = $reader->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $paragraph = $document->children[0];
+        $image = $paragraph->children[1];
+        $note = $paragraph->children[3];
+        $roundTrip = json_decode($writer->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $generatedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Generated']),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'id' => 'generated-image',
+                    'classes' => ['review-asset'],
+                    'attributes' => ['data-source' => 'writer'],
+                    'url' => 'media/generated.png',
+                    'title' => 'Generated title',
+                ], [
+                    new AstNode('text', ['text' => 'Generated']),
+                    new AstNode('space'),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'alt'])]),
+                ]),
+                new AstNode('space'),
+                new AstNode('note', [], [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Generated']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'note']),
+                    ]),
+                ]),
+            ]),
+        ]);
+        $generated = json_decode($writer->write($generatedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $generatedRoundTrip = $reader->read(json_encode($generated, JSON_THROW_ON_ERROR));
+
+        $t->same(['text', 'image', 'text', 'note'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('native-image', $image->attr('id'));
+        $t->same(['asset'], $image->attr('classes'));
+        $t->same(['data-source' => 'media-bag'], $image->attr('attributes'));
+        $t->same('media/diagram.png', $image->attr('url'));
+        $t->same('Diagram title', $image->attr('title'));
+        $t->same('Alt text', $image->attr('alt'));
+        $t->same(['text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $image->children));
+        $t->same('paragraph', $note->children[0]->type);
+        $t->same('link', $note->children[0]->children[1]->type);
+        $t->same('https://example.test/source', $note->children[0]->children[1]->attr('url'));
+        $t->same($native['blocks'], $roundTrip['blocks']);
+        $t->same('Image', $generated['blocks'][0]['c'][2]['t']);
+        $t->same(['generated-image', ['review-asset'], [['data-source', 'writer']]], $generated['blocks'][0]['c'][2]['c'][0]);
+        $t->same('Strong', $generated['blocks'][0]['c'][2]['c'][1][2]['t']);
+        $t->same(['media/generated.png', 'Generated title'], $generated['blocks'][0]['c'][2]['c'][2]);
+        $t->same('Note', $generated['blocks'][0]['c'][4]['t']);
+        $t->same('Para', $generated['blocks'][0]['c'][4]['c'][0]['t']);
+        $t->same('image', $generatedRoundTrip->children[0]->children[1]->type);
+        $t->same('Generated alt', $generatedRoundTrip->children[0]->children[1]->attr('alt'));
+        $t->same('note', $generatedRoundTrip->children[0]->children[3]->type);
+    },
     'maps native ast table captions into shared table metadata' => static function (TestRunner $t): void {
         $nativeTable = [
             't' => 'Table',
