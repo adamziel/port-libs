@@ -9286,6 +9286,7 @@ final class OdfReader
             'writingMode' => self::nullable(self::attr($properties, self::STYLE_NS, 'writing-mode')),
             'numFormat' => self::nullable(self::attr($properties, self::STYLE_NS, 'num-format')),
             'firstPageNumber' => self::nullable(self::attr($properties, self::STYLE_NS, 'first-page-number')),
+            'registerTruthRefStyleName' => self::nullable(self::attr($properties, self::STYLE_NS, 'register-truth-ref-style-name')),
         ]);
     }
 
@@ -9738,6 +9739,23 @@ final class OdfReader
                     ];
                 }
             }
+        }
+
+        foreach ($catalog['pageLayouts'] as $pageLayoutName => $pageLayout) {
+            $properties = $pageLayout['properties'] ?? [];
+            if (!is_array($properties)) {
+                continue;
+            }
+
+            $this->appendMissingNamedReferenceDiagnostic(
+                $diagnostics,
+                'odf-page-layout-missing-register-truth-style',
+                'pageLayout',
+                $pageLayoutName,
+                'registerTruthRefStyleName',
+                (string) ($properties['registerTruthRefStyleName'] ?? ''),
+                $catalog['styles']
+            );
         }
 
         foreach ($catalog['masterPages'] as $masterPageName => $masterPage) {

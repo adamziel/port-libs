@@ -290,6 +290,9 @@ XML;
       <number:number number:decimal-places="2"/>
     </number:number-style>
     <style:page-layout style:name="ExistingLayout"/>
+    <style:page-layout style:name="BrokenRegisterTruthLayout">
+      <style:page-layout-properties style:register-truth-ref-style-name="MissingRegisterStyle"/>
+    </style:page-layout>
   </office:automatic-styles>
   <office:styles>
     <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList" style:master-page-name="MissingMaster" style:data-style-name="MissingNumber">
@@ -323,12 +326,13 @@ XML;
 
         $t->same(4, $styleReport['count']);
         $t->same(1, $styleReport['styleMapCount']);
-        $t->same(12, $styleReport['diagnosticCount']);
+        $t->same(13, $styleReport['diagnosticCount']);
         $t->same([
             'odf-list-style-missing-font-face' => 1,
             'odf-master-page-missing-draw-style' => 1,
             'odf-master-page-missing-next-master-page' => 1,
             'odf-master-page-missing-page-layout' => 1,
+            'odf-page-layout-missing-register-truth-style' => 1,
             'odf-style-map-missing-target' => 1,
             'odf-style-missing-data-style' => 1,
             'odf-style-missing-font-face' => 1,
@@ -344,7 +348,51 @@ XML;
         $t->same(['CycleA', 'CycleB', 'CycleA'], $diagnosticsByCode['odf-style-parent-cycle'][0]['cyclePath']);
         $t->same('MissingHeaderStyle', $diagnosticsByCode['odf-table-template-missing-style'][0]['styleName']);
         $t->same('MissingLayout', $diagnosticsByCode['odf-master-page-missing-page-layout'][0]['pageLayoutName']);
+        $t->same('BrokenRegisterTruthLayout', $diagnosticsByCode['odf-page-layout-missing-register-truth-style'][0]['pageLayoutName']);
+        $t->same('MissingRegisterStyle', $diagnosticsByCode['odf-page-layout-missing-register-truth-style'][0]['registerTruthRefStyleName']);
         $t->same('MissingBulletFont', $diagnosticsByCode['odf-list-style-missing-font-face'][0]['fontName']);
+    },
+    'reports ODT page layout register truth style diagnostics' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $contentWithPlainParagraph = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Page layout diagnostics packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $stylesWithRegisterTruthReferences = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:automatic-styles>
+    <style:page-layout style:name="ValidRegisterTruthLayout">
+      <style:page-layout-properties style:register-truth-ref-style-name="ExistingParagraph"/>
+    </style:page-layout>
+    <style:page-layout style:name="BrokenRegisterTruthLayout">
+      <style:page-layout-properties style:register-truth-ref-style-name="MissingRegisterStyle"/>
+    </style:page-layout>
+  </office:automatic-styles>
+  <office:styles>
+    <style:style style:name="ExistingParagraph" style:family="paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPlainParagraph, null, $stylesWithRegisterTruthReferences));
+        $styleReport = $result['importReport']['styles'];
+
+        $t->same(1, $styleReport['diagnosticCount']);
+        $t->same(['odf-page-layout-missing-register-truth-style' => 1], $styleReport['diagnosticCodeCounts']);
+        $t->same(2, $styleReport['pageLayoutCount']);
+        $t->same('ExistingParagraph', $result['pageLayouts']['ValidRegisterTruthLayout']['properties']['registerTruthRefStyleName']);
+        $t->same('MissingRegisterStyle', $result['pageLayouts']['BrokenRegisterTruthLayout']['properties']['registerTruthRefStyleName']);
+        $t->same('BrokenRegisterTruthLayout', $styleReport['diagnostics'][0]['pageLayoutName']);
+        $t->same('MissingRegisterStyle', $styleReport['diagnostics'][0]['registerTruthRefStyleName']);
     },
     'reports ODT style family mismatch diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlainParagraph = <<<'XML'
