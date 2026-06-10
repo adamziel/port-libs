@@ -532,6 +532,115 @@ XML;
         $t->same('scheme', $theme['colors']['items'][5]['kind']);
         $t->same('accent1', $theme['colors']['items'][5]['value']);
     },
+    'resolves docx footnotes and endnotes from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/notes/review-footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/annotations/review-endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="../notes/review-footnotes.xml?batch=review#fn"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="annotations/review-endnotes.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with note</w:t></w:r>' . "\n" .
+            '      <w:r><w:footnoteReference w:id="42"/></w:r>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> and endnote</w:t></w:r>' . "\n" .
+            '      <w:r><w:endnoteReference w:id="7"/></w:r>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> plus missing note</w:t></w:r>' . "\n" .
+            '      <w:r><w:footnoteReference w:id="99" w:customMarkFollows="1"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['notes/review-footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="42">
+    <w:p>
+      <w:r><w:footnoteRef/></w:r>
+      <w:r><w:t xml:space="preserve">Footnote </w:t></w:r>
+      <w:hyperlink r:id="rFootLink"><w:r><w:t>relationship source</w:t></w:r></w:hyperlink>
+      <w:r><w:t xml:space="preserve"> note.</w:t></w:r>
+    </w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['notes/_rels/review-footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote-source" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/annotations/review-endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="0" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:endnote>
+  <w:endnote w:id="7">
+    <w:p><w:r><w:endnoteRef/></w:r><w:r><w:t>Endnote package audit.</w:t></w:r></w:p>
+  </w:endnote>
+</w:endnotes>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $footnote = $notes[0];
+        $endnote = $notes[1];
+        $missing = $notes[2];
+
+        $t->same('notes/review-footnotes.xml', $docx['footnotesPart']);
+        $t->same('rFootnotes', $docx['footnotesRelationship']['id']);
+        $t->same('../notes/review-footnotes.xml?batch=review#fn', $docx['footnotesRelationship']['target']);
+        $t->same('notes/review-footnotes.xml?batch=review#fn', $docx['footnotesRelationship']['resolvedTarget']);
+        $t->same('notes/review-footnotes.xml', $docx['footnotesRelationship']['targetPart']);
+        $t->same(true, $docx['footnotesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $docx['footnotesRelationship']['contentType']);
+        $t->same(1, $docx['footnotes']['count']);
+        $t->same(['42'], $docx['footnotes']['ids']);
+        $t->same('Footnote relationship source note.', $docx['footnotes']['byId']['42']['text']);
+        $t->same(1, $docx['footnotes']['byId']['42']['blockCount']);
+
+        $t->same('word/annotations/review-endnotes.xml', $docx['endnotesPart']);
+        $t->same('rEndnotes', $docx['endnotesRelationship']['id']);
+        $t->same('annotations/review-endnotes.xml', $docx['endnotesRelationship']['target']);
+        $t->same('word/annotations/review-endnotes.xml', $docx['endnotesRelationship']['resolvedTarget']);
+        $t->same('word/annotations/review-endnotes.xml', $docx['endnotesRelationship']['targetPart']);
+        $t->same(true, $docx['endnotesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml', $docx['endnotesRelationship']['contentType']);
+        $t->same(1, $docx['endnotes']['count']);
+        $t->same(['7'], $docx['endnotes']['ids']);
+        $t->same('Endnote package audit.', $docx['endnotes']['byId']['7']['text']);
+
+        $t->same(3, count($notes));
+        $t->same('42', $footnote->attr('id'));
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same('Footnote relationship source note.', $footnote->children[0]->attr('text'));
+        $t->same('link', $footnote->children[0]->children[1]->type);
+        $t->same('https://example.test/footnote-source', $footnote->children[0]->children[1]->attr('url'));
+        $t->same('7', $endnote->attr('id'));
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same('Endnote package audit.', $endnote->children[0]->attr('text'));
+        $t->same('99', $missing->attr('id'));
+        $t->same('footnote', $missing->attr('sourceType'));
+        $t->same(true, $missing->attr('missing'));
+        $t->same(true, $missing->attr('customMarkFollows'));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $t->contains('[^1]: Footnote [relationship source](https://example.test/footnote-source) note.', $markdown);
+        $t->contains('[^2]: Endnote package audit.', $markdown);
+        $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p>', $blocks);
+        $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
