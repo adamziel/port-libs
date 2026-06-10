@@ -104,6 +104,7 @@ final class NativeWriter
         return match ($node->type) {
             'paragraph' => ['t' => 'Para', 'c' => $this->inlines($node->children)],
             'plain' => ['t' => 'Plain', 'c' => $this->inlines($node->children)],
+            'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
@@ -416,6 +417,8 @@ final class NativeWriter
                 't' => 'RawInline',
                 'c' => [$this->rawFormat($node), $this->rawText($node)],
             ]],
+            'citation' => [$this->citeInline([$node], $this->citationSourceInlines($node))],
+            'citation_group' => [$this->citeInline($this->citationGroupChildren($node), $this->citationSourceInlines($node))],
             'link' => [[
                 't' => 'Link',
                 'c' => [
@@ -455,7 +458,158 @@ final class NativeWriter
             return $node->children;
         }
 
-        return $this->textInlines((string) $node->attr('alt', ''));
+        return $this->textInlineNodes((string) $node->attr('alt', ''));
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @param list<AstNode> $sourceInlines
+     * @return array<string, mixed>
+     */
+    private function citeInline(array $citations, array $sourceInlines): array
+    {
+        if ($citations === []) {
+            throw new \InvalidArgumentException('Native writer citation group must contain at least one citation');
+        }
+
+        return [
+            't' => 'Cite',
+            'c' => [
+                array_map(fn (AstNode $citation): array => $this->citationRecord($citation), $citations),
+                $this->inlines($sourceInlines),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     */
+    private function citationRecord(AstNode $citation): array
+    {
+        if ($citation->type !== 'citation') {
+            throw new \InvalidArgumentException('Native writer citation group entries must be citation AST nodes');
+        }
+
+        $id = (string) $citation->attr('id', '');
+        if ($id === '') {
+            throw new \InvalidArgumentException('Native writer citation nodes must contain an id');
+        }
+
+        return [
+            'citationId' => $id,
+            'citationPrefix' => $this->inlines($this->citationAffixInlines($citation, 'prefix')),
+            'citationSuffix' => $this->inlines($this->citationSuffixInlines($citation)),
+            'citationMode' => ['t' => $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))],
+            'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
+            'citationHash' => (int) $citation->attr('citationHash', 0),
+        ];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationSuffixInlines(AstNode $citation): array
+    {
+        $suffix = $this->citationAffixInlines($citation, 'suffix');
+        if ($suffix !== []) {
+            return $suffix;
+        }
+
+        return $this->citationAffixInlines($citation, 'locator');
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationAffixInlines(AstNode $citation, string $name): array
+    {
+        $value = $citation->attr($name, '');
+        if ($value instanceof AstNode) {
+            return [$value];
+        }
+
+        if (is_array($value) && $this->allAstNodes($value)) {
+            return array_values($value);
+        }
+
+        if (is_scalar($value)) {
+            return $this->textInlineNodes(trim((string) $value));
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationSourceInlines(AstNode $node): array
+    {
+        if ($node->type === 'citation' && $node->children !== [] && $this->allInlineNodes($node->children)) {
+            return $node->children;
+        }
+
+        $text = (string) $node->attr('text', '');
+        if ($text === '' && $node->type === 'citation_group') {
+            $text = '[' . implode('; ', array_map(fn (AstNode $citation): string => $this->citationSourceText($citation), $this->citationGroupChildren($node))) . ']';
+        } elseif ($text === '' && $node->type === 'citation') {
+            $text = $this->citationSourceText($node);
+        }
+
+        return $this->textInlineNodes($text);
+    }
+
+    private function citationSourceText(AstNode $citation): string
+    {
+        $id = (string) $citation->attr('id', '');
+        $mode = (string) $citation->attr('mode', 'normal');
+        $prefix = $this->plainInlineText($this->citationAffixInlines($citation, 'prefix'));
+        $suffix = $this->plainInlineText($this->citationSuffixInlines($citation));
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefix === '' ? $token : $prefix . ' ' . $token;
+
+        return $suffix === '' ? $text : $text . ', ' . $suffix;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function citationGroupChildren(AstNode $node): array
+    {
+        $children = [];
+        foreach ($node->children as $child) {
+            if ($child->type !== 'citation') {
+                throw new \InvalidArgumentException('Native writer citation group entries must be citation AST nodes');
+            }
+            $children[] = $child;
+        }
+
+        return $children;
+    }
+
+    private function citationModeConstructor(string $mode): string
+    {
+        return match ($mode) {
+            'author_in_text' => 'AuthorInText',
+            'suppress_author' => 'SuppressAuthor',
+            default => 'NormalCitation',
+        };
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function plainInlineText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            $text .= match ($node->type) {
+                'text', 'code', 'math' => (string) $node->attr('text', ''),
+                'space', 'softbreak', 'linebreak' => ' ',
+                default => $this->plainInlineText($node->children),
+            };
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
     }
 
     /**
@@ -483,6 +637,28 @@ final class NativeWriter
         }
 
         return $inlines;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function textInlineNodes(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $nodes = [];
+        foreach ($this->textInlines($text) as $inline) {
+            if (($inline['t'] ?? '') === 'Space') {
+                $nodes[] = new AstNode('space');
+                continue;
+            }
+
+            $nodes[] = new AstNode('text', ['text' => (string) ($inline['c'] ?? '')]);
+        }
+
+        return $nodes;
     }
 
     /**
@@ -532,7 +708,7 @@ final class NativeWriter
         }
 
         return match ($node->type) {
-            'raw_html_inline' => 'html',
+            'raw_html', 'raw_html_inline' => 'html',
             'raw_tex' => 'latex',
             'raw_markdown' => 'markdown',
             default => 'plain',
@@ -542,7 +718,7 @@ final class NativeWriter
     private function rawText(AstNode $node): string
     {
         return match ($node->type) {
-            'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
+            'raw_html', 'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
             'raw_tex' => (string) $node->attr('text', $node->attr('tex', '')),
             'raw_markdown' => (string) $node->attr('text', $node->attr('markdown', '')),
             default => (string) $node->attr('text', ''),
@@ -598,6 +774,10 @@ final class NativeWriter
             'raw_tex',
             'raw_markdown',
             'raw_inline',
+            'image',
+            'note',
+            'citation',
+            'citation_group',
             'link',
             'image',
             'note',

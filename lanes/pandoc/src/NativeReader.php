@@ -143,6 +143,7 @@ final class NativeReader
         return match ($block['t']) {
             'Para' => $this->inlineBlock('paragraph', $attrs, $block['c'] ?? []),
             'Plain' => $this->inlineBlock('plain', $attrs, $block['c'] ?? []),
+            'RawBlock' => $this->rawBlock($attrs, $block['c'] ?? []),
             'Table' => $this->tableBlock($attrs, $block['c'] ?? []),
             default => new AstNode('native_block', $attrs),
         };
@@ -180,6 +181,35 @@ final class NativeReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function rawBlock(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON RawBlock content');
+        if (!is_string($tuple[0]) || !is_string($tuple[1])) {
+            throw new \InvalidArgumentException('Pandoc native JSON RawBlock content must contain format and text strings');
+        }
+
+        $format = $tuple[0];
+        $text = $tuple[1];
+        $attrs = array_replace($attrs, [
+            'format' => $format,
+            'text' => $text,
+        ]);
+
+        $normalizedFormat = strtolower($format);
+        if ($this->isMarkdownRawFormat($normalizedFormat)) {
+            return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
+        }
+
+        return match ($normalizedFormat) {
+            'tex', 'latex', 'context' => new AstNode('raw_tex', array_replace($attrs, ['tex' => $text])),
+            'html' => new AstNode('raw_html', array_replace($attrs, ['html' => $text])),
+            default => new AstNode('raw_block', $attrs),
+        };
     }
 
     /**
@@ -563,6 +593,7 @@ final class NativeReader
             'Code' => $this->codeInline($attrs, $inline['c'] ?? []),
             'Math' => $this->mathInline($attrs, $inline['c'] ?? []),
             'RawInline' => $this->rawInline($attrs, $inline['c'] ?? []),
+            'Cite' => $this->citeInline($attrs, $inline['c'] ?? []),
             'Link' => $this->linkInline($attrs, $inline['c'] ?? []),
             'Image' => $this->imageInline($attrs, $inline['c'] ?? []),
             'Note' => new AstNode('note', $attrs, $this->blockNodes($inline['c'] ?? [])),
@@ -655,6 +686,104 @@ final class NativeReader
     /**
      * @param array<string, mixed> $attrs
      */
+    private function citeInline(array $attrs, mixed $content): AstNode
+    {
+        $tuple = $this->tuple($content, 2, 'Pandoc native JSON Cite inline content');
+        $records = $this->listContent($tuple[0], 'Pandoc native JSON Cite citation records');
+        if ($records === []) {
+            throw new \InvalidArgumentException('Pandoc native JSON Cite inline must contain at least one citation record');
+        }
+
+        $sourceInlines = $this->inlines($tuple[1]);
+        $sourceText = trim($this->plainTextFromInlines($sourceInlines));
+        $citations = array_map(fn (mixed $record): AstNode => $this->citationRecord($record), $records);
+        if (count($citations) === 1) {
+            $citationAttrs = array_replace($attrs, $citations[0]->attrs);
+            if ($sourceText !== '') {
+                $citationAttrs['text'] = $sourceText;
+            }
+
+            return new AstNode('citation', $citationAttrs, $sourceInlines);
+        }
+
+        if ($sourceText !== '') {
+            $attrs['text'] = $sourceText;
+        }
+
+        return new AstNode('citation_group', $attrs, $citations);
+    }
+
+    private function citationRecord(mixed $record): AstNode
+    {
+        if (!is_array($record) || array_is_list($record)) {
+            throw new \InvalidArgumentException('Pandoc native JSON Cite citation record must be an object');
+        }
+
+        $id = $record['citationId'] ?? null;
+        if (!is_string($id) || trim($id) === '') {
+            throw new \InvalidArgumentException('Pandoc native JSON Cite citation record must contain a non-empty citationId');
+        }
+
+        $prefix = $this->inlines($record['citationPrefix'] ?? []);
+        $suffix = $this->inlines($record['citationSuffix'] ?? []);
+        $mode = $this->citationMode($record['citationMode'] ?? ['t' => 'NormalCitation']);
+        $attrs = [
+            'id' => $id,
+            'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
+            'mode' => $mode,
+        ];
+        if ($prefix !== []) {
+            $attrs['prefix'] = $prefix;
+        }
+        if ($suffix !== []) {
+            $attrs['suffix'] = $suffix;
+        }
+
+        if (array_key_exists('citationNoteNum', $record)) {
+            if (!is_int($record['citationNoteNum'])) {
+                throw new \InvalidArgumentException('Pandoc native JSON Cite citationNoteNum must be an integer');
+            }
+            $attrs['citationNoteNum'] = $record['citationNoteNum'];
+        }
+        if (array_key_exists('citationHash', $record)) {
+            if (!is_int($record['citationHash'])) {
+                throw new \InvalidArgumentException('Pandoc native JSON Cite citationHash must be an integer');
+            }
+            $attrs['citationHash'] = $record['citationHash'];
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $attrs['text']]),
+        ]);
+    }
+
+    private function citationMode(mixed $mode): string
+    {
+        return match ($this->constructorTag($mode, 'Pandoc native JSON citation mode')) {
+            'AuthorInText' => 'author_in_text',
+            'SuppressAuthor' => 'suppress_author',
+            'NormalCitation' => 'normal',
+            default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON citation mode'),
+        };
+    }
+
+    /**
+     * @param list<AstNode> $prefix
+     * @param list<AstNode> $suffix
+     */
+    private function citationRecordSourceText(string $id, string $mode, array $prefix, array $suffix): string
+    {
+        $prefixText = trim($this->plainTextFromInlines($prefix));
+        $suffixText = trim($this->plainTextFromInlines($suffix));
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefixText === '' ? $token : $prefixText . ' ' . $token;
+
+        return $suffixText === '' ? $text : $text . ', ' . $suffixText;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
     private function linkInline(array $attrs, mixed $content): AstNode
     {
         if (!is_array($content) || !isset($content[0], $content[1], $content[2])) {
@@ -693,7 +822,6 @@ final class NativeReader
             'url' => $target[0],
             'title' => $target[1],
         ]);
-
         $alt = trim($this->plainTextFromInlines($label));
         if ($alt !== '') {
             $attrs['alt'] = $alt;
