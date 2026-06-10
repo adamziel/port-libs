@@ -223,6 +223,49 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex event source and extent metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inproceedings{event-paper,
+  author          = {Ng, Nia},
+  title           = {Review Packet Pipeline},
+  reviewtitle     = {Peer Review Dossier},
+  reviewsubtitle  = {Audit Appendix},
+  source          = {Migration archive export},
+  eventtitle      = {Open Source Review Summit},
+  eventtitleaddon = {virtual track},
+  eventvenue      = {Remote Hall},
+  eventdate       = {2026-06-10},
+  eventtype       = {conference},
+  booktitle       = {Proceedings of Review Imports},
+  chapter         = {4},
+  section         = {2.1},
+  pagetotal       = {18},
+  volumes         = {3},
+  eid             = {A-17},
+  pagination      = {page},
+  bookpagination  = {chapter},
+  year            = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['event-paper'];
+
+        $t->same('paper-conference', $item['type']);
+        $t->same('Peer Review Dossier: Audit Appendix', $item['reviewed-title']);
+        $t->same('Migration archive export', $item['source']);
+        $t->same('Open Source Review Summit', $item['event']);
+        $t->same('virtual track', $item['event-title-addon']);
+        $t->same('Remote Hall', $item['event-place']);
+        $t->same('conference', $item['event-type']);
+        $t->same([2026, 6, 10], $item['event-date']['date-parts'][0]);
+        $t->same('4', $item['chapter-number']);
+        $t->same('2.1', $item['section']);
+        $t->same('18', $item['number-of-pages']);
+        $t->same('3', $item['number-of-volumes']);
+        $t->same('A-17', $item['article-number']);
+        $t->same('page', $item['pagination']);
+        $t->same('chapter', $item['book-pagination']);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

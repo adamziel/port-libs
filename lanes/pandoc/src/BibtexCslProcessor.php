@@ -410,14 +410,37 @@ final class BibtexCslProcessor
             $item['original-title'] = $originalTitle;
         }
 
+        $reviewedTitle = $this->composedTitle($fields, ['reviewtitle', 'reviewedtitle', 'reviewed-title'], ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']);
+        if ($reviewedTitle !== null && $reviewedTitle !== '') {
+            $item['reviewed-title'] = $reviewedTitle;
+        }
+
         $stringFields = [
+            'source' => ['source', 'sourcetitle', 'source-title'],
             'short-title' => ['shorttitle'],
             'title-addon' => ['titleaddon'],
             'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'main-title' => ['maintitle'],
+            'main-title-addon' => ['maintitleaddon'],
+            'volume-title' => ['volumetitle', 'volume-title'],
+            'part-title' => ['parttitle', 'part-title'],
+            'event' => ['eventtitle', 'event'],
+            'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
+            'event-place' => ['eventvenue', 'eventlocation', 'eventplace', 'event-place', 'venue'],
+            'event-type' => ['eventtype', 'event-type'],
             'edition' => ['edition'],
             'volume' => ['volume'],
             'issue' => ['number', 'issue'],
             'page' => ['pages', 'page'],
+            'page-first' => ['page-first'],
+            'pagination' => ['pagination'],
+            'book-pagination' => ['bookpagination', 'book-pagination'],
+            'article-number' => ['eid', 'article-number', 'articlenumber'],
+            'number' => ['number'],
+            'number-of-volumes' => ['volumes', 'number-of-volumes'],
+            'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
+            'chapter-number' => ['chapter', 'chapter-number'],
+            'section' => ['section'],
             'DOI' => ['doi'],
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
@@ -486,6 +509,11 @@ final class BibtexCslProcessor
         $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
+        }
+
+        $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
+        if ($eventDate !== null) {
+            $item['event-date'] = ['date-parts' => [$eventDate]];
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword']));
