@@ -552,7 +552,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:int, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
      */
     private function writeTableBody(AstNode $body): array
     {
@@ -560,7 +560,7 @@ final class PandocJsonWriter
 
         return [
             $this->attrTuple($body),
-            max(0, (int) $body->attr('rowHeadColumns', 0)),
+            ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
@@ -589,7 +589,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:int, 3:int, 4:list<array<string, mixed>>}>
+     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
      */
     private function writeTableCells(array $cells): array
     {
@@ -602,8 +602,8 @@ final class PandocJsonWriter
             $encoded[] = [
                 $this->attrTuple($cell),
                 $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
-                max(1, (int) $cell->attr('rowspan', 1)),
-                max(1, (int) $cell->attr('colspan', 1)),
+                ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
+                ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
                 $this->childrenAsBlocks($cell),
             ];
         }

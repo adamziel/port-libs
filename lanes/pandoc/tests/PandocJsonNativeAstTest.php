@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\CitationCslProcessor;
+use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
@@ -1297,7 +1299,9 @@ return [
         $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
         $t->same('ColWidth', $encoded['blocks'][0]['c'][2][0][1]['t']);
         $t->same(0.4, $encoded['blocks'][0]['c'][2][0][1]['c']);
-        $t->same(1, $encoded['blocks'][0]['c'][4][0][1]);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $encoded['blocks'][0]['c'][4][0][1]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $encoded['blocks'][0]['c'][4][0][3][0][1][1][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $encoded['blocks'][0]['c'][4][0][3][0][1][1][3]);
         $t->same('Short caption', $roundTrip->children[0]->attr('shortCaption'));
         $t->same('Long caption reviewer', $roundTrip->children[0]->attr('caption'));
         $t->contains('<figure class="wp-block-table" data-pandoc-short-caption="Short caption">', $blocks);
@@ -1306,8 +1310,57 @@ return [
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
         $t->same('Fallback', $generated['blocks'][0]['c'][1][0][0]['c']);
         $t->same('Fallback', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 0], $generated['blocks'][0]['c'][4][0][1]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][3]);
         $t->same('Fallback short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Fallback long', $generatedRoundTrip->children[0]->attr('caption'));
+    },
+    'writes table span helpers as tagged pandoc ast constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('table', [
+                'alignments' => ['left', 'right'],
+                'widths' => [0.5, null],
+            ], [
+                new AstNode('table_body', ['rowHeadColumns' => 2], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['rowspan' => 2], [
+                            new AstNode('text', ['text' => 'Source']),
+                        ]),
+                        new AstNode('table_cell', ['align' => 'right', 'colspan' => 3], [
+                            new AstNode('text', ['text' => 'Reviewed']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $jsonBody = $jsonPacket['blocks'][0]['c'][4][0];
+        $nativeBody = $nativePacket['blocks'][0]['c'][4][0];
+        $jsonCells = $jsonBody[3][0][1];
+        $nativeCells = $nativeBody[3][0][1];
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket)->children[0];
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR))->children[0];
+
+        $t->same(['t' => 'RowHeadColumns', 'c' => 2], $jsonBody[1]);
+        $t->same(['t' => 'RowSpan', 'c' => 2], $jsonCells[0][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $jsonCells[0][3]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $jsonCells[1][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 3], $jsonCells[1][3]);
+        $t->same($jsonBody[1], $nativeBody[1]);
+        $t->same($jsonCells[0][2], $nativeCells[0][2]);
+        $t->same($jsonCells[1][3], $nativeCells[1][3]);
+        $t->same(2, $jsonRoundTrip->children[0]->attr('rowHeadColumns'));
+        $t->same(2, $jsonRoundTrip->children[0]->children[0]->children[0]->attr('rowspan'));
+        $t->same(3, $jsonRoundTrip->children[0]->children[0]->children[1]->attr('colspan'));
+        $t->same(2, $nativeRoundTrip->children[0]->attr('rowHeadColumns'));
+        $t->same(2, $nativeRoundTrip->children[0]->children[0]->children[0]->attr('rowspan'));
+        $t->same(3, $nativeRoundTrip->children[0]->children[0]->children[1]->attr('colspan'));
     },
     'writes shared short caption blocks as pandoc json caption inlines' => static function (TestRunner $t): void {
         $sourceTable = new AstNode('table', [
