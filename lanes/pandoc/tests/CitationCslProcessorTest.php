@@ -23702,6 +23702,87 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Direct Alias Chapter :: review copy :: Migration Handbook :: editor packet :: Portland</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Direct Alias Article :: metadata appendix :: Review Journal :: online packet :: Remote</dd>', $blocks);
     },
+    'renders bounded csl camelcase extended creator aliases from direct items' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'camel-creator-packet',
+                'type' => 'speech',
+                'title' => 'Camel Creator Alias Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'eventOrganizer' => [
+                    ['literal' => 'Source Review Forum'],
+                ],
+                'originalAuthor' => [
+                    ['family' => 'Legacy', 'given' => 'Lina'],
+                ],
+                'editorialDirector' => [
+                    ['family' => 'Director', 'given' => 'Drew'],
+                ],
+                'reviewedAuthor' => [
+                    ['family' => 'Reviewer', 'given' => 'Rae'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Camel Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-camel-creator-alias-review</id>
+    <updated>2026-06-10T17:57:47+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="event-organizer original-author editorial-director reviewed-author" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <names variable="event-organizer"/>
+            <names variable="original-author"/>
+            <names variable="editorial-director"/>
+            <names variable="reviewed-author"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-creators"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="event-organizer"/>
+      <names variable="original-author"/>
+      <names variable="editorial-director"/>
+      <names variable="reviewed-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('camel-creator-packet');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Camel Creator Alias Review', $summary['title'] ?? null);
+        $t->same(['event-organizer', 'original-author', 'editorial-director', 'reviewed-author'], $branch['variables'] ?? null);
+        $t->same('Source Review Forum', $item['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Legacy', $item['originalAuthors'][0]['family'] ?? null);
+        $t->same('Director', $item['editorialDirectors'][0]['family'] ?? null);
+        $t->same('Reviewer', $item['reviewedAuthors'][0]['family'] ?? null);
+
+        $t->same('[Smith | Source Review Forum | Legacy | Director | Reviewer]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'camel-creator-packet', 'text' => '[@camel-creator-packet]']),
+        ]));
+        $t->same('Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae', $processor->renderBibliographyEntry('camel-creator-packet'));
+
+        $document = (new MarkdownReader())->read('Camel creator source [@camel-creator-packet] preserves direct CSL creator aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Camel creator source [Smith | Source Review Forum | Legacy | Director | Reviewer] preserves direct CSL creator aliases.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
+    },
     'renders bounded csl archive collection aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
