@@ -6117,6 +6117,7 @@ return [
             $t->same(3, $inspection['entryCount']);
             $t->same(false, $inspection['hasEntryCountMismatch']);
             $t->same(true, $inspection['hasDuplicateEntryNames']);
+            $t->same(true, $inspection['hasDuplicateEntryRawNames']);
             $t->same(1, $inspection['duplicateEntryNameGroupCount']);
             $t->same(2, $inspection['duplicateEntryNameEntryCount']);
             $t->same(1, $inspection['duplicateEntryRawNameGroupCount']);
@@ -6126,8 +6127,14 @@ return [
             $t->same([1, 2], $inspection['duplicateEntryNameGroups'][0]['centralDirectoryIndexes']);
             $t->same('word/media/review.txt', $inspection['duplicateEntryRawNameGroups'][0]['rawName']);
             $t->same($inspection['duplicateEntryNameGroups'][0]['centralDirectoryIndexes'], $inspection['duplicateEntryRawNameGroups'][0]['centralDirectoryIndexes']);
-            $t->same(['duplicate-central-directory-entry-names'], $inspection['issues']);
-            $t->same(['duplicate-central-directory-entry-names'], $inspection['diagnostics']);
+            $t->same([
+                'duplicate-central-directory-entry-names',
+                'duplicate-central-directory-entry-raw-names',
+            ], $inspection['issues']);
+            $t->same([
+                'duplicate-central-directory-entry-names',
+                'duplicate-central-directory-entry-raw-names',
+            ], $inspection['diagnostics']);
             $t->same('review-before-conversion', $inspection['handoffPolicy']);
             $t->same('zip-duplicate-entry-name-review', $inspection['extractionPolicy']);
             $t->same(false, $inspection['isSupportedByBoundedReader']);

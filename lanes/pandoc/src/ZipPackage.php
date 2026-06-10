@@ -6387,6 +6387,7 @@ final class ZipPackage
      *     duplicateEntryNameEntryCount:int,
      *     duplicateEntryRawNameGroupCount:int,
      *     duplicateEntryRawNameEntryCount:int,
+     *     hasDuplicateEntryRawNames:bool,
      *     hasDuplicateLocalHeaderOffsets:bool,
      *     duplicateLocalHeaderOffsetGroupCount:int,
      *     duplicateLocalHeaderOffsetEntryCount:int,
@@ -6527,6 +6528,7 @@ final class ZipPackage
         $duplicateEntryRawNameEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateEntryRawNameGroups);
         $duplicateLocalHeaderOffsetEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateLocalHeaderOffsetGroups);
         $hasDuplicateEntryNames = $duplicateEntryNameGroups !== [];
+        $hasDuplicateEntryRawNames = $duplicateEntryRawNameGroups !== [];
         $hasDuplicateLocalHeaderOffsets = $duplicateLocalHeaderOffsetGroups !== [];
 
         if ($entryCountMismatch) {
@@ -6534,6 +6536,9 @@ final class ZipPackage
         }
         if ($duplicateEntryNameGroups !== []) {
             $issues[] = 'duplicate-central-directory-entry-names';
+        }
+        if ($duplicateEntryRawNameGroups !== []) {
+            $issues[] = 'duplicate-central-directory-entry-raw-names';
         }
         if ($duplicateLocalHeaderOffsetGroups !== []) {
             $issues[] = 'central-directory-duplicate-local-header-offsets';
@@ -6589,6 +6594,7 @@ final class ZipPackage
             'duplicateEntryNameEntryCount' => $duplicateEntryNameEntryCount,
             'duplicateEntryRawNameGroupCount' => count($duplicateEntryRawNameGroups),
             'duplicateEntryRawNameEntryCount' => $duplicateEntryRawNameEntryCount,
+            'hasDuplicateEntryRawNames' => $hasDuplicateEntryRawNames,
             'hasDuplicateLocalHeaderOffsets' => $hasDuplicateLocalHeaderOffsets,
             'duplicateLocalHeaderOffsetGroupCount' => count($duplicateLocalHeaderOffsetGroups),
             'duplicateLocalHeaderOffsetEntryCount' => $duplicateLocalHeaderOffsetEntryCount,

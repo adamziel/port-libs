@@ -3196,7 +3196,11 @@ return [
 
         $strictSummary = $collisionPackage->strictImportPreflight(4096, 100.0, 4096);
         $t->same(false, $strictSummary['isValid']);
-        $t->same(['raw-name-collisions', 'raw-name-provenance-review-entries'], $strictSummary['diagnostics']);
+        $t->same([
+            'central-directory-inventory-issues',
+            'raw-name-collisions',
+            'raw-name-provenance-review-entries',
+        ], $strictSummary['diagnostics']);
         $t->same(2, $strictSummary['rawNames']['collisionEntryCount']);
         $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertNoRawNameCollisions());
         $t->throws(\RuntimeException::class, static fn (): array => $collisionPackage->assertStrictImportable(4096, 100.0, 4096));
@@ -4104,6 +4108,7 @@ return [
         $t->same(2, $summary['declaredEntryCount']);
         $t->same(2, $summary['scannedEntryCount']);
         $t->same(false, $summary['hasEntryCountMismatch']);
+        $t->same(true, $summary['hasDuplicateEntryRawNames']);
         $t->same(true, $summary['hasDuplicateLocalHeaderOffsets']);
         $t->same(1, $summary['duplicateLocalHeaderOffsetGroupCount']);
         $t->same(2, $summary['duplicateLocalHeaderOffsetEntryCount']);
@@ -4113,12 +4118,16 @@ return [
         $t->same([0, 1], $group['centralDirectoryIndexes']);
         $t->same(true, $group['centralDirectoryOffsets'][0] < $group['centralDirectoryOffsets'][1]);
         $t->same(false, $summary['isSupportedByBoundedReader']);
-        $t->same(['central-directory-duplicate-local-header-offsets'], $summary['issues']);
+        $t->same([
+            'duplicate-central-directory-entry-raw-names',
+            'central-directory-duplicate-local-header-offsets',
+        ], $summary['issues']);
 
         $t->same(false, $rawStrict['isValid']);
         $t->same(false, $rawStrict['canInstantiate']);
         $t->same($summary, $rawStrict['centralDirectoryInventory']);
         $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('duplicate-central-directory-entry-raw-names', implode(',', $rawStrict['diagnostics']));
         $t->contains('central-directory-duplicate-local-header-offsets', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
     },
@@ -4538,6 +4547,7 @@ return [
         $t->same(2, $summary['scannedEntryCount']);
         $t->same(false, $summary['hasEntryCountMismatch']);
         $t->same(true, $summary['hasDuplicateEntryNames']);
+        $t->same(true, $summary['hasDuplicateEntryRawNames']);
         $t->same(1, $summary['duplicateEntryNameGroupCount']);
         $t->same(2, $summary['duplicateEntryNameEntryCount']);
         $t->same(1, $summary['duplicateEntryRawNameGroupCount']);
@@ -4549,7 +4559,10 @@ return [
         $t->same('word/media/review.txt', $rawGroup['rawName']);
         $t->same($group['centralDirectoryIndexes'], $rawGroup['centralDirectoryIndexes']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
-        $t->same(['duplicate-central-directory-entry-names'], $summary['issues']);
+        $t->same([
+            'duplicate-central-directory-entry-names',
+            'duplicate-central-directory-entry-raw-names',
+        ], $summary['issues']);
 
         $t->same(false, $rawStrict['isValid']);
         $t->same(false, $rawStrict['canInstantiate']);
@@ -4558,8 +4571,66 @@ return [
         $t->same(0, $rawStrict['localHeaderSpans']['issueEntryCount']);
         $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
         $t->contains('duplicate-central-directory-entry-names', implode(',', $rawStrict['diagnostics']));
+        $t->contains('duplicate-central-directory-entry-raw-names', implode(',', $rawStrict['diagnostics']));
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
+    'preflights duplicate raw central directory names before decoded package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/reviewer-image.bin';
+        $firstName = 'word/media/reviewer-one.png';
+        $secondName = 'word/media/reviewer-two.png';
+        $zip = $buildZipPackage([
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "first decoded media bytes\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $firstName),
+            ],
+            [
+                'name' => $rawName,
+                'localName' => $rawName,
+                'data' => "second decoded media bytes\n",
+                'method' => 0,
+                'flags' => 0,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $secondName),
+            ],
+        ]);
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 100.0, 1024);
+        $package = ZipPackage::fromString($zip);
+        $rawGroup = $summary['duplicateEntryRawNameGroups'][0];
+
+        $t->same([$firstName, $secondName], $package->names());
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(2, $summary['scannedEntryCount']);
+        $t->same(false, $summary['hasDuplicateEntryNames']);
+        $t->same(true, $summary['hasDuplicateEntryRawNames']);
+        $t->same(0, $summary['duplicateEntryNameGroupCount']);
+        $t->same(1, $summary['duplicateEntryRawNameGroupCount']);
+        $t->same(2, $summary['duplicateEntryRawNameEntryCount']);
+        $t->same($rawName, $rawGroup['rawName']);
+        $t->same(2, $rawGroup['count']);
+        $t->same([0, 1], $rawGroup['centralDirectoryIndexes']);
+        $t->same([$firstName, $secondName], array_column($summary['entries'], 'name'));
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['duplicate-central-directory-entry-raw-names'], $summary['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->same($firstName, $rawStrict['centralDirectoryNameCollisions']['rawNameCollisionEntries'][0]['name']);
+        $t->same($secondName, $rawStrict['centralDirectoryNameCollisions']['rawNameCollisionEntries'][1]['name']);
+        $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('duplicate-central-directory-entry-raw-names', implode(',', $rawStrict['diagnostics']));
+        $t->contains('raw-name-collisions', implode(',', $rawStrict['diagnostics']));
+        $t->contains('raw-name-provenance-review-entries', implode(',', $rawStrict['diagnostics']));
+        $t->same("first decoded media bytes\n", $package->read('/' . $firstName));
+        $t->same("second decoded media bytes\n", $package->read('/' . $secondName));
     },
 
     'preflights zip central directory recovery metadata before package import' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
