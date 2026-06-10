@@ -246,6 +246,57 @@ XML, 'package reader XML');
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
+    'summarizes html form labels datalist and inherited disabled state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="import-form"><label for="format">Format</label><input id="format" name="format" list="format-options" required placeholder="Choose format"><datalist id="format-options"><option value="docx" label="Word"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input id="confirm" name="confirm" type="checkbox" checked></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" type="submit" name="save" value="1">Save</button></fieldset></form>',
+            'form label and datalist review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $formatInput = $form['children'][1];
+        $datalist = $form['children'][2];
+        $fieldset = $form['children'][3];
+        $legendButton = $fieldset['children'][0]['children'][1];
+        $confirmInput = $fieldset['children'][1]['children'][1];
+        $stateSelect = $fieldset['children'][2];
+        $notes = $fieldset['children'][3];
+        $submitButton = $fieldset['children'][4];
+        $expectedOptions = [
+            ['value' => 'docx', 'label' => 'Word', 'text' => '', 'disabled' => false],
+            ['value' => 'epub', 'label' => 'EPUB', 'text' => 'EPUB', 'disabled' => false],
+            ['value' => 'ODT', 'label' => 'ODT', 'text' => 'ODT', 'disabled' => false],
+        ];
+
+        $t->same('form', $form['name']);
+        $t->same('input', $formatInput['formControl']);
+        $t->same(['Format'], $formatInput['labels']);
+        $t->same(true, $formatInput['required']);
+        $t->same('Choose format', $formatInput['placeholder']);
+        $t->same(false, $formatInput['effectiveDisabled']);
+        $t->same('format-options', $formatInput['list']);
+        $t->same($expectedOptions, $formatInput['datalistOptions']);
+        $t->same('datalist', $datalist['formControl']);
+        $t->same($expectedOptions, $datalist['datalistOptions']);
+        $t->same(['disabled' => 'disabled'], $fieldset['attributes']);
+        $t->same('button', $legendButton['formControl']);
+        $t->same(false, $legendButton['effectiveDisabled']);
+        $t->same('input', $confirmInput['formControl']);
+        $t->same(['Confirm'], $confirmInput['labels']);
+        $t->same(true, $confirmInput['checked']);
+        $t->same(false, $confirmInput['disabled']);
+        $t->same(true, $confirmInput['effectiveDisabled']);
+        $t->same('select', $stateSelect['formControl']);
+        $t->same(true, $stateSelect['required']);
+        $t->same(true, $stateSelect['effectiveDisabled']);
+        $t->same('textarea', $notes['formControl']);
+        $t->same('Reviewer note', $notes['placeholder']);
+        $t->same(true, $notes['effectiveDisabled']);
+        $t->same('button', $submitButton['formControl']);
+        $t->same(true, $submitButton['effectiveDisabled']);
+        $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

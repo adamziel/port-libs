@@ -732,6 +732,10 @@ final class XmlHtmlDom
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
+            $summary['labels'] = self::formControlLabels($node);
+            $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+            $summary['required'] = $node->hasAttribute('required');
             $summary['selectOptions'] = $options;
             $summary['selectedValues'] = array_values(array_map(
                 static fn (array $option): string => (string) $option['value'],
@@ -741,22 +745,44 @@ final class XmlHtmlDom
         if ($name === 'input') {
             $summary['formControl'] = 'input';
             $summary['inputType'] = self::inputType($node);
+            $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+            $summary['required'] = $node->hasAttribute('required');
+            if ($node->hasAttribute('placeholder')) {
+                $summary['placeholder'] = $node->getAttribute('placeholder');
+            }
+            if ($node->hasAttribute('list')) {
+                $summary['list'] = $node->getAttribute('list');
+                $summary['datalistOptions'] = self::datalistOptionsForControl($node);
+            }
         }
         if ($name === 'textarea') {
             $summary['formControl'] = 'textarea';
+            $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->textContent;
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['readonly'] = $node->hasAttribute('readonly');
+            $summary['required'] = $node->hasAttribute('required');
+            if ($node->hasAttribute('placeholder')) {
+                $summary['placeholder'] = $node->getAttribute('placeholder');
+            }
         }
         if ($name === 'button') {
             $summary['formControl'] = 'button';
             $summary['buttonType'] = self::buttonType($node);
+            $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['label'] = self::normalizedText($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+        }
+        if ($name === 'datalist') {
+            $summary['formControl'] = 'datalist';
+            $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
 
         return [$summary];
@@ -774,6 +800,130 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function formControlLabels(\DOMElement $control): array
+    {
+        $labels = [];
+        $id = $control->getAttribute('id');
+        $document = $control->ownerDocument;
+        if ($id !== '' && $document instanceof \DOMDocument) {
+            foreach ($document->getElementsByTagName('label') as $label) {
+                if (!$label instanceof \DOMElement || $label->getAttribute('for') !== $id) {
+                    continue;
+                }
+                self::appendFormControlLabel($labels, self::normalizedText($label));
+            }
+        }
+
+        $parent = $control->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower(self::htmlElementName($parent)) === 'label') {
+                self::appendFormControlLabel($labels, self::normalizedText($parent));
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param list<string> $labels
+     */
+    private static function appendFormControlLabel(array &$labels, string $label): void
+    {
+        if ($label !== '' && !in_array($label, $labels, true)) {
+            $labels[] = $label;
+        }
+    }
+
+    private static function isEffectivelyDisabledFormControl(\DOMElement $control): bool
+    {
+        if ($control->hasAttribute('disabled')) {
+            return true;
+        }
+
+        $parent = $control->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower(self::htmlElementName($parent)) === 'fieldset' && $parent->hasAttribute('disabled')) {
+                $legend = self::firstChildHtmlElement($parent, 'legend');
+                if (!$legend instanceof \DOMElement || !self::isDescendantOrSame($control, $legend)) {
+                    return true;
+                }
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return false;
+    }
+
+    private static function firstChildHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === $name) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isDescendantOrSame(\DOMElement $element, \DOMElement $ancestor): bool
+    {
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            if ($current->isSameNode($ancestor)) {
+                return true;
+            }
+            $current = $current->parentNode;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{value:string, label:string, text:string, disabled:bool}>
+     */
+    private static function datalistOptionsForControl(\DOMElement $control): array
+    {
+        $listId = $control->getAttribute('list');
+        $document = $control->ownerDocument;
+        if ($listId === '' || !$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        foreach ($document->getElementsByTagName('datalist') as $datalist) {
+            if ($datalist instanceof \DOMElement && $datalist->getAttribute('id') === $listId) {
+                return self::datalistOptionSummaries($datalist);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array{value:string, label:string, text:string, disabled:bool}>
+     */
+    private static function datalistOptionSummaries(\DOMElement $datalist): array
+    {
+        $options = [];
+        foreach ($datalist->getElementsByTagName('option') as $option) {
+            if (!$option instanceof \DOMElement) {
+                continue;
+            }
+            $text = self::normalizedText($option);
+            $options[] = [
+                'value' => $option->hasAttribute('value') ? $option->getAttribute('value') : $text,
+                'label' => $option->hasAttribute('label') ? $option->getAttribute('label') : $text,
+                'text' => $text,
+                'disabled' => $option->hasAttribute('disabled'),
+            ];
+        }
+
+        return $options;
     }
 
     private static function serializeNode(\DOMNode $node): string
