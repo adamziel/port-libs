@@ -794,12 +794,15 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
         }
         if ($name === 'output') {
+            $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
             $summary['formControl'] = 'output';
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = self::normalizedText($node);
+            $summary['forRaw'] = $forRaw;
+            $summary['forIds'] = $forRaw === null ? [] : self::spaceSeparatedTokens($forRaw);
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
-            if ($node->hasAttribute('for')) {
-                $summary['forTargets'] = self::outputForTargets($node->getAttribute('for'));
+            if ($forRaw !== null) {
+                $summary['forTargets'] = self::outputForTargets($forRaw);
             }
         }
         if ($name === 'datalist') {
@@ -1023,6 +1026,19 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function spaceSeparatedTokens(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        return preg_split('/\s+/', $value) ?: [];
     }
 
     /**
