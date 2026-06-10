@@ -14052,6 +14052,61 @@ XML
         $t->contains('<p>Locator diagnostics (Vale, p. 7; Vale, p. plate A; Vale, secs. 4–5).</p>', $blocks);
         $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Locator Diagnostics Packet.</dd>', $blocks);
     },
+    'exposes bounded citation locator diagnostic summaries for wordpress review handoff' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-summary-source',
+                'type' => 'report',
+                'title' => 'Locator Summary Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Citation Locator Summary Review</title>
+    <id>https://example.test/styles/bounded-citation-locator-summary-review</id>
+    <updated>2026-06-10T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-locator-label"/>
+        <text variable="citation-locator-value"/>
+        <text variable="citation-locator-diagnostic-summary"/>
+        <text variable="citation-locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $document = (new MarkdownReader())->read('Locator summaries [@locator-summary-source, plate A; @locator-summary-source, plate B] remain visible.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $cluster = $processed->children[0]->children[1];
+        $citation = $cluster->children[0];
+        $summaryA = 'page plate A [citation-locator-unlabeled-page-fallback/info]';
+        $summaryB = 'page plate B [citation-locator-unlabeled-page-fallback/info]';
+
+        $t->same($summaryA . '; ' . $summaryB, $cluster->attr('cslLocatorDiagnosticSummary'));
+        $t->same('citation-locator-unlabeled-page-fallback', $cluster->attr('cslLocatorDiagnosticReasons'));
+        $t->same($summaryA, $citation->attr('cslLocatorDiagnosticSummary'));
+        $t->same('page', $citation->attr('cslLocator')['label'] ?? null);
+        $t->same('plate A', $citation->attr('cslLocator')['value'] ?? null);
+
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Locator summaries (Vale | page | plate A | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Locator Summary Packet</dd>', $blocks);
+    },
     'infers pandoc json citation suffix locators for diagnostics' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

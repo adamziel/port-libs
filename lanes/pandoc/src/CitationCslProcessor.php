@@ -294,13 +294,11 @@ final class CitationCslProcessor
         if ($item === null) {
             $attrs = [
                 ...$citation->attrs,
+                ...$this->citationLocatorReviewAttrs($citation, $locatorDiagnostics),
                 'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->sourceCitationText($citation),
                 'missingCslItem' => true,
             ];
-            if ($locatorDiagnostics !== []) {
-                $attrs['cslLocatorDiagnostics'] = $locatorDiagnostics;
-            }
 
             return new AstNode(
                 'citation',
@@ -315,13 +313,13 @@ final class CitationCslProcessor
             'citation',
             array_filter([
                 ...$citation->attrs,
+                ...$this->citationLocatorReviewAttrs($citation, $locatorDiagnostics),
                 'cslStyleClass' => $this->style->styleClass(),
                 'rendered' => $this->renderCitationCluster([$citation]),
                 'cslInlineParts' => $this->citationClusterInlineParts([$citation]) ?: null,
                 'cslLabel' => $this->citationAuthorLabel($item, $citation),
                 'cslYear' => $this->citationYear($item),
                 'cslItem' => $item,
-                'cslLocatorDiagnostics' => $locatorDiagnostics !== [] ? $locatorDiagnostics : null,
             ], static fn (mixed $value): bool => $value !== null),
             $citation->children
         );
@@ -366,6 +364,8 @@ final class CitationCslProcessor
         $locatorDiagnostics = $this->citationLocatorDiagnostics(new AstNode('citation_group', $group->attrs, $citations));
         if ($locatorDiagnostics !== []) {
             $attrs['cslLocatorDiagnostics'] = $locatorDiagnostics;
+            $attrs['cslLocatorDiagnosticSummary'] = $this->citationLocatorDiagnosticSummaryForDiagnostics($locatorDiagnostics);
+            $attrs['cslLocatorDiagnosticReasons'] = $this->citationLocatorDiagnosticReasonsForDiagnostics($locatorDiagnostics);
         }
 
         return new AstNode(
@@ -7708,7 +7708,22 @@ final class CitationCslProcessor
             }
 
             $type = (string) ($element['type'] ?? '');
-            if (($type === 'text' || $type === 'label') && strtolower(trim((string) ($element['variable'] ?? ''))) === 'locator') {
+            $variable = strtolower(trim((string) ($element['variable'] ?? '')));
+            if (($type === 'text' || $type === 'label') && in_array($variable, [
+                'locator',
+                'citation-locator-label',
+                'locator-label',
+                'citation-locator-value',
+                'locator-value',
+                'citation-locator-raw',
+                'locator-raw',
+                'citation-locator-diagnostic-summary',
+                'citation-locator-diagnostics',
+                'locator-diagnostic-summary',
+                'locator-diagnostics',
+                'citation-locator-diagnostic-reasons',
+                'locator-diagnostic-reasons',
+            ], true)) {
                 return true;
             }
 
@@ -8849,6 +8864,11 @@ final class CitationCslProcessor
 
         return match ($normalized) {
             'locator' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
+            'citation-locator-label', 'locator-label' => $this->citationLocatorLabelValue($citation),
+            'citation-locator-value', 'locator-value' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
+            'citation-locator-raw', 'locator-raw' => $this->citationLocatorRawValue($citation),
+            'citation-locator-diagnostic-summary', 'citation-locator-diagnostics', 'locator-diagnostic-summary', 'locator-diagnostics' => $this->citationLocatorDiagnosticSummary($citation),
+            'citation-locator-diagnostic-reasons', 'locator-diagnostic-reasons' => $this->citationLocatorDiagnosticReasons($citation),
             'citation-number' => $this->citationNumberValue($item, $citation),
             'first-reference-note-number' => $this->firstReferenceNoteNumberValue($citation, $item),
             'id', 'citation-key' => (string) $item['id'],
@@ -9629,6 +9649,134 @@ final class CitationCslProcessor
         }
 
         return $this->formatCslLocatorRanges($value);
+    }
+
+    private function citationLocatorLabelValue(?AstNode $citation): string
+    {
+        $parts = $this->citationLocatorParts($citation);
+
+        return $parts['value'] === '' ? '' : $parts['label'];
+    }
+
+    private function citationLocatorRawValue(?AstNode $citation): string
+    {
+        if (!$citation instanceof AstNode) {
+            return '';
+        }
+
+        $rawLocator = $this->inlineValue($citation->attr('locator', ''));
+        if ($rawLocator !== '') {
+            return $rawLocator;
+        }
+
+        $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
+        if ($explicitValue !== '') {
+            return $explicitValue;
+        }
+
+        return $this->inlineValue($citation->attr('suffix', ''));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function citationLocatorReviewAttrs(AstNode $citation, array $diagnostics): array
+    {
+        if ($diagnostics === []) {
+            return [];
+        }
+
+        $attrs = [
+            'cslLocatorDiagnostics' => $diagnostics,
+            'cslLocatorDiagnosticSummary' => $this->citationLocatorDiagnosticSummaryForDiagnostics($diagnostics),
+            'cslLocatorDiagnosticReasons' => $this->citationLocatorDiagnosticReasonsForDiagnostics($diagnostics),
+        ];
+        $parts = $this->citationLocatorParts($citation);
+        if ($parts['value'] !== '') {
+            $attrs['cslLocator'] = [
+                'label' => $parts['label'],
+                'value' => $parts['value'],
+                'formattedValue' => $this->formatCslLocatorValue($parts),
+                'raw' => $this->citationLocatorRawValue($citation),
+                'source' => (string) ($diagnostics[0]['source'] ?? $this->sourceCitationText($citation)),
+            ];
+        }
+
+        return $attrs;
+    }
+
+    private function citationLocatorDiagnosticSummary(?AstNode $citation): string
+    {
+        return $citation instanceof AstNode
+            ? $this->citationLocatorDiagnosticSummaryForDiagnostics($this->citationLocatorDiagnosticsForCitation($citation))
+            : '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function citationLocatorDiagnosticSummaryForDiagnostics(array $diagnostics): string
+    {
+        return implode('; ', array_values(array_filter(
+            array_map(fn (array $diagnostic): string => $this->citationLocatorDiagnosticDisplay($diagnostic), $diagnostics),
+            static fn (string $value): bool => $value !== ''
+        )));
+    }
+
+    private function citationLocatorDiagnosticReasons(?AstNode $citation): string
+    {
+        return $citation instanceof AstNode
+            ? $this->citationLocatorDiagnosticReasonsForDiagnostics($this->citationLocatorDiagnosticsForCitation($citation))
+            : '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function citationLocatorDiagnosticReasonsForDiagnostics(array $diagnostics): string
+    {
+        return implode('; ', array_values(array_unique(array_filter(
+            array_map(
+                static fn (array $diagnostic): string => trim((string) ($diagnostic['reason'] ?? '')),
+                $diagnostics
+            ),
+            static fn (string $value): bool => $value !== ''
+        ))));
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     */
+    private function citationLocatorDiagnosticDisplay(array $diagnostic): string
+    {
+        $label = trim((string) ($diagnostic['locatorLabel'] ?? ''));
+        $value = trim((string) ($diagnostic['locatorValue'] ?? ''));
+        $formatted = $value === '' ? '' : $this->formatCslLocatorValue(['label' => $label, 'value' => $value]);
+        $display = trim($label . ' ' . $formatted);
+        $reason = trim((string) ($diagnostic['reason'] ?? ''));
+        if ($display === '') {
+            $display = $reason;
+        }
+        if ($display === '') {
+            return '';
+        }
+
+        $details = [];
+        $rawLocator = trim((string) ($diagnostic['rawLocator'] ?? ''));
+        if ($rawLocator !== '' && $rawLocator !== $formatted) {
+            $details[] = 'raw: ' . $rawLocator;
+        }
+        $rawLabel = trim((string) ($diagnostic['rawLocatorLabel'] ?? ''));
+        if ($rawLabel !== '' && $this->normalizedLocatorLabel($rawLabel) !== $label) {
+            $details[] = 'label: ' . $rawLabel;
+        }
+        if ($reason !== '') {
+            $severity = trim((string) ($diagnostic['severity'] ?? ''));
+            $details[] = $severity === '' ? $reason : $reason . '/' . $severity;
+        }
+
+        return $details === [] ? $display : $display . ' [' . implode('; ', $details) . ']';
     }
 
     private function formatCslPageRanges(string $value): string
