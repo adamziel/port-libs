@@ -283,6 +283,78 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'resolves docx theme relationship targets and scheme metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/review-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/review-theme.xml?source=review#colors"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/theme/review-theme.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Review Theme">
+  <a:themeElements>
+    <a:fontScheme name="Review Fonts">
+      <a:majorFont>
+        <a:latin typeface="Aptos Display"/>
+        <a:ea typeface="Yu Gothic"/>
+        <a:cs typeface="Arial"/>
+      </a:majorFont>
+      <a:minorFont>
+        <a:latin typeface="Aptos"/>
+        <a:ea typeface="Meiryo"/>
+        <a:cs typeface="Times New Roman"/>
+      </a:minorFont>
+    </a:fontScheme>
+    <a:clrScheme name="Review Colors">
+      <a:dk1><a:sysClr val="windowText" lastClr="111111"/></a:dk1>
+      <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+      <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+      <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+      <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+  </a:themeElements>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $theme = $docx['theme'];
+
+        $t->same('word/theme/review-theme.xml', $docx['themePart']);
+        $t->same('rTheme', $docx['themeRelationship']['id']);
+        $t->same('word/document.xml', $docx['themeRelationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $docx['themeRelationship']['relationshipsPart']);
+        $t->same('theme/review-theme.xml?source=review#colors', $docx['themeRelationship']['target']);
+        $t->same('word/theme/review-theme.xml?source=review#colors', $docx['themeRelationship']['resolvedTarget']);
+        $t->same('word/theme/review-theme.xml', $docx['themeRelationship']['targetPart']);
+        $t->same(true, $docx['themeRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $docx['themeRelationship']['contentType']);
+        $t->same('Review Theme', $theme['name']);
+        $t->same('Review Fonts', $theme['fonts']['schemeName']);
+        $t->same('Aptos Display', $theme['fonts']['majorLatin']);
+        $t->same('Yu Gothic', $theme['fonts']['majorEastAsia']);
+        $t->same('Arial', $theme['fonts']['majorComplexScript']);
+        $t->same('Aptos', $theme['fonts']['minorLatin']);
+        $t->same('Meiryo', $theme['fonts']['minorEastAsia']);
+        $t->same('Times New Roman', $theme['fonts']['minorComplexScript']);
+        $t->same('Review Colors', $theme['colors']['schemeName']);
+        $t->same(6, $theme['colors']['count']);
+        $t->same('system', $theme['colors']['items'][0]['kind']);
+        $t->same('windowText', $theme['colors']['items'][0]['value']);
+        $t->same('111111', $theme['colors']['byName']['dk1']);
+        $t->same('4472C4', $theme['colors']['byName']['accent1']);
+        $t->same('0563C1', $theme['colors']['byName']['hlink']);
+        $t->same('954F72', $theme['colors']['byName']['followedHyperlink']);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

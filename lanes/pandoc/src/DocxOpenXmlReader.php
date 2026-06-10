@@ -21,6 +21,7 @@ final class DocxOpenXmlReader
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+    private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
 
     public function readFile(string $path): AstNode
     {
@@ -73,6 +74,8 @@ final class DocxOpenXmlReader
         $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
+        $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
+        $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
         $media = $this->mediaMetadata($parts, $contentTypes);
@@ -93,6 +96,8 @@ final class DocxOpenXmlReader
                 'settings' => $settings,
                 'fontTablePart' => $fontTablePart['partName'],
                 'fontTable' => $fontTable,
+                'themePart' => $themePart['partName'],
+                'theme' => $theme,
                 'media' => $media,
             ],
         ];
@@ -143,6 +148,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $fontTablePart['partName'],
                 $fontTablePart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($themePart['relationship'] !== null) {
+            $attrs['docx']['themeRelationship'] = $this->relationshipSummary(
+                $themePart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $themePart['partName'],
+                $themePart['exists'],
                 $contentTypes,
             );
         }
@@ -674,6 +689,209 @@ final class DocxOpenXmlReader
             'fonts' => $fonts,
             'byName' => $byName,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readTheme(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_A || $root->localName !== 'theme') {
+            return [];
+        }
+
+        $theme = [];
+        $name = trim($root->getAttribute('name'));
+        if ($name !== '') {
+            $theme['name'] = $name;
+        }
+
+        $xpath = $this->xpath($dom);
+        $fontScheme = $this->readThemeFontScheme($xpath, $root);
+        if ($fontScheme !== []) {
+            $theme['fonts'] = $fontScheme;
+        }
+
+        $colorScheme = $this->readThemeColorScheme($xpath, $root);
+        if ($colorScheme !== []) {
+            $theme['colors'] = $colorScheme;
+        }
+
+        return $theme;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function readThemeFontScheme(\DOMXPath $xpath, \DOMElement $theme): array
+    {
+        $fontScheme = $this->firstElement($xpath, 'a:themeElements/a:fontScheme', $theme);
+        if (!$fontScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $fonts = [];
+        $name = trim($fontScheme->getAttribute('name'));
+        if ($name !== '') {
+            $fonts['schemeName'] = $name;
+        }
+
+        foreach ([
+            'majorFont' => 'major',
+            'minorFont' => 'minor',
+        ] as $fontElementName => $prefix) {
+            foreach ([
+                'latin' => 'Latin',
+                'ea' => 'EastAsia',
+                'cs' => 'ComplexScript',
+            ] as $source => $target) {
+                $typeface = trim((string) $xpath->evaluate(
+                    'string(a:' . $fontElementName . '/a:' . $source . '/@typeface)',
+                    $fontScheme
+                ));
+                if ($typeface !== '') {
+                    $fonts[$prefix . $target] = $typeface;
+                }
+            }
+        }
+
+        return $fonts;
+    }
+
+    /**
+     * @return array{schemeName?:string, count:int, items:list<array{name:string, kind:string, value:?string, rgb:?string}>, byName:array<string, string>}
+     */
+    private function readThemeColorScheme(\DOMXPath $xpath, \DOMElement $theme): array
+    {
+        $colorScheme = $this->firstElement($xpath, 'a:themeElements/a:clrScheme', $theme);
+        if (!$colorScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $colors = [];
+        $byName = [];
+        foreach ($colorScheme->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_A) {
+                continue;
+            }
+
+            $name = $child->localName;
+            if (!in_array($name, ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'], true)) {
+                continue;
+            }
+
+            $entry = $this->themeColorEntry($child);
+            if ($entry === null) {
+                continue;
+            }
+
+            $color = ['name' => $name] + $entry;
+            $colors[] = $color;
+            if (is_string($color['rgb']) && $color['rgb'] !== '') {
+                $byName[$name] = $color['rgb'];
+                foreach ($this->themeColorAliases($name) as $alias) {
+                    $byName[$alias] = $color['rgb'];
+                }
+            }
+        }
+
+        if ($colors === []) {
+            return [];
+        }
+
+        $summary = [
+            'count' => count($colors),
+            'items' => $colors,
+            'byName' => $byName,
+        ];
+        $name = trim($colorScheme->getAttribute('name'));
+        if ($name !== '') {
+            $summary = ['schemeName' => $name] + $summary;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{kind:string, value:?string, rgb:?string}|null
+     */
+    private function themeColorEntry(\DOMElement $container): ?array
+    {
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_A) {
+                continue;
+            }
+
+            if ($child->localName === 'srgbClr') {
+                $rgb = $this->normalizedRgb($child->getAttribute('val'));
+                if ($rgb === null) {
+                    continue;
+                }
+
+                return [
+                    'kind' => 'srgb',
+                    'value' => $rgb,
+                    'rgb' => $rgb,
+                ];
+            }
+
+            if ($child->localName === 'sysClr') {
+                $value = trim($child->getAttribute('val'));
+
+                return [
+                    'kind' => 'system',
+                    'value' => $value !== '' ? $value : null,
+                    'rgb' => $this->normalizedRgb($child->getAttribute('lastClr')),
+                ];
+            }
+
+            if ($child->localName === 'prstClr') {
+                $value = trim($child->getAttribute('val'));
+                if ($value === '') {
+                    continue;
+                }
+
+                return [
+                    'kind' => 'preset',
+                    'value' => $value,
+                    'rgb' => null,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function themeColorAliases(string $name): array
+    {
+        return match ($name) {
+            'dk1' => ['dark1', 'text1'],
+            'lt1' => ['light1', 'background1'],
+            'dk2' => ['dark2', 'text2'],
+            'lt2' => ['light2', 'background2'],
+            'hlink' => ['hyperlink'],
+            'folHlink' => ['followedHyperlink', 'followed-hyperlink'],
+            default => [],
+        };
+    }
+
+    private function normalizedRgb(string $value): ?string
+    {
+        $value = strtoupper(trim($value));
+        if (preg_match('/^[0-9A-F]{6}$/', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
     }
 
     /**
