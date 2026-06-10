@@ -128,6 +128,7 @@ final class NativeWriter
             )],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->blocks($node->children)]],
+            'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->tableCaption($node), $this->figureBlocks($node)]],
             'table' => $this->tableBlock($node),
             default => throw new \InvalidArgumentException('Native writer can only emit native constructors or supported shared AST blocks'),
         };
@@ -376,6 +377,33 @@ final class NativeWriter
         }
 
         return $this->blocks($node->children);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function figureBlocks(AstNode $node): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlines[] = $child;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
+                $inlines = [];
+            }
+            $blocks[] = $this->blocks([$child])[0];
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = ['t' => 'Plain', 'c' => $this->inlines($inlines)];
+        }
+
+        return $blocks;
     }
 
     /**
