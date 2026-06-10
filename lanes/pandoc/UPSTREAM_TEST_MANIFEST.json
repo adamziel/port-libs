@@ -606,16 +606,16 @@
   "nativeImplementation": {
     "language": "PHP",
     "shellOutsAllowedForProgress": false,
-    "currentSlice": "pandoc-rich-package-extension-denominator maps bounded rich package extension unsupported-format diagnostics.",
-    "latestSlice": "pandoc-rich-package-extension-denominator maps one native RichPackageUnsupportedFormatRegistry case for the full 12-format rich package denominator and extension-level unsupported input/output diagnostics. Focused RichPackageUnsupportedFormatRegistryTest.php coverage adds 101 focused assertions and 1 PHP PASS case without running Pandoc, office suites, notebook tooling, TeX/PDF engines, Cabal/Haskell runners, browser renderers, zip/unzip, external validators, online services, live provider tests, or live-service provider tests.",
-    "status": "RichPackageUnsupportedFormatRegistry now exposes extension-level unsupported diagnostics while preserving native PHP, external-tool-free package accounting."
+    "currentSlice": "pandoc-media-bag-safe-destination maps bounded MediaBag extraction destination validation before AST remapping.",
+    "latestSlice": "pandoc-media-bag-safe-destination maps one bounded MediaBag case for safe relative destination normalization and rejection of absolute, URI, drive-letter, traversal, and percent-encoded traversal extraction destinations. Focused MediaBagTest.php coverage adds 7 focused assertions and 1 PHP PASS case without running Pandoc, asset fetchers, zip/unzip, Cabal, Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
+    "status": "MediaBag now rejects unsafe extraction destinations before planning media entries or remapping AST image URLs."
   },
-  "wordpressScenario": "Rich package unsupported-format review metadata now covers extension-level notebook, PDF, ICML, flat OpenDocument, EPUB, DOCX, ODT, PPTX, and XLSX package status while existing Markdown, HTML, XML/HTML5 DOM, DOCX, ODT, RTF, EPUB, citation, JSON, format-registry, plain-writer, media-bag, and LaTeX writer paths remain native PHP and external-tool free.",
+  "wordpressScenario": "Media bag resource mapping now keeps extraction destinations bounded to safe relative paths before AST image URL remapping while existing Markdown, HTML, XML/HTML5 DOM, DOCX, ODT, RTF, EPUB, citation, JSON, format-registry, plain-writer, media-bag, and LaTeX writer paths remain native PHP and external-tool free.",
   "nextTask": "Map the next bounded Markdown, PDF fake-runner, reader, package, charset, citation, syntax-highlighting, format-registry, HTML5 DOM, EPUB, media-bag, native-AST, plain-writer, JSON, or LaTeX writer slice that can add measurable passing tests while keeping phpFail at zero.",
-  "status": "RichPackageUnsupportedFormatRegistry now exposes extension-level unsupported diagnostics while preserving native PHP, external-tool-free package accounting.",
+  "status": "MediaBag now rejects unsafe extraction destinations before planning media entries or remapping AST image URLs.",
   "mapping": {
-    "latestSlice": "pandoc-rich-package-extension-denominator adds one mapped direct RichPackageUnsupportedFormatRegistry case. Mapped denominator is now 3124, mappedPandocRichPackageUnsupportedFormatCases is 3, pandocRichPackageUnsupportedFormatAssertions is 101, and focused RichPackageUnsupportedFormatRegistryTest.php verification is 1 test file / 101 assertions / 0 failures.",
-    "status": "RichPackageUnsupportedFormatRegistry now exposes extension-level unsupported diagnostics while preserving native PHP, external-tool-free package accounting.",
+    "latestSlice": "pandoc-media-bag-safe-destination adds one mapped MediaBag case for bounded extraction destination validation. Mapped denominator is now 3124, mappedMediaBagSafeDestinationCases is 1, mediaBagSafeDestinationAssertions is 7, and focused MediaBagTest.php verification is 1 test file / 129 assertions / 0 failures.",
+    "status": "MediaBag now rejects unsafe extraction destinations before planning media entries or remapping AST image URLs.",
     "mappedLatexWriterCommandCases": 2,
     "latexWriterCommandAssertions": 2,
     "mappedCitationLocatorSuffixDiagnosticsCases": 1,
@@ -624,12 +624,14 @@
     "pandocFormatRegistryWikiSourceProvenanceAssertions": 84,
     "mappedPandocJsonFigureCaptionCases": 1,
     "pandocJsonFigureCaptionAssertions": 34,
-    "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because upstream test-pandoc and test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout; the current cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, but stack is not. Native PHP progress now maps 850 focused Markdown/HTML/LaTeX-writer/WordPress/DOCX/ODF/OPC/RTF/syntax-highlighting/CSL-BibTeX/XML-HTML/PDF/native-AST/plain-writer/format-registry/EPUB/media-bag/upstream-runner/JSON/table/ODT-style/CommonMark/emoji/native-writer-table/forced-wrap/odf-next-style/html-inline-attrs/json-legacy-metamap/docx-numbering-report/IPYNB/Citation-CSL/citation-locator-review/wiki-source-provenance/json-figure-caption/epub-nav-leaf-duplicate-target/html-line-block-attrs/plain-generated-wrap-diagnostics/roff-extension-directions/media-bag-invalid-data-uri/epub-nav-duplicate-source-id/html-document-microdata-metadata/wiki-format-registry-metadata/citation-locator-source-class checks, with the latest slice adding citation locator source-class metadata without shelling out to Pandoc, citeproc, BibTeX, Biber, Cabal/Haskell runners, browser renderers, external validators, or online services.",
     "mappedPandocRichPackageUnsupportedFormatCases": 3,
-    "pandocRichPackageUnsupportedFormatAssertions": 101
+    "pandocRichPackageUnsupportedFormatAssertions": 101,
+    "mappedMediaBagSafeDestinationCases": 1,
+    "mediaBagSafeDestinationAssertions": 7,
+    "warning": "This is a cloned static inventory, not upstream runner parity. The full runner was not executed because upstream test-pandoc and test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout; the current cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, but stack is not. Native PHP progress now maps 850 focused Markdown/HTML/LaTeX-writer/WordPress/DOCX/ODF/OPC/RTF/syntax-highlighting/CSL-BibTeX/XML-HTML/PDF/native-AST/plain-writer/format-registry/EPUB/media-bag/upstream-runner/JSON/table/ODT-style/CommonMark/emoji/native-writer-table/forced-wrap/odf-next-style/html-inline-attrs/json-legacy-metamap/docx-numbering-report/IPYNB/Citation-CSL/citation-locator-review/wiki-source-provenance/json-figure-caption/epub-nav-leaf-duplicate-target/html-line-block-attrs/plain-generated-wrap-diagnostics/roff-extension-directions/media-bag-invalid-data-uri/epub-nav-duplicate-source-id/html-document-microdata-metadata/wiki-format-registry-metadata/citation-locator-source-class checks, with the latest slice adding citation locator source-class metadata without shelling out to Pandoc, citeproc, BibTeX, Biber, Cabal/Haskell runners, browser renderers, external validators, or online services."
   },
-  "audit": "2026-06-10 UTC rich package unsupported-format extension-denominator slice: RichPackageUnsupportedFormatRegistry now reports 12 rich package format rows, 9 extension-status rows, notebook/PDF/ICML/flat-OpenDocument unsupported output diagnostics, and input/output unsupported direction buckets without converter claims. Focused RichPackageUnsupportedFormatRegistryTest.php passed with 1 test file, 101 assertions, 0 failures after php -l checks for RichPackageUnsupportedFormatRegistry.php and RichPackageUnsupportedFormatRegistryTest.php; full php tools/run-tests.php lanes/pandoc/tests passed with 44 files, 59471 assertions, 0 failures. No Pandoc, office suite, notebook tooling, TeX/PDF engine, Cabal solver/build/test command, Haskell runner, browser renderer, zip/unzip command, external validator, online service, live provider test, or live-service provider test was executed.",
-  "latestSlice": "Rich package unsupported-format extension-denominator current-base slice maps one native registry case for extension-level package diagnostics while preserving existing reader support and unsupported writer/package parity without external tools.",
+  "audit": "2026-06-10 UTC media-bag safe extraction destination slice: MediaBag now normalizes safe relative extraction destinations and rejects empty, absolute, URI, drive-letter, traversal, and percent-encoded traversal destinations before planning extraction entries or remapping AST image URLs. Focused MediaBagTest.php passed with 1 test file, 129 assertions, 0 failures after php -l checks for MediaBag.php and MediaBagTest.php; full php tools/run-tests.php lanes/pandoc/tests passed with 44 files, 59438 assertions, 0 failures. No Pandoc, asset fetcher, zip/unzip, Cabal solver/build/test command, Haskell runner, browser renderer, external validator, online service, live provider test, or live-service provider test was executed.",
+  "latestSlice": "Media bag safe extraction destination current-base slice maps one native MediaBag case for bounded extraction destination validation while preserving existing resource mapping behavior without running Pandoc, asset fetchers, zip/unzip, Cabal/Haskell runners, browser renderers, external validators, online services, live provider tests, or live-service provider tests.",
   "mappedBibtexCslProcessorBiblatexEprintMetadataCases": 1,
   "bibtexCslProcessorBiblatexEprintMetadataAssertions": 16,
   "mappedBibtexCslProcessorCases": 6,
@@ -758,5 +760,7 @@
   "mappedDocxNumberingPictureBulletCases": 1,
   "docxNumberingPictureBulletAssertions": 33,
   "mappedOdtReaderDuplicateStyleDiagnosticsCases": 1,
-  "odtReaderDuplicateStyleDiagnosticsAssertions": 18
+  "odtReaderDuplicateStyleDiagnosticsAssertions": 18,
+  "mappedMediaBagSafeDestinationCases": 1,
+  "mediaBagSafeDestinationAssertions": 7
 }

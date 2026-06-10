@@ -481,12 +481,12 @@ final class MediaBag
 
     private static function normalizeExtractionDestination(string $destination): string
     {
-        $destination = trim(str_replace('\\', '/', $destination));
-        if ($destination === '') {
-            throw new \InvalidArgumentException('Media extraction destination must not be empty');
+        $destination = rtrim(preg_replace('#/+#', '/', trim(str_replace('\\', '/', $destination))) ?? '', '/');
+        if ($destination === '' || !self::isSafeRelativeMediaPath($destination)) {
+            throw new \InvalidArgumentException('Media extraction destination must be a safe relative path');
         }
 
-        return rtrim($destination, '/');
+        return self::normalizePath($destination);
     }
 
     /**

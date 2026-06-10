@@ -304,6 +304,28 @@ return [
         $t->same(['media-resource-mapped:assets/kept.svg'], $extracted['diagnostics']);
     },
 
+    'rejects unsafe media extraction destinations before remapping' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "safe destination bytes\n";
+        $bag->insertMedia('assets/review.png', 'image/png', $bytes);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/review.png',
+                    'title' => 'Review image',
+                ], [new AstNode('text', ['text' => 'Review image'])]),
+            ]),
+        ]);
+
+        $safe = $bag->extractMedia($document, '.\\review-media//assets/');
+        $t->same('review-media/assets/assets/review.png', $safe['document']->children[0]->children[0]->attr('url'));
+        $t->same('review-media/assets/assets/review.png', $safe['entries'][0]['path']);
+
+        foreach (['../outside', '/tmp/media', 'C:/imports/media', 'https://cdn.example.test/media', 'media/%2e%2e/outside'] as $destination) {
+            $t->throws(\InvalidArgumentException::class, static fn (): array => $bag->extractMedia($document, $destination));
+        }
+    },
+
     'reuses preloaded path-only media for url-suffixed image sources' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $bytes = "<svg><text>preloaded chart</text></svg>\n";
