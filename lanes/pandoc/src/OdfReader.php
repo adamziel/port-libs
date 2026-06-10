@@ -121,6 +121,9 @@ final class OdfReader
             'styles' => [
                 'count' => count($styleCatalog['styles']),
                 'items' => array_values($styleCatalog['styles']),
+                'diagnosticCount' => count($styleDiagnostics),
+                'diagnosticCodeCounts' => $this->diagnosticCodeCounts($styleDiagnostics),
+                'diagnostics' => $styleDiagnostics,
             ],
             'fontFaces' => [
                 'count' => count($styleCatalog['fontFaces']),

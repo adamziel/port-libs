@@ -318,6 +318,7 @@ XML;
 
         $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithPlainParagraph, null, $stylesWithBrokenReferences));
         $styleReport = $result['importReport']['styles'];
+        $documentStyles = $result['document']->attr('styles');
         $diagnostics = $styleReport['diagnostics'];
         $diagnosticsByCode = [];
         foreach ($diagnostics as $diagnostic) {
@@ -327,6 +328,9 @@ XML;
         $t->same(4, $styleReport['count']);
         $t->same(1, $styleReport['styleMapCount']);
         $t->same(14, $styleReport['diagnosticCount']);
+        $t->same($styleReport['diagnosticCount'], $documentStyles['diagnosticCount']);
+        $t->same($styleReport['diagnosticCodeCounts'], $documentStyles['diagnosticCodeCounts']);
+        $t->same($diagnostics, $documentStyles['diagnostics']);
         $t->same([
             'odf-list-style-missing-font-face' => 1,
             'odf-master-page-missing-draw-style' => 1,
