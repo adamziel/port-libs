@@ -242,6 +242,72 @@ return [
         $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
     },
 
+    'flags encrypted OPF binding handlers for compact package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked widget fallback</h1></body></html>';
+        $opfWithEncryptedBinding = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="locked-handler" href="widgets/locked-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $epub3OpfXml
+        );
+        $opfWithEncryptedBinding = str_replace(
+            '</spine>',
+            '</spine>
+  <bindings>
+    <mediaType media-type="application/x-locked-widget" handler="locked-handler"/>
+  </bindings>',
+            $opfWithEncryptedBinding
+        );
+        $encryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="EPUB/widgets/locked-handler.xhtml"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/encryption.xml', 'data' => $encryptionXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithEncryptedBinding],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/widgets/locked-handler.xhtml', 'data' => $handlerXhtml],
+        ]));
+
+        $bindings = $epub->bindings();
+        $summary = $epub->summary();
+        $handler = $bindings['items'][0];
+        $diagnostic = $handler['diagnostics'][0];
+
+        $t->same(true, $bindings['present']);
+        $t->same(1, $bindings['itemCount']);
+        $t->same('locked-handler', $handler['handlerId']);
+        $t->same('/EPUB/widgets/locked-handler.xhtml', $handler['handlerPartName']);
+        $t->same(true, $handler['handlerExists']);
+        $t->same(true, $handler['handlerEncrypted']);
+        $t->same(false, $handler['handlerCanExposeBytes']);
+        $t->same(strlen($handlerXhtml), $handler['handlerByteLength']);
+        $t->same('xhtml', $handler['handlerEncryption']['role']);
+        $t->same('encrypted-resource-review', $handler['handlerEncryption']['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $handler['handlerEncryption']['byteExposurePolicy']);
+        $t->same('encrypted-binding-handler', $diagnostic['type']);
+        $t->same('application/x-locked-widget', $diagnostic['mediaType']);
+        $t->same('/EPUB/widgets/locked-handler.xhtml', $diagnostic['handlerPartName']);
+        $t->same('encrypted-resource-review', $diagnostic['reviewPolicy']);
+        $t->same(1, count($bindings['diagnostics']));
+        $t->same(0, $bindings['diagnostics'][0]['index']);
+        $t->same('encrypted-binding-handler', $bindings['diagnostics'][0]['type']);
+        $t->same($bindings, $summary['bindings']);
+        $t->same($bindings['items'], $summary['wordpressImport']['mediaTypeBindings']);
+        $t->same($bindings['diagnostics'], $summary['wordpressImport']['mediaTypeBindingDiagnostics']);
+    },
+
     'preserves OPF metadata refinements for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRefinements = str_replace(
             '<dc:title>WordPress Migration Guide</dc:title>',

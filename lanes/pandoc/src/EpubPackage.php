@@ -5578,6 +5578,18 @@ final class EpubPackage
                     'handlerId' => $handlerId,
                     'message' => 'EPUB OPF binding handler does not reference a manifest item',
                 ];
+            } elseif (($handler['encrypted'] ?? false) === true) {
+                $handlerEncryption = is_array($handler['encryption'] ?? null) ? $handler['encryption'] : [];
+                $itemDiagnostics[] = [
+                    'type' => 'encrypted-binding-handler',
+                    'mediaType' => $mediaType === '' ? null : $mediaType,
+                    'handlerId' => $handlerId,
+                    'handlerPartName' => (string) ($handler['partName'] ?? ''),
+                    'handlerMediaType' => (string) ($handler['mediaType'] ?? ''),
+                    'reviewPolicy' => is_string($handlerEncryption['reviewPolicy'] ?? null) ? $handlerEncryption['reviewPolicy'] : null,
+                    'byteExposurePolicy' => is_string($handlerEncryption['byteExposurePolicy'] ?? null) ? $handlerEncryption['byteExposurePolicy'] : null,
+                    'message' => 'EPUB OPF binding handler is encrypted and cannot expose review bytes',
+                ];
             }
 
             foreach ($itemDiagnostics as $diagnostic) {
@@ -5588,6 +5600,7 @@ final class EpubPackage
             $entry = $handlerPartName !== null && $package->has($handlerPartName)
                 ? $package->entry($handlerPartName)
                 : null;
+            $handlerEncrypted = is_array($handler) && ($handler['encrypted'] ?? false) === true;
 
             $items[] = [
                 'index' => $index,
@@ -5598,6 +5611,9 @@ final class EpubPackage
                 'handlerMediaType' => is_array($handler) ? (string) $handler['mediaType'] : null,
                 'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
                 'handlerExists' => $entry instanceof ZipPackageEntry,
+                'handlerEncrypted' => $handlerEncrypted,
+                'handlerCanExposeBytes' => $entry instanceof ZipPackageEntry && !$handlerEncrypted,
+                'handlerEncryption' => is_array($handler) && is_array($handler['encryption'] ?? null) ? $handler['encryption'] : null,
                 'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'diagnostics' => $itemDiagnostics,
