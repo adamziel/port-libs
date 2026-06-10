@@ -6899,14 +6899,27 @@ return [
     },
 
     'rejects unsupported zip general purpose flag bits before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $enhancedDeflateZip = $buildZipPackage([
             [
                 'name' => 'word/media/enhanced-deflate.bin',
                 'data' => 'enhanced deflate metadata should stay blocked',
                 'method' => 8,
                 'flags' => 0x0810,
             ],
-        ])));
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($enhancedDeflateZip));
+
+        $rawFlagPreflight = ZipPackage::rawStrictImportPreflight($enhancedDeflateZip, 512, 20.0, 512);
+        $t->same(false, $rawFlagPreflight['isValid']);
+        $t->same(false, $rawFlagPreflight['canInstantiate']);
+        $t->same(1, $rawFlagPreflight['generalPurposeFlags']['unsupportedFlagEntryCount']);
+        $t->same(0x0010, $rawFlagPreflight['generalPurposeFlags']['unsupportedEntries'][0]['unsupportedFlagBits']);
+        $t->same(['utf-8-names', 'unsupported-0x0010'], $rawFlagPreflight['generalPurposeFlags']['unsupportedEntries'][0]['flagNames']);
+        $t->same(['unsupported-general-purpose-flags'], $rawFlagPreflight['generalPurposeFlags']['issues']);
+        $t->contains('general-purpose-flag-issues', implode(',', $rawFlagPreflight['diagnostics']));
+        $t->contains('unsupported-general-purpose-flags', implode(',', $rawFlagPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawFlagPreflight['diagnostics']));
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/patched-data.bin',
@@ -6942,14 +6955,30 @@ return [
     },
 
     'rejects deflate option flags on non-deflated zip entries before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $storedMaximumZip = $buildZipPackage([
             [
                 'name' => 'word/media/stored-maximum.bin',
                 'data' => 'stored package media must not claim deflate maximum compression flags',
                 'method' => 0,
                 'flags' => 0x0802,
             ],
-        ])));
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($storedMaximumZip));
+
+        $rawDeflateOptionPreflight = ZipPackage::rawStrictImportPreflight($storedMaximumZip, 512, 20.0, 512);
+        $t->same(false, $rawDeflateOptionPreflight['isValid']);
+        $t->same(false, $rawDeflateOptionPreflight['canInstantiate']);
+        $t->same(1, $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntryCount']);
+        $t->same(0x0002, $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['deflateOptionFlags']);
+        $t->same('deflate-maximum-compression', $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['deflateOptionName']);
+        $t->same([
+            'deflate-option-flags',
+            'deflate-option-flags-without-deflate',
+        ], $rawDeflateOptionPreflight['generalPurposeFlags']['deflateOptionMethodMismatchEntries'][0]['issues']);
+        $t->contains('deflate-option-flag-entries', implode(',', $rawDeflateOptionPreflight['diagnostics']));
+        $t->contains('deflate-option-flags-without-deflate', implode(',', $rawDeflateOptionPreflight['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawDeflateOptionPreflight['diagnostics']));
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/stored-fast.bin',
@@ -7268,7 +7297,7 @@ return [
     },
 
     'rejects local header flags and methods before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
-        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
+        $localFlagMismatchZip = $buildZipPackage([
             [
                 'name' => 'word/comments.xml',
                 'data' => '<w:comments/>',
@@ -7276,7 +7305,20 @@ return [
                 'descriptor' => true,
                 'localFlags' => 0x0800,
             ],
-        ])));
+        ]);
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($localFlagMismatchZip));
+
+        $rawLocalFlagMismatch = ZipPackage::rawStrictImportPreflight($localFlagMismatchZip, 512, 20.0, 512);
+        $t->same(false, $rawLocalFlagMismatch['isValid']);
+        $t->same(false, $rawLocalFlagMismatch['canInstantiate']);
+        $t->same(1, $rawLocalFlagMismatch['generalPurposeFlags']['localHeaderFlagMismatchEntryCount']);
+        $t->same(false, $rawLocalFlagMismatch['generalPurposeFlags']['mismatchedEntries'][0]['generalPurposeFlagsMatchLocalHeader']);
+        $t->same(0x0808, $rawLocalFlagMismatch['generalPurposeFlags']['mismatchedEntries'][0]['generalPurposeFlags']);
+        $t->same(0x0800, $rawLocalFlagMismatch['generalPurposeFlags']['mismatchedEntries'][0]['localGeneralPurposeFlags']);
+        $t->contains('general-purpose-flag-issues', implode(',', $rawLocalFlagMismatch['diagnostics']));
+        $t->contains('local-header-flags-mismatch', implode(',', $rawLocalFlagMismatch['diagnostics']));
+        $t->contains('data-descriptor-entries', implode(',', $rawLocalFlagMismatch['diagnostics']));
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',

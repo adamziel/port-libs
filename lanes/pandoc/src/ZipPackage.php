@@ -5343,6 +5343,209 @@ final class ZipPackage
      * @return array{
      *     entryCount:int,
      *     supportedEntryCount:int,
+     *     unsupportedFlagEntryCount:int,
+     *     localHeaderFlagMismatchEntryCount:int,
+     *     utf8NameEntryCount:int,
+     *     dataDescriptorEntryCount:int,
+     *     deflateOptionEntryCount:int,
+     *     deflateOptionMethodMismatchEntryCount:int,
+     *     strictReviewEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     unsupportedEntries:list<array<string, mixed>>,
+     *     mismatchedEntries:list<array<string, mixed>>,
+     *     deflateOptionMethodMismatchEntries:list<array<string, mixed>>,
+     *     strictReviewEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function generalPurposeFlagPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before general-purpose flags can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $unsupportedEntries = [];
+        $mismatchedEntries = [];
+        $deflateOptionMethodMismatchEntries = [];
+        $strictReviewEntries = [];
+        $supportedEntryCount = 0;
+        $utf8NameEntryCount = 0;
+        $dataDescriptorEntryCount = 0;
+        $deflateOptionEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+        while ($index < $archive['totalEntryCount']) {
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $localHeader = self::readLocalHeaderNameMetadata($bytes, $localHeaderOffset, $index, false);
+
+            $localFlags = $localHeader['generalPurposeFlags'];
+            $centralUnsupportedFlagBits = $flags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+            $localUnsupportedFlagBits = $localFlags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+            $unsupportedFlagBits = $centralUnsupportedFlagBits | $localUnsupportedFlagBits;
+            $flagsMatchLocalHeader = $flags === $localFlags;
+            $usesUtf8Names = (($flags | $localFlags) & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0;
+            $usesDataDescriptor = (($flags | $localFlags) & 0x0008) !== 0;
+            $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+            $localDeflateOptionFlags = $localFlags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+            $usesDeflateOptionFlags = ($deflateOptionFlags | $localDeflateOptionFlags) !== 0;
+            $deflateOptionMethodMismatch = ($deflateOptionFlags !== 0 && $method !== 8)
+                || ($localDeflateOptionFlags !== 0 && $localHeader['compressionMethod'] !== 8);
+            $isSupportedByReader = $unsupportedFlagBits === 0
+                && $flagsMatchLocalHeader
+                && !$deflateOptionMethodMismatch;
+            $requiresStrictReview = $usesDataDescriptor || $usesDeflateOptionFlags;
+            $issues = [];
+
+            if ($unsupportedFlagBits !== 0) {
+                $issues[] = 'unsupported-general-purpose-flags';
+            }
+            if (!$flagsMatchLocalHeader) {
+                $issues[] = 'local-header-flags-mismatch';
+            }
+            if ($usesDataDescriptor) {
+                $issues[] = 'data-descriptor-entry';
+            }
+            if ($usesDeflateOptionFlags) {
+                $issues[] = 'deflate-option-flags';
+            }
+            if ($deflateOptionMethodMismatch) {
+                $issues[] = 'deflate-option-flags-without-deflate';
+            }
+
+            if ($usesUtf8Names) {
+                $utf8NameEntryCount++;
+            }
+            if ($usesDataDescriptor) {
+                $dataDescriptorEntryCount++;
+            }
+            if ($usesDeflateOptionFlags) {
+                $deflateOptionEntryCount++;
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'localName' => $localHeader['name'],
+                'localRawName' => $localHeader['rawName'],
+                'localNameEncoding' => $localHeader['nameEncoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'compressionMethod' => $method,
+                'localCompressionMethod' => $localHeader['compressionMethod'],
+                'generalPurposeFlags' => $flags,
+                'localGeneralPurposeFlags' => $localFlags,
+                'generalPurposeFlagsMatchLocalHeader' => $flagsMatchLocalHeader,
+                'flagNames' => self::generalPurposeFlagNames($flags),
+                'localFlagNames' => self::generalPurposeFlagNames($localFlags),
+                'unsupportedFlagBits' => $unsupportedFlagBits,
+                'centralUnsupportedFlagBits' => $centralUnsupportedFlagBits,
+                'localUnsupportedFlagBits' => $localUnsupportedFlagBits,
+                'isSupportedByReader' => $isSupportedByReader,
+                'usesUtf8Names' => $usesUtf8Names,
+                'usesDataDescriptor' => $usesDataDescriptor,
+                'deflateOptionFlags' => $deflateOptionFlags,
+                'localDeflateOptionFlags' => $localDeflateOptionFlags,
+                'deflateOptionName' => self::deflateOptionFlagName($deflateOptionFlags),
+                'localDeflateOptionName' => self::deflateOptionFlagName($localDeflateOptionFlags),
+                'deflateOptionMethodMismatch' => $deflateOptionMethodMismatch,
+                'requiresStrictReview' => $requiresStrictReview,
+                'issues' => $issues,
+            ];
+
+            $entries[] = $entry;
+            if ($isSupportedByReader) {
+                $supportedEntryCount++;
+            }
+            if ($unsupportedFlagBits !== 0) {
+                $unsupportedEntries[] = $entry;
+            }
+            if (!$flagsMatchLocalHeader) {
+                $mismatchedEntries[] = $entry;
+            }
+            if ($deflateOptionMethodMismatch) {
+                $deflateOptionMethodMismatchEntries[] = $entry;
+            }
+            if ($requiresStrictReview) {
+                $strictReviewEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            $index++;
+        }
+
+        if ($cursor !== $archive['centralDirectoryEnd']) {
+            throw new \RuntimeException('ZIP central directory size does not match scanned general-purpose flag policy records');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($unsupportedEntries !== []) {
+            $issues[] = 'unsupported-general-purpose-flags';
+        }
+        if ($mismatchedEntries !== []) {
+            $issues[] = 'local-header-flags-mismatch';
+        }
+        if ($deflateOptionMethodMismatchEntries !== []) {
+            $issues[] = 'deflate-option-flags-without-deflate';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'supportedEntryCount' => $supportedEntryCount,
+            'unsupportedFlagEntryCount' => count($unsupportedEntries),
+            'localHeaderFlagMismatchEntryCount' => count($mismatchedEntries),
+            'utf8NameEntryCount' => $utf8NameEntryCount,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'deflateOptionEntryCount' => $deflateOptionEntryCount,
+            'deflateOptionMethodMismatchEntryCount' => count($deflateOptionMethodMismatchEntries),
+            'strictReviewEntryCount' => count($strictReviewEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'unsupportedEntries' => $unsupportedEntries,
+            'mismatchedEntries' => $mismatchedEntries,
+            'deflateOptionMethodMismatchEntries' => $deflateOptionMethodMismatchEntries,
+            'strictReviewEntries' => $strictReviewEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     entryCount:int,
+     *     supportedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
@@ -7810,6 +8013,7 @@ final class ZipPackage
      *     packagePrefix:?array<string, mixed>,
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
+     *     generalPurposeFlags:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
      *     comments:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
@@ -7922,6 +8126,7 @@ final class ZipPackage
                 'packagePrefix' => null,
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
+                'generalPurposeFlags' => null,
                 'compressionMethods' => null,
                 'comments' => null,
                 'creatorHostSystems' => null,
@@ -7957,6 +8162,7 @@ final class ZipPackage
         $packagePrefix = null;
         $archiveExtraDataRecords = null;
         $encryption = null;
+        $generalPurposeFlags = null;
         $compressionMethods = null;
         $comments = null;
         $creatorHostSystems = null;
@@ -8049,6 +8255,32 @@ final class ZipPackage
             );
             if ($encryption !== null && !$encryption['isSupportedByBoundedReader']) {
                 $addDiagnostics($encryption['issues']);
+            }
+
+            $generalPurposeFlags = $runPreflight(
+                'general-purpose-flag-policy',
+                static fn (): array => self::generalPurposeFlagPolicyPreflight($bytes)
+            );
+            if ($generalPurposeFlags !== null) {
+                if (!$generalPurposeFlags['isSupportedByBoundedReader']) {
+                    $addDiagnostic('general-purpose-flag-issues');
+                    $addDiagnostics($generalPurposeFlags['issues']);
+                }
+                if ($generalPurposeFlags['unsupportedFlagEntryCount'] > 0) {
+                    $addDiagnostic('unsupported-general-purpose-flags');
+                }
+                if ($generalPurposeFlags['dataDescriptorEntryCount'] > 0) {
+                    $addDiagnostic('data-descriptor-entries');
+                }
+                if ($generalPurposeFlags['deflateOptionEntryCount'] > 0) {
+                    $addDiagnostic('deflate-option-flag-entries');
+                }
+                if ($generalPurposeFlags['localHeaderFlagMismatchEntryCount'] > 0) {
+                    $addDiagnostic('local-header-flags-mismatch');
+                }
+                if ($generalPurposeFlags['deflateOptionMethodMismatchEntryCount'] > 0) {
+                    $addDiagnostic('deflate-option-flags-without-deflate');
+                }
             }
 
             $compressionMethods = $runPreflight(
@@ -8208,6 +8440,7 @@ final class ZipPackage
             ?? $packagePrefix['entryCount']
             ?? $splitArchive['entryCount']
             ?? $encryption['entryCount']
+            ?? $generalPurposeFlags['entryCount']
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
@@ -8251,6 +8484,7 @@ final class ZipPackage
             'packagePrefix' => $packagePrefix,
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
+            'generalPurposeFlags' => $generalPurposeFlags,
             'compressionMethods' => $compressionMethods,
             'comments' => $comments,
             'creatorHostSystems' => $creatorHostSystems,
