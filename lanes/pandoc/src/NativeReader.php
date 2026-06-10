@@ -638,7 +638,12 @@ final class NativeReader
             'text' => $text,
         ]);
 
-        return match (strtolower($format)) {
+        $normalizedFormat = strtolower($format);
+        if ($this->isMarkdownRawFormat($normalizedFormat)) {
+            return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
+        }
+
+        return match ($normalizedFormat) {
             'tex', 'latex', 'context' => new AstNode('raw_tex', array_replace($attrs, ['tex' => $text])),
             'html' => new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text])),
             default => new AstNode('raw_inline', $attrs),
@@ -832,5 +837,13 @@ final class NativeReader
 
         $nodes[] = new AstNode('text', ['text' => $text]);
         $text = '';
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        $baseFormat = str_replace('-', '+', $format);
+        $baseFormat = explode('+', $baseFormat, 2)[0];
+
+        return $baseFormat === 'markdown' || $format === 'commonmark' || str_starts_with($format, 'gfm');
     }
 }
