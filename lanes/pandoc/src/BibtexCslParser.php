@@ -832,6 +832,7 @@ final class BibtexCslParser
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
             'original-language' => self::literalListDisplay($originalLanguageList),
             'reprint-title' => self::firstField($fields, ['reprinttitle', 'reprint-title']),
+            'reprint-date-addon' => self::firstField($fields, ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum']),
             'event-date-addon' => self::firstField($fields, ['eventdateaddon', 'eventdate-addon', 'event-date-addon']),
             'accessed-date-addon' => self::firstField($fields, ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon']),
             'rawBibtex' => [
@@ -1107,6 +1108,21 @@ final class BibtexCslParser
         if ($originalDate !== null) {
             $originalDate = self::dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
             $item['original-date'] = $originalDate;
+        }
+
+        $reprintDate = self::dateFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday'], [
+            'hour' => 'reprinthour',
+            'minute' => 'reprintminute',
+            'second' => 'reprintsecond',
+            'timezone' => 'reprinttimezone',
+            'endhour' => 'reprintendhour',
+            'endminute' => 'reprintendminute',
+            'endsecond' => 'reprintendsecond',
+            'endtimezone' => 'reprintendtimezone',
+        ], ['reprintendyear', 'reprintendmonth', 'reprintendday']);
+        if ($reprintDate !== null) {
+            $reprintDate = self::dateWithEra($reprintDate, $fields, ['reprintdateera', 'reprint-date-era']);
+            $item['reprint-date'] = $reprintDate;
         }
 
         $eventDate = self::dateFromFields($fields, ['eventdate'], ['eventyear', 'eventmonth', 'eventday'], [

@@ -19601,23 +19601,30 @@ XML);
   origdate      = {1998},
   origpublisher = {Archive Desk},
   origlocation  = {London},
-  reprinttitle  = {Facsimile Source Packet}
+  reprinttitle  = {Facsimile Source Packet},
+  reprintdate   = {2001-04-05},
+  reprintdateaddendum = {photostat source release}
 }
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
         $t->same(1, count($items));
         $t->same('Facsimile Source Packet', $items[0]['reprint-title'] ?? null);
+        $t->same(['date-parts' => [[2001, 4, 5]]], $items[0]['reprint-date'] ?? null);
+        $t->same('photostat source release', $items[0]['reprint-date-addon'] ?? null);
         $t->same('reprinttitle', array_key_exists('reprinttitle', $items[0]['rawBibtex']['fields'] ?? []) ? 'reprinttitle' : null);
+        $t->same('reprintdate', array_key_exists('reprintdate', $items[0]['rawBibtex']['fields'] ?? []) ? 'reprintdate' : null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $item = $processor->item('reprint-manual');
         $t->same('Facsimile Source Packet', $item['reprintTitle'] ?? null);
+        $t->same('2001-04-05', $item['reprintDate']['display'] ?? null);
+        $t->same('photostat source release', $item['reprintDateAddon'] ?? null);
         $t->same('Manual de Migración', $item['originalTitle'] ?? null);
         $t->same('1998', $item['originalDate']['display'] ?? null);
         $t->same('(Smith 2026)', $processor->renderCitationCluster([$citation('reprint-manual', '[@reprint-manual]')]));
         $t->same(
-            'Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.',
+            'Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Reprint date addendum: photostat source release. Reprint date: 2001-04-05. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.',
             $processor->renderBibliographyEntry('reprint-manual')
         );
 
@@ -19630,6 +19637,8 @@ BIB;
         <names variable="author"/>
         <text variable="title"/>
         <text variable="reprint-title"/>
+        <date variable="reprint-date"/>
+        <text variable="reprint-date-addon"/>
       </group>
     </layout>
   </citation>
@@ -19637,26 +19646,32 @@ BIB;
     <layout delimiter=" :: ">
       <text variable="title"/>
       <text variable="reprint-title"/>
+      <date variable="reprint-date"/>
+      <text variable="reprint-date-addon"/>
     </layout>
   </bibliography>
 </style>
 XML);
-        $t->same('[Smith | Migration Manual | Facsimile Source Packet]', $styled->renderCitationCluster([$citation('reprint-manual', '[@reprint-manual]')]));
-        $t->same('Migration Manual :: Facsimile Source Packet', $styled->renderBibliographyEntry('reprint-manual'));
+        $t->same('[Smith | Migration Manual | Facsimile Source Packet | 2001-04-05 | photostat source release]', $styled->renderCitationCluster([$citation('reprint-manual', '[@reprint-manual]')]));
+        $t->same('Migration Manual :: Facsimile Source Packet :: 2001-04-05 :: photostat source release', $styled->renderBibliographyEntry('reprint-manual'));
 
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'manual-reprint',
             'title' => 'Manual Reprint Packet',
             'reprint-title' => 'Direct Facsimile Title',
+            'reprint-date' => ['date-parts' => [[2002, 6]]],
+            'reprint-date-addon' => 'direct release note',
         ]]);
         $directItem = $direct->item('manual-reprint');
         $t->same('Direct Facsimile Title', $directItem['reprintTitle'] ?? null);
-        $t->same('Manual Reprint Packet. Reprint title: Direct Facsimile Title.', $direct->renderBibliographyEntry('manual-reprint'));
+        $t->same('2002-06', $directItem['reprintDate']['display'] ?? null);
+        $t->same('direct release note', $directItem['reprintDateAddon'] ?? null);
+        $t->same('Manual Reprint Packet. Reprint title: Direct Facsimile Title. Reprint date addendum: direct release note. Reprint date: 2002-06.', $direct->renderBibliographyEntry('manual-reprint'));
 
         $document = (new MarkdownReader())->read('Reprint source @reprint-manual preserves facsimile title metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reprint source Smith (2026) preserves facsimile title metadata.</p>', $blocks);
-        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.</dd>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Manual. Review Press, 2026. Reprint title: Facsimile Source Packet. Reprint date addendum: photostat source release. Reprint date: 2001-04-05. Original title: Manual de Migración. Original work published 1998. Original publisher: Archive Desk, London.</dd>', $blocks);
     },
     'maps bounded biblatex custom user and verb fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'

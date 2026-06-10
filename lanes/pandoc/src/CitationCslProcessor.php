@@ -1033,6 +1033,7 @@ final class CitationCslProcessor
         $accessedDate = self::dateVariable($item['accessed'] ?? null, $id, 'accessed');
         $availableDate = self::dateVariable($item['available-date'] ?? $item['availableDate'] ?? null, $id, 'available-date');
         $originalDate = self::dateVariable($item['original-date'] ?? null, $id, 'original-date');
+        $reprintDate = self::dateVariable($item['reprint-date'] ?? $item['reprintDate'] ?? null, $id, 'reprint-date');
         $submittedDate = self::dateVariable($item['submitted'] ?? $item['submitted-date'] ?? $item['submittedDate'] ?? null, $id, 'submitted');
         $eventDate = self::dateVariable($item['event-date'] ?? null, $id, 'event-date');
         $dateMarkerSummary = self::dateMarkerSummary([
@@ -1040,6 +1041,7 @@ final class CitationCslProcessor
             'accessed' => $accessedDate,
             'available-date' => $availableDate,
             'original-date' => $originalDate,
+            'reprint-date' => $reprintDate,
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
@@ -1048,6 +1050,7 @@ final class CitationCslProcessor
             'accessed' => $accessedDate,
             'available-date' => $availableDate,
             'original-date' => $originalDate,
+            'reprint-date' => $reprintDate,
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
@@ -1056,6 +1059,7 @@ final class CitationCslProcessor
             'accessed' => $accessedDate,
             'available-date' => $availableDate,
             'original-date' => $originalDate,
+            'reprint-date' => $reprintDate,
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
@@ -1064,6 +1068,7 @@ final class CitationCslProcessor
             'accessed' => $accessedDate,
             'available-date' => $availableDate,
             'original-date' => $originalDate,
+            'reprint-date' => $reprintDate,
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
@@ -1284,6 +1289,8 @@ final class CitationCslProcessor
             'originalGenre' => $originalGenre,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'orig-date-addon']),
+            'reprintDate' => $reprintDate,
+            'reprintDateAddon' => self::firstStringField($item, ['reprint-date-addon', 'reprintDateAddon', 'reprintdateaddon', 'reprintdateaddendum', 'reprint-date-addendum']),
             'submittedDate' => $submittedDate,
             'eventDate' => $eventDate,
             'eventDateAddon' => self::firstStringField($item, ['event-date-addon', 'eventDateAddon', 'eventdateaddon']),
@@ -4973,6 +4980,7 @@ final class CitationCslProcessor
             'available-date' => $this->dateSortValue($item, 'available-date'),
             'event-date' => $this->dateSortValue($item, 'event-date'),
             'original-date' => $this->dateSortValue($item, 'original-date'),
+            'reprint-date' => $this->dateSortValue($item, 'reprint-date'),
             'submitted' => $this->dateSortValue($item, 'submitted'),
             'title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['title']),
             'short-title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['shortTitle']),
@@ -6974,6 +6982,7 @@ final class CitationCslProcessor
             ['containerAuthorType', 'Container author type'],
             ['dateAddon', 'Date addendum'],
             ['originalDateAddon', 'Original date addendum'],
+            ['reprintDateAddon', 'Reprint date addendum'],
             ['eventDateAddon', 'Event date addendum'],
             ['accessedDateAddon', 'Accessed date addendum'],
         ] as [$key, $label]) {
@@ -6987,6 +6996,11 @@ final class CitationCslProcessor
             }
 
             $parts[] = $label . ': ' . $this->withTerminalPunctuation($value);
+        }
+
+        $reprintDate = $item['reprintDate'] ?? null;
+        if (is_array($reprintDate) && (string) ($reprintDate['display'] ?? '') !== '') {
+            $parts[] = 'Reprint date: ' . (string) $reprintDate['display'] . '.';
         }
 
         $dateMarkerSummary = trim((string) ($item['dateMarkerSummary'] ?? ''));
@@ -9131,6 +9145,7 @@ final class CitationCslProcessor
             'container-author-type', 'bookauthor-type', 'bookauthortype' => (string) ($item['containerAuthorType'] ?? ''),
             'date-addon', 'dateaddendum', 'date-addendum' => (string) ($item['dateAddon'] ?? ''),
             'original-date-addon', 'origdateaddon', 'orig-date-addon', 'originaldateaddon' => (string) ($item['originalDateAddon'] ?? ''),
+            'reprint-date-addon', 'reprintdateaddon', 'reprintdateaddendum', 'reprint-date-addendum' => (string) ($item['reprintDateAddon'] ?? ''),
             'event-date-addon', 'eventdateaddon' => (string) ($item['eventDateAddon'] ?? ''),
             'accessed-date-addon', 'urldateaddon', 'url-date-addon', 'accesseddateaddon' => (string) ($item['accessedDateAddon'] ?? ''),
             'name-annotation-summary' => $this->nameAnnotationSummary($item),
@@ -9180,12 +9195,14 @@ final class CitationCslProcessor
             'submitted-status', 'submitted-date-status' => $this->dateMarkerStatusForVariable($item, 'submitted'),
             'event-date-status' => $this->dateMarkerStatusForVariable($item, 'event-date'),
             'original-date-status' => $this->dateMarkerStatusForVariable($item, 'original-date'),
+            'reprint-date-status' => $this->dateMarkerStatusForVariable($item, 'reprint-date'),
             'issued-raw', 'issued-date-raw' => $this->dateRawForVariable($item, 'issued'),
             'accessed-raw', 'accessed-date-raw' => $this->dateRawForVariable($item, 'accessed'),
             'available-raw', 'available-date-raw' => $this->dateRawForVariable($item, 'available-date'),
             'submitted-raw', 'submitted-date-raw' => $this->dateRawForVariable($item, 'submitted'),
             'event-date-raw' => $this->dateRawForVariable($item, 'event-date'),
             'original-date-raw' => $this->dateRawForVariable($item, 'original-date'),
+            'reprint-date-raw' => $this->dateRawForVariable($item, 'reprint-date'),
             'issued-season', 'date-season' => $this->dateSeasonForVariable($item, 'issued'),
             'issued-season-name', 'date-season-name' => $this->dateSeasonNameForVariable($item, 'issued'),
             'accessed-season' => $this->dateSeasonForVariable($item, 'accessed'),
@@ -9198,6 +9215,8 @@ final class CitationCslProcessor
             'event-date-season-name' => $this->dateSeasonNameForVariable($item, 'event-date'),
             'original-date-season' => $this->dateSeasonForVariable($item, 'original-date'),
             'original-date-season-name' => $this->dateSeasonNameForVariable($item, 'original-date'),
+            'reprint-date-season' => $this->dateSeasonForVariable($item, 'reprint-date'),
+            'reprint-date-season-name' => $this->dateSeasonNameForVariable($item, 'reprint-date'),
             'related' => $this->relatedSummaryValues($item),
             'related-summary' => $this->relatedSummary($item),
             'related-keys' => implode(', ', is_array($item['relatedKeys'] ?? null) ? $item['relatedKeys'] : []),
@@ -9224,6 +9243,7 @@ final class CitationCslProcessor
             'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
             'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
             'original-date' => $this->renderDateVariable($item['originalDate'] ?? null, $scope, 'original-date'),
+            'reprint-date' => $this->renderDateVariable($item['reprintDate'] ?? null, $scope, 'reprint-date'),
             'short-author' => $this->renderNamesElement(['variable' => 'short-author'], $item, $scope),
             'short-editor' => $this->renderNamesElement(['variable' => 'short-editor'], $item, $scope),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
@@ -9523,7 +9543,7 @@ final class CitationCslProcessor
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
-        if (in_array($normalized, ['issued', 'date', 'accessed', 'available-date', 'event-date', 'original-date', 'submitted'], true)) {
+        if (in_array($normalized, ['issued', 'date', 'accessed', 'available-date', 'event-date', 'original-date', 'reprint-date', 'submitted'], true)) {
             $date = $this->dateVariableForRendering($item, $normalized);
             if (!is_array($date)) {
                 return false;
@@ -10255,6 +10275,7 @@ final class CitationCslProcessor
             'available-date' => is_array($item['availableDate'] ?? null) ? $item['availableDate'] : null,
             'event-date' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
             'original-date' => is_array($item['originalDate'] ?? null) ? $item['originalDate'] : null,
+            'reprint-date' => is_array($item['reprintDate'] ?? null) ? $item['reprintDate'] : null,
             'submitted' => is_array($item['submittedDate'] ?? null) ? $item['submittedDate'] : null,
             default => null,
         };
