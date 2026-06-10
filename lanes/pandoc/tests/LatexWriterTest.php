@@ -239,6 +239,37 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders ordered list default metadata without redundant label commands' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $item = static fn (string $value): AstNode => new AstNode('list_item', [], [
+            new AstNode('paragraph', [], [$text($value)]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 4, 'style' => 'decimal', 'delimiter' => 'period'], [
+                $item('Decimal checkpoint'),
+            ]),
+            new AstNode('ordered_list', [], [
+                $item('Default list'),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\begin{enumerate}',
+                '\setcounter{enumi}{3}',
+                '\item',
+                '  Decimal checkpoint',
+                '\end{enumerate}',
+            ]),
+            implode("\n", [
+                '\begin{enumerate}',
+                '\item',
+                '  Default list',
+                '\end{enumerate}',
+            ]),
+        ]), (new LatexWriter())->write($document));
+    },
     'renders latex anchor commands for block and inline identifiers' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $space = static fn (): AstNode => new AstNode('space');

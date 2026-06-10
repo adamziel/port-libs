@@ -261,13 +261,11 @@ final class LatexWriter
 
     private function orderedListLabel(AstNode $node, string $counter): ?string
     {
-        $styleAttr = $node->attr('style', null);
-        $delimiterAttr = $node->attr('delimiter', null);
-        $style = is_string($styleAttr) ? $styleAttr : '';
-        $delimiter = is_string($delimiterAttr) ? $delimiterAttr : '';
-        $hasStyle = $styleAttr !== null && $style !== '' && $style !== 'default';
-        $hasDelimiter = $delimiterAttr !== null && $delimiter !== '' && $delimiter !== 'default';
-        if (!$hasStyle && !$hasDelimiter) {
+        $style = (string) $node->attr('style', 'decimal');
+        $delimiter = (string) $node->attr('delimiter', 'period');
+        if (($style === '' || $style === 'default' || $style === 'decimal')
+            && ($delimiter === '' || $delimiter === 'default' || $delimiter === 'period')
+        ) {
             return null;
         }
 
