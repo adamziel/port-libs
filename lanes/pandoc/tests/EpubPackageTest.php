@@ -730,6 +730,72 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
     },
 
+    'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $navWithAuxiliarySections = str_replace(
+            '</body>',
+            '    <nav id="figures-nav" epub:type="loi list-of-illustrations">
+      <h2>Figures</h2>
+      <ol>
+        <li><a href="text/chapter1.xhtml#fig-1">Figure 1</a></li>
+        <li><a href="text/chapter2.xhtml#fig-2">Figure 2</a></li>
+      </ol>
+    </nav>
+    <nav id="tables-nav" epub:type="lot" hidden="hidden">
+      <h2>Tables</h2>
+      <ol>
+        <li><a href="text/chapter2.xhtml#table-1">Table 1</a></li>
+      </ol>
+    </nav>
+  </body>',
+            $epub3NavXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithAuxiliarySections],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1><figure id="fig-1"></figure></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1><figure id="fig-2"></figure><table id="table-1"></table></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $summary = $epub->summary();
+        $auxiliary = $summary['auxiliaryNavigation'];
+
+        $t->same($auxiliary, $summary['wordpressImport']['auxiliaryNavigation']);
+        $t->same($auxiliary['sections'], $summary['wordpressImport']['auxiliaryNavigationSections']);
+        $t->same($auxiliary['items'], $summary['wordpressImport']['auxiliaryNavigationTargets']);
+        $t->same(true, $auxiliary['present']);
+        $t->same(2, $auxiliary['sectionCount']);
+        $t->same(3, $auxiliary['itemCount']);
+        $t->same(['loi', 'list-of-illustrations', 'lot'], $auxiliary['types']);
+        $t->same(false, isset($auxiliary['sectionsByType']['toc']));
+
+        $figures = $auxiliary['sections'][0];
+        $t->same(1, $figures['sectionIndex']);
+        $t->same('figures-nav', $figures['id']);
+        $t->same('loi', $figures['type']);
+        $t->same(['loi', 'list-of-illustrations'], $figures['auxiliaryTypes']);
+        $t->same('Figures', $figures['title']);
+        $t->same(false, $figures['hidden']);
+        $t->same('/EPUB/nav.xhtml', $figures['partName']);
+        $t->same($figures, $auxiliary['sectionsByType']['list-of-illustrations'][0]);
+
+        $firstFigure = $auxiliary['items'][0];
+        $t->same('figures-nav', $firstFigure['sectionId']);
+        $t->same('loi', $firstFigure['sectionType']);
+        $t->same(['loi', 'list-of-illustrations'], $firstFigure['sectionTypes']);
+        $t->same('Figure 1', $firstFigure['label']);
+        $t->same('/EPUB/text/chapter1.xhtml#fig-1', $firstFigure['target']);
+
+        $tableSection = $auxiliary['sectionsByType']['lot'][0];
+        $t->same('tables-nav', $tableSection['id']);
+        $t->same(true, $tableSection['hidden']);
+        $t->same('lot', $auxiliary['items'][2]['sectionType']);
+        $t->same('/EPUB/text/chapter2.xhtml#table-1', $auxiliary['items'][2]['target']);
+    },
+
     'preserves OPF collections and collection links for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithCollections = str_replace(
             '</spine>',

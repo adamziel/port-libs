@@ -393,6 +393,7 @@ final class EpubPackage
         $manifestFallbacks = $this->manifestFallbacks();
         $resourceProperties = $this->resourceProperties();
         $validationReport = $this->validationReport();
+        $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
 
         return [
             'opfPart' => $this->opfPartName,
@@ -415,6 +416,7 @@ final class EpubPackage
             'resourceProperties' => $resourceProperties,
             'navigation' => $this->navigation,
             'navigationSections' => $this->navigationSections,
+            'auxiliaryNavigation' => $auxiliaryNavigation,
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'validation' => $validationReport,
@@ -493,6 +495,9 @@ final class EpubPackage
                 'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
+                'auxiliaryNavigation' => $auxiliaryNavigation,
+                'auxiliaryNavigationSections' => $auxiliaryNavigation['sections'],
+                'auxiliaryNavigationTargets' => $auxiliaryNavigation['items'],
                 'coverImagePart' => $assetSummary['coverImagePart'],
                 'stylesheetParts' => $assetSummary['stylesheetParts'],
                 'imageParts' => $assetSummary['imageParts'],
@@ -5699,6 +5704,90 @@ final class EpubPackage
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $sections
+     *
+     * @return array<string, mixed>
+     */
+    private static function auxiliaryNavigationReport(array $sections): array
+    {
+        $primaryTypes = [
+            'toc' => true,
+            'landmarks' => true,
+            'page-list' => true,
+        ];
+        $reportedSections = [];
+        $sectionsByType = [];
+        $items = [];
+        $types = [];
+
+        foreach ($sections as $sectionIndex => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            $sectionTypes = array_values(array_filter(
+                is_array($section['types'] ?? null) ? $section['types'] : [],
+                static fn (mixed $type): bool => is_string($type) && $type !== '',
+            ));
+            $auxiliaryTypes = array_values(array_filter(
+                $sectionTypes,
+                static fn (string $type): bool => !isset($primaryTypes[$type]),
+            ));
+            if ($auxiliaryTypes === []) {
+                continue;
+            }
+
+            $entries = is_array($section['entries'] ?? null) ? array_values($section['entries']) : [];
+            $summary = [
+                'sectionIndex' => $sectionIndex,
+                'id' => is_string($section['id'] ?? null) ? $section['id'] : null,
+                'type' => $auxiliaryTypes[0],
+                'types' => $sectionTypes,
+                'auxiliaryTypes' => $auxiliaryTypes,
+                'title' => is_string($section['title'] ?? null)
+                    ? $section['title']
+                    : (is_string($section['label'] ?? null) ? $section['label'] : null),
+                'hidden' => (bool) ($section['hidden'] ?? false),
+                'partName' => is_string($section['partName'] ?? null) ? $section['partName'] : null,
+                'itemCount' => count($entries),
+                'entries' => $entries,
+            ];
+
+            $reportedSections[] = $summary;
+            foreach ($auxiliaryTypes as $type) {
+                $types[$type] = true;
+                $sectionsByType[$type][] = $summary;
+            }
+
+            foreach ($entries as $entryIndex => $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+
+                $items[] = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $summary['id'],
+                    'sectionType' => $summary['type'],
+                    'sectionTypes' => $auxiliaryTypes,
+                    'sectionTitle' => $summary['title'],
+                    'entryIndex' => $entryIndex,
+                    'depth' => is_int($entry['depth'] ?? null) ? $entry['depth'] : 0,
+                ] + $entry;
+            }
+        }
+
+        return [
+            'present' => $reportedSections !== [],
+            'sectionCount' => count($reportedSections),
+            'itemCount' => count($items),
+            'types' => array_keys($types),
+            'sections' => $reportedSections,
+            'sectionsByType' => $sectionsByType,
+            'items' => $items,
+        ];
     }
 
     /**
