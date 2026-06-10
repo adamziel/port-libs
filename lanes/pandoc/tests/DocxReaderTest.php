@@ -4482,12 +4482,14 @@ $settingsContentTypesXml = <<<'XML'
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml; charset=utf-8"/>
 </Types>
 XML;
 
 $settingsDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
+  <Relationship Id="rIdWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="webSettings.xml?profile=browser#web"/>
 </Relationships>
 XML;
 
@@ -4541,6 +4543,21 @@ $settingsXml = <<<'XML'
     <w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/>
   </w:compat>
 </w:settings>
+XML;
+
+$webSettingsXml = <<<'XML'
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser/>
+  <w:allowPNG w:val="0"/>
+  <w:relyOnVML w:val="false"/>
+  <w:doNotRelyOnCSS w:val="true"/>
+  <w:doNotSaveAsSingleFile/>
+  <w:doNotOrganizeInFolder w:val="1"/>
+  <w:doNotUseLongFileNames w:val="0"/>
+  <w:encoding w:val="UTF-8"/>
+  <w:targetScreenSz w:val="1024x768"/>
+  <w:pixelsPerInch w:val="144"/>
+</w:webSettings>
 XML;
 
 $buildDocxPackage = static function () use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $documentXml, $footnotesXml, $corePropertiesXml): ZipPackage {
@@ -5853,7 +5870,8 @@ $buildSettingsPackage = static function () use (
     $stylesNumberingRelationshipsXml,
     $settingsDocumentRelationshipsXml,
     $settingsRelationshipsXml,
-    $settingsXml
+    $settingsXml,
+    $webSettingsXml
 ): ZipPackage {
     return ZipPackage::fromParts([
         ['name' => '[Content_Types].xml', 'data' => $settingsContentTypesXml],
@@ -5861,6 +5879,7 @@ $buildSettingsPackage = static function () use (
         ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Settings packet body.</w:t></w:r></w:p></w:body></w:document>'],
         ['name' => 'word/_rels/document.xml.rels', 'data' => $settingsDocumentRelationshipsXml],
         ['name' => 'word/settings.xml', 'data' => $settingsXml],
+        ['name' => 'word/webSettings.xml', 'data' => $webSettingsXml],
         ['name' => 'word/_rels/settings.xml.rels', 'data' => $settingsRelationshipsXml],
         ['name' => 'mailmerge/header-source.xml', 'data' => '<headers><field name="ReviewerEmail"/><field name="SourcePacket"/></headers>'],
     ]);
@@ -12869,6 +12888,33 @@ XML;
         $t->same(['external-target-unsafe-scheme'], $template['issues']);
 
         $t->same($settings, $result['importReport']['settings']);
+    },
+    'reports DOCX web settings package metadata and export policy' => static function (TestRunner $t) use ($buildSettingsPackage): void {
+        $result = (new DocxReader())->readPackage($buildSettingsPackage());
+        $webSettings = $result['metadata']['docxWebSettings'];
+
+        $t->same('/word/webSettings.xml', $webSettings['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml; charset=utf-8', $webSettings['contentType']);
+        $t->same('rIdWebSettings', $webSettings['relationship']['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings', $webSettings['relationship']['type']);
+        $t->same('/word/webSettings.xml?profile=browser#web', $webSettings['relationship']['target']);
+        $t->same('/word/webSettings.xml', $webSettings['relationship']['targetPart']);
+        $t->same(false, $webSettings['relationship']['external']);
+        $t->same(true, $webSettings['relationship']['exists']);
+        $t->same([], $webSettings['relationship']['issues']);
+        $t->same([], $webSettings['issues']);
+        $t->same(true, $webSettings['optimizeForBrowser']);
+        $t->same(false, $webSettings['allowPng']);
+        $t->same(false, $webSettings['relyOnVml']);
+        $t->same(true, $webSettings['doNotRelyOnCss']);
+        $t->same(true, $webSettings['doNotSaveAsSingleFile']);
+        $t->same(true, $webSettings['doNotOrganizeInFolder']);
+        $t->same(false, $webSettings['doNotUseLongFileNames']);
+        $t->same('UTF-8', $webSettings['encoding']);
+        $t->same('1024x768', $webSettings['targetScreenSize']);
+        $t->same(144, $webSettings['pixelsPerInch']);
+
+        $t->same($webSettings, $result['importReport']['webSettings']);
     },
     'reports DOCX settings document variables for reviewer handoff' => static function (TestRunner $t) use ($buildSettingsPackage): void {
         $result = (new DocxReader())->readPackage($buildSettingsPackage());

@@ -61,6 +61,7 @@ final class DocxReader
     public const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     public const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     public const REL_TYPE_THEME = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    public const REL_TYPE_WEB_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     public const REL_TYPE_ATTACHED_TEMPLATE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
     public const REL_TYPE_GLOSSARY_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     public const REL_TYPE_HEADER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
@@ -213,6 +214,7 @@ final class DocxReader
         $relationshipPreflight = $graph->preflightTargetsForSource($documentPart);
         $reachableRelationships = $graph->reachableTargetsForSource($documentPart);
         $settings = $this->readSettings($package, $graph, $documentPart);
+        $webSettings = $this->readWebSettings($package, $graph, $documentPart);
         $theme = $this->readTheme($package, $graph, $documentPart);
         $themeFonts = $theme['fonts'] ?? [];
         $this->currentThemeFonts = is_array($themeFonts) ? $themeFonts : [];
@@ -263,6 +265,9 @@ final class DocxReader
         if ($settings !== []) {
             $metadata['docxSettings'] = $settings;
         }
+        if ($webSettings !== []) {
+            $metadata['docxWebSettings'] = $webSettings;
+        }
         if ($theme !== []) {
             $metadata['docxTheme'] = $theme;
         }
@@ -304,6 +309,7 @@ final class DocxReader
                 $specialNotes,
                 $docProperties,
                 $settings,
+                $webSettings,
                 $theme,
                 $numberingSummary,
                 $glossary,
@@ -341,6 +347,7 @@ final class DocxReader
      * @param array<string, mixed> $specialNotes
      * @param array<string, mixed> $docProperties
      * @param array<string, mixed> $settings
+     * @param array<string, mixed> $webSettings
      * @param array<string, mixed> $theme
      * @param array<string, mixed> $numberingSummary
      * @param array<string, mixed> $glossary
@@ -361,6 +368,7 @@ final class DocxReader
         array $specialNotes,
         array $docProperties,
         array $settings,
+        array $webSettings,
         array $theme,
         array $numberingSummary,
         array $glossary,
@@ -402,6 +410,7 @@ final class DocxReader
             'revisions' => $revisions,
             'properties' => $docProperties,
             'settings' => $settings,
+            'webSettings' => $webSettings,
             'theme' => $theme,
             'numbering' => $numberingSummary,
             'glossary' => $glossary,
@@ -16251,6 +16260,94 @@ final class DocxReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readWebSettings(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $documentRelationships = $graph->relationshipsForSource($documentPart);
+        if (!$documentRelationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $relationship = $documentRelationships->firstOfType(self::REL_TYPE_WEB_SETTINGS);
+        if (!$relationship instanceof OpcRelationship) {
+            return [];
+        }
+
+        $relationshipSummary = $this->internalSupportPartRelationshipSummary(
+            $relationship,
+            $package,
+            $documentRelationships,
+        );
+
+        $webSettings = [
+            'part' => $relationshipSummary['targetPart'],
+            'contentType' => $relationshipSummary['contentType'],
+            'relationship' => $relationshipSummary,
+            'issues' => $relationshipSummary['issues'],
+        ];
+
+        if (
+            is_string($relationshipSummary['contentType'])
+            && !$this->contentTypeBaseEquals(
+                $relationshipSummary['contentType'],
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml'
+            )
+        ) {
+            $webSettings['issues'][] = 'unexpected-content-type';
+        }
+
+        if ($relationshipSummary['exists'] !== true || !is_string($relationshipSummary['targetPart'])) {
+            $webSettings['issues'] = array_values(array_unique($webSettings['issues']));
+
+            return $webSettings;
+        }
+
+        $dom = self::loadXml($package->read($relationshipSummary['targetPart']), 'DOCX web settings XML');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'webSettings')) {
+            $webSettings['issues'][] = 'invalid-web-settings-root';
+            $webSettings['issues'] = array_values(array_unique($webSettings['issues']));
+
+            return $webSettings;
+        }
+
+        foreach ([
+            'optimizeForBrowser' => 'optimizeForBrowser',
+            'allowPNG' => 'allowPng',
+            'relyOnVML' => 'relyOnVml',
+            'doNotRelyOnCSS' => 'doNotRelyOnCss',
+            'doNotSaveAsSingleFile' => 'doNotSaveAsSingleFile',
+            'doNotOrganizeInFolder' => 'doNotOrganizeInFolder',
+            'doNotUseLongFileNames' => 'doNotUseLongFileNames',
+        ] as $source => $target) {
+            $value = $this->settingsOnOffChildValue($root, $source);
+            if ($value !== null) {
+                $webSettings[$target] = $value;
+            }
+        }
+
+        $encoding = $this->settingsStringChildValue($root, 'encoding');
+        if ($encoding !== null) {
+            $webSettings['encoding'] = $encoding;
+        }
+
+        $targetScreenSize = $this->settingsStringChildValue($root, 'targetScreenSz');
+        if ($targetScreenSize !== null) {
+            $webSettings['targetScreenSize'] = $targetScreenSize;
+        }
+
+        $pixelsPerInch = $this->settingsIntChildValue($root, 'pixelsPerInch');
+        if ($pixelsPerInch !== null) {
+            $webSettings['pixelsPerInch'] = $pixelsPerInch;
+        }
+
+        $webSettings['issues'] = array_values(array_unique($webSettings['issues']));
+
+        return $webSettings;
     }
 
     /**
