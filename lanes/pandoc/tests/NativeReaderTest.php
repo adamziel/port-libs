@@ -63,6 +63,89 @@ return [
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
     },
+    'writes shared metadata values as pandoc native meta constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'title' => 'Fallback title',
+                'titleInlines' => [
+                    new AstNode('text', ['text' => 'Native']),
+                    new AstNode('space'),
+                    new AstNode('emph', [], [new AstNode('text', ['text' => 'metadata'])]),
+                ],
+                'authorInlines' => [
+                    [
+                        new AstNode('text', ['text' => 'Ada']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'Lovelace']),
+                    ],
+                    [
+                        new AstNode('text', ['text' => 'Grace']),
+                    ],
+                ],
+                'authors' => ['Fallback Author'],
+                'dateInlines' => [
+                    new AstNode('text', ['text' => '2026-06-10']),
+                ],
+                'draft' => false,
+                'priority' => 3,
+                'review' => ['type' => 'map', 'items' => [
+                    'tags' => ['type' => 'list', 'items' => ['native', true, 2]],
+                    'body' => ['type' => 'blocks', 'children' => [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Reviewer']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => 'note']),
+                        ]),
+                    ]],
+                    'inline' => new AstNode('strong', [], [
+                        new AstNode('text', ['text' => 'inline']),
+                    ]),
+                    'nullable' => null,
+                ]],
+                'pretagged' => ['t' => 'MetaString', 'c' => 'kept'],
+            ],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Body'])]),
+        ]);
+
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $meta = $native['meta'];
+        $review = $meta['review']['c'];
+
+        $t->same('MetaInlines', $meta['title']['t']);
+        $t->same('Native', $meta['title']['c'][0]['c']);
+        $t->same('Emph', $meta['title']['c'][2]['t']);
+        $t->same('MetaList', $meta['author']['t']);
+        $t->same('Ada', $meta['author']['c'][0]['c'][0]['c']);
+        $t->same('Grace', $meta['author']['c'][1]['c'][0]['c']);
+        $t->same('MetaInlines', $meta['date']['t']);
+        $t->same('2026-06-10', $meta['date']['c'][0]['c']);
+        $t->same(false, array_key_exists('titleInlines', $meta));
+        $t->same(false, array_key_exists('authorInlines', $meta));
+        $t->same(false, array_key_exists('authors', $meta));
+        $t->same(false, array_key_exists('dateInlines', $meta));
+        $t->same('MetaBool', $meta['draft']['t']);
+        $t->same(false, $meta['draft']['c']);
+        $t->same('MetaString', $meta['priority']['t']);
+        $t->same('3', $meta['priority']['c']);
+        $t->same('MetaMap', $meta['review']['t']);
+        $t->same('MetaList', $review['tags']['t']);
+        $t->same('MetaString', $review['tags']['c'][0]['t']);
+        $t->same('native', $review['tags']['c'][0]['c']);
+        $t->same('MetaBool', $review['tags']['c'][1]['t']);
+        $t->same(true, $review['tags']['c'][1]['c']);
+        $t->same('2', $review['tags']['c'][2]['c']);
+        $t->same('MetaBlocks', $review['body']['t']);
+        $t->same('Para', $review['body']['c'][0]['t']);
+        $t->same('MetaInlines', $review['inline']['t']);
+        $t->same('Strong', $review['inline']['c'][0]['t']);
+        $t->same('MetaString', $review['nullable']['t']);
+        $t->same('', $review['nullable']['c']);
+        $t->same(['t' => 'MetaString', 'c' => 'kept'], $meta['pretagged']);
+        $t->same($meta, $roundTrip->attr('meta'));
+    },
     'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
         $legacy = [
             [

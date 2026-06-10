@@ -53,6 +53,7 @@ final class NativeWriter
             throw new \InvalidArgumentException('Pandoc native metadata must be an array');
         }
 
+        $metadata = $this->normalizeStandardMeta($metadata);
         $native = [];
         foreach ($metadata as $key => $value) {
             if (!is_string($key)) {
@@ -66,11 +67,183 @@ final class NativeWriter
 
     private function metaValue(mixed $value): mixed
     {
-        if (!is_array($value) || !is_string($value['t'] ?? null)) {
-            throw new \InvalidArgumentException('Pandoc native metadata values must be tagged constructors');
+        if (is_bool($value)) {
+            return ['t' => 'MetaBool', 'c' => $value];
         }
 
-        return $value;
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return ['t' => 'MetaString', 'c' => (string) $value];
+        }
+
+        if ($value === null) {
+            return ['t' => 'MetaString', 'c' => ''];
+        }
+
+        if ($value instanceof AstNode) {
+            return $this->isInlineNode($value)
+                ? ['t' => 'MetaInlines', 'c' => $this->inlines([$value])]
+                : ['t' => 'MetaBlocks', 'c' => [$this->block($value)]];
+        }
+
+        if (is_array($value)) {
+            if ($this->isTaggedMetaValue($value)) {
+                return $value;
+            }
+
+            if (isset($value['type']) && is_string($value['type'])) {
+                return $this->typedMetaValue($value);
+            }
+
+            if (array_is_list($value)) {
+                if ($this->allAstNodes($value)) {
+                    $nodes = array_values($value);
+                    $inline = $nodes === [] || $this->allInlineNodes($nodes);
+
+                    return [
+                        't' => $inline ? 'MetaInlines' : 'MetaBlocks',
+                        'c' => $inline ? $this->inlines($nodes) : $this->blocks($nodes),
+                    ];
+                }
+
+                return ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): mixed => $this->metaValue($item), $value)];
+            }
+
+            return ['t' => 'MetaMap', 'c' => $this->metadata($value)];
+        }
+
+        throw new \InvalidArgumentException('Pandoc native metadata values must be JSON-compatible values or tagged constructors');
+    }
+
+    /**
+     * @param array<array-key, mixed> $meta
+     * @return array<array-key, mixed>
+     */
+    private function normalizeStandardMeta(array $meta): array
+    {
+        $normalized = [];
+        foreach ($meta as $key => $value) {
+            $field = (string) $key;
+            if (in_array($field, ['titleInlines', 'authorInlines', 'authors', 'dateInlines'], true)) {
+                continue;
+            }
+            $normalized[$key] = $value;
+        }
+
+        $titleInlines = $this->inlineMetaChildren($meta['titleInlines'] ?? null);
+        if ($titleInlines !== null) {
+            $normalized['title'] = ['type' => 'inlines', 'children' => $titleInlines];
+        }
+
+        $authorSource = array_key_exists('authorInlines', $meta)
+            ? $meta['authorInlines']
+            : (array_key_exists('author', $meta) ? null : ($meta['authors'] ?? null));
+        $authorItems = $this->authorMetaItems($authorSource);
+        if ($authorItems !== null) {
+            $normalized['author'] = ['type' => 'list', 'items' => $authorItems];
+        }
+
+        $dateInlines = $this->inlineMetaChildren($meta['dateInlines'] ?? null);
+        if ($dateInlines !== null) {
+            $normalized['date'] = ['type' => 'inlines', 'children' => $dateInlines];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function inlineMetaChildren(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || !$this->allAstNodes($value)) {
+            return null;
+        }
+
+        $nodes = array_values($value);
+
+        return $this->allInlineNodes($nodes) ? $nodes : null;
+    }
+
+    /**
+     * @return list<array{type:string, children:list<AstNode>}>|null
+     */
+    private function authorMetaItems(mixed $value): ?array
+    {
+        if (is_array($value) && array_is_list($value)) {
+            $items = [];
+            foreach ($value as $item) {
+                $children = $this->inlineMetaChildren($item);
+                if ($children !== null) {
+                    $items[] = ['type' => 'inlines', 'children' => $children];
+                    continue;
+                }
+
+                if (!$this->isTextScalar($item)) {
+                    return null;
+                }
+                $items[] = ['type' => 'inlines', 'children' => $this->textInlineNodes((string) $item)];
+            }
+
+            return $items === [] ? null : $items;
+        }
+
+        if ($this->isTextScalar($value)) {
+            return [['type' => 'inlines', 'children' => $this->textInlineNodes((string) $value)]];
+        }
+
+        return null;
+    }
+
+    private function isTextScalar(mixed $value): bool
+    {
+        return is_string($value) || is_int($value) || is_float($value);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function isTaggedMetaValue(array $value): bool
+    {
+        return !array_is_list($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && in_array($value['t'], [
+                'MetaString',
+                'MetaBool',
+                'MetaInlines',
+                'MetaBlocks',
+                'MetaList',
+                'MetaMap',
+            ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function typedMetaValue(array $value): array
+    {
+        return match ($value['type']) {
+            'inlines' => ['t' => 'MetaInlines', 'c' => $this->inlines($this->metaChildren($value))],
+            'blocks' => ['t' => 'MetaBlocks', 'c' => $this->blocks($this->metaChildren($value))],
+            'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): mixed => $this->metaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
+            'map' => ['t' => 'MetaMap', 'c' => $this->metadata(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
+            default => ['t' => 'MetaString', 'c' => ''],
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return list<AstNode>
+     */
+    private function metaChildren(array $value): array
+    {
+        $children = $value['children'] ?? [];
+        if (!is_array($children) || !array_is_list($children)) {
+            return [];
+        }
+
+        return array_values(array_filter($children, static fn (mixed $child): bool => $child instanceof AstNode));
     }
 
     /**
