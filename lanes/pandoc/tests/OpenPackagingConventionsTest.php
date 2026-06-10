@@ -131,6 +131,118 @@ return [
         $t->same('default', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeSource']);
         $t->same('png', $consistencyTargets['/word/document.xml:rIdImage']['contentTypeDefaultExtension']);
     },
+    'preflights OPC ZIP entry manifest before XML package handoff' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => '<Types/>'],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'docProps/custom.xml', 'data' => '<Properties/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/media/', 'data' => ''],
+            ['name' => 'word/media/image.png', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/package1.docx', 'data' => 'DOCX'],
+            ['name' => '_xmlsignatures/origin.sigs', 'data' => ''],
+            ['name' => '_xmlsignatures/sig1.xml', 'data' => '<Signature/>'],
+            ['name' => 'word/_rels/orphan.xml.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/_rels/media/document.xml.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/_rels/_rels/document.xml.rels.rels', 'data' => '<Relationships/>'],
+            ['name' => '_rels/[Content_Types].xml.rels', 'data' => '<Relationships/>'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $relationshipSources = [];
+        foreach ($summary['relationshipParts'] as $relationshipPart) {
+            $relationshipSources[$relationshipPart['partName']] = $relationshipPart;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(15, $summary['entryCount']);
+        $t->same(14, $summary['fileEntryCount']);
+        $t->same(1, $summary['directoryEntryCount']);
+        $t->same(14, $summary['packagePartCount']);
+        $t->same(1, $summary['contentTypesItemCount']);
+        $t->same(5, $summary['relationshipPartCount']);
+        $t->same(1, $summary['rootRelationshipPartCount']);
+        $t->same(4, $summary['partRelationshipPartCount']);
+        $t->same(1, $summary['invalidRelationshipPartCount']);
+        $t->same(1, $summary['orphanRelationshipPartCount']);
+        $t->same(1, $summary['relationshipPartSourceCount']);
+        $t->same(1, $summary['contentTypesItemRelationshipSourceCount']);
+        $t->same(2, $summary['documentPropertyPartCount']);
+        $t->same(2, $summary['digitalSignaturePartCount']);
+        $t->same(1, $summary['embeddedPackageCandidateCount']);
+        $t->same(1, $summary['mediaPartCandidateCount']);
+        $t->same(10, $summary['xmlPayloadPartCount']);
+        $t->same(3, $summary['binaryPayloadPartCount']);
+        $t->same([
+            'content-types-item-source' => 1,
+            'invalid-relationship-part-name' => 1,
+            'orphan-relationship-part' => 1,
+            'relationship-part-source' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'orphan-relationship-part',
+            'invalid-relationship-part-name',
+            'relationship-part-source',
+            'content-types-item-source',
+        ], $summary['issues']);
+        $t->same([
+            'content-types' => 1,
+            'digital-signature' => 2,
+            'directory' => 1,
+            'document-properties' => 2,
+            'embedded-package-candidate' => 1,
+            'invalid-relationship-part' => 1,
+            'media' => 1,
+            'package-relationships' => 1,
+            'part-relationships' => 4,
+            'xml-part' => 1,
+        ], $summary['roleCounts']);
+        $t->same(['/[Content_Types].xml'], $summary['contentTypesItems']);
+
+        $t->same('content-types', $entries['[Content_Types].xml']['role']);
+        $t->same('content-types+xml', $entries['[Content_Types].xml']['handoffKind']);
+        $t->same('package-relationships', $entries['_rels/.rels']['role']);
+        $t->same('/', $entries['_rels/.rels']['relationshipSource']);
+        $t->same(true, $entries['_rels/.rels']['relationshipSourceExists']);
+        $t->same('part-relationships', $entries['word/_rels/document.xml.rels']['role']);
+        $t->same('/word/document.xml', $entries['word/_rels/document.xml.rels']['relationshipSource']);
+        $t->same(true, $entries['word/_rels/document.xml.rels']['valid']);
+        $t->same('directory', $entries['word/media/']['role']);
+        $t->same('media', $entries['word/media/image.png']['role']);
+        $t->same('embedded-package-candidate', $entries['word/embeddings/package1.docx']['role']);
+        $t->same('digital-signature', $entries['_xmlsignatures/origin.sigs']['role']);
+
+        $t->same(false, $entries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $entries['word/_rels/orphan.xml.rels']['issues']);
+        $t->same('invalid-relationship-part', $entries['word/_rels/media/document.xml.rels']['role']);
+        $t->same('blocked', $entries['word/_rels/media/document.xml.rels']['handoffKind']);
+        $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
+        $t->contains('single .rels file', (string) $entries['word/_rels/media/document.xml.rels']['parseError']);
+        $t->same('/word/_rels/document.xml.rels', $entries['word/_rels/_rels/document.xml.rels.rels']['relationshipSource']);
+        $t->same(['relationship-part-source'], $entries['word/_rels/_rels/document.xml.rels.rels']['issues']);
+        $t->same('/[Content_Types].xml', $entries['_rels/[Content_Types].xml.rels']['relationshipSource']);
+        $t->same(['content-types-item-source'], $entries['_rels/[Content_Types].xml.rels']['issues']);
+
+        $t->same('/word/orphan.xml', $relationshipSources['/word/_rels/orphan.xml.rels']['relationshipSource']);
+        $t->same(false, $relationshipSources['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+        $t->same('/[Content_Types].xml', $relationshipSources['/_rels/[Content_Types].xml.rels']['relationshipSource']);
+
+        $missingContentTypes = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+        ]));
+        $t->same(false, $missingContentTypes['valid']);
+        $t->same(0, $missingContentTypes['contentTypesItemCount']);
+        $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
+        $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');
