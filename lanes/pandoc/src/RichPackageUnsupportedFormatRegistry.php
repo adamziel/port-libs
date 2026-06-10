@@ -70,7 +70,7 @@ final class RichPackageUnsupportedFormatRegistry
             ],
         ],
         'opendocument' => [
-            'extensions' => [],
+            'extensions' => ['fodt'],
             'directions' => [
                 'output' => [
                     'upstream' => true,
@@ -107,7 +107,7 @@ final class RichPackageUnsupportedFormatRegistry
             ],
         ],
         'epub2' => [
-            'extensions' => [],
+            'extensions' => ['epub'],
             'directions' => [
                 'output' => [
                     'upstream' => true,
@@ -121,7 +121,7 @@ final class RichPackageUnsupportedFormatRegistry
             ],
         ],
         'epub3' => [
-            'extensions' => [],
+            'extensions' => ['epub'],
             'directions' => [
                 'output' => [
                     'upstream' => true,
@@ -131,6 +131,29 @@ final class RichPackageUnsupportedFormatRegistry
                     'component' => null,
                     'gates' => ['shared-zip-package-core', 'epub3-package-writer-core', 'xml-html5-dom-core'],
                     'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'ipynb' => [
+            'extensions' => ['ipynb'],
+            'directions' => [
+                'input' => [
+                    'upstream' => true,
+                    'state' => 'bounded-native-rich-package-input',
+                    'code' => 'pandoc.rich-package.input.bounded-native',
+                    'countsAsDirectSupport' => true,
+                    'component' => 'IpynbReader',
+                    'gates' => ['ipynb-reader-core'],
+                    'diagnostics' => [],
+                ],
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['ipynb-notebook-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'notebook-writer-not-implemented', 'external-notebook-tooling-disallowed'],
                 ],
             ],
         ],
@@ -182,6 +205,34 @@ final class RichPackageUnsupportedFormatRegistry
                     'component' => null,
                     'gates' => ['shared-zip-package-core', 'xml-html5-dom-core', 'chunked-html-package-writer-core'],
                     'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'icml' => [
+            'extensions' => ['icml'],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['doctemplate-core', 'icml-writer-core'],
+                    'diagnostics' => ['writer-component-missing', 'package-assembly-not-implemented'],
+                ],
+            ],
+        ],
+        'pdf' => [
+            'extensions' => ['pdf'],
+            'directions' => [
+                'output' => [
+                    'upstream' => true,
+                    'state' => 'unsupported-rich-package-output',
+                    'code' => 'pandoc.rich-package.output.unsupported-format',
+                    'countsAsDirectSupport' => false,
+                    'component' => null,
+                    'gates' => ['pdf-engine-handoff-core'],
+                    'diagnostics' => ['writer-component-missing', 'renderer-engine-disallowed', 'rendered-artifact-not-produced'],
                 ],
             ],
         ],
@@ -248,11 +299,70 @@ final class RichPackageUnsupportedFormatRegistry
     ];
 
     /**
+     * @var array<string, array{format:string, formats:list<string>, kind:string}>
+     */
+    private const EXTENSION_ROWS = [
+        '.docx' => [
+            'format' => 'docx',
+            'formats' => ['docx'],
+            'kind' => 'office-open-xml-wordprocessing-package',
+        ],
+        '.epub' => [
+            'format' => 'epub',
+            'formats' => ['epub', 'epub2', 'epub3'],
+            'kind' => 'epub-publication-package',
+        ],
+        '.fodt' => [
+            'format' => 'opendocument',
+            'formats' => ['opendocument'],
+            'kind' => 'flat-open-document-text',
+        ],
+        '.icml' => [
+            'format' => 'icml',
+            'formats' => ['icml'],
+            'kind' => 'indesign-markup-file',
+        ],
+        '.ipynb' => [
+            'format' => 'ipynb',
+            'formats' => ['ipynb'],
+            'kind' => 'notebook-json-package',
+        ],
+        '.odt' => [
+            'format' => 'odt',
+            'formats' => ['odt'],
+            'kind' => 'open-document-text-package',
+        ],
+        '.pdf' => [
+            'format' => 'pdf',
+            'formats' => ['pdf'],
+            'kind' => 'pdf-rendered-artifact',
+        ],
+        '.pptx' => [
+            'format' => 'pptx',
+            'formats' => ['pptx'],
+            'kind' => 'office-open-xml-presentation-package',
+        ],
+        '.xlsx' => [
+            'format' => 'xlsx',
+            'formats' => ['xlsx'],
+            'kind' => 'office-open-xml-spreadsheet-package',
+        ],
+    ];
+
+    /**
      * @return list<string>
      */
     public static function richPackageFormats(): array
     {
         return array_keys(self::FORMAT_ROWS);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function richPackageExtensions(): array
+    {
+        return array_keys(self::EXTENSION_ROWS);
     }
 
     /**
@@ -275,6 +385,7 @@ final class RichPackageUnsupportedFormatRegistry
                 'upstreamRichPackageInputs' => count($inputStatuses),
                 'upstreamRichPackageOutputs' => count($outputStatuses),
                 'sourceAliasExtensions' => count(self::SOURCE_ALIASES),
+                'richPackageExtensions' => count(self::EXTENSION_ROWS),
             ],
             'directSupport' => [
                 'input' => self::supportCounts($inputStatuses),
@@ -285,6 +396,7 @@ final class RichPackageUnsupportedFormatRegistry
                 'output' => self::unsupportedDiagnostics('output'),
             ],
             'sourceAliasDiagnostics' => self::sourceAliasDiagnostics(),
+            'extensionDiagnostics' => self::extensionDiagnostics(),
         ];
     }
 
@@ -372,6 +484,87 @@ final class RichPackageUnsupportedFormatRegistry
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function extensionStatus(string $extension): array
+    {
+        $extension = self::normalizeExtension($extension);
+        $row = self::EXTENSION_ROWS[$extension] ?? null;
+
+        if ($row === null) {
+            throw new \InvalidArgumentException("Unknown rich package extension: {$extension}");
+        }
+
+        $inputFormats = [];
+        $outputFormats = [];
+        $directInputFormats = [];
+        $directOutputFormats = [];
+        $unsupportedInputFormats = [];
+        $unsupportedOutputFormats = [];
+        $diagnostics = [];
+        $gates = [];
+
+        foreach ($row['formats'] as $format) {
+            foreach (['input', 'output'] as $direction) {
+                $status = self::FORMAT_ROWS[$format]['directions'][$direction] ?? null;
+                if ($status === null || $status['upstream'] !== true) {
+                    continue;
+                }
+
+                if ($direction === 'input') {
+                    $inputFormats[] = $format;
+                    if ($status['countsAsDirectSupport'] === true) {
+                        $directInputFormats[] = $format;
+                    } else {
+                        $unsupportedInputFormats[] = $format;
+                    }
+                } else {
+                    $outputFormats[] = $format;
+                    if ($status['countsAsDirectSupport'] === true) {
+                        $directOutputFormats[] = $format;
+                    } else {
+                        $unsupportedOutputFormats[] = $format;
+                    }
+                }
+
+                if ($status['countsAsDirectSupport'] === false) {
+                    foreach ($status['diagnostics'] as $diagnostic) {
+                        $diagnostics[] = $diagnostic;
+                    }
+                    foreach ($status['gates'] as $gate) {
+                        $gates[] = $gate;
+                    }
+                }
+            }
+        }
+
+        $unsupportedDirections = [];
+        if ($unsupportedInputFormats !== []) {
+            $unsupportedDirections[] = 'input';
+        }
+        if ($unsupportedOutputFormats !== []) {
+            $unsupportedDirections[] = 'output';
+        }
+
+        return [
+            'extension' => $extension,
+            'format' => $row['format'],
+            'kind' => $row['kind'],
+            'formats' => $row['formats'],
+            'inputFormats' => $inputFormats,
+            'outputFormats' => $outputFormats,
+            'directInputFormats' => $directInputFormats,
+            'directOutputFormats' => $directOutputFormats,
+            'unsupportedInputFormats' => $unsupportedInputFormats,
+            'unsupportedOutputFormats' => $unsupportedOutputFormats,
+            'unsupportedDirections' => $unsupportedDirections,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+            'gates' => array_values(array_unique($gates)),
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public static function unsupportedDiagnostics(?string $direction = null): array
@@ -412,6 +605,23 @@ final class RichPackageUnsupportedFormatRegistry
         foreach (array_keys(self::SOURCE_ALIASES) as $extension) {
             $status = self::sourceAliasStatus($extension);
             if ($status['countsAsDirectSupport'] === false) {
+                $diagnostics[] = $status;
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function extensionDiagnostics(): array
+    {
+        $diagnostics = [];
+
+        foreach (array_keys(self::EXTENSION_ROWS) as $extension) {
+            $status = self::extensionStatus($extension);
+            if ($status['unsupportedDirections'] !== []) {
                 $diagnostics[] = $status;
             }
         }
@@ -471,5 +681,18 @@ final class RichPackageUnsupportedFormatRegistry
         }
 
         return $direction;
+    }
+
+    private static function normalizeExtension(string $extension): string
+    {
+        $extension = strtolower(trim($extension));
+        if ($extension === '') {
+            return '';
+        }
+        if ($extension[0] !== '.') {
+            $extension = '.' . $extension;
+        }
+
+        return $extension;
     }
 }

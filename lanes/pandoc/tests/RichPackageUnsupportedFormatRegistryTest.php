@@ -16,18 +16,23 @@ return [
             'epub',
             'epub2',
             'epub3',
+            'ipynb',
             'pptx',
             'xlsx',
             'chunkedhtml',
+            'icml',
+            'pdf',
         ], RichPackageUnsupportedFormatRegistry::richPackageFormats());
-        $t->same(9, $report['denominators']['richPackageFormats']);
-        $t->same(5, $report['denominators']['upstreamRichPackageInputs']);
-        $t->same(8, $report['denominators']['upstreamRichPackageOutputs']);
+        $t->same(12, $report['denominators']['richPackageFormats']);
+        $t->same(6, $report['denominators']['upstreamRichPackageInputs']);
+        $t->same(11, $report['denominators']['upstreamRichPackageOutputs']);
         $t->same(9, $report['denominators']['sourceAliasExtensions']);
-        $t->same(['supported' => 3, 'unsupported' => 2, 'total' => 5], $report['directSupport']['input']);
-        $t->same(['supported' => 0, 'unsupported' => 8, 'total' => 8], $report['directSupport']['output']);
+        $t->same(9, $report['denominators']['richPackageExtensions']);
+        $t->same(['supported' => 4, 'unsupported' => 2, 'total' => 6], $report['directSupport']['input']);
+        $t->same(['supported' => 0, 'unsupported' => 11, 'total' => 11], $report['directSupport']['output']);
         $t->same(2, count($report['unsupportedDiagnostics']['input']));
-        $t->same(8, count($report['unsupportedDiagnostics']['output']));
+        $t->same(11, count($report['unsupportedDiagnostics']['output']));
+        $t->same(9, count($report['extensionDiagnostics']));
     },
 
     'keeps bounded native rich package readers distinct from unsupported writers' => static function (TestRunner $t): void {
@@ -35,6 +40,7 @@ return [
         $docxOutput = RichPackageUnsupportedFormatRegistry::formatStatus('docx', 'output');
         $odtInput = RichPackageUnsupportedFormatRegistry::formatStatus('odt', 'input');
         $epubInput = RichPackageUnsupportedFormatRegistry::formatStatus('epub', 'input');
+        $ipynbInput = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'input');
 
         $t->same('bounded-native-rich-package-input', $docxInput['state']);
         $t->same('pandoc.rich-package.input.bounded-native', $docxInput['code']);
@@ -54,13 +60,19 @@ return [
         $t->same(['shared-zip-package-core', 'odf-open-document-core'], $odtInput['gates']);
         $t->same('EpubReader', $epubInput['component']);
         $t->same(['shared-zip-package-core', 'epub3-package-core', 'xml-html5-dom-core'], $epubInput['gates']);
+        $t->same('IpynbReader', $ipynbInput['component']);
+        $t->same(['ipynb-reader-core'], $ipynbInput['gates']);
+        $t->same(true, $ipynbInput['countsAsDirectSupport']);
     },
 
     'reports unsupported package inputs and outputs without external conversion claims' => static function (TestRunner $t): void {
         $pptxInput = RichPackageUnsupportedFormatRegistry::formatStatus('pptx', 'input');
         $xlsxInput = RichPackageUnsupportedFormatRegistry::formatStatus('xlsx', 'input');
+        $ipynbOutput = RichPackageUnsupportedFormatRegistry::formatStatus('ipynb', 'output');
         $epub3Output = RichPackageUnsupportedFormatRegistry::formatStatus('epub3', 'output');
         $chunkedHtmlOutput = RichPackageUnsupportedFormatRegistry::formatStatus('chunkedhtml', 'output');
+        $icmlOutput = RichPackageUnsupportedFormatRegistry::formatStatus('icml', 'output');
+        $pdfOutput = RichPackageUnsupportedFormatRegistry::formatStatus('pdf', 'output');
         $unsupportedInputFormats = array_column(
             RichPackageUnsupportedFormatRegistry::unsupportedDiagnostics('input'),
             'format'
@@ -82,10 +94,16 @@ return [
         $t->same(['shared-zip-package-core', 'opc-xml-relationships-core', 'xlsx-openxml-core'], $xlsxInput['gates']);
         $t->same(['pptx', 'xlsx'], $unsupportedInputFormats);
 
+        $t->same('unsupported-rich-package-output', $ipynbOutput['state']);
+        $t->same(['ipynb-notebook-writer-core'], $ipynbOutput['gates']);
+        $t->contains('external-notebook-tooling-disallowed', implode(',', $ipynbOutput['diagnostics']));
         $t->same('unsupported-rich-package-output', $epub3Output['state']);
         $t->same(['shared-zip-package-core', 'epub3-package-writer-core', 'xml-html5-dom-core'], $epub3Output['gates']);
         $t->same('unsupported-rich-package-output', $chunkedHtmlOutput['state']);
         $t->same(['shared-zip-package-core', 'xml-html5-dom-core', 'chunked-html-package-writer-core'], $chunkedHtmlOutput['gates']);
+        $t->same(['doctemplate-core', 'icml-writer-core'], $icmlOutput['gates']);
+        $t->same(['pdf-engine-handoff-core'], $pdfOutput['gates']);
+        $t->contains('renderer-engine-disallowed', implode(',', $pdfOutput['diagnostics']));
         $t->same([
             'docx',
             'odt',
@@ -93,8 +111,11 @@ return [
             'epub',
             'epub2',
             'epub3',
+            'ipynb',
             'pptx',
             'chunkedhtml',
+            'icml',
+            'pdf',
         ], $unsupportedOutputFormats);
     },
 
@@ -131,5 +152,72 @@ return [
         $t->same(['shared-zip-package-core'], $zipAlias['gates']);
         $t->contains('container-preflight-only', implode(',', $zipAlias['diagnostics']));
         $t->same(['doc', 'ods', 'odp', 'pptx', 'xlsx', 'zip'], $diagnosticExtensions);
+    },
+
+    'reports rich package extension diagnostics without converter claims' => static function (TestRunner $t): void {
+        $t->same([
+            '.docx',
+            '.epub',
+            '.fodt',
+            '.icml',
+            '.ipynb',
+            '.odt',
+            '.pdf',
+            '.pptx',
+            '.xlsx',
+        ], RichPackageUnsupportedFormatRegistry::richPackageExtensions());
+
+        $epub = RichPackageUnsupportedFormatRegistry::extensionStatus('EPUB');
+        $ipynb = RichPackageUnsupportedFormatRegistry::extensionStatus('.ipynb');
+        $pdf = RichPackageUnsupportedFormatRegistry::extensionStatus('pdf');
+        $fodt = RichPackageUnsupportedFormatRegistry::extensionStatus('.fodt');
+        $pptx = RichPackageUnsupportedFormatRegistry::extensionStatus('pptx');
+        $diagnosticExtensions = array_column(
+            RichPackageUnsupportedFormatRegistry::extensionDiagnostics(),
+            'extension'
+        );
+
+        $t->same('.epub', $epub['extension']);
+        $t->same('epub', $epub['format']);
+        $t->same(['epub', 'epub2', 'epub3'], $epub['formats']);
+        $t->same(['epub'], $epub['inputFormats']);
+        $t->same(['epub', 'epub2', 'epub3'], $epub['outputFormats']);
+        $t->same(['epub'], $epub['directInputFormats']);
+        $t->same(['epub', 'epub2', 'epub3'], $epub['unsupportedOutputFormats']);
+        $t->same(['output'], $epub['unsupportedDirections']);
+        $t->same(true, $epub['externalToolFree']);
+
+        $t->same('notebook-json-package', $ipynb['kind']);
+        $t->same(['ipynb'], $ipynb['directInputFormats']);
+        $t->same([], $ipynb['unsupportedInputFormats']);
+        $t->same(['ipynb'], $ipynb['unsupportedOutputFormats']);
+        $t->same(['output'], $ipynb['unsupportedDirections']);
+        $t->contains('external-notebook-tooling-disallowed', implode(',', $ipynb['diagnostics']));
+
+        $t->same('pdf-rendered-artifact', $pdf['kind']);
+        $t->same([], $pdf['inputFormats']);
+        $t->same(['pdf'], $pdf['outputFormats']);
+        $t->same(['pdf'], $pdf['unsupportedOutputFormats']);
+        $t->same(['output'], $pdf['unsupportedDirections']);
+        $t->contains('renderer-engine-disallowed', implode(',', $pdf['diagnostics']));
+
+        $t->same('opendocument', $fodt['format']);
+        $t->same(['opendocument'], $fodt['unsupportedOutputFormats']);
+        $t->same(['output'], $fodt['unsupportedDirections']);
+
+        $t->same(['input', 'output'], $pptx['unsupportedDirections']);
+        $t->same(['pptx'], $pptx['unsupportedInputFormats']);
+        $t->same(['pptx'], $pptx['unsupportedOutputFormats']);
+        $t->same([
+            '.docx',
+            '.epub',
+            '.fodt',
+            '.icml',
+            '.ipynb',
+            '.odt',
+            '.pdf',
+            '.pptx',
+            '.xlsx',
+        ], $diagnosticExtensions);
     },
 ];
