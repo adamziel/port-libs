@@ -218,6 +218,59 @@ return [
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
     },
 
+    'fake runner reviews typst dependency output target provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Output Policy Packet\n\n#image(\"figures/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/current.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/current.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst output policy packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/stale.pdf: build/current.typ figures/chart.svg',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/current.d' => $depfile,
+                'build/current.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/current.d' => $depfile,
+                    'build/current.pdf' => $pdfBytes,
+                    'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                ],
+            ],
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/current.pdf',
+            'dependencyOutputFiles' => ['build/stale.pdf'],
+            'declaredOutputPresent' => false,
+            'extraOutputFiles' => ['build/stale.pdf'],
+            'issues' => ['missing-declared-output', 'unexpected-output-files:1'],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same('ok', $result['status']);
+        $t->same(['build/stale.pdf'], $result['engineOutputFiles']);
+        $t->same($expectedPolicy, $result['typstDependencyOutputPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstDependencyOutputPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-dependency-output-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-missing-declared:build/current.pdf', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-extra-files:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-dependency-output-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

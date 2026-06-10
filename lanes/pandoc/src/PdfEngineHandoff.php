@@ -305,6 +305,7 @@ final class PdfEngineHandoff
      *     engineTypstPackageInputs: list<string>,
      *     engineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
      *     engineOutputFiles: list<string>,
+     *     typstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
@@ -326,7 +327,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -668,6 +669,12 @@ final class PdfEngineHandoff
             static fn (string $input): bool => str_starts_with($input, 'typst-package:')
         ));
         $engineTypstPackageDependencies = $this->typstPackageDependenciesFor($engineTypstPackageInputList);
+        $typstDependencyOutputPolicy = $this->typstDependencyOutputPolicy(
+            $engine,
+            $engineDependencyArtifactsSha256,
+            $outputFile,
+            $engineOutputFileList
+        );
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
                 continue;
@@ -708,6 +715,15 @@ final class PdfEngineHandoff
         }
         if ($engineOutputFileList !== []) {
             $diagnostics[] = 'engine-output-files:' . count($engineOutputFileList);
+        }
+        if ($typstDependencyOutputPolicy !== []) {
+            $diagnostics[] = 'typst-dependency-output-policy:' . $typstDependencyOutputPolicy['reviewStatus'];
+            if (!$typstDependencyOutputPolicy['declaredOutputPresent']) {
+                $diagnostics[] = 'typst-dependency-output-missing-declared:' . $typstDependencyOutputPolicy['declaredOutputFile'];
+            }
+            if ($typstDependencyOutputPolicy['extraOutputFiles'] !== []) {
+                $diagnostics[] = 'typst-dependency-output-extra-files:' . count($typstDependencyOutputPolicy['extraOutputFiles']);
+            }
         }
         if ($bibliographyArtifactsSha256 !== []) {
             $diagnostics[] = 'bibliography-sidecars:' . count($bibliographyArtifactsSha256);
@@ -3964,6 +3980,9 @@ final class PdfEngineHandoff
         if ($bibliographyMessages['needed']) {
             $artifactProvenanceIssues[] = 'bibliography-run-needed';
         }
+        if (($typstDependencyOutputPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-dependency-output-policy:' . $typstDependencyOutputPolicy['reviewStatus'];
+        }
         if (!is_string($pdfBytes)) {
             $artifactProvenanceIssues[] = 'pdf-output-missing';
         }
@@ -3998,6 +4017,7 @@ final class PdfEngineHandoff
             'bibliographyErrors' => $bibliographyMessages['errors'],
             'bibliographyNeeded' => $bibliographyMessages['needed'],
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
+            'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'issues' => $artifactProvenanceIssues,
         ];
@@ -4024,6 +4044,7 @@ final class PdfEngineHandoff
             'engineTypstPackageInputs' => $engineTypstPackageInputList,
             'engineTypstPackageDependencies' => $engineTypstPackageDependencies,
             'engineOutputFiles' => $engineOutputFileList,
+            'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
             'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
             'missingEngineInputFiles' => $missingEngineInputFiles,
@@ -4352,6 +4373,7 @@ final class PdfEngineHandoff
      *     finalEngineTypstPackageInputs: list<string>,
      *     finalEngineTypstPackageDependencies: list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>,
      *     finalEngineOutputFiles: list<string>,
+     *     finalTypstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
@@ -4659,6 +4681,7 @@ final class PdfEngineHandoff
             'finalEngineTypstPackageInputs' => is_array($finalRun) && is_array($finalRun['engineTypstPackageInputs'] ?? null) ? $finalRun['engineTypstPackageInputs'] : [],
             'finalEngineTypstPackageDependencies' => is_array($finalRun) && is_array($finalRun['engineTypstPackageDependencies'] ?? null) ? $finalRun['engineTypstPackageDependencies'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
+            'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
@@ -5627,6 +5650,45 @@ final class PdfEngineHandoff
         }
 
         return $dependencies;
+    }
+
+    /**
+     * @param array<string, string> $engineDependencyArtifactsSha256
+     * @param list<string> $engineOutputFiles
+     * @return array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}
+     */
+    private function typstDependencyOutputPolicy(
+        string $engine,
+        array $engineDependencyArtifactsSha256,
+        string $outputFile,
+        array $engineOutputFiles
+    ): array {
+        if ($engine !== 'typst' || $engineDependencyArtifactsSha256 === []) {
+            return [];
+        }
+
+        $extraOutputFiles = array_values(array_diff($engineOutputFiles, [$outputFile]));
+        sort($extraOutputFiles);
+        $declaredOutputPresent = in_array($outputFile, $engineOutputFiles, true);
+        $issues = [];
+        if ($engineOutputFiles === []) {
+            $issues[] = 'missing-output-targets';
+        }
+        if (!$declaredOutputPresent) {
+            $issues[] = 'missing-declared-output';
+        }
+        if ($extraOutputFiles !== []) {
+            $issues[] = 'unexpected-output-files:' . count($extraOutputFiles);
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'declaredOutputFile' => $outputFile,
+            'dependencyOutputFiles' => $engineOutputFiles,
+            'declaredOutputPresent' => $declaredOutputPresent,
+            'extraOutputFiles' => $extraOutputFiles,
+            'issues' => $issues,
+        ];
     }
 
     /**
