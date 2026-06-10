@@ -7319,6 +7319,86 @@ XML);
         $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
         $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
     },
+    'maps bounded biblatex series editor aliases into csl collection editor metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{series-editor-source,
+  author          = {Smith, Ada},
+  title           = {Series Editor Source},
+  date            = {2026},
+  publisher       = {Review Press},
+  serieseditor    = {Curator, Eli},
+  serieseditor+an = {1=series editor verified}
+}
+
+@collection{dashed-series-editor-source,
+  author           = {Ng, Nia},
+  title            = {Dashed Series Editor Source},
+  date             = {2025},
+  publisher        = {Review Press},
+  series-editor    = {Roe, Pat},
+  series-editor+an = {1=dashed series editor verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Curator', $items[0]['collection-editor'][0]['family'] ?? null);
+        $t->same('Eli', $items[0]['collection-editor'][0]['given'] ?? null);
+        $t->same('series editor verified', $items[0]['collection-editor'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['serieseditor']));
+        $t->same('Roe', $items[1]['collection-editor'][0]['family'] ?? null);
+        $t->same('Pat', $items[1]['collection-editor'][0]['given'] ?? null);
+        $t->same('dashed series editor verified', $items[1]['collection-editor'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[1]['biblatex-field-annotations']['series-editor']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('series-editor-source');
+        $t->same('Curator', $source['collectionEditors'][0]['family'] ?? null);
+        $t->same('series editor verified', $source['collectionEditors'][0]['annotations'][0]['value'] ?? null);
+        $dashedSource = $processor->item('dashed-series-editor-source');
+        $t->same('Roe', $dashedSource['collectionEditors'][0]['family'] ?? null);
+        $t->same('dashed series editor verified', $dashedSource['collectionEditors'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="collection-editor"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="collection-editor"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('(Curator | Collection editor 1: series editor verified; Roe | Collection editor 1: dashed series editor verified)', $styled->renderCitationCluster([
+            $citation('series-editor-source', '[@series-editor-source]'),
+            $citation('dashed-series-editor-source', '[@dashed-series-editor-source]'),
+        ]));
+        $t->same(
+            'Series Editor Source :: Curator, Eli :: Collection editor 1: series editor verified',
+            $styled->renderBibliographyEntry('series-editor-source')
+        );
+        $t->same(
+            'Dashed Series Editor Source :: Roe, Pat :: Collection editor 1: dashed series editor verified',
+            $styled->renderBibliographyEntry('dashed-series-editor-source')
+        );
+
+        $document = (new MarkdownReader())->read('Series handoff [@series-editor-source; @dashed-series-editor-source] keeps collection editors visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series handoff (Curator | Collection editor 1: series editor verified; Roe | Collection editor 1: dashed series editor verified) keeps collection editors visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Series Editor Source :: Curator, Eli :: Collection editor 1: series editor verified</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Dashed Series Editor Source :: Roe, Pat :: Collection editor 1: dashed series editor verified</dd>', $blocks);
+    },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{direct-extended-roles,
