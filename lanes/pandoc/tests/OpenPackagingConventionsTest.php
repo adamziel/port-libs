@@ -1231,6 +1231,73 @@ XML;
 
         $t->throws(\RuntimeException::class, static fn (): OpcRelationshipGraph => OpcRelationshipGraph::fromPackage($package));
     },
+    'preflights invalid OPC package part names before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/', 'data' => ''],
+            ['name' => 'word/media/review.png?variant=source', 'data' => 'PNG'],
+            ['name' => 'word/media/trailing./image.png', 'data' => 'PNG'],
+            ['name' => 'word/custom#source.xml', 'data' => '<review/>'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightPackagePartNames($package);
+        $parts = [];
+        foreach ($summary['parts'] as $part) {
+            $parts[$part['entryName']] = $part;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(7, $summary['entryCount']);
+        $t->same(6, $summary['packagePartCount']);
+        $t->same(1, $summary['directoryEntryCount']);
+        $t->same(3, $summary['invalidPartCount']);
+        $t->same([
+            'word/media/review.png?variant=source',
+            'word/media/trailing./image.png',
+            'word/custom#source.xml',
+        ], $summary['invalidPartNames']);
+        $t->same([
+            'invalid-opc-part-name',
+            'part-name-query-or-fragment',
+            'part-name-trailing-dot-segment',
+        ], $summary['issues']);
+
+        $t->same('/word/document.xml', $parts['word/document.xml']['partName']);
+        $t->same(true, $parts['word/document.xml']['valid']);
+        $t->same(false, $parts['word/media/']['isPackagePart']);
+        $t->same(true, $parts['word/media/']['valid']);
+        $t->same(null, $parts['word/media/review.png?variant=source']['partName']);
+        $t->same(['invalid-opc-part-name', 'part-name-query-or-fragment'], $parts['word/media/review.png?variant=source']['issues']);
+        $t->contains('query or fragment', $parts['word/media/review.png?variant=source']['parseError']);
+        $t->same(['invalid-opc-part-name', 'part-name-trailing-dot-segment'], $parts['word/media/trailing./image.png']['issues']);
+
+        try {
+            OpcRelationshipGraph::fromPackage($package);
+            $t->true(false, 'Invalid OPC package part names should block graph construction');
+        } catch (\RuntimeException $exception) {
+            $t->contains('OPC package contains invalid part names', $exception->getMessage());
+            $t->contains('word/media/review.png?variant=source', $exception->getMessage());
+            $t->contains('word/media/trailing./image.png', $exception->getMessage());
+            $t->contains('word/custom#source.xml', $exception->getMessage());
+        }
+    },
     'loads case-equivalent OPC content types item for relationship filtering' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

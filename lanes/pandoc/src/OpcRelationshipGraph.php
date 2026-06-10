@@ -113,6 +113,14 @@ final class OpcRelationshipGraph
             throw new \RuntimeException('OPC package is missing [Content_Types].xml');
         }
 
+        $partNamePreflight = self::preflightPackagePartNames($package);
+        if (!$partNamePreflight['valid']) {
+            throw new \RuntimeException(
+                'OPC package contains invalid part names: '
+                . implode(', ', $partNamePreflight['invalidPartNames'])
+            );
+        }
+
         foreach (self::preflightPackagePartNameEquivalence($package) as $partNameEquivalence) {
             if ($partNameEquivalence['valid']) {
                 continue;
@@ -205,6 +213,64 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, entryCount:int, packagePartCount:int, directoryEntryCount:int, invalidPartCount:int, invalidPartNames:list<string>, issues:list<string>, parts:list<array{entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, valid:bool, issues:list<string>, parseError:?string}>}
+     */
+    public static function preflightPackagePartNames(ZipPackage $package): array
+    {
+        $parts = [];
+        $issues = [];
+        $invalidPartNames = [];
+        $packagePartCount = 0;
+        $directoryEntryCount = 0;
+
+        foreach ($package->names() as $name) {
+            $isDirectory = str_ends_with($name, '/');
+            $partName = null;
+            $partIssues = [];
+            $parseError = null;
+            if ($isDirectory) {
+                $directoryEntryCount++;
+            } else {
+                $packagePartCount++;
+                try {
+                    $partName = OpcPackagePath::canonicalPartName($name);
+                } catch (\InvalidArgumentException $exception) {
+                    $parseError = $exception->getMessage();
+                    $partIssues = self::packagePartNameIssuesForParseError($parseError);
+                }
+            }
+
+            if ($partIssues !== []) {
+                $invalidPartNames[] = $name;
+                foreach ($partIssues as $issue) {
+                    self::appendUniqueString($issues, $issue);
+                }
+            }
+
+            $parts[] = [
+                'entryName' => $name,
+                'partName' => $partName,
+                'isDirectory' => $isDirectory,
+                'isPackagePart' => !$isDirectory,
+                'valid' => $partIssues === [],
+                'issues' => $partIssues,
+                'parseError' => $parseError,
+            ];
+        }
+
+        return [
+            'valid' => $invalidPartNames === [],
+            'entryCount' => count($parts),
+            'packagePartCount' => $packagePartCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'invalidPartCount' => count($invalidPartNames),
+            'invalidPartNames' => $invalidPartNames,
+            'issues' => $issues,
+            'parts' => $parts,
+        ];
+    }
+
+    /**
      * @return list<array{partName:string, equivalenceKey:string, equivalentPartNames:list<string>, valid:bool, issues:list<string>}>
      */
     public static function preflightPackagePartNameEquivalence(ZipPackage $package): array
@@ -212,12 +278,12 @@ final class OpcRelationshipGraph
         $preflight = [];
         $indexesByEquivalenceKey = [];
 
-        foreach ($package->names() as $name) {
-            if (str_ends_with($name, '/')) {
+        foreach (self::preflightPackagePartNames($package)['parts'] as $part) {
+            if (!$part['isPackagePart'] || !$part['valid'] || $part['partName'] === null) {
                 continue;
             }
 
-            $partName = OpcPackagePath::canonicalPartName($name);
+            $partName = $part['partName'];
             $equivalenceKey = self::partNameEquivalenceKey($partName);
             $preflight[] = [
                 'partName' => $partName,
@@ -6228,16 +6294,47 @@ final class OpcRelationshipGraph
     private static function packagePartNamesByEquivalenceKey(ZipPackage $package): array
     {
         $partNamesByEquivalenceKey = [];
-        foreach ($package->names() as $name) {
-            if (str_ends_with($name, '/')) {
+        foreach (self::preflightPackagePartNames($package)['parts'] as $part) {
+            if (!$part['isPackagePart'] || !$part['valid'] || $part['partName'] === null) {
                 continue;
             }
 
-            $partName = OpcPackagePath::canonicalPartName($name);
+            $partName = $part['partName'];
             $partNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] = $partName;
         }
 
         return $partNamesByEquivalenceKey;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packagePartNameIssuesForParseError(string $parseError): array
+    {
+        $issues = ['invalid-opc-part-name'];
+        if (str_contains($parseError, 'query or fragment')) {
+            $issues[] = 'part-name-query-or-fragment';
+        }
+        if (str_contains($parseError, 'empty path segments')) {
+            $issues[] = 'part-name-empty-segment';
+        }
+        if (str_contains($parseError, 'end with a dot')) {
+            $issues[] = 'part-name-trailing-dot-segment';
+        }
+        if (str_contains($parseError, 'control characters')) {
+            $issues[] = 'part-name-control-character';
+        }
+        if (str_contains($parseError, 'slash-separated')) {
+            $issues[] = 'part-name-backslash-or-nul';
+        }
+        if (str_contains($parseError, 'above the package root')) {
+            $issues[] = 'part-name-root-traversal';
+        }
+        if (str_contains($parseError, 'must not be empty') || str_contains($parseError, 'must identify a package part')) {
+            $issues[] = 'part-name-empty';
+        }
+
+        return array_values(array_unique($issues));
     }
 
     private function packagePartNameForEquivalent(string $partName): ?string
