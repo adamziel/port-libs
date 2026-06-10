@@ -10768,6 +10768,9 @@ final class OdfReader
         $signatureCount = 0;
         $referenceCount = 0;
         $signedParts = [];
+        $missingSignedParts = [];
+        $unmanifestedSignedParts = [];
+        $encryptedSignedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
             $encrypted = ($item['encrypted'] ?? false) === true;
@@ -10813,6 +10816,7 @@ final class OdfReader
                 continue;
             }
 
+            $parsed = $this->signatureTargetProvenance($parsed, $package);
             $partMetadata = array_merge($partMetadata, $parsed, ['parseable' => true]);
             $parsedPartCount++;
             $signatureCount += (int) ($parsed['signatureCount'] ?? 0);
@@ -10820,6 +10824,21 @@ final class OdfReader
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
+                }
+            }
+            foreach ($parsed['missingSignedParts'] ?? [] as $missingSignedPart) {
+                if (is_string($missingSignedPart) && $missingSignedPart !== '') {
+                    $missingSignedParts[] = $missingSignedPart;
+                }
+            }
+            foreach ($parsed['unmanifestedSignedParts'] ?? [] as $unmanifestedSignedPart) {
+                if (is_string($unmanifestedSignedPart) && $unmanifestedSignedPart !== '') {
+                    $unmanifestedSignedParts[] = $unmanifestedSignedPart;
+                }
+            }
+            foreach ($parsed['encryptedSignedParts'] ?? [] as $encryptedSignedPart) {
+                if (is_string($encryptedSignedPart) && $encryptedSignedPart !== '') {
+                    $encryptedSignedParts[] = $encryptedSignedPart;
                 }
             }
             foreach ($parsed['signatures'] ?? [] as $signature) {
@@ -10832,6 +10851,12 @@ final class OdfReader
 
         $signedParts = array_values(array_unique($signedParts));
         sort($signedParts);
+        $missingSignedParts = array_values(array_unique($missingSignedParts));
+        sort($missingSignedParts);
+        $unmanifestedSignedParts = array_values(array_unique($unmanifestedSignedParts));
+        sort($unmanifestedSignedParts);
+        $encryptedSignedParts = array_values(array_unique($encryptedSignedParts));
+        sort($encryptedSignedParts);
 
         return [
             'count' => count($parts),
@@ -10842,6 +10867,12 @@ final class OdfReader
             'referenceCount' => $referenceCount,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
+            'missingSignedPartCount' => count($missingSignedParts),
+            'missingSignedParts' => $missingSignedParts,
+            'unmanifestedSignedPartCount' => count($unmanifestedSignedParts),
+            'unmanifestedSignedParts' => $unmanifestedSignedParts,
+            'encryptedSignedPartCount' => count($encryptedSignedParts),
+            'encryptedSignedParts' => $encryptedSignedParts,
             'parts' => $parts,
             'signatures' => $signatures,
         ];
@@ -10901,6 +10932,83 @@ final class OdfReader
             'signedParts' => $signedParts,
             'signatures' => $signatures,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     * @return array<string, mixed>
+     */
+    private function signatureTargetProvenance(array $parsed, ZipPackage $package): array
+    {
+        $missingSignedParts = [];
+        $unmanifestedSignedParts = [];
+        $encryptedSignedParts = [];
+        $signatures = [];
+
+        foreach ($parsed['signatures'] ?? [] as $signature) {
+            if (!is_array($signature)) {
+                continue;
+            }
+
+            $references = [];
+            foreach ($signature['references'] ?? [] as $reference) {
+                if (!is_array($reference)) {
+                    continue;
+                }
+
+                $part = $reference['part'] ?? null;
+                if (!is_string($part) || $part === '') {
+                    $references[] = $reference;
+                    continue;
+                }
+
+                $manifestItem = $this->manifestByPart[$part] ?? null;
+                $entry = $package->has($part) ? $package->entry($part) : null;
+                $targetManifested = is_array($manifestItem);
+                $targetExists = $entry instanceof ZipPackageEntry;
+                $targetEncrypted = $targetManifested && ($manifestItem['encrypted'] ?? false) === true;
+
+                $reference['targetManifested'] = $targetManifested;
+                $reference['targetExists'] = $targetExists;
+                $reference['targetEncrypted'] = $targetEncrypted;
+                $reference['targetCanExposeBytes'] = $targetExists && !$targetEncrypted;
+                $reference['targetMediaType'] = $targetManifested ? ($manifestItem['mediaType'] ?? null) : null;
+                $reference['targetDeclaredSize'] = $targetManifested ? ($manifestItem['declaredSize'] ?? null) : null;
+                $reference['targetStoredByteLength'] = $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null;
+                $reference['targetStoredCrc32'] = $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null;
+
+                if (!$targetExists) {
+                    $missingSignedParts[] = $part;
+                }
+                if (!$targetManifested) {
+                    $unmanifestedSignedParts[] = $part;
+                }
+                if ($targetEncrypted) {
+                    $encryptedSignedParts[] = $part;
+                }
+
+                $references[] = self::withoutEmpty($reference);
+            }
+
+            $signature['references'] = $references;
+            $signatures[] = $signature;
+        }
+
+        foreach ([&$missingSignedParts, &$unmanifestedSignedParts, &$encryptedSignedParts] as &$parts) {
+            $parts = array_values(array_unique($parts));
+            sort($parts);
+        }
+        unset($parts);
+
+        $parsed['signatures'] = $signatures;
+        $parsed['missingSignedPartCount'] = count($missingSignedParts);
+        $parsed['missingSignedParts'] = $missingSignedParts;
+        $parsed['unmanifestedSignedPartCount'] = count($unmanifestedSignedParts);
+        $parsed['unmanifestedSignedParts'] = $unmanifestedSignedParts;
+        $parsed['encryptedSignedPartCount'] = count($encryptedSignedParts);
+        $parsed['encryptedSignedParts'] = $encryptedSignedParts;
+
+        return $parsed;
     }
 
     /**

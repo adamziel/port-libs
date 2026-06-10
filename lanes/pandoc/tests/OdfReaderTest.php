@@ -9049,6 +9049,98 @@ XML;
         $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
         $t->same('Pictures/hero.png', $signature['references'][1]['part']);
     },
+    'reports ODT signature reference target provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/encrypted.png" manifest:media-type="image/png" manifest:size="4096">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="encrypted-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithSignatureTargets = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/missing.jpg" manifest:media-type="image/jpeg"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="target-review">
+    <dsig:SignedInfo>
+      <dsig:Reference URI="content.xml"/>
+      <dsig:Reference URI="Pictures/missing.jpg"/>
+      <dsig:Reference URI="Pictures/unmanifested.png"/>
+      <dsig:Reference URI="Pictures/encrypted.png"/>
+      <dsig:Reference URI="https://example.test/external.png"/>
+    </dsig:SignedInfo>
+    <dsig:SignatureValue>signature-bytes</dsig:SignatureValue>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignatureTargets, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
+            ['name' => 'Pictures/encrypted.png', 'data' => 'SECRET', 'compressionMethod' => 0],
+            ['name' => 'Pictures/unmanifested.png', 'data' => 'UNDECLARED', 'compressionMethod' => 0],
+        ]));
+        $signatures = $result['signatureMetadata'];
+        $part = $signatures['parts'][0];
+        $referencesByPart = [];
+        foreach ($part['signatures'][0]['references'] as $reference) {
+            if (is_string($reference['part'] ?? null) && $reference['part'] !== '') {
+                $referencesByPart[$reference['part']] = $reference;
+            }
+        }
+
+        $t->same($signatures, $result['document']->attr('signatureMetadata'));
+        $t->same($signatures, $result['importReport']['signatureMetadata']);
+        $t->same(1, $signatures['partCount']);
+        $t->same(1, $signatures['parsedPartCount']);
+        $t->same(1, $signatures['signatureCount']);
+        $t->same(5, $signatures['referenceCount']);
+        $t->same(4, $signatures['signedPartCount']);
+        $t->same(['Pictures/encrypted.png', 'Pictures/missing.jpg', 'Pictures/unmanifested.png', 'content.xml'], $signatures['signedParts']);
+        $t->same(1, $signatures['missingSignedPartCount']);
+        $t->same(['Pictures/missing.jpg'], $signatures['missingSignedParts']);
+        $t->same(1, $signatures['unmanifestedSignedPartCount']);
+        $t->same(['Pictures/unmanifested.png'], $signatures['unmanifestedSignedParts']);
+        $t->same(1, $signatures['encryptedSignedPartCount']);
+        $t->same(['Pictures/encrypted.png'], $signatures['encryptedSignedParts']);
+        $t->same($signatures['missingSignedParts'], $part['missingSignedParts']);
+        $t->same($signatures['unmanifestedSignedParts'], $part['unmanifestedSignedParts']);
+        $t->same($signatures['encryptedSignedParts'], $part['encryptedSignedParts']);
+
+        $t->same(true, $referencesByPart['content.xml']['targetManifested']);
+        $t->same(true, $referencesByPart['content.xml']['targetExists']);
+        $t->same(false, $referencesByPart['content.xml']['targetEncrypted']);
+        $t->same(true, $referencesByPart['content.xml']['targetCanExposeBytes']);
+        $t->same('text/xml', $referencesByPart['content.xml']['targetMediaType']);
+        $t->same(strlen($contentXml), $referencesByPart['content.xml']['targetStoredByteLength']);
+
+        $t->same(true, $referencesByPart['Pictures/missing.jpg']['targetManifested']);
+        $t->same(false, $referencesByPart['Pictures/missing.jpg']['targetExists']);
+        $t->same(false, $referencesByPart['Pictures/missing.jpg']['targetEncrypted']);
+        $t->same(false, $referencesByPart['Pictures/missing.jpg']['targetCanExposeBytes']);
+        $t->same('image/jpeg', $referencesByPart['Pictures/missing.jpg']['targetMediaType']);
+
+        $t->same(false, $referencesByPart['Pictures/unmanifested.png']['targetManifested']);
+        $t->same(true, $referencesByPart['Pictures/unmanifested.png']['targetExists']);
+        $t->same(false, $referencesByPart['Pictures/unmanifested.png']['targetEncrypted']);
+        $t->same(true, $referencesByPart['Pictures/unmanifested.png']['targetCanExposeBytes']);
+        $t->same(strlen('UNDECLARED'), $referencesByPart['Pictures/unmanifested.png']['targetStoredByteLength']);
+
+        $t->same(true, $referencesByPart['Pictures/encrypted.png']['targetManifested']);
+        $t->same(true, $referencesByPart['Pictures/encrypted.png']['targetExists']);
+        $t->same(true, $referencesByPart['Pictures/encrypted.png']['targetEncrypted']);
+        $t->same(false, $referencesByPart['Pictures/encrypted.png']['targetCanExposeBytes']);
+        $t->same('image/png', $referencesByPart['Pictures/encrypted.png']['targetMediaType']);
+        $t->same(4096, $referencesByPart['Pictures/encrypted.png']['targetDeclaredSize']);
+        $t->same(strlen('SECRET'), $referencesByPart['Pictures/encrypted.png']['targetStoredByteLength']);
+        $t->same(1, $result['importReport']['manifest']['encryptedCount']);
+        $t->same('Pictures/encrypted.png', $result['importReport']['encryption']['encryptedParts'][0]);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
