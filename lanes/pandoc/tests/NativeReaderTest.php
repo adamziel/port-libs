@@ -1144,7 +1144,9 @@ return [
         $t->same('AlignLeft', $native['blocks'][0]['c'][2][0][0]['t']);
         $t->same('ColWidth', $native['blocks'][0]['c'][2][0][1]['t']);
         $t->same(0.3, $native['blocks'][0]['c'][2][0][1]['c']);
-        $t->same(1, $native['blocks'][0]['c'][4][0][1]);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $native['blocks'][0]['c'][4][0][1]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $native['blocks'][0]['c'][4][0][3][0][1][1][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $native['blocks'][0]['c'][4][0][3][0][1][1][3]);
         $t->same('table', $table->type);
         $t->same('Generated caption', $table->attr('caption'));
         $t->same('Short view', $table->attr('shortCaption'));
@@ -1217,10 +1219,12 @@ return [
         $t->same(0.33, $tableBlock['c'][2][0][1]['c']);
         $t->same('AlignRight', $tableBlock['c'][2][1][0]['t']);
         $t->same('ColWidthDefault', $tableBlock['c'][2][1][1]['t']);
-        $t->same(1, $tableBlock['c'][4][0][1]);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $tableBlock['c'][4][0][1]);
         $t->same('Ready', $tableBlock['c'][4][0][3][0][1][1][4][0]['c'][0]['c']);
         $t->same('AlignRight', $tableBlock['c'][4][0][3][0][1][1][1]['t']);
-        $t->same(2, $tableBlock['c'][5][1][0][1][0][3]);
+        $t->same(['t' => 'RowSpan', 'c' => 1], $tableBlock['c'][4][0][3][0][1][1][2]);
+        $t->same(['t' => 'ColSpan', 'c' => 1], $tableBlock['c'][4][0][3][0][1][1][3]);
+        $t->same(['t' => 'ColSpan', 'c' => 2], $tableBlock['c'][5][1][0][1][0][3]);
         $t->same('Shared caption handoff', $table->attr('caption'));
         $t->same('Review slice', $table->attr('shortCaption'));
         $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn (AstNode $node): string => $node->type, $table->children));
