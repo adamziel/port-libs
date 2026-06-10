@@ -2070,6 +2070,133 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, overrideCount:int, usedOverrideCount:int, exactMatchCount:int, equivalentMatchCount:int, missingPartCount:int, invalidOverrideCount:int, relationshipPartOverrideCount:int, relationshipContentTypeOverrideCount:int, nonRelationshipPartRelationshipContentTypeCount:int, contentTypesItemOverrideCount:int, reservedRelationshipDirectoryOverrideCount:int, contentTypeCounts:array<string,int>, issueCounts:array<string,int>, issues:list<string>, exactMatchParts:list<string>, equivalentMatchParts:list<string>, missingParts:list<string>, invalidParts:list<string>, relationshipPartOverrides:list<string>, relationshipContentTypeOverrideParts:list<string>, nonRelationshipPartRelationshipContentTypeParts:list<string>, contentTypesItemOverrides:list<string>, reservedRelationshipDirectoryOverrides:list<string>, overrides:list<array{partName:string, contentType:string, packagePartName:?string, matchKind:string, relationshipPart:bool, relationshipSource:?string, relationshipSourceLoaded:?bool, sourceExists:?bool, valid:bool, issues:list<string>}>}
+     */
+    public function contentTypeOverrideUsageSummary(): array
+    {
+        $summary = [
+            'valid' => true,
+            'overrideCount' => 0,
+            'usedOverrideCount' => 0,
+            'exactMatchCount' => 0,
+            'equivalentMatchCount' => 0,
+            'missingPartCount' => 0,
+            'invalidOverrideCount' => 0,
+            'relationshipPartOverrideCount' => 0,
+            'relationshipContentTypeOverrideCount' => 0,
+            'nonRelationshipPartRelationshipContentTypeCount' => 0,
+            'contentTypesItemOverrideCount' => 0,
+            'reservedRelationshipDirectoryOverrideCount' => 0,
+            'contentTypeCounts' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'exactMatchParts' => [],
+            'equivalentMatchParts' => [],
+            'missingParts' => [],
+            'invalidParts' => [],
+            'relationshipPartOverrides' => [],
+            'relationshipContentTypeOverrideParts' => [],
+            'nonRelationshipPartRelationshipContentTypeParts' => [],
+            'contentTypesItemOverrides' => [],
+            'reservedRelationshipDirectoryOverrides' => [],
+            'overrides' => [],
+        ];
+
+        foreach ($this->preflightContentTypeOverrides() as $override) {
+            $summary['overrideCount']++;
+            $summary['contentTypeCounts'][$override['contentType']] = ($summary['contentTypeCounts'][$override['contentType']] ?? 0) + 1;
+
+            if ($override['partNameExactMatch']) {
+                $matchKind = 'exact';
+                $summary['usedOverrideCount']++;
+                $summary['exactMatchCount']++;
+                self::appendUniqueString($summary['exactMatchParts'], $override['partName']);
+            } elseif ($override['partNameEquivalentMatch']) {
+                $matchKind = 'equivalent';
+                $summary['usedOverrideCount']++;
+                $summary['equivalentMatchCount']++;
+                self::appendUniqueString($summary['equivalentMatchParts'], $override['partName']);
+            } else {
+                $matchKind = 'missing';
+                $summary['missingPartCount']++;
+                self::appendUniqueString($summary['missingParts'], $override['partName']);
+            }
+
+            if ($override['relationshipPart']) {
+                $summary['relationshipPartOverrideCount']++;
+                self::appendUniqueString($summary['relationshipPartOverrides'], $override['partName']);
+            }
+
+            if (self::contentTypeMatches($override['contentType'], self::RELATIONSHIP_PART_CONTENT_TYPE)) {
+                $summary['relationshipContentTypeOverrideCount']++;
+                self::appendUniqueString($summary['relationshipContentTypeOverrideParts'], $override['partName']);
+                if (!$override['relationshipPart']) {
+                    $summary['nonRelationshipPartRelationshipContentTypeCount']++;
+                    self::appendUniqueString($summary['nonRelationshipPartRelationshipContentTypeParts'], $override['partName']);
+                }
+            }
+
+            if (in_array('content-types-override-target', $override['issues'], true)) {
+                $summary['contentTypesItemOverrideCount']++;
+                self::appendUniqueString($summary['contentTypesItemOverrides'], $override['partName']);
+            }
+
+            if (in_array('reserved-relationship-directory-override', $override['issues'], true)) {
+                $summary['reservedRelationshipDirectoryOverrideCount']++;
+                self::appendUniqueString($summary['reservedRelationshipDirectoryOverrides'], $override['partName']);
+            }
+
+            if (!$override['valid']) {
+                $summary['valid'] = false;
+                $summary['invalidOverrideCount']++;
+                self::appendUniqueString($summary['invalidParts'], $override['partName']);
+            }
+
+            foreach ($override['issues'] as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+
+            $summary['overrides'][] = [
+                'partName' => $override['partName'],
+                'contentType' => $override['contentType'],
+                'packagePartName' => $override['packagePartName'],
+                'matchKind' => $matchKind,
+                'relationshipPart' => $override['relationshipPart'],
+                'relationshipSource' => $override['relationshipSource'],
+                'relationshipSourceLoaded' => $override['relationshipSourceLoaded'],
+                'sourceExists' => $override['sourceExists'],
+                'valid' => $override['valid'],
+                'issues' => $override['issues'],
+            ];
+        }
+
+        foreach ([
+            'exactMatchParts',
+            'equivalentMatchParts',
+            'missingParts',
+            'invalidParts',
+            'relationshipPartOverrides',
+            'relationshipContentTypeOverrideParts',
+            'nonRelationshipPartRelationshipContentTypeParts',
+            'contentTypesItemOverrides',
+            'reservedRelationshipDirectoryOverrides',
+            'issues',
+        ] as $listKey) {
+            sort($summary[$listKey], SORT_STRING);
+        }
+
+        ksort($summary['contentTypeCounts'], SORT_STRING);
+        ksort($summary['issueCounts'], SORT_STRING);
+        usort(
+            $summary['overrides'],
+            static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
+        );
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array{source:string, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, reachableReferences:list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, valid:bool, issues:list<string>}>
      */
     public function packagePartReferenceInventory(string $reachableSourcePartName = '/', ?string $reachableRelationshipType = null): array
