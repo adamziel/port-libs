@@ -92,7 +92,7 @@ final class OdfReader
      */
     public function readPackage(ZipPackage $package): array
     {
-        $this->assertOdtMimetype($package);
+        $mimetypeEntry = $this->assertOdtMimetype($package);
 
         $manifest = $this->readManifest($package);
         $this->manifestByPart = $this->manifestByPart($manifest);
@@ -121,6 +121,7 @@ final class OdfReader
             'manifest' => [
                 'mimetype' => self::MIMETYPE,
                 'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+                'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
             ],
             'styles' => [
@@ -186,6 +187,7 @@ final class OdfReader
                 'manifest' => [
                     'count' => count($manifest),
                     'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
+                    'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'missingItems' => array_values(array_filter(
                         $manifest,
@@ -362,9 +364,12 @@ final class OdfReader
         return $this->readPackage($package)['document'];
     }
 
-    private function assertOdtMimetype(ZipPackage $package): void
+    /**
+     * @return array<string, mixed>
+     */
+    private function assertOdtMimetype(ZipPackage $package): array
     {
-        $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'ODT mimetype entry');
+        return $package->assertStoredFirstEntry('mimetype', self::MIMETYPE, 'ODT mimetype entry');
     }
 
     /**

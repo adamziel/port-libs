@@ -9071,6 +9071,21 @@ XML;
         $t->same('ODT Import Packet', $result['metadata']['title']);
         $t->same('odt', $result['document']->attr('source'));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
+        $mimetypeEntry = $result['importReport']['manifest']['mimetypeEntry'];
+        $t->same($mimetypeEntry, $result['document']->attr('manifest')['mimetypeEntry']);
+        $t->same('mimetype', $mimetypeEntry['entryName']);
+        $t->same(true, $mimetypeEntry['exists']);
+        $t->same('mimetype', $mimetypeEntry['firstLocalEntryName']);
+        $t->same(true, $mimetypeEntry['isFirstLocalEntry']);
+        $t->same(0, $mimetypeEntry['compressionMethod']);
+        $t->same('stored', $mimetypeEntry['compressionMethodName']);
+        $t->same(false, $mimetypeEntry['usesDataDescriptor']);
+        $t->same([], $mimetypeEntry['centralExtraFieldIds']);
+        $t->same([], $mimetypeEntry['localExtraFieldIds']);
+        $t->same(strlen(OdfReader::MIMETYPE), $mimetypeEntry['contentBytes']);
+        $t->same(true, $mimetypeEntry['contentsMatch']);
+        $t->same(true, $mimetypeEntry['isValid']);
+        $t->same([], $mimetypeEntry['diagnostics']);
     },
     'rejects invalid ODT manifest root content and duplicate part declarations' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reader = new OdfReader();
