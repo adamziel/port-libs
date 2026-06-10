@@ -8945,6 +8945,35 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(8, count($result['document']->children));
     },
+    'reports ODT ZIP directory entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
+            ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => '<accelerator/>', 'compressionMethod' => 0],
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+        ]));
+        $manifestReport = $result['importReport']['manifest'];
+        $directoryEntries = $manifestReport['undeclaredDirectoryEntries'];
+        $directoriesByPart = [];
+        foreach ($directoryEntries as $entry) {
+            $directoriesByPart[$entry['part']] = $entry;
+        }
+
+        $t->same(3, $manifestReport['undeclaredDirectoryEntryCount']);
+        $t->same(['Configurations2/', 'Configurations2/accelerator/', 'Pictures/'], array_keys($directoriesByPart));
+        $t->same('odf-manifest-undeclared-package-directory-entry', $directoriesByPart['Configurations2/']['diagnostic']);
+        $t->same(true, $directoriesByPart['Configurations2/']['isDirectory']);
+        $t->same(false, $directoriesByPart['Configurations2/']['canExposeBytes']);
+        $t->same(0, $directoriesByPart['Configurations2/']['byteLength']);
+        $t->same(0, $directoriesByPart['Configurations2/']['compressedByteLength']);
+        $t->same(0, $directoriesByPart['Configurations2/']['compressionMethod']);
+        $t->same(sprintf('%08x', crc32('')), $directoriesByPart['Configurations2/']['crc32']);
+        $t->same(1, $manifestReport['undeclaredEntryCount']);
+        $t->same(['Configurations2/accelerator/current.xml'], array_column($manifestReport['undeclaredEntries'], 'part'));
+        $t->same(1, count($result['media']), 'undeclared ZIP directories must stay out of media byte handoff');
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+        $t->same(8, count($result['document']->children));
+    },
     'treats ODT manifest directory declarations as logical package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithDirectories = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',

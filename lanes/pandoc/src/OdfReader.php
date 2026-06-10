@@ -117,6 +117,7 @@ final class OdfReader
         $directoryItems = $this->manifestDirectoryItems($manifest);
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
+        $undeclaredDirectoryEntries = $this->manifestUndeclaredPackageDirectoryEntries($package, $manifest);
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -205,6 +206,8 @@ final class OdfReader
                     )),
                     'undeclaredEntryCount' => count($undeclaredEntries),
                     'undeclaredEntries' => $undeclaredEntries,
+                    'undeclaredDirectoryEntryCount' => count($undeclaredDirectoryEntries),
+                    'undeclaredDirectoryEntries' => $undeclaredDirectoryEntries,
                     'encryptedCount' => count($encryptedItems),
                     'encryptedItems' => $encryptedItems,
                     'declaredSizeMismatchCount' => count($declaredSizeMismatches),
@@ -11713,6 +11716,44 @@ final class OdfReader
             $entries[] = [
                 'part' => $entry->name,
                 'diagnostic' => 'odf-manifest-undeclared-package-entry',
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'compressionMethod' => $entry->compressionMethod,
+                'crc32' => $entry->crc32Hex(),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return list<array<string, mixed>>
+     */
+    private function manifestUndeclaredPackageDirectoryEntries(ZipPackage $package, array $manifest): array
+    {
+        $declaredParts = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $declaredParts[$part] = true;
+            }
+        }
+
+        $entries = [];
+        foreach ($package->entries() as $entry) {
+            if (!$entry->isDirectory() || isset($declaredParts[$entry->name])) {
+                continue;
+            }
+
+            $entries[] = [
+                'part' => $entry->name,
+                'diagnostic' => 'odf-manifest-undeclared-package-directory-entry',
+                'isDirectory' => true,
+                'canExposeBytes' => false,
                 'byteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
                 'compressionMethod' => $entry->compressionMethod,
