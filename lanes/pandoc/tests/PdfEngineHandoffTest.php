@@ -271,6 +271,69 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
     },
 
+    'fake runner carries typst boundary option provenance into artifact review' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst Boundary Packet\n\n#image(\"figures/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/boundary.pdf',
+            'source' => $source,
+            'engineOptions' => [
+                '--root=.',
+                '--font-path=fonts',
+                '--font-path',
+                '/usr/share/fonts',
+                '--package-path=vendor/typst-packages',
+                '--ignore-system-fonts',
+                '--deps=build/boundary.d',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary provenance packet\n%%EOF\n";
+        $depfile = "build/boundary.pdf: build/boundary.typ figures/chart.svg\n";
+        $expectedBoundary = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => '.', 'path' => '.', 'kind' => 'workspace-root', 'issues' => []],
+            'fontPaths' => [
+                ['raw' => 'fonts', 'path' => 'fonts', 'kind' => 'workspace', 'issues' => []],
+                ['raw' => '/usr/share/fonts', 'path' => '/usr/share/fonts', 'kind' => 'external', 'issues' => []],
+            ],
+            'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'workspace', 'issues' => []],
+            'ignoreSystemFonts' => true,
+            'issues' => ['external-font-path:/usr/share/fonts'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/boundary.d' => $depfile,
+                'build/boundary.pdf' => $pdfBytes,
+                'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/boundary.d' => $depfile,
+                    'build/boundary.pdf' => $pdfBytes,
+                    'figures/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                ],
+            ],
+        ]);
+
+        $t->same($expectedBoundary, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace-root', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-ignore-system-fonts', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same('ok', $result['status']);
+        $t->same($expectedBoundary, $result['typstBoundaryProvenance']);
+        $t->same($expectedBoundary, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedBoundary, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
