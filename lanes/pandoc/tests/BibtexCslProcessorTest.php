@@ -236,6 +236,42 @@ BIB;
         $t->same(3, count($handoff['bibliography']->children));
         $t->true((bool) $handoff['bibliography']->children[2]->attr('missing'), 'Missing citation should be represented as a reviewable bibliography item');
     },
+    'maps biblatex citation aliases into legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{canonical-source,
+  ids    = {legacy-source, source-url:https://example.test/review?id=7},
+  author = {Ng, Nia},
+  title  = {Alias Review Packet},
+  date   = {2026},
+  url    = {https://example.test/alias}
+}
+BIB;
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Alias cluster: ']),
+                new AstNode('citation', [
+                    'ids' => ['legacy-source', 'canonical-source', 'missing-alias'],
+                    'text' => '[@legacy-source; @canonical-source; @missing-alias]',
+                ]),
+            ]),
+        ]);
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['canonical-source', 'legacy-source', 'source-url:https://example.test/review?id=7'], array_keys($items));
+        $t->same(['legacy-source', 'source-url:https://example.test/review?id=7'], $items['canonical-source']['citationAliases']);
+        $t->same('canonical-source', $items['legacy-source']['id']);
+        $t->same('legacy-source', $items['legacy-source']['citationAlias']);
+        $t->same(['legacy-source', 'canonical-source', 'missing-alias'], $handoff['citedKeys']);
+        $t->same(['missing-alias'], $handoff['missingKeys']);
+        $t->same(['canonical-source'], array_map(static fn (array $item): string => (string) $item['id'], $handoff['items']));
+        $t->same('legacy-source', $handoff['items'][0]['citationAlias']);
+        $t->same(2, count($handoff['bibliography']->children));
+        $t->same('canonical-source', $handoff['bibliography']->children[0]->attr('term'));
+        $t->same(['missing-alias'], $handoff['bibliography']->attr('missingCitationKeys'));
+    },
     'renders bibliography nodes through markdown and wordpress writers' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Reviewer note cites @lovelace1843 and @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

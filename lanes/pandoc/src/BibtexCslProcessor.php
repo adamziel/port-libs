@@ -94,6 +94,29 @@ final class BibtexCslProcessor
             $items[$key] = $entry['csl'];
         }
 
+        $aliases = [];
+        foreach ($items as $key => $item) {
+            $itemAliases = $item['citationAliases'] ?? [];
+            if (!is_array($itemAliases)) {
+                continue;
+            }
+
+            foreach ($itemAliases as $alias) {
+                $alias = (string) $alias;
+                if ($alias === '' || $alias === $key || isset($items[$alias]) || isset($aliases[$alias])) {
+                    continue;
+                }
+
+                $aliasItem = $item;
+                $aliasItem['citationAlias'] = $alias;
+                $aliases[$alias] = $aliasItem;
+            }
+        }
+
+        foreach ($aliases as $alias => $item) {
+            $items[$alias] = $item;
+        }
+
         return $items;
     }
 
@@ -139,6 +162,7 @@ final class BibtexCslProcessor
         $citedKeys = $this->citedKeys($document);
         $items = [];
         $missing = [];
+        $included = [];
 
         foreach ($citedKeys as $key) {
             if (!isset($itemsByKey[$key])) {
@@ -146,7 +170,14 @@ final class BibtexCslProcessor
                 continue;
             }
 
-            $items[] = $itemsByKey[$key];
+            $item = $itemsByKey[$key];
+            $canonicalId = (string) ($item['id'] ?? $key);
+            if (isset($included[$canonicalId])) {
+                continue;
+            }
+
+            $included[$canonicalId] = true;
+            $items[] = $item;
         }
 
         return [
@@ -493,6 +524,19 @@ final class BibtexCslProcessor
             $item['keyword'] = $keywords;
         }
 
+        $citationAliases = $this->keyList($this->firstField($fields, ['ids', 'citation-aliases', 'citationaliases']));
+        if ($citationAliases !== []) {
+            $item['citationAliases'] = array_values(array_filter(
+                $citationAliases,
+                static fn (string $alias): bool => $alias !== $key
+            ));
+            if ($item['citationAliases'] !== []) {
+                $item['citationAliasSummary'] = implode('; ', $item['citationAliases']);
+            } else {
+                unset($item['citationAliases']);
+            }
+        }
+
         if (($item['archive'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
             $summaryParts = [];
             foreach (['archive', 'archive-place', 'archive_location'] as $field) {
@@ -657,6 +701,30 @@ final class BibtexCslProcessor
         }
 
         return $keywords;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function keyList(?string $value): array
+    {
+        if ($value === null || trim($value) === '') {
+            return [];
+        }
+
+        $keys = [];
+        $seen = [];
+        foreach (preg_split('/[,;]+/', $value) ?: [] as $key) {
+            $key = trim($key);
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $keys[] = $key;
+        }
+
+        return $keys;
     }
 
     /**
