@@ -455,6 +455,9 @@ final class BibtexCslProcessor
         $nameFields = [
             'author' => ['author'],
             'editor' => ['editor'],
+            'short-author' => ['shortauthor', 'short-author'],
+            'short-editor' => ['shorteditor', 'short-editor'],
+            'holder' => ['holder'],
             'translator' => ['translator'],
             'container-author' => ['bookauthor', 'container-author'],
             'original-author' => ['origauthor', 'originalauthor', 'original-author'],

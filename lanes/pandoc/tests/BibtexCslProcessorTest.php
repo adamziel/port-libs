@@ -179,6 +179,32 @@ BIB;
         $t->same('Series', $item['collection-editor'][0]['family']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
     },
+    'carries biblatex short author editor and holder names in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@patent{credit-roles,
+  author      = {Inventor, Ivy},
+  shortauthor = {Desk, Archive},
+  shorteditor = {Curator, Eli and Summary, Sam},
+  holder      = {Foundation, WordPress and Migration, Desk},
+  title       = {Credit Role Patent},
+  year        = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['credit-roles'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('patent', $item['type']);
+        $t->same('Inventor', $item['author'][0]['family']);
+        $t->same('Desk', $item['short-author'][0]['family']);
+        $t->same('Archive', $item['short-author'][0]['given']);
+        $t->same('Curator', $item['short-editor'][0]['family']);
+        $t->same('Summary', $item['short-editor'][1]['family']);
+        $t->same('Foundation', $item['holder'][0]['family']);
+        $t->same('Migration', $item['holder'][1]['family']);
+        $t->same('Desk, Archive', $item['rawBibtex']['fields']['shortauthor']);
+        $t->same('Ivy Inventor. Credit Role Patent. 2026.', $bibliography);
+    },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-manual,
