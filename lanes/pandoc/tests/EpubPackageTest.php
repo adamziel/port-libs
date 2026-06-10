@@ -569,6 +569,93 @@ XML;
         $t->same($metadata['dateSummary'], $summary['wordpressImport']['metadataDetails']['dateSummary']);
     },
 
+    'summarizes OPF language declarations for compact package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithLanguageMetadata = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:language id="lang-primary" scheme="BCP47" xml:lang="en">en-US</dc:language>
+    <dc:language id="lang-secondary" xml:lang="fr">fr-CA</dc:language>
+    <dc:language id="lang-duplicate">en-us</dc:language>
+    <dc:language id="lang-invalid">review language</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithLanguageMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#lang-primary" property="display-seq">1</meta>
+    <meta refines="#lang-secondary" property="display-seq">2</meta>',
+            $opfWithLanguageMetadata
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithLanguageMetadata],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $languageDetails = $metadata['languageDetails'];
+        $languageSummary = $metadata['languageSummary'];
+
+        $t->same('en-US', $metadata['language']);
+        $t->same(['en-US', 'fr-CA', 'en-us', 'review language'], $metadata['languages']);
+        $t->same(4, count($languageDetails));
+
+        $primary = $languageDetails[0];
+        $t->same('language', $primary['kind']);
+        $t->same(0, $primary['index']);
+        $t->same('lang-primary', $primary['id']);
+        $t->same('en-US', $primary['tag']);
+        $t->same('en-us', $primary['normalizedTag']);
+        $t->same('en', $primary['primarySubtag']);
+        $t->same('US', $primary['regionSubtag']);
+        $t->same(true, $primary['wellFormed']);
+        $t->same('BCP47', $primary['scheme']);
+        $t->same('en', $primary['language']);
+        $t->same('1', $primary['displaySeq']);
+        $t->same(1, $primary['displaySeqNumber']);
+        $t->same(true, $primary['duplicateTag']);
+        $t->same([0, 2], $primary['duplicateIndexes']);
+        $t->same('duplicate-language-tag', $primary['diagnostics'][0]['type']);
+
+        $secondary = $languageDetails[1];
+        $t->same('fr-CA', $secondary['tag']);
+        $t->same('fr-ca', $secondary['normalizedTag']);
+        $t->same('fr', $secondary['primarySubtag']);
+        $t->same('CA', $secondary['regionSubtag']);
+        $t->same(false, $secondary['duplicateTag']);
+        $t->same('2', $secondary['displaySeq']);
+        $t->same(2, $secondary['displaySeqNumber']);
+
+        $invalid = $languageDetails[3];
+        $t->same('review language', $invalid['tag']);
+        $t->same(false, $invalid['wellFormed']);
+        $t->same('invalid-language-tag', $invalid['diagnostics'][0]['type']);
+
+        $t->same(true, $languageSummary['present']);
+        $t->same(4, $languageSummary['count']);
+        $t->same('en-US', $languageSummary['primaryLanguage']);
+        $t->same(2, $languageSummary['uniqueTagCount']);
+        $t->same(['en-us', 'fr-ca'], $languageSummary['normalizedTags']);
+        $t->same(2, $languageSummary['primarySubtagCount']);
+        $t->same(['en', 'fr'], $languageSummary['primarySubtags']);
+        $t->same(['US', 'CA'], $languageSummary['regionSubtags']);
+        $t->same(1, $languageSummary['duplicateTagCount']);
+        $t->same(['en-us'], $languageSummary['duplicateTags']);
+        $t->same(1, $languageSummary['invalidTagCount']);
+        $t->same(['duplicate-language-tag', 'duplicate-language-tag', 'invalid-language-tag'], array_column($languageSummary['diagnostics'], 'type'));
+        $t->same([$languageDetails[0], $languageDetails[2]], $metadata['languagesByPrimarySubtag']['en']);
+        $t->same([$languageDetails[1]], $metadata['languagesByPrimarySubtag']['fr']);
+        $t->same($languageDetails, $summary['wordpressImport']['metadataDetails']['languageDetails']);
+        $t->same($metadata['languagesByPrimarySubtag'], $summary['wordpressImport']['metadataDetails']['languagesByPrimarySubtag']);
+        $t->same($languageSummary, $summary['wordpressImport']['metadataDetails']['languageSummary']);
+    },
+
     'summarizes OPF source provenance metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSources = str_replace(
             '<dc:language>en-US</dc:language>',

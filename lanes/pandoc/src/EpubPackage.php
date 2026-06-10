@@ -438,6 +438,9 @@ final class EpubPackage
                     'identifierSummary' => $this->metadata['identifierSummary'] ?? [],
                     'identifierDiagnostics' => $this->metadata['identifierDiagnostics'] ?? [],
                     'identifiersByType' => $this->metadata['identifiersByType'] ?? [],
+                    'languageDetails' => $this->metadata['languageDetails'] ?? [],
+                    'languagesByPrimarySubtag' => $this->metadata['languagesByPrimarySubtag'] ?? [],
+                    'languageSummary' => $this->metadata['languageSummary'] ?? [],
                     'dateDetails' => $this->metadata['dateDetails'] ?? [],
                     'datesByEvent' => $this->metadata['datesByEvent'] ?? [],
                     'dateSummary' => $this->metadata['dateSummary'] ?? [],
@@ -1570,6 +1573,7 @@ final class EpubPackage
         $uniqueIdentifier = self::metadataUniqueIdentifierReport($uniqueIdentifierId, $identifierDetails, $requiresUniqueIdentifier);
         $identifierSummary = self::metadataIdentifierSummary($identifierDetails, $uniqueIdentifier);
         $identifierDiagnostics = array_merge($uniqueIdentifier['diagnostics'], $identifierSummary['diagnostics']);
+        $languageDetails = self::metadataLanguageDetails($dc['language'] ?? []);
         $dateDetails = self::metadataDateDetails($dc['date'] ?? []);
         $sourceDetails = self::metadataSourceDetails($dc['source'] ?? []);
         $bibliographicDetails = self::metadataBibliographicDetails($dc);
@@ -1603,6 +1607,9 @@ final class EpubPackage
             'contributorsByRole' => self::metadataAgentsByRole($contributorDetails),
             'language' => $languages[0] ?? '',
             'languages' => $languages,
+            'languageDetails' => $languageDetails,
+            'languagesByPrimarySubtag' => self::metadataLanguageDetailsByPrimarySubtag($languageDetails),
+            'languageSummary' => self::metadataLanguageSummary($languageDetails),
             'date' => $dateDetails[0]['text'] ?? null,
             'dates' => array_map(static fn (array $entry): string => (string) $entry['text'], $dc['date'] ?? []),
             'dateDetails' => $dateDetails,
@@ -2108,6 +2115,246 @@ final class EpubPackage
             'eventCount' => count($events),
             'events' => array_values($events),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function metadataLanguageDetails(array $entries): array
+    {
+        $details = [];
+        $indexesByTag = [];
+
+        foreach ($entries as $index => $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $text = (string) ($entry['text'] ?? '');
+            $refinements = is_array($entry['refinements'] ?? null) ? $entry['refinements'] : [];
+            $displaySeq = self::firstMetadataRefinementValue($refinements, 'display-seq');
+            $tag = self::metadataLanguageTagReport($text);
+            $detailIndex = count($details);
+
+            $details[] = [
+                'kind' => 'language',
+                'index' => (int) $index,
+                'text' => $text,
+                'tag' => $text,
+                'normalizedTag' => $tag['normalizedTag'],
+                'primarySubtag' => $tag['primarySubtag'],
+                'scriptSubtag' => $tag['scriptSubtag'],
+                'regionSubtag' => $tag['regionSubtag'],
+                'variantSubtags' => $tag['variantSubtags'],
+                'wellFormed' => $tag['wellFormed'],
+                'id' => is_string($entry['id'] ?? null) ? $entry['id'] : null,
+                'scheme' => is_string($entry['scheme'] ?? null) ? $entry['scheme'] : null,
+                'language' => is_string($entry['language'] ?? null) ? $entry['language'] : null,
+                'direction' => is_string($entry['direction'] ?? null) ? $entry['direction'] : null,
+                'displaySeq' => $displaySeq,
+                'displaySeqNumber' => self::metadataDisplaySeqNumber($displaySeq),
+                'duplicateTag' => false,
+                'duplicateIndexes' => [],
+                'linkedResources' => [],
+                'refinements' => $refinements,
+                'diagnostics' => $tag['diagnostics'],
+            ];
+
+            $normalizedTag = $tag['wellFormed'] && is_string($tag['normalizedTag']) ? $tag['normalizedTag'] : '';
+            if ($normalizedTag !== '') {
+                $indexesByTag[$normalizedTag][] = $detailIndex;
+            }
+        }
+
+        foreach ($indexesByTag as $normalizedTag => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            foreach ($indexes as $detailIndex) {
+                $details[$detailIndex]['duplicateTag'] = true;
+                $details[$detailIndex]['duplicateIndexes'] = $indexes;
+                $details[$detailIndex]['diagnostics'][] = [
+                    'type' => 'duplicate-language-tag',
+                    'tag' => $normalizedTag,
+                    'indexes' => $indexes,
+                    'message' => 'EPUB OPF metadata declares the same language tag more than once',
+                ];
+            }
+        }
+
+        return $details;
+    }
+
+    /**
+     * @return array{
+     *     normalizedTag:?string,
+     *     primarySubtag:?string,
+     *     scriptSubtag:?string,
+     *     regionSubtag:?string,
+     *     variantSubtags:list<string>,
+     *     wellFormed:bool,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function metadataLanguageTagReport(string $tag): array
+    {
+        $tag = trim($tag);
+        $normalizedTag = $tag === '' ? null : strtolower($tag);
+
+        if ($tag === '' || preg_match('/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/', $tag) !== 1) {
+            return [
+                'normalizedTag' => $normalizedTag,
+                'primarySubtag' => null,
+                'scriptSubtag' => null,
+                'regionSubtag' => null,
+                'variantSubtags' => [],
+                'wellFormed' => false,
+                'diagnostics' => [[
+                    'type' => 'invalid-language-tag',
+                    'tag' => $tag,
+                    'message' => 'EPUB OPF dc:language metadata should use a bounded BCP47-style language tag',
+                ]],
+            ];
+        }
+
+        $parts = explode('-', $tag);
+        $primary = strtolower((string) array_shift($parts));
+        $script = null;
+        $region = null;
+        $variants = [];
+
+        foreach ($parts as $part) {
+            if ($script === null && preg_match('/^[A-Za-z]{4}$/', $part) === 1) {
+                $script = ucfirst(strtolower($part));
+                continue;
+            }
+
+            if ($region === null && (preg_match('/^[A-Za-z]{2}$/', $part) === 1 || preg_match('/^[0-9]{3}$/', $part) === 1)) {
+                $region = strtoupper($part);
+                continue;
+            }
+
+            $variants[] = strtolower($part);
+        }
+
+        return [
+            'normalizedTag' => $normalizedTag,
+            'primarySubtag' => $primary,
+            'scriptSubtag' => $script,
+            'regionSubtag' => $region,
+            'variantSubtags' => $variants,
+            'wellFormed' => true,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function metadataLanguageDetailsByPrimarySubtag(array $details): array
+    {
+        $byPrimarySubtag = [];
+        foreach ($details as $detail) {
+            if (!is_array($detail) || ($detail['wellFormed'] ?? false) !== true) {
+                continue;
+            }
+
+            $primarySubtag = is_string($detail['primarySubtag'] ?? null) ? $detail['primarySubtag'] : '';
+            if ($primarySubtag === '') {
+                continue;
+            }
+
+            $byPrimarySubtag[$primarySubtag][] = $detail;
+        }
+
+        return $byPrimarySubtag;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $details
+     *
+     * @return array<string, mixed>
+     */
+    private static function metadataLanguageSummary(array $details): array
+    {
+        $normalizedTags = [];
+        $primarySubtags = [];
+        $regionSubtags = [];
+        $duplicateTags = [];
+        $invalidTagCount = 0;
+        $diagnostics = [];
+
+        foreach ($details as $detail) {
+            if (!is_array($detail)) {
+                continue;
+            }
+
+            $wellFormed = ($detail['wellFormed'] ?? false) === true;
+            $normalizedTag = is_string($detail['normalizedTag'] ?? null) ? $detail['normalizedTag'] : '';
+            if ($wellFormed && $normalizedTag !== '') {
+                $normalizedTags[$normalizedTag] = $normalizedTag;
+            }
+
+            $primarySubtag = is_string($detail['primarySubtag'] ?? null) ? $detail['primarySubtag'] : '';
+            if ($wellFormed && $primarySubtag !== '') {
+                $primarySubtags[$primarySubtag] = $primarySubtag;
+            }
+
+            $regionSubtag = is_string($detail['regionSubtag'] ?? null) ? $detail['regionSubtag'] : '';
+            if ($wellFormed && $regionSubtag !== '') {
+                $regionSubtags[$regionSubtag] = $regionSubtag;
+            }
+
+            if (($detail['duplicateTag'] ?? false) === true && $normalizedTag !== '') {
+                $duplicateTags[$normalizedTag] = $normalizedTag;
+            }
+            if (!$wellFormed) {
+                ++$invalidTagCount;
+            }
+
+            foreach (($detail['diagnostics'] ?? []) as $diagnostic) {
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = [
+                        'index' => is_int($detail['index'] ?? null) ? $detail['index'] : null,
+                        'id' => is_string($detail['id'] ?? null) ? $detail['id'] : null,
+                    ] + $diagnostic;
+                }
+            }
+        }
+
+        return [
+            'present' => $details !== [],
+            'count' => count($details),
+            'primaryLanguage' => is_string($details[0]['tag'] ?? null) ? $details[0]['tag'] : null,
+            'uniqueTagCount' => count($normalizedTags),
+            'normalizedTags' => array_values($normalizedTags),
+            'primarySubtagCount' => count($primarySubtags),
+            'primarySubtags' => array_values($primarySubtags),
+            'regionSubtagCount' => count($regionSubtags),
+            'regionSubtags' => array_values($regionSubtags),
+            'duplicateTagCount' => count($duplicateTags),
+            'duplicateTags' => array_values($duplicateTags),
+            'invalidTagCount' => $invalidTagCount,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private static function metadataDisplaySeqNumber(?string $displaySeq): ?int
+    {
+        if ($displaySeq === null || $displaySeq === '') {
+            return null;
+        }
+
+        if (preg_match('/^[1-9][0-9]*$/', $displaySeq) !== 1) {
+            return null;
+        }
+
+        return (int) $displaySeq;
     }
 
     /**
