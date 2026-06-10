@@ -156,6 +156,7 @@ final class NativeReader
             'DefinitionList' => $this->definitionList($attrs, $block['c'] ?? []),
             'LineBlock' => $this->lineBlock($attrs, $block['c'] ?? []),
             'HorizontalRule' => new AstNode('horizontal_rule', $attrs),
+            'Null' => new AstNode('null_block', $attrs),
             'Div' => $this->divBlock($attrs, $block['c'] ?? []),
             'Figure' => $this->figureBlock($attrs, $block['c'] ?? []),
             'Table' => $this->tableBlock($attrs, $block['c'] ?? []),

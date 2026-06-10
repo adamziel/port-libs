@@ -308,6 +308,7 @@ final class PandocJsonWriter
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItems($node->children)],
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
+            'null_block' => ['t' => 'Null'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),

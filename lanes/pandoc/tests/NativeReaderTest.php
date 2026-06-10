@@ -9,6 +9,8 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -656,6 +658,62 @@ return [
         $t->same('Generated block', $generatedRoundTrip->children[0]->attr('text'));
         $t->same('definition_list', $generatedRoundTrip->children[5]->type);
         $t->same('Fallback line', $generatedRoundTrip->children[6]->children[1]->attr('text'));
+    },
+    'maps pandoc null block constructors through native and json ast' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                ]],
+                ['t' => 'Null'],
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'After'],
+                ]],
+            ],
+        ];
+
+        $nativeReader = new NativeReader();
+        $nativeWriter = new NativeWriter();
+        $document = $nativeReader->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $roundTrip = json_decode($nativeWriter->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $generatedNative = json_decode($nativeWriter->write(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('null_block'),
+        ])), true, 512, JSON_THROW_ON_ERROR);
+
+        $jsonReader = new PandocJsonReader();
+        $jsonWriter = new PandocJsonWriter();
+        $jsonDocument = $jsonReader->readPacket($native);
+        $jsonPacket = $jsonWriter->toArray($jsonDocument);
+        $generatedJson = $jsonWriter->toArray(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Visible'])]),
+            new AstNode('null_block'),
+        ]));
+
+        $wordpress = (new WordPressBlockWriter())->write($document);
+        $markdown = (new MarkdownWriter())->write($document);
+        $latex = (new LatexWriter())->write($document);
+
+        $t->same(['paragraph', 'null_block', 'plain'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('Null', $document->children[1]->attr('constructor'));
+        $t->same(['t' => 'Null'], $document->children[1]->attr('native'));
+        $t->same([], $document->children[1]->children);
+        $t->same($native['blocks'], $roundTrip['blocks']);
+        $t->same('Null', $generatedNative['blocks'][0]['t']);
+        $t->same('null_block', $jsonDocument->children[1]->type);
+        $t->same('Null', $jsonPacket['blocks'][1]['t']);
+        $t->same(['Para', 'Null'], array_map(static fn (array $block): string => $block['t'], $generatedJson['blocks']));
+        $t->contains('Before', $wordpress);
+        $t->contains('After', $wordpress);
+        $t->same(false, str_contains($wordpress, 'Null'));
+        $t->same("Before\n\nAfter", $markdown);
+        $t->same("Before\n\nAfter", $latex);
     },
     'maps native ast figure constructors through shared figure ast' => static function (TestRunner $t): void {
         $nativeFigure = [
