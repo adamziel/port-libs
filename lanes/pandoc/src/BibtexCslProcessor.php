@@ -245,6 +245,21 @@ final class BibtexCslProcessor
         if (($item['DOI'] ?? '') !== '') {
             $parts[] = 'doi:' . (string) $item['DOI'];
         }
+        foreach ([
+            'PMID' => 'PMID',
+            'PMCID' => 'PMCID',
+            'MRNumber' => 'MR',
+            'MRClass' => 'MR class',
+            'Zbl' => 'Zbl',
+            'JSTOR' => 'JSTOR',
+            'HDL' => 'HDL',
+            'LCCN' => 'LCCN',
+            'OCLC' => 'OCLC',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ' ' . (string) $item[$field];
+            }
+        }
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
         }
@@ -431,6 +446,15 @@ final class BibtexCslProcessor
             'medium' => ['howpublished', 'medium'],
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
+            'PMID' => ['pmid'],
+            'PMCID' => ['pmcid'],
+            'MRNumber' => ['mrnumber', 'mr-number', 'mr'],
+            'MRClass' => ['mrclass', 'mr-class'],
+            'Zbl' => ['zbl', 'zbmath'],
+            'JSTOR' => ['jstor'],
+            'HDL' => ['hdl', 'handle'],
+            'LCCN' => ['lccn'],
+            'OCLC' => ['oclc'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location'],

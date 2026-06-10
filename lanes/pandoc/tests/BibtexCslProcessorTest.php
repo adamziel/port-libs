@@ -91,6 +91,44 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries medical and registry identifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{identifier-review,
+  author       = {Smith, Ada},
+  title        = {Identifier Packet},
+  journaltitle = {Registry Journal},
+  year         = {2026},
+  doi          = {10.5555/legacy-id},
+  pmid         = {12345678},
+  pmcid        = {PMC1234567},
+  mrnumber     = {MR1234567},
+  mrclass      = {13A50},
+  zbl          = {1234.56789},
+  jstor        = {10.2307/9999999},
+  hdl          = {20.500/source},
+  lccn         = {2026123456},
+  oclc         = {987654321},
+  url          = {https://example.test/identifier}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['identifier-review'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('12345678', $item['PMID']);
+        $t->same('PMC1234567', $item['PMCID']);
+        $t->same('MR1234567', $item['MRNumber']);
+        $t->same('13A50', $item['MRClass']);
+        $t->same('1234.56789', $item['Zbl']);
+        $t->same('10.2307/9999999', $item['JSTOR']);
+        $t->same('20.500/source', $item['HDL']);
+        $t->same('2026123456', $item['LCCN']);
+        $t->same('987654321', $item['OCLC']);
+        $t->same(
+            'Ada Smith. Identifier Packet. Registry Journal. 2026. doi:10.5555/legacy-id. PMID 12345678. PMCID PMC1234567. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999. HDL 20.500/source. LCCN 2026123456. OCLC 987654321. https://example.test/identifier.',
+            $bibliography
+        );
+    },
     'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @software{tool,
