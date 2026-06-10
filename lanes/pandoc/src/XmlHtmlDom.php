@@ -797,13 +797,24 @@ final class XmlHtmlDom
             $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
             $summary['formControl'] = 'output';
             $summary['labels'] = self::formControlLabels($node);
-            $summary['value'] = $node->textContent;
+            $summary['value'] = self::normalizedText($node);
             $summary['forRaw'] = $forRaw;
             $summary['forIds'] = $forRaw === null ? [] : self::spaceSeparatedTokens($forRaw);
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+            if ($forRaw !== null) {
+                $summary['forTargets'] = self::outputForTargets($forRaw);
+            }
         }
         if ($name === 'datalist') {
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
+        }
+        if ($name === 'details') {
+            $summary['disclosureState'] = $node->hasAttribute('open') ? 'open' : 'closed';
+            $summary['summaryText'] = self::detailsSummaryText($node);
+        }
+        if ($name === 'dialog') {
+            $summary['dialogState'] = $node->hasAttribute('open') ? 'open' : 'closed';
         }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
@@ -1006,6 +1017,17 @@ final class XmlHtmlDom
         return $text;
     }
 
+    private static function detailsSummaryText(\DOMElement $details): ?string
+    {
+        foreach ($details->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === 'summary') {
+                return self::normalizedText($child);
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @return list<string>
      */
@@ -1017,6 +1039,22 @@ final class XmlHtmlDom
         }
 
         return preg_split('/\s+/', $value) ?: [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function outputForTargets(string $value): array
+    {
+        $targets = [];
+        foreach (preg_split('/[\t\r\n\f ]+/', trim($value)) ?: [] as $target) {
+            if ($target === '' || in_array($target, $targets, true)) {
+                continue;
+            }
+            $targets[] = $target;
+        }
+
+        return $targets;
     }
 
     private static function numericAttribute(\DOMElement $element, string $name, ?float $default): ?float

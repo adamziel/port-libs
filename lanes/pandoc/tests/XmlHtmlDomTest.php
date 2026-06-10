@@ -420,6 +420,54 @@ XML, 'package reader XML');
         $t->same('Audio fallback', $audio['fallbackText']);
         $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus" src="sample.mp3"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
     },
+    'summarizes html output associations and inherited disabled state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="calc"><label for="total">Total</label><input id="a" value="2"><input id="b" value="3"><output id="total" name="result" for=" a b a missing " form="calc"><strong>5</strong> units</output><fieldset disabled><legend>Live <output id="legend-output" for="a">enabled</output></legend><output id="disabled-output" for="b">disabled</output></fieldset></form>',
+            'output review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $total = $form['children'][3];
+        $fieldset = $form['children'][4];
+        $legendOutput = $fieldset['children'][0]['children'][1];
+        $disabledOutput = $fieldset['children'][1];
+
+        $t->same('output', $total['formControl']);
+        $t->same(['Total'], $total['labels']);
+        $t->same('5 units', $total['value']);
+        $t->same(['a', 'b', 'missing'], $total['forTargets']);
+        $t->same(false, $total['effectiveDisabled']);
+        $t->same('output', $legendOutput['formControl']);
+        $t->same('enabled', $legendOutput['value']);
+        $t->same(['a'], $legendOutput['forTargets']);
+        $t->same(false, $legendOutput['effectiveDisabled']);
+        $t->same('output', $disabledOutput['formControl']);
+        $t->same('disabled', $disabledOutput['value']);
+        $t->same(['b'], $disabledOutput['forTargets']);
+        $t->same(true, $disabledOutput['effectiveDisabled']);
+        $t->same('<form id="calc"><label for="total">Total</label><input id="a" value="2"><input id="b" value="3"><output for=" a b a missing " form="calc" id="total" name="result"><strong>5</strong> units</output><fieldset disabled><legend>Live <output for="a" id="legend-output">enabled</output></legend><output for="b" id="disabled-output">disabled</output></fieldset></form>', $html);
+    },
+    'summarizes html details and dialog state for reader handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<details><summary>Closed <strong>notes</strong></summary><p>Hidden packet</p></details><details open><p>No summary</p></details><dialog open><h2>Open dialog</h2></dialog><dialog><p>Closed dialog</p></dialog>',
+            'details dialog review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same('closed', $summary[0]['disclosureState']);
+        $t->same('Closed notes', $summary[0]['summaryText']);
+        $t->same('summary', $summary[0]['children'][0]['name']);
+        $t->same('open', $summary[1]['disclosureState']);
+        $t->same(null, $summary[1]['summaryText']);
+        $t->same('open', $summary[2]['dialogState']);
+        $t->same('Open dialog', $summary[2]['text']);
+        $t->same('closed', $summary[3]['dialogState']);
+        $t->same('Closed dialog', $summary[3]['text']);
+        $t->same('<details><summary>Closed <strong>notes</strong></summary><p>Hidden packet</p></details><details open><p>No summary</p></details><dialog open><h2>Open dialog</h2></dialog><dialog><p>Closed dialog</p></dialog>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();
