@@ -9,6 +9,7 @@ use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -62,6 +63,71 @@ return [
         $t->same($native['meta'], $roundTrip['meta']);
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
+    },
+    'writes shared metadata as pandoc native meta constructors' => static function (TestRunner $t): void {
+        $document = (new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Native'],
+                    ['t' => 'Space'],
+                    ['t' => 'Strong', 'c' => [
+                        ['t' => 'Str', 'c' => 'metadata'],
+                    ]],
+                ]],
+                'author' => ['t' => 'MetaList', 'c' => [
+                    ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Data'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'Team'],
+                    ]],
+                    ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Reviewer'],
+                    ]],
+                ]],
+                'date' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => '2026-06-10'],
+                ]],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'json-native-metadata'],
+                    'flags' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'shared'],
+                        ['t' => 'MetaBool', 'c' => true],
+                    ]],
+                ]],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'packet'],
+                ]],
+            ],
+        ]);
+
+        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $meta = $native['meta'];
+
+        $t->same('MetaInlines', $meta['title']['t']);
+        $t->same('Strong', $meta['title']['c'][2]['t']);
+        $t->same('metadata', $meta['title']['c'][2]['c'][0]['c']);
+        $t->same('MetaList', $meta['author']['t']);
+        $t->same('Data', $meta['author']['c'][0]['c'][0]['c']);
+        $t->same('Reviewer', $meta['author']['c'][1]['c'][0]['c']);
+        $t->same('MetaInlines', $meta['date']['t']);
+        $t->same('2026-06-10', $meta['date']['c'][0]['c']);
+        $t->same('MetaBool', $meta['draft']['t']);
+        $t->same(false, $meta['draft']['c']);
+        $t->same('MetaMap', $meta['review']['t']);
+        $t->same('json-native-metadata', $meta['review']['c']['source']['c']);
+        $t->same('MetaList', $meta['review']['c']['flags']['t']);
+        $t->same(false, array_key_exists('titleInlines', $meta));
+        $t->same(false, array_key_exists('authorInlines', $meta));
+        $t->same(false, array_key_exists('dateInlines', $meta));
+        $t->same('paragraph', $roundTrip->children[0]->type);
+        $t->same('Native', $roundTrip->attr('meta')['title']['c'][0]['c']);
     },
     'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
         $legacy = [
