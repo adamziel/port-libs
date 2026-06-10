@@ -2352,6 +2352,81 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
     },
 
+    'preflights zip creator version provenance before package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>creator version provenance</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x030a,
+            ],
+            [
+                'name' => 'word/media/stored.txt',
+                'data' => "stored media remains zip 1.0 compatible\n",
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+                'versionMadeBy' => 0x000a,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->creatorHostSystemPreflight();
+        $rawSummary = ZipPackage::creatorHostSystemPolicyPreflight($zip);
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['knownHostSystemEntryCount']);
+        $t->same(0, $summary['unknownHostSystemEntryCount']);
+        $t->same(1, $summary['creatorVersionBelowNeededEntryCount']);
+        $t->same('word/document.xml', $summary['creatorVersionBelowNeededEntries'][0]['name']);
+        $t->same(10, $summary['creatorVersionBelowNeededEntries'][0]['madeByVersion']);
+        $t->same(20, $summary['creatorVersionBelowNeededEntries'][0]['versionNeededToExtract']);
+        $t->same(false, $summary['creatorVersionBelowNeededEntries'][0]['creatorVersionMeetsNeeded']);
+        $t->same(['creator-version-below-version-needed'], $summary['creatorVersionBelowNeededEntries'][0]['issues']);
+        $t->same(true, $summary['entries'][1]['creatorVersionMeetsNeeded']);
+        $t->same([], $summary['entries'][1]['issues']);
+
+        $t->same(1, $rawSummary['creatorVersionBelowNeededEntryCount']);
+        $t->same(1, $rawSummary['blockedEntryCount']);
+        $t->same(false, $rawSummary['isSupportedByBoundedReader']);
+        $t->same(['creator-version-below-version-needed'], $rawSummary['issues']);
+        $t->same('blocked', $rawSummary['creatorVersionBelowNeededEntries'][0]['policy']);
+        $t->same(['zip-creator-version-below-version-needed'], $rawSummary['creatorVersionBelowNeededEntries'][0]['diagnostics']);
+
+        $t->same(false, $strict['isValid']);
+        $t->same(['creator-version-below-version-needed'], $strict['diagnostics']);
+        $t->same($summary, $strict['creatorHostSystems']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same($rawSummary, $rawStrict['creatorHostSystems']);
+        $t->same(['creator-version-below-version-needed'], $rawStrict['strictImport']['diagnostics']);
+        $t->contains('creator-version-below-version-needed', implode(',', $rawStrict['diagnostics']));
+        $t->same('<w:document><w:p>creator version provenance</w:p></w:document>', $package->read('word/document.xml'));
+
+        $safeZip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>creator version accepted</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x0314,
+            ],
+            [
+                'name' => 'word/media/stored.txt',
+                'data' => "stored media compatible creator version\n",
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+                'versionMadeBy' => 0x000a,
+            ],
+        ]);
+        $safeRaw = ZipPackage::rawStrictImportPreflight($safeZip, 4096, 100.0, 4096);
+
+        $t->same(true, $safeRaw['isValid']);
+        $t->same(0, $safeRaw['creatorHostSystems']['creatorVersionBelowNeededEntryCount']);
+        $t->same([], $safeRaw['diagnostics']);
+    },
+
     'preflights zip DOS hidden system and volume label attributes before media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $package = ZipPackage::fromString($buildZipPackage([
             [
