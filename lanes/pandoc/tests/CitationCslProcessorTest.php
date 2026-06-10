@@ -5269,14 +5269,14 @@ XML);
   date         = {2026},
   doi          = {10.5555/pubmed},
   pmid         = {12345678},
-  pmcid        = {PMC1234567}
+  pmc          = {PMC1234567}
 }
 
 @online{clinical-note,
   author = {{Migration Clinic}},
   title  = {Clinical Import Note},
   date   = {2025},
-  pmcid  = {PMC7654321},
+  pubmedcentral = {PMC7654321},
   url    = {https://example.test/clinical-note}
 }
 BIB;
@@ -5286,6 +5286,8 @@ BIB;
         $t->same('12345678', $items[0]['PMID'] ?? null);
         $t->same('PMC1234567', $items[0]['PMCID'] ?? null);
         $t->same('PMC7654321', $items[1]['PMCID'] ?? null);
+        $t->same('PMC1234567', $items[0]['rawBibtex']['fields']['pmc'] ?? null);
+        $t->same('PMC7654321', $items[1]['rawBibtex']['fields']['pubmedcentral'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $article = $processor->item('pubmed-article');
@@ -5308,7 +5310,7 @@ BIB;
       <group delimiter=" | ">
         <names variable="author"/>
         <text variable="PMID"/>
-        <text variable="PMCID"/>
+        <text variable="PMC"/>
       </group>
     </layout>
   </citation>
@@ -5316,7 +5318,7 @@ BIB;
     <layout delimiter=" :: ">
       <text variable="title"/>
       <text variable="PMID"/>
-      <text variable="PMCID"/>
+      <text variable="pubmedcentral"/>
     </layout>
   </bibliography>
 </style>
@@ -5332,7 +5334,7 @@ XML);
             'id' => 'manual-pubmed',
             'title' => 'Manual PubMed Packet',
             'PMID' => '87654321',
-            'PMCID' => 'PMC8765432',
+            'PMC' => 'PMC8765432',
         ]]);
         $t->same('87654321', $manual->item('manual-pubmed')['pmid'] ?? null);
         $t->same('PMC8765432', $manual->item('manual-pubmed')['pmcid'] ?? null);

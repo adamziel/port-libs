@@ -795,7 +795,7 @@ final class BibtexCslParser
             'ISRN' => self::firstField($fields, ['isrn']),
             'ISWC' => self::firstField($fields, ['iswc']),
             'PMID' => self::firstField($fields, ['pmid']),
-            'PMCID' => self::firstField($fields, ['pmcid']),
+            'PMCID' => self::firstField($fields, ['pmcid', 'pmc', 'pubmedcentral', 'pubmed-central', 'pubmed_central']),
             'MRNumber' => self::firstField($fields, ['mrnumber', 'mr-number', 'mr']),
             'MRClass' => self::firstField($fields, ['mrclass', 'mr-class']),
             'Zbl' => self::firstField($fields, ['zbl', 'zbmath']),
