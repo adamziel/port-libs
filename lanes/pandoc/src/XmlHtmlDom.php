@@ -732,6 +732,8 @@ final class XmlHtmlDom
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
+            $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['selectOptions'] = $options;
             $summary['selectedValues'] = array_values(array_map(
                 static fn (array $option): string => (string) $option['value'],
@@ -744,11 +746,17 @@ final class XmlHtmlDom
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+            $datalistOptions = self::inputDatalistOptions($node);
+            if ($datalistOptions !== []) {
+                $summary['datalistOptions'] = $datalistOptions;
+            }
         }
         if ($name === 'textarea') {
             $summary['formControl'] = 'textarea';
             $summary['value'] = $node->textContent;
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['readonly'] = $node->hasAttribute('readonly');
         }
         if ($name === 'button') {
@@ -757,6 +765,26 @@ final class XmlHtmlDom
             $summary['value'] = $node->getAttribute('value');
             $summary['label'] = self::normalizedText($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
+            $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+        }
+        if (isset($summary['formControl'])) {
+            self::addFormContextSummary($summary, $node);
+        }
+        if ($name === 'label') {
+            $summary['formLabel'] = true;
+            $summary['label'] = self::normalizedText($node);
+            if ($node->hasAttribute('for')) {
+                $summary['labelFor'] = $node->getAttribute('for');
+            }
+        }
+        if ($name === 'fieldset') {
+            $summary['formGroup'] = 'fieldset';
+            $summary['legend'] = self::fieldsetLegend($node);
+            $summary['disabled'] = $node->hasAttribute('disabled');
+        }
+        if ($name === 'datalist') {
+            $summary['formSuggestions'] = 'datalist';
+            $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
 
         return [$summary];
@@ -774,6 +802,227 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     */
+    private static function addFormContextSummary(array &$summary, \DOMElement $control): void
+    {
+        $labels = self::formControlLabels($control);
+        if ($labels !== []) {
+            $summary['labels'] = $labels;
+        }
+
+        $formOwner = self::formOwnerSummary($control);
+        if ($formOwner !== []) {
+            $summary['formOwner'] = $formOwner;
+        }
+
+        $fieldset = self::nearestFieldsetSummary($control);
+        if ($fieldset !== []) {
+            $summary['fieldset'] = $fieldset;
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function formControlLabels(\DOMElement $control): array
+    {
+        $labels = [];
+        $id = trim($control->getAttribute('id'));
+        $document = $control->ownerDocument;
+        if ($id !== '' && $document instanceof \DOMDocument) {
+            foreach ($document->getElementsByTagName('label') as $label) {
+                if (!$label instanceof \DOMElement || $label->getAttribute('for') !== $id) {
+                    continue;
+                }
+
+                self::appendUniqueLabel($labels, self::normalizedText($label));
+            }
+        }
+
+        for ($node = $control->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (strtolower(self::htmlElementName($node)) !== 'label') {
+                continue;
+            }
+
+            $for = trim($node->getAttribute('for'));
+            if ($for !== '' && $for !== $id) {
+                continue;
+            }
+
+            self::appendUniqueLabel($labels, self::normalizedText($node));
+        }
+
+        return $labels;
+    }
+
+    /**
+     * @param list<string> $labels
+     */
+    private static function appendUniqueLabel(array &$labels, string $label): void
+    {
+        if ($label === '' || in_array($label, $labels, true)) {
+            return;
+        }
+
+        $labels[] = $label;
+    }
+
+    /**
+     * @return array{id?:string, name?:string, action?:string, method?:string}
+     */
+    private static function formOwnerSummary(\DOMElement $control): array
+    {
+        $form = self::formOwner($control);
+        if (!$form instanceof \DOMElement) {
+            return [];
+        }
+
+        $summary = [];
+        foreach (['id', 'name', 'action', 'method'] as $attribute) {
+            if (!$form->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $value = trim($form->getAttribute($attribute));
+            if ($value !== '') {
+                $summary[$attribute] = $attribute === 'method' ? strtolower($value) : $value;
+            }
+        }
+
+        return $summary;
+    }
+
+    private static function formOwner(\DOMElement $control): ?\DOMElement
+    {
+        $formId = trim($control->getAttribute('form'));
+        $document = $control->ownerDocument;
+        if ($formId !== '' && $document instanceof \DOMDocument) {
+            foreach ($document->getElementsByTagName('form') as $form) {
+                if ($form instanceof \DOMElement && $form->getAttribute('id') === $formId) {
+                    return $form;
+                }
+            }
+        }
+
+        for ($node = $control->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (strtolower(self::htmlElementName($node)) === 'form') {
+                return $node;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{legend:string, disabled:bool}|array{}
+     */
+    private static function nearestFieldsetSummary(\DOMElement $control): array
+    {
+        for ($node = $control->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (strtolower(self::htmlElementName($node)) !== 'fieldset') {
+                continue;
+            }
+
+            return [
+                'legend' => self::fieldsetLegend($node),
+                'disabled' => $node->hasAttribute('disabled'),
+            ];
+        }
+
+        return [];
+    }
+
+    private static function fieldsetLegend(\DOMElement $fieldset): string
+    {
+        $legend = self::firstLegendElement($fieldset);
+
+        return $legend instanceof \DOMElement ? self::normalizedText($legend) : '';
+    }
+
+    private static function isEffectivelyDisabledFormControl(\DOMElement $control): bool
+    {
+        if ($control->hasAttribute('disabled')) {
+            return true;
+        }
+
+        for ($node = $control->parentNode; $node instanceof \DOMElement; $node = $node->parentNode) {
+            if (strtolower(self::htmlElementName($node)) === 'fieldset' && $node->hasAttribute('disabled')) {
+                $legend = self::firstLegendElement($node);
+                if ($legend instanceof \DOMElement && self::isDescendantOf($control, $legend)) {
+                    continue;
+                }
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<array{value:string, label:string, text:string, disabled:bool}>
+     */
+    private static function inputDatalistOptions(\DOMElement $input): array
+    {
+        $listId = trim($input->getAttribute('list'));
+        $document = $input->ownerDocument;
+        if ($listId === '' || !$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        foreach ($document->getElementsByTagName('datalist') as $datalist) {
+            if ($datalist instanceof \DOMElement && $datalist->getAttribute('id') === $listId) {
+                return self::datalistOptionSummaries($datalist);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array{value:string, label:string, text:string, disabled:bool}>
+     */
+    private static function datalistOptionSummaries(\DOMElement $datalist): array
+    {
+        $options = [];
+        foreach (self::descendantElements($datalist, 'option') as $option) {
+            $text = self::normalizedText($option);
+            $value = $option->hasAttribute('value') ? $option->getAttribute('value') : $text;
+            $options[] = [
+                'value' => $value,
+                'label' => $option->hasAttribute('label') ? $option->getAttribute('label') : ($text !== '' ? $text : $value),
+                'text' => $text,
+                'disabled' => $option->hasAttribute('disabled'),
+            ];
+        }
+
+        return $options;
+    }
+
+    private static function firstLegendElement(\DOMElement $fieldset): ?\DOMElement
+    {
+        foreach ($fieldset->childNodes as $child) {
+            if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === 'legend') {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isDescendantOf(\DOMNode $node, \DOMElement $ancestor): bool
+    {
+        for ($parent = $node->parentNode; $parent instanceof \DOMNode; $parent = $parent->parentNode) {
+            if ($parent === $ancestor) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function serializeNode(\DOMNode $node): string

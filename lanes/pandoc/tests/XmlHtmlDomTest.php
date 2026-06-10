@@ -246,6 +246,63 @@ XML, 'package reader XML');
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
+    'summarizes html labels fieldsets forms and datalist suggestions for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="review-form" name="Review Packet" method="POST" action="/imports/review"></form>'
+                . '<fieldset disabled><legend>Batch 52</legend><label for="reviewer">Reviewer</label><input id="reviewer" name="reviewer" list="reviewers" form="review-form">'
+                . '<label><input type="checkbox" name="media"> Preserve media</label></fieldset>'
+                . '<datalist id="reviewers"><option value="Ada" label="Ada Lovelace"></option><option value="Grace">Grace Hopper</option><option disabled>Manual follow-up</option></datalist>',
+            'form metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $fieldset = $summary[1];
+        $explicitLabel = $fieldset['children'][1];
+        $textInput = $fieldset['children'][2];
+        $implicitLabel = $fieldset['children'][3];
+        $checkbox = $implicitLabel['children'][0];
+        $datalist = $summary[2];
+        $expectedOptions = [
+            ['value' => 'Ada', 'label' => 'Ada Lovelace', 'text' => '', 'disabled' => false],
+            ['value' => 'Grace', 'label' => 'Grace Hopper', 'text' => 'Grace Hopper', 'disabled' => false],
+            ['value' => 'Manual follow-up', 'label' => 'Manual follow-up', 'text' => 'Manual follow-up', 'disabled' => true],
+        ];
+
+        $t->same('form', $form['name']);
+        $t->same(['action' => '/imports/review', 'id' => 'review-form', 'method' => 'POST', 'name' => 'Review Packet'], $form['attributes']);
+        $t->same('fieldset', $fieldset['name']);
+        $t->same('fieldset', $fieldset['formGroup']);
+        $t->same('Batch 52', $fieldset['legend']);
+        $t->same(true, $fieldset['disabled']);
+        $t->same('label', $explicitLabel['name']);
+        $t->same(true, $explicitLabel['formLabel']);
+        $t->same('Reviewer', $explicitLabel['label']);
+        $t->same('reviewer', $explicitLabel['labelFor']);
+        $t->same('input', $textInput['formControl']);
+        $t->same(['Reviewer'], $textInput['labels']);
+        $t->same([
+            'id' => 'review-form',
+            'name' => 'Review Packet',
+            'action' => '/imports/review',
+            'method' => 'post',
+        ], $textInput['formOwner']);
+        $t->same(['legend' => 'Batch 52', 'disabled' => true], $textInput['fieldset']);
+        $t->same(false, $textInput['disabled']);
+        $t->same(true, $textInput['effectiveDisabled']);
+        $t->same($expectedOptions, $textInput['datalistOptions']);
+        $t->same('label', $implicitLabel['name']);
+        $t->same(true, $implicitLabel['formLabel']);
+        $t->same('Preserve media', $implicitLabel['label']);
+        $t->same('input', $checkbox['formControl']);
+        $t->same(['Preserve media'], $checkbox['labels']);
+        $t->same(true, $checkbox['effectiveDisabled']);
+        $t->same('datalist', $datalist['name']);
+        $t->same('datalist', $datalist['formSuggestions']);
+        $t->same($expectedOptions, $datalist['datalistOptions']);
+        $t->same('<form action="/imports/review" id="review-form" method="POST" name="Review Packet"></form><fieldset disabled><legend>Batch 52</legend><label for="reviewer">Reviewer</label><input form="review-form" id="reviewer" list="reviewers" name="reviewer"><label><input name="media" type="checkbox"> Preserve media</label></fieldset><datalist id="reviewers"><option label="Ada Lovelace" value="Ada"></option><option value="Grace">Grace Hopper</option><option disabled>Manual follow-up</option></datalist>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();
