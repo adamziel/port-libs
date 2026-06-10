@@ -875,6 +875,9 @@ final class XmlHtmlDom
     private static function mediaSourceSummaries(\DOMElement $media): array
     {
         $sources = [];
+        if ($media->hasAttribute('src')) {
+            $sources[] = ['src' => $media->getAttribute('src')];
+        }
         foreach (self::mediaResourceElements($media, 'source') as $source) {
             $summary = [];
             foreach (['src', 'type', 'media', 'srcset', 'sizes'] as $attribute) {
