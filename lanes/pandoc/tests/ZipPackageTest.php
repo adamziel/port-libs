@@ -5480,6 +5480,67 @@ return [
         $t->same(['package-or-entry-comments'], $safeCommentPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']);
     },
 
+    'preflights raw zip comments before duplicate offset package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>raw comment preflight</w:p></w:document>',
+                'method' => 8,
+                'comment' => "entry\x7fcomment",
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "review media bytes\n",
+                'method' => 0,
+                'comment' => "review\u{202e}media",
+                'centralLocalHeaderOffset' => 0,
+            ],
+        ], "source\0package");
+
+        $summary = ZipPackage::rawCommentPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(2, $summary['entryCount']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same("source\0package", $summary['packageComment']);
+        $t->same([6], $summary['packageCommentControlByteOffsets']);
+        $t->same(['package-comment-control-bytes'], $summary['packageCommentIssues']);
+        $t->same(2, $summary['entryCommentCount']);
+        $t->same(['word/document.xml', 'word/media/review.png'], $summary['commentedEntryNames']);
+        $t->same(true, $summary['hasCommentControlBytes']);
+        $t->same(true, $summary['hasCommentUnicodeFormatControls']);
+        $t->same(true, $summary['hasCommentBidiControls']);
+        $t->same(['package-or-entry-comments', 'comment-control-bytes', 'comment-unicode-format-controls', 'comment-bidi-format-controls'], $summary['issues']);
+
+        $t->same(1, $summary['commentControlByteEntryCount']);
+        $t->same('word/document.xml', $summary['commentControlByteEntries'][0]['name']);
+        $t->same("entry\x7fcomment", $summary['commentControlByteEntries'][0]['comment']);
+        $t->same([5], $summary['commentControlByteEntries'][0]['commentControlByteOffsets']);
+        $t->same(['entry-comment-control-bytes'], $summary['commentControlByteEntries'][0]['issues']);
+
+        $t->same(1, $summary['commentBidiControlEntryCount']);
+        $t->same('word/media/review.png', $summary['commentBidiControlEntries'][0]['name']);
+        $t->same("review\u{202e}media", $summary['commentBidiControlEntries'][0]['comment']);
+        $t->same(['right-to-left-override'], $summary['commentBidiControlEntries'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $summary['commentBidiControlEntries'][0]['bidiControlNames']);
+        $t->same([
+            'entry-comment-unicode-format-control',
+            'entry-comment-bidi-format-control',
+        ], $summary['commentBidiControlEntries'][0]['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($summary, $rawStrict['rawComments']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+        $t->contains('comment-control-bytes', implode(',', $rawStrict['diagnostics']));
+        $t->contains('comment-bidi-format-controls', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-directory-duplicate-local-header-offsets', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'preflights zip comment unicode format controls before strict package import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $package = ZipPackage::fromString($buildZipPackage([
             [
