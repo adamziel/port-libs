@@ -146,6 +146,30 @@ XML, 'package reader XML');
         $t->true(!str_contains($html, '&amp;ThickSpace;'), 'Expected ThickSpace to decode before raw HTML handoff');
         $t->true(!str_contains($html, '&amp;NegativeMediumSpace;'), 'Expected negative spacing aliases to decode before raw HTML handoff');
     },
+    'decodes safe semicolon html5 named references before raw block serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p data-math="&NotEqualTilde;&DoubleLongRightArrow;&realine;">'
+                . '&CounterClockwiseContourIntegral;&LeftTriangleBar;&NotNestedGreaterGreater;&angmsdaa;&bnequiv;&nparsl;&suphsol;&rarrfs;&nGg;&gesles;&lesg;&angzarr;'
+                . '</p><p data-core="&quot;&amp;&lt;">core &quot;&amp;&lt;</p>'
+                . '<script type="application/json">{"literal":"&NotEqualTilde;"}</script>',
+            'broad html5 named entity fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $attribute = "\u{2242}\u{0338}\u{27F9}\u{211B}";
+        $text = "\u{2233}\u{29CF}\u{2AA2}\u{0338}\u{29A8}\u{2261}\u{20E5}\u{2AFD}\u{20E5}\u{27C9}\u{291E}\u{22D9}\u{0338}\u{2A94}\u{22DA}\u{FE00}\u{237C}";
+
+        $t->same($attribute, $summary[0]['attributes']['data-math']);
+        $t->same($text, $summary[0]['text']);
+        $t->same(['data-core' => '"&<'], $summary[1]['attributes']);
+        $t->same('core "&<', $summary[1]['text']);
+        $t->same('{"literal":"&NotEqualTilde;"}', $summary[2]['text']);
+        $t->same('<p data-math="' . $attribute . '">' . $text . '</p><p data-core="&quot;&amp;&lt;">core "&amp;&lt;</p><script type="application/json">{"literal":"&NotEqualTilde;"}</script>', $html);
+        foreach (['NotEqualTilde', 'CounterClockwiseContourIntegral', 'NotNestedGreaterGreater', 'bnequiv', 'angzarr'] as $entityName) {
+            $t->true(!str_contains($html, '&amp;' . $entityName . ';'), 'Expected HTML5 reference ' . $entityName . ' to decode before raw HTML handoff');
+        }
+        $t->contains('{"literal":"&NotEqualTilde;"}', $html);
+    },
     'normalizes unsafe html comment boundaries before raw block serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<!--review---><p>Imported comment boundary</p><!--source -- boundary--><!--triple---tail--->',

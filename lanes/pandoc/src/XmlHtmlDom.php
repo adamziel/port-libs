@@ -119,6 +119,19 @@ final class XmlHtmlDom
         'nbsp' => true,
     ];
 
+    /** @var array<string, true> */
+    private const HTML5_MARKUP_SENSITIVE_CHARACTER_REFERENCES = [
+        'AMP' => true,
+        'GT' => true,
+        'LT' => true,
+        'QUOT' => true,
+        'amp' => true,
+        'apos' => true,
+        'gt' => true,
+        'lt' => true,
+        'quot' => true,
+    ];
+
     /** @var array<string, array<string, true>> */
     private const HTML5_TABLE_ALLOWED_CHILDREN = [
         'table' => [
@@ -1270,10 +1283,27 @@ final class XmlHtmlDom
                     return (string) $matches[0];
                 }
 
-                return self::HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES[$name] ?? (string) $matches[0];
+                return self::HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES[$name]
+                    ?? self::decodeHtml5NamedCharacterReference($name, $semicolonName !== '')
+                    ?? (string) $matches[0];
             },
             $html
         ) ?? $html;
+    }
+
+    private static function decodeHtml5NamedCharacterReference(string $name, bool $semicolonTerminated): ?string
+    {
+        if (!$semicolonTerminated || isset(self::HTML5_MARKUP_SENSITIVE_CHARACTER_REFERENCES[$name])) {
+            return null;
+        }
+
+        $source = '&' . $name . ';';
+        $decoded = html_entity_decode($source, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($decoded === $source || strpbrk($decoded, "&<>\"'") !== false) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     private static function escapeHtmlRcdataContent(string $content): string

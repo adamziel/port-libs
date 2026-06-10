@@ -112,6 +112,32 @@ return [
         }
         $t->contains('{"literal":"&colon;&semi;"}', $serialized);
     },
+    'decodes safe semicolon html5 named references before reader handoff' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<p data-math="&NotEqualTilde;&DoubleLongRightArrow;&realine;">'
+            . '&CounterClockwiseContourIntegral;&LeftTriangleBar;&NotNestedGreaterGreater;&angmsdaa;&bnequiv;&nparsl;&suphsol;&rarrfs;&nGg;&gesles;&lesg;&angzarr;'
+            . '</p><p data-core="&quot;&amp;&lt;">core &quot;&amp;&lt;</p>'
+            . '<script type="application/json">{"literal":"&NotEqualTilde;"}</script>'
+        );
+        $paragraphs = Html5Dom::childElements($body, 'p');
+        $mathParagraph = $paragraphs[0] ?? null;
+        $coreParagraph = $paragraphs[1] ?? null;
+        $script = Html5Dom::firstChildElement($body, 'script');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+        $attribute = "\u{2242}\u{0338}\u{27F9}\u{211B}";
+        $text = "\u{2233}\u{29CF}\u{2AA2}\u{0338}\u{29A8}\u{2261}\u{20E5}\u{2AFD}\u{20E5}\u{27C9}\u{291E}\u{22D9}\u{0338}\u{2A94}\u{22DA}\u{FE00}\u{237C}";
+
+        $t->same(['data-math' => $attribute], $mathParagraph instanceof DOMElement ? Html5Dom::attributes($mathParagraph) : []);
+        $t->same($text, $mathParagraph instanceof DOMElement ? $mathParagraph->textContent : null);
+        $t->same(['data-core' => '"&<'], $coreParagraph instanceof DOMElement ? Html5Dom::attributes($coreParagraph) : []);
+        $t->same('core "&<', $coreParagraph instanceof DOMElement ? $coreParagraph->textContent : null);
+        $t->same('{"literal":"&NotEqualTilde;"}', $script instanceof DOMElement ? $script->textContent : null);
+        $t->same('<p data-math="' . $attribute . '">' . $text . '</p><p data-core="&quot;&amp;&lt;">core "&amp;&lt;</p><script type="application/json">{"literal":"&NotEqualTilde;"}</script>', $serialized);
+        foreach (['NotEqualTilde', 'CounterClockwiseContourIntegral', 'NotNestedGreaterGreater', 'bnequiv', 'angzarr'] as $entityName) {
+            $t->true(!str_contains($serialized, '&amp;' . $entityName . ';'), 'Expected HTML5 reference ' . $entityName . ' to decode before reader handoff');
+        }
+        $t->contains('{"literal":"&NotEqualTilde;"}', $serialized);
+    },
     'maps HTML fragment attributes and descendant elements for reviewer links' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<article id="post-42" class="legacy source" data-source="html" aria-label="Packet"><h1>Packet</h1><p><a href="/edit" title="Edit &amp; verify">edit</a></p></article>'
