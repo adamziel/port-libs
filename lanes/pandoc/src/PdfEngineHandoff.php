@@ -138,6 +138,7 @@ final class PdfEngineHandoff
      *     engineLogFile: string|null,
      *     engineArtifactStem: string,
      *     engineDependencyFile: string|null,
+     *     typstRoot: string|null,
      *     expectedEngineArtifacts: list<string>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
@@ -194,6 +195,7 @@ final class PdfEngineHandoff
         if ($engineDependencyFile !== null && !in_array($engineDependencyFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $engineDependencyFile;
         }
+        $typstRoot = $this->typstRootForEngineOptions($engine, $profile['family'], $engineOptions);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
         if ($sourceMapFile !== null && !in_array($sourceMapFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $sourceMapFile;
@@ -238,6 +240,9 @@ final class PdfEngineHandoff
         if ($engineDependencyFile !== null) {
             $diagnostics[] = 'pdf-engine-dependency-file:' . $engineDependencyFile;
         }
+        if ($typstRoot !== null) {
+            $diagnostics[] = 'pdf-typst-root:' . $typstRoot;
+        }
         if ($sourceMapFile !== null) {
             $diagnostics[] = 'pdf-source-map:' . $sourceMapFile;
         }
@@ -275,6 +280,7 @@ final class PdfEngineHandoff
             'engineLogFile' => $engineLogFile,
             'engineArtifactStem' => $engineArtifactStem,
             'engineDependencyFile' => $engineDependencyFile,
+            'typstRoot' => $typstRoot,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
@@ -307,6 +313,7 @@ final class PdfEngineHandoff
      *     engineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     engineOutputFiles: list<string>,
      *     typstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
+     *     typstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
@@ -328,7 +335,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -484,6 +491,9 @@ final class PdfEngineHandoff
         $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
             ? $plan['engineProgram']
             : $engine;
+        $typstRoot = isset($plan['typstRoot']) && is_string($plan['typstRoot']) && $plan['typstRoot'] !== ''
+            ? $plan['typstRoot']
+            : null;
         $exitCode = (int) ($result['exitCode'] ?? 0);
         $files = $this->normalizeFileMap($result['files'] ?? []);
         $planDiagnostics = $plan['diagnostics'] ?? [];
@@ -681,6 +691,12 @@ final class PdfEngineHandoff
             $outputFile,
             $engineOutputFileList
         );
+        $typstReadBoundaryPolicy = $this->typstReadBoundaryPolicy(
+            $engine,
+            $typstRoot,
+            $sourceFile,
+            $engineInputFileList
+        );
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
                 continue;
@@ -732,6 +748,13 @@ final class PdfEngineHandoff
             }
             if ($typstDependencyOutputPolicy['extraOutputFiles'] !== []) {
                 $diagnostics[] = 'typst-dependency-output-extra-files:' . count($typstDependencyOutputPolicy['extraOutputFiles']);
+            }
+        }
+        if ($typstReadBoundaryPolicy !== []) {
+            $diagnostics[] = 'typst-root-boundary:' . $typstReadBoundaryPolicy['reviewStatus'];
+            $diagnostics[] = 'typst-root-boundary-inputs:' . count($typstReadBoundaryPolicy['inputFiles']);
+            if ($typstReadBoundaryPolicy['outsideRootFiles'] !== []) {
+                $diagnostics[] = 'typst-root-boundary-outside-inputs:' . count($typstReadBoundaryPolicy['outsideRootFiles']);
             }
         }
         if ($bibliographyArtifactsSha256 !== []) {
@@ -3992,6 +4015,9 @@ final class PdfEngineHandoff
         if (($typstDependencyOutputPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-dependency-output-policy:' . $typstDependencyOutputPolicy['reviewStatus'];
         }
+        if (($typstReadBoundaryPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-root-boundary-policy:' . $typstReadBoundaryPolicy['reviewStatus'];
+        }
         if (!is_string($pdfBytes)) {
             $artifactProvenanceIssues[] = 'pdf-output-missing';
         }
@@ -4027,6 +4053,7 @@ final class PdfEngineHandoff
             'bibliographyNeeded' => $bibliographyMessages['needed'],
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
+            'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'issues' => $artifactProvenanceIssues,
@@ -4056,6 +4083,7 @@ final class PdfEngineHandoff
             'engineDependencyEdges' => $engineDependencyEdges,
             'engineOutputFiles' => $engineOutputFileList,
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
+            'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
             'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
             'missingEngineInputFiles' => $missingEngineInputFiles,
@@ -4386,6 +4414,7 @@ final class PdfEngineHandoff
      *     finalEngineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     finalEngineOutputFiles: list<string>,
      *     finalTypstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
+     *     finalTypstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
@@ -4695,6 +4724,7 @@ final class PdfEngineHandoff
             'finalEngineDependencyEdges' => is_array($finalRun) && is_array($finalRun['engineDependencyEdges'] ?? null) ? $finalRun['engineDependencyEdges'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
+            'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
@@ -5130,6 +5160,18 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
+    private function typstRootForEngineOptions(string $engine, string $family, array $engineOptions): ?string
+    {
+        if ($engine !== 'typst' || $family !== 'typst') {
+            return null;
+        }
+
+        return $this->safeEngineBoundaryDirectory($this->engineOptionValue($engineOptions, ['--root']));
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     */
     private function recorderFileFor(string $engine, string $family, string $artifactStem, array $engineOptions): ?string
     {
         if ($family !== 'latex') {
@@ -5272,6 +5314,34 @@ final class PdfEngineHandoff
         } catch (\InvalidArgumentException) {
             return null;
         }
+    }
+
+    private function safeEngineBoundaryDirectory(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = str_replace('\\', '/', trim($value));
+        if ($value === '' || $value === '.') {
+            return '.';
+        }
+        if (str_contains($value, "\0") || str_starts_with($value, '/') || preg_match('/\A[A-Za-z]:\//', $value) === 1) {
+            return null;
+        }
+
+        $parts = [];
+        foreach (explode('/', $value) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                return null;
+            }
+            $parts[] = $part;
+        }
+
+        return $parts === [] ? '.' : implode('/', $parts);
     }
 
     private function isKnownEngineArtifact(string $path, string $sourceFile, ?string $artifactStem = null): bool
@@ -5757,6 +5827,62 @@ final class PdfEngineHandoff
             'extraOutputFiles' => $extraOutputFiles,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @param list<string> $engineInputFiles
+     * @return array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}
+     */
+    private function typstReadBoundaryPolicy(string $engine, ?string $typstRoot, string $sourceFile, array $engineInputFiles): array
+    {
+        if ($engine !== 'typst' || $typstRoot === null) {
+            return [];
+        }
+
+        $inputFiles = $engineInputFiles;
+        if (!in_array($sourceFile, $inputFiles, true)) {
+            $inputFiles[] = $sourceFile;
+        }
+        $inputFiles = array_values(array_unique($inputFiles));
+        sort($inputFiles);
+
+        $insideRootFiles = [];
+        $outsideRootFiles = [];
+        foreach ($inputFiles as $inputFile) {
+            if ($this->pathIsInsideTypstRoot($inputFile, $typstRoot)) {
+                $insideRootFiles[] = $inputFile;
+                continue;
+            }
+
+            $outsideRootFiles[] = $inputFile;
+        }
+
+        $issues = [];
+        if (!$this->pathIsInsideTypstRoot($sourceFile, $typstRoot)) {
+            $issues[] = 'source-outside-root';
+        }
+        if ($outsideRootFiles !== []) {
+            $issues[] = 'input-outside-root:' . count($outsideRootFiles);
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'root' => $typstRoot,
+            'sourceFile' => $sourceFile,
+            'inputFiles' => $inputFiles,
+            'insideRootFiles' => $insideRootFiles,
+            'outsideRootFiles' => $outsideRootFiles,
+            'issues' => $issues,
+        ];
+    }
+
+    private function pathIsInsideTypstRoot(string $path, string $typstRoot): bool
+    {
+        if ($typstRoot === '.') {
+            return true;
+        }
+
+        return $path === $typstRoot || str_starts_with($path, $typstRoot . '/');
     }
 
     /**
