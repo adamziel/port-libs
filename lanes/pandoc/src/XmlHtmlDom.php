@@ -793,6 +793,14 @@ final class XmlHtmlDom
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
         }
+        if ($name === 'output') {
+            $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
+            $summary['formControl'] = 'output';
+            $summary['labels'] = self::formControlLabels($node);
+            $summary['value'] = $node->textContent;
+            $summary['forRaw'] = $forRaw;
+            $summary['forIds'] = $forRaw === null ? [] : self::spaceSeparatedTokens($forRaw);
+        }
         if ($name === 'datalist') {
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
@@ -996,6 +1004,19 @@ final class XmlHtmlDom
         }
 
         return $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function spaceSeparatedTokens(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        return preg_split('/\s+/', $value) ?: [];
     }
 
     private static function numericAttribute(\DOMElement $element, string $name, ?float $default): ?float
