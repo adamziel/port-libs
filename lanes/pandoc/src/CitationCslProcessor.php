@@ -4007,6 +4007,18 @@ final class CitationCslProcessor
         }
 
         if (
+            $rawLabel !== ''
+            && $this->normalizedLocatorLabel($rawLabel) !== $parts['label']
+            && !$this->supportedCitationLocatorLabel($rawLabel)
+        ) {
+            $diagnostics[] = [
+                ...$base,
+                'reason' => 'citation-locator-unsupported-label',
+                'severity' => 'warning',
+            ];
+        }
+
+        if (
             $diagnosticRawLocator !== ''
             && $parts['label'] === 'page'
             && !$this->citationLocatorTextHasKnownLabel($diagnosticRawLocator)

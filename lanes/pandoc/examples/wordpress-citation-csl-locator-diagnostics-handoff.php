@@ -85,6 +85,21 @@ if (($argv[1] ?? '') === '--self-test') {
         throw new RuntimeException('Citation locator diagnostics handoff did not flag unsupported explicit labels');
     }
 
+    $unsupportedLabelWithRawLocator = new AstNode('citation', [
+        'id' => 'locator-diagnostics-source',
+        'text' => '[@locator-diagnostics-source, scene intro]',
+        'locatorLabel' => 'scene',
+        'locator' => 'intro',
+    ]);
+    $unsupportedRawDiagnostics = $processor->citationLocatorDiagnostics($unsupportedLabelWithRawLocator);
+    if (array_column($unsupportedRawDiagnostics, 'reason') !== [
+        'citation-locator-label-without-explicit-value',
+        'citation-locator-unsupported-label',
+        'citation-locator-unlabeled-page-fallback',
+    ]) {
+        throw new RuntimeException('Citation locator diagnostics handoff did not flag unsupported explicit labels with raw locator text');
+    }
+
     $defaultedPage = new AstNode('citation', [
         'id' => 'locator-diagnostics-source',
         'text' => '[@locator-diagnostics-source, appendix A]',
