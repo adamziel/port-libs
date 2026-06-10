@@ -396,10 +396,16 @@ final class OpcRelationshipGraph
         $issues = [];
         $issueCounts = [];
         $roleCounts = [];
+        $byteCountsByRole = [];
+        $byteCountsByHandoffKind = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
         $packagePartCount = 0;
+        $fileCompressedBytes = 0;
+        $fileUncompressedBytes = 0;
+        $directoryCompressedBytes = 0;
+        $directoryUncompressedBytes = 0;
         $relationshipPartCount = 0;
         $rootRelationshipPartCount = 0;
         $partRelationshipPartCount = 0;
@@ -414,6 +420,7 @@ final class OpcRelationshipGraph
         $mediaPartCandidateCount = 0;
         $xmlPayloadPartCount = 0;
         $binaryPayloadPartCount = 0;
+        $largestPayloadEntry = null;
 
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = 1;
@@ -421,12 +428,46 @@ final class OpcRelationshipGraph
         }
 
         foreach ($entries as $entry) {
-            $entry['isDirectory'] ? $directoryEntryCount++ : $fileEntryCount++;
+            if ($entry['isDirectory']) {
+                $directoryEntryCount++;
+                $directoryCompressedBytes += $entry['compressedSize'];
+                $directoryUncompressedBytes += $entry['uncompressedSize'];
+            } else {
+                $fileEntryCount++;
+                $fileCompressedBytes += $entry['compressedSize'];
+                $fileUncompressedBytes += $entry['uncompressedSize'];
+            }
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
+            self::incrementZipEntryManifestByteBucket(
+                $byteCountsByRole,
+                $entry['role'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize'],
+            );
+            self::incrementZipEntryManifestByteBucket(
+                $byteCountsByHandoffKind,
+                $entry['handoffKind'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize'],
+            );
+
+            if (
+                $largestPayloadEntry === null
+                || $entry['uncompressedSize'] > $largestPayloadEntry['uncompressedSize']
+            ) {
+                $largestPayloadEntry = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                ];
+            }
 
             foreach ($entry['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
@@ -489,6 +530,8 @@ final class OpcRelationshipGraph
 
         ksort($issueCounts);
         ksort($roleCounts);
+        ksort($byteCountsByRole);
+        ksort($byteCountsByHandoffKind);
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -502,6 +545,12 @@ final class OpcRelationshipGraph
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
             'packagePartCount' => $packagePartCount,
+            'compressedPayloadBytes' => $fileCompressedBytes + $directoryCompressedBytes,
+            'uncompressedPayloadBytes' => $fileUncompressedBytes + $directoryUncompressedBytes,
+            'fileCompressedBytes' => $fileCompressedBytes,
+            'fileUncompressedBytes' => $fileUncompressedBytes,
+            'directoryCompressedBytes' => $directoryCompressedBytes,
+            'directoryUncompressedBytes' => $directoryUncompressedBytes,
             'contentTypesItemCount' => count($contentTypesItems),
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
@@ -520,6 +569,9 @@ final class OpcRelationshipGraph
             'issueCounts' => $issueCounts,
             'issues' => $issues,
             'roleCounts' => $roleCounts,
+            'byteCountsByRole' => $byteCountsByRole,
+            'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'largestPayloadEntry' => $largestPayloadEntry,
             'contentTypesItems' => $contentTypesItems,
             'relationshipParts' => $relationshipParts,
             'entries' => $entries,
@@ -6233,6 +6285,26 @@ final class OpcRelationshipGraph
             'media' => 'media',
             default => self::isXmlLikePartName($partName) ? 'xml' : 'binary',
         };
+    }
+
+    /**
+     * @param array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int}> $buckets
+     */
+    private static function incrementZipEntryManifestByteBucket(
+        array &$buckets,
+        string $bucket,
+        int $compressedSize,
+        int $uncompressedSize
+    ): void {
+        $buckets[$bucket] ??= [
+            'entryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+        ];
+
+        $buckets[$bucket]['entryCount']++;
+        $buckets[$bucket]['compressedBytes'] += $compressedSize;
+        $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
     }
 
     private static function isEmbeddedPackageCandidate(string $partName): bool

@@ -243,6 +243,143 @@ return [
         $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
         $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
     },
+    'summarizes OPC ZIP entry manifest handoff byte buckets before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships/>';
+        $imageBytes = 'PNGDATA';
+        $embeddedPackageBytes = 'DOCXDATA';
+        $blockedRelationshipsXml = '<rels-block/>';
+        $customXml = '<audit/>';
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => ''],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/media/document.xml.rels', 'data' => $blockedRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $relationshipsBytes = strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml);
+        $xmlBytes = strlen($documentXml) + strlen($customXml);
+        $totalFileBytes = strlen($contentTypesXml)
+            + $relationshipsBytes
+            + $xmlBytes
+            + strlen($imageBytes)
+            + strlen($embeddedPackageBytes)
+            + strlen($blockedRelationshipsXml);
+
+        $t->same(false, $summary['valid']);
+        $t->same(9, $summary['entryCount']);
+        $t->same(8, $summary['fileEntryCount']);
+        $t->same(1, $summary['directoryEntryCount']);
+        $t->same($totalFileBytes, $summary['compressedPayloadBytes']);
+        $t->same($totalFileBytes, $summary['uncompressedPayloadBytes']);
+        $t->same($totalFileBytes, $summary['fileCompressedBytes']);
+        $t->same($totalFileBytes, $summary['fileUncompressedBytes']);
+        $t->same(0, $summary['directoryCompressedBytes']);
+        $t->same(0, $summary['directoryUncompressedBytes']);
+        $t->same([
+            'blocked' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($blockedRelationshipsXml),
+                'uncompressedBytes' => strlen($blockedRelationshipsXml),
+            ],
+            'content-types+xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($contentTypesXml),
+                'uncompressedBytes' => strlen($contentTypesXml),
+            ],
+            'directory' => [
+                'entryCount' => 1,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+            ],
+            'embedded-package' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($embeddedPackageBytes),
+            ],
+            'media' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+            ],
+            'relationships+xml' => [
+                'entryCount' => 2,
+                'compressedBytes' => $relationshipsBytes,
+                'uncompressedBytes' => $relationshipsBytes,
+            ],
+            'xml' => [
+                'entryCount' => 2,
+                'compressedBytes' => $xmlBytes,
+                'uncompressedBytes' => $xmlBytes,
+            ],
+        ], $summary['byteCountsByHandoffKind']);
+        $t->same([
+            'content-types' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($contentTypesXml),
+                'uncompressedBytes' => strlen($contentTypesXml),
+            ],
+            'directory' => [
+                'entryCount' => 1,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+            ],
+            'embedded-package-candidate' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($embeddedPackageBytes),
+            ],
+            'invalid-relationship-part' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($blockedRelationshipsXml),
+                'uncompressedBytes' => strlen($blockedRelationshipsXml),
+            ],
+            'media' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+            ],
+            'package-relationships' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($rootRelationshipsXml),
+                'uncompressedBytes' => strlen($rootRelationshipsXml),
+            ],
+            'part-relationships' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($documentRelationshipsXml),
+                'uncompressedBytes' => strlen($documentRelationshipsXml),
+            ],
+            'xml-part' => [
+                'entryCount' => 2,
+                'compressedBytes' => $xmlBytes,
+                'uncompressedBytes' => $xmlBytes,
+            ],
+        ], $summary['byteCountsByRole']);
+        $t->same([
+            'entryName' => '_rels/.rels',
+            'partName' => '/_rels/.rels',
+            'role' => 'package-relationships',
+            'handoffKind' => 'relationships+xml',
+            'compressedSize' => strlen($rootRelationshipsXml),
+            'uncompressedSize' => strlen($rootRelationshipsXml),
+        ], $summary['largestPayloadEntry']);
+        $t->same('blocked', $entries['word/_rels/media/document.xml.rels']['handoffKind']);
+        $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
+        $t->same('directory', $entries['word/media/']['handoffKind']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');
