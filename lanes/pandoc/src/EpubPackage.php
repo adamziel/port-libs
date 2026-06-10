@@ -75,8 +75,8 @@ final class EpubPackage
      * @param array<string, mixed> $manifestFallbacks
      * @param array<string, mixed> $encryption
      * @param ?string $spineTocId
-     * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
-     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $navigationSections
+     * @param array{type:string, partName:string, entries:list<array<string, mixed>>}|null $navigation
+     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array<string, mixed>>}> $navigationSections
      */
     private function __construct(
         private readonly ZipPackage $package,
@@ -280,7 +280,7 @@ final class EpubPackage
     }
 
     /**
-     * @return array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null
+     * @return array{type:string, partName:string, entries:list<array<string, mixed>>}|null
      */
     public function navigation(): ?array
     {
@@ -288,7 +288,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     * @return list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array<string, mixed>>}>
      */
     public function navigationSections(): array
     {
@@ -2882,8 +2882,8 @@ final class EpubPackage
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}> $manifestById
      *
      * @return array{
-     *     navigation:array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null,
-     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     *     navigation:array{type:string, partName:string, entries:list<array<string, mixed>>}|null,
+     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array<string, mixed>>}>
      * }
      */
     private static function loadNavigation(ZipPackage $package, string $opfPartName, array $manifestById, ?string $spineTocId): array
@@ -2942,8 +2942,8 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     primaryEntries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
-     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}>
+     *     primaryEntries:list<array<string, mixed>>,
+     *     sections:list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array<string, mixed>>}>
      * }
      */
     private static function parseNavDocument(string $xml, string $navPartName): array
@@ -3008,7 +3008,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     * @return list<array<string, mixed>>
      */
     private static function parseNavList(\DOMElement $list, string $navPartName, int $depth): array
     {
@@ -3017,7 +3017,7 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
+     *     entries:list<array<string, mixed>>,
      *     rawItemCount:int,
      *     missingLabelCount:int,
      *     emptyLabelCount:int,
@@ -3039,7 +3039,7 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>,
+     *     entries:list<array<string, mixed>>,
      *     rawItemCount:int,
      *     missingLabelCount:int,
      *     emptyLabelCount:int,
@@ -3066,6 +3066,9 @@ final class EpubPackage
                     ? $labelElement->getAttribute('href')
                     : null;
                 $label = self::normalizeText($labelElement->textContent);
+                $itemTypes = self::epubTypes($li);
+                $labelTypes = self::epubTypes($labelElement);
+                $types = self::uniqueTokens(array_merge($itemTypes, $labelTypes));
 
                 if ($label === '') {
                     ++$emptyLabelCount;
@@ -3095,6 +3098,12 @@ final class EpubPackage
 
                 if ($label !== '' || ($href !== null && $href !== '')) {
                     $entries[] = [
+                        'id' => self::emptyToNull($li->getAttribute('id')),
+                        'labelElement' => $labelElement->localName,
+                        'labelId' => self::emptyToNull($labelElement->getAttribute('id')),
+                        'types' => $types,
+                        'itemTypes' => $itemTypes,
+                        'labelTypes' => $labelTypes,
                         'label' => $label,
                         'href' => $href,
                         'target' => $href === null || $href === '' ? null : self::resolveReadingHref($navPartName, $href),
@@ -5708,9 +5717,9 @@ final class EpubPackage
     }
 
     /**
-     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}> $sections
+     * @param list<array{type:?string, types:list<string>, label:?string, partName:string, entries:list<array<string, mixed>>}> $sections
      *
-     * @return list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>
+     * @return list<array<string, mixed>>
      */
     private static function navigationEntriesForSectionType(array $sections, string $type): array
     {
@@ -5892,6 +5901,23 @@ final class EpubPackage
         $tokens = preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY);
 
         return is_array($tokens) ? array_values($tokens) : [];
+    }
+
+    /**
+     * @param list<string> $tokens
+     *
+     * @return list<string>
+     */
+    private static function uniqueTokens(array $tokens): array
+    {
+        $unique = [];
+        foreach ($tokens as $token) {
+            if ($token !== '') {
+                $unique[$token] = $token;
+            }
+        }
+
+        return array_values($unique);
     }
 
     private static function normalizeText(string $text): string

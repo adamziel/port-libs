@@ -858,6 +858,88 @@ XML;
         $t->same('/EPUB/text/chapter2.xhtml#table-1', $auxiliary['items'][2]['target']);
     },
 
+    'preserves EPUB3 navigation item type metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml): void {
+        $navWithItemTypes = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head><title>Navigation</title></head>
+  <body>
+    <nav id="main-toc" epub:type="toc">
+      <h1>Contents</h1>
+      <ol>
+        <li id="toc-start"><a id="toc-start-link" href="text/chapter1.xhtml">Start</a></li>
+      </ol>
+    </nav>
+    <nav id="landmark-nav" epub:type="landmarks">
+      <h2>Landmarks</h2>
+      <ol>
+        <li id="start-item" epub:type="bodymatter"><a id="start-link" epub:type="bodymatter" href="text/chapter1.xhtml#install">Start reading</a></li>
+        <li id="refs-item"><a id="refs-link" epub:type="backmatter bibliography" href="text/chapter2.xhtml#refs">References</a></li>
+      </ol>
+    </nav>
+    <nav id="page-nav" epub:type="page-list">
+      <h2>Pages</h2>
+      <ol>
+        <li id="page-1"><a id="page-1-link" epub:type="pagebreak" href="text/chapter1.xhtml#page-1">1</a></li>
+      </ol>
+    </nav>
+    <nav id="tables-nav" epub:type="lot">
+      <h2>Tables</h2>
+      <ol>
+        <li id="table-list-item" epub:type="table-list-item"><span id="table-label" epub:type="lot">Tables appendix</span></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navWithItemTypes],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1><span id="page-1"></span></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="refs">References</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $sections = $epub->navigationSections();
+        $summary = $epub->summary();
+        $landmarks = $sections[1]['entries'];
+        $pageList = $sections[2]['entries'];
+        $auxiliary = $summary['auxiliaryNavigation'];
+
+        $t->same('start-item', $landmarks[0]['id']);
+        $t->same('start-link', $landmarks[0]['labelId']);
+        $t->same('a', $landmarks[0]['labelElement']);
+        $t->same(['bodymatter'], $landmarks[0]['itemTypes']);
+        $t->same(['bodymatter'], $landmarks[0]['labelTypes']);
+        $t->same(['bodymatter'], $landmarks[0]['types']);
+        $t->same('/EPUB/text/chapter1.xhtml#install', $landmarks[0]['target']);
+
+        $t->same('refs-item', $landmarks[1]['id']);
+        $t->same([], $landmarks[1]['itemTypes']);
+        $t->same(['backmatter', 'bibliography'], $landmarks[1]['labelTypes']);
+        $t->same(['backmatter', 'bibliography'], $landmarks[1]['types']);
+
+        $t->same('page-1', $pageList[0]['id']);
+        $t->same('page-1-link', $pageList[0]['labelId']);
+        $t->same(['pagebreak'], $pageList[0]['types']);
+        $t->same('/EPUB/text/chapter1.xhtml#page-1', $pageList[0]['target']);
+
+        $t->same('table-list-item', $auxiliary['items'][0]['id']);
+        $t->same('span', $auxiliary['items'][0]['labelElement']);
+        $t->same(['table-list-item'], $auxiliary['items'][0]['itemTypes']);
+        $t->same(['lot'], $auxiliary['items'][0]['labelTypes']);
+        $t->same(['table-list-item', 'lot'], $auxiliary['items'][0]['types']);
+        $t->same(null, $auxiliary['items'][0]['href']);
+        $t->same(null, $auxiliary['items'][0]['target']);
+
+        $t->same($landmarks, $summary['wordpressImport']['landmarkTargets']);
+        $t->same($pageList, $summary['wordpressImport']['pageListTargets']);
+        $t->same($auxiliary['items'], $summary['wordpressImport']['auxiliaryNavigationTargets']);
+    },
+
     'preserves OPF collections and collection links for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithCollections = str_replace(
             '</spine>',
