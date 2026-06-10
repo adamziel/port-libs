@@ -115,6 +115,7 @@ final class OdfReader
         $encryptedItems = $this->encryptedManifestItems($manifest);
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
         $directoryItems = $this->manifestDirectoryItems($manifest);
+        $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
 
         $document = new AstNode('document', [
@@ -126,6 +127,7 @@ final class OdfReader
                 'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
+                'mediaTypeSummary' => $manifestMediaTypeSummary,
             ],
             'styles' => [
                 'count' => count($styleCatalog['styles']),
@@ -194,6 +196,7 @@ final class OdfReader
                     'version' => $this->manifestVersion === '' ? null : $this->manifestVersion,
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
+                    'mediaTypeSummary' => $manifestMediaTypeSummary,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
                     'missingItems' => array_values(array_filter(
@@ -11519,6 +11522,144 @@ final class OdfReader
             $manifest,
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function manifestMediaTypeSummary(array $manifest): array
+    {
+        $groups = [];
+        $groupOrder = [];
+        $emptyMediaTypeParts = [];
+        $summary = [
+            'manifestItemCount' => count($manifest),
+            'typedItemCount' => 0,
+            'mediaTypeCount' => 0,
+            'emptyMediaTypeCount' => 0,
+            'emptyMediaTypeParts' => [],
+            'directoryCount' => 0,
+            'missingCount' => 0,
+            'encryptedCount' => 0,
+            'declaredSizeMismatchCount' => 0,
+            'storedByteLength' => 0,
+            'exposableByteLength' => 0,
+            'declaredSize' => 0,
+            'items' => [],
+        ];
+
+        foreach ($manifest as $item) {
+            $part = self::manifestItemPartLabel($item);
+            $mediaType = trim((string) ($item['mediaType'] ?? ''));
+            $exists = ($item['exists'] ?? false) === true;
+            $isDirectory = ($item['isDirectory'] ?? false) === true;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declaredSizeMismatch = ($item['declaredSizeMismatch'] ?? false) === true;
+            $byteLength = $item['byteLength'] ?? null;
+            $declaredSize = $item['declaredSize'] ?? null;
+
+            if ($isDirectory) {
+                ++$summary['directoryCount'];
+            }
+            if (!$exists) {
+                ++$summary['missingCount'];
+            }
+            if ($encrypted) {
+                ++$summary['encryptedCount'];
+            }
+            if ($declaredSizeMismatch) {
+                ++$summary['declaredSizeMismatchCount'];
+            }
+            if (is_int($byteLength)) {
+                $summary['storedByteLength'] += $byteLength;
+                if (($item['canExposeBytes'] ?? false) === true) {
+                    $summary['exposableByteLength'] += $byteLength;
+                }
+            }
+            if (is_int($declaredSize)) {
+                $summary['declaredSize'] += $declaredSize;
+            }
+
+            if ($mediaType === '') {
+                $emptyMediaTypeParts[] = $part;
+                continue;
+            }
+
+            if (!isset($groups[$mediaType])) {
+                $groups[$mediaType] = [
+                    'mediaType' => $mediaType,
+                    'count' => 0,
+                    'parts' => [],
+                    'existsCount' => 0,
+                    'missingCount' => 0,
+                    'directoryCount' => 0,
+                    'encryptedCount' => 0,
+                    'declaredSizeMismatchCount' => 0,
+                    'storedByteLength' => 0,
+                    'exposableByteLength' => 0,
+                    'declaredSize' => 0,
+                ];
+                $groupOrder[] = $mediaType;
+            }
+
+            ++$summary['typedItemCount'];
+            ++$groups[$mediaType]['count'];
+            $groups[$mediaType]['parts'][] = $part;
+            if ($exists) {
+                ++$groups[$mediaType]['existsCount'];
+            } else {
+                ++$groups[$mediaType]['missingCount'];
+            }
+            if ($isDirectory) {
+                ++$groups[$mediaType]['directoryCount'];
+            }
+            if ($encrypted) {
+                ++$groups[$mediaType]['encryptedCount'];
+            }
+            if ($declaredSizeMismatch) {
+                ++$groups[$mediaType]['declaredSizeMismatchCount'];
+            }
+            if (is_int($byteLength)) {
+                $groups[$mediaType]['storedByteLength'] += $byteLength;
+                if (($item['canExposeBytes'] ?? false) === true) {
+                    $groups[$mediaType]['exposableByteLength'] += $byteLength;
+                }
+            }
+            if (is_int($declaredSize)) {
+                $groups[$mediaType]['declaredSize'] += $declaredSize;
+            }
+        }
+
+        $items = [];
+        foreach ($groupOrder as $mediaType) {
+            $items[] = $groups[$mediaType];
+        }
+
+        $summary['mediaTypeCount'] = count($items);
+        $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
+        $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
+        $summary['items'] = $items;
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function manifestItemPartLabel(array $item): string
+    {
+        $part = $item['part'] ?? null;
+        if (is_string($part) && $part !== '') {
+            return $part;
+        }
+
+        $fullPath = $item['fullPath'] ?? null;
+        if (is_string($fullPath) && $fullPath !== '') {
+            return $fullPath;
+        }
+
+        return '/';
     }
 
     /**

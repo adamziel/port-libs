@@ -8993,6 +8993,90 @@ XML;
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         )));
     },
+    'summarizes ODT manifest media-type package buckets for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $objectXml = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>';
+        $encryptedHero = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithMediaTypes = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/" manifest:media-type=""/>'
+            . $encryptedHero
+            . '<manifest:file-entry manifest:full-path="Pictures/cover.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/missing.jpg" manifest:media-type="image/jpeg"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Configurations2/" manifest:media-type=""/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithMediaTypes, null, null, [
+            ['name' => 'Pictures/cover.png', 'data' => 'COVERPNG', 'compressionMethod' => 0],
+            ['name' => 'Object 1/content.xml', 'data' => $objectXml],
+        ]));
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $summaryByType = [];
+        foreach ($summary['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
+        $textByteLength = strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen($objectXml);
+
+        $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
+        $t->same(11, $summary['manifestItemCount']);
+        $t->same(9, $summary['typedItemCount']);
+        $t->same(5, $summary['mediaTypeCount']);
+        $t->same(2, $summary['emptyMediaTypeCount']);
+        $t->same(['Pictures/', 'Configurations2/'], $summary['emptyMediaTypeParts']);
+        $t->same(3, $summary['directoryCount']);
+        $t->same(1, $summary['missingCount']);
+        $t->same(1, $summary['encryptedCount']);
+        $t->same(0, $summary['declaredSizeMismatchCount']);
+        $t->same(2048, $summary['declaredSize']);
+        $t->same($textByteLength + 15, $summary['storedByteLength']);
+        $t->same($textByteLength + 8, $summary['exposableByteLength']);
+
+        $imagePng = $summaryByType['image/png'];
+        $t->same(2, $imagePng['count']);
+        $t->same(['Pictures/hero.png', 'Pictures/cover.png'], $imagePng['parts']);
+        $t->same(2, $imagePng['existsCount']);
+        $t->same(0, $imagePng['missingCount']);
+        $t->same(1, $imagePng['encryptedCount']);
+        $t->same(0, $imagePng['directoryCount']);
+        $t->same(2048, $imagePng['declaredSize']);
+        $t->same(15, $imagePng['storedByteLength']);
+        $t->same(8, $imagePng['exposableByteLength']);
+
+        $textXml = $summaryByType['text/xml'];
+        $t->same(4, $textXml['count']);
+        $t->same(['content.xml', 'styles.xml', 'meta.xml', 'Object 1/content.xml'], $textXml['parts']);
+        $t->same(0, $textXml['encryptedCount']);
+        $t->same(0, $textXml['missingCount']);
+        $t->same($textByteLength, $textXml['storedByteLength']);
+        $t->same($textByteLength, $textXml['exposableByteLength']);
+
+        $imageJpeg = $summaryByType['image/jpeg'];
+        $t->same(1, $imageJpeg['count']);
+        $t->same(['Pictures/missing.jpg'], $imageJpeg['parts']);
+        $t->same(0, $imageJpeg['existsCount']);
+        $t->same(1, $imageJpeg['missingCount']);
+        $t->same(0, $imageJpeg['storedByteLength']);
+
+        $formula = $summaryByType['application/vnd.oasis.opendocument.formula'];
+        $t->same(1, $formula['count']);
+        $t->same(['Object 1/'], $formula['parts']);
+        $t->same(1, $formula['directoryCount']);
+        $t->same(0, $formula['exposableByteLength']);
+
+        $root = $summaryByType[OdfReader::MIMETYPE];
+        $t->same(['/'], $root['parts']);
+        $t->same(1, $root['existsCount']);
+        $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
+        $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
