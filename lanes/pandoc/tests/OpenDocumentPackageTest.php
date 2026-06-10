@@ -109,11 +109,65 @@ return [
         $t->same('text/xml', $odt->mediaTypeForPath('content.xml'));
         $t->same('image/png', $odt->mediaTypeForPath('Pictures/hero.png'));
         $t->same(7, $odt->manifestEntry('Pictures/hero.png')['size']);
+        $t->same(true, $odt->manifestEntry('Pictures/hero.png')['exists']);
+        $t->same(7, $odt->manifestEntry('Pictures/hero.png')['byteLength']);
+        $t->same(hash('crc32b', 'PNGDATA'), $odt->manifestEntry('Pictures/hero.png')['crc32']);
+        $t->same(false, $odt->manifestEntry('Pictures/hero.png')['declaredSizeMismatch']);
         $t->same(true, $summary['contentXml']);
         $t->same(true, $summary['stylesXml']);
         $t->same(true, $summary['metaXml']);
-        $t->same([['path' => 'Pictures/hero.png', 'mediaType' => 'image/png']], $summary['mediaParts']);
+        $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
+        $t->same('image/png', $summary['mediaParts'][0]['mediaType']);
+        $t->same(true, $summary['mediaParts'][0]['exists']);
+        $t->same(7, $summary['mediaParts'][0]['byteLength']);
+        $t->same(hash('crc32b', 'PNGDATA'), $summary['mediaParts'][0]['crc32']);
+        $t->same(7, $summary['mediaParts'][0]['declaredSize']);
+        $t->same(false, $summary['mediaParts'][0]['declaredSizeMismatch']);
+        $t->same(0, $summary['missingManifestPartCount']);
+        $t->same([], $summary['missingManifestParts']);
+        $t->same(0, $summary['declaredSizeMismatchCount']);
+        $t->same([], $summary['declaredSizeMismatches']);
         $t->same(3, $summary['contentBlocks']);
+    },
+    'summarizes compact ODT manifest part provenance for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithReviewIssues = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg" manifest:size="12"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifestWithReviewIssues));
+        $summary = $odt->summarize();
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $missing = $odt->manifestEntry('Pictures/missing.jpg');
+
+        $t->same(true, $hero['exists']);
+        $t->same(2048, $hero['size']);
+        $t->same(7, $hero['byteLength']);
+        $t->same(hash('crc32b', 'PNGDATA'), $hero['crc32']);
+        $t->same(true, $hero['declaredSizeMismatch']);
+        $t->same(false, $hero['isDirectory']);
+
+        $t->same(false, $missing['exists']);
+        $t->same(12, $missing['size']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(null, $missing['compressedByteLength']);
+        $t->same(null, $missing['crc32']);
+        $t->same(false, $missing['declaredSizeMismatch']);
+
+        $t->same(2, count($summary['mediaParts']));
+        $t->same(['Pictures/hero.png', 'Pictures/missing.jpg'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['missingManifestPartCount']);
+        $t->same('Pictures/missing.jpg', $summary['missingManifestParts'][0]['path']);
+        $t->same('image/jpeg', $summary['missingManifestParts'][0]['mediaType']);
+        $t->same(12, $summary['missingManifestParts'][0]['declaredSize']);
+        $t->same(1, $summary['declaredSizeMismatchCount']);
+        $t->same('Pictures/hero.png', $summary['declaredSizeMismatches'][0]['path']);
+        $t->same(2048, $summary['declaredSizeMismatches'][0]['declaredSize']);
+        $t->same(7, $summary['declaredSizeMismatches'][0]['byteLength']);
+        $t->same(hash('crc32b', 'PNGDATA'), $summary['declaredSizeMismatches'][0]['crc32']);
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();

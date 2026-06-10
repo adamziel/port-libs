@@ -16,11 +16,11 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
 
-    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null}> */
+    /** @var array<string, array<string, mixed>> */
     private array $manifestEntriesByPath;
 
     /**
-     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null}> $manifestEntries
+     * @param list<array<string, mixed>> $manifestEntries
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
      */
@@ -42,7 +42,10 @@ final class OpenDocumentPackage
             throw new \RuntimeException('ODT package is missing META-INF/manifest.xml');
         }
 
-        $manifestEntries = self::parseManifest($package->read('META-INF/manifest.xml'));
+        $manifestEntries = self::manifestEntriesWithPackageProvenance(
+            self::parseManifest($package->read('META-INF/manifest.xml')),
+            $package
+        );
         $manifestEntriesByPath = [];
         foreach ($manifestEntries as $entry) {
             if (isset($manifestEntriesByPath[$entry['path']])) {
@@ -83,7 +86,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null}>
+     * @return list<array<string, mixed>>
      */
     public function manifestEntries(): array
     {
@@ -91,7 +94,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return array{path:string, mediaType:string, version:string|null, size:int|null}|null
+     * @return array<string, mixed>|null
      */
     public function manifestEntry(string $path): ?array
     {
@@ -175,7 +178,11 @@ final class OpenDocumentPackage
      *     contentXml:bool,
      *     stylesXml:bool,
      *     metaXml:bool,
-     *     mediaParts:list<array{path:string, mediaType:string}>,
+     *     mediaParts:list<array<string, mixed>>,
+     *     missingManifestPartCount:int,
+     *     missingManifestParts:list<array<string, mixed>>,
+     *     declaredSizeMismatchCount:int,
+     *     declaredSizeMismatches:list<array<string, mixed>>,
      *     metadata:array<string, mixed>,
      *     styleNames:list<string>,
      *     contentBlocks:int
@@ -184,11 +191,35 @@ final class OpenDocumentPackage
     public function summarize(): array
     {
         $mediaParts = [];
+        $missingManifestParts = [];
+        $declaredSizeMismatches = [];
         foreach ($this->manifestEntries as $entry) {
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
                     'path' => $entry['path'],
                     'mediaType' => $entry['mediaType'],
+                    'exists' => $entry['exists'],
+                    'byteLength' => $entry['byteLength'],
+                    'compressedByteLength' => $entry['compressedByteLength'],
+                    'crc32' => $entry['crc32'],
+                    'declaredSize' => $entry['size'],
+                    'declaredSizeMismatch' => $entry['declaredSizeMismatch'],
+                ];
+            }
+            if (($entry['exists'] ?? true) !== true && ($entry['isDirectory'] ?? false) !== true) {
+                $missingManifestParts[] = [
+                    'path' => $entry['path'],
+                    'mediaType' => $entry['mediaType'],
+                    'declaredSize' => $entry['size'],
+                ];
+            }
+            if (($entry['declaredSizeMismatch'] ?? false) === true) {
+                $declaredSizeMismatches[] = [
+                    'path' => $entry['path'],
+                    'mediaType' => $entry['mediaType'],
+                    'declaredSize' => $entry['size'],
+                    'byteLength' => $entry['byteLength'],
+                    'crc32' => $entry['crc32'],
                 ];
             }
         }
@@ -200,6 +231,10 @@ final class OpenDocumentPackage
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
             'mediaParts' => $mediaParts,
+            'missingManifestPartCount' => count($missingManifestParts),
+            'missingManifestParts' => $missingManifestParts,
+            'declaredSizeMismatchCount' => count($declaredSizeMismatches),
+            'declaredSizeMismatches' => $declaredSizeMismatches,
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
@@ -259,6 +294,35 @@ final class OpenDocumentPackage
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null}> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function manifestEntriesWithPackageProvenance(array $entries, ZipPackage $package): array
+    {
+        $provenanceEntries = [];
+        foreach ($entries as $entry) {
+            $path = $entry['path'];
+            $isRoot = $path === '/';
+            $isDirectory = !$isRoot && str_ends_with($path, '/');
+            $exists = $isRoot || $isDirectory || $package->has($path);
+            $zipEntry = !$isRoot && !$isDirectory && $package->has($path) ? $package->entry($path) : null;
+            $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+
+            $entry['exists'] = $exists;
+            $entry['isDirectory'] = $isDirectory;
+            $entry['byteLength'] = $byteLength;
+            $entry['compressedByteLength'] = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null;
+            $entry['crc32'] = $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null;
+            $entry['declaredSizeMismatch'] = $entry['size'] !== null
+                && $byteLength !== null
+                && $entry['size'] !== $byteLength;
+            $provenanceEntries[] = $entry;
+        }
+
+        return $provenanceEntries;
     }
 
     /**
