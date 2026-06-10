@@ -14554,7 +14554,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array<string, mixed>>> $numbering
-     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, levelCount:int, styleLinkedLevelCount:int, pictureBulletCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14578,6 +14578,7 @@ final class DocxReader
         $numberingRelationshipCount = 0;
         $numberingRelationshipItems = [];
         $pictureBullets = [];
+        $numberingInventory = $this->emptyNumberingImportInventory();
         $issues = count($numberingRelationships) > 1 ? ['multiple-numbering-relationships'] : [];
         $relationshipIssues = [];
 
@@ -14614,6 +14615,7 @@ final class DocxReader
                         $package,
                         $numberingPartRelationships instanceof OpcRelationships ? $numberingPartRelationships : null
                     ));
+                    $numberingInventory = $this->numberingImportInventory($root);
                 }
             }
         }
@@ -14654,12 +14656,117 @@ final class DocxReader
             'numberingRelationshipCount' => $numberingRelationshipCount,
             'numberingRelationships' => $numberingRelationshipItems,
             'definitionCount' => count($numbering),
+            'abstractNumCount' => $numberingInventory['abstractNumCount'],
+            'numCount' => $numberingInventory['numCount'],
             'levelCount' => $levelCount,
             'styleLinkedLevelCount' => $styleLinkedLevelCount,
+            'overrideCount' => $numberingInventory['overrideCount'],
+            'startOverrideCount' => $numberingInventory['startOverrideCount'],
+            'styleLinks' => $numberingInventory['styleLinks'],
+            'instances' => $numberingInventory['instances'],
             'pictureBulletCount' => count($pictureBullets),
             'pictureBullets' => $pictureBullets,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @return array{abstractNumCount:int, numCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>}
+     */
+    private function emptyNumberingImportInventory(): array
+    {
+        return [
+            'abstractNumCount' => 0,
+            'numCount' => 0,
+            'overrideCount' => 0,
+            'startOverrideCount' => 0,
+            'styleLinks' => [],
+            'instances' => [],
+        ];
+    }
+
+    /**
+     * @return array{abstractNumCount:int, numCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>}
+     */
+    private function numberingImportInventory(\DOMElement $numberingRoot): array
+    {
+        $inventory = $this->emptyNumberingImportInventory();
+
+        foreach ($numberingRoot->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'abstractNum')) {
+                continue;
+            }
+
+            $abstractNumId = trim((string) ($this->wordAttr($child, 'abstractNumId') ?? ''));
+            if ($abstractNumId === '') {
+                continue;
+            }
+
+            $inventory['abstractNumCount']++;
+            foreach ($child->childNodes as $levelElement) {
+                if (!$levelElement instanceof \DOMElement || !$this->isWordElement($levelElement, 'lvl')) {
+                    continue;
+                }
+
+                $definition = $this->numberingLevelDefinition($levelElement);
+                $styleId = (string) ($definition['paragraphStyleId'] ?? '');
+                if ($styleId === '') {
+                    continue;
+                }
+
+                $inventory['styleLinks'][] = [
+                    'abstractNumId' => $abstractNumId,
+                    'level' => $this->intWordAttr($levelElement, 'ilvl', 0),
+                    'styleId' => $styleId,
+                    'format' => $definition['format'],
+                    'start' => $definition['start'],
+                    'ordered' => $definition['ordered'],
+                ];
+            }
+        }
+
+        foreach ($numberingRoot->childNodes as $child) {
+            if (!$child instanceof \DOMElement || !$this->isWordElement($child, 'num')) {
+                continue;
+            }
+
+            $numId = trim((string) ($this->wordAttr($child, 'numId') ?? ''));
+            if ($numId === '') {
+                continue;
+            }
+
+            $abstractNumIdElement = $this->firstChildElement($child, self::WORDPROCESSINGML_NS, 'abstractNumId');
+            $instance = [
+                'numId' => $numId,
+                'abstractNumId' => $abstractNumIdElement instanceof \DOMElement ? $this->wordAttr($abstractNumIdElement, 'val') : null,
+                'levelOverrideCount' => 0,
+                'startOverrideLevels' => [],
+            ];
+
+            foreach ($child->childNodes as $override) {
+                if (!$override instanceof \DOMElement || !$this->isWordElement($override, 'lvlOverride')) {
+                    continue;
+                }
+
+                $inventory['overrideCount']++;
+                $instance['levelOverrideCount']++;
+                $startOverride = $this->firstChildElement($override, self::WORDPROCESSINGML_NS, 'startOverride');
+                if (!$startOverride instanceof \DOMElement) {
+                    continue;
+                }
+
+                $inventory['startOverrideCount']++;
+                $instance['startOverrideLevels'][] = [
+                    'level' => $this->intWordAttr($override, 'ilvl', 0),
+                    'start' => $this->intWordAttr($startOverride, 'val', 1),
+                ];
+            }
+
+            $inventory['numCount']++;
+            $inventory['instances'][] = $instance;
+        }
+
+        return $inventory;
     }
 
     /**

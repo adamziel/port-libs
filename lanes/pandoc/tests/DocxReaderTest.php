@@ -7063,8 +7063,36 @@ return [
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['contentType']);
         $t->same([], $relationship['issues']);
         $t->same(2, $numbering['definitionCount']);
+        $t->same(2, $numbering['abstractNumCount']);
+        $t->same(2, $numbering['numCount']);
         $t->same(2, $numbering['levelCount']);
         $t->same(1, $numbering['styleLinkedLevelCount']);
+        $t->same(0, $numbering['overrideCount']);
+        $t->same(0, $numbering['startOverrideCount']);
+        $t->same([
+            [
+                'abstractNumId' => '110',
+                'level' => 0,
+                'styleId' => 'ChecklistBullet',
+                'format' => 'bullet',
+                'start' => 1,
+                'ordered' => false,
+            ],
+        ], $numbering['styleLinks']);
+        $t->same([
+            [
+                'numId' => '11',
+                'abstractNumId' => '110',
+                'levelOverrideCount' => 0,
+                'startOverrideLevels' => [],
+            ],
+            [
+                'numId' => '12',
+                'abstractNumId' => '120',
+                'levelOverrideCount' => 0,
+                'startOverrideLevels' => [],
+            ],
+        ], $numbering['instances']);
         $t->same($numbering, $result['importReport']['numbering']);
 
         $t->contains("- Confirm media map\n- Preserve footnotes", $markdown);
@@ -7219,7 +7247,8 @@ return [
         $t->contains('<p>Suppressed style-linked numbering remains paragraph.</p>', $blocks);
     },
     'applies full DOCX numbering level overrides from num instances' => static function (TestRunner $t) use ($buildNumberingLevelOverridePackage): void {
-        $document = (new DocxReader())->readDocument($buildNumberingLevelOverridePackage());
+        $result = (new DocxReader())->readPackage($buildNumberingLevelOverridePackage());
+        $document = $result['document'];
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
@@ -7239,6 +7268,27 @@ return [
         $paragraph = $document->children[1];
         $t->same('paragraph', $paragraph->type);
         $t->same('Suppressed checklist marker remains body text.', $paragraph->children[0]->attr('text'));
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $t->same(2, $numbering['abstractNumCount']);
+        $t->same(2, $numbering['numCount']);
+        $t->same(2, $numbering['overrideCount']);
+        $t->same(0, $numbering['startOverrideCount']);
+        $t->same([
+            [
+                'numId' => '13',
+                'abstractNumId' => '50',
+                'levelOverrideCount' => 1,
+                'startOverrideLevels' => [],
+            ],
+            [
+                'numId' => '14',
+                'abstractNumId' => '60',
+                'levelOverrideCount' => 1,
+                'startOverrideLevels' => [],
+            ],
+        ], $numbering['instances']);
+        $t->same($numbering, $result['importReport']['numbering']);
 
         $t->contains("V)  Escalated legal review\nVI) Final approval", $markdown);
         $t->contains('Suppressed checklist marker remains body text.', $markdown);
