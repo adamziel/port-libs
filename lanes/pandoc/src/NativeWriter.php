@@ -84,8 +84,8 @@ final class NativeWriter
             if (!$child instanceof AstNode) {
                 throw new \InvalidArgumentException('Native writer children must be AST nodes');
             }
-            $native = $child->attr('native');
-            if (is_array($native) && is_string($native['t'] ?? null)) {
+            $native = $this->nativePayload($child);
+            if ($native !== null && ($child->type === 'native_block' || $this->canReuseNativeBlockPayload($child, $native))) {
                 $blocks[] = $native;
                 continue;
             }
@@ -477,8 +477,8 @@ final class NativeWriter
      */
     private function inline(AstNode $node): array
     {
-        $native = $node->attr('native');
-        if (is_array($native) && is_string($native['t'] ?? null)) {
+        $native = $this->nativePayload($node);
+        if ($native !== null && ($node->type === 'native_inline' || $this->canReuseNativeInlinePayload($node, $native))) {
             return [$native];
         }
 
@@ -546,6 +546,112 @@ final class NativeWriter
                 ? throw new \InvalidArgumentException('Native writer cannot emit unsupported shared AST inline nodes')
                 : $this->inlines($node->children),
         };
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function nativePayload(AstNode $node): ?array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null) || $native['t'] === '') {
+            return null;
+        }
+
+        return $native;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function canReuseNativeBlockPayload(AstNode $node, array $native): bool
+    {
+        try {
+            $packet = [
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [$native],
+            ];
+            $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $freshNode = $document->children[0] ?? null;
+
+        return $freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode);
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     */
+    private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
+    {
+        try {
+            $packet = [
+                'pandoc-api-version' => [1, 23, 1],
+                'meta' => [],
+                'blocks' => [
+                    ['t' => 'Plain', 'c' => [$native]],
+                ],
+            ];
+            $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        $freshNode = $document->children[0]->children[0] ?? null;
+
+        return $freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode);
+    }
+
+    private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
+    {
+        return $this->comparisonNode($left) === $this->comparisonNode($right);
+    }
+
+    /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function comparisonNode(AstNode $node): array
+    {
+        $attrs = [];
+        foreach ($node->attrs as $key => $value) {
+            if ($key === 'native' || $key === 'constructor') {
+                continue;
+            }
+            $attrs[$key] = $this->comparisonValue($value);
+        }
+        ksort($attrs);
+
+        return [
+            'type' => $node->type,
+            'attrs' => $attrs,
+            'children' => array_map(fn (AstNode $child): array => $this->comparisonNode($child), $node->children),
+        ];
+    }
+
+    private function comparisonValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->comparisonNode($value);
+        }
+
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->comparisonValue($item), $value);
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            $normalized[(string) $key] = $this->comparisonValue($item);
+        }
+        ksort($normalized);
+
+        return $normalized;
     }
 
     /**

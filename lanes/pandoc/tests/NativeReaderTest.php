@@ -320,6 +320,69 @@ return [
         $t->same('Generated alt', $generatedRoundTrip->children[0]->children[1]->attr('alt'));
         $t->same('note', $generatedRoundTrip->children[0]->children[3]->type);
     },
+    'regenerates edited known native constructors instead of stale native payloads' => static function (TestRunner $t): void {
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                [
+                    't' => 'Para',
+                    'c' => [
+                        ['t' => 'Str', 'c' => 'Diagram'],
+                        ['t' => 'Space'],
+                        ['t' => 'Image', 'c' => [
+                            ['old-image', ['asset'], [['data-source', 'old']]],
+                            [
+                                ['t' => 'Str', 'c' => 'Old'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'alt'],
+                            ],
+                            ['media/old.png', 'Old title'],
+                        ]],
+                    ],
+                ],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $paragraph = $document->children[0];
+        $image = $paragraph->children[1];
+        $editedImage = new AstNode('image', array_replace($image->attrs, [
+            'id' => 'new-image',
+            'classes' => ['asset', 'reviewed'],
+            'attributes' => ['data-source' => 'edited'],
+            'url' => 'media/new.png',
+            'title' => 'New title',
+            'alt' => 'New alt',
+        ]), [
+            new AstNode('text', ['text' => 'New']),
+            new AstNode('space'),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'alt'])]),
+        ]);
+        $editedDocument = new AstNode('document', $document->attrs, [
+            new AstNode('paragraph', $paragraph->attrs, [
+                new AstNode('text', ['text' => 'Diagram']),
+                new AstNode('space'),
+                $editedImage,
+            ]),
+        ]);
+
+        $encoded = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $encodedImage = $encoded['blocks'][0]['c'][2];
+        $roundTrip = (new NativeReader())->read(json_encode($encoded, JSON_THROW_ON_ERROR));
+        $roundTripImage = $roundTrip->children[0]->children[1];
+
+        $t->same('Para', $encoded['blocks'][0]['t']);
+        $t->same('Image', $encodedImage['t']);
+        $t->same(['new-image', ['asset', 'reviewed'], [['data-source', 'edited']]], $encodedImage['c'][0]);
+        $t->same('New', $encodedImage['c'][1][0]['c']);
+        $t->same('Strong', $encodedImage['c'][1][2]['t']);
+        $t->same(['media/new.png', 'New title'], $encodedImage['c'][2]);
+        $t->same('image', $roundTripImage->type);
+        $t->same('new-image', $roundTripImage->attr('id'));
+        $t->same('media/new.png', $roundTripImage->attr('url'));
+        $t->same('New alt', $roundTripImage->attr('alt'));
+    },
     'maps native raw block and citation constructors into shared ast' => static function (TestRunner $t): void {
         $rawBlock = ['t' => 'RawBlock', 'c' => ['html', '<section data-review="native-raw">Native raw</section>']];
         $citeInline = ['t' => 'Cite', 'c' => [
