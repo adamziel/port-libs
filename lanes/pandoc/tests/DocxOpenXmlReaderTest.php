@@ -179,6 +179,110 @@ XML;
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
+    'resolves docx settings and font table from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/fonts/review-fonts.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml?profile=team#settings"/>' . "\n" .
+            '  <Relationship Id="rFontTable" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fonts/review-fonts.xml#fontTable"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:trackRevisions/>
+  <w:doNotTrackMoves w:val="true"/>
+  <w:doNotTrackFormatting w:val="0"/>
+  <w:evenAndOddHeaders/>
+  <w:updateFields w:val="1"/>
+  <w:defaultTabStop w:val="720"/>
+  <w:decimalSymbol w:val=","/>
+  <w:listSeparator w:val=";"/>
+  <w:zoom w:percent="125" w:val="bestFit"/>
+  <w:documentProtection w:edit="readOnly" w:enforcement="1" w:cryptProviderType="rsaFull" w:cryptAlgorithmClass="hash" w:cryptAlgorithmType="typeAny" w:cryptAlgorithmSid="14" w:cryptSpinCount="100000"/>
+  <w:compat>
+    <w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/>
+  </w:compat>
+  <w:docVars>
+    <w:docVar w:name="ReviewBatch" w:val="wp-import"/>
+  </w:docVars>
+</w:settings>
+XML;
+        $parts['word/fonts/review-fonts.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Aptos">
+    <w:altName w:val="Body Font"/>
+    <w:charset w:val="00"/>
+    <w:family w:val="swiss"/>
+    <w:pitch w:val="variable"/>
+    <w:panose1 w:val="020F0502020204030204"/>
+  </w:font>
+  <w:font w:name="Courier New">
+    <w:charset w:val="00"/>
+    <w:family w:val="modern"/>
+    <w:pitch w:val="fixed"/>
+  </w:font>
+</w:fonts>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $settings = $docx['settings'];
+        $fontTable = $docx['fontTable'];
+
+        $t->same('docSettings/review-settings.xml', $docx['settingsPart']);
+        $t->same('rSettings', $docx['settingsRelationship']['id']);
+        $t->same('word/document.xml', $docx['settingsRelationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $docx['settingsRelationship']['relationshipsPart']);
+        $t->same('../docSettings/review-settings.xml?profile=team#settings', $docx['settingsRelationship']['target']);
+        $t->same('docSettings/review-settings.xml?profile=team#settings', $docx['settingsRelationship']['resolvedTarget']);
+        $t->same('docSettings/review-settings.xml', $docx['settingsRelationship']['targetPart']);
+        $t->same(true, $docx['settingsRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml', $docx['settingsRelationship']['contentType']);
+        $t->same(true, $settings['trackRevisions']);
+        $t->same(true, $settings['doNotTrackMoves']);
+        $t->same(false, $settings['doNotTrackFormatting']);
+        $t->same(true, $settings['evenAndOddHeaders']);
+        $t->same(true, $settings['updateFields']);
+        $t->same(720, $settings['defaultTabStopTwips']);
+        $t->same(',', $settings['decimalSymbol']);
+        $t->same(';', $settings['listSeparator']);
+        $t->same(125, $settings['zoom']['percent']);
+        $t->same('bestFit', $settings['zoom']['value']);
+        $t->same('readOnly', $settings['documentProtection']['edit']);
+        $t->same(true, $settings['documentProtection']['enforcement']);
+        $t->same('rsaFull', $settings['documentProtection']['cryptProviderType']);
+        $t->same(14, $settings['documentProtection']['cryptAlgorithmSid']);
+        $t->same(100000, $settings['documentProtection']['cryptSpinCount']);
+        $t->same('compatibilityMode', $settings['compatibility'][0]['name']);
+        $t->same('15', $settings['compatibility'][0]['value']);
+        $t->same(['ReviewBatch' => 'wp-import'], $settings['documentVariables']);
+
+        $t->same('word/fonts/review-fonts.xml', $docx['fontTablePart']);
+        $t->same('rFontTable', $docx['fontTableRelationship']['id']);
+        $t->same('fonts/review-fonts.xml#fontTable', $docx['fontTableRelationship']['target']);
+        $t->same('word/fonts/review-fonts.xml#fontTable', $docx['fontTableRelationship']['resolvedTarget']);
+        $t->same('word/fonts/review-fonts.xml', $docx['fontTableRelationship']['targetPart']);
+        $t->same(true, $docx['fontTableRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml', $docx['fontTableRelationship']['contentType']);
+        $t->same(2, $fontTable['fontCount']);
+        $t->same(['Aptos', 'Courier New'], $fontTable['declaredNames']);
+        $t->same('Body Font', $fontTable['byName']['Aptos']['alternateName']);
+        $t->same('swiss', $fontTable['byName']['Aptos']['family']);
+        $t->same('variable', $fontTable['byName']['Aptos']['pitch']);
+        $t->same('020F0502020204030204', $fontTable['byName']['Aptos']['panose1']);
+        $t->same('modern', $fontTable['byName']['Courier New']['family']);
+        $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

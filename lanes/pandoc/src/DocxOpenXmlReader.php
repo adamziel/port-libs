@@ -19,6 +19,8 @@ final class DocxOpenXmlReader
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+    private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
 
     public function readFile(string $path): AstNode
     {
@@ -67,6 +69,10 @@ final class DocxOpenXmlReader
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
+        $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
+        $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
+        $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
+        $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
         $media = $this->mediaMetadata($parts, $contentTypes);
@@ -83,6 +89,10 @@ final class DocxOpenXmlReader
                 'styles' => $styles,
                 'numberingPart' => $numberingPart['partName'],
                 'numbering' => $numbering,
+                'settingsPart' => $settingsPart['partName'],
+                'settings' => $settings,
+                'fontTablePart' => $fontTablePart['partName'],
+                'fontTable' => $fontTable,
                 'media' => $media,
             ],
         ];
@@ -113,6 +123,26 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $numberingPart['partName'],
                 $numberingPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($settingsPart['relationship'] !== null) {
+            $attrs['docx']['settingsRelationship'] = $this->relationshipSummary(
+                $settingsPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $settingsPart['partName'],
+                $settingsPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($fontTablePart['relationship'] !== null) {
+            $attrs['docx']['fontTableRelationship'] = $this->relationshipSummary(
+                $fontTablePart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $fontTablePart['partName'],
+                $fontTablePart['exists'],
                 $contentTypes,
             );
         }
@@ -354,6 +384,43 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function relatedDocumentPart(
+        array $parts,
+        array $relationships,
+        string $documentPart,
+        string $relationshipType,
+        string $fallbackFileName
+    ): array {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== $relationshipType || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = $this->documentSiblingPart($documentPart, $fallbackFileName);
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @return array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:string, exists:bool, contentType:string}
@@ -466,6 +533,147 @@ final class DocxOpenXmlReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readSettings(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $settings = [];
+
+        foreach ([
+            'trackRevisions' => 'trackRevisions',
+            'doNotTrackMoves' => 'doNotTrackMoves',
+            'doNotTrackFormatting' => 'doNotTrackFormatting',
+            'evenAndOddHeaders' => 'evenAndOddHeaders',
+            'updateFields' => 'updateFields',
+        ] as $key => $localName) {
+            $element = $this->firstElement($xpath, '/w:settings/w:' . $localName, $dom);
+            if ($element instanceof \DOMElement) {
+                $settings[$key] = $this->wordBoolean($element);
+            }
+        }
+
+        $defaultTabStop = $this->firstElement($xpath, '/w:settings/w:defaultTabStop', $dom);
+        if ($defaultTabStop instanceof \DOMElement && is_numeric($defaultTabStop->getAttributeNS(self::NS_W, 'val'))) {
+            $settings['defaultTabStopTwips'] = (int) $defaultTabStop->getAttributeNS(self::NS_W, 'val');
+        }
+
+        $zoom = $this->firstElement($xpath, '/w:settings/w:zoom', $dom);
+        if ($zoom instanceof \DOMElement) {
+            $settings['zoom'] = array_filter([
+                'percent' => is_numeric($zoom->getAttributeNS(self::NS_W, 'percent'))
+                    ? (int) $zoom->getAttributeNS(self::NS_W, 'percent')
+                    : null,
+                'value' => $zoom->getAttributeNS(self::NS_W, 'val') ?: null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+        }
+
+        foreach ([
+            'decimalSymbol' => 'decimalSymbol',
+            'listSeparator' => 'listSeparator',
+        ] as $key => $localName) {
+            $element = $this->firstElement($xpath, '/w:settings/w:' . $localName, $dom);
+            if ($element instanceof \DOMElement) {
+                $value = $element->getAttributeNS(self::NS_W, 'val');
+                if ($value !== '') {
+                    $settings[$key] = $value;
+                }
+            }
+        }
+
+        $protection = $this->firstElement($xpath, '/w:settings/w:documentProtection', $dom);
+        if ($protection instanceof \DOMElement) {
+            $settings['documentProtection'] = $this->wordAttributeMap($protection, [
+                'edit',
+                'enforcement',
+                'cryptProviderType',
+                'cryptAlgorithmClass',
+                'cryptAlgorithmType',
+                'cryptAlgorithmSid',
+                'cryptSpinCount',
+            ]);
+            if (isset($settings['documentProtection']['enforcement'])) {
+                $settings['documentProtection']['enforcement'] = $this->wordBoolean($protection, 'enforcement');
+            }
+            foreach (['cryptAlgorithmSid', 'cryptSpinCount'] as $numericKey) {
+                if (isset($settings['documentProtection'][$numericKey]) && is_numeric($settings['documentProtection'][$numericKey])) {
+                    $settings['documentProtection'][$numericKey] = (int) $settings['documentProtection'][$numericKey];
+                }
+            }
+        }
+
+        $compatibility = [];
+        foreach ($this->elements($xpath, '/w:settings/w:compat/w:compatSetting') as $setting) {
+            $compatibility[] = array_filter([
+                'name' => $setting->getAttributeNS(self::NS_W, 'name') ?: null,
+                'uri' => $setting->getAttributeNS(self::NS_W, 'uri') ?: null,
+                'value' => $setting->getAttributeNS(self::NS_W, 'val') ?: null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+        }
+        if ($compatibility !== []) {
+            $settings['compatibility'] = $compatibility;
+        }
+
+        $documentVariables = [];
+        foreach ($this->elements($xpath, '/w:settings/w:docVars/w:docVar') as $variable) {
+            $name = $variable->getAttributeNS(self::NS_W, 'name');
+            if ($name !== '') {
+                $documentVariables[$name] = $variable->getAttributeNS(self::NS_W, 'val');
+            }
+        }
+        if ($documentVariables !== []) {
+            $settings['documentVariables'] = $documentVariables;
+        }
+
+        return $settings;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readFontTable(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $fonts = [];
+        $byName = [];
+        foreach ($this->elements($xpath, '/w:fonts/w:font') as $font) {
+            $name = $font->getAttributeNS(self::NS_W, 'name');
+            if ($name === '') {
+                continue;
+            }
+
+            $record = array_filter([
+                'name' => $name,
+                'alternateName' => $this->childAttr($font, 'altName', 'val') ?: null,
+                'charset' => $this->childAttr($font, 'charset', 'val') ?: null,
+                'family' => $this->childAttr($font, 'family', 'val') ?: null,
+                'pitch' => $this->childAttr($font, 'pitch', 'val') ?: null,
+                'panose1' => $this->childAttr($font, 'panose1', 'val') ?: null,
+            ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+            $fonts[] = $record;
+            $byName[$name] = $record;
+        }
+
+        return [
+            'fontCount' => count($fonts),
+            'declaredNames' => array_column($fonts, 'name'),
+            'fonts' => $fonts,
+            'byName' => $byName,
+        ];
     }
 
     /**
@@ -1176,5 +1384,29 @@ final class DocxOpenXmlReader
         $child = $this->childElement($parent, $childLocalName);
 
         return $child instanceof \DOMElement ? $child->getAttributeNS(self::NS_W, $attrLocalName) : '';
+    }
+
+    private function wordBoolean(\DOMElement $element, string $attribute = 'val'): bool
+    {
+        $value = strtolower($element->getAttributeNS(self::NS_W, $attribute));
+
+        return !in_array($value, ['0', 'false', 'off'], true);
+    }
+
+    /**
+     * @param list<string> $names
+     * @return array<string, string|int|bool>
+     */
+    private function wordAttributeMap(\DOMElement $element, array $names): array
+    {
+        $attributes = [];
+        foreach ($names as $name) {
+            $value = $element->getAttributeNS(self::NS_W, $name);
+            if ($value !== '') {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes;
     }
 }
