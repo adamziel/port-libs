@@ -5409,14 +5409,17 @@ final class PdfEngineHandoff
         }
 
         if (!$recorderRows && preg_match('/\.(?:d|deps)\z/i', $path) === 1) {
-            $makeDependencies = $this->extractMakeDependencyArtifact($path, $bytes);
-            foreach ($makeDependencies['inputFiles'] as $inputFile) {
+            $trimmedBytes = ltrim($bytes);
+            $sidecarDependencies = $trimmedBytes !== '' && ($trimmedBytes[0] === '{' || $trimmedBytes[0] === '[')
+                ? $this->extractJsonDependencyArtifact($path, $bytes)
+                : $this->extractMakeDependencyArtifact($path, $bytes);
+            foreach ($sidecarDependencies['inputFiles'] as $inputFile) {
                 $inputFiles[$inputFile] = true;
             }
-            foreach ($makeDependencies['externalInputFiles'] as $externalInputFile) {
+            foreach ($sidecarDependencies['externalInputFiles'] as $externalInputFile) {
                 $externalInputFiles[$externalInputFile] = true;
             }
-            foreach ($makeDependencies['outputFiles'] as $outputFile) {
+            foreach ($sidecarDependencies['outputFiles'] as $outputFile) {
                 $outputFiles[$outputFile] = true;
             }
         }
@@ -5433,6 +5436,110 @@ final class PdfEngineHandoff
             'externalInputFiles' => $externalInputFileList,
             'outputFiles' => $outputFileList,
         ];
+    }
+
+    /**
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>}
+     */
+    private function extractJsonDependencyArtifact(string $path, string $bytes): array
+    {
+        try {
+            $decoded = json_decode($bytes, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \RuntimeException('json dependency file is invalid in ' . $path . ': ' . $exception->getMessage());
+        }
+
+        if (!is_array($decoded)) {
+            throw new \RuntimeException('json dependency file must decode to an array or object in ' . $path);
+        }
+
+        $inputPaths = [];
+        $outputPaths = [];
+        $recognizedFields = false;
+
+        if (array_is_list($decoded)) {
+            if (array_key_exists(0, $decoded)) {
+                $inputPaths = $this->jsonDependencyPathList($decoded[0], 'input', $path);
+                $recognizedFields = true;
+            }
+            if (array_key_exists(1, $decoded)) {
+                $outputPaths = $this->jsonDependencyPathList($decoded[1], 'output', $path);
+                $recognizedFields = true;
+            }
+        } else {
+            foreach (['input', 'inputs', 'dependencies', 'deps', 'i'] as $key) {
+                if (array_key_exists($key, $decoded)) {
+                    $inputPaths = $this->jsonDependencyPathList($decoded[$key], $key, $path);
+                    $recognizedFields = true;
+                    break;
+                }
+            }
+            foreach (['output', 'outputs', 'o'] as $key) {
+                if (array_key_exists($key, $decoded)) {
+                    $outputPaths = $this->jsonDependencyPathList($decoded[$key], $key, $path);
+                    $recognizedFields = true;
+                    break;
+                }
+            }
+        }
+
+        if (!$recognizedFields) {
+            throw new \RuntimeException('json dependency file has no input or output path arrays in ' . $path);
+        }
+
+        $inputFiles = [];
+        $externalInputFiles = [];
+        $outputFiles = [];
+        foreach ($inputPaths as $inputPath) {
+            $classified = $this->normalizeEngineDependencyPath($inputPath, $path);
+            if ($classified['local']) {
+                $inputFiles[$classified['path']] = true;
+            } else {
+                $externalInputFiles[$classified['path']] = true;
+            }
+        }
+        foreach ($outputPaths as $outputPath) {
+            $classified = $this->normalizeEngineDependencyPath($outputPath, $path);
+            if ($classified['local']) {
+                $outputFiles[$classified['path']] = true;
+            }
+        }
+
+        $inputFileList = array_keys($inputFiles);
+        sort($inputFileList);
+        $externalInputFileList = array_keys($externalInputFiles);
+        sort($externalInputFileList);
+        $outputFileList = array_keys($outputFiles);
+        sort($outputFileList);
+
+        return [
+            'inputFiles' => $inputFileList,
+            'externalInputFiles' => $externalInputFileList,
+            'outputFiles' => $outputFileList,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function jsonDependencyPathList(mixed $value, string $field, string $path): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new \RuntimeException('json dependency field ' . $field . ' must be a list in ' . $path);
+        }
+
+        $paths = [];
+        foreach ($value as $index => $item) {
+            if (!is_string($item)) {
+                throw new \RuntimeException('json dependency field ' . $field . '[' . $index . '] must be a string in ' . $path);
+            }
+
+            if (trim($item) !== '') {
+                $paths[] = $item;
+            }
+        }
+
+        return $paths;
     }
 
     /**

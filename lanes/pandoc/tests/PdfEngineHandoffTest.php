@@ -160,6 +160,79 @@ return [
         $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
     },
 
+    'fake runner preserves typst json dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Review Packet\n\n#image(\"figures/logo.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/brief.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/brief.deps', '--deps-format=json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst JSON dependency packet\n%%EOF\n";
+        $deps = json_encode([
+            'input' => [
+                'build/brief.typ',
+                'figures/logo.svg',
+                'data/chart.csv',
+                '@preview/cetz:0.3.2',
+                'file:///usr/share/fonts/SourceSerif4-Regular.otf',
+            ],
+            'output' => [
+                'build/brief.pdf',
+                'build/brief-2.svg',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/brief.deps' => $deps,
+                'build/brief.pdf' => $pdfBytes,
+                'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                'data/chart.csv' => "label,value\nA,4\n",
+            ],
+        ]);
+        $missing = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/brief.deps' => $deps,
+                'build/brief.pdf' => $pdfBytes,
+                'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/brief.deps' => $deps,
+                    'build/brief.pdf' => $pdfBytes,
+                    'figures/logo.svg' => '<svg viewBox="0 0 1 1"/>',
+                    'data/chart.csv' => "label,value\nA,4\n",
+                ],
+            ],
+        ]);
+
+        $t->same('build/brief.deps', $plan['engineDependencyFile']);
+        $t->same(['build/brief.deps'], $plan['expectedEngineArtifacts']);
+        $t->same(true, $result['ok']);
+        $t->same(['build/brief.deps' => hash('sha256', $deps)], $result['engineDependencyArtifactsSha256']);
+        $t->same(['build/brief.typ', 'data/chart.csv', 'figures/logo.svg'], $result['engineInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
+        $t->same(['build/brief-2.svg', 'build/brief.pdf'], $result['engineOutputFiles']);
+        $t->contains('engine-dependency-artifacts:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-dependency-files:3', implode(',', $result['diagnostics']));
+        $t->contains('engine-external-input-files:2', implode(',', $result['diagnostics']));
+        $t->contains('engine-typst-package-inputs:1', implode(',', $result['diagnostics']));
+        $t->contains('engine-output-files:2', implode(',', $result['diagnostics']));
+        $t->same(false, $missing['ok']);
+        $t->same('missing-engine-input-file', $missing['reason']);
+        $t->same(['data/chart.csv'], $missing['missingEngineInputFiles']);
+        $t->same(['build/brief.deps' => hash('sha256', $deps)], $sequence['finalEngineDependencyArtifactsSha256']);
+        $t->same(['build/brief.typ', 'data/chart.csv', 'figures/logo.svg'], $sequence['finalEngineInputFiles']);
+        $t->same(['SourceSerif4-Regular.otf', 'typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $sequence['finalEngineTypstPackageInputs']);
+        $t->same(['build/brief-2.svg', 'build/brief.pdf'], $sequence['finalEngineOutputFiles']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
