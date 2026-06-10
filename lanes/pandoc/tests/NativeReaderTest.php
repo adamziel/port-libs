@@ -190,6 +190,65 @@ return [
         $t->same($legacy[1], $roundTrip['blocks']);
         $t->same([1, 23, 1], $roundTrip['pandoc-api-version']);
     },
+    'accepts native ast MetaMap metadata envelopes without losing literal unMeta keys' => static function (TestRunner $t): void {
+        $reader = new NativeReader();
+        $writer = new NativeWriter();
+        $enveloped = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                't' => 'MetaMap',
+                'c' => [
+                    'title' => ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Constructor'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'metadata'],
+                    ]],
+                    'review' => ['t' => 'MetaMap', 'c' => [
+                        'queue' => ['t' => 'MetaString', 'c' => 'native-import'],
+                        'draft' => ['t' => 'MetaBool', 'c' => false],
+                    ]],
+                ],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Metadata'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'body'],
+                ]],
+            ],
+        ];
+
+        $document = $reader->read(json_encode($enveloped, JSON_THROW_ON_ERROR));
+        $roundTrip = json_decode($writer->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $legacyEnvelope = $reader->read(json_encode([
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'unMeta' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-envelope'],
+                ],
+            ]],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR));
+        $literalUnMeta = $reader->read(json_encode([
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'unMeta' => ['t' => 'MetaString', 'c' => 'literal-key'],
+            ]],
+            'blocks' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $meta = $document->attr('meta');
+        $t->same($enveloped['meta']['c'], $meta);
+        $t->same('MetaInlines', $meta['title']['t']);
+        $t->same('Constructor', $meta['title']['c'][0]['c']);
+        $t->same('MetaMap', $meta['review']['t']);
+        $t->same('native-import', $meta['review']['c']['queue']['c']);
+        $t->same(false, $meta['review']['c']['draft']['c']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same($enveloped['meta']['c'], $roundTrip['meta']);
+        $t->same(false, isset($roundTrip['meta']['t']));
+        $t->same('legacy-envelope', $legacyEnvelope->attr('meta')['source']['c']);
+        $t->same('MetaString', $literalUnMeta->attr('meta')['unMeta']['t']);
+        $t->same('literal-key', $literalUnMeta->attr('meta')['unMeta']['c']);
+    },
     'round trips markdown paragraph inlines through pandoc native ast json' => static function (TestRunner $t): void {
         $markdown = "Native *AST* **roundtrip** with `code` and [link](https://example.test/source)\nnext line.";
         $document = (new MarkdownReader())->read($markdown);

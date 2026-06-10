@@ -66,6 +66,8 @@ final class NativeReader
      */
     private function metadata(mixed $metadata): array
     {
+        $metadata = $this->normalizeMetadataMap($metadata);
+
         if (!is_array($metadata)) {
             throw new \InvalidArgumentException('Pandoc native JSON meta must be an object');
         }
@@ -79,6 +81,53 @@ final class NativeReader
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function normalizeMetadataMap(mixed $metadata): array
+    {
+        if ($this->isTaggedConstructor($metadata, 'MetaMap')) {
+            return $this->metaMapContent($metadata['c'] ?? null);
+        }
+
+        if (!is_array($metadata) || ($metadata !== [] && array_is_list($metadata))) {
+            throw new \InvalidArgumentException('Pandoc native JSON meta must be an object');
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaMapContent(mixed $content): array
+    {
+        if (!is_array($content) || ($content !== [] && array_is_list($content))) {
+            throw new \InvalidArgumentException('Pandoc native JSON MetaMap content must be an object');
+        }
+
+        if (count($content) === 1 && array_key_exists('unMeta', $content) && !$this->isTaggedObject($content['unMeta'])) {
+            $unMeta = $content['unMeta'];
+            if (!is_array($unMeta) || ($unMeta !== [] && array_is_list($unMeta))) {
+                throw new \InvalidArgumentException('Pandoc native JSON MetaMap legacy unMeta content must be an object');
+            }
+
+            return $unMeta;
+        }
+
+        return $content;
+    }
+
+    private function isTaggedConstructor(mixed $value, string $constructor): bool
+    {
+        return $this->isTaggedObject($value) && $value['t'] === $constructor;
+    }
+
+    private function isTaggedObject(mixed $value): bool
+    {
+        return is_array($value) && !array_is_list($value) && isset($value['t']) && is_string($value['t']);
     }
 
     private function metaValue(mixed $value): mixed
