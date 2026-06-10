@@ -15556,8 +15556,8 @@ HTML);
 
         $t->same('paragraph', $paragraph->type);
         $t->same(['text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
-        $t->same('<picture data-source="batch-50"><source media="(min-width: 800px)" srcset="wide.webp"></picture>', $inlinePicture->attr('html'));
-        $t->contains('<p>Before <picture data-source="batch-50"><source media="(min-width: 800px)" srcset="wide.webp"></picture></p>', $htmlOutput);
+        $t->same('<picture data-source="batch-50"><source media="(min-width: 800px)" srcset="wide.webp"><img alt="Fallback" src="fallback.jpg"></picture>', $inlinePicture->attr('html'));
+        $t->contains('<p>Before <picture data-source="batch-50"><source media="(min-width: 800px)" srcset="wide.webp"><img alt="Fallback" src="fallback.jpg"></picture></p>', $htmlOutput);
         $t->true(!str_contains($htmlOutput, 'Before </p>'), 'HTML document picture container should not be dropped from the paragraph');
     },
     'maps upstream html reader button controls as raw review markup' => static function (TestRunner $t): void {

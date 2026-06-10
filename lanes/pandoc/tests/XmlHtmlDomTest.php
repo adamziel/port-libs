@@ -357,6 +357,48 @@ XML, 'package reader XML');
         $t->same(10.0, $clamped['max']);
         $t->same('<label for="upload-progress">Upload</label><progress id="upload-progress" max="4" value="3">75%</progress><progress id="pending">Pending</progress><label>Quality <meter high="0.9" id="quality" low="0.4" max="1" min="0" optimum="0.95" value="0.82">82%</meter></label><meter id="clamped" max="10" min="2" value="12">Too high</meter>', $html);
     },
+    'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
+                . '<audio id="sample" autoplay preload="bogus"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" src="chapters.vtt" srclang="en" label="Chapters">Audio fallback</audio>',
+            'media resource review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $video = $summary[0];
+        $audio = $summary[1];
+
+        $t->same('video', $video['media']);
+        $t->same(true, $video['controls']);
+        $t->same(false, $video['autoplay']);
+        $t->same(true, $video['loop']);
+        $t->same(true, $video['muted']);
+        $t->same('metadata', $video['preload']);
+        $t->same('cover.jpg', $video['poster']);
+        $t->same([
+            ['src' => 'movie.webm', 'type' => 'video/webm'],
+            ['src' => 'movie.mp4', 'type' => 'video/mp4', 'media' => '(min-width: 40em)'],
+        ], $video['sources']);
+        $t->same([
+            ['kind' => 'captions', 'src' => 'captions.vtt', 'srclang' => 'en', 'label' => 'English', 'default' => true],
+        ], $video['tracks']);
+        $t->same('Fallback download', $video['fallbackText']);
+        $t->same('audio', $audio['media']);
+        $t->same(false, $audio['controls']);
+        $t->same(true, $audio['autoplay']);
+        $t->same(false, $audio['loop']);
+        $t->same(false, $audio['muted']);
+        $t->same('auto', $audio['preload']);
+        $t->same([
+            ['src' => 'sample.ogg', 'type' => 'audio/ogg'],
+        ], $audio['sources']);
+        $t->same([
+            ['kind' => 'chapters', 'src' => 'chapters.vtt', 'srclang' => 'en', 'label' => 'Chapters', 'default' => false],
+        ], $audio['tracks']);
+        $t->same('Audio fallback', $audio['fallbackText']);
+        $t->same('<video controls id="preview" loop muted poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source media="(min-width: 40em)" src="movie.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en">Fallback <a href="movie.mp4">download</a></video><audio autoplay id="sample" preload="bogus"><source src="sample.ogg" type="audio/ogg"><track kind="chapters" label="Chapters" src="chapters.vtt" srclang="en">Audio fallback</audio>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

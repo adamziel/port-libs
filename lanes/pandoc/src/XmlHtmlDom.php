@@ -827,6 +827,23 @@ final class XmlHtmlDom
                 }
             }
         }
+        if ($name === 'audio' || $name === 'video') {
+            $summary['media'] = $name;
+            $summary['sources'] = self::mediaSourceSummaries($node);
+            $summary['tracks'] = self::mediaTrackSummaries($node);
+            $summary['controls'] = $node->hasAttribute('controls');
+            $summary['autoplay'] = $node->hasAttribute('autoplay');
+            $summary['loop'] = $node->hasAttribute('loop');
+            $summary['muted'] = $node->hasAttribute('muted');
+            $summary['preload'] = self::mediaPreload($node);
+            if ($name === 'video' && $node->hasAttribute('poster')) {
+                $summary['poster'] = $node->getAttribute('poster');
+            }
+            $fallbackText = self::normalizedTextWithoutMediaResourceChildren($node);
+            if ($fallbackText !== '') {
+                $summary['fallbackText'] = $fallbackText;
+            }
+        }
 
         return [$summary];
     }
@@ -843,6 +860,139 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    private static function mediaPreload(\DOMElement $media): string
+    {
+        $preload = strtolower(trim($media->getAttribute('preload')));
+
+        return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'auto';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function mediaSourceSummaries(\DOMElement $media): array
+    {
+        $sources = [];
+        foreach (self::mediaResourceElements($media, 'source') as $source) {
+            $summary = [];
+            foreach (['src', 'type', 'media', 'srcset', 'sizes'] as $attribute) {
+                if ($source->hasAttribute($attribute)) {
+                    $summary[$attribute] = $source->getAttribute($attribute);
+                }
+            }
+            $sources[] = $summary;
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function mediaTrackSummaries(\DOMElement $media): array
+    {
+        $tracks = [];
+        foreach (self::mediaResourceElements($media, 'track') as $track) {
+            $summary = [
+                'kind' => self::trackKind($track),
+                'src' => $track->getAttribute('src'),
+                'srclang' => $track->getAttribute('srclang'),
+                'label' => $track->getAttribute('label'),
+                'default' => $track->hasAttribute('default'),
+            ];
+            $tracks[] = $summary;
+        }
+
+        return $tracks;
+    }
+
+    private static function trackKind(\DOMElement $track): string
+    {
+        $kind = strtolower(trim($track->getAttribute('kind')));
+
+        return in_array($kind, ['subtitles', 'captions', 'descriptions', 'chapters', 'metadata'], true)
+            ? $kind
+            : 'subtitles';
+    }
+
+    private static function normalizedTextWithoutMediaResourceChildren(\DOMElement $media): string
+    {
+        $text = '';
+        foreach ($media->childNodes as $child) {
+            $text .= self::mediaFallbackText($child);
+        }
+
+        $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function mediaResourceElements(\DOMElement $media, string $name): array
+    {
+        $resources = [];
+        $stack = [];
+        for ($index = $media->childNodes->length - 1; $index >= 0; --$index) {
+            $child = $media->childNodes->item($index);
+            if ($child instanceof \DOMElement) {
+                $stack[] = $child;
+            }
+        }
+
+        while ($stack !== []) {
+            $node = array_pop($stack);
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if (strtolower(self::htmlElementName($node)) === $name && self::belongsToMediaResourceList($node, $media)) {
+                $resources[] = $node;
+            }
+
+            for ($index = $node->childNodes->length - 1; $index >= 0; --$index) {
+                $child = $node->childNodes->item($index);
+                if ($child instanceof \DOMElement) {
+                    $stack[] = $child;
+                }
+            }
+        }
+
+        return $resources;
+    }
+
+    private static function belongsToMediaResourceList(\DOMElement $resource, \DOMElement $media): bool
+    {
+        $parent = $resource->parentNode;
+        while ($parent instanceof \DOMElement && !$parent->isSameNode($media)) {
+            if (in_array(strtolower(self::htmlElementName($parent)), ['audio', 'video', 'picture'], true)) {
+                return false;
+            }
+            $parent = $parent->parentNode;
+        }
+
+        return $parent instanceof \DOMElement && $parent->isSameNode($media);
+    }
+
+    private static function mediaFallbackText(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMText) {
+            return $node->nodeValue ?? '';
+        }
+
+        if (!$node instanceof \DOMElement) {
+            return '';
+        }
+
+        $text = '';
+        foreach ($node->childNodes as $child) {
+            $text .= self::mediaFallbackText($child);
+        }
+
+        return $text;
     }
 
     private static function numericAttribute(\DOMElement $element, string $name, ?float $default): ?float
@@ -1035,7 +1185,7 @@ final class XmlHtmlDom
         $name = self::htmlElementName($node);
         $html = '<' . $name . self::serializeAttributes($node);
         if (isset(self::HTML5_VOID_ELEMENTS[strtolower($name)])) {
-            return $html . '>';
+            return $html . '>' . self::serializeHtmlChildren($node);
         }
 
         $html .= '>';
