@@ -14440,6 +14440,79 @@ XML
         $t->same(['citation-locator-label-without-value', 'citation-locator-unsupported-label'], array_column($normalized->attr('cslLocatorDiagnostics'), 'reason'));
         $t->same('(Vale)', $processor->renderCitationCluster([$citation]));
     },
+    'applies bounded citation locator diagnostics for unsupported explicit labels with raw locators' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'locator-unsupported-raw-source',
+                'type' => 'report',
+                'title' => 'Unsupported Raw Locator Packet',
+                'author' => [
+                    ['family' => 'Vale', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+        ])->withCslStyle(
+            <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Unsupported Raw Locator Diagnostics Review Style</title>
+    <id>https://example.test/styles/bounded-unsupported-raw-locator-diagnostics-review</id>
+    <updated>2026-06-10T10:25:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")" delimiter="; ">
+      <group delimiter=", ">
+        <names variable="author"/>
+        <group delimiter=" ">
+          <label variable="locator" form="short"/>
+          <text variable="locator"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=". " suffix=".">
+      <names variable="author"/>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>
+XML
+        );
+
+        $citation = new AstNode('citation', [
+            'id' => 'locator-unsupported-raw-source',
+            'text' => '[@locator-unsupported-raw-source, scene intro]',
+            'locatorLabel' => 'scene',
+            'locator' => 'intro',
+        ]);
+        $diagnostics = $processor->citationLocatorDiagnostics($citation);
+        $t->same([
+            'citation-locator-label-without-explicit-value',
+            'citation-locator-unsupported-label',
+            'citation-locator-unlabeled-page-fallback',
+        ], array_column($diagnostics, 'reason'));
+        $t->same(['warning', 'warning', 'info'], array_column($diagnostics, 'severity'));
+        $t->same(['scene', 'scene', 'scene'], array_column($diagnostics, 'rawLocatorLabel'));
+        $t->same(['page', 'page', 'page'], array_column($diagnostics, 'locatorLabel'));
+        $t->same(['intro', 'intro', 'intro'], array_column($diagnostics, 'locatorValue'));
+        $t->same(['intro', 'intro', 'intro'], array_column($diagnostics, 'rawLocator'));
+
+        $normalized = $processor->normalizeCitation($citation);
+        $t->same([
+            'citation-locator-label-without-explicit-value',
+            'citation-locator-unsupported-label',
+            'citation-locator-unlabeled-page-fallback',
+        ], array_column($normalized->attr('cslLocatorDiagnostics'), 'reason'));
+        $t->same('(Vale, p. intro)', $processor->renderCitationCluster([$citation]));
+
+        $document = (new MarkdownReader())->read('Unsupported raw locator [@locator-unsupported-raw-source, intro] remains readable.');
+        $processed = $processor->appendBibliography($document, 'Works Cited');
+        $blocks = (new WordPressBlockWriter())->write($processed);
+        $t->contains('<p>Unsupported raw locator (Vale, p. intro) remains readable.</p>', $blocks);
+        $t->contains('<dt>Vale 2026</dt><dd>Vale, Rae. Unsupported Raw Locator Packet.</dd>', $blocks);
+    },
     'applies bounded csl is numeric conditionals for locators and number variables' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
