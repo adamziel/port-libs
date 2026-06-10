@@ -44,6 +44,7 @@ final class EpubPackageReader
                 'metadataProperties' => $package['metadataProperties'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
+                'spineTocId' => $package['spineTocId'],
                 'spine' => $package['spine'],
                 'toc' => $toc,
                 'ncx' => $ncx,
@@ -77,6 +78,7 @@ final class EpubPackageReader
      *     metadata:array<string, mixed>,
      *     metadataProperties:list<array{property:string, value:string, refines:string}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
+     *     spineTocId:string,
      *     spine:list<array{idref:string, href:string, path:string, mediaType:string, linear:bool, properties:list<string>}>
      * }
      */
@@ -156,22 +158,28 @@ final class EpubPackageReader
         }
 
         $spine = [];
-        $spineNodes = $xpath->query('./*[local-name()="spine"]/*[local-name()="itemref"]', $packageElement);
-        if ($spineNodes instanceof \DOMNodeList) {
-            foreach ($spineNodes as $node) {
-                if (!$node instanceof \DOMElement) {
-                    continue;
+        $spineTocId = '';
+        $spineElements = $xpath->query('./*[local-name()="spine"][1]', $packageElement);
+        $spineElement = $spineElements instanceof \DOMNodeList ? $spineElements->item(0) : null;
+        if ($spineElement instanceof \DOMElement) {
+            $spineTocId = trim($spineElement->getAttribute('toc'));
+            $spineNodes = $xpath->query('./*[local-name()="itemref"]', $spineElement);
+            if ($spineNodes instanceof \DOMNodeList) {
+                foreach ($spineNodes as $node) {
+                    if (!$node instanceof \DOMElement) {
+                        continue;
+                    }
+                    $idref = trim($node->getAttribute('idref'));
+                    $item = $manifest[$idref] ?? null;
+                    $spine[] = [
+                        'idref' => $idref,
+                        'href' => is_array($item) ? $item['href'] : '',
+                        'path' => is_array($item) ? $item['path'] : '',
+                        'mediaType' => is_array($item) ? $item['mediaType'] : '',
+                        'linear' => strtolower(trim($node->getAttribute('linear'))) !== 'no',
+                        'properties' => $this->tokens($node->getAttribute('properties')),
+                    ];
                 }
-                $idref = trim($node->getAttribute('idref'));
-                $item = $manifest[$idref] ?? null;
-                $spine[] = [
-                    'idref' => $idref,
-                    'href' => is_array($item) ? $item['href'] : '',
-                    'path' => is_array($item) ? $item['path'] : '',
-                    'mediaType' => is_array($item) ? $item['mediaType'] : '',
-                    'linear' => strtolower(trim($node->getAttribute('linear'))) !== 'no',
-                    'properties' => $this->tokens($node->getAttribute('properties')),
-                ];
             }
         }
 
@@ -181,6 +189,7 @@ final class EpubPackageReader
             'metadata' => $metadata,
             'metadataProperties' => $metadataProperties,
             'manifest' => $manifest,
+            'spineTocId' => $spineTocId,
             'spine' => $spine,
         ];
     }
@@ -229,18 +238,29 @@ final class EpubPackageReader
     }
 
     /**
-     * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>, spine:list<array{idref:string}>} $package
+     * @param array{manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>, spineTocId:string, spine:list<array{idref:string}>} $package
      * @return list<array{label:string, href:string, path:string, fragment:string, playOrder:int, children:list<array<string, mixed>>}>
      */
     private function readNcxDocument(string $root, array $package): array
     {
         $ncxItem = null;
-        foreach ($package['manifest'] as $item) {
-            if ($item['mediaType'] === 'application/x-dtbncx+xml') {
-                $ncxItem = $item;
-                break;
+        $spineTocId = trim($package['spineTocId']);
+        if ($spineTocId !== '') {
+            $boundItem = $package['manifest'][$spineTocId] ?? null;
+            if (is_array($boundItem) && $boundItem['mediaType'] === 'application/x-dtbncx+xml') {
+                $ncxItem = $boundItem;
             }
         }
+
+        if (!is_array($ncxItem)) {
+            foreach ($package['manifest'] as $item) {
+                if ($item['mediaType'] === 'application/x-dtbncx+xml') {
+                    $ncxItem = $item;
+                    break;
+                }
+            }
+        }
+
         if (!is_array($ncxItem)) {
             return [];
         }

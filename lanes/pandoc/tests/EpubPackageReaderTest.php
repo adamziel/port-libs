@@ -7,6 +7,7 @@ use PortLibs\Pandoc\EpubPackageReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
 $fixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-package';
+$spineTocFixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-spine-toc-binding';
 
 return [
     'maps epub container opf manifest spine and metadata handoff' => static function (TestRunner $t) use ($fixture): void {
@@ -87,6 +88,21 @@ return [
         $t->same('Details', $ncx[1]['label']);
         $t->same(3, $ncx[1]['playOrder']);
         $t->same('details', $ncx[1]['fragment']);
+    },
+    'honors epub spine toc binding when multiple ncx manifest items exist' => static function (TestRunner $t) use ($spineTocFixture): void {
+        $document = (new EpubPackageReader())->readDirectory($spineTocFixture());
+        $epub = $document->attr('epub');
+        $ncx = $epub['ncx'];
+
+        $t->same('toc-good', $epub['spineTocId']);
+        $t->same(1, count($ncx));
+        $t->same('Bound NCX', $ncx[0]['label']);
+        $t->same(7, $ncx[0]['playOrder']);
+        $t->same('EPUB/chapter.xhtml', $ncx[0]['path']);
+        $t->same('bound', $ncx[0]['fragment']);
+        $t->same('chapter', $epub['spine'][0]['idref']);
+        $t->same('EPUB/chapter.xhtml', $epub['spine'][0]['path']);
+        $t->same(['toc-decoy', 'toc-good', 'chapter'], array_keys($epub['manifestById']));
     },
     'maps epub page-list navigation targets for print provenance' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());

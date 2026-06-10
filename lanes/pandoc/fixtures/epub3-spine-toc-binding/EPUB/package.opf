@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package version="3.0" unique-identifier="pub-id" xmlns="http://www.idpf.org/2007/opf">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="pub-id">urn:isbn:9780000000045</dc:identifier>
+    <dc:title>Spine TOC Binding Packet</dc:title>
+    <dc:creator>Migration Team</dc:creator>
+    <dc:language>en</dc:language>
+  </metadata>
+  <manifest>
+    <item id="toc-decoy" href="toc-decoy.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="toc-good" href="toc-good.ncx" media-type="application/x-dtbncx+xml"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine toc="toc-good">
+    <itemref idref="chapter"/>
+  </spine>
+</package>
