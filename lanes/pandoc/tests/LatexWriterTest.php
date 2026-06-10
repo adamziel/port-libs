@@ -66,6 +66,32 @@ return [
             ]),
         ]), (new LatexWriter())->write($document));
     },
+    'renders markdown mark spans as latex highlight commands' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Review'),
+                $space(),
+                new AstNode('span', ['classes' => ['mark']], [
+                    $text('highlighted'),
+                    $space(),
+                    new AstNode('strong', [], [$text('source')]),
+                ]),
+                $space(),
+                new AstNode('span', [
+                    'id' => 'annotated-highlight',
+                    'classes' => ['mark'],
+                ], [$text('with anchor')]),
+            ]),
+        ]);
+
+        $t->same(
+            'Review \hl{highlighted \textbf{source}} \protect\hypertarget{annotated-highlight}{with anchor}',
+            (new LatexWriter())->write($document)
+        );
+    },
     'renders line blocks and definition lists without dropping native ast nodes' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

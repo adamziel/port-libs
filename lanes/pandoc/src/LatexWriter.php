@@ -609,12 +609,23 @@ final class LatexWriter
     private function renderSpan(AstNode $node): string
     {
         $text = $this->renderInlines($node->children);
+        if ($this->isMarkSpan($node)) {
+            return $this->renderCommand('hl', $text);
+        }
+
         $anchor = $this->nodeAnchorName($node);
         if ($anchor === '') {
             return $text;
         }
 
         return '\protect\hypertarget{' . $anchor . '}{' . $text . '}';
+    }
+
+    private function isMarkSpan(AstNode $node): bool
+    {
+        return (string) $node->attr('id', '') === ''
+            && $node->attr('classes', []) === ['mark']
+            && $node->attr('attributes', []) === [];
     }
 
     private function renderLink(AstNode $node): string
