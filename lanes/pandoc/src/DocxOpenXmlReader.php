@@ -671,6 +671,7 @@ final class DocxOpenXmlReader
             'CharactersWithSpaces' => 'charactersWithSpaces',
             'Lines' => 'lines',
             'Paragraphs' => 'paragraphs',
+            'DocSecurity' => 'docSecurity',
         ] as $source => $target) {
             $value = $this->extendedPropertyText($xpath, $source);
             if ($value !== '' && is_numeric($value)) {
@@ -679,6 +680,7 @@ final class DocxOpenXmlReader
         }
 
         foreach ([
+            'ScaleCrop' => 'scaleCrop',
             'LinksUpToDate' => 'linksUpToDate',
             'SharedDoc' => 'sharedDoc',
             'HyperlinksChanged' => 'hyperlinksChanged',
