@@ -367,6 +367,78 @@ return [
         $t->same('', $packet['formats']['man']['inputImplementation']);
         $t->same('', $packet['formats']['ms']['outputImplementation']);
     },
+    'classifies roff manual unsupported surfaces from extensions without converter claims' => static function (TestRunner $t): void {
+        $man = PandocFormatRegistry::roffManualUnsupportedFormatForExtension('3P');
+        $t->same([
+            'extension' => '.3p',
+            'format' => 'man',
+            'pattern' => '.[1-9][a-z]+',
+            'kind' => 'manual-section-suffix',
+            'manualSection' => '3p',
+            'manualSectionNumber' => '3',
+            'manualSectionSuffix' => 'p',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'unsupportedInput' => true,
+            'unsupportedOutput' => true,
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $man);
+
+        $literalMan = PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.1');
+        $t->same('manual-section', $literalMan['kind']);
+        $t->same('1', $literalMan['manualSection']);
+        $t->same(true, $literalMan['unsupportedInput']);
+        $t->same(true, $literalMan['unsupportedOutput']);
+
+        $ms = PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.ms');
+        $t->same('ms', $ms['format']);
+        $t->same('ms-macro-package', $ms['kind']);
+        $t->same('output-only', $ms['direction']);
+        $t->same(false, $ms['input']);
+        $t->same(true, $ms['output']);
+        $t->same(false, $ms['unsupportedInput']);
+        $t->same(true, $ms['unsupportedOutput']);
+        $t->same('not-applicable', $ms['inputStatus']);
+        $t->same('unsupported', $ms['outputStatus']);
+        $t->same('', $ms['inputImplementation']);
+        $t->same('', $ms['outputImplementation']);
+
+        $roff = PandocFormatRegistry::roffManualUnsupportedFormatForExtension('ROFF');
+        $t->same('.roff', $roff['extension']);
+        $t->same('generic-roff-source', $roff['kind']);
+        $t->same('ms', $roff['format']);
+        $t->same(true, $roff['unsupportedOutput']);
+
+        $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.mdoc'));
+        $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.10ssl'));
+
+        $surfaces = PandocFormatRegistry::roffManualUnsupportedExtensionSurfaces();
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+        $summary = PandocFormatRegistry::roffManualFormatParitySummary();
+
+        $t->same([
+            '.ms',
+            '.roff',
+            '.[1-9]',
+            '.[1-9][a-z]+',
+        ], array_keys($surfaces));
+        $t->same($surfaces, $packet['unsupportedExtensionSurfaces']);
+        $t->same(4, $summary['unsupportedExtensionSurfaceMappings']);
+        $t->same('ms', $surfaces['.ms']['format']);
+        $t->same('output-only', $surfaces['.roff']['direction']);
+        $t->same('man', $surfaces['.[1-9]']['format']);
+        $t->same('input-output', $surfaces['.[1-9][a-z]+']['direction']);
+
+        foreach ($surfaces as $extension => $surface) {
+            $t->same('', $surface['inputImplementation'], "Roff manual extension {$extension} must not register an input implementation");
+            $t->same('', $surface['outputImplementation'], "Roff manual extension {$extension} must not register an output implementation");
+            $t->same(true, $surface['unsupportedInput'] || $surface['unsupportedOutput'], "Roff manual extension {$extension} must expose an unsupported surface");
+        }
+    },
     'summarizes roff manual unsupported format surfaces without converter claims' => static function (TestRunner $t): void {
         $summary = PandocFormatRegistry::roffManualUnsupportedFormatSummary();
         $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
