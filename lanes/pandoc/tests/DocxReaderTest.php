@@ -13132,6 +13132,65 @@ XML;
         $t->same($summary['issueCounts'], $reportRelationships['issueCounts']);
         $t->same($summary['invalidRoleTargetCount'], $reportRelationships['invalidRoleTargetCount']);
     },
+    'reports DOCX package thumbnails as metadata-only package previews' => static function (TestRunner $t): void {
+        $thumbnailBytes = 'PNG preview bytes';
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdThumbnail" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="docProps/thumbnail.png"/>
+</Relationships>
+XML;
+        $documentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Package thumbnail packet.</w:t></w:r></w:p></w:body>
+</w:document>
+XML;
+
+        $result = (new DocxReader())->readPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+            ['name' => 'docProps/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+        ]));
+        $thumbnailMetadata = $result['metadata']['docxPackageThumbnails'];
+        $report = $result['importReport']['packageThumbnails'];
+        $item = $report['items'][0];
+        $expectedCrc32 = sprintf('%08x', crc32($thumbnailBytes));
+
+        $t->same($thumbnailMetadata, $report);
+        $t->same(1, $report['count']);
+        $t->same(1, $report['readableCount']);
+        $t->same(0, $report['missingCount']);
+        $t->same(0, $report['externalCount']);
+        $t->same(0, $report['invalidCount']);
+        $t->same(0, $report['issueCount']);
+        $t->same([], $report['issueCodes']);
+        $t->same('/', $item['source']);
+        $t->same('rIdThumbnail', $item['id']);
+        $t->same('/docProps/thumbnail.png', $item['target']);
+        $t->same('/docProps/thumbnail.png', $item['targetPart']);
+        $t->same('image/png', $item['contentType']);
+        $t->same('image/', $item['expectedContentTypePrefix']);
+        $t->same(false, $item['external']);
+        $t->same(true, $item['exists']);
+        $t->same(true, $item['valid']);
+        $t->same(strlen($thumbnailBytes), $item['byteLength']);
+        $t->same($expectedCrc32, $item['crc32']);
+        $t->same(strlen($thumbnailBytes), $item['storedByteLength']);
+        $t->same($expectedCrc32, $item['storedCrc32']);
+        $t->same(false, $item['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-metadata-only', $item['reviewPolicy']);
+        $t->same([], $item['issues']);
+        $t->same(0, $result['importReport']['media']['count']);
+    },
     'rejects DOCX office document relationship content-type mismatches before body parsing' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentXml): void {
         $reader = new DocxReader();
         $wrongContentTypesXml = str_replace(
