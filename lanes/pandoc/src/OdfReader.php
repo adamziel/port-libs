@@ -432,6 +432,9 @@ final class OdfReader
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
                 'byteLength' => $byteLength,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null,
+                'compressionMethodName' => $zipEntry instanceof ZipPackageEntry ? $this->zipCompressionMethodName($zipEntry->compressionMethod) : null,
                 'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
@@ -11019,6 +11022,9 @@ final class OdfReader
                 'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? $this->zipCompressionMethodName($entry->compressionMethod) : null,
                 'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
@@ -11030,6 +11036,15 @@ final class OdfReader
         }
 
         return $media;
+    }
+
+    private function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     private function isXmlMediaType(string $mediaType): bool

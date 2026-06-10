@@ -8805,6 +8805,42 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(8, count($result['document']->children));
     },
+    'reports ODT manifest media compression provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $deflatedBytes = str_repeat('ODF-COMPRESSIBLE-PAYLOAD-', 16);
+        $manifestWithDeflatedMedia = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="Pictures/deflated.bin" manifest:media-type="image/png"/>' . "\n" . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDeflatedMedia, null, null, [
+            ['name' => 'Pictures/deflated.bin', 'data' => $deflatedBytes, 'compressionMethod' => 8],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+
+        $t->same(0, $manifestByPath['Pictures/hero.png']['compressionMethod']);
+        $t->same('stored', $manifestByPath['Pictures/hero.png']['compressionMethodName']);
+        $t->same(7, $manifestByPath['Pictures/hero.png']['compressedByteLength']);
+        $t->same(7, $mediaByPart['Pictures/hero.png']['compressedByteLength']);
+        $t->same('stored', $mediaByPart['Pictures/hero.png']['compressionMethodName']);
+
+        $t->same(8, $manifestByPath['Pictures/deflated.bin']['compressionMethod']);
+        $t->same('deflated', $manifestByPath['Pictures/deflated.bin']['compressionMethodName']);
+        $t->same(strlen($deflatedBytes), $manifestByPath['Pictures/deflated.bin']['byteLength']);
+        $t->true($manifestByPath['Pictures/deflated.bin']['compressedByteLength'] > 0);
+        $t->true($manifestByPath['Pictures/deflated.bin']['compressedByteLength'] < strlen($deflatedBytes));
+        $t->same(8, $mediaByPart['Pictures/deflated.bin']['compressionMethod']);
+        $t->same('deflated', $mediaByPart['Pictures/deflated.bin']['compressionMethodName']);
+        $t->same($manifestByPath['Pictures/deflated.bin']['compressedByteLength'], $mediaByPart['Pictures/deflated.bin']['compressedByteLength']);
+        $t->same($mediaByPart, array_column($result['importReport']['media']['items'], null, 'part'));
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
