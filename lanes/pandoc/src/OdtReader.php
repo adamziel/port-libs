@@ -122,6 +122,7 @@ final class OdtReader
             'tableTemplates' => [],
             'pageLayouts' => [],
             'masterPages' => [],
+            'diagnostics' => [],
         ];
 
         if ($package->has('styles.xml')) {
@@ -177,7 +178,14 @@ final class OdtReader
             if ($this->isElement($child, self::STYLE_NS, 'font-face')) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['fontFaces'][$name] = $this->fontFaceDefinition($child);
+                    $this->putStyleCatalogItem(
+                        $catalog['fontFaces'],
+                        $catalog['diagnostics'],
+                        'odt-font-face-duplicate-name',
+                        'fontFaceName',
+                        $name,
+                        $this->fontFaceDefinition($child)
+                    );
                 }
                 continue;
             }
@@ -190,7 +198,14 @@ final class OdtReader
                 }
 
                 $style = $this->styleDefinition($child, $family);
-                $catalog['styles'][$name] = $style;
+                $this->putStyleCatalogItem(
+                    $catalog['styles'],
+                    $catalog['diagnostics'],
+                    'odt-style-duplicate-name',
+                    'styleName',
+                    $name,
+                    $style
+                );
                 if ($family === 'paragraph') {
                     $catalog['paragraphStyles'][$name] = $style;
                 } elseif ($family === 'text') {
@@ -202,7 +217,14 @@ final class OdtReader
             if ($this->isElement($child, self::TEXT_NS, 'list-style')) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['listStyles'][$name] = $this->listStyleDefinition($child);
+                    $this->putStyleCatalogItem(
+                        $catalog['listStyles'],
+                        $catalog['diagnostics'],
+                        'odt-list-style-duplicate-name',
+                        'listStyleName',
+                        $name,
+                        $this->listStyleDefinition($child)
+                    );
                 }
                 continue;
             }
@@ -210,10 +232,17 @@ final class OdtReader
             if ($child->namespaceURI === self::NUMBER_NS && $this->isDataStyleElement($child)) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['dataStyles'][$name] = [
-                        'name' => $name,
-                        'element' => $child->localName,
-                    ];
+                    $this->putStyleCatalogItem(
+                        $catalog['dataStyles'],
+                        $catalog['diagnostics'],
+                        'odt-data-style-duplicate-name',
+                        'dataStyleName',
+                        $name,
+                        [
+                            'name' => $name,
+                            'element' => $child->localName,
+                        ]
+                    );
                 }
                 continue;
             }
@@ -221,7 +250,14 @@ final class OdtReader
             if ($this->isElement($child, self::TABLE_NS, 'table-template')) {
                 $name = $this->tableAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['tableTemplates'][$name] = $this->tableTemplateDefinition($child);
+                    $this->putStyleCatalogItem(
+                        $catalog['tableTemplates'],
+                        $catalog['diagnostics'],
+                        'odt-table-template-duplicate-name',
+                        'tableTemplateName',
+                        $name,
+                        $this->tableTemplateDefinition($child)
+                    );
                 }
                 continue;
             }
@@ -229,7 +265,14 @@ final class OdtReader
             if ($this->isElement($child, self::STYLE_NS, 'page-layout')) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['pageLayouts'][$name] = ['name' => $name];
+                    $this->putStyleCatalogItem(
+                        $catalog['pageLayouts'],
+                        $catalog['diagnostics'],
+                        'odt-page-layout-duplicate-name',
+                        'pageLayoutName',
+                        $name,
+                        ['name' => $name]
+                    );
                 }
                 continue;
             }
@@ -237,7 +280,14 @@ final class OdtReader
             if ($this->isElement($child, self::STYLE_NS, 'master-page')) {
                 $name = $this->styleAttr($child, 'name');
                 if ($name !== null && $name !== '') {
-                    $catalog['masterPages'][$name] = $this->masterPageDefinition($child);
+                    $this->putStyleCatalogItem(
+                        $catalog['masterPages'],
+                        $catalog['diagnostics'],
+                        'odt-master-page-duplicate-name',
+                        'masterPageName',
+                        $name,
+                        $this->masterPageDefinition($child)
+                    );
                 }
             }
         }
@@ -1125,7 +1175,7 @@ final class OdtReader
      */
     private function styleDiagnostics(array $catalog): array
     {
-        $diagnostics = [];
+        $diagnostics = is_array($catalog['diagnostics'] ?? null) ? $catalog['diagnostics'] : [];
         $stylesByFamily = [];
         foreach ($catalog['styles'] as $styleName => $style) {
             $family = (string) ($style['family'] ?? '');
@@ -1293,6 +1343,34 @@ final class OdtReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, array<array-key, mixed>> $target
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<array-key, mixed> $item
+     */
+    private function putStyleCatalogItem(array &$target, array &$diagnostics, string $code, string $nameKey, string $name, array $item): void
+    {
+        if (isset($target[$name])) {
+            $diagnostic = [
+                'code' => $code,
+                $nameKey => $name,
+            ];
+            foreach (['family', 'element'] as $field) {
+                $previous = $target[$name][$field] ?? null;
+                $replacement = $item[$field] ?? null;
+                if (is_scalar($previous) && (string) $previous !== '') {
+                    $diagnostic['previous' . ucfirst($field)] = (string) $previous;
+                }
+                if (is_scalar($replacement) && (string) $replacement !== '') {
+                    $diagnostic['replacement' . ucfirst($field)] = (string) $replacement;
+                }
+            }
+            $diagnostics[] = $diagnostic;
+        }
+
+        $target[$name] = $item;
     }
 
     /**

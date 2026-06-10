@@ -351,6 +351,98 @@ XML;
         $t->same('MissingLayout', $diagnosticsByCode['odt-master-page-missing-page-layout'][0]['pageLayoutName']);
         $t->same('MissingBulletFont', $diagnosticsByCode['odt-list-style-missing-font-face'][0]['fontName']);
     },
+    'reports duplicate ODT style catalog names for import review' => static function (TestRunner $t) use ($buildPackage): void {
+        $contentWithPlainParagraph = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Duplicate style diagnostics packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $stylesWithDuplicateCatalogNames = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="ReviewFont" svg:font-family="'Review One'"/>
+    <style:font-face style:name="ReviewFont" svg:font-family="'Review Two'"/>
+  </office:font-face-decls>
+  <office:automatic-styles>
+    <style:page-layout style:name="DuplicateLayout"/>
+    <style:page-layout style:name="DuplicateLayout"/>
+  </office:automatic-styles>
+  <office:styles>
+    <style:style style:name="DuplicateStyle" style:family="paragraph"/>
+    <style:style style:name="DuplicateStyle" style:family="text"/>
+    <text:list-style style:name="DuplicateList">
+      <text:list-level-style-bullet text:level="1" text:bullet-char="*"/>
+    </text:list-style>
+    <text:list-style style:name="DuplicateList">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <number:number-style style:name="DuplicateNumber">
+      <number:number number:decimal-places="0"/>
+    </number:number-style>
+    <number:date-style style:name="DuplicateNumber">
+      <number:year/>
+    </number:date-style>
+    <table:table-template table:name="DuplicateTemplate"/>
+    <table:table-template table:name="DuplicateTemplate"/>
+  </office:styles>
+  <office:master-styles>
+    <style:master-page style:name="DuplicateMaster" style:page-layout-name="DuplicateLayout"/>
+    <style:master-page style:name="DuplicateMaster" style:page-layout-name="DuplicateLayout"/>
+  </office:master-styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdtReader())->readPackage($buildPackage([
+            'content.xml' => $contentWithPlainParagraph,
+            'styles.xml' => $stylesWithDuplicateCatalogNames,
+        ]));
+        $styleReport = $result['importReport']['styles'];
+        $diagnosticsByCode = [];
+        foreach ($styleReport['diagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(1, $styleReport['count']);
+        $t->same(1, $styleReport['fontFaceCount']);
+        $t->same(1, $styleReport['listCount']);
+        $t->same(1, $styleReport['dataStyleCount']);
+        $t->same(1, $styleReport['tableTemplateCount']);
+        $t->same(1, $styleReport['pageLayoutCount']);
+        $t->same(1, $styleReport['masterPageCount']);
+        $t->same(7, $styleReport['diagnosticCount']);
+        $t->same([
+            'odt-data-style-duplicate-name' => 1,
+            'odt-font-face-duplicate-name' => 1,
+            'odt-list-style-duplicate-name' => 1,
+            'odt-master-page-duplicate-name' => 1,
+            'odt-page-layout-duplicate-name' => 1,
+            'odt-style-duplicate-name' => 1,
+            'odt-table-template-duplicate-name' => 1,
+        ], $styleReport['diagnosticCodeCounts']);
+        $t->same('DuplicateStyle', $diagnosticsByCode['odt-style-duplicate-name'][0]['styleName']);
+        $t->same('paragraph', $diagnosticsByCode['odt-style-duplicate-name'][0]['previousFamily']);
+        $t->same('text', $diagnosticsByCode['odt-style-duplicate-name'][0]['replacementFamily']);
+        $t->same('ReviewFont', $diagnosticsByCode['odt-font-face-duplicate-name'][0]['fontFaceName']);
+        $t->same('DuplicateNumber', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['dataStyleName']);
+        $t->same('number-style', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['previousElement']);
+        $t->same('date-style', $diagnosticsByCode['odt-data-style-duplicate-name'][0]['replacementElement']);
+        $t->same('DuplicateTemplate', $diagnosticsByCode['odt-table-template-duplicate-name'][0]['tableTemplateName']);
+        $t->same('DuplicateMaster', $diagnosticsByCode['odt-master-page-duplicate-name'][0]['masterPageName']);
+    },
     'normalizes ODT tab stops to Pandoc spaces in package reader output' => static function (TestRunner $t) use ($buildPackage): void {
         $tabbedContentXml = <<<'XML'
 <office:document-content
