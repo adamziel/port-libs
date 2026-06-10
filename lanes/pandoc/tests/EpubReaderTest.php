@@ -2393,6 +2393,59 @@ XML;
         $t->same('/OEBPS/text/chapter2.xhtml#media', $nav['items'][2]['target']);
         $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
     },
+    'reports EPUB nav duplicate source id diagnostics for package review' => static function (TestRunner $t) use ($buildEpubPackage): void {
+        $navWithDuplicateSourceIds = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav id="toc-review" epub:type="toc">
+      <h1>Reviewer contents</h1>
+      <ol>
+        <li id="reused-entry"><a id="reused-label" href="text/chapter1.xhtml#intro">Intro packet</a></li>
+        <li id="reused-entry"><a id="reused-label" href="text/chapter2.xhtml#media">Media audit</a></li>
+        <li id="unique-entry"><span id="reused-label">Appendix heading</span><ol><li><a href="text/chapter1.xhtml#page-1">Appendix page</a></li></ol></li>
+      </ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            overrideNavXhtml: $navWithDuplicateSourceIds,
+        ));
+
+        $nav = $result['nav'];
+        $report = $nav['documentDiagnostics'];
+
+        $t->same(4, $report['itemCount']);
+        $t->same(3, $report['targetedItemCount']);
+        $t->same(1, $report['duplicateItemIdCount']);
+        $t->same(1, $report['duplicateLabelIdCount']);
+        $t->same(2, $report['diagnosticCount']);
+        $t->same([
+            'duplicate-nav-item-id',
+            'duplicate-nav-label-id',
+        ], array_column($report['diagnostics'], 'type'));
+
+        $duplicateItem = $report['duplicateItemIdDiagnostics'][0];
+        $t->same('reused-entry', $duplicateItem['itemId']);
+        $t->same(2, $duplicateItem['itemCount']);
+        $t->same([0], $duplicateItem['sectionIndexes']);
+        $t->same(['toc-review'], $duplicateItem['sectionIds']);
+        $t->same([0, 1], $duplicateItem['itemIndexes']);
+        $t->same(['reused-label', 'reused-label'], $duplicateItem['labelIds']);
+        $t->same(['Intro packet', 'Media audit'], $duplicateItem['titles']);
+
+        $duplicateLabel = $report['duplicateLabelIdDiagnostics'][0];
+        $t->same('reused-label', $duplicateLabel['labelId']);
+        $t->same(3, $duplicateLabel['itemCount']);
+        $t->same([0], $duplicateLabel['sectionIndexes']);
+        $t->same(['toc-review'], $duplicateLabel['sectionIds']);
+        $t->same([0, 1, 2], $duplicateLabel['itemIndexes']);
+        $t->same(['reused-entry', 'reused-entry', 'unique-entry'], $duplicateLabel['itemIds']);
+        $t->same(['Intro packet', 'Media audit', 'Appendix heading'], $duplicateLabel['titles']);
+
+        $t->same($report, $result['importReport']['nav']['documentDiagnostics']);
+    },
     'reconciles EPUB navigation targets with resolved spine coverage' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $coverageNavXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">

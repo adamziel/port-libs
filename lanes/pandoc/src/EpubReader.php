@@ -9017,6 +9017,8 @@ final class EpubReader
         $navItemCount = 0;
         $targetedNavItemCount = 0;
         $targetsBySection = [];
+        $itemIds = [];
+        $labelIds = [];
 
         if ($encrypted) {
             $diagnostics[] = [
@@ -9048,6 +9050,25 @@ final class EpubReader
 
             foreach ($flatItems as $flatIndex => $flat) {
                 $item = is_array($flat['item'] ?? null) ? $flat['item'] : [];
+                $itemId = is_string($item['itemId'] ?? null) ? $item['itemId'] : null;
+                $labelId = is_string($item['labelId'] ?? null) ? $item['labelId'] : null;
+                $itemContext = [
+                    'sectionIndex' => $sectionIndex,
+                    'sectionId' => $sectionId,
+                    'sectionTypes' => $sectionTypes,
+                    'itemIndex' => $flatIndex,
+                    'depth' => (int) ($flat['depth'] ?? 0),
+                    'itemId' => $itemId,
+                    'labelId' => $labelId,
+                    'title' => is_string($item['title'] ?? null) ? $item['title'] : '',
+                ];
+                if ($itemId !== null && $itemId !== '') {
+                    $itemIds[$itemId][] = $itemContext;
+                }
+                if ($labelId !== null && $labelId !== '') {
+                    $labelIds[$labelId][] = $itemContext;
+                }
+
                 $target = is_string($item['target'] ?? null) ? trim($item['target']) : '';
                 if ($target === '') {
                     continue;
@@ -9060,9 +9081,9 @@ final class EpubReader
                     'sectionTypes' => $sectionTypes,
                     'itemIndex' => $flatIndex,
                     'depth' => (int) ($flat['depth'] ?? 0),
-                    'itemId' => is_string($item['itemId'] ?? null) ? $item['itemId'] : null,
-                    'labelId' => is_string($item['labelId'] ?? null) ? $item['labelId'] : null,
-                    'title' => is_string($item['title'] ?? null) ? $item['title'] : '',
+                    'itemId' => $itemId,
+                    'labelId' => $labelId,
+                    'title' => $itemContext['title'],
                     'href' => is_string($item['href'] ?? null) ? $item['href'] : null,
                     'target' => $target,
                 ];
@@ -9262,6 +9283,68 @@ final class EpubReader
             $diagnostics[] = $diagnostic;
         }
 
+        $duplicateItemIdDiagnostics = [];
+        foreach ($itemIds as $id => $matches) {
+            if (count($matches) <= 1) {
+                continue;
+            }
+
+            $diagnostic = [
+                'type' => 'duplicate-nav-item-id',
+                'part' => $part,
+                'itemId' => $id,
+                'itemCount' => count($matches),
+                'sectionIndexes' => array_values(array_unique(array_column($matches, 'sectionIndex'))),
+                'sectionIds' => array_values(array_filter(
+                    array_unique(array_column($matches, 'sectionId')),
+                    static fn (mixed $sectionId): bool => is_string($sectionId) && $sectionId !== '',
+                )),
+                'itemIndexes' => array_column($matches, 'itemIndex'),
+                'labelIds' => array_values(array_filter(
+                    array_column($matches, 'labelId'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'titles' => array_values(array_filter(
+                    array_column($matches, 'title'),
+                    static fn (mixed $title): bool => is_string($title) && $title !== '',
+                )),
+                'message' => 'EPUB navigation document reuses the same list item id for more than one nav item',
+            ];
+            $duplicateItemIdDiagnostics[] = $diagnostic;
+            $diagnostics[] = $diagnostic;
+        }
+
+        $duplicateLabelIdDiagnostics = [];
+        foreach ($labelIds as $id => $matches) {
+            if (count($matches) <= 1) {
+                continue;
+            }
+
+            $diagnostic = [
+                'type' => 'duplicate-nav-label-id',
+                'part' => $part,
+                'labelId' => $id,
+                'itemCount' => count($matches),
+                'sectionIndexes' => array_values(array_unique(array_column($matches, 'sectionIndex'))),
+                'sectionIds' => array_values(array_filter(
+                    array_unique(array_column($matches, 'sectionId')),
+                    static fn (mixed $sectionId): bool => is_string($sectionId) && $sectionId !== '',
+                )),
+                'itemIndexes' => array_column($matches, 'itemIndex'),
+                'itemIds' => array_values(array_filter(
+                    array_column($matches, 'itemId'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'titles' => array_values(array_filter(
+                    array_column($matches, 'title'),
+                    static fn (mixed $title): bool => is_string($title) && $title !== '',
+                )),
+                'message' => 'EPUB navigation document reuses the same label id for more than one nav item',
+            ];
+            $duplicateLabelIdDiagnostics[] = $diagnostic;
+            $diagnostics[] = $diagnostic;
+        }
+
         $duplicatePrimaryTypeCount = 0;
         foreach ($typeSections as $type => $matches) {
             if (count($matches) <= 1) {
@@ -9305,6 +9388,10 @@ final class EpubReader
             'duplicateTargetGroupCount' => count($duplicateTargetDiagnostics),
             'duplicateTargetItemCount' => $duplicateTargetItemCount,
             'duplicateTargetDiagnostics' => $duplicateTargetDiagnostics,
+            'duplicateItemIdCount' => count($duplicateItemIdDiagnostics),
+            'duplicateItemIdDiagnostics' => $duplicateItemIdDiagnostics,
+            'duplicateLabelIdCount' => count($duplicateLabelIdDiagnostics),
+            'duplicateLabelIdDiagnostics' => $duplicateLabelIdDiagnostics,
             'emptySectionCount' => $emptySectionCount,
             'hiddenPrimarySectionCount' => $hiddenPrimarySectionCount,
             'missingHeadingSectionCount' => $missingHeadingSectionCount,
