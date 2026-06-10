@@ -824,6 +824,83 @@ XML;
         $t->same($summary, $result['document']->attr('metadata')['identifierSummary']);
         $t->same($dateDetails, $result['document']->attr('metadata')['dateDetails']);
     },
+    'summarizes OPF language declarations for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithLanguageMetadata = str_replace(
+            '<dc:language>en</dc:language>',
+            '<dc:language id="lang-primary" scheme="BCP47" xml:lang="en">en-US</dc:language>'
+            . '<dc:language id="lang-secondary" xml:lang="fr">fr-CA</dc:language>'
+            . '<dc:language id="lang-duplicate">en-us</dc:language>'
+            . '<dc:language id="lang-invalid">review language</dc:language>',
+            $opfXml
+        );
+        $opfWithLanguageMetadata = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+            . '<meta refines="#lang-primary" property="display-seq">1</meta>'
+            . '<meta refines="#lang-secondary" property="display-seq">2</meta>',
+            $opfWithLanguageMetadata
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithLanguageMetadata));
+        $metadata = $result['metadata'];
+        $languageDetails = $metadata['languageDetails'];
+        $summary = $metadata['languageSummary'];
+
+        $t->same('en-US', $metadata['language']);
+        $t->same(['en-US', 'fr-CA', 'en-us', 'review language'], $metadata['languages']);
+        $t->same(4, count($languageDetails));
+
+        $primary = $languageDetails[0];
+        $t->same('language', $primary['kind']);
+        $t->same(0, $primary['index']);
+        $t->same('lang-primary', $primary['id']);
+        $t->same('en-US', $primary['tag']);
+        $t->same('en-us', $primary['normalizedTag']);
+        $t->same('en', $primary['primarySubtag']);
+        $t->same('US', $primary['regionSubtag']);
+        $t->same(true, $primary['wellFormed']);
+        $t->same('BCP47', $primary['scheme']);
+        $t->same('en', $primary['language']);
+        $t->same('1', $primary['displaySeq']);
+        $t->same(1, $primary['displaySeqNumber']);
+        $t->same(true, $primary['duplicateTag']);
+        $t->same([0, 2], $primary['duplicateIndexes']);
+        $t->same('duplicate-language-tag', $primary['diagnostics'][0]['type']);
+
+        $secondary = $languageDetails[1];
+        $t->same('fr-CA', $secondary['tag']);
+        $t->same('fr-ca', $secondary['normalizedTag']);
+        $t->same('fr', $secondary['primarySubtag']);
+        $t->same('CA', $secondary['regionSubtag']);
+        $t->same(false, $secondary['duplicateTag']);
+        $t->same('2', $secondary['displaySeq']);
+        $t->same(2, $secondary['displaySeqNumber']);
+
+        $invalid = $languageDetails[3];
+        $t->same('review language', $invalid['tag']);
+        $t->same(false, $invalid['wellFormed']);
+        $t->same('invalid-language-tag', $invalid['diagnostics'][0]['type']);
+
+        $t->same(true, $summary['present']);
+        $t->same(4, $summary['count']);
+        $t->same('en-US', $summary['primaryLanguage']);
+        $t->same(2, $summary['uniqueTagCount']);
+        $t->same(['en-us', 'fr-ca'], $summary['normalizedTags']);
+        $t->same(2, $summary['primarySubtagCount']);
+        $t->same(['en', 'fr'], $summary['primarySubtags']);
+        $t->same(['US', 'CA'], $summary['regionSubtags']);
+        $t->same(1, $summary['duplicateTagCount']);
+        $t->same(['en-us'], $summary['duplicateTags']);
+        $t->same(1, $summary['invalidTagCount']);
+        $t->same(3, count($summary['diagnostics']));
+        $t->same('duplicate-language-tag', $summary['diagnostics'][0]['type']);
+        $t->same('duplicate-language-tag', $summary['diagnostics'][1]['type']);
+        $t->same('invalid-language-tag', $summary['diagnostics'][2]['type']);
+        $t->same([$languageDetails[0], $languageDetails[2]], $metadata['languagesByPrimarySubtag']['en']);
+        $t->same([$languageDetails[1]], $metadata['languagesByPrimarySubtag']['fr']);
+        $t->same($languageDetails, $result['importReport']['metadata']['languageDetails']);
+        $t->same($summary, $result['document']->attr('metadata')['languageSummary']);
+    },
     'summarizes OPF source metadata and source-of refinements for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $sourceRecord = '{"kind":"source-record","title":"Print source packet"}';
         $opfWithSourceMetadata = str_replace(
