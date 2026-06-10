@@ -17867,7 +17867,7 @@ final class EpubReader
                 continue;
             }
             $localName = strtolower($control->localName);
-            if (!in_array($localName, ['button', 'input', 'select', 'textarea'], true)) {
+            if (!in_array($localName, ['button', 'input', 'output', 'select', 'textarea'], true)) {
                 continue;
             }
 
@@ -17882,12 +17882,13 @@ final class EpubReader
      */
     private static function xhtmlFormControlReport(\DOMElement $element, int $index): array
     {
+        $localName = strtolower($element->localName);
         $typeRaw = self::nullableAttribute($element, 'type');
         $type = self::xhtmlFormControlType($element);
 
         return [
             'index' => $index,
-            'element' => strtolower($element->localName),
+            'element' => $localName,
             'id' => self::nullableAttribute($element, 'id'),
             'class' => self::nullableAttribute($element, 'class'),
             'classes' => self::spaceDelimited($element->getAttribute('class')),
@@ -17895,9 +17896,11 @@ final class EpubReader
             'type' => $type,
             'typeRaw' => $typeRaw,
             'value' => self::nullableAttribute($element, 'value'),
-            'text' => strtolower($element->localName) === 'button' ? self::normalizedText($element) : null,
+            'text' => in_array($localName, ['button', 'output'], true) ? self::normalizedText($element) : null,
             'form' => self::nullableAttribute($element, 'form'),
             'formAction' => self::nullableAttribute($element, 'formaction'),
+            'forRaw' => $localName === 'output' ? self::nullableAttribute($element, 'for') : null,
+            'forIds' => $localName === 'output' ? self::spaceDelimited($element->getAttribute('for')) : [],
             'disabled' => $element->hasAttribute('disabled'),
             'required' => $element->hasAttribute('required'),
             'checked' => $element->hasAttribute('checked'),

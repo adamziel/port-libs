@@ -5918,6 +5918,7 @@ XML;
   <body>
     <form id="comment-form" class="review-form" action="https://forms.example.test/submit" method="post" enctype="multipart/form-data" target="_blank">
       <input id="author-field" name="author" type="text" value="Migration Desk" required="required"/>
+      <output id="comment-total" name="comment-total" for=" author-field draft-submit ">2 <span>items</span></output>
       <input id="draft-submit" name="draft" type="submit" value="Save draft" formaction="../forms/draft.xhtml#review"/>
       <button id="remote-submit" type="submit" formaction="https://forms.example.test/button-submit">Send remote</button>
       <button id="plain-button" type="button">No submit</button>
@@ -5976,18 +5977,26 @@ XML;
         $t->same('_blank', $form['targetFrame']);
         $t->same('https://forms.example.test/submit', $form['action']);
         $t->same(true, $form['external']);
-        $t->same(4, $form['controlCount']);
+        $t->same(5, $form['controlCount']);
         $t->same(2, $form['submitControlCount']);
         $t->same('input', $form['controls'][0]['element']);
         $t->same('author', $form['controls'][0]['name']);
         $t->same('text', $form['controls'][0]['type']);
         $t->same(true, $form['controls'][0]['required']);
-        $t->same('submit', $form['controls'][1]['type']);
-        $t->same(true, $form['controls'][1]['submit']);
-        $t->same('../forms/draft.xhtml#review', $form['controls'][1]['formAction']);
-        $t->same('button', $form['controls'][2]['element']);
-        $t->same('button', $form['controls'][3]['type']);
-        $t->same(false, $form['controls'][3]['submit']);
+        $t->same('output', $form['controls'][1]['element']);
+        $t->same('comment-total', $form['controls'][1]['id']);
+        $t->same('comment-total', $form['controls'][1]['name']);
+        $t->same('output', $form['controls'][1]['type']);
+        $t->same('2 items', $form['controls'][1]['text']);
+        $t->same('author-field draft-submit', $form['controls'][1]['forRaw']);
+        $t->same(['author-field', 'draft-submit'], $form['controls'][1]['forIds']);
+        $t->same(false, $form['controls'][1]['submit']);
+        $t->same('submit', $form['controls'][2]['type']);
+        $t->same(true, $form['controls'][2]['submit']);
+        $t->same('../forms/draft.xhtml#review', $form['controls'][2]['formAction']);
+        $t->same('button', $form['controls'][3]['element']);
+        $t->same('button', $form['controls'][4]['type']);
+        $t->same(false, $form['controls'][4]['submit']);
         $t->same(['active-xhtml-form-submission', 'external-xhtml-form-action-reference'], array_column($form['diagnostics'], 'type'));
 
         $draftSubmit = $asset['sideEffects'][1];
