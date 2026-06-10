@@ -14497,7 +14497,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string, paragraphStyleId?:string}>> $numbering
-     * @return array{relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int}|array{}
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, definitionCount:int, levelCount:int, styleLinkedLevelCount:int, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14506,7 +14506,8 @@ final class DocxReader
             return [];
         }
 
-        $relationship = $relationships->firstOfType(self::REL_TYPE_NUMBERING);
+        $numberingRelationships = $relationships->ofType(self::REL_TYPE_NUMBERING);
+        $relationship = $numberingRelationships[0] ?? null;
         if (!$relationship instanceof OpcRelationship) {
             return [];
         }
@@ -14516,10 +14517,11 @@ final class DocxReader
         $targetSuffix = ['query' => null, 'fragment' => null];
         $exists = null;
         $contentType = null;
-        $issues = [];
+        $issues = count($numberingRelationships) > 1 ? ['multiple-numbering-relationships'] : [];
+        $relationshipIssues = [];
 
         if ($relationship->isExternal()) {
-            $issues[] = 'external-numbering-relationship';
+            $relationshipIssues[] = 'external-numbering-relationship';
         } else {
             $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
             $targetPart = OpcPackagePath::stripQueryAndFragment(
@@ -14528,13 +14530,14 @@ final class DocxReader
             $exists = $package->has($targetPart);
             $contentType = $this->contentTypeForPackagePart($package, $targetPart);
             if (!$exists) {
-                $issues[] = 'missing-in-package';
+                $relationshipIssues[] = 'missing-in-package';
             } elseif ($contentType === null) {
-                $issues[] = 'missing-content-type';
+                $relationshipIssues[] = 'missing-content-type';
             } elseif (strcasecmp($contentType, self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE) !== 0) {
-                $issues[] = 'invalid-numbering-content-type';
+                $relationshipIssues[] = 'invalid-numbering-content-type';
             }
         }
+        $issues = array_values(array_unique(array_merge($issues, $relationshipIssues)));
 
         $levelCount = 0;
         $styleLinkedLevelCount = 0;
@@ -14548,6 +14551,9 @@ final class DocxReader
         }
 
         return [
+            'part' => $targetPart,
+            'contentType' => $contentType,
+            'relationshipCount' => count($numberingRelationships),
             'relationship' => [
                 'id' => $relationship->id,
                 'type' => $relationship->type,
@@ -14562,11 +14568,12 @@ final class DocxReader
                 'exists' => $exists,
                 'contentType' => $contentType,
                 'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
-                'issues' => $issues,
+                'issues' => $relationshipIssues,
             ],
             'definitionCount' => count($numbering),
             'levelCount' => $levelCount,
             'styleLinkedLevelCount' => $styleLinkedLevelCount,
+            'issues' => $issues,
         ];
     }
 

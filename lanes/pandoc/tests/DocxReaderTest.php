@@ -6963,6 +6963,10 @@ return [
         $t->same('Legal review', $orderedList->children[0]->children[0]->children[0]->attr('text'));
 
         $numbering = $result['metadata']['docxNumbering'];
+        $t->same('/word/lists/review-numbering.xml', $numbering['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $numbering['contentType']);
+        $t->same(1, $numbering['relationshipCount']);
+        $t->same([], $numbering['issues']);
         $relationship = $numbering['relationship'];
         $t->same('rIdReviewNumbering', $relationship['id']);
         $t->same(DocxReader::REL_TYPE_NUMBERING, $relationship['type']);
@@ -6997,6 +7001,10 @@ return [
         $t->same(6, $document->children[2]->attr('start'));
 
         $numbering = $result['metadata']['docxNumbering'];
+        $t->same('/word/lists/review-numbering.xml', $numbering['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $numbering['contentType']);
+        $t->same(1, $numbering['relationshipCount']);
+        $t->same([], $numbering['issues']);
         $relationship = $numbering['relationship'];
         $t->same('rIdReviewNumbering', $relationship['id']);
         $t->same('lists/review-numbering.xml?review=ready#numbering-defs', $relationship['target']);
@@ -7023,6 +7031,11 @@ return [
         $t->same('lower_roman', $document->children[2]->attr('style'));
         $t->same(6, $document->children[2]->attr('start'));
 
+        $numbering = $result['metadata']['docxNumbering'];
+        $t->same('/word/lists/review-numbering.xml', $numbering['part']);
+        $t->same('application/xml', $numbering['contentType']);
+        $t->same(1, $numbering['relationshipCount']);
+        $t->same(['invalid-numbering-content-type'], $numbering['issues']);
         $relationship = $result['metadata']['docxNumbering']['relationship'];
         $t->same('rIdReviewNumbering', $relationship['id']);
         $t->same('/word/lists/review-numbering.xml', $relationship['targetPart']);
