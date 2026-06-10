@@ -86,6 +86,7 @@ final class OdfReader
      *     media:list<array<string, mixed>>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
+     *     scriptMetadata:array<string, mixed>,
      *     trackedChanges:list<array<string, mixed>>,
      *     importReport:array<string, mixed>
      * }
@@ -110,6 +111,7 @@ final class OdfReader
             $content['styleReferenceDiagnostics']
         );
         $media = $this->mediaReport($package, $manifest);
+        $scriptMetadata = $this->readScriptMetadata($package, $manifest, $content['blocks']);
         $encryptedItems = $this->encryptedManifestItems($manifest);
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
         $directoryItems = $this->manifestDirectoryItems($manifest);
@@ -160,6 +162,7 @@ final class OdfReader
             'contentDeclarations' => $content['contentDeclarations'],
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
+            'scriptMetadata' => $scriptMetadata,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -182,6 +185,7 @@ final class OdfReader
             'media' => $media,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
+            'scriptMetadata' => $scriptMetadata,
             'trackedChanges' => $content['trackedChanges'],
             'importReport' => [
                 'mimetype' => self::MIMETYPE,
@@ -243,6 +247,7 @@ final class OdfReader
                 ],
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
+                'scriptMetadata' => $scriptMetadata,
                 'trackedChanges' => [
                     'count' => count($content['trackedChanges']),
                     'items' => $content['trackedChanges'],
@@ -433,6 +438,7 @@ final class OdfReader
                 && $byteLength !== null
                 && $declaredSize !== $byteLength;
 
+            $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
             $items[] = [
                 'fullPath' => $fullPath,
                 'part' => $part,
@@ -446,7 +452,7 @@ final class OdfReader
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
-                'canExposeBytes' => !$encrypted && !$isDirectory,
+                'canExposeBytes' => !$encrypted && !$isDirectory && !$scriptPackagePart,
                 'encryption' => $encrypted ? $this->encryptionData($encryptionElement) : null,
             ];
         }
@@ -10998,6 +11004,393 @@ final class OdfReader
 
     /**
      * @param list<array<string, mixed>> $manifest
+     * @param list<AstNode> $nodes
+     * @return array<string, mixed>
+     */
+    private function readScriptMetadata(ZipPackage $package, array $manifest, array $nodes): array
+    {
+        $candidatesByPart = [];
+        $directories = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isScriptPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            if (str_ends_with($part, '/')) {
+                $directories[] = $this->scriptDirectoryMetadata($item);
+                continue;
+            }
+
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($package->entries() as $entry) {
+            if (!$entry instanceof ZipPackageEntry || $entry->isDirectory() || !$this->isScriptPackagePartName($entry->name)) {
+                continue;
+            }
+            if (!isset($candidatesByPart[$entry->name])) {
+                $candidatesByPart[$entry->name] = [
+                    'fullPath' => $entry->name,
+                    'part' => $entry->name,
+                    'mediaType' => null,
+                    'exists' => true,
+                    'encrypted' => false,
+                    'canExposeBytes' => false,
+                    'declared' => false,
+                ];
+            }
+        }
+
+        $references = $this->scriptEventReferencesFromNodes($nodes);
+        foreach ($references as $reference) {
+            $part = $reference['part'] ?? null;
+            if (!is_string($part) || $part === '' || isset($candidatesByPart[$part])) {
+                continue;
+            }
+
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'mediaType' => null,
+                'exists' => $package->has($part),
+                'encrypted' => false,
+                'canExposeBytes' => false,
+                'declared' => false,
+                'referenceOnly' => true,
+            ];
+        }
+
+        ksort($candidatesByPart);
+        $referencesByPart = [];
+        foreach ($references as $reference) {
+            $part = $reference['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+            $referencesByPart[$part] ??= [];
+            $referencesByPart[$part][] = $reference;
+        }
+
+        $parts = [];
+        $kindCounts = [];
+        $languageCounts = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $metadata = $this->scriptPartMetadata($package, $item, $part, $referencesByPart[$part] ?? []);
+            $parts[] = $metadata;
+            $kind = (string) ($metadata['kind'] ?? 'script');
+            $language = (string) ($metadata['language'] ?? 'script');
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+            $languageCounts[$language] = ($languageCounts[$language] ?? 0) + 1;
+        }
+        ksort($kindCounts);
+        ksort($languageCounts);
+
+        $declaredPartCount = 0;
+        $undeclaredPartCount = 0;
+        $missingPartCount = 0;
+        $encryptedPartCount = 0;
+        $referencedPartCount = 0;
+        foreach ($parts as $partMetadata) {
+            if (($partMetadata['declared'] ?? false) === true) {
+                $declaredPartCount++;
+            } else {
+                $undeclaredPartCount++;
+            }
+            if (($partMetadata['exists'] ?? false) !== true) {
+                $missingPartCount++;
+            }
+            if (($partMetadata['encrypted'] ?? false) === true) {
+                $encryptedPartCount++;
+            }
+            if (($partMetadata['referenced'] ?? false) === true) {
+                $referencedPartCount++;
+            }
+        }
+
+        return [
+            'count' => count($parts),
+            'partCount' => count($parts),
+            'directoryCount' => count($directories),
+            'declaredPartCount' => $declaredPartCount,
+            'undeclaredPartCount' => $undeclaredPartCount,
+            'missingPartCount' => $missingPartCount,
+            'encryptedPartCount' => $encryptedPartCount,
+            'referencedPartCount' => $referencedPartCount,
+            'unreferencedPartCount' => count($parts) - $referencedPartCount,
+            'referenceCount' => count($references),
+            'kindCounts' => $kindCounts,
+            'languageCounts' => $languageCounts,
+            'directories' => $directories,
+            'parts' => $parts,
+            'references' => $references,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function scriptDirectoryMetadata(array $item): array
+    {
+        return self::withoutEmpty([
+            'fullPath' => $item['fullPath'] ?? null,
+            'part' => $item['part'] ?? null,
+            'mediaType' => $item['mediaType'] ?? null,
+            'exists' => $item['exists'] ?? true,
+            'declared' => true,
+            'encrypted' => ($item['encrypted'] ?? false) === true,
+            'canExposeBytes' => false,
+            'encryption' => $item['encryption'] ?? null,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<array<string, mixed>> $references
+     * @return array<string, mixed>
+     */
+    private function scriptPartMetadata(ZipPackage $package, array $item, string $part, array $references): array
+    {
+        $entry = $package->has($part) ? $package->entry($part) : null;
+        $encrypted = ($item['encrypted'] ?? false) === true;
+        $declared = ($item['declared'] ?? false) === true;
+        $diagnostics = [];
+        if (!$entry instanceof ZipPackageEntry) {
+            $diagnostics[] = 'odf-script-package-missing-part';
+        }
+        if (!$declared) {
+            $diagnostics[] = 'odf-script-package-undeclared-part';
+        }
+        if ($encrypted) {
+            $diagnostics[] = 'odf-script-package-encrypted-part';
+        }
+
+        $hrefs = [];
+        foreach ($references as $reference) {
+            $href = $reference['href'] ?? null;
+            if (is_string($href) && $href !== '') {
+                $hrefs[] = $href;
+            }
+        }
+        $hrefs = array_values(array_unique($hrefs));
+
+        return [
+            'fullPath' => $item['fullPath'] ?? $part,
+            'part' => $part,
+            'mediaType' => $item['mediaType'] ?? null,
+            'kind' => $this->scriptPartKind($part, (string) ($item['mediaType'] ?? '')),
+            'language' => $this->scriptPartLanguage($part, (string) ($item['mediaType'] ?? '')),
+            'packageRoot' => strtok($part, '/') ?: $part,
+            'libraryName' => $this->scriptPartLibraryName($part),
+            'moduleName' => $this->scriptPartModuleName($part),
+            'exists' => $entry instanceof ZipPackageEntry,
+            'declared' => $declared,
+            'undeclared' => !$declared,
+            'referenced' => $references !== [],
+            'referenceCount' => count($references),
+            'hrefs' => $hrefs,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => false,
+            'byteLength' => null,
+            'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'declaredSize' => $item['declaredSize'] ?? null,
+            'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+            'encryption' => $item['encryption'] ?? null,
+            'eventReferences' => $references,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    private function isScriptPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'basic/')
+            || str_starts_with($normalized, 'scripts/');
+    }
+
+    private function scriptPartKind(string $part, string $mediaType): string
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+        $basename = strtolower(basename($normalized));
+        $mediaType = strtolower(trim(explode(';', $mediaType, 2)[0]));
+        if (in_array($basename, ['script-lc.xml', 'script-lb.xml', 'dialog-lc.xml', 'dialog-lb.xml'], true)) {
+            return 'basic-library-index';
+        }
+        if (str_starts_with($normalized, 'basic/')) {
+            return 'basic-module';
+        }
+        if ($mediaType === 'text/x-python' || str_ends_with($normalized, '.py')) {
+            return 'python-script';
+        }
+        if (in_array($mediaType, ['application/javascript', 'text/javascript'], true) || str_ends_with($normalized, '.js')) {
+            return 'javascript-script';
+        }
+        if (str_ends_with($normalized, '.bsh')) {
+            return 'beanshell-script';
+        }
+        if (str_ends_with($normalized, '.rb')) {
+            return 'ruby-script';
+        }
+
+        return 'script';
+    }
+
+    private function scriptPartLanguage(string $part, string $mediaType): string
+    {
+        return match ($this->scriptPartKind($part, $mediaType)) {
+            'basic-library-index', 'basic-module' => 'Basic',
+            'python-script' => 'Python',
+            'javascript-script' => 'JavaScript',
+            'beanshell-script' => 'BeanShell',
+            'ruby-script' => 'Ruby',
+            default => 'script',
+        };
+    }
+
+    private function scriptPartLibraryName(string $part): ?string
+    {
+        $segments = explode('/', trim($part, '/'));
+        if (strtolower($segments[0] ?? '') === 'basic') {
+            return $segments[1] ?? null;
+        }
+        if (strtolower($segments[0] ?? '') === 'scripts' && count($segments) > 2) {
+            return $segments[1] ?? null;
+        }
+
+        return null;
+    }
+
+    private function scriptPartModuleName(string $part): ?string
+    {
+        $basename = basename($part);
+        if ($basename === '' || str_ends_with($part, '/')) {
+            return null;
+        }
+
+        $module = preg_replace('/\.[^.]+$/', '', $basename) ?? $basename;
+        return $module === '' ? null : $module;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function scriptEventReferencesFromNodes(array $nodes): array
+    {
+        $references = [];
+        foreach ($nodes as $node) {
+            if ($node->type === 'link') {
+                $linkMetadata = $node->attr('odfLinkMetadata', []);
+                $eventListeners = is_array($linkMetadata) ? ($linkMetadata['eventListeners'] ?? []) : [];
+                if (is_array($eventListeners)) {
+                    foreach ($eventListeners as $index => $listener) {
+                        if (!is_array($listener)) {
+                            continue;
+                        }
+                        $reference = $this->scriptEventReference($listener, $index);
+                        if ($reference !== null) {
+                            $references[] = $reference;
+                        }
+                    }
+                }
+            }
+
+            array_push($references, ...$this->scriptEventReferencesFromNodes($node->children));
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string, mixed> $listener
+     * @return ?array<string, mixed>
+     */
+    private function scriptEventReference(array $listener, int $index): ?array
+    {
+        $href = (string) ($listener['href'] ?? '');
+        if ($href === '') {
+            return null;
+        }
+
+        $base = self::withoutEmpty([
+            'source' => 'odf-event-listener',
+            'listenerIndex' => $index,
+            'eventName' => self::nullable((string) ($listener['eventName'] ?? '')),
+            'language' => self::nullable((string) ($listener['language'] ?? '')),
+            'macroName' => self::nullable((string) ($listener['macroName'] ?? '')),
+            'href' => $href,
+        ]);
+
+        if (str_starts_with(strtolower($href), 'vnd.sun.star.script:')) {
+            $macro = $this->basicMacroReference($href);
+            if ($macro === []) {
+                return null;
+            }
+
+            return $base + $macro;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1) {
+            return null;
+        }
+
+        try {
+            $part = $this->manifestPackagePart($href);
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            return null;
+        }
+
+        if (!$this->isScriptPackagePartName($part)) {
+            return null;
+        }
+
+        return $base + [
+            'part' => $part,
+            'kind' => $this->scriptPartKind($part, ''),
+            'packageRoot' => strtok($part, '/') ?: $part,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function basicMacroReference(string $href): array
+    {
+        $payload = substr($href, strlen('vnd.sun.star.script:'));
+        $payload = preg_replace('/[#?].*$/', '', $payload) ?? $payload;
+        $payload = rawurldecode($payload);
+        $segments = array_values(array_filter(
+            explode('.', $payload),
+            static fn (string $segment): bool => $segment !== ''
+        ));
+        if (count($segments) < 2) {
+            return [];
+        }
+
+        [$library, $module] = [$segments[0], $segments[1]];
+        $macro = implode('.', array_slice($segments, 2));
+        try {
+            $part = $this->manifestPackagePart('Basic/' . $library . '/' . $module . '.xml');
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            return [];
+        }
+
+        return self::withoutEmpty([
+            'part' => $part,
+            'kind' => 'basic-macro',
+            'packageRoot' => 'Basic',
+            'libraryName' => $library,
+            'moduleName' => $module,
+            'macroName' => self::nullable($macro),
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
      * @return list<array<string, mixed>>
      */
     private function mediaReport(ZipPackage $package, array $manifest): array
@@ -11010,6 +11403,9 @@ final class OdfReader
                 continue;
             }
             if (str_ends_with($part, '/')) {
+                continue;
+            }
+            if ($this->isScriptPackagePartName($part)) {
                 continue;
             }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {

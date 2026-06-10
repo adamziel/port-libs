@@ -4064,6 +4064,146 @@ XML;
         $t->contains('<a href="https://example.test/source.odt" title="Evented source" class="odf-link" data-odf-link-type="simple" data-odf-link-event-listener-count="2" data-odf-link-event-1-name="dom:mouseover"', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<script:event-listener'), 'Expected raw ODT script event XML to stay out of WordPress output');
     },
+    'reports ODT script package inventory without exposing macro bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
+        $basicModuleXml = <<<'XML'
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review" script:language="StarBasic">Sub Approve
+End Sub</script:module>
+XML;
+        $javaScript = 'function ReviewLinkClick() { return false; }';
+        $pythonScript = "def audit():\n    return 'ok'\n";
+        $encryptedScript = 'encrypted macro payload';
+        $orphanScript = 'function orphan() { return true; }';
+        $scriptManifestEntries =
+            '  <manifest:file-entry manifest:full-path="Basic/" manifest:media-type=""/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Basic/Standard/script-lb.xml" manifest:media-type="text/xml"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Basic/Standard/Review.xml" manifest:media-type="text/xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/" manifest:media-type=""/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/review-link.js" manifest:media-type="application/javascript" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/python/audit.py" manifest:media-type="text/x-python" manifest:size="' . (strlen($pythonScript) + 7) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Scripts/encrypted.js" manifest:media-type="application/javascript" manifest:size="2048"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="macro-checksum"><manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="macro-iv"/></manifest:encryption-data></manifest:file-entry>' . "\n";
+        $manifestWithScripts = str_replace('</manifest:manifest>', $scriptManifestEntries . '</manifest:manifest>', $manifestXml);
+        $contentWithScriptRefs = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Scripted <text:a xlink:href="https://example.test/source.odt" office:title="Scripted source"><office:event-listeners><script:event-listener script:event-name="dom:activate" script:language="ooo:Basic" xlink:href="vnd.sun.star.script:Standard.Review.Approve?language=Basic&amp;location=document" xlink:type="simple"/><script:event-listener script:event-name="dom:click" script:language="JavaScript" script:macro-name="ReviewLinkClick" xlink:href="Scripts/review-link.js" xlink:type="simple"/><script:event-listener script:event-name="dom:load" script:language="Python" xlink:href="Scripts/python/audit.py?entry=run#main" xlink:type="simple"/><script:event-listener script:event-name="dom:error" script:language="JavaScript" xlink:href="Scripts/missing.js" xlink:type="simple"/></office:event-listeners>macro link</text:a> stays inert.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage($contentWithScriptRefs, $manifestWithScripts, null, null, [
+            ['name' => 'Basic/Standard/script-lb.xml', 'data' => $basicLibraryXml],
+            ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml],
+            ['name' => 'Scripts/review-link.js', 'data' => $javaScript],
+            ['name' => 'Scripts/python/audit.py', 'data' => $pythonScript],
+            ['name' => 'Scripts/encrypted.js', 'data' => $encryptedScript],
+            ['name' => 'Scripts/orphan.js', 'data' => $orphanScript],
+        ]));
+        $scripts = $result['scriptMetadata'];
+        $partsByPart = [];
+        foreach ($scripts['parts'] as $part) {
+            $partsByPart[$part['part']] = $part;
+        }
+        $manifestByPart = [];
+        foreach ($result['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+
+        $t->same($scripts, $result['document']->attr('scriptMetadata'));
+        $t->same($scripts, $result['importReport']['scriptMetadata']);
+        $t->same(7, $scripts['partCount']);
+        $t->same(2, $scripts['directoryCount']);
+        $t->same(6, $scripts['declaredPartCount']);
+        $t->same(1, $scripts['undeclaredPartCount']);
+        $t->same(1, $scripts['missingPartCount']);
+        $t->same(1, $scripts['encryptedPartCount']);
+        $t->same(4, $scripts['referenceCount']);
+        $t->same(4, $scripts['referencedPartCount']);
+        $t->same(3, $scripts['unreferencedPartCount']);
+        $t->same(['Basic/' => 'Basic/', 'Scripts/' => 'Scripts/'], array_column($scripts['directories'], 'part', 'part'));
+        $t->same(1, $scripts['kindCounts']['basic-library-index']);
+        $t->same(1, $scripts['kindCounts']['basic-module']);
+        $t->same(4, $scripts['kindCounts']['javascript-script']);
+        $t->same(1, $scripts['kindCounts']['python-script']);
+        $t->same(2, $scripts['languageCounts']['Basic']);
+        $t->same(4, $scripts['languageCounts']['JavaScript']);
+        $t->same(1, $scripts['languageCounts']['Python']);
+
+        $basicModule = $partsByPart['Basic/Standard/Review.xml'];
+        $t->same('basic-module', $basicModule['kind']);
+        $t->same('Basic', $basicModule['language']);
+        $t->same('Standard', $basicModule['libraryName']);
+        $t->same('Review', $basicModule['moduleName']);
+        $t->same(true, $basicModule['exists']);
+        $t->same(true, $basicModule['declared']);
+        $t->same(true, $basicModule['referenced']);
+        $t->same(false, $basicModule['canExposeBytes']);
+        $t->same(null, $basicModule['byteLength']);
+        $t->same(strlen($basicModuleXml), $basicModule['storedByteLength']);
+        $t->same([], $basicModule['diagnostics']);
+        $t->same(['vnd.sun.star.script:Standard.Review.Approve?language=Basic&location=document'], $basicModule['hrefs']);
+        $t->same('basic-macro', $basicModule['eventReferences'][0]['kind']);
+        $t->same('Approve', $basicModule['eventReferences'][0]['macroName']);
+
+        $javascript = $partsByPart['Scripts/review-link.js'];
+        $t->same('javascript-script', $javascript['kind']);
+        $t->same('JavaScript', $javascript['language']);
+        $t->same('review-link', $javascript['moduleName']);
+        $t->same(true, $javascript['referenced']);
+        $t->same(false, $javascript['canExposeBytes']);
+        $t->same(null, $javascript['byteLength']);
+        $t->same(strlen($javaScript), $javascript['storedByteLength']);
+        $t->same(['Scripts/review-link.js'], $javascript['hrefs']);
+
+        $python = $partsByPart['Scripts/python/audit.py'];
+        $t->same('python-script', $python['kind']);
+        $t->same('Python', $python['language']);
+        $t->same('python', $python['libraryName']);
+        $t->same('audit', $python['moduleName']);
+        $t->same(true, $python['declaredSizeMismatch']);
+        $t->same(['Scripts/python/audit.py?entry=run#main'], $python['hrefs']);
+
+        $missing = $partsByPart['Scripts/missing.js'];
+        $t->same(false, $missing['exists']);
+        $t->same(true, $missing['referenced']);
+        $t->same(['odf-script-package-missing-part'], $missing['diagnostics']);
+
+        $encrypted = $partsByPart['Scripts/encrypted.js'];
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(false, $encrypted['canExposeBytes']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedScript), $encrypted['storedByteLength']);
+        $t->same('Blowfish CFB', $encrypted['encryption']['algorithm']['name']);
+        $t->same(['odf-script-package-encrypted-part'], $encrypted['diagnostics']);
+
+        $orphan = $partsByPart['Scripts/orphan.js'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same(false, $orphan['referenced']);
+        $t->same(['odf-script-package-undeclared-part'], $orphan['diagnostics']);
+
+        $t->same(false, $manifestByPart['Scripts/review-link.js']['canExposeBytes']);
+        $t->same(false, $manifestByPart['Scripts/python/audit.py']['canExposeBytes']);
+        $t->same(1, count($result['media']), 'script package payloads must stay out of media byte handoff');
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+        $t->same(13, $result['importReport']['manifest']['count']);
+        $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
+        $t->same('Scripts/orphan.js', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
+
+        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $t->contains('macro link', $blocksHtml);
+        $t->true(!str_contains($blocksHtml, 'function ReviewLinkClick'), 'Script source bytes must not be rendered into WordPress output');
+        $t->true(!str_contains($blocksHtml, 'Sub Approve'), 'Basic macro source bytes must not be rendered into WordPress output');
+    },
     'normalizes ODT parent relative text links like upstream fixRelativeLink' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithParentRelativeLinks = <<<'XML'
 <office:document-content
