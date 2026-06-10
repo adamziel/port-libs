@@ -747,7 +747,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string, relationshipXmlIssueRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -825,6 +825,7 @@ final class OpcRelationshipGraph
                 'valid' => $issues === [],
                 'issues' => $issues,
                 'parseError' => $parseError,
+                'relationshipXmlIssueRecords' => [],
             ];
 
             if ($relationshipSource !== null) {
@@ -866,9 +867,11 @@ final class OpcRelationshipGraph
                 $row['relationshipCount'] = count($relationships->all());
             } catch (\Throwable $exception) {
                 self::appendUniqueString($row['issues'], 'malformed-relationship-xml');
-                foreach (self::relationshipXmlIssueHints($relationshipXml ?? '') as $issue) {
+                $relationshipXmlDiagnostics = self::relationshipXmlIssueDiagnostics($relationshipXml ?? '');
+                foreach ($relationshipXmlDiagnostics['issues'] as $issue) {
                     self::appendUniqueString($row['issues'], $issue);
                 }
+                $row['relationshipXmlIssueRecords'] = $relationshipXmlDiagnostics['records'];
                 $row['issues'] = array_values(array_unique($row['issues']));
                 $row['parseError'] = $exception->getMessage();
                 $row['valid'] = false;
@@ -881,7 +884,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, issues:list<string>}
+     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, relationshipXmlIssueRecordCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, relationshipXmlIssueRecords:list<array{partName:string, relationshipSource:?string, relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>, issues:list<string>}
      */
     public static function relationshipPartLoadSummary(ZipPackage $package): array
     {
@@ -893,6 +896,7 @@ final class OpcRelationshipGraph
             'validCount' => 0,
             'invalidCount' => 0,
             'relationshipCount' => 0,
+            'relationshipXmlIssueRecordCount' => 0,
             'loadedPartNames' => [],
             'skippedPartNames' => [],
             'loadedSources' => [],
@@ -904,6 +908,7 @@ final class OpcRelationshipGraph
             'partNamesByContentTypeSource' => [],
             'issueCounts' => [],
             'partNamesByIssue' => [],
+            'relationshipXmlIssueRecords' => [],
             'issues' => [],
         ];
 
@@ -942,6 +947,14 @@ final class OpcRelationshipGraph
                 $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
                 $summary['partNamesByIssue'][$issue][] = $part['partName'];
             }
+
+            foreach ($part['relationshipXmlIssueRecords'] as $record) {
+                $summary['relationshipXmlIssueRecordCount']++;
+                $summary['relationshipXmlIssueRecords'][] = [
+                    'partName' => $part['partName'],
+                    'relationshipSource' => $part['relationshipSource'],
+                ] + $record;
+            }
         }
 
         foreach ([
@@ -974,6 +987,12 @@ final class OpcRelationshipGraph
             sort($partNames, SORT_STRING);
         }
         unset($partNames);
+
+        usort(
+            $summary['relationshipXmlIssueRecords'],
+            static fn (array $left, array $right): int => [$left['partName'], $left['relationshipOrdinal']]
+                <=> [$right['partName'], $right['relationshipOrdinal']],
+        );
 
         return $summary;
     }
@@ -7173,62 +7192,106 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<string>
+     * @return array{issues:list<string>, records:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}
      */
-    private static function relationshipXmlIssueHints(string $xml): array
+    private static function relationshipXmlIssueDiagnostics(string $xml): array
     {
         if ($xml === '') {
-            return [];
+            return [
+                'issues' => [],
+                'records' => [],
+            ];
         }
 
         try {
             $dom = XmlHtmlDom::loadXmlDocument($xml, 'OPC relationships XML');
         } catch (\Throwable) {
-            return [];
+            return [
+                'issues' => [],
+                'records' => [],
+            ];
         }
 
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->localName !== 'Relationships' || $root->namespaceURI !== OpcRelationships::NAMESPACE_URI) {
-            return [];
+            return [
+                'issues' => [],
+                'records' => [],
+            ];
         }
 
         $issues = [];
+        $records = [];
         $seenIds = [];
+        $relationshipOrdinal = 0;
         foreach ($root->getElementsByTagNameNS(OpcRelationships::NAMESPACE_URI, 'Relationship') as $relationship) {
             if (!$relationship instanceof \DOMElement) {
                 continue;
             }
 
+            $relationshipOrdinal++;
+            $recordIssues = [];
+            $duplicateOfOrdinal = null;
             if (!$relationship->hasAttribute('Id') || $relationship->getAttribute('Id') === '') {
                 self::appendUniqueString($issues, 'missing-relationship-id');
+                self::appendUniqueString($recordIssues, 'missing-relationship-id');
             } else {
                 $id = $relationship->getAttribute('Id');
                 if (preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $id) !== 1) {
                     self::appendUniqueString($issues, 'invalid-relationship-id');
+                    self::appendUniqueString($recordIssues, 'invalid-relationship-id');
                 } elseif (isset($seenIds[$id])) {
                     self::appendUniqueString($issues, 'duplicate-relationship-id');
+                    self::appendUniqueString($recordIssues, 'duplicate-relationship-id');
+                    $duplicateOfOrdinal = $seenIds[$id];
                 } else {
-                    $seenIds[$id] = true;
+                    $seenIds[$id] = $relationshipOrdinal;
                 }
             }
 
             if (!$relationship->hasAttribute('Type') || $relationship->getAttribute('Type') === '') {
                 self::appendUniqueString($issues, 'missing-relationship-type');
+                self::appendUniqueString($recordIssues, 'missing-relationship-type');
             }
 
             if (!$relationship->hasAttribute('Target') || $relationship->getAttribute('Target') === '') {
                 self::appendUniqueString($issues, 'missing-relationship-target');
+                self::appendUniqueString($recordIssues, 'missing-relationship-target');
             }
 
             if ($relationship->hasAttribute('TargetMode')) {
                 $targetMode = $relationship->getAttribute('TargetMode');
                 if ($targetMode !== OpcRelationship::TARGET_MODE_INTERNAL && $targetMode !== OpcRelationship::TARGET_MODE_EXTERNAL) {
                     self::appendUniqueString($issues, 'invalid-relationship-target-mode');
+                    self::appendUniqueString($recordIssues, 'invalid-relationship-target-mode');
                 }
+            }
+
+            if ($recordIssues !== []) {
+                $records[] = [
+                    'relationshipOrdinal' => $relationshipOrdinal,
+                    'id' => $relationship->hasAttribute('Id') && $relationship->getAttribute('Id') !== ''
+                        ? $relationship->getAttribute('Id')
+                        : null,
+                    'type' => $relationship->hasAttribute('Type') && $relationship->getAttribute('Type') !== ''
+                        ? $relationship->getAttribute('Type')
+                        : null,
+                    'target' => $relationship->hasAttribute('Target') && $relationship->getAttribute('Target') !== ''
+                        ? $relationship->getAttribute('Target')
+                        : null,
+                    'targetMode' => $relationship->hasAttribute('TargetMode')
+                        ? $relationship->getAttribute('TargetMode')
+                        : null,
+                    'duplicateOfOrdinal' => $duplicateOfOrdinal,
+                    'issues' => $recordIssues,
+                ];
             }
         }
 
-        return $issues;
+        return [
+            'issues' => $issues,
+            'records' => $records,
+        ];
     }
 
     /**
