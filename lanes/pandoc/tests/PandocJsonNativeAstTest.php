@@ -1077,6 +1077,85 @@ return [
         $t->same('Generated short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Generated alt', $generatedRoundTrip->children[0]->children[0]->attr('alt'));
     },
+    'accepts maybe wrapped pandoc json short caption constructors' => static function (TestRunner $t): void {
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['maybe-figure', ['review'], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => [[
+                        't' => 'ShortCaption',
+                        'c' => [[
+                            ['t' => 'Str', 'c' => 'Maybe'],
+                            ['t' => 'Space'],
+                            ['t' => 'Strong', 'c' => [
+                                ['t' => 'Str', 'c' => 'short'],
+                            ]],
+                        ]],
+                    ]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Maybe'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Maybe figure']],
+                            ['media/maybe.png', 'Maybe title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['maybe-table', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'table'],
+                        ]],
+                    ],
+                ]],
+                [],
+                [['', [], []], []],
+                [],
+                [['', [], []], []],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock, $tableBlock],
+        ]);
+        $figure = $document->children[0];
+        $table = $document->children[1];
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+
+        $t->same('figure', $figure->type);
+        $t->same('Maybe short', $figure->attr('shortCaption'));
+        $t->same('Maybe figure', $figure->attr('caption'));
+        $t->same(['text', 'space', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $figure->attr('shortCaptionInlines')));
+        $t->same('Maybe', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Maybe short', $roundTrip->children[0]->attr('shortCaption'));
+        $t->same('table', $table->type);
+        $t->same('', $table->attr('shortCaption', ''));
+        $t->same('Long table', $table->attr('caption'));
+        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same('Long table', $roundTrip->children[1]->attr('caption'));
+    },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
