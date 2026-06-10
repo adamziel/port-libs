@@ -78,6 +78,7 @@ $buildOdtPackage = static function (
     string $mimetype = OpenDocumentPackage::TEXT_MIMETYPE,
     bool $mimetypeFirst = true,
     int $mimetypeCompression = 0,
+    array $extraParts = [],
 ) use ($manifestXml, $contentXml, $stylesXml, $metaXml): ZipPackage {
     $parts = [
         ['name' => 'mimetype', 'data' => $mimetype, 'compressionMethod' => $mimetypeCompression],
@@ -87,6 +88,8 @@ $buildOdtPackage = static function (
         ['name' => 'meta.xml', 'data' => $meta ?? $metaXml],
         ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA'],
     ];
+
+    array_push($parts, ...$extraParts);
 
     if (!$mimetypeFirst) {
         $parts = [$parts[1], $parts[0], $parts[2], $parts[3], $parts[4], $parts[5]];
@@ -159,6 +162,85 @@ XML;
         $t->same(20, $hero['encryption']['startKeyGeneration']['keySize']);
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
+    },
+    'reports compact ODT manifest entry byte exposure provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $encryptedHero = <<<'XML'
+<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . $encryptedHero
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/cover.png"/>'
+            . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/cover.png', 'data' => 'COVERPNG', 'compressionMethod' => 0],
+            ]
+        ));
+        $summary = $odt->summarize()['manifestReview'];
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $cover = $odt->manifestEntry('Pictures/cover.png');
+        $directory = $odt->manifestEntry('Pictures/');
+        $missing = $odt->manifestEntry('Pictures/missing.jpg');
+        $root = $odt->manifestEntry('/');
+
+        $t->same(8, $summary['count']);
+        $t->same(7, $summary['existsCount']);
+        $t->same(1, $summary['missingCount']);
+        $t->same(1, $summary['directoryCount']);
+        $t->same(1, $summary['encryptedCount']);
+        $t->same(1, $summary['declaredSizeMismatchCount']);
+        $t->same(2048, $summary['declaredSize']);
+        $t->same(strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + 15, $summary['storedByteLength']);
+        $t->same(strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + 8, $summary['exposableByteLength']);
+
+        $t->same('Pictures/missing.jpg', $summary['missingItems'][0]['path']);
+        $t->same('Pictures/', $summary['directoryItems'][0]['path']);
+        $t->same('Pictures/hero.png', $summary['encryptedItems'][0]['path']);
+        $t->same('Pictures/hero.png', $summary['declaredSizeMismatches'][0]['path']);
+
+        $t->same(true, $root['exists']);
+        $t->same(false, $root['canExposeBytes']);
+        $t->same('package-root-no-bytes', $root['byteExposurePolicy']);
+
+        $t->same(true, $directory['exists']);
+        $t->same(true, $directory['isDirectory']);
+        $t->same(false, $directory['canExposeBytes']);
+        $t->same('directory-entry-no-bytes', $directory['byteExposurePolicy']);
+        $t->same(['odf-manifest-directory-entry'], $directory['diagnostics']);
+
+        $t->same(true, $hero['exists']);
+        $t->same(true, $hero['encrypted']);
+        $t->same(false, $hero['canExposeBytes']);
+        $t->same(null, $hero['byteLength']);
+        $t->same(7, $hero['storedByteLength']);
+        $t->same(2048, $hero['declaredSize']);
+        $t->same(true, $hero['declaredSizeMismatch']);
+        $t->same('encrypted-resource-bytes-blocked', $hero['byteExposurePolicy']);
+        $t->same(['odf-manifest-encrypted-package-part', 'odf-manifest-declared-size-mismatch'], $hero['diagnostics']);
+        $t->same('SHA1/1K', $hero['encryption']['checksumType']);
+        $t->same('checksum-base64', $hero['encryption']['checksum']);
+        $t->same('Blowfish CFB', $hero['encryption']['algorithm']['name']);
+        $t->same('iv-base64', $hero['encryption']['algorithm']['initialisationVector']);
+
+        $t->same(true, $cover['canExposeBytes']);
+        $t->same(8, $cover['byteLength']);
+        $t->same('package-bytes-exposable', $cover['byteExposurePolicy']);
+        $t->same([], $cover['diagnostics']);
+
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same('missing-package-part', $missing['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();

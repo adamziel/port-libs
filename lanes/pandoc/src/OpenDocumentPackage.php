@@ -16,11 +16,12 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
 
-    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> */
+    /** @var array<string, array<string, mixed>> */
     private array $manifestEntriesByPath;
 
     /**
-     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> $manifestEntries
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param array<string, array<string, mixed>> $manifestEntriesByPath
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
      */
@@ -44,7 +45,10 @@ final class OpenDocumentPackage
         }
 
         $manifest = self::parseManifest($package->read('META-INF/manifest.xml'));
-        $manifestEntries = $manifest['entries'];
+        $manifestEntries = self::attachPackageEntryProvenance(
+            $manifest['entries'],
+            $package
+        );
         $manifestEntriesByPath = [];
         foreach ($manifestEntries as $entry) {
             if (isset($manifestEntriesByPath[$entry['path']])) {
@@ -90,7 +94,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     * @return list<array<string, mixed>>
      */
     public function manifestEntries(): array
     {
@@ -98,7 +102,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}|null
+     * @return array<string, mixed>|null
      */
     public function manifestEntry(string $path): ?array
     {
@@ -185,6 +189,7 @@ final class OpenDocumentPackage
      *     mediaParts:list<array{path:string, mediaType:string}>,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
+     *     manifestReview:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     styleNames:list<string>,
      *     contentBlocks:int
@@ -215,6 +220,7 @@ final class OpenDocumentPackage
             'mediaParts' => $mediaParts,
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
+            'manifestReview' => self::manifestReview($this->manifestEntries),
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
@@ -241,7 +247,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
-     *     entries:list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array<string, mixed>>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -264,7 +270,7 @@ final class OpenDocumentPackage
 
             $path = self::normalizeManifestPath(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'full-path') ?? '');
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
-            if ($mediaType === '') {
+            if ($mediaType === '' && !str_ends_with($path, '/')) {
                 throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
             }
 
@@ -274,7 +280,7 @@ final class OpenDocumentPackage
                 'path' => $path,
                 'mediaType' => $mediaType,
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
-                'size' => $size === null || $size === '' ? null : (int) $size,
+                'size' => $size === null || $size === '' || preg_match('/^\d+$/', $size) !== 1 ? null : (int) $size,
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
                 'encrypted' => $encryption !== null,
                 'encryption' => $encryption,
@@ -330,6 +336,145 @@ final class OpenDocumentPackage
         }
 
         return $data;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function attachPackageEntryProvenance(array $entries, ZipPackage $package): array
+    {
+        foreach ($entries as $index => $entry) {
+            $path = (string) $entry['path'];
+            $isRoot = $path === '/';
+            $isDirectory = !$isRoot && str_ends_with($path, '/');
+            $zipEntry = !$isRoot && $package->has($path) ? $package->entry($path) : null;
+            $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
+            $encrypted = is_array($entry['encryption']);
+            $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
+            $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted;
+            $declaredSizeMismatch = $declaredSize !== null
+                && $storedByteLength !== null
+                && !$isDirectory
+                && $declaredSize !== $storedByteLength;
+            $diagnostics = [];
+
+            if (!$exists) {
+                $diagnostics[] = 'odf-manifest-missing-package-part';
+            }
+            if ($isDirectory) {
+                $diagnostics[] = 'odf-manifest-directory-entry';
+            }
+            if ($encrypted) {
+                $diagnostics[] = 'odf-manifest-encrypted-package-part';
+            }
+            if ($declaredSizeMismatch) {
+                $diagnostics[] = 'odf-manifest-declared-size-mismatch';
+            }
+
+            $entries[$index] += [
+                'exists' => $exists,
+                'isDirectory' => $isDirectory,
+                'encrypted' => $encrypted,
+                'canExposeBytes' => $canExposeBytes,
+                'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'declaredSize' => $declaredSize,
+                'declaredSizeMismatch' => $declaredSizeMismatch,
+                'byteExposurePolicy' => $isRoot
+                    ? 'package-root-no-bytes'
+                    : ($isDirectory
+                    ? 'directory-entry-no-bytes'
+                    : ($encrypted ? 'encrypted-resource-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part'))),
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function manifestReview(array $entries): array
+    {
+        $summary = [
+            'count' => count($entries),
+            'existsCount' => 0,
+            'missingCount' => 0,
+            'directoryCount' => 0,
+            'encryptedCount' => 0,
+            'declaredSizeMismatchCount' => 0,
+            'storedByteLength' => 0,
+            'exposableByteLength' => 0,
+            'declaredSize' => 0,
+            'items' => [],
+            'missingItems' => [],
+            'directoryItems' => [],
+            'encryptedItems' => [],
+            'declaredSizeMismatches' => [],
+        ];
+
+        foreach ($entries as $entry) {
+            $item = self::manifestReviewItem($entry);
+            $summary['items'][] = $item;
+            if (($entry['exists'] ?? false) === true) {
+                ++$summary['existsCount'];
+            } else {
+                ++$summary['missingCount'];
+                $summary['missingItems'][] = $item;
+            }
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summary['directoryCount'];
+                $summary['directoryItems'][] = $item;
+            }
+            if (($entry['encrypted'] ?? false) === true) {
+                ++$summary['encryptedCount'];
+                $summary['encryptedItems'][] = $item;
+            }
+            if (($entry['declaredSizeMismatch'] ?? false) === true) {
+                ++$summary['declaredSizeMismatchCount'];
+                $summary['declaredSizeMismatches'][] = $item;
+            }
+            if (is_int($entry['storedByteLength'] ?? null)) {
+                $summary['storedByteLength'] += $entry['storedByteLength'];
+            }
+            if (($entry['canExposeBytes'] ?? false) === true && is_int($entry['byteLength'] ?? null)) {
+                $summary['exposableByteLength'] += $entry['byteLength'];
+            }
+            if (is_int($entry['declaredSize'] ?? null)) {
+                $summary['declaredSize'] += $entry['declaredSize'];
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function manifestReviewItem(array $entry): array
+    {
+        return [
+            'path' => $entry['path'],
+            'mediaType' => $entry['mediaType'],
+            'exists' => ($entry['exists'] ?? false) === true,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'encrypted' => ($entry['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'byteLength' => $entry['byteLength'] ?? null,
+            'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'declaredSize' => $entry['declaredSize'] ?? null,
+            'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+            'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
     }
 
     /**
