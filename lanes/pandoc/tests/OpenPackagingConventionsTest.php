@@ -8488,6 +8488,72 @@ XML;
         $t->same(['missing-in-package'], $inventory[$imageType]['relationshipTargetReferences'][1]['issues']);
         $t->same(['missing-in-package', 'override-target-missing-part'], $inventory[$imageType]['issues']);
     },
+    'summarizes OPC default content type usage for package preflight handoff' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+            ['name' => 'word/theme/theme1.thmx', 'data' => '<a:theme/>'],
+            ['name' => 'word/media/source', 'data' => 'raw'],
+        ]));
+
+        $summary = $graph->contentTypeDefaultUsageSummary();
+        $defaults = [];
+        foreach ($summary['defaults'] as $default) {
+            $defaults[$default['extension']] = $default;
+        }
+        $missingParts = [];
+        foreach ($summary['missingParts'] as $part) {
+            $missingParts[$part['partName']] = $part;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['defaultCount']);
+        $t->same(3, $summary['usedDefaultCount']);
+        $t->same(1, $summary['unusedDefaultCount']);
+        $t->same(10, $summary['packagePartCount']);
+        $t->same(4, $summary['defaultResolvedPartCount']);
+        $t->same(4, $summary['overrideResolvedPartCount']);
+        $t->same(2, $summary['missingContentTypePartCount']);
+        $t->same(2, $summary['relationshipPartDefaultResolvedCount']);
+        $t->same(1, $summary['mediaDefaultResolvedCount']);
+        $t->same(0, $summary['embeddedPackageDefaultResolvedCount']);
+        $t->same(1, $summary['extensionlessMissingPartCount']);
+        $t->same(['rels', 'xml', 'png', 'Jpeg'], $summary['defaultExtensions']);
+        $t->same(['Jpeg'], $summary['unusedDefaultExtensions']);
+        $t->same(['thmx'], $summary['missingExtensions']);
+        $t->same([
+            'missing-content-type' => 2,
+            'missing-content-type-default' => 1,
+            'missing-content-type-extension' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'missing-content-type',
+            'missing-content-type-default',
+            'missing-content-type-extension',
+        ], $summary['issues']);
+
+        $t->same([
+            '/_rels/.rels',
+            '/word/_rels/document.xml.rels',
+        ], $defaults['rels']['packageParts']);
+        $t->same(2, $defaults['rels']['relationshipPartCount']);
+        $t->same(['/customXml/item1.xml'], $defaults['xml']['packageParts']);
+        $t->same(['/word/media/review-image.PNG'], $defaults['png']['packageParts']);
+        $t->same(1, $defaults['png']['mediaPartCount']);
+        $t->same([], $defaults['Jpeg']['packageParts']);
+
+        $t->same(null, $missingParts['/word/media/source']['extension']);
+        $t->same(['missing-content-type', 'missing-content-type-extension'], $missingParts['/word/media/source']['issues']);
+        $t->same('thmx', $missingParts['/word/theme/theme1.thmx']['extension']);
+        $t->same(['missing-content-type', 'missing-content-type-default'], $missingParts['/word/theme/theme1.thmx']['issues']);
+    },
     'summarizes package-wide OPC package part relationship references for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -1801,6 +1801,134 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array{valid:bool, defaultCount:int, usedDefaultCount:int, unusedDefaultCount:int, packagePartCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingContentTypePartCount:int, relationshipPartDefaultResolvedCount:int, mediaDefaultResolvedCount:int, embeddedPackageDefaultResolvedCount:int, extensionlessMissingPartCount:int, defaultExtensions:list<string>, unusedDefaultExtensions:list<string>, missingExtensions:list<string>, issueCounts:array<string,int>, issues:list<string>, defaults:list<array{extension:string, normalizedExtension:string, contentType:string, packagePartCount:int, relationshipPartCount:int, mediaPartCount:int, embeddedPackageCandidateCount:int, packageParts:list<string>, valid:bool, issues:list<string>}>, missingParts:list<array{partName:string, extension:?string, relationshipPart:bool, issues:list<string>}>}
+     */
+    public function contentTypeDefaultUsageSummary(): array
+    {
+        $defaults = [];
+        foreach ($this->contentTypes->defaults() as $extension => $contentType) {
+            $normalizedExtension = strtolower($extension);
+            $defaults[$normalizedExtension] = [
+                'extension' => $extension,
+                'normalizedExtension' => $normalizedExtension,
+                'contentType' => $contentType,
+                'packagePartCount' => 0,
+                'relationshipPartCount' => 0,
+                'mediaPartCount' => 0,
+                'embeddedPackageCandidateCount' => 0,
+                'packageParts' => [],
+                'valid' => true,
+                'issues' => [],
+            ];
+        }
+
+        $summary = [
+            'valid' => true,
+            'defaultCount' => count($defaults),
+            'usedDefaultCount' => 0,
+            'unusedDefaultCount' => 0,
+            'packagePartCount' => 0,
+            'defaultResolvedPartCount' => 0,
+            'overrideResolvedPartCount' => 0,
+            'missingContentTypePartCount' => 0,
+            'relationshipPartDefaultResolvedCount' => 0,
+            'mediaDefaultResolvedCount' => 0,
+            'embeddedPackageDefaultResolvedCount' => 0,
+            'extensionlessMissingPartCount' => 0,
+            'defaultExtensions' => [],
+            'unusedDefaultExtensions' => [],
+            'missingExtensions' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'defaults' => [],
+            'missingParts' => [],
+        ];
+
+        foreach ($defaults as $default) {
+            $summary['defaultExtensions'][] = $default['extension'];
+        }
+
+        foreach ($this->preflightPackageParts() as $part) {
+            $summary['packagePartCount']++;
+            $partName = $part['partName'];
+
+            if ($part['contentTypeSource'] === 'override') {
+                $summary['overrideResolvedPartCount']++;
+                continue;
+            }
+
+            if ($part['contentTypeSource'] === 'default') {
+                $summary['defaultResolvedPartCount']++;
+                $defaultExtension = strtolower((string) $part['contentTypeDefaultExtension']);
+                if (isset($defaults[$defaultExtension])) {
+                    $defaults[$defaultExtension]['packagePartCount']++;
+                    $defaults[$defaultExtension]['packageParts'][] = $partName;
+                    if ($part['relationshipPart']) {
+                        $defaults[$defaultExtension]['relationshipPartCount']++;
+                        $summary['relationshipPartDefaultResolvedCount']++;
+                    }
+                    if (self::isMediaPartCandidate($partName)) {
+                        $defaults[$defaultExtension]['mediaPartCount']++;
+                        $summary['mediaDefaultResolvedCount']++;
+                    }
+                    if (self::isEmbeddedPackageCandidate($partName)) {
+                        $defaults[$defaultExtension]['embeddedPackageCandidateCount']++;
+                        $summary['embeddedPackageDefaultResolvedCount']++;
+                    }
+                }
+                continue;
+            }
+
+            $extension = self::partNameExtension($partName);
+            $issues = ['missing-content-type'];
+            if ($extension === '') {
+                $summary['extensionlessMissingPartCount']++;
+                $issues[] = 'missing-content-type-extension';
+            } else {
+                self::appendUniqueString($summary['missingExtensions'], $extension);
+                $issues[] = 'missing-content-type-default';
+            }
+
+            $summary['missingContentTypePartCount']++;
+            $summary['valid'] = false;
+            foreach ($issues as $issue) {
+                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+                self::appendUniqueString($summary['issues'], $issue);
+            }
+            $summary['missingParts'][] = [
+                'partName' => $partName,
+                'extension' => $extension === '' ? null : $extension,
+                'relationshipPart' => $part['relationshipPart'],
+                'issues' => $issues,
+            ];
+        }
+
+        foreach ($defaults as &$default) {
+            sort($default['packageParts'], SORT_STRING);
+            if ($default['packagePartCount'] > 0) {
+                $summary['usedDefaultCount']++;
+            } else {
+                $summary['unusedDefaultCount']++;
+                $summary['unusedDefaultExtensions'][] = $default['extension'];
+            }
+        }
+        unset($default);
+
+        sort($summary['unusedDefaultExtensions'], SORT_STRING);
+        sort($summary['missingExtensions'], SORT_STRING);
+        sort($summary['issues'], SORT_STRING);
+        ksort($summary['issueCounts'], SORT_STRING);
+        usort(
+            $summary['missingParts'],
+            static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
+        );
+
+        $summary['defaults'] = array_values($defaults);
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{partName:string, exists:bool, contentType:?string, relationshipPart:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, relationshipSourceLoaded:?bool, sourceExists:?bool, packagePartValid:bool, packagePartIssues:list<string>, directReferenceCount:int, reachableReferenceCount:int, directReferences:list<array{source:string, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, reachableReferences:list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:string, contentType:?string, relationshipTypeValid:bool, relationshipTypeIssues:list<string>, valid:bool, issues:list<string>}>, valid:bool, issues:list<string>}>
      */
     public function packagePartReferenceInventory(string $reachableSourcePartName = '/', ?string $reachableRelationshipType = null): array
