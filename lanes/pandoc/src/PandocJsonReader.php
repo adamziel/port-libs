@@ -51,7 +51,7 @@ final class PandocJsonReader
 
         $meta = $this->normalizeMeta($packet['meta'] ?? [], $apiVersion, $legacyTuplePacket);
         if ($meta !== []) {
-            $attrs['meta'] = $this->readMetaMap($meta);
+            $attrs['meta'] = $this->withStandardMetaHelpers($this->readMetaMap($meta));
         }
 
         return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
@@ -179,6 +179,79 @@ final class PandocJsonReader
         }
 
         return $mapped;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function withStandardMetaHelpers(array $meta): array
+    {
+        $titleInlines = $this->metaInlineChildren($meta['title'] ?? null);
+        if ($titleInlines !== null && !array_key_exists('titleInlines', $meta)) {
+            $meta['titleInlines'] = $titleInlines;
+        }
+
+        $authorInlines = $this->metaListInlineChildren($meta['author'] ?? null);
+        if ($authorInlines !== null && !array_key_exists('authorInlines', $meta)) {
+            $meta['authorInlines'] = $authorInlines;
+        }
+
+        $dateInlines = $this->metaInlineChildren($meta['date'] ?? null);
+        if ($dateInlines !== null && !array_key_exists('dateInlines', $meta)) {
+            $meta['dateInlines'] = $dateInlines;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function metaInlineChildren(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['type'] ?? null) !== 'inlines') {
+            return null;
+        }
+
+        $children = $value['children'] ?? null;
+        if (!is_array($children) || !array_is_list($children)) {
+            return null;
+        }
+
+        foreach ($children as $child) {
+            if (!$child instanceof AstNode) {
+                return null;
+            }
+        }
+
+        return $children;
+    }
+
+    /**
+     * @return list<list<AstNode>>|null
+     */
+    private function metaListInlineChildren(mixed $value): ?array
+    {
+        if (!is_array($value) || ($value['type'] ?? null) !== 'list') {
+            return null;
+        }
+
+        $items = $value['items'] ?? null;
+        if (!is_array($items) || !array_is_list($items)) {
+            return null;
+        }
+
+        $mapped = [];
+        foreach ($items as $item) {
+            $children = $this->metaInlineChildren($item);
+            if ($children === null) {
+                return null;
+            }
+            $mapped[] = $children;
+        }
+
+        return $mapped === [] ? null : $mapped;
     }
 
     private function readMetaValue(mixed $value): mixed

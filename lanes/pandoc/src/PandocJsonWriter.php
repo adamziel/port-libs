@@ -64,16 +64,101 @@ final class PandocJsonWriter
         if (($meta['t'] ?? null) === 'MetaMap') {
             $content = $meta['c'] ?? [];
 
-            return is_array($content) && !array_is_list($content) ? $content : [];
+            return is_array($content) && !array_is_list($content) ? $this->normalizeStandardMeta($content) : [];
         }
 
         if (($meta['type'] ?? null) === 'map') {
             $items = $meta['items'] ?? [];
 
-            return is_array($items) && !array_is_list($items) ? $items : [];
+            return is_array($items) && !array_is_list($items) ? $this->normalizeStandardMeta($items) : [];
         }
 
-        return $meta;
+        return $this->normalizeStandardMeta($meta);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function normalizeStandardMeta(array $meta): array
+    {
+        $normalized = [];
+        foreach ($meta as $key => $value) {
+            $field = (string) $key;
+            if (in_array($field, ['titleInlines', 'authorInlines', 'authors', 'dateInlines'], true)) {
+                continue;
+            }
+            $normalized[$field] = $value;
+        }
+
+        $titleInlines = $this->inlineMetaChildren($meta['titleInlines'] ?? null);
+        if ($titleInlines !== null) {
+            $normalized['title'] = ['type' => 'inlines', 'children' => $titleInlines];
+        }
+
+        $authorSource = array_key_exists('authorInlines', $meta)
+            ? $meta['authorInlines']
+            : (array_key_exists('author', $meta) ? null : ($meta['authors'] ?? null));
+        $authorItems = $this->authorMetaItems($authorSource);
+        if ($authorItems !== null) {
+            $normalized['author'] = ['type' => 'list', 'items' => $authorItems];
+        }
+
+        $dateInlines = $this->inlineMetaChildren($meta['dateInlines'] ?? null);
+        if ($dateInlines !== null) {
+            $normalized['date'] = ['type' => 'inlines', 'children' => $dateInlines];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function inlineMetaChildren(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || !$this->allAstNodes($value)) {
+            return null;
+        }
+
+        $nodes = array_values($value);
+
+        return $this->allInlineNodes($nodes) ? $nodes : null;
+    }
+
+    /**
+     * @return list<array{type:string, children:list<AstNode>}>|null
+     */
+    private function authorMetaItems(mixed $value): ?array
+    {
+        if (is_array($value) && array_is_list($value)) {
+            $items = [];
+            foreach ($value as $item) {
+                $children = $this->inlineMetaChildren($item);
+                if ($children !== null) {
+                    $items[] = ['type' => 'inlines', 'children' => $children];
+                    continue;
+                }
+
+                if (!$this->isTextScalar($item)) {
+                    return null;
+                }
+                $items[] = ['type' => 'inlines', 'children' => $this->textInlines((string) $item)];
+            }
+
+            return $items === [] ? null : $items;
+        }
+
+        if ($this->isTextScalar($value)) {
+            return [['type' => 'inlines', 'children' => $this->textInlines((string) $value)]];
+        }
+
+        return null;
+    }
+
+    private function isTextScalar(mixed $value): bool
+    {
+        return is_string($value) || is_int($value) || is_float($value);
     }
 
     /**

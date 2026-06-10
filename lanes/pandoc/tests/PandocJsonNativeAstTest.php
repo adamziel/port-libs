@@ -561,6 +561,77 @@ return [
         $t->same(['https://example.test/source', 'Source title'], $packet['blocks'][1]['c'][2]['c'][2]);
         $t->same(['', ['source-link'], [['data-source', 'source']]], $packet['blocks'][1]['c'][2]['c'][0]);
     },
+    'normalizes standard pandoc json metadata helpers without leaking lane helper fields' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'JSON'],
+                    ['t' => 'Space'],
+                    ['t' => 'Emph', 'c' => [
+                        ['t' => 'Str', 'c' => 'Metadata'],
+                    ]],
+                ]],
+                'author' => ['t' => 'MetaList', 'c' => [
+                    ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Data'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'Team'],
+                    ]],
+                    ['t' => 'MetaInlines', 'c' => [
+                        ['t' => 'Str', 'c' => 'Reviewer'],
+                    ]],
+                ]],
+                'date' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => '2026-06-09'],
+                ]],
+                'source' => ['t' => 'MetaString', 'c' => 'metadata-fixture'],
+            ],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Body'],
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $meta = $document->attr('meta');
+
+        $t->same('inlines', $meta['title']['type']);
+        $t->same('emph', $meta['titleInlines'][2]->type);
+        $t->same('Data', $meta['authorInlines'][0][0]->attr('text'));
+        $t->same('Team', $meta['authorInlines'][0][2]->attr('text'));
+        $t->same('Reviewer', $meta['authorInlines'][1][0]->attr('text'));
+        $t->same('2026-06-09', $meta['dateInlines'][0]->attr('text'));
+
+        $encoded = (new PandocJsonWriter())->toArray(new AstNode('document', [
+            'meta' => [
+                'title' => 'Fallback title',
+                'titleInlines' => $meta['titleInlines'],
+                'author' => ['Fallback Author'],
+                'authors' => ['Fallback Author'],
+                'authorInlines' => $meta['authorInlines'],
+                'date' => 'fallback-date',
+                'dateInlines' => $meta['dateInlines'],
+                'source' => 'metadata-fixture',
+            ],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Body'])]),
+        ]));
+
+        $t->same('MetaInlines', $encoded['meta']['title']['t']);
+        $t->same('Emph', $encoded['meta']['title']['c'][2]['t']);
+        $t->same('MetaList', $encoded['meta']['author']['t']);
+        $t->same('Data', $encoded['meta']['author']['c'][0]['c'][0]['c']);
+        $t->same('Reviewer', $encoded['meta']['author']['c'][1]['c'][0]['c']);
+        $t->same('MetaInlines', $encoded['meta']['date']['t']);
+        $t->same('2026-06-09', $encoded['meta']['date']['c'][0]['c']);
+        $t->same('MetaString', $encoded['meta']['source']['t']);
+        $t->same(false, array_key_exists('titleInlines', $encoded['meta']));
+        $t->same(false, array_key_exists('authorInlines', $encoded['meta']));
+        $t->same(false, array_key_exists('authors', $encoded['meta']));
+        $t->same(false, array_key_exists('dateInlines', $encoded['meta']));
+    },
     'writes pre-tagged pandoc json metadata values as compatible constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'meta' => [
