@@ -8393,26 +8393,26 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, ']]>');
         }
 
-        if (preg_match('/^ {0,3}<(script|pre|style)(?:[ \t]|>|$)/i', $line, $m) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
-        if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)(?:\s+[^>]*)?\/?>/i', $line, $m) === 1) {
-            $tag = strtolower($m[1]);
+        if (preg_match('~^ {0,3}(?:</([A-Za-z][A-Za-z0-9-]*)\s*>|<([A-Za-z][A-Za-z0-9-]*)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>)~iu', $line, $m) === 1) {
+            $tag = strtolower((string) ($m[1] !== '' ? $m[1] : ($m[2] ?? '')));
             if ($this->isCommonMarkBlankTerminatedRawHtmlTag($tag)) {
                 return $this->readRawHtmlUntilBlankLine($lines, $index, $tag === 'table');
             }
         }
 
-        if (preg_match('/^ {0,3}<(abbr|address|animate|animateMotion|animateTransform|annotation|annotation-xml|article|aside|audio|bdi|bdo|button|canvas|circle|cite|clipPath|data|datalist|defs|desc|details|dfn|dialog|ellipse|feBlend|feComposite|feDropShadow|feFlood|feGaussianBlur|feOffset|fieldset|figcaption|figure|filter|footer|foreignObject|form|g|header|hgroup|iframe|image|label|legend|line|linearGradient|main|maligngroup|malignmark|map|marker|mark|mask|math|maction|metadata|menclose|merror|menu|meter|mfenced|mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mpath|mphantom|mprescripts|mroot|mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup|msup|mtable|mtd|mtext|mtr|munder|munderover|nav|none|object|optgroup|option|output|path|pattern|picture|polygon|polyline|pre|progress|radialGradient|rect|rp|rt|ruby|script|search|section|semantics|set|slot|small|stop|style|select|summary|svg|switch|symbol|template|text|textarea|textPath|time|tspan|use|var|video|view)(?:\s+[^>]*)?>/i', $line, $m) === 1) {
+        if (preg_match('~^ {0,3}<(abbr|address|animate|animateMotion|animateTransform|annotation|annotation-xml|article|aside|audio|bdi|bdo|button|canvas|circle|cite|clipPath|data|datalist|defs|desc|details|dfn|dialog|ellipse|feBlend|feComposite|feDropShadow|feFlood|feGaussianBlur|feOffset|fieldset|figcaption|figure|filter|footer|foreignObject|form|g|header|hgroup|iframe|image|label|legend|line|linearGradient|main|maligngroup|malignmark|map|marker|mark|mask|math|maction|metadata|menclose|merror|menu|meter|mfenced|mfrac|mglyph|mi|mlabeledtr|mlongdiv|mmultiscripts|mn|mo|mover|mpadded|mpath|mphantom|mprescripts|mroot|mrow|ms|mscarries|mscarry|msgroup|msline|mspace|msqrt|msrow|mstack|mstyle|msub|msubsup|msup|mtable|mtd|mtext|mtr|munder|munderover|nav|none|object|optgroup|option|output|path|pattern|picture|polygon|polyline|pre|progress|radialGradient|rect|rp|rt|ruby|script|search|section|semantics|set|slot|small|stop|style|select|summary|svg|switch|symbol|template|text|textarea|textPath|time|tspan|use|var|video|view)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line, $m) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, strtolower($m[1]));
         }
 
-        if (preg_match('/^ {0,3}<table(?:\s+[^>]*)?>/i', $line) === 1) {
+        if (preg_match('~^ {0,3}<table(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $line) === 1) {
             return $this->readRawHtmlUntilClosingTag($lines, $index, 'table', true);
         }
 
-        if (preg_match('/^ {0,3}<(?:area|base|col|embed|hr|input|link|meta|param|source|track|wbr)(?:\s+[^>]*)?\/?>[ \t]*$/i', $line) === 1) {
+        if (preg_match('~^ {0,3}<(?:area|base|col|embed|hr|input|link|meta|param|source|track|wbr)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>[ \t]*$~iu', $line) === 1) {
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
@@ -13444,7 +13444,7 @@ final class MarkdownReader
 
     private function rawHtmlLineSelfClosesTag(string $line, string $tag): bool
     {
-        return preg_match('/^ {0,3}<' . preg_quote($tag, '/') . '(?:\s+[^>]*)?\/>[ \t]*$/i', $line) === 1;
+        return preg_match('~^ {0,3}<' . preg_quote($tag, '~') . '(?=\s|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/>[ \t]*$~iu', $line) === 1;
     }
 
     private function isCommonMarkParagraphInterruptingRawHtmlBlockStart(string $line): bool
@@ -13459,15 +13459,17 @@ final class MarkdownReader
             return true;
         }
 
-        if (preg_match('/^ {0,3}<(script|pre|style)(?:[ \t]|>|$)/i', $expanded) === 1) {
+        if (preg_match('~^ {0,3}<(script|pre|style)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>~iu', $expanded) === 1) {
             return true;
         }
 
-        if (preg_match('/^ {0,3}<\/?([A-Za-z][A-Za-z0-9-]*)(?=\s|>|\/>)/i', $expanded, $m) !== 1) {
+        if (preg_match('~^ {0,3}(?:</([A-Za-z][A-Za-z0-9-]*)\s*>|<([A-Za-z][A-Za-z0-9-]*)(?=\s|>|/>)(?:\s+(?:"[^"]*"|\'[^\']*\'|[^\'"<>])*)?\s*/?>)~iu', $expanded, $m) !== 1) {
             return false;
         }
 
-        return $this->isCommonMarkBlankTerminatedRawHtmlTag(strtolower($m[1]));
+        $tag = strtolower((string) ($m[1] !== '' ? $m[1] : ($m[2] ?? '')));
+
+        return $this->isCommonMarkBlankTerminatedRawHtmlTag($tag);
     }
 
     private function normalizeRawHtmlLine(string $line): string

@@ -12932,6 +12932,53 @@ HTML;
         $t->contains('<!-- wp:html -->' . "\n" . '</custom-review>', $blocks);
         $t->contains('<p><a href="http://foo.bar.baz">http://foo.bar.baz</a></p>', $blocks);
     },
+    'maps commonmark raw html tag starts through quoted attribute boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<section data-review="a > b">',
+            'Raw **markdown** stays raw.',
+            '',
+            '<section data-review="unterminated >',
+            'Parsed **markdown** after invalid boundary.',
+            '',
+            '</section data-review="invalid">',
+            'Closing tag text stays parsed.',
+            '',
+            '<review data-note="a > b">',
+            '*generic raw*',
+            '</review>',
+            '',
+            '<review data-note="unterminated >',
+            '*parsed emphasis*',
+        ]));
+        $blockRaw = $document->children[0];
+        $invalidOpen = $document->children[1];
+        $invalidClosing = $document->children[2];
+        $genericRaw = $document->children[3];
+        $invalidGeneric = $document->children[4];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(5, count($document->children));
+        $t->same('raw_html', $blockRaw->type);
+        $t->same("<section data-review=\"a > b\">\nRaw **markdown** stays raw.", $blockRaw->attr('html'));
+        $t->same('paragraph', $invalidOpen->type);
+        $t->same(['text', 'softbreak', 'text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $invalidOpen->children));
+        $t->contains('<section data-review=', $invalidOpen->children[0]->attr('text'));
+        $t->contains('unterminated >', $invalidOpen->children[0]->attr('text'));
+        $t->same('markdown', $invalidOpen->children[3]->children[0]->attr('text'));
+        $t->same('paragraph', $invalidClosing->type);
+        $t->contains('</section data-review=', $invalidClosing->attr('text'));
+        $t->contains('invalid', $invalidClosing->attr('text'));
+        $t->same('raw_html', $genericRaw->type);
+        $t->same("<review data-note=\"a > b\">\n*generic raw*\n</review>", $genericRaw->attr('html'));
+        $t->same('paragraph', $invalidGeneric->type);
+        $t->same(['text', 'softbreak', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $invalidGeneric->children));
+        $t->contains('<!-- wp:html -->' . "\n" . '<section data-review="a > b">' . "\n" . 'Raw **markdown** stays raw.', $blocks);
+        $t->contains('Parsed <strong>markdown</strong> after invalid boundary.</p>', $blocks);
+        $t->contains('Closing tag text stays parsed.</p>', $blocks);
+        $t->contains('<!-- wp:html -->' . "\n" . '<review data-note="a > b">' . "\n" . '*generic raw*', $blocks);
+        $t->true(!str_contains($blocks, '<!-- wp:html -->' . "\n" . '<section data-review="unterminated >'), 'Malformed block-level tag starts should not create raw HTML blocks');
+        $t->true(!str_contains($blocks, '<!-- wp:html -->' . "\n" . '</section data-review="invalid">'), 'Malformed closing tags with attributes should not create raw HTML blocks');
+    },
     'maps commonmark processing declaration and cdata raw html boundaries' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<?review import',
