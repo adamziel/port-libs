@@ -16,16 +16,17 @@ final class OpenDocumentPackage
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
 
-    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null}> */
+    /** @var array<string, array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> */
     private array $manifestEntriesByPath;
 
     /**
-     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null}> $manifestEntries
+     * @param list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}> $manifestEntries
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
      */
     private function __construct(
         private readonly ZipPackage $package,
+        private readonly ?string $manifestVersion,
         private readonly array $manifestEntries,
         array $manifestEntriesByPath,
         private readonly array $stylesByName,
@@ -42,7 +43,8 @@ final class OpenDocumentPackage
             throw new \RuntimeException('ODT package is missing META-INF/manifest.xml');
         }
 
-        $manifestEntries = self::parseManifest($package->read('META-INF/manifest.xml'));
+        $manifest = self::parseManifest($package->read('META-INF/manifest.xml'));
+        $manifestEntries = $manifest['entries'];
         $manifestEntriesByPath = [];
         foreach ($manifestEntries as $entry) {
             if (isset($manifestEntriesByPath[$entry['path']])) {
@@ -74,7 +76,7 @@ final class OpenDocumentPackage
         $styles = isset($manifestEntriesByPath['styles.xml']) ? self::parseStyles($package->read('styles.xml')) : [];
         $metadata = isset($manifestEntriesByPath['meta.xml']) ? self::parseMetadata($package->read('meta.xml')) : [];
 
-        return new self($package, $manifestEntries, $manifestEntriesByPath, $styles, $metadata);
+        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata);
     }
 
     public function package(): ZipPackage
@@ -82,8 +84,13 @@ final class OpenDocumentPackage
         return $this->package;
     }
 
+    public function manifestVersion(): ?string
+    {
+        return $this->manifestVersion;
+    }
+
     /**
-     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null}>
+     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      */
     public function manifestEntries(): array
     {
@@ -91,7 +98,7 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return array{path:string, mediaType:string, version:string|null, size:int|null}|null
+     * @return array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}|null
      */
     public function manifestEntry(string $path): ?array
     {
@@ -176,6 +183,8 @@ final class OpenDocumentPackage
      *     stylesXml:bool,
      *     metaXml:bool,
      *     mediaParts:list<array{path:string, mediaType:string}>,
+     *     encryptedCount:int,
+     *     encryptedParts:list<string>,
      *     metadata:array<string, mixed>,
      *     styleNames:list<string>,
      *     contentBlocks:int
@@ -184,6 +193,7 @@ final class OpenDocumentPackage
     public function summarize(): array
     {
         $mediaParts = [];
+        $encryptedParts = [];
         foreach ($this->manifestEntries as $entry) {
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
@@ -191,15 +201,20 @@ final class OpenDocumentPackage
                     'mediaType' => $entry['mediaType'],
                 ];
             }
+            if ($entry['encrypted']) {
+                $encryptedParts[] = $entry['path'];
+            }
         }
 
         return [
             'mimetype' => self::TEXT_MIMETYPE,
-            'manifestVersion' => $this->manifestEntriesByPath['/']['version'] ?? null,
+            'manifestVersion' => $this->manifestVersion,
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
             'mediaParts' => $mediaParts,
+            'encryptedCount' => count($encryptedParts),
+            'encryptedParts' => $encryptedParts,
             'metadata' => $this->metadata,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
@@ -224,7 +239,10 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @return list<array{path:string, mediaType:string, version:string|null, size:int|null}>
+     * @return array{
+     *     version:string|null,
+     *     entries:list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     * }
      */
     private static function parseManifest(string $xml): array
     {
@@ -235,6 +253,7 @@ final class OpenDocumentPackage
         }
 
         $entries = [];
+        $manifestVersion = self::optionalString(self::namespacedAttribute($root, self::MANIFEST_NAMESPACE, 'version'));
         foreach ($root->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -250,15 +269,67 @@ final class OpenDocumentPackage
             }
 
             $size = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size');
+            $encryption = self::manifestEncryption($child);
             $entries[] = [
                 'path' => $path,
                 'mediaType' => $mediaType,
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size === null || $size === '' ? null : (int) $size,
+                'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
+                'encrypted' => $encryption !== null,
+                'encryption' => $encryption,
             ];
         }
 
-        return $entries;
+        return [
+            'version' => $manifestVersion,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function manifestEncryption(\DOMElement $entry): ?array
+    {
+        $encryption = self::firstDirectChildElement($entry, self::MANIFEST_NAMESPACE, 'encryption-data');
+        if (!$encryption instanceof \DOMElement) {
+            return null;
+        }
+
+        $data = self::withoutNulls([
+            'checksumType' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum-type')),
+            'checksum' => self::optionalString(self::namespacedAttribute($encryption, self::MANIFEST_NAMESPACE, 'checksum')),
+        ]);
+
+        $algorithm = self::firstDirectChildElement($encryption, self::MANIFEST_NAMESPACE, 'algorithm');
+        if ($algorithm instanceof \DOMElement) {
+            $initialisationVector = self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'initialisation-vector')
+                ?? self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'initialization-vector');
+            $data['algorithm'] = self::withoutNulls([
+                'name' => self::optionalString(self::namespacedAttribute($algorithm, self::MANIFEST_NAMESPACE, 'algorithm-name')),
+                'initialisationVector' => self::optionalString($initialisationVector),
+            ]);
+        }
+
+        $keyDerivation = self::firstDirectChildElement($encryption, self::MANIFEST_NAMESPACE, 'key-derivation');
+        if ($keyDerivation instanceof \DOMElement) {
+            $data['keyDerivation'] = self::withoutNulls([
+                'name' => self::optionalString(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'key-derivation-name')),
+                'iterationCount' => self::optionalInt(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'iteration-count')),
+                'salt' => self::optionalString(self::namespacedAttribute($keyDerivation, self::MANIFEST_NAMESPACE, 'salt')),
+            ]);
+        }
+
+        $startKeyGeneration = self::firstDirectChildElement($encryption, self::MANIFEST_NAMESPACE, 'start-key-generation');
+        if ($startKeyGeneration instanceof \DOMElement) {
+            $data['startKeyGeneration'] = self::withoutNulls([
+                'name' => self::optionalString(self::namespacedAttribute($startKeyGeneration, self::MANIFEST_NAMESPACE, 'start-key-generation-name')),
+                'keySize' => self::optionalInt(self::namespacedAttribute($startKeyGeneration, self::MANIFEST_NAMESPACE, 'key-size')),
+            ]);
+        }
+
+        return $data;
     }
 
     /**
@@ -569,9 +640,43 @@ final class OpenDocumentPackage
         return null;
     }
 
+    private static function firstDirectChildElement(\DOMElement $root, string $namespace, string $localName): ?\DOMElement
+    {
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespace && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
     private static function namespacedAttribute(\DOMElement $element, string $namespace, string $localName): ?string
     {
         return $element->hasAttributeNS($namespace, $localName) ? $element->getAttributeNS($namespace, $localName) : null;
+    }
+
+    private static function optionalString(?string $value): ?string
+    {
+        $value = $value === null ? '' : trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private static function optionalInt(?string $value): ?int
+    {
+        $value = $value === null ? '' : trim($value);
+
+        return ctype_digit($value) ? (int) $value : null;
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, mixed>
+     */
+    private static function withoutNulls(array $values): array
+    {
+        return array_filter($values, static fn (mixed $value): bool => $value !== null);
     }
 
     private static function intAttribute(\DOMElement $element, string $namespace, string $localName, int $default): int

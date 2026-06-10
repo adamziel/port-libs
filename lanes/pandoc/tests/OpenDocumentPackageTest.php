@@ -102,6 +102,7 @@ return [
         $summary = $odt->summarize();
 
         $t->same(5, count($entries));
+        $t->same('1.3', $odt->manifestVersion());
         $t->same('/', $entries[0]['path']);
         $t->same(OpenDocumentPackage::TEXT_MIMETYPE, $entries[0]['mediaType']);
         $t->same('1.3', $entries[0]['version']);
@@ -113,7 +114,51 @@ return [
         $t->same(true, $summary['stylesXml']);
         $t->same(true, $summary['metaXml']);
         $t->same([['path' => 'Pictures/hero.png', 'mediaType' => 'image/png']], $summary['mediaParts']);
+        $t->same(0, $summary['encryptedCount']);
+        $t->same([], $summary['encryptedParts']);
         $t->same(3, $summary['contentBlocks']);
+    },
+    'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifest = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:preferred-view-mode="edit"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048" manifest:preferred-view-mode="presentation-slide-show">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+</manifest:manifest>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $root = $odt->manifestEntry('/');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+
+        $t->same('1.4', $odt->manifestVersion());
+        $t->same('1.4', $summary['manifestVersion']);
+        $t->same(null, $root['version']);
+        $t->same('edit', $root['preferredViewMode']);
+        $t->same(false, $root['encrypted']);
+        $t->same('presentation-slide-show', $hero['preferredViewMode']);
+        $t->same(true, $hero['encrypted']);
+        $t->same(2048, $hero['size']);
+        $t->same('SHA1/1K', $hero['encryption']['checksumType']);
+        $t->same('checksum-base64', $hero['encryption']['checksum']);
+        $t->same('Blowfish CFB', $hero['encryption']['algorithm']['name']);
+        $t->same('iv-base64', $hero['encryption']['algorithm']['initialisationVector']);
+        $t->same('PBKDF2', $hero['encryption']['keyDerivation']['name']);
+        $t->same(1024, $hero['encryption']['keyDerivation']['iterationCount']);
+        $t->same('salt-base64', $hero['encryption']['keyDerivation']['salt']);
+        $t->same('SHA1', $hero['encryption']['startKeyGeneration']['name']);
+        $t->same(20, $hero['encryption']['startKeyGeneration']['keySize']);
+        $t->same(1, $summary['encryptedCount']);
+        $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
     },
     'maps ODT content headings paragraphs links spaces breaks and images into the shared AST' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
