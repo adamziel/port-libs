@@ -223,6 +223,41 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex event metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inproceedings{event-paper,
+  author          = {Ng, Nia},
+  title           = {Conference Import Packet},
+  booktitle       = {Migration Proceedings},
+  eventtitle      = {Source Review Summit},
+  eventtitleaddon = {reviewer track},
+  venue           = {Portland},
+  eventtype       = {conference},
+  eventdate       = {2026-06-04},
+  eventdateaddon  = {hybrid audit window},
+  organization    = {Migration Desk},
+  location        = {Remote annex},
+  date            = {2026}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['event-paper'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('paper-conference', $item['type']);
+        $t->same('Conference Import Packet', $item['title']);
+        $t->same('Migration Proceedings', $item['container-title']);
+        $t->same('Source Review Summit', $item['event']);
+        $t->same('reviewer track', $item['event-title-addon']);
+        $t->same('Portland', $item['event-place']);
+        $t->same('conference', $item['event-type']);
+        $t->same([2026, 6, 4], $item['event-date']['date-parts'][0]);
+        $t->same('hybrid audit window', $item['event-date-addon']);
+        $t->same('Migration Desk', $item['publisher']);
+        $t->same('Remote annex', $item['publisher-place']);
+        $t->same('Ng, Nia', $item['rawBibtex']['fields']['author']);
+        $t->same('Nia Ng. Conference Import Packet. Migration Proceedings. 2026.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

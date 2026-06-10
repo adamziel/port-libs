@@ -429,6 +429,11 @@ final class BibtexCslProcessor
             'version' => ['version'],
             'status' => ['status', 'pubstate'],
             'medium' => ['howpublished', 'medium'],
+            'event' => ['eventtitle', 'event-title', 'event'],
+            'event-title-addon' => ['eventtitleaddon', 'event-title-addon'],
+            'event-place' => ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place'],
+            'event-type' => ['eventtype', 'event-type'],
+            'event-date-addon' => ['eventdateaddon', 'event-date-addon'],
             'ISBN' => ['isbn'],
             'ISSN' => ['issn'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
@@ -486,6 +491,11 @@ final class BibtexCslProcessor
         $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
             $item['original-date'] = ['date-parts' => [$originalDate]];
+        }
+
+        $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
+        if ($eventDate !== null) {
+            $item['event-date'] = ['date-parts' => [$eventDate]];
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword']));
