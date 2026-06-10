@@ -4290,6 +4290,62 @@ $altChunkDocumentXml = <<<'XML'
 </w:document>
 XML;
 
+$altChunkWordprocessingContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/chunks/review-document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+$altChunkWordprocessingDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdWordChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="chunks/review-document.xml"/>
+</Relationships>
+XML;
+
+$altChunkWordprocessingDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p><w:r><w:t>Before WordprocessingML chunk.</w:t></w:r></w:p>
+    <w:altChunk r:id="rIdWordChunk"/>
+    <w:p><w:r><w:t>After WordprocessingML chunk.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+
+$altChunkWordprocessingChunkXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+  xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+  <w:body>
+    <w:p><w:pPr><w:outlineLvl w:val="1"/></w:pPr><w:r><w:t>Chunk review heading</w:t></w:r></w:p>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Chunk media </w:t></w:r>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:docPr id="44" name="Chunk image" descr="Chunk alt" title="Chunk title"/>
+            <a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rIdChunkImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$altChunkWordprocessingChunkRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdChunkImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/chunk.png"/>
+</Relationships>
+XML;
+
 $embeddedObjectContentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -5668,6 +5724,25 @@ $buildAltChunkPackage = static function () use (
         ['name' => 'word/chunks/review.html', 'data' => $altChunkHtml],
         ['name' => 'word/chunks/review.txt', 'data' => $altChunkText],
         ['name' => 'word/chunks/source.rtf', 'data' => '{\rtf1 unsupported reviewer chunk}'],
+    ]);
+};
+
+$buildWordprocessingAltChunkPackage = static function () use (
+    $altChunkWordprocessingContentTypesXml,
+    $packageRelationshipsXml,
+    $altChunkWordprocessingDocumentRelationshipsXml,
+    $altChunkWordprocessingDocumentXml,
+    $altChunkWordprocessingChunkXml,
+    $altChunkWordprocessingChunkRelationshipsXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $altChunkWordprocessingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $altChunkWordprocessingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $altChunkWordprocessingDocumentRelationshipsXml],
+        ['name' => 'word/chunks/review-document.xml', 'data' => $altChunkWordprocessingChunkXml],
+        ['name' => 'word/chunks/_rels/review-document.xml.rels', 'data' => $altChunkWordprocessingChunkRelationshipsXml],
+        ['name' => 'word/media/chunk.png', 'data' => 'chunk image bytes'],
     ]);
 };
 
@@ -12263,6 +12338,61 @@ return [
         $t->same('rIdUnsupportedChunk', $unsupported['id']);
         $t->same('application/rtf', $unsupported['contentType']);
         $t->same(['unsupported-content-type'], $unsupported['issues']);
+    },
+    'imports DOCX WordprocessingML altChunk parts with local relationships' => static function (TestRunner $t) use ($buildWordprocessingAltChunkPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildWordprocessingAltChunkPackage());
+        $document = $result['document'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(4, count($document->children));
+        $t->same('Before WordprocessingML chunk.', $document->children[0]->children[0]->attr('text'));
+
+        $heading = $document->children[1];
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->same('docx-altChunk', $heading->attr('sourceFormat'));
+        $t->same('rIdWordChunk', $heading->attr('altChunkId'));
+        $t->same('/word/chunks/review-document.xml', $heading->attr('targetPart'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $heading->attr('contentType'));
+        $t->same('Chunk review heading', $heading->children[0]->attr('text'));
+
+        $paragraph = $document->children[2];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('docx-altChunk', $paragraph->attr('sourceFormat'));
+        $t->same('rIdWordChunk', $paragraph->attr('altChunkId'));
+        $t->same('Chunk media ', $paragraph->children[0]->attr('text'));
+
+        $image = $paragraph->children[1];
+        $t->same('image', $image->type);
+        $t->same('word/media/chunk.png', $image->attr('url'));
+        $t->same('/word/media/chunk.png', $image->attr('sourcePart'));
+        $t->same('Chunk alt', $image->attr('alt'));
+        $t->same('Chunk title', $image->attr('title'));
+        $t->same(false, $image->attr('external'));
+        $t->same(strlen('chunk image bytes'), $image->attr('bytes'));
+        $t->same('After WordprocessingML chunk.', $document->children[3]->children[0]->attr('text'));
+
+        $t->contains('## Chunk review heading', $markdown);
+        $t->contains('![Chunk alt](word/media/chunk.png "Chunk title")', $markdown);
+        $t->contains('<h2 id="chunk-review-heading">Chunk review heading</h2>', $blocks);
+        $t->contains('<img src="word/media/chunk.png" alt="Chunk alt" title="Chunk title"/>', $blocks);
+
+        $alternativeFormats = $result['importReport']['alternativeFormats'];
+        $t->same(1, $alternativeFormats['count']);
+        $t->same(1, $alternativeFormats['importedCount']);
+        $t->same(0, $alternativeFormats['unsupportedCount']);
+
+        $item = $alternativeFormats['items'][0];
+        $t->same('rIdWordChunk', $item['id']);
+        $t->same('/word/chunks/review-document.xml', $item['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $item['contentType']);
+        $t->same(true, $item['imported']);
+        $t->same(2, $item['paragraphCount']);
+        $t->same(2, $item['blockCount']);
+        $t->same('Chunk review heading Chunk media', $item['text']);
+        $t->same([], $item['issues']);
     },
     'preserves DOCX embedded OLE object and package relationships as review placeholders' => static function (TestRunner $t) use ($buildEmbeddedObjectPackage): void {
         $reader = new DocxReader();

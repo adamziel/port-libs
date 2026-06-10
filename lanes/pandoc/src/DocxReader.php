@@ -81,6 +81,7 @@ final class DocxReader
     public const REL_TYPE_CUSTOM_XML_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     public const CUSTOM_XML_DATASTORE_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
 
+    private const WORDPROCESSINGML_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const WORDPROCESSINGML_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
 
     /**
@@ -805,6 +806,7 @@ final class DocxReader
             'repairs' => null,
             'lineEndings' => null,
             'paragraphCount' => null,
+            'blockCount' => null,
             'issues' => [],
         ];
 
@@ -885,6 +887,31 @@ final class DocxReader
             return $item;
         }
 
+        if ($this->isWordprocessingAlternativeFormatContentType($item['contentType'])) {
+            try {
+                $dom = self::loadXml($bytes, 'DOCX altChunk WordprocessingML ' . $targetPart);
+            } catch (\InvalidArgumentException) {
+                $item['issues'][] = 'invalid-wordprocessingml';
+                return $item;
+            }
+
+            $body = $this->wordprocessingDocumentBody($dom);
+            if (!$body instanceof \DOMElement) {
+                $item['issues'][] = 'invalid-wordprocessingml';
+                return $item;
+            }
+
+            $item['text'] = $this->plainDomText($body);
+            $item['paragraphCount'] = $this->wordprocessingBodyChildCount($body, 'p');
+            $item['blockCount'] = $this->wordprocessingBodyBlockCount($body);
+            $item['imported'] = $item['blockCount'] > 0;
+            if ($item['imported'] !== true) {
+                $item['issues'][] = 'empty-wordprocessingml';
+            }
+
+            return $item;
+        }
+
         try {
             $dom = XmlHtmlDom::loadHtmlFragment($bytes, 'DOCX altChunk HTML ' . $targetPart);
         } catch (\InvalidArgumentException) {
@@ -903,7 +930,14 @@ final class DocxReader
     /**
      * @return list<AstNode>
      */
-    private function alternativeFormatBlocks(\DOMElement $chunk, ZipPackage $package, ?OpcRelationships $relationships): array
+    private function alternativeFormatBlocks(
+        \DOMElement $chunk,
+        ZipPackage $package,
+        ?OpcRelationships $relationships,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array
     {
         $item = $this->alternativeFormatItem($chunk, $package, $relationships);
         if ($item['imported'] !== true) {
@@ -922,6 +956,10 @@ final class DocxReader
                 'bom' => $item['bom'],
                 'repairs' => $item['repairs'],
             ]);
+        }
+
+        if (is_string($item['contentType']) && $this->isWordprocessingAlternativeFormatContentType($item['contentType'])) {
+            return $this->wordprocessingAlternativeFormatBlocks($item, $package, $referencedNotes, $styles, $numbering);
         }
 
         if (!is_string($item['html']) || $item['html'] === '') {
@@ -953,12 +991,17 @@ final class DocxReader
     {
         $contentType = $this->alternativeFormatBaseContentType($contentType);
 
-        return in_array($contentType, ['text/html', 'application/xhtml+xml', 'text/plain'], true);
+        return in_array($contentType, ['text/html', 'application/xhtml+xml', 'text/plain', self::WORDPROCESSINGML_DOCUMENT_CONTENT_TYPE], true);
     }
 
     private function isPlainTextAlternativeFormatContentType(string $contentType): bool
     {
         return $this->alternativeFormatBaseContentType($contentType) === 'text/plain';
+    }
+
+    private function isWordprocessingAlternativeFormatContentType(string $contentType): bool
+    {
+        return $this->alternativeFormatBaseContentType($contentType) === self::WORDPROCESSINGML_DOCUMENT_CONTENT_TYPE;
     }
 
     private function alternativeFormatBaseContentType(string $contentType): string
@@ -1030,6 +1073,129 @@ final class DocxReader
         }
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, AstNode> $referencedNotes
+     * @param array<string, array{name:?string, basedOn:?string, headingLevel:?int, numPr:?array{numId:?string, level:?int}}> $styles
+     * @param array<string, array<int, array{ordered:bool, style:string, delimiter:string, start:int, format:string}>> $numbering
+     * @return list<AstNode>
+     */
+    private function wordprocessingAlternativeFormatBlocks(
+        array $item,
+        ZipPackage $package,
+        array $referencedNotes,
+        array $styles,
+        array $numbering
+    ): array {
+        $targetPart = $item['targetPart'] ?? null;
+        if (!is_string($targetPart) || !$package->has($targetPart)) {
+            return [];
+        }
+
+        try {
+            $dom = self::loadXml($package->read($targetPart), 'DOCX altChunk WordprocessingML ' . $targetPart);
+        } catch (\InvalidArgumentException) {
+            return [];
+        }
+
+        $body = $this->wordprocessingDocumentBody($dom);
+        if (!$body instanceof \DOMElement) {
+            return [];
+        }
+
+        $relationships = $this->relationshipsForAlternativeFormatPart($package, $targetPart);
+        $previousNoteReferenceState = $this->noteReferenceState;
+        try {
+            $blocks = $this->blockContainerChildren($body, $package, $relationships, $referencedNotes, $styles, $numbering);
+        } finally {
+            $this->noteReferenceState = $previousNoteReferenceState;
+        }
+
+        return $this->annotateAlternativeFormatBlocks($blocks, [
+            'sourceFormat' => 'docx-altChunk',
+            'altChunkId' => $item['id'],
+            'target' => $item['target'],
+            'targetPart' => $targetPart,
+            'contentType' => $item['contentType'],
+            'bytes' => $item['bytes'],
+        ]);
+    }
+
+    private function wordprocessingDocumentBody(\DOMDocument $dom): ?\DOMElement
+    {
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isWordElement($root, 'document')) {
+            return null;
+        }
+
+        return $this->firstChildElement($root, self::WORDPROCESSINGML_NS, 'body');
+    }
+
+    private function wordprocessingBodyChildCount(\DOMElement $body, string $localName): int
+    {
+        $count = 0;
+        foreach ($body->childNodes as $child) {
+            if ($child instanceof \DOMElement && $this->isWordElement($child, $localName)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function wordprocessingBodyBlockCount(\DOMElement $body): int
+    {
+        $count = 0;
+        foreach ($body->childNodes as $child) {
+            if (
+                $child instanceof \DOMElement
+                && (
+                    $this->isWordElement($child, 'p')
+                    || $this->isWordElement($child, 'tbl')
+                    || $this->isWordElement($child, 'customXml')
+                    || $this->isWordElement($child, 'sdt')
+                    || $this->isWordElement($child, 'altChunk')
+                    || $this->isWordElement($child, 'ins')
+                    || $this->isWordElement($child, 'moveTo')
+                )
+            ) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    private function relationshipsForAlternativeFormatPart(ZipPackage $package, string $targetPart): ?OpcRelationships
+    {
+        if (!OpcRelationships::packageHasRelationshipsForSource($package, $targetPart)) {
+            return null;
+        }
+
+        try {
+            return OpcRelationships::fromPackage($package, $targetPart);
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return null;
+        }
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param array<string, mixed> $attrs
+     * @return list<AstNode>
+     */
+    private function annotateAlternativeFormatBlocks(array $blocks, array $attrs): array
+    {
+        return array_map(
+            static fn (AstNode $block): AstNode => new AstNode(
+                $block->type,
+                array_replace($attrs, $block->attrs),
+                $block->children,
+            ),
+            $blocks,
+        );
     }
 
     /**
@@ -2158,7 +2324,7 @@ final class DocxReader
 
             if ($this->isWordElement($child, 'altChunk')) {
                 $this->appendListParagraphs($blocks, $pendingListParagraphs);
-                array_push($blocks, ...$this->alternativeFormatBlocks($child, $package, $relationships));
+                array_push($blocks, ...$this->alternativeFormatBlocks($child, $package, $relationships, $referencedNotes, $styles, $numbering));
                 continue;
             }
 
