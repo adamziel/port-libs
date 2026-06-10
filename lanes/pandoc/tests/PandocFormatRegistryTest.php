@@ -1152,6 +1152,18 @@ return [
             'xwiki' => 'data/templates/default.xwiki',
             'zimwiki' => 'data/templates/default.zimwiki',
         ], $templates);
+        $t->same($templates, PandocFormatRegistry::wikiOutputTemplateResources());
+        $t->same(PandocFormatRegistry::wikiOutputFormats(), PandocFormatRegistry::wikiOutputFormatsWithDefaultTemplates());
+        $t->same([], PandocFormatRegistry::wikiOutputFormatsWithoutDefaultTemplates());
+        foreach ($templates as $format => $resource) {
+            $t->same($resource, PandocFormatRegistry::templateResourceForWikiOutputFormat($format));
+            $t->same($resource, PandocFormatRegistry::templateResourceForWikiOutputFormat($format . '+smart'));
+        }
+        foreach (PandocFormatRegistry::wikiInputOnlyFormats() as $format) {
+            $t->same(null, PandocFormatRegistry::templateResourceForWikiOutputFormat($format));
+        }
+        $t->same(null, PandocFormatRegistry::templateResourceForWikiOutputFormat(''));
+        $t->same(null, PandocFormatRegistry::templateResourceForWikiOutputFormat('vimwiki+smart'));
         $t->same([
             'creole' => [
                 'reader' => ['test/creole-reader.txt'],

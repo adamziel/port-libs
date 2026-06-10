@@ -662,6 +662,48 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, string>
+     */
+    public static function wikiOutputTemplateResources(): array
+    {
+        return self::wikiTemplateResources();
+    }
+
+    public static function templateResourceForWikiOutputFormat(string $format): ?string
+    {
+        $baseFormat = self::wikiBaseFormat($format);
+        $templates = self::wikiTemplateResources();
+
+        return $templates[$baseFormat] ?? null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiOutputFormatsWithDefaultTemplates(): array
+    {
+        $templates = self::wikiTemplateResources();
+
+        return array_values(array_filter(
+            self::WIKI_OUTPUT_FORMATS,
+            static fn (string $format): bool => array_key_exists($format, $templates)
+        ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function wikiOutputFormatsWithoutDefaultTemplates(): array
+    {
+        $templated = array_flip(self::wikiOutputFormatsWithDefaultTemplates());
+
+        return array_values(array_filter(
+            self::WIKI_OUTPUT_FORMATS,
+            static fn (string $format): bool => !array_key_exists($format, $templated)
+        ));
+    }
+
+    /**
      * @return array<string, array{reader:list<string>, writer:list<string>}>
      */
     public static function wikiFixtureSources(): array
@@ -1998,6 +2040,14 @@ final class PandocFormatRegistry
     private static function wikiFormatsWithDirection(string $direction): array
     {
         return self::formatsWithDirection(self::wikiFormatDirections(), $direction);
+    }
+
+    private static function wikiBaseFormat(string $format): string
+    {
+        $normalized = strtolower($format);
+        $extensionOffset = strcspn($normalized, '+-');
+
+        return substr($normalized, 0, $extensionOffset);
     }
 
     /**
