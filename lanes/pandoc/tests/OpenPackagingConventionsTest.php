@@ -243,6 +243,58 @@ return [
         $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
         $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
     },
+    'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+            ['name' => 'word/Document.xml', 'data' => '<w:document/>'],
+            ['name' => 'word/media/Hero.PNG', 'data' => 'PNG'],
+            ['name' => 'word/media/hero.png', 'data' => 'PNG'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(2, $summary['equivalentPackagePartNameGroupCount']);
+        $t->same(4, $summary['equivalentPackagePartNameEntryCount']);
+        $t->same(['equivalent-part-name-case-collision' => 4], $summary['issueCounts']);
+        $t->same(['equivalent-part-name-case-collision'], $summary['issues']);
+        $t->same([
+            [
+                'equivalenceKey' => '/word/document.xml',
+                'partNames' => ['/word/Document.xml', '/word/document.xml'],
+                'entryNames' => ['word/Document.xml', 'word/document.xml'],
+            ],
+            [
+                'equivalenceKey' => '/word/media/hero.png',
+                'partNames' => ['/word/media/Hero.PNG', '/word/media/hero.png'],
+                'entryNames' => ['word/media/Hero.PNG', 'word/media/hero.png'],
+            ],
+        ], $summary['equivalentPackagePartNameGroups']);
+
+        $t->same('/word/document.xml', $entries['word/document.xml']['equivalenceKey']);
+        $t->same(['/word/Document.xml', '/word/document.xml'], $entries['word/document.xml']['equivalentPartNames']);
+        $t->same(['equivalent-part-name-case-collision'], $entries['word/document.xml']['issues']);
+        $t->same(false, $entries['word/document.xml']['valid']);
+        $t->same('/word/media/hero.png', $entries['word/media/Hero.PNG']['equivalenceKey']);
+        $t->same(['/word/media/Hero.PNG', '/word/media/hero.png'], $entries['word/media/Hero.PNG']['equivalentPartNames']);
+        $t->same(['equivalent-part-name-case-collision'], $entries['word/media/Hero.PNG']['issues']);
+        $t->same([], $entries['_rels/.rels']['equivalentPartNames']);
+        $t->same(true, $entries['_rels/.rels']['valid']);
+    },
     'summarizes OPC ZIP entry manifest handoff byte buckets before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
         $rootRelationshipsXml = '<Relationships/>';

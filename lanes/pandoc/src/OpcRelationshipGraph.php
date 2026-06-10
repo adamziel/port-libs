@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -279,12 +279,14 @@ final class OpcRelationshipGraph
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
         $packagePartNamesByEquivalenceKey = [];
+        $packagePartEntryIndexesByEquivalenceKey = [];
         $contentTypes = null;
         $contentTypesParseError = null;
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
             $partName = null;
+            $equivalenceKey = null;
             $parseError = null;
             $issues = [];
             $contentTypesItem = false;
@@ -292,7 +294,9 @@ final class OpcRelationshipGraph
             if (!$isDirectory) {
                 try {
                     $partName = OpcPackagePath::canonicalPartName($entry->name);
-                    $packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($partName)] = $partName;
+                    $equivalenceKey = self::partNameEquivalenceKey($partName);
+                    $packagePartNamesByEquivalenceKey[$equivalenceKey] = $partName;
+                    $packagePartEntryIndexesByEquivalenceKey[$equivalenceKey][] = $entryIndex;
                     if (self::isContentTypesItemName($partName)) {
                         $contentTypesItem = true;
                         $contentTypesItems[] = $partName;
@@ -308,6 +312,8 @@ final class OpcRelationshipGraph
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
                 'partName' => $partName,
+                'equivalenceKey' => $equivalenceKey,
+                'equivalentPartNames' => [],
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'compressionMethod' => $entry->compressionMethod,
@@ -332,6 +338,43 @@ final class OpcRelationshipGraph
                 'parseError' => $parseError,
             ];
         }
+
+        $equivalentPackagePartNameGroups = [];
+        $equivalentPackagePartNameEntryCount = 0;
+        foreach ($packagePartEntryIndexesByEquivalenceKey as $equivalenceKey => $entryIndexes) {
+            if (count($entryIndexes) < 2) {
+                continue;
+            }
+
+            $partNames = [];
+            $entryNames = [];
+            foreach ($entryIndexes as $entryIndex) {
+                $partName = $entries[$entryIndex]['partName'];
+                if ($partName !== null) {
+                    $partNames[] = $partName;
+                    $entryNames[] = $entries[$entryIndex]['entryName'];
+                }
+            }
+
+            sort($partNames, SORT_STRING);
+            sort($entryNames, SORT_STRING);
+            $equivalentPackagePartNameEntryCount += count($entryIndexes);
+            $equivalentPackagePartNameGroups[] = [
+                'equivalenceKey' => $equivalenceKey,
+                'partNames' => $partNames,
+                'entryNames' => $entryNames,
+            ];
+
+            foreach ($entryIndexes as $entryIndex) {
+                $entries[$entryIndex]['equivalentPartNames'] = $partNames;
+                $entries[$entryIndex]['issues'][] = 'equivalent-part-name-case-collision';
+            }
+        }
+
+        usort(
+            $equivalentPackagePartNameGroups,
+            static fn (array $left, array $right): int => $left['equivalenceKey'] <=> $right['equivalenceKey'],
+        );
 
         if (count($contentTypesEntryIndexes) > 1) {
             foreach ($contentTypesEntryIndexes as $entryIndex) {
@@ -628,6 +671,8 @@ final class OpcRelationshipGraph
             'missingContentTypeExtensionlessCount' => $missingContentTypeExtensionlessCount,
             'missingContentTypeParts' => $missingContentTypeParts,
             'missingContentTypeExtensions' => $missingContentTypeExtensions,
+            'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
+            'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,
@@ -649,6 +694,7 @@ final class OpcRelationshipGraph
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
             'largestPayloadEntry' => $largestPayloadEntry,
             'contentTypesItems' => $contentTypesItems,
+            'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
             'entries' => $entries,
         ];
