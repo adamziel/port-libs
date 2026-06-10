@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\LatexWriter;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
@@ -318,6 +319,138 @@ return [
         $t->same('image', $generatedRoundTrip->children[0]->children[1]->type);
         $t->same('Generated alt', $generatedRoundTrip->children[0]->children[1]->attr('alt'));
         $t->same('note', $generatedRoundTrip->children[0]->children[3]->type);
+    },
+    'maps native raw block and citation constructors into shared ast' => static function (TestRunner $t): void {
+        $rawBlock = ['t' => 'RawBlock', 'c' => ['html', '<section data-review="native-raw">Native raw</section>']];
+        $citeInline = ['t' => 'Cite', 'c' => [
+            [
+                [
+                    'citationId' => 'smith1899',
+                    'citationPrefix' => [
+                        ['t' => 'Str', 'c' => 'see'],
+                    ],
+                    'citationSuffix' => [
+                        ['t' => 'Str', 'c' => 'p.'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => '7'],
+                    ],
+                    'citationMode' => ['t' => 'NormalCitation'],
+                    'citationNoteNum' => 0,
+                    'citationHash' => 1899,
+                ],
+                [
+                    'citationId' => 'doe1901',
+                    'citationPrefix' => [],
+                    'citationSuffix' => [],
+                    'citationMode' => ['t' => 'AuthorInText'],
+                    'citationNoteNum' => 0,
+                    'citationHash' => 1901,
+                ],
+            ],
+            [
+                ['t' => 'Str', 'c' => '[see'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '@smith1899,'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '7;'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '@doe1901]'],
+            ],
+        ]];
+        $native = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                $rawBlock,
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Archive'],
+                    ['t' => 'Space'],
+                    $citeInline,
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
+        $raw = $document->children[0];
+        $paragraph = $document->children[1];
+        $cluster = $paragraph->children[1];
+        $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $processed = CitationCslProcessor::fromItems([
+            [
+                'id' => 'smith1899',
+                'type' => 'book',
+                'title' => 'Migration Patterns',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[1899]]],
+            ],
+            [
+                'id' => 'doe1901',
+                'type' => 'article-journal',
+                'title' => 'Import Notes',
+                'author' => [
+                    ['family' => 'Doe', 'given' => 'Grace'],
+                ],
+                'issued' => ['date-parts' => [[1901]]],
+            ],
+        ])->apply($document);
+        $blocks = (new WordPressBlockWriter())->write($processed);
+
+        $t->same('raw_html', $raw->type);
+        $t->same('<section data-review="native-raw">Native raw</section>', $raw->attr('html'));
+        $t->same('citation_group', $cluster->type);
+        $t->same('[see @smith1899, p. 7; @doe1901]', $cluster->attr('text'));
+        $t->same(['smith1899', 'doe1901'], array_map(static fn (AstNode $node): string => $node->attr('id'), $cluster->children));
+        $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
+        $t->same('author_in_text', $cluster->children[1]->attr('mode'));
+        $t->same($native['blocks'], $roundTrip['blocks']);
+        $t->contains('<section data-review="native-raw">Native raw</section>', $blocks);
+        $t->contains('(see Smith 1899, p. 7; Doe (1901))', $blocks);
+
+        $generatedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1], 'meta' => []], [
+            new AstNode('raw_html', ['html' => '<aside data-review="generated">Generated raw</aside>']),
+            new AstNode('paragraph', [], [
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'smith1899',
+                        'prefix' => [new AstNode('text', ['text' => 'see'])],
+                        'suffix' => [
+                            new AstNode('text', ['text' => 'p.']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => '8']),
+                        ],
+                        'citationHash' => 99,
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'doe1901',
+                        'mode' => 'author_in_text',
+                    ]),
+                ]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => 'media/generated.png',
+                    'title' => 'Generated title',
+                    'alt' => 'Generated image',
+                    'classes' => ['generated-media'],
+                ]),
+            ]),
+        ]);
+        $generated = json_decode((new NativeWriter())->write($generatedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $generatedRoundTrip = (new NativeReader())->read(json_encode($generated, JSON_THROW_ON_ERROR));
+        $generatedInlines = $generated['blocks'][1]['c'];
+
+        $t->same('RawBlock', $generated['blocks'][0]['t']);
+        $t->same(['html', '<aside data-review="generated">Generated raw</aside>'], $generated['blocks'][0]['c']);
+        $t->same(['Cite', 'Space', 'Image'], array_map(static fn (array $inline): string => $inline['t'], $generatedInlines));
+        $t->same('see', $generatedInlines[0]['c'][0][0]['citationPrefix'][0]['c']);
+        $t->same('p.', $generatedInlines[0]['c'][0][0]['citationSuffix'][0]['c']);
+        $t->same('AuthorInText', $generatedInlines[0]['c'][0][1]['citationMode']['t']);
+        $t->same('Generated', $generatedInlines[2]['c'][1][0]['c']);
+        $t->same('citation_group', $generatedRoundTrip->children[1]->children[0]->type);
+        $t->same('image', $generatedRoundTrip->children[1]->children[2]->type);
     },
     'maps native ast table captions into shared table metadata' => static function (TestRunner $t): void {
         $nativeTable = [
