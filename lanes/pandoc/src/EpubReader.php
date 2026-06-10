@@ -3474,9 +3474,10 @@ final class EpubReader
         $layout = self::renditionMetadataScalarReport($metaProperties, 'layout', ['reflowable', 'pre-paginated']);
         $orientation = self::renditionMetadataScalarReport($metaProperties, 'orientation', ['auto', 'landscape', 'portrait']);
         $spread = self::renditionMetadataScalarReport($metaProperties, 'spread', ['auto', 'none', 'both', 'landscape', 'portrait']);
+        $flow = self::renditionMetadataScalarReport($metaProperties, 'flow', ['auto', 'paginated', 'scrolled-continuous', 'scrolled-doc']);
         $viewportEntries = is_array($metaProperties['rendition:viewport'] ?? null) ? $metaProperties['rendition:viewport'] : [];
         $viewports = [];
-        $diagnostics = array_merge($layout['diagnostics'], $orientation['diagnostics'], $spread['diagnostics']);
+        $diagnostics = array_merge($layout['diagnostics'], $orientation['diagnostics'], $spread['diagnostics'], $flow['diagnostics']);
         foreach ($viewportEntries as $index => $entry) {
             if (!is_array($entry)) {
                 continue;
@@ -3501,6 +3502,7 @@ final class EpubReader
         $present = $layout['present']
             || $orientation['present']
             || $spread['present']
+            || $flow['present']
             || $viewports !== [];
 
         return [
@@ -3515,6 +3517,9 @@ final class EpubReader
             'spread' => $spread['value'],
             'spreadRaw' => $spread['raw'],
             'spreadProperty' => $spread,
+            'flow' => $flow['value'],
+            'flowRaw' => $flow['raw'],
+            'flowProperty' => $flow,
             'viewport' => $selectedViewport,
             'viewports' => $viewports,
             'viewportCount' => count($viewports),
@@ -7338,7 +7343,7 @@ final class EpubReader
         $layout = self::effectiveRenditionScalar('layout', $itemProperties, $packageRenditionLayout);
         $orientation = self::effectiveRenditionScalar('orientation', $itemProperties, $packageRenditionLayout);
         $spread = self::effectiveRenditionScalar('spread', $itemProperties, $packageRenditionLayout);
-        $flow = self::effectiveRenditionItemrefScalar('flow', $itemProperties);
+        $flow = self::effectiveRenditionScalar('flow', $itemProperties, $packageRenditionLayout);
         $alignX = self::effectiveRenditionItemrefScalar('alignX', $itemProperties);
         $itemrefViewportReport = self::spineItemRenditionViewportRefinementReport($refinements);
         $packageViewport = is_array($packageRenditionLayout['viewport'] ?? null)
@@ -7395,6 +7400,8 @@ final class EpubReader
             'spreadPackage' => $spread['package'],
             'flow' => $flow['value'],
             'flowSource' => $flow['source'],
+            'flowItemref' => $flow['itemref'],
+            'flowPackage' => $flow['package'],
             'alignX' => $alignX['value'],
             'alignXSource' => $alignX['source'],
             'viewport' => $viewport,

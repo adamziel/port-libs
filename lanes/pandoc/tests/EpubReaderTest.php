@@ -1167,6 +1167,7 @@ XML;
                 . '<meta property="rendition:layout">pre-paginated</meta>'
                 . '<meta property="rendition:orientation">portrait</meta>'
                 . '<meta property="rendition:spread">auto</meta>'
+                . '<meta property="rendition:flow">scrolled-doc</meta>'
                 . '<meta property="rendition:viewport">width=600,height=900</meta>'
                 . '<meta refines="#chapter-2-spine" property="rendition:viewport">width=480,height=640</meta>',
             $opfXml
@@ -1178,7 +1179,7 @@ XML;
         );
         $opfWithEffectiveRendition = str_replace(
             '<itemref idref="chapter-2" linear="no"/>',
-            '<itemref id="chapter-2-spine" idref="chapter-2" linear="no" properties="rendition:layout-reflowable rendition:spread-none"/>',
+            '<itemref id="chapter-2-spine" idref="chapter-2" linear="no" properties="rendition:layout-reflowable rendition:spread-none rendition:flow-paginated"/>',
             $opfWithEffectiveRendition
         );
 
@@ -1190,6 +1191,7 @@ XML;
         $t->same('pre-paginated', $packageRendition['layout']);
         $t->same('portrait', $packageRendition['orientation']);
         $t->same('auto', $packageRendition['spread']);
+        $t->same('scrolled-doc', $packageRendition['flow']);
         $t->same(600, $packageRendition['viewportWidth']);
         $t->same('pre-paginated', $first['layout']);
         $t->same('package', $first['layoutSource']);
@@ -1198,6 +1200,9 @@ XML;
         $t->same('itemref', $first['orientationSource']);
         $t->same('auto', $first['spread']);
         $t->same('package', $first['spreadSource']);
+        $t->same('scrolled-doc', $first['flow']);
+        $t->same('package', $first['flowSource']);
+        $t->same('scrolled-doc', $first['flowPackage']);
         $t->same(600, $first['viewportWidth']);
         $t->same(900, $first['viewportHeight']);
         $t->same('package', $first['viewportSource']);
@@ -1210,6 +1215,10 @@ XML;
         $t->same('package', $second['orientationSource']);
         $t->same('none', $second['spread']);
         $t->same('itemref', $second['spreadSource']);
+        $t->same('paginated', $second['flow']);
+        $t->same('itemref', $second['flowSource']);
+        $t->same('paginated', $second['flowItemref']);
+        $t->same('scrolled-doc', $second['flowPackage']);
         $t->same(480, $second['viewportWidth']);
         $t->same(640, $second['viewportHeight']);
         $t->same('itemref-refinement', $second['viewportSource']);
@@ -1222,6 +1231,46 @@ XML;
         $t->same('package', $result['document']->children[0]->attr('effectiveRendition')['layoutSource']);
         $t->same($second, $result['document']->children[1]->attr('effectiveRendition'));
         $t->same('itemref-refinement', $result['document']->children[1]->attr('effectiveRendition')['viewportSource']);
+    },
+    'reports OPF package rendition flow metadata for review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $opfWithPackageFlow = str_replace(
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>',
+            '<meta property="dcterms:modified">2026-06-04T21:00:00Z</meta>'
+                . '<meta property="rendition:flow">scrolled-continuous</meta>'
+                . '<meta id="bad-flow" property="rendition:flow">sideways</meta>'
+                . '<meta property="rendition:flow">paginated</meta>',
+            $opfXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage($opfWithPackageFlow));
+        $rendition = $result['metadata']['renditionLayout'];
+
+        $t->same(true, $rendition['present']);
+        $t->same('scrolled-continuous', $rendition['flow']);
+        $t->same('scrolled-continuous', $rendition['flowRaw']);
+        $t->same(true, $rendition['flowProperty']['present']);
+        $t->same(3, $rendition['flowProperty']['count']);
+        $t->same(2, $rendition['flowProperty']['validCount']);
+        $t->same(1, $rendition['flowProperty']['invalidCount']);
+        $t->same('scrolled-continuous', $rendition['flowProperty']['entries'][0]['value']);
+        $t->same(false, $rendition['flowProperty']['entries'][1]['valid']);
+        $t->same('invalid-rendition-flow-value', $rendition['flowProperty']['entries'][1]['diagnostics'][0]['type']);
+        $t->same('conflicting-rendition-flow-values', $rendition['flowProperty']['diagnostics'][1]['type']);
+        $t->same(['scrolled-continuous', 'paginated'], $rendition['flowProperty']['diagnostics'][1]['values']);
+        $t->same(['invalid-rendition-flow-value', 'conflicting-rendition-flow-values'], array_map(
+            static fn (array $diagnostic): string => $diagnostic['type'],
+            $rendition['diagnostics']
+        ));
+
+        $first = $result['spine'][0]['effectiveRendition'];
+        $t->same('scrolled-continuous', $first['flow']);
+        $t->same('package', $first['flowSource']);
+        $t->same('scrolled-continuous', $first['flowPackage']);
+        $t->same($rendition['diagnostics'], $first['diagnostics']);
+        $t->same($rendition, $result['package']['renditionLayout']);
+        $t->same($rendition, $result['importReport']['metadata']['renditionLayout']);
+        $t->same($rendition, $result['document']->attr('metadata')['renditionLayout']);
+        $t->same($first, $result['document']->children[0]->attr('effectiveRendition'));
     },
     'reports invalid OPF spine progression and conflicting spread diagnostics' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithInvalidSpineProperties = str_replace(
