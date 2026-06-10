@@ -584,12 +584,39 @@ final class PandocJsonReader
             return [];
         }
 
+        $shortCaption = $this->unwrapMaybeConstructor($shortCaption);
+        if ($shortCaption === []) {
+            return [];
+        }
+
         $content = $this->constructorContent($shortCaption, 'ShortCaption', "{$context} short caption", false);
         if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
             $content = $content[0];
         }
 
         return $this->readInlines($this->listContent($content, "{$context} short caption"));
+    }
+
+    private function unwrapMaybeConstructor(mixed $value): mixed
+    {
+        if (!is_array($value) || !isset($value['t']) || !is_string($value['t'])) {
+            return $value;
+        }
+
+        if ($value['t'] === 'Just') {
+            $content = $value['c'] ?? null;
+            if (is_array($content) && array_is_list($content) && count($content) === 1) {
+                return $content[0];
+            }
+
+            return $content;
+        }
+
+        if ($value['t'] === 'Nothing') {
+            return [];
+        }
+
+        return $value;
     }
 
     /**

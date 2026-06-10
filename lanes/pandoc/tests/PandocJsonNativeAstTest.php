@@ -1483,6 +1483,110 @@ return [
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'space', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
     },
+    'reads maybe wrapped pandoc json short caption constructors' => static function (TestRunner $t): void {
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['json-maybe-figure', ['wp-import'], [['data-source', 'json-filter']]],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Figure'],
+                        ['t' => 'Space'],
+                        ['t' => 'Emph', 'c' => [
+                            ['t' => 'Str', 'c' => 'maybe'],
+                        ]],
+                    ]]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Figure'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'long'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Alt']],
+                            ['media/figure.png', 'Figure title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['json-maybe-table', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Table'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'long'],
+                        ]],
+                    ],
+                ]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                [['', [], []], []],
+                [
+                    [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 0],
+                        [],
+                        [
+                            [
+                                ['', [], []],
+                                [
+                                    [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        ['t' => 'RowSpan', 'c' => 1],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'Plain', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Cell'],
+                                            ]],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                [['', [], []], []],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock, $tableBlock],
+        ]);
+        $figure = $document->children[0];
+        $table = $document->children[1];
+        $figureShortInlines = $figure->attr('shortCaptionInlines');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+
+        $t->same('Figure maybe', $figure->attr('shortCaption'));
+        $t->same(true, is_array($figureShortInlines));
+        $t->same(['text', 'space', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $figureShortInlines));
+        $t->same('Figure long', $figure->attr('caption'));
+        $t->same('Table long', $table->attr('caption'));
+        $t->same(null, $table->attr('shortCaption'));
+        $t->same('Figure', $encoded['blocks'][0]['t']);
+        $t->same('Figure', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Emph', $encoded['blocks'][0]['c'][1][0][2]['t']);
+        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same('Figure maybe', $roundTrip->children[0]->attr('shortCaption'));
+        $t->same('Table long', $roundTrip->children[1]->attr('caption'));
+        $t->same(null, $roundTrip->children[1]->attr('shortCaption'));
+    },
     'maps pandoc definition lists into term and definition ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
