@@ -91,6 +91,67 @@ return [
         $t->contains('intermediate-writer-pending:context', implode(',', $context['diagnostics']));
     },
 
+    'plans typst boundary option provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/boundary.pdf',
+            'source' => '= Typst Boundary Packet',
+            'engineOptions' => [
+                '--root=workspace',
+                '--font-path=fonts',
+                '--font-path',
+                'shared fonts',
+                '--package-path=vendor/typst-packages',
+                '--package-cache',
+                'https://cache.example.invalid/typst',
+                '--deps=build/boundary.d',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary provenance packet\n%%EOF\n";
+        $depfile = "build/boundary.pdf: build/boundary.typ\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'fontPaths' => [
+                ['raw' => 'fonts', 'path' => 'fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'shared fonts', 'path' => 'shared fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+            'issues' => ['package-cache-external-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/boundary.d' => $depfile,
+                'build/boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/boundary.d' => $depfile,
+                    'build/boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'fake runner preserves typst dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Review Packet\n\n#image(\"figures/logo.svg\")\n";
