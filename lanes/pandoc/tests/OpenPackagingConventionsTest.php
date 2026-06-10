@@ -10253,6 +10253,80 @@ XML;
         $t->same(false, $loads['/word/_rels/comments.xml.rels']['loaded']);
         $t->same(['invalid-relationship-content-type'], $loads['/word/_rels/comments.xml.rels']['issues']);
     },
+    'reports OPC relationship part content type provenance before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/_rels/document.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/_rels/case.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/_rels/comments.xml.rels" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $rootRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+</Relationships>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'Word/CasE.xml', 'data' => '<review/>'],
+            ['name' => 'Word/_rels/CasE.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/comments.xml', 'data' => '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/comments.xml.rels', 'data' => $documentRelationshipsXml],
+        ]);
+
+        $parts = [];
+        foreach (OpcRelationshipGraph::preflightRelationshipPartsInPackage($package) as $part) {
+            $parts[$part['partName']] = $part;
+        }
+
+        $t->same('default', $parts['/_rels/.rels']['contentTypeSource']);
+        $t->same('rels', $parts['/_rels/.rels']['contentTypeDefaultExtension']);
+        $t->same(null, $parts['/_rels/.rels']['contentTypeOverridePartName']);
+        $t->same(false, $parts['/_rels/.rels']['contentTypeOverridePartNameExactMatch']);
+        $t->same(false, $parts['/_rels/.rels']['contentTypeOverridePartNameEquivalentMatch']);
+
+        $t->same('override', $parts['/word/_rels/document.xml.rels']['contentTypeSource']);
+        $t->same(null, $parts['/word/_rels/document.xml.rels']['contentTypeDefaultExtension']);
+        $t->same('/word/_rels/document.xml.rels', $parts['/word/_rels/document.xml.rels']['contentTypeOverridePartName']);
+        $t->same(true, $parts['/word/_rels/document.xml.rels']['contentTypeOverridePartNameExactMatch']);
+        $t->same(false, $parts['/word/_rels/document.xml.rels']['contentTypeOverridePartNameEquivalentMatch']);
+        $t->same(true, $parts['/word/_rels/document.xml.rels']['loaded']);
+
+        $t->same('override', $parts['/Word/_rels/CasE.xml.rels']['contentTypeSource']);
+        $t->same('/word/_rels/case.xml.rels', $parts['/Word/_rels/CasE.xml.rels']['contentTypeOverridePartName']);
+        $t->same(false, $parts['/Word/_rels/CasE.xml.rels']['contentTypeOverridePartNameExactMatch']);
+        $t->same(true, $parts['/Word/_rels/CasE.xml.rels']['contentTypeOverridePartNameEquivalentMatch']);
+        $t->same('/Word/CasE.xml', $parts['/Word/_rels/CasE.xml.rels']['relationshipSource']);
+        $t->same(true, $parts['/Word/_rels/CasE.xml.rels']['loaded']);
+
+        $t->same('override', $parts['/word/_rels/comments.xml.rels']['contentTypeSource']);
+        $t->same('application/xml', $parts['/word/_rels/comments.xml.rels']['contentType']);
+        $t->same(false, $parts['/word/_rels/comments.xml.rels']['loaded']);
+        $t->same(['invalid-relationship-content-type'], $parts['/word/_rels/comments.xml.rels']['issues']);
+
+        $summary = OpcRelationshipGraph::relationshipPartLoadSummary($package);
+        $t->same(['default' => 1, 'override' => 3], $summary['contentTypeSourceCounts']);
+        $t->same(['/_rels/.rels'], $summary['partNamesByContentTypeSource']['default']);
+        $t->same([
+            '/Word/_rels/CasE.xml.rels',
+            '/word/_rels/comments.xml.rels',
+            '/word/_rels/document.xml.rels',
+        ], $summary['partNamesByContentTypeSource']['override']);
+    },
     'does not load orphan OPC relationship parts as graph sources' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

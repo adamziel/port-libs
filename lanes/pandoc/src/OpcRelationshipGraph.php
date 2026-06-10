@@ -317,7 +317,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return list<array{partName:string, contentType:?string, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
+     * @return list<array{partName:string, contentType:?string, contentTypeSource:string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:bool, contentTypeOverridePartNameEquivalentMatch:bool, relationshipSource:?string, relationshipSourceIsRelationshipPart:?bool, sourceExists:?bool, duplicateRelationshipPartNames:list<string>, loaded:bool, loadAction:string, loadReason:string, relationshipCount:?int, valid:bool, issues:list<string>, parseError:?string}>
      */
     public static function preflightRelationshipPartsInPackage(ZipPackage $package): array
     {
@@ -336,7 +336,8 @@ final class OpcRelationshipGraph
             }
 
             $partName = OpcPackagePath::canonicalPartName($name);
-            $contentType = $contentTypes->contentTypeForPart($partName);
+            $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
+            $contentType = $contentTypeResolution['contentType'];
             $relationshipSource = null;
             $relationshipSourceIsRelationshipPart = null;
             $sourceExists = null;
@@ -378,6 +379,11 @@ final class OpcRelationshipGraph
             $preflight[] = [
                 'partName' => $partName,
                 'contentType' => $contentType,
+                'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+                'contentTypeDefaultExtension' => $contentTypeResolution['defaultExtension'],
+                'contentTypeOverridePartName' => $contentTypeResolution['overridePartName'],
+                'contentTypeOverridePartNameExactMatch' => $contentTypeResolution['overridePartNameExactMatch'],
+                'contentTypeOverridePartNameEquivalentMatch' => $contentTypeResolution['overridePartNameEquivalentMatch'],
                 'relationshipSource' => $relationshipSource,
                 'relationshipSourceIsRelationshipPart' => $relationshipSourceIsRelationshipPart,
                 'sourceExists' => $sourceExists,
@@ -445,7 +451,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, issues:list<string>}
+     * @return array{valid:bool, relationshipPartCount:int, loadedCount:int, skippedCount:int, validCount:int, invalidCount:int, relationshipCount:int, loadedPartNames:list<string>, skippedPartNames:list<string>, loadedSources:list<string>, skippedSources:list<string>, loadActionCounts:array<string, int>, loadReasonCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, partNamesByLoadReason:array<string, list<string>>, partNamesByContentTypeSource:array<string, list<string>>, issueCounts:array<string, int>, partNamesByIssue:array<string, list<string>>, issues:list<string>}
      */
     public static function relationshipPartLoadSummary(ZipPackage $package): array
     {
@@ -463,7 +469,9 @@ final class OpcRelationshipGraph
             'skippedSources' => [],
             'loadActionCounts' => [],
             'loadReasonCounts' => [],
+            'contentTypeSourceCounts' => [],
             'partNamesByLoadReason' => [],
+            'partNamesByContentTypeSource' => [],
             'issueCounts' => [],
             'partNamesByIssue' => [],
             'issues' => [],
@@ -473,7 +481,9 @@ final class OpcRelationshipGraph
             $summary['relationshipPartCount']++;
             $summary['loadActionCounts'][$part['loadAction']] = ($summary['loadActionCounts'][$part['loadAction']] ?? 0) + 1;
             $summary['loadReasonCounts'][$part['loadReason']] = ($summary['loadReasonCounts'][$part['loadReason']] ?? 0) + 1;
+            $summary['contentTypeSourceCounts'][$part['contentTypeSource']] = ($summary['contentTypeSourceCounts'][$part['contentTypeSource']] ?? 0) + 1;
             $summary['partNamesByLoadReason'][$part['loadReason']][] = $part['partName'];
+            $summary['partNamesByContentTypeSource'][$part['contentTypeSource']][] = $part['partName'];
 
             if ($part['loaded']) {
                 $summary['loadedCount']++;
@@ -516,8 +526,14 @@ final class OpcRelationshipGraph
 
         ksort($summary['loadActionCounts'], SORT_STRING);
         ksort($summary['loadReasonCounts'], SORT_STRING);
+        ksort($summary['contentTypeSourceCounts'], SORT_STRING);
         ksort($summary['partNamesByLoadReason'], SORT_STRING);
         foreach ($summary['partNamesByLoadReason'] as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($summary['partNamesByContentTypeSource'], SORT_STRING);
+        foreach ($summary['partNamesByContentTypeSource'] as &$partNames) {
             sort($partNames, SORT_STRING);
         }
         unset($partNames);
