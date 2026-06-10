@@ -8878,13 +8878,21 @@ final class MarkdownReader
     }
 
     /**
+     * @param array<string, true> $seen
      * @return array<string, mixed>
      */
-    private function readHtmlMicrodataItem(\DOMElement $item): array
+    private function readHtmlMicrodataItem(\DOMElement $item, array $seen = []): array
     {
         $record = [
             'element' => strtolower($item->localName),
         ];
+        $key = $this->htmlMicrodataElementKey($item);
+        if (isset($seen[$key])) {
+            $record['cycle'] = true;
+
+            return $record;
+        }
+        $seen[$key] = true;
 
         $types = $this->htmlMicrodataUrlTokens($item->getAttribute('itemtype'));
         if ($types !== []) {
@@ -8899,9 +8907,25 @@ final class MarkdownReader
         $refs = $this->htmlMicrodataTermTokens($item->getAttribute('itemref'));
         if ($refs !== []) {
             $record['refs'] = $refs;
+            $record['refCount'] = count($refs);
         }
 
-        $properties = $this->htmlMicrodataItemProperties($item);
+        $properties = $this->htmlMicrodataItemProperties($item, $seen);
+        if ($refs !== []) {
+            $itemRef = $this->htmlMicrodataItemRefProperties($item, $refs, $seen);
+            if ($itemRef['resolved'] !== []) {
+                $record['resolvedRefs'] = $itemRef['resolved'];
+                $record['resolvedRefCount'] = count($itemRef['resolved']);
+            }
+            if ($itemRef['missing'] !== []) {
+                $record['missingRefs'] = $itemRef['missing'];
+                $record['missingRefCount'] = count($itemRef['missing']);
+            }
+            if ($itemRef['properties'] !== []) {
+                $properties = $this->mergeHtmlMicrodataProperties($properties, $itemRef['properties']);
+            }
+        }
+
         if ($properties !== []) {
             $record['properties'] = $properties;
             $summary = $this->htmlMicrodataPropertySummary($properties);
@@ -8912,15 +8936,20 @@ final class MarkdownReader
             if ($summary['nestedItemCount'] > 0) {
                 $record['nestedItemCount'] = $summary['nestedItemCount'];
             }
+            if ($summary['repeatedProperties'] !== []) {
+                $record['repeatedProperties'] = $summary['repeatedProperties'];
+                $record['repeatedPropertyCount'] = count($summary['repeatedProperties']);
+            }
         }
 
         return $record;
     }
 
     /**
+     * @param array<string, true> $seen
      * @return array<string, list<mixed>>
      */
-    private function htmlMicrodataItemProperties(\DOMElement $item): array
+    private function htmlMicrodataItemProperties(\DOMElement $item, array $seen): array
     {
         $properties = [];
         foreach ($item->getElementsByTagName('*') as $element) {
@@ -8938,13 +8967,111 @@ final class MarkdownReader
                 continue;
             }
 
-            $value = $this->htmlMicrodataPropertyValue($element);
+            $value = $this->htmlMicrodataPropertyValue($element, $seen);
             if ($value === null) {
                 continue;
             }
 
             foreach ($propertyNames as $name) {
                 $properties[$name] ??= [];
+                $properties[$name][] = $value;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param list<string> $refs
+     * @param array<string, true> $seen
+     * @return array{resolved:list<string>,missing:list<string>,properties:array<string, list<mixed>>}
+     */
+    private function htmlMicrodataItemRefProperties(\DOMElement $item, array $refs, array $seen): array
+    {
+        $resolved = [];
+        $missing = [];
+        $properties = [];
+        $document = $item->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [
+                'resolved' => [],
+                'missing' => $refs,
+                'properties' => [],
+            ];
+        }
+
+        foreach ($refs as $ref) {
+            $element = $this->htmlElementById($document, $ref);
+            if (!$element instanceof \DOMElement) {
+                $missing[] = $ref;
+                continue;
+            }
+
+            $resolved[] = $ref;
+            if ($this->isHtmlElementDescendantOrSame($element, $item)) {
+                continue;
+            }
+
+            $properties = $this->mergeHtmlMicrodataProperties(
+                $properties,
+                $this->htmlMicrodataReferencedProperties($element, $seen)
+            );
+        }
+
+        return [
+            'resolved' => $resolved,
+            'missing' => $missing,
+            'properties' => $properties,
+        ];
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @return array<string, list<mixed>>
+     */
+    private function htmlMicrodataReferencedProperties(\DOMElement $root, array $seen): array
+    {
+        $properties = [];
+        foreach ($this->htmlElementAndDescendants($root) as $element) {
+            if (!$element->hasAttribute('itemprop')) {
+                continue;
+            }
+            if (!$element->isSameNode($root)) {
+                $owner = $this->nearestHtmlMicrodataAncestorItem($element);
+                if ($owner instanceof \DOMElement && $this->isHtmlElementDescendantOrSame($owner, $root)) {
+                    continue;
+                }
+            }
+
+            $propertyNames = $this->htmlMicrodataTermTokens($element->getAttribute('itemprop'));
+            if ($propertyNames === []) {
+                continue;
+            }
+
+            $value = $this->htmlMicrodataPropertyValue($element, $seen);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($propertyNames as $name) {
+                $properties[$name] ??= [];
+                $properties[$name][] = $value;
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param array<string, list<mixed>> $properties
+     * @param array<string, list<mixed>> $extra
+     * @return array<string, list<mixed>>
+     */
+    private function mergeHtmlMicrodataProperties(array $properties, array $extra): array
+    {
+        foreach ($extra as $name => $values) {
+            $properties[$name] ??= [];
+            foreach ($values as $value) {
                 $properties[$name][] = $value;
             }
         }
@@ -8967,12 +9094,13 @@ final class MarkdownReader
     }
 
     /**
+     * @param array<string, true> $seen
      * @return array<string, mixed>|string|null
      */
-    private function htmlMicrodataPropertyValue(\DOMElement $element): mixed
+    private function htmlMicrodataPropertyValue(\DOMElement $element, array $seen): mixed
     {
         if ($element->hasAttribute('itemscope')) {
-            return $this->readHtmlMicrodataItem($element);
+            return $this->readHtmlMicrodataItem($element, $seen);
         }
 
         return $this->htmlMicrodataScalarValue($element);
@@ -9002,7 +9130,7 @@ final class MarkdownReader
 
     /**
      * @param array<string, list<mixed>> $properties
-     * @return array{propertyCount:int, valueCount:int, nestedItemCount:int}
+     * @return array{propertyCount:int, valueCount:int, nestedItemCount:int, repeatedProperties:list<string>}
      */
     private function htmlMicrodataPropertySummary(array $properties): array
     {
@@ -9010,9 +9138,13 @@ final class MarkdownReader
             'propertyCount' => 0,
             'valueCount' => 0,
             'nestedItemCount' => 0,
+            'repeatedProperties' => [],
         ];
 
-        foreach ($properties as $values) {
+        foreach ($properties as $name => $values) {
+            if (count($values) > 1) {
+                $summary['repeatedProperties'][] = $name;
+            }
             foreach ($values as $value) {
                 ++$summary['propertyCount'];
                 if (is_array($value)) {
@@ -9024,6 +9156,56 @@ final class MarkdownReader
         }
 
         return $summary;
+    }
+
+    private function htmlMicrodataElementKey(\DOMElement $element): string
+    {
+        $path = $element->getNodePath();
+        if (is_string($path) && $path !== '') {
+            return $path;
+        }
+
+        return 'node-' . spl_object_id($element);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function htmlElementAndDescendants(\DOMElement $root): array
+    {
+        $elements = [$root];
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement) {
+                $elements[] = $element;
+            }
+        }
+
+        return $elements;
+    }
+
+    private function htmlElementById(\DOMDocument $document, string $id): ?\DOMElement
+    {
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if ($element instanceof \DOMElement && $element->getAttribute('id') === $id) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    private function isHtmlElementDescendantOrSame(\DOMElement $element, \DOMElement $ancestor): bool
+    {
+        $current = $element;
+        while ($current instanceof \DOMElement) {
+            if ($current->isSameNode($ancestor)) {
+                return true;
+            }
+
+            $current = $current->parentNode;
+        }
+
+        return false;
     }
 
     /**

@@ -14868,6 +14868,58 @@ HTML);
         $t->contains('<h1 id="review-title" class="title"> Review title </h1>', $blocks);
         $t->contains('<p>Body</p>', $blocks);
     },
+    'merges html reader microdata itemref properties into document metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<!doctype html>
+<html>
+<head><title>Microdata Itemref Batch</title></head>
+<body>
+<article itemscope itemtype="https://schema.org/Event" itemref="venue sponsor embedded missing-id">
+<h1 itemprop="name">Launch review</h1>
+<section id="embedded" itemprop="performer" itemscope itemtype="https://schema.org/Person"><span itemprop="name">In-tree performer</span></section>
+</article>
+<p id="venue" itemprop="location"><span itemprop="name">Town Hall</span><span itemprop="address">1 Review Way</span></p>
+<aside id="sponsor" itemprop="sponsor" itemscope itemtype="https://schema.org/Organization"><span itemprop="name">Open Source Guild</span></aside>
+</body>
+</html>
+HTML);
+        $meta = $document->attr('meta');
+        $items = is_array($meta['microdata'] ?? null) ? $meta['microdata'] : [];
+        $item = $items[0] ?? [];
+        $properties = is_array($item['properties'] ?? null) ? $item['properties'] : [];
+        $performer = $properties['performer'][0] ?? [];
+        $performerProperties = is_array($performer['properties'] ?? null) ? $performer['properties'] : [];
+        $sponsor = $properties['sponsor'][0] ?? [];
+        $sponsorProperties = is_array($sponsor['properties'] ?? null) ? $sponsor['properties'] : [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Microdata Itemref Batch', $meta['title']);
+        $t->same(1, count($items));
+        $t->same('article', $item['element'] ?? null);
+        $t->same(['https://schema.org/Event'], $item['types'] ?? null);
+        $t->same(['venue', 'sponsor', 'embedded', 'missing-id'], $item['refs'] ?? null);
+        $t->same(4, $item['refCount'] ?? null);
+        $t->same(['venue', 'sponsor', 'embedded'], $item['resolvedRefs'] ?? null);
+        $t->same(3, $item['resolvedRefCount'] ?? null);
+        $t->same(['missing-id'], $item['missingRefs'] ?? null);
+        $t->same(1, $item['missingRefCount'] ?? null);
+        $t->same(6, $item['propertyCount'] ?? null);
+        $t->same(4, $item['valueCount'] ?? null);
+        $t->same(2, $item['nestedItemCount'] ?? null);
+        $t->same(['name'], $item['repeatedProperties'] ?? null);
+        $t->same(1, $item['repeatedPropertyCount'] ?? null);
+        $t->same(['Launch review', 'Town Hall'], $properties['name'] ?? null);
+        $t->same(['Town Hall1 Review Way'], $properties['location'] ?? null);
+        $t->same(['1 Review Way'], $properties['address'] ?? null);
+        $t->same('section', $performer['element'] ?? null);
+        $t->same(['https://schema.org/Person'], $performer['types'] ?? null);
+        $t->same(['In-tree performer'], $performerProperties['name'] ?? null);
+        $t->same('aside', $sponsor['element'] ?? null);
+        $t->same(['https://schema.org/Organization'], $sponsor['types'] ?? null);
+        $t->same(['Open Source Guild'], $sponsorProperties['name'] ?? null);
+        $t->contains('<p>Launch review<span>In-tree performer</span></p>', $blocks);
+        $t->contains('<p><span>Town Hall</span><span>1 Review Way</span></p>', $blocks);
+    },
     'maps upstream html reader select controls as raw review markup' => static function (TestRunner $t): void {
         $select = implode("\n", [
             '<select id="import-state" name="state" data-source="batch-42">',
