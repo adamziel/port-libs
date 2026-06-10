@@ -297,6 +297,42 @@ XML, 'package reader XML');
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html progress and meter state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<label for="upload-progress">Upload</label><progress id="upload-progress" value="3" max="4">75%</progress><progress id="pending">Pending</progress><label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label><meter id="clamped" value="12" min="2" max="10">Too high</meter>',
+            'progress meter review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $progress = $summary[1];
+        $pending = $summary[2];
+        $quality = $summary[3]['children'][1];
+        $clamped = $summary[4];
+
+        $t->same('progress', $progress['measurement']);
+        $t->same(['Upload'], $progress['labels']);
+        $t->same(3.0, $progress['value']);
+        $t->same(4.0, $progress['max']);
+        $t->same(0.75, $progress['position']);
+        $t->same(false, $progress['indeterminate']);
+        $t->same(null, $pending['value']);
+        $t->same(null, $pending['position']);
+        $t->same(true, $pending['indeterminate']);
+        $t->same('meter', $quality['measurement']);
+        $t->same(['Quality 82%'], $quality['labels']);
+        $t->same(0.82, $quality['value']);
+        $t->same(0.0, $quality['min']);
+        $t->same(1.0, $quality['max']);
+        $t->same(0.4, $quality['low']);
+        $t->same(0.9, $quality['high']);
+        $t->same(0.95, $quality['optimum']);
+        $t->same('meter', $clamped['measurement']);
+        $t->same(10.0, $clamped['value']);
+        $t->same(2.0, $clamped['min']);
+        $t->same(10.0, $clamped['max']);
+        $t->same('<label for="upload-progress">Upload</label><progress id="upload-progress" max="4" value="3">75%</progress><progress id="pending">Pending</progress><label>Quality <meter high="0.9" id="quality" low="0.4" max="1" min="0" optimum="0.95" value="0.82">82%</meter></label><meter id="clamped" max="10" min="2" value="12">Too high</meter>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

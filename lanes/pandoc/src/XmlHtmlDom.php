@@ -784,6 +784,36 @@ final class XmlHtmlDom
             $summary['formControl'] = 'datalist';
             $summary['datalistOptions'] = self::datalistOptionSummaries($node);
         }
+        if ($name === 'progress') {
+            $max = self::positiveNumericAttribute($node, 'max', 1.0);
+            $value = self::numericAttribute($node, 'value', null);
+            $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
+            $summary['measurement'] = 'progress';
+            $summary['labels'] = self::formControlLabels($node);
+            $summary['value'] = $value;
+            $summary['max'] = $max;
+            $summary['position'] = $value === null ? null : $value / $max;
+            $summary['indeterminate'] = $value === null;
+        }
+        if ($name === 'meter') {
+            $min = self::numericAttribute($node, 'min', 0.0) ?? 0.0;
+            $max = self::numericAttribute($node, 'max', 1.0) ?? 1.0;
+            if ($max < $min) {
+                $max = $min;
+            }
+
+            $summary['measurement'] = 'meter';
+            $summary['labels'] = self::formControlLabels($node);
+            $summary['min'] = $min;
+            $summary['max'] = $max;
+            $summary['value'] = self::boundedNumber(self::numericAttribute($node, 'value', $min) ?? $min, $min, $max);
+            foreach (['low', 'high', 'optimum'] as $threshold) {
+                $thresholdValue = self::numericAttribute($node, $threshold, null);
+                if ($thresholdValue !== null) {
+                    $summary[$threshold] = $thresholdValue;
+                }
+            }
+        }
 
         return [$summary];
     }
@@ -800,6 +830,34 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    private static function numericAttribute(\DOMElement $element, string $name, ?float $default): ?float
+    {
+        if (!$element->hasAttribute($name)) {
+            return $default;
+        }
+
+        $value = trim($element->getAttribute($name));
+        if ($value === '' || !is_numeric($value)) {
+            return $default;
+        }
+
+        $number = (float) $value;
+
+        return is_finite($number) ? $number : $default;
+    }
+
+    private static function positiveNumericAttribute(\DOMElement $element, string $name, float $default): float
+    {
+        $value = self::numericAttribute($element, $name, $default) ?? $default;
+
+        return $value > 0.0 ? $value : $default;
+    }
+
+    private static function boundedNumber(float $value, float $min, float $max): float
+    {
+        return max($min, min($max, $value));
     }
 
     /**
