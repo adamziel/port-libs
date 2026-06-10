@@ -7194,6 +7194,27 @@ return [
         $t->contains('<p>alpha<br/>beta</p>', $blocks);
         $t->contains('<p><em>marked</em><br/>next</p>', $blocks);
     },
+    'maps pandoc markdown east asian line break extension' => static function (TestRunner $t): void {
+        $markdown = "東\n京 source\n\nA\nB\n\n東  \n京";
+        $document = (new MarkdownReader(['eastAsianLineBreaks' => true]))->read($markdown);
+        $joined = $document->children[0];
+        $latin = $document->children[1];
+        $hardBreak = $document->children[2];
+        $defaultDocument = (new MarkdownReader())->read("東\n京");
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $joined->children));
+        $t->same('東京 source', $joined->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $latin->children));
+        $t->same('A B', $latin->attr('text'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $hardBreak->children));
+        $t->same("東\n京", $hardBreak->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $defaultDocument->children[0]->children));
+        $t->same("東京 source\n\nA\nB\n\n東\\\n京", (new MarkdownWriter())->write($document));
+        $t->contains('<p>東京 source</p>', $blocks);
+        $t->contains("<p>A\nB</p>", $blocks);
+        $t->contains('<p>東<br/>京</p>', $blocks);
+    },
     'maps upstream markdown reader inline code attributes and spaced literals' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '`document.write("Hello");`{.javascript}',

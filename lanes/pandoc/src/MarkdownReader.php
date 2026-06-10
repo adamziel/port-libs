@@ -79,7 +79,7 @@ final class MarkdownReader
     private bool $resolveFootnoteReferences = true;
 
     /**
-     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool} $options
+     * @param array{literateHaskell?: bool, yamlMetadata?: bool, texMathDoubleBackslash?: bool, eastAsianLineBreaks?: bool} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -15095,6 +15095,11 @@ final class MarkdownReader
                     continue;
                 }
 
+                if ($this->shouldSuppressEastAsianSoftBreak($buffer, $nodes, $text, $offset)) {
+                    $offset++;
+                    continue;
+                }
+
                 $this->flushText($buffer, $nodes);
                 $nodes[] = new AstNode('softbreak');
                 $offset++;
@@ -17858,6 +17863,75 @@ final class MarkdownReader
 
         $nodes[] = new AstNode('text', ['text' => $this->decodeHtmlEntities($buffer)]);
         $buffer = '';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function shouldSuppressEastAsianSoftBreak(string $buffer, array $nodes, string $text, int $newlineOffset): bool
+    {
+        if (($this->options['eastAsianLineBreaks'] ?? false) !== true) {
+            return false;
+        }
+
+        $before = $this->lastInlineCharacterForEastAsianBreak($buffer, $nodes);
+        $after = $this->firstUtf8Character(substr($text, $newlineOffset + 1));
+        if ($before === null || $after === null) {
+            return false;
+        }
+
+        return $this->isEastAsianLineBreakCharacter($before)
+            && $this->isEastAsianLineBreakCharacter($after);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function lastInlineCharacterForEastAsianBreak(string $buffer, array $nodes): ?string
+    {
+        $fromBuffer = $this->lastUtf8Character($buffer);
+        if ($fromBuffer !== null) {
+            return $fromBuffer;
+        }
+
+        for ($index = count($nodes) - 1; $index >= 0; $index--) {
+            $node = $nodes[$index];
+            if ($node->type === 'text') {
+                $char = $this->lastUtf8Character((string) $node->attr('text', ''));
+                if ($char !== null) {
+                    return $char;
+                }
+                continue;
+            }
+
+            if (in_array(
+                $node->type,
+                ['emph', 'strong', 'span', 'small_caps', 'underline', 'strikeout', 'superscript', 'subscript', 'quoted'],
+                true
+            )) {
+                $char = $this->lastInlineCharacterForEastAsianBreak('', $node->children);
+                if ($char !== null) {
+                    return $char;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function firstUtf8Character(string $text): ?string
+    {
+        return preg_match('/\A./us', $text, $m) === 1 ? $m[0] : null;
+    }
+
+    private function lastUtf8Character(string $text): ?string
+    {
+        return preg_match('/.\z/us', $text, $m) === 1 ? $m[0] : null;
+    }
+
+    private function isEastAsianLineBreakCharacter(string $char): bool
+    {
+        return preg_match('/\A[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]\z/u', $char) === 1;
     }
 
     private function decodeHtmlEntities(string $text): string
