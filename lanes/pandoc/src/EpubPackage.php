@@ -10,6 +10,7 @@ final class EpubPackage
     public const OPF_NAMESPACE = 'http://www.idpf.org/2007/opf';
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const EPUB_OPS_NAMESPACE = 'http://www.idpf.org/2007/ops';
+    public const EPUB_METADATA_NAMESPACE = 'http://www.idpf.org/2013/metadata';
     public const XHTML_NAMESPACE = 'http://www.w3.org/1999/xhtml';
     public const NCX_NAMESPACE = 'http://www.daisy.org/z3986/2005/ncx/';
     public const SMIL_NAMESPACE = 'http://www.w3.org/ns/SMIL';
@@ -64,6 +65,7 @@ final class EpubPackage
     /**
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
+     * @param list<array<string, mixed>> $containerLinks
      * @param list<array<string, mixed>> $packageLinks
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
@@ -81,6 +83,7 @@ final class EpubPackage
     private function __construct(
         private readonly ZipPackage $package,
         private readonly array $rootfiles,
+        private readonly array $containerLinks,
         private readonly string $opfPartName,
         private readonly array $metadata,
         private readonly array $packageLinks,
@@ -130,11 +133,13 @@ final class EpubPackage
         }
 
         $opf = self::parseOpfXml($package->read($opfPartName), $opfPartName, $package);
+        $containerLinks = self::parseContainerLinks($package, self::manifestByPart($opf['manifestById']));
         $navigation = self::loadNavigation($package, $opfPartName, $opf['manifestById'], $opf['spineTocId']);
 
         return new self(
             $package,
             $rootfiles,
+            $containerLinks,
             $opfPartName,
             $opf['metadata'],
             $opf['packageLinks'],
@@ -164,6 +169,14 @@ final class EpubPackage
     public function rootfiles(): array
     {
         return $this->rootfiles;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function containerLinks(): array
+    {
+        return $this->containerLinks;
     }
 
     public function opfPartName(): string
@@ -356,7 +369,7 @@ final class EpubPackage
      */
     public function remoteResourcePolicy(): array
     {
-        return self::remoteResourcePolicyReport($this->packageLinks, $this->collections);
+        return self::remoteResourcePolicyReport($this->packageLinks, $this->collections, $this->containerLinks);
     }
 
     /**
@@ -384,6 +397,7 @@ final class EpubPackage
     {
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
+        $containerLinkReport = self::collectionLinkReport($this->containerLinks);
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
         $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
             ? $this->metadata['linkVocabulary']
@@ -398,6 +412,10 @@ final class EpubPackage
         return [
             'opfPart' => $this->opfPartName,
             'rootfiles' => $this->rootfiles,
+            'containerLinks' => $this->containerLinks,
+            'containerLinksByRel' => $containerLinkReport['linksByRel'],
+            'containerLinkRelCounts' => $containerLinkReport['relCounts'],
+            'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
             'metadata' => $this->metadata,
             'packageLinks' => $this->packageLinks,
             'packageLinksByRel' => $packageLinkReport['linksByRel'],
@@ -463,6 +481,10 @@ final class EpubPackage
                 )),
                 'guideReferences' => $this->guideReferences,
                 'collections' => $this->collections,
+                'containerLinks' => $this->containerLinks,
+                'containerLinksByRel' => $containerLinkReport['linksByRel'],
+                'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
+                'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
                 'collectionTitles' => self::collectionTitles($this->collections),
                 'collectionLinkTargets' => self::collectionLinkTargets($this->collections),
                 'collectionDiagnostics' => self::collectionDiagnostics($this->collections),
@@ -1424,6 +1446,121 @@ final class EpubPackage
         }
 
         return $rootfiles;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function parseContainerLinks(ZipPackage $package, array $manifestByPart): array
+    {
+        $metadataPart = '/META-INF/metadata.xml';
+        if (!$package->has($metadataPart)) {
+            return [];
+        }
+
+        $dom = self::loadXml($package->read($metadataPart), 'EPUB OCF metadata.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'metadata' || $root->namespaceURI !== self::EPUB_METADATA_NAMESPACE) {
+            throw new \InvalidArgumentException('EPUB metadata.xml must use the EPUB metadata namespace');
+        }
+
+        $links = [];
+        foreach (self::childElements($root, 'link', self::EPUB_METADATA_NAMESPACE) as $index => $linkElement) {
+            $links[] = self::parseContainerLink($linkElement, $index, $package, $manifestByPart);
+        }
+
+        return $links;
+    }
+
+    /**
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseContainerLink(
+        \DOMElement $linkElement,
+        int $index,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $href = self::emptyToNull($linkElement->getAttribute('href'));
+        $rel = self::splitTokens($linkElement->getAttribute('rel'));
+        $target = null;
+        $partName = null;
+        $external = false;
+        $exists = false;
+        $entry = null;
+        $manifestItem = null;
+        $diagnostics = [];
+
+        if ($rel === []) {
+            $diagnostics[] = [
+                'type' => 'missing-container-link-rel',
+                'message' => 'EPUB OCF container link is missing rel tokens for package preflight classification',
+            ];
+        }
+
+        if ($href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-container-link-href',
+                'message' => 'EPUB OCF container link is missing href',
+            ];
+        } else {
+            try {
+                $target = self::resolvePackageHref('/', $href);
+                $external = self::isAbsoluteUri($target);
+                if ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-container-link-target',
+                        'href' => $href,
+                        'message' => 'EPUB OCF container link points outside the package and was not fetched',
+                    ];
+                } else {
+                    $partName = OpcPackagePath::stripQueryAndFragment($target);
+                    $exists = $package->has($partName);
+                    $entry = $exists ? $package->entry($partName) : null;
+                    $manifestItem = $manifestByPart[$partName] ?? null;
+                    if (!$exists) {
+                        $diagnostics[] = [
+                            'type' => 'missing-container-link-target',
+                            'href' => $href,
+                            'partName' => $partName,
+                            'message' => 'EPUB OCF container link target is missing from the package',
+                        ];
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-container-link-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'id' => self::emptyToNull($linkElement->getAttribute('id')),
+            'rel' => $rel,
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
+            'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
+            'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'title' => self::emptyToNull($linkElement->getAttribute('title')),
+            'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
+            'language' => self::metadataElementLanguage($linkElement),
+            'direction' => self::metadataElementDirection($linkElement),
+            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
@@ -4088,12 +4225,17 @@ final class EpubPackage
     /**
      * @param list<array<string, mixed>> $packageLinks
      * @param list<array<string, mixed>> $collections
+     * @param list<array<string, mixed>> $containerLinks
      *
      * @return array<string, mixed>
      */
-    private static function remoteResourcePolicyReport(array $packageLinks, array $collections): array
+    private static function remoteResourcePolicyReport(array $packageLinks, array $collections, array $containerLinks = []): array
     {
         $items = [];
+        foreach ($containerLinks as $linkIndex => $link) {
+            $items[] = self::remoteResourcePolicyItem($link, 'container-link', $linkIndex, null, []);
+        }
+
         foreach ($packageLinks as $linkIndex => $link) {
             $items[] = self::remoteResourcePolicyItem($link, 'package-link', $linkIndex, null, []);
         }
@@ -4106,6 +4248,7 @@ final class EpubPackage
         $externalTargets = [];
         $missingTargets = [];
         $diagnostics = [];
+        $containerLinkCount = 0;
         $packageLinkCount = 0;
         $collectionLinkCount = 0;
 
@@ -4114,7 +4257,9 @@ final class EpubPackage
             $policyCounts[$policy] = ($policyCounts[$policy] ?? 0) + 1;
             $itemsByPolicy[$policy][] = $item;
 
-            if ($item['source'] === 'package-link') {
+            if ($item['source'] === 'container-link') {
+                ++$containerLinkCount;
+            } elseif ($item['source'] === 'package-link') {
                 ++$packageLinkCount;
             } elseif ($item['source'] === 'collection-link') {
                 ++$collectionLinkCount;
@@ -4150,6 +4295,7 @@ final class EpubPackage
         return [
             'present' => $items !== [],
             'itemCount' => count($items),
+            'containerLinkCount' => $containerLinkCount,
             'packageLinkCount' => $packageLinkCount,
             'collectionLinkCount' => $collectionLinkCount,
             'localTargetCount' => $policyCounts['local-package'] ?? 0,

@@ -1075,6 +1075,96 @@ XML;
         $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
     },
 
+    'summarizes OCF metadata links for EPUB3 package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $containerRecord = '{"@context":"https://schema.org","name":"OCF container review packet"}';
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata" xmlns:dc="http://purl.org/dc/elements/1.1/" unique-identifier="pub-id">
+  <dc:identifier id="pub-id">urn:uuid:container-metadata-review</dc:identifier>
+  <meta property="dcterms:modified">2026-06-10T19:45:47Z</meta>
+  <link id="container-review" rel="record" href="EPUB/meta/container-record.json" media-type="application/ld+json" properties="review audit" title="Container review" hreflang="en" xml:lang="en" dir="ltr"/>
+  <link id="remote-rights" rel="license" href="https://rights.example.invalid/license.json" media-type="application/json"/>
+  <link id="missing-alt" rel="alternate" href="EPUB/meta/missing-container.json" media-type="application/json"/>
+  <link id="bad-traversal" rel="review" href="../outside.json"/>
+  <link id="unclassified-local" href="EPUB/meta/container-record.json"/>
+</metadata>
+XML;
+        $opfWithContainerRecord = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="container-record" href="meta/container-record.json" media-type="application/ld+json"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithContainerRecord],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/container-record.json', 'data' => $containerRecord],
+        ]));
+
+        $links = $epub->containerLinks();
+        $summary = $epub->summary();
+        $policy = $summary['remoteResourcePolicy'];
+
+        $t->same(5, count($links));
+        $t->same('container-review', $links[0]['id']);
+        $t->same(['record'], $links[0]['rel']);
+        $t->same('EPUB/meta/container-record.json', $links[0]['href']);
+        $t->same('/EPUB/meta/container-record.json', $links[0]['target']);
+        $t->same('/EPUB/meta/container-record.json', $links[0]['partName']);
+        $t->same(true, $links[0]['exists']);
+        $t->same('container-record', $links[0]['manifestId']);
+        $t->same('application/ld+json', $links[0]['manifestMediaType']);
+        $t->same(strlen($containerRecord), $links[0]['byteLength']);
+        $t->same(hash('crc32b', $containerRecord), $links[0]['crc32']);
+        $t->same(['review', 'audit'], $links[0]['properties']);
+        $t->same('Container review', $links[0]['title']);
+        $t->same('en', $links[0]['hreflang']);
+        $t->same('en', $links[0]['language']);
+        $t->same('ltr', $links[0]['direction']);
+
+        $t->same(true, $links[1]['external']);
+        $t->same('external-container-link-target', $links[1]['diagnostics'][0]['type']);
+        $t->same(false, $links[2]['exists']);
+        $t->same('/EPUB/meta/missing-container.json', $links[2]['partName']);
+        $t->same('missing-container-link-target', $links[2]['diagnostics'][0]['type']);
+        $t->same(null, $links[3]['target']);
+        $t->same('invalid-container-link-href', $links[3]['diagnostics'][0]['type']);
+        $t->same([], $links[4]['rel']);
+        $t->same('missing-container-link-rel', $links[4]['diagnostics'][0]['type']);
+
+        $t->same(['record' => 1, 'license' => 1, 'alternate' => 1, 'review' => 1], $summary['containerLinkRelCounts']);
+        $t->same('container-review', $summary['containerLinksByRel']['record'][0]['id']);
+        $t->same(['/EPUB/meta/container-record.json', 'https://rights.example.invalid/license.json', '/EPUB/meta/missing-container.json', '/EPUB/meta/container-record.json'], $summary['wordpressImport']['containerLinkTargets']);
+        $t->same(['external-container-link-target', 'missing-container-link-target', 'invalid-container-link-href', 'missing-container-link-rel'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['containerLinkDiagnostics']));
+
+        $t->same(true, $policy['present']);
+        $t->same(5, $policy['itemCount']);
+        $t->same(5, $policy['containerLinkCount']);
+        $t->same(0, $policy['packageLinkCount']);
+        $t->same(0, $policy['collectionLinkCount']);
+        $t->same(2, $policy['localTargetCount']);
+        $t->same(1, $policy['externalTargetCount']);
+        $t->same(2, $policy['missingTargetCount']);
+        $t->same(['local-package' => 2, 'remote-no-fetch' => 1, 'missing-package' => 2], $policy['policyCounts']);
+        $t->same('container-link', $policy['items'][0]['source']);
+        $t->same('local-package', $policy['items'][0]['policy']);
+        $t->same('remote-no-fetch', $policy['items'][1]['policy']);
+        $t->same('missing-package', $policy['items'][2]['policy']);
+        $t->same('missing-package', $policy['items'][3]['policy']);
+        $t->same('container-link', $policy['diagnostics'][0]['source']);
+        $t->same('external-container-link-target', $policy['diagnostics'][0]['type']);
+        $t->same($links, $summary['containerLinks']);
+        $t->same($links, $summary['wordpressImport']['containerLinks']);
+        $t->same($policy, $summary['wordpressImport']['remoteResourcePolicy']);
+    },
+
     'preserves OPF metadata link records for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithLinks = str_replace(
             '</metadata>',
