@@ -127,6 +127,7 @@ final class NativeWriter
                 $node->children
             )],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
+            'null_block' => ['t' => 'Null'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->blocks($node->children)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->tableCaption($node), $this->figureBlocks($node)]],
             'table' => $this->tableBlock($node),

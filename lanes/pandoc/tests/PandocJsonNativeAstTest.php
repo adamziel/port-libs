@@ -792,12 +792,13 @@ return [
                 new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Wrapped'])]),
             ]),
             new AstNode('horizontal_rule'),
+            new AstNode('null_block'),
         ]);
 
         $packet = (new PandocJsonWriter())->toArray($document);
         $roundTrip = (new PandocJsonReader())->readPacket($packet);
 
-        $t->same(['BlockQuote', 'BulletList', 'OrderedList', 'LineBlock', 'CodeBlock', 'RawBlock', 'Div', 'HorizontalRule'], array_map(static fn (array $block): string => $block['t'], $packet['blocks']));
+        $t->same(['BlockQuote', 'BulletList', 'OrderedList', 'LineBlock', 'CodeBlock', 'RawBlock', 'Div', 'HorizontalRule', 'Null'], array_map(static fn (array $block): string => $block['t'], $packet['blocks']));
         $t->same('blockquote', $roundTrip->children[0]->type);
         $t->same('bullet_list', $roundTrip->children[1]->type);
         $t->same('ordered_list', $roundTrip->children[2]->type);
@@ -809,6 +810,7 @@ return [
         $t->same('raw_markdown', $roundTrip->children[5]->type);
         $t->same('packet', $roundTrip->children[6]->attr('id'));
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
+        $t->same('null_block', $roundTrip->children[8]->type);
     },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [

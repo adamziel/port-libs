@@ -356,6 +356,7 @@ final class PandocJsonReader
             'DefinitionList' => $this->readDefinitionList($content),
             'LineBlock' => $this->readLineBlock($content),
             'HorizontalRule' => new AstNode('horizontal_rule'),
+            'Null' => new AstNode('null_block'),
             'Div' => $this->readDivBlock($content),
             'Figure' => $this->readFigureBlock($content),
             'Table' => $this->readTableBlock($content),
