@@ -8845,7 +8845,285 @@ final class MarkdownReader
             }
         }
 
+        $microdata = $this->htmlDocumentMicrodataItems($dom);
+        if ($microdata !== []) {
+            $meta['microdata'] = $microdata;
+        }
+
         return $meta === [] ? [] : ['meta' => $meta];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function htmlDocumentMicrodataItems(\DOMDocument $dom): array
+    {
+        $items = [];
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$element->hasAttribute('itemscope')) {
+                continue;
+            }
+            if ($element->hasAttribute('itemprop')) {
+                continue;
+            }
+
+            $items[] = $this->readHtmlMicrodataItem($element);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readHtmlMicrodataItem(\DOMElement $item): array
+    {
+        $record = [
+            'element' => strtolower($item->localName),
+        ];
+
+        $types = $this->htmlMicrodataUrlTokens($item->getAttribute('itemtype'));
+        if ($types !== []) {
+            $record['types'] = $types;
+        }
+
+        $id = $this->htmlMicrodataUrlValue($item->getAttribute('itemid'));
+        if ($id !== null) {
+            $record['id'] = $id;
+        }
+
+        $refs = $this->htmlMicrodataTermTokens($item->getAttribute('itemref'));
+        if ($refs !== []) {
+            $record['refs'] = $refs;
+        }
+
+        $properties = $this->htmlMicrodataItemProperties($item);
+        if ($properties !== []) {
+            $record['properties'] = $properties;
+            $summary = $this->htmlMicrodataPropertySummary($properties);
+            $record['propertyCount'] = $summary['propertyCount'];
+            if ($summary['valueCount'] > 0) {
+                $record['valueCount'] = $summary['valueCount'];
+            }
+            if ($summary['nestedItemCount'] > 0) {
+                $record['nestedItemCount'] = $summary['nestedItemCount'];
+            }
+        }
+
+        return $record;
+    }
+
+    /**
+     * @return array<string, list<mixed>>
+     */
+    private function htmlMicrodataItemProperties(\DOMElement $item): array
+    {
+        $properties = [];
+        foreach ($item->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || !$element->hasAttribute('itemprop')) {
+                continue;
+            }
+
+            $owner = $this->nearestHtmlMicrodataAncestorItem($element);
+            if (!$owner instanceof \DOMElement || !$owner->isSameNode($item)) {
+                continue;
+            }
+
+            $propertyNames = $this->htmlMicrodataTermTokens($element->getAttribute('itemprop'));
+            if ($propertyNames === []) {
+                continue;
+            }
+
+            $value = $this->htmlMicrodataPropertyValue($element);
+            if ($value === null) {
+                continue;
+            }
+
+            foreach ($propertyNames as $name) {
+                $properties[$name] ??= [];
+                $properties[$name][] = $value;
+            }
+        }
+
+        return $properties;
+    }
+
+    private function nearestHtmlMicrodataAncestorItem(\DOMElement $element): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if ($parent->hasAttribute('itemscope')) {
+                return $parent;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>|string|null
+     */
+    private function htmlMicrodataPropertyValue(\DOMElement $element): mixed
+    {
+        if ($element->hasAttribute('itemscope')) {
+            return $this->readHtmlMicrodataItem($element);
+        }
+
+        return $this->htmlMicrodataScalarValue($element);
+    }
+
+    private function htmlMicrodataScalarValue(\DOMElement $element): ?string
+    {
+        $name = strtolower($element->localName);
+        $value = match ($name) {
+            'a', 'area', 'link' => $this->htmlMicrodataUrlValue($element->getAttribute('href')),
+            'audio', 'embed', 'iframe', 'img', 'source', 'track', 'video' => $this->htmlMicrodataUrlValue($element->getAttribute('src')),
+            'object' => $this->htmlMicrodataUrlValue($element->getAttribute('data')),
+            'data', 'meter' => $this->cleanHtmlMetadataValue($element->getAttribute('value')),
+            'meta' => $this->cleanHtmlMetadataValue($element->getAttribute('content')),
+            'time' => $element->hasAttribute('datetime')
+                ? $this->cleanHtmlMetadataValue($element->getAttribute('datetime'))
+                : $this->cleanHtmlMetadataValue(Html5Dom::normalizedText($element)),
+            default => $this->cleanHtmlMetadataValue(Html5Dom::normalizedText($element)),
+        };
+
+        if ($value === null || strlen($value) > 512) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, list<mixed>> $properties
+     * @return array{propertyCount:int, valueCount:int, nestedItemCount:int}
+     */
+    private function htmlMicrodataPropertySummary(array $properties): array
+    {
+        $summary = [
+            'propertyCount' => 0,
+            'valueCount' => 0,
+            'nestedItemCount' => 0,
+        ];
+
+        foreach ($properties as $values) {
+            foreach ($values as $value) {
+                ++$summary['propertyCount'];
+                if (is_array($value)) {
+                    ++$summary['nestedItemCount'];
+                } else {
+                    ++$summary['valueCount'];
+                }
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlMicrodataUrlTokens(string $value): array
+    {
+        $tokens = [];
+        foreach ($this->htmlMetadataTokens($value) as $token) {
+            if (!$this->isSafeHtmlMicrodataUrlToken($token) || in_array($token, $tokens, true)) {
+                continue;
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    private function htmlMicrodataUrlValue(string $value): ?string
+    {
+        $value = $this->cleanHtmlMetadataValue($value);
+        if ($value === null || !$this->isSafeHtmlMicrodataUrlToken($value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlMicrodataTermTokens(string $value): array
+    {
+        $tokens = [];
+        foreach ($this->htmlMetadataTokens($value) as $token) {
+            if (!$this->isSafeHtmlMicrodataTermToken($token) || in_array($token, $tokens, true)) {
+                continue;
+            }
+
+            $tokens[] = $token;
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function htmlMetadataTokens(string $value): array
+    {
+        $cleaned = $this->cleanHtmlMetadataValue($value);
+        if ($cleaned === null) {
+            return [];
+        }
+
+        $tokens = preg_split('/[\x00-\x20]+/', $cleaned, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($tokens)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn (string $token): string => trim($token), $tokens));
+    }
+
+    private function cleanHtmlMetadataValue(string $value): ?string
+    {
+        $cleaned = str_replace("\0", '', $value);
+        $cleaned = preg_replace('/\s+/u', ' ', $cleaned) ?? $cleaned;
+        $cleaned = trim($cleaned);
+
+        return $cleaned === '' ? null : $cleaned;
+    }
+
+    private function isSafeHtmlMicrodataUrlToken(string $token): bool
+    {
+        if ($token === '' || strlen($token) > 512 || preg_match('/[<>{}`]/', $token) === 1) {
+            return false;
+        }
+
+        return !$this->hasUnsafeHtmlMicrodataScheme($token);
+    }
+
+    private function isSafeHtmlMicrodataTermToken(string $token): bool
+    {
+        if ($token === '' || preg_match('/[<>{}`]/', $token) === 1 || $this->hasUnsafeHtmlMicrodataScheme($token)) {
+            return false;
+        }
+
+        if ($this->isSafeHtmlMicrodataUrlToken($token) && str_contains($token, '://')) {
+            return true;
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $token) === 1 && !str_contains($token, '://')) {
+            return preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*:[A-Za-z0-9_.-]+$/', $token) === 1;
+        }
+
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_.:-]*$/', $token) === 1;
+    }
+
+    private function hasUnsafeHtmlMicrodataScheme(string $value): bool
+    {
+        $compact = strtolower(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+
+        return preg_match('/(?:javascript|vbscript|data):/', $compact) === 1;
     }
 
     /**

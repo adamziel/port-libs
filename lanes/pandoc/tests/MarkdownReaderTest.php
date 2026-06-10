@@ -14794,6 +14794,59 @@ MD;
         $t->contains('<h1 id="imported-html-batch-42" class="title">Imported HTML Batch 42</h1>', $blocks);
         $t->contains('<p>Review * stays literal inside HTML paragraphs.</p>', $blocks);
     },
+    'maps html reader microdata into document metadata' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<!doctype html>
+<html>
+<head><title>Microdata Batch</title><meta name="generator" content="pandoc"></head>
+<body>
+<div id="packet" itemscope itemtype="https://schema.org/Article" itemid="urn:post:42">
+<h1 class="title" itemprop="headline name"> Review title </h1>
+<a itemprop="url" href="https://example.test/posts/42">Permalink</a>
+<a itemprop="sameAs" href="java script:alert(1)">Unsafe profile</a>
+<img itemprop="image" src="/uploads/cover.jpg" alt="Cover">
+<time itemprop="datePublished" datetime="2026-06-09T19:00:00Z">June 9</time>
+<data itemprop="wordCount" value="1250">1,250 words</data>
+<span itemprop="description"> Summary <em>with emphasis</em> </span>
+<section itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Ada Lovelace</span></section>
+</div>
+<p>Body</p>
+</body>
+</html>
+HTML);
+        $meta = $document->attr('meta');
+        $items = is_array($meta['microdata'] ?? null) ? $meta['microdata'] : [];
+        $item = $items[0] ?? [];
+        $properties = is_array($item['properties'] ?? null) ? $item['properties'] : [];
+        $author = $properties['author'][0] ?? [];
+        $authorProperties = is_array($author['properties'] ?? null) ? $author['properties'] : [];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('Microdata Batch', $meta['title']);
+        $t->same('pandoc', $meta['generator']);
+        $t->same(1, count($items));
+        $t->same('div', $item['element'] ?? null);
+        $t->same(['https://schema.org/Article'], $item['types'] ?? null);
+        $t->same('urn:post:42', $item['id'] ?? null);
+        $t->same(8, $item['propertyCount'] ?? null);
+        $t->same(7, $item['valueCount'] ?? null);
+        $t->same(1, $item['nestedItemCount'] ?? null);
+        $t->same(['Review title'], $properties['headline'] ?? null);
+        $t->same(['Review title'], $properties['name'] ?? null);
+        $t->same(['https://example.test/posts/42'], $properties['url'] ?? null);
+        $t->same(['/uploads/cover.jpg'], $properties['image'] ?? null);
+        $t->same(['2026-06-09T19:00:00Z'], $properties['datePublished'] ?? null);
+        $t->same(['1250'], $properties['wordCount'] ?? null);
+        $t->same(['Summary with emphasis'], $properties['description'] ?? null);
+        $t->same(false, array_key_exists('sameAs', $properties));
+        $t->same('section', $author['element'] ?? null);
+        $t->same(['https://schema.org/Person'], $author['types'] ?? null);
+        $t->same(1, $author['propertyCount'] ?? null);
+        $t->same(1, $author['valueCount'] ?? null);
+        $t->same(['Ada Lovelace'], $authorProperties['name'] ?? null);
+        $t->contains('<h1 id="review-title" class="title"> Review title </h1>', $blocks);
+        $t->contains('<p>Body</p>', $blocks);
+    },
     'maps upstream html reader select controls as raw review markup' => static function (TestRunner $t): void {
         $select = implode("\n", [
             '<select id="import-state" name="state" data-source="batch-42">',
