@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxOpenXmlReader;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
+use PortLibs\Pandoc\ZipPackage;
 
 return [
     'maps docx core properties styles hyperlinks numbering and media from package parts' => static function (TestRunner $t): void {
@@ -193,6 +194,19 @@ XML;
         $t->same('ordered_list', $document->children[2]->type);
         $t->same('word/media/review.png', $document->children[4]->children[1]->attr('mediaPath'));
     },
+    'reads a bounded ZipPackage docx package without shelling out' => static function (TestRunner $t): void {
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package(docx_openxml_reader_fixture_parts())
+        );
+        $docx = $document->attr('docx');
+        $image = $document->children[4]->children[1];
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same('word/document.xml', $docx['documentPart']);
+        $t->same('word/media/review.png', $image->attr('mediaPath'));
+        $t->same('image/png', $image->attr('contentType'));
+        $t->same(strlen('fake png bytes'), $docx['media']['word/media/review.png']['size']);
+    },
     'renders docx reader ast through markdown and wordpress writers' => static function (TestRunner $t): void {
         $document = (new DocxOpenXmlReader())->readPackage(docx_openxml_reader_fixture_parts());
         $markdown = (new MarkdownWriter())->write($document);
@@ -329,6 +343,31 @@ XML,
 
 /**
  * @param array<string, string> $parts
+ * @return list<array{name:string, data:string}>
+ */
+function docx_openxml_reader_zip_parts(array $parts): array
+{
+    $zipParts = [];
+    foreach ($parts as $name => $contents) {
+        $zipParts[] = [
+            'name' => $name,
+            'data' => $contents,
+        ];
+    }
+
+    return $zipParts;
+}
+
+/**
+ * @param array<string, string> $parts
+ */
+function docx_openxml_reader_zip_package(array $parts): ZipPackage
+{
+    return ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts));
+}
+
+/**
+ * @param array<string, string> $parts
  */
 function docx_openxml_reader_temp_docx(array $parts): string
 {
@@ -337,15 +376,10 @@ function docx_openxml_reader_temp_docx(array $parts): string
         throw new RuntimeException('Unable to allocate temporary DOCX path');
     }
 
-    $zip = new ZipArchive();
-    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
-        throw new RuntimeException('Unable to create temporary DOCX package');
+    $written = file_put_contents($path, ZipPackage::build(docx_openxml_reader_zip_parts($parts)));
+    if ($written === false) {
+        throw new RuntimeException('Unable to write temporary DOCX package');
     }
-
-    foreach ($parts as $name => $contents) {
-        $zip->addFromString($name, $contents);
-    }
-    $zip->close();
 
     return $path;
 }

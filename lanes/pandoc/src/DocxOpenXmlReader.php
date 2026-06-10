@@ -26,26 +26,24 @@ final class DocxOpenXmlReader
             throw new \RuntimeException("DOCX package does not exist: {$path}");
         }
 
-        $zip = new \ZipArchive();
-        $status = $zip->open($path);
-        if ($status !== true) {
-            throw new \RuntimeException("Unable to open DOCX package: {$path}");
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new \RuntimeException("Unable to read DOCX package: {$path}");
         }
 
+        return $this->readZipPackage(ZipPackage::fromString($bytes));
+    }
+
+    public function readZipPackage(ZipPackage $package): AstNode
+    {
         $parts = [];
-        for ($index = 0; $index < $zip->numFiles; $index++) {
-            $stat = $zip->statIndex($index);
-            $name = is_array($stat) ? (string) ($stat['name'] ?? '') : '';
-            if ($name === '' || str_ends_with($name, '/')) {
+        foreach ($package->entries() as $entry) {
+            if ($entry->isDirectory()) {
                 continue;
             }
 
-            $contents = $zip->getFromIndex($index);
-            if (is_string($contents)) {
-                $parts[$name] = $contents;
-            }
+            $parts[$entry->name] = $package->read($entry->name);
         }
-        $zip->close();
 
         return $this->readPackage($parts);
     }
