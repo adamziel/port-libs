@@ -21,6 +21,8 @@ final class DocxOpenXmlReader
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+    private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
 
     public function readFile(string $path): AstNode
     {
@@ -73,10 +75,15 @@ final class DocxOpenXmlReader
         $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
+        $footnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FOOTNOTES_REL, 'footnotes.xml');
+        $footnotes = $this->readReferencedNotePart($parts, $footnotesPart, 'footnote', 'footnotes', 'footnote', $contentTypes, $styles);
+        $endnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::ENDNOTES_REL, 'endnotes.xml');
+        $endnotes = $this->readReferencedNotePart($parts, $endnotesPart, 'endnote', 'endnotes', 'endnote', $contentTypes, $styles);
+        $referencedNotes = array_replace($footnotes['nodes'], $endnotes['nodes']);
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
         $media = $this->mediaMetadata($parts, $contentTypes);
-        $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering);
+        $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
             'docx' => [
@@ -93,6 +100,10 @@ final class DocxOpenXmlReader
                 'settings' => $settings,
                 'fontTablePart' => $fontTablePart['partName'],
                 'fontTable' => $fontTable,
+                'footnotesPart' => $footnotesPart['partName'],
+                'footnotes' => $footnotes['summary'],
+                'endnotesPart' => $endnotesPart['partName'],
+                'endnotes' => $endnotes['summary'],
                 'media' => $media,
             ],
         ];
@@ -143,6 +154,26 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $fontTablePart['partName'],
                 $fontTablePart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($footnotesPart['relationship'] !== null) {
+            $attrs['docx']['footnotesRelationship'] = $this->relationshipSummary(
+                $footnotesPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $footnotesPart['partName'],
+                $footnotesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($endnotesPart['relationship'] !== null) {
+            $attrs['docx']['endnotesRelationship'] = $this->relationshipSummary(
+                $endnotesPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $endnotesPart['partName'],
+                $endnotesPart['exists'],
                 $contentTypes,
             );
         }
@@ -678,6 +709,94 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, string> $parts
+     * @param array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool} $part
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @return array{nodes:array<string, AstNode>, summary:array{count:int, items:list<array{id:string, sourceType:string, part:string, blockCount:int, text:string}>}}
+     */
+    private function readReferencedNotePart(
+        array $parts,
+        array $part,
+        string $sourceType,
+        string $rootName,
+        string $itemName,
+        array $contentTypes,
+        array $styles
+    ): array {
+        $empty = ['nodes' => [], 'summary' => ['count' => 0, 'items' => []]];
+        if ($part['xml'] === '') {
+            return $empty;
+        }
+
+        $dom = $this->loadXml($part['xml'], $part['partName']);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== $rootName) {
+            return $empty;
+        }
+
+        $xpath = $this->xpath($dom);
+        $relationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($part['partName']));
+        $nodes = [];
+        $items = [];
+        foreach ($root->childNodes as $note) {
+            if (!$note instanceof \DOMElement || $note->namespaceURI !== self::NS_W || $note->localName !== $itemName) {
+                continue;
+            }
+
+            $id = $note->getAttributeNS(self::NS_W, 'id');
+            $type = strtolower($note->getAttributeNS(self::NS_W, 'type'));
+            if ($id === '' || str_starts_with($id, '-') || in_array($type, ['separator', 'continuationseparator', 'continuationnotice'], true)) {
+                continue;
+            }
+
+            $blocks = $this->readNoteBlocks($note, $xpath, $relationships, $contentTypes, $styles);
+            $attrs = [
+                'id' => $id,
+                'sourceType' => $sourceType,
+                'part' => $part['partName'],
+            ];
+            if ($type !== '') {
+                $attrs['docxNoteType'] = $type;
+            }
+
+            $nodes[$sourceType . ':' . $id] = new AstNode('note', $attrs, $blocks);
+            $items[] = [
+                'id' => $id,
+                'sourceType' => $sourceType,
+                'part' => $part['partName'],
+                'blockCount' => count($blocks),
+                'text' => $this->plainBlockText($blocks),
+            ];
+        }
+
+        return ['nodes' => $nodes, 'summary' => ['count' => count($items), 'items' => $items]];
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @return list<AstNode>
+     */
+    private function readNoteBlocks(\DOMElement $note, \DOMXPath $xpath, array $relationships, array $contentTypes, array $styles): array
+    {
+        $blocks = [];
+        foreach ($note->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W || $child->localName !== 'p') {
+                continue;
+            }
+
+            $paragraph = $this->readParagraph($child, $xpath, $relationships, $contentTypes, $styles, []);
+            if ($paragraph !== null) {
+                $blocks[] = $paragraph;
+            }
+        }
+
+        return $blocks;
+    }
+
+    /**
+     * @param array<string, string> $parts
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @return array<string, array{path:string, contentType:string, size:int, sha1:string}>
      */
@@ -704,9 +823,17 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function readDocumentBlocks(string $xml, array $relationships, array $contentTypes, array $styles, array $numbering): array
+    private function readDocumentBlocks(
+        string $xml,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array
     {
         $dom = $this->loadXml($xml, 'word/document.xml');
         $xpath = $this->xpath($dom);
@@ -715,7 +842,7 @@ final class DocxOpenXmlReader
 
         foreach ($this->elements($xpath, '/w:document/w:body/*') as $bodyChild) {
             if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'p') {
-                $paragraph = $this->readParagraph($bodyChild, $xpath, $relationships, $contentTypes, $styles);
+                $paragraph = $this->readParagraph($bodyChild, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                 if ($paragraph === null) {
                     $this->flushCurrentList($currentList, $blocks);
                     continue;
@@ -756,7 +883,7 @@ final class DocxOpenXmlReader
 
             if ($bodyChild->namespaceURI === self::NS_W && $bodyChild->localName === 'tbl') {
                 $this->flushCurrentList($currentList, $blocks);
-                $table = $this->readTable($bodyChild, $xpath, $relationships, $contentTypes, $styles);
+                $table = $this->readTable($bodyChild, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                 if ($table !== null) {
                     $blocks[] = $table;
                 }
@@ -785,10 +912,18 @@ final class DocxOpenXmlReader
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, AstNode> $referencedNotes
      */
-    private function readParagraph(\DOMElement $paragraph, \DOMXPath $xpath, array $relationships, array $contentTypes, array $styles): ?AstNode
+    private function readParagraph(
+        \DOMElement $paragraph,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $referencedNotes
+    ): ?AstNode
     {
-        $inlines = $this->readParagraphInlines($paragraph, $xpath, $relationships, $contentTypes);
+        $inlines = $this->readParagraphInlines($paragraph, $xpath, $relationships, $contentTypes, $referencedNotes);
         $text = $this->plainInlineText($inlines);
         if ($inlines === [] && $text === '') {
             return null;
@@ -816,9 +951,16 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function readParagraphInlines(\DOMElement $paragraph, \DOMXPath $xpath, array $relationships, array $contentTypes): array
+    private function readParagraphInlines(
+        \DOMElement $paragraph,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $referencedNotes
+    ): array
     {
         $inlines = [];
         foreach ($paragraph->childNodes as $child) {
@@ -827,14 +969,14 @@ final class DocxOpenXmlReader
             }
 
             if ($child->namespaceURI === self::NS_W && $child->localName === 'r') {
-                array_push($inlines, ...$this->readRun($child, $xpath, $relationships, $contentTypes));
+                array_push($inlines, ...$this->readRun($child, $xpath, $relationships, $contentTypes, $referencedNotes));
                 continue;
             }
 
             if ($child->namespaceURI === self::NS_W && $child->localName === 'hyperlink') {
                 $linkInlines = [];
                 foreach ($this->elements($xpath, 'w:r', $child) as $run) {
-                    array_push($linkInlines, ...$this->readRun($run, $xpath, $relationships, $contentTypes));
+                    array_push($linkInlines, ...$this->readRun($run, $xpath, $relationships, $contentTypes, $referencedNotes));
                 }
                 if ($linkInlines !== []) {
                     $inlines[] = new AstNode('link', $this->hyperlinkAttrs($child, $relationships), $linkInlines);
@@ -844,7 +986,7 @@ final class DocxOpenXmlReader
 
             if (in_array($child->localName, ['ins', 'smartTag', 'sdt'], true)) {
                 foreach ($this->elements($xpath, './/w:r', $child) as $run) {
-                    array_push($inlines, ...$this->readRun($run, $xpath, $relationships, $contentTypes));
+                    array_push($inlines, ...$this->readRun($run, $xpath, $relationships, $contentTypes, $referencedNotes));
                 }
             }
         }
@@ -883,9 +1025,16 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, AstNode> $referencedNotes
      * @return list<AstNode>
      */
-    private function readRun(\DOMElement $run, \DOMXPath $xpath, array $relationships, array $contentTypes): array
+    private function readRun(
+        \DOMElement $run,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $referencedNotes
+    ): array
     {
         $inlines = [];
         foreach ($run->childNodes as $child) {
@@ -920,12 +1069,54 @@ final class DocxOpenXmlReader
                 }
                 continue;
             }
+            if ($child->namespaceURI === self::NS_W && $child->localName === 'footnoteReference') {
+                $note = $this->referencedNote($child, 'footnote', $referencedNotes);
+                if ($note instanceof AstNode) {
+                    $inlines[] = $note;
+                }
+                continue;
+            }
+            if ($child->namespaceURI === self::NS_W && $child->localName === 'endnoteReference') {
+                $note = $this->referencedNote($child, 'endnote', $referencedNotes);
+                if ($note instanceof AstNode) {
+                    $inlines[] = $note;
+                }
+                continue;
+            }
             if ($child->namespaceURI === self::NS_W && $child->localName === 'drawing') {
                 array_push($inlines, ...$this->readDrawingImages($child, $xpath, $relationships, $contentTypes));
             }
         }
 
         return $this->wrapRunInlines($run, $inlines);
+    }
+
+    /**
+     * @param array<string, AstNode> $referencedNotes
+     */
+    private function referencedNote(\DOMElement $reference, string $sourceType, array $referencedNotes): ?AstNode
+    {
+        $id = $reference->getAttributeNS(self::NS_W, 'id');
+        if ($id === '') {
+            return null;
+        }
+
+        $attrs = [
+            'id' => $id,
+            'sourceType' => $sourceType,
+        ];
+        if ($reference->hasAttributeNS(self::NS_W, 'customMarkFollows')) {
+            $attrs['customMarkFollows'] = $this->wordBoolean($reference, 'customMarkFollows');
+        }
+
+        $key = $sourceType . ':' . $id;
+        if (isset($referencedNotes[$key])) {
+            $note = $referencedNotes[$key];
+
+            return new AstNode('note', array_replace($note->attrs, $attrs), $note->children);
+        }
+
+        return new AstNode('note', $attrs + ['missing' => true]);
     }
 
     /**
@@ -1083,8 +1274,16 @@ final class DocxOpenXmlReader
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, AstNode> $referencedNotes
      */
-    private function readTable(\DOMElement $table, \DOMXPath $xpath, array $relationships, array $contentTypes, array $styles): ?AstNode
+    private function readTable(
+        \DOMElement $table,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $referencedNotes
+    ): ?AstNode
     {
         $rows = [];
         foreach ($this->elements($xpath, 'w:tr', $table) as $row) {
@@ -1092,7 +1291,7 @@ final class DocxOpenXmlReader
             foreach ($this->elements($xpath, 'w:tc', $row) as $cell) {
                 $blocks = [];
                 foreach ($this->elements($xpath, 'w:p', $cell) as $paragraph) {
-                    $node = $this->readParagraph($paragraph, $xpath, $relationships, $contentTypes, $styles);
+                    $node = $this->readParagraph($paragraph, $xpath, $relationships, $contentTypes, $styles, $referencedNotes);
                     if ($node !== null) {
                         $blocks[] = $node;
                     }

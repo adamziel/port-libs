@@ -283,6 +283,88 @@ XML;
         $t->same('modern', $fontTable['byName']['Courier New']['family']);
         $t->same('fixed', $fontTable['byName']['Courier New']['pitch']);
     },
+    'ingests docx footnotes and endnotes from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>' . "\n" .
+            '  <Override PartName="/word/notes/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="notes/footnotes.xml?rev=1#footnotes"/>' . "\n" .
+            '  <Relationship Id="rEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="notes/endnotes.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:r><w:t xml:space="preserve"> draft</w:t></w:r>',
+            '<w:r><w:t xml:space="preserve"> draft</w:t></w:r><w:r><w:t xml:space="preserve"> footnote</w:t></w:r><w:r><w:footnoteReference w:id="7"/></w:r><w:r><w:t xml:space="preserve"> endnote</w:t></w:r><w:r><w:endnoteReference w:id="9" w:customMarkFollows="1"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/notes/footnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="7">
+    <w:p><w:r><w:t xml:space="preserve">Footnote audit </w:t></w:r><w:hyperlink r:id="rFootnoteLink"><w:r><w:t>source</w:t></w:r></w:hyperlink></w:p>
+  </w:footnote>
+</w:footnotes>
+XML;
+        $parts['word/notes/_rels/footnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rFootnoteLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/notes/endnotes.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="9"><w:p><w:r><w:t>Endnote review source.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $paragraph = $document->children[1];
+        $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
+        $footnote = $notes[0];
+        $endnote = $notes[1];
+        $footnoteParagraph = $footnote->children[0];
+        $footnoteLink = $footnoteParagraph->children[1];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('word/notes/footnotes.xml', $docx['footnotesPart']);
+        $t->same(1, $docx['footnotes']['count']);
+        $t->same(['id' => '7', 'sourceType' => 'footnote', 'part' => 'word/notes/footnotes.xml', 'blockCount' => 1, 'text' => 'Footnote audit source'], $docx['footnotes']['items'][0]);
+        $t->same('rFootnotes', $docx['footnotesRelationship']['id']);
+        $t->same('notes/footnotes.xml?rev=1#footnotes', $docx['footnotesRelationship']['target']);
+        $t->same('word/notes/footnotes.xml?rev=1#footnotes', $docx['footnotesRelationship']['resolvedTarget']);
+        $t->same('word/notes/footnotes.xml', $docx['footnotesRelationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $docx['footnotesRelationship']['contentType']);
+        $t->same('word/notes/endnotes.xml', $docx['endnotesPart']);
+        $t->same(1, $docx['endnotes']['count']);
+        $t->same('rEndnotes', $docx['endnotesRelationship']['id']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml', $docx['endnotesRelationship']['contentType']);
+        $t->same(2, count($notes));
+        $t->same('7', $footnote->attr('id'));
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same('word/notes/footnotes.xml', $footnote->attr('part'));
+        $t->same('Footnote audit source', $footnoteParagraph->attr('text'));
+        $t->same('link', $footnoteLink->type);
+        $t->same('https://example.test/footnote', $footnoteLink->attr('url'));
+        $t->same('9', $endnote->attr('id'));
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same(true, $endnote->attr('customMarkFollows'));
+        $t->same('Endnote review source.', $endnote->children[0]->attr('text'));
+        $t->contains('[^1]', $markdown);
+        $t->contains('[source](https://example.test/footnote)', $markdown);
+        $t->contains('<section class="footnotes" role="doc-endnotes">', $blocks);
+        $t->contains('<a href="https://example.test/footnote">source</a>', $blocks);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
