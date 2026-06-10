@@ -166,6 +166,7 @@ final class PdfEngineHandoff
             ? $this->normalizeRelativePath($this->requireString($options['sourcePath'], 'PDF source path'), 'PDF source path')
             : $this->deriveSourcePath($outputFile, $profile['extension']);
         $engineOptions = $this->normalizeStringList($options['engineOptions'] ?? []);
+        $typstOutputFormatPolicy = $this->typstOutputFormatPolicyFor($engine, $outputFile, $engineOptions);
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
             : $this->renderIntermediateSource($document, $profile['intermediate']);
@@ -231,6 +232,15 @@ final class PdfEngineHandoff
         if ($variables !== []) {
             $diagnostics[] = 'pdf-template-variables:' . count($this->flattenVariableArguments($variables));
         }
+        if ($typstOutputFormatPolicy !== []) {
+            $diagnostics[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
+            if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
+                $diagnostics[] = 'typst-output-format-explicit:' . $typstOutputFormatPolicy['explicitFormat'];
+            }
+            if ($typstOutputFormatPolicy['issues'] !== []) {
+                $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
+            }
+        }
         if ($engineLogFile !== null) {
             $diagnostics[] = 'pdf-engine-log:' . $engineLogFile;
         }
@@ -280,6 +290,7 @@ final class PdfEngineHandoff
             'outputFile' => $outputFile,
             'argv' => $this->argvFor($engineProgram, $engine, $profile, $sourceFile, $outputFile, $engineOptions),
             'engineOptions' => $engineOptions,
+            'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'sourceBytes' => $sourceBytes,
             'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
             'templateFile' => $templateFile,
@@ -506,6 +517,9 @@ final class PdfEngineHandoff
         $engineProgram = isset($plan['engineProgram']) && is_string($plan['engineProgram']) && $plan['engineProgram'] !== ''
             ? $plan['engineProgram']
             : $engine;
+        $typstOutputFormatPolicy = is_array($plan['typstOutputFormatPolicy'] ?? null)
+            ? $plan['typstOutputFormatPolicy']
+            : $this->typstOutputFormatPolicyFor($engine, $outputFile, $this->normalizeStringList($plan['engineOptions'] ?? []));
         $exitCode = (int) ($result['exitCode'] ?? 0);
         $files = $this->normalizeFileMap($result['files'] ?? []);
         $planDiagnostics = $plan['diagnostics'] ?? [];
@@ -4020,6 +4034,9 @@ final class PdfEngineHandoff
         if (($typstBoundaryProvenance['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-boundary-provenance:' . $typstBoundaryProvenance['reviewStatus'];
         }
+        if (($typstOutputFormatPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
+        }
         if (!is_string($pdfBytes)) {
             $artifactProvenanceIssues[] = 'pdf-output-missing';
         }
@@ -4056,6 +4073,7 @@ final class PdfEngineHandoff
             'rerunNeeded' => $engineMessages['rerunNeeded'] || $bibliographyMessages['needed'],
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
+            'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'issues' => $artifactProvenanceIssues,
@@ -4086,6 +4104,7 @@ final class PdfEngineHandoff
             'engineOutputFiles' => $engineOutputFileList,
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
+            'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
             'engineTranscriptExternalInputFiles' => $engineTranscriptExternalInputFileList,
             'missingEngineInputFiles' => $missingEngineInputFiles,
@@ -4727,6 +4746,7 @@ final class PdfEngineHandoff
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
+            'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
             'finalEngineTranscriptExternalInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptExternalInputFiles'] ?? null) ? $finalRun['engineTranscriptExternalInputFiles'] : [],
             'finalBibliographyArtifactsSha256' => is_array($finalRun) && is_array($finalRun['bibliographyArtifactsSha256'] ?? null) ? $finalRun['bibliographyArtifactsSha256'] : [],
@@ -5242,6 +5262,81 @@ final class PdfEngineHandoff
         $lastSlash = strrpos($path, '/');
 
         return $lastSlash === false ? $path : substr($path, $lastSlash + 1);
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, issues:list<string>}|array{}
+     */
+    private function typstOutputFormatPolicyFor(string $engine, string $outputFile, array $engineOptions): array
+    {
+        if ($engine !== 'typst') {
+            return [];
+        }
+
+        $issues = [];
+        $formatOptions = [];
+        foreach ($this->typstOutputFormatOptionValues($engineOptions) as $value) {
+            $format = strtolower(trim($value));
+            if ($format === '') {
+                $issues[] = 'missing-format-value';
+                continue;
+            }
+
+            $formatOptions[] = $format;
+        }
+
+        $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
+        if ($inferredOutputFormat === '') {
+            $inferredOutputFormat = 'unknown';
+        }
+
+        if ($inferredOutputFormat !== 'pdf') {
+            $issues[] = 'output-extension-not-pdf:' . $inferredOutputFormat;
+        }
+
+        $explicitFormat = $formatOptions === [] ? null : $formatOptions[count($formatOptions) - 1];
+        $distinctFormats = array_values(array_unique($formatOptions));
+        if (count($distinctFormats) > 1) {
+            $issues[] = 'conflicting-format-options:' . count($distinctFormats);
+        }
+        if ($explicitFormat !== null && $explicitFormat !== 'pdf') {
+            $issues[] = 'explicit-format-not-pdf:' . $explicitFormat;
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'declaredOutputFile' => $outputFile,
+            'inferredOutputFormat' => $inferredOutputFormat,
+            'explicitFormat' => $explicitFormat,
+            'formatOptions' => $formatOptions,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return list<string>
+     */
+    private function typstOutputFormatOptionValues(array $engineOptions): array
+    {
+        $values = [];
+        $count = count($engineOptions);
+        foreach ($engineOptions as $index => $option) {
+            $option = trim($option);
+            if ($option === '--format') {
+                $next = $engineOptions[$index + 1] ?? '';
+                $values[] = is_string($next) && $next !== '' && !str_starts_with($next, '-')
+                    ? $next
+                    : '';
+                continue;
+            }
+            if (str_starts_with($option, '--format=')) {
+                $values[] = substr($option, strlen('--format='));
+            }
+        }
+
+        return $values;
     }
 
     /**

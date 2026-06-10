@@ -406,6 +406,56 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstDependencyOutputPolicy']);
     },
 
+    'fake runner reviews typst output format boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $okPlan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/format-ok.pdf',
+            'source' => '= Typst Format OK Packet',
+            'engineOptions' => ['--format', 'pdf'],
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/format-boundary.pdf',
+            'source' => '= Typst Format Boundary Packet',
+            'engineOptions' => ['--format=svg'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst format boundary packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/format-boundary.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'svg',
+            'formatOptions' => ['svg'],
+            'issues' => ['explicit-format-not-pdf:svg'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/format-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same('ok', $okPlan['typstOutputFormatPolicy']['reviewStatus']);
+        $t->same([], $okPlan['typstOutputFormatPolicy']['issues']);
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-explicit:svg', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+    },
+
     'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
