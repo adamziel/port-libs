@@ -179,6 +179,68 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithSpineRefinements = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/">',
+            $epub3OpfXml
+        );
+        $opfWithSpineRefinements = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#chapter1-spine" property="rendition:viewport" xml:lang="en" dir="ltr">width=600,height=900</meta>
+    <meta id="chapter1-spine-position" refines="#chapter1-spine" property="schema:position" content="primary reading-order entry"/>',
+            $opfWithSpineRefinements
+        );
+        $opfWithSpineRefinements = str_replace(
+            '<spine>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2" linear="no" properties="page-spread-right"/>
+  </spine>',
+            '<spine>
+    <itemref id="chapter1-spine" idref="chapter1" linear="yes" properties="rendition:orientation-landscape"/>
+    <itemref id="chapter2-spine" idref="chapter2" linear="no" properties="page-spread-right"/>
+  </spine>',
+            $opfWithSpineRefinements
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSpineRefinements],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $spine = $epub->spine();
+        $summary = $epub->summary();
+
+        $t->same('chapter1-spine', $spine[0]['id']);
+        $t->same('chapter1', $spine[0]['idref']);
+        $t->same('yes', $spine[0]['linearRaw']);
+        $t->same(true, $spine[0]['linear']);
+        $t->same(['rendition:orientation-landscape'], $spine[0]['properties']);
+        $t->same('width=600,height=900', $spine[0]['refinements']['rendition:viewport'][0]['content']);
+        $t->same('#chapter1-spine', $spine[0]['refinements']['rendition:viewport'][0]['refines']);
+        $t->same('chapter1-spine', $spine[0]['refinements']['rendition:viewport'][0]['subjectId']);
+        $t->same('en', $spine[0]['refinements']['rendition:viewport'][0]['language']);
+        $t->same('ltr', $spine[0]['refinements']['rendition:viewport'][0]['direction']);
+        $t->same('chapter1-spine-position', $spine[0]['refinements']['schema:position'][0]['id']);
+        $t->same('primary reading-order entry', $spine[0]['refinements']['schema:position'][0]['content']);
+        $t->same('width=600,height=900', $spine[0]['renditionViewportRefinements'][0]['content']);
+        $t->same('chapter1-spine', $spine[0]['renditionViewportRefinements'][0]['subjectId']);
+        $t->same('chapter2-spine', $spine[1]['id']);
+        $t->same('no', $spine[1]['linearRaw']);
+        $t->same(false, $spine[1]['linear']);
+        $t->same([], $spine[1]['refinements']);
+        $t->same($spine, $epub->readingOrder());
+        $t->same($spine[0]['refinements'], $summary['metadata']['refinementsById']['chapter1-spine']);
+        $t->same('chapter1-spine', $summary['readingOrder'][0]['id']);
+        $t->same($spine[0]['refinements'], $summary['readingOrder'][0]['refinements']);
+    },
+
     'summarizes OPF media-type bindings for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Slideshow fallback</h1></body></html>';
         $opfWithBindings = str_replace(

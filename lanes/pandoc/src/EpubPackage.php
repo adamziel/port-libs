@@ -65,9 +65,9 @@ final class EpubPackage
      * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $packageLinks
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
-     * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestItems
-     * @param list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}> $spine
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
+     * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
+     * @param list<array<string, mixed>> $spine
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
@@ -188,7 +188,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}>
+     * @return list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
      */
     public function manifestItems(): array
     {
@@ -196,7 +196,7 @@ final class EpubPackage
     }
 
     /**
-     * @return array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}|null
+     * @return array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}|null
      */
     public function manifestItem(string $id): ?array
     {
@@ -204,7 +204,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
+     * @return list<array<string, mixed>>
      */
     public function spine(): array
     {
@@ -212,7 +212,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
+     * @return list<array<string, mixed>>
      */
     public function readingOrder(): array
     {
@@ -1389,9 +1389,9 @@ final class EpubPackage
      * @return array{
      *     metadata:array<string, mixed>,
      *     packageLinks:list<array<string, mixed>>,
-     *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
-     *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string}>,
-     *     spine:list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>}>,
+     *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     spine:list<array<string, mixed>>,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
@@ -1434,7 +1434,8 @@ final class EpubPackage
         $metadata['linkRelCounts'] = $packageLinkReport['relCounts'];
         $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
         $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($packageLinks);
-        $spine = self::parseSpine($spineElement, $manifestById);
+        $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $spine = self::parseSpine($spineElement, $manifestById, $refinementsById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
@@ -2826,11 +2827,12 @@ final class EpubPackage
     }
 
     /**
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, mediaOverlay:?string}> $manifestById
+     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
+     * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
      *
-     * @return list<array{idref:string, href:string, partName:string, mediaType:string, linear:bool, properties:list<string>, mediaOverlay:?string}>
+     * @return list<array<string, mixed>>
      */
-    private static function parseSpine(\DOMElement $spineElement, array $manifestById): array
+    private static function parseSpine(\DOMElement $spineElement, array $manifestById, array $refinementsById): array
     {
         $spine = [];
         foreach (self::childElements($spineElement, 'itemref', self::OPF_NAMESPACE) as $itemrefElement) {
@@ -2844,14 +2846,28 @@ final class EpubPackage
                 throw new \RuntimeException("EPUB spine references missing manifest item: {$idref}");
             }
 
+            $id = $itemrefElement->hasAttribute('id')
+                ? self::emptyToNull($itemrefElement->getAttribute('id'))
+                : null;
+            $linearRaw = $itemrefElement->hasAttribute('linear')
+                ? self::emptyToNull($itemrefElement->getAttribute('linear'))
+                : null;
+            $refinements = $id !== null && isset($refinementsById[$id]) && is_array($refinementsById[$id])
+                ? $refinementsById[$id]
+                : [];
+
             $spine[] = [
+                'id' => $id,
                 'idref' => $idref,
                 'href' => $item['href'],
                 'partName' => $item['partName'],
                 'mediaType' => $item['mediaType'],
-                'linear' => strtolower($itemrefElement->getAttribute('linear')) !== 'no',
+                'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
+                'linearRaw' => $linearRaw,
                 'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
                 'mediaOverlay' => $item['mediaOverlay'] ?? null,
+                'refinements' => $refinements,
+                'renditionViewportRefinements' => self::metadataRefinementEntries($refinements, 'rendition:viewport'),
             ];
         }
 
