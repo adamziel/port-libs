@@ -356,6 +356,7 @@ final class PdfEngineHandoff
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     pdfPageViewportPolicy: array<string, mixed>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
      *     pdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
@@ -858,6 +859,7 @@ final class PdfEngineHandoff
         $pdfPageActions = [];
         $pdfPageActionPolicy = [];
         $pdfPageViewports = [];
+        $pdfPageViewportPolicy = [];
         $pdfPageContentStreams = [];
         $pdfPageContentResourceUsage = [];
         $pdfPageResourceSources = [];
@@ -997,6 +999,7 @@ final class PdfEngineHandoff
                 $pdfPageActions = $pdfInspection['pageActions'];
                 $pdfPageActionPolicy = $pdfInspection['pageActionPolicy'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
+                $pdfPageViewportPolicy = $pdfInspection['pageViewportPolicy'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
                 $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
                 $pdfPageResourceSources = $pdfInspection['pageResourceSources'];
@@ -1396,6 +1399,42 @@ final class PdfEngineHandoff
                     }
                     if ($viewportUnitFormatCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-viewport-unit-formats:' . $viewportUnitFormatCount;
+                    }
+                }
+                if ($pdfPageViewportPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-viewport-policy:' . ($pdfPageViewportPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'viewportCount' => 'viewports',
+                        'measuredViewportCount' => 'measured',
+                        'unmeasuredViewportCount' => 'unmeasured',
+                        'missingBBoxCount' => 'missing-bbox',
+                        'missingMeasureCount' => 'missing-measure',
+                        'missingScaleRatioCount' => 'missing-ratio',
+                        'missingUnitFormatCount' => 'missing-units',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageViewportPolicy[$policyKey]) && is_int($pdfPageViewportPolicy[$policyKey]) && $pdfPageViewportPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-viewport-policy-' . $diagnosticName . ':' . $pdfPageViewportPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageViewportPolicy['measureSubtypes']) && is_array($pdfPageViewportPolicy['measureSubtypes'])) {
+                        foreach ($pdfPageViewportPolicy['measureSubtypes'] as $subtype => $count) {
+                            if (is_string($subtype) && is_int($count) && $count > 0) {
+                                $diagnostics[] = 'pdf-byte-page-viewport-policy-measure-subtype:' . $subtype . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfPageViewportPolicy['issues']) && is_array($pdfPageViewportPolicy['issues']) && $pdfPageViewportPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-viewport-policy-issues:' . count($pdfPageViewportPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfPageViewportPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-page-viewport-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfPageContentStreams !== []) {
@@ -4069,6 +4108,7 @@ final class PdfEngineHandoff
             'pdfPageActions' => $pdfPageActions,
             'pdfPageActionPolicy' => $pdfPageActionPolicy,
             'pdfPageViewports' => $pdfPageViewports,
+            'pdfPageViewportPolicy' => $pdfPageViewportPolicy,
             'pdfPageContentStreams' => $pdfPageContentStreams,
             'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
             'pdfPageResourceSources' => $pdfPageResourceSources,
@@ -4220,6 +4260,7 @@ final class PdfEngineHandoff
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     finalPdfPageViewportPolicy: array<string, mixed>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
      *     finalPdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
@@ -4526,6 +4567,7 @@ final class PdfEngineHandoff
             'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
             'finalPdfPageActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageActionPolicy'] ?? null) ? $finalRun['pdfPageActionPolicy'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
+            'finalPdfPageViewportPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageViewportPolicy'] ?? null) ? $finalRun['pdfPageViewportPolicy'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
             'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
             'finalPdfPageResourceSources' => is_array($finalRun) && is_array($finalRun['pdfPageResourceSources'] ?? null) ? $finalRun['pdfPageResourceSources'] : [],
@@ -6120,6 +6162,7 @@ final class PdfEngineHandoff
      *     pageActions:list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pageActionPolicy:array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, issues:list<string>}|array{},
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     pageViewportPolicy:array<string, mixed>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
      *     pageResourceSources:list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}>,
@@ -6328,6 +6371,7 @@ final class PdfEngineHandoff
             'pageActions' => $pageActions,
             'pageActionPolicy' => $this->summarizePdfPageActionPolicy($pageActions, $this->extractPdfPageCount($pdfBytes)),
             'pageViewports' => $pageViewports,
+            'pageViewportPolicy' => $this->summarizePdfPageViewportPolicy($pageViewports, $this->extractPdfPageCount($pdfBytes)),
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
             'pageResourceSources' => $pageResourceSources,
@@ -19976,6 +20020,122 @@ final class PdfEngineHandoff
             'scriptActionCount' => $scriptActionCount,
             'remoteTargetCount' => $remoteTargetCount,
             'launchActionCount' => $launchActionCount,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}> $viewports
+     * @return array<string, mixed>
+     */
+    private function summarizePdfPageViewportPolicy(array $viewports, ?int $pageCount): array
+    {
+        if ($viewports === []) {
+            return [];
+        }
+
+        $pages = [];
+        $measuredPages = [];
+        $measureSubtypes = [];
+        $unitFormatCounts = [
+            'x' => 0,
+            'y' => 0,
+            'distance' => 0,
+            'area' => 0,
+            'angle' => 0,
+        ];
+        $measuredViewportCount = 0;
+        $unmeasuredViewportCount = 0;
+        $missingBBoxCount = 0;
+        $missingMeasureCount = 0;
+        $missingScaleRatioCount = 0;
+        $missingUnitFormatCount = 0;
+        $issues = [];
+
+        foreach ($viewports as $viewport) {
+            $page = is_int($viewport['page'] ?? null) ? $viewport['page'] : null;
+            if ($page !== null) {
+                $pages[$page] = true;
+            }
+
+            $bbox = $viewport['bbox'] ?? null;
+            $hasBBox = is_array($bbox) && count($bbox) === 4;
+            if (!$hasBBox) {
+                $missingBBoxCount++;
+            }
+
+            $unitFormatTotal = 0;
+            foreach ([
+                'xUnits' => 'x',
+                'yUnits' => 'y',
+                'distanceUnits' => 'distance',
+                'areaUnits' => 'area',
+                'angleUnits' => 'angle',
+            ] as $viewportKey => $policyKey) {
+                $formats = $viewport[$viewportKey] ?? [];
+                $count = is_array($formats) ? count($formats) : 0;
+                $unitFormatCounts[$policyKey] += $count;
+                $unitFormatTotal += $count;
+            }
+
+            $measureSubtype = $viewport['measureSubtype'] ?? null;
+            $scaleRatio = $viewport['scaleRatio'] ?? null;
+            $hasMeasure = (is_string($measureSubtype) && $measureSubtype !== '')
+                || (is_string($scaleRatio) && $scaleRatio !== '')
+                || $unitFormatTotal > 0;
+            if (!$hasMeasure) {
+                $unmeasuredViewportCount++;
+                $missingMeasureCount++;
+                $issues[] = 'viewport-without-measure';
+                if (!$hasBBox) {
+                    $issues[] = 'viewport-missing-bbox';
+                }
+                continue;
+            }
+
+            $measuredViewportCount++;
+            $issues[] = 'measurement-overlay';
+            if ($page !== null) {
+                $measuredPages[$page] = true;
+            }
+            if (is_string($measureSubtype) && $measureSubtype !== '') {
+                $measureSubtypes[$measureSubtype] = ($measureSubtypes[$measureSubtype] ?? 0) + 1;
+            }
+            if (!$hasBBox) {
+                $issues[] = 'viewport-measure-missing-bbox';
+            }
+            if (!is_string($scaleRatio) || $scaleRatio === '') {
+                $missingScaleRatioCount++;
+                $issues[] = 'viewport-measure-missing-ratio';
+            }
+            if ($unitFormatTotal === 0) {
+                $missingUnitFormatCount++;
+                $issues[] = 'viewport-measure-missing-units';
+            }
+        }
+
+        ksort($measureSubtypes);
+        $pageList = array_keys($pages);
+        $measuredPageList = array_keys($measuredPages);
+        sort($pageList);
+        sort($measuredPageList);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount ?? 0,
+            'viewportCount' => count($viewports),
+            'measuredViewportCount' => $measuredViewportCount,
+            'unmeasuredViewportCount' => $unmeasuredViewportCount,
+            'pagesWithViewports' => $pageList,
+            'measuredPages' => $measuredPageList,
+            'missingBBoxCount' => $missingBBoxCount,
+            'missingMeasureCount' => $missingMeasureCount,
+            'missingScaleRatioCount' => $missingScaleRatioCount,
+            'missingUnitFormatCount' => $missingUnitFormatCount,
+            'measureSubtypes' => $measureSubtypes,
+            'unitFormatCounts' => $unitFormatCounts,
             'issues' => $issues,
         ];
     }

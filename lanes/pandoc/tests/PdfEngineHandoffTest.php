@@ -1980,6 +1980,92 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageViewports'] ?? null);
     },
 
+    'fake runner summarizes bounded pdf page viewport review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/viewport-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /VP [8 0 R 9 0 R 10 0 R] >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /Viewport /Name (Reviewer scale) /BBox [0 0 300 300] /Measure << /Type /Measure /Subtype /RL /R (1 in = 4 ft) /X [<< /Type /NumberFormat /U (in) /C 1 >>] /D [<< /U (ft) /C 4 >>] >> >>',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /Viewport /Name (Unboxed measure) /Measure << /Type /Measure /Subtype /RL >> >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /Viewport /Name (Crop only) /BBox [36 36 144 144] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewport-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewport-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 1,
+            'viewportCount' => 3,
+            'measuredViewportCount' => 2,
+            'unmeasuredViewportCount' => 1,
+            'pagesWithViewports' => [1],
+            'measuredPages' => [1],
+            'missingBBoxCount' => 1,
+            'missingMeasureCount' => 1,
+            'missingScaleRatioCount' => 1,
+            'missingUnitFormatCount' => 1,
+            'measureSubtypes' => ['RL' => 2],
+            'unitFormatCounts' => [
+                'x' => 1,
+                'y' => 0,
+                'distance' => 1,
+                'area' => 0,
+                'angle' => 0,
+            ],
+            'issues' => [
+                'measurement-overlay',
+                'viewport-measure-missing-bbox',
+                'viewport-measure-missing-ratio',
+                'viewport-measure-missing-units',
+                'viewport-without-measure',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['pdfPageViewportPolicy'] ?? null);
+        $t->contains('pdf-byte-page-viewport-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-viewports:3', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-measured:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-unmeasured:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-missing-bbox:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-missing-ratio:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-missing-units:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-measure-subtype:RL:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issue:viewport-measure-missing-units:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageViewportPolicy'] ?? null);
+    },
+
     'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/fonts.pdf']);
