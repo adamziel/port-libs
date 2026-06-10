@@ -264,6 +264,10 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
             }
+            if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
+                $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
+                $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
+            }
             if (($typstBoundaryProvenance['issues'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-issues:' . count($typstBoundaryProvenance['issues']);
             }
@@ -5394,7 +5398,8 @@ final class PdfEngineHandoff
         $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path']);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path']);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache']);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === []) {
+        $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp']);
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $creationTimestampValue === null) {
             return [];
         }
 
@@ -5406,8 +5411,9 @@ final class PdfEngineHandoff
         );
         $packagePath = $packagePathValues === [] ? null : $this->typstBoundaryPathEntry($packagePathValues[count($packagePathValues) - 1], 'package-path');
         $packageCache = $packageCacheValues === [] ? null : $this->typstBoundaryPathEntry($packageCacheValues[count($packageCacheValues) - 1], 'package-cache');
+        $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache], $fontPaths)) as $entry) {
+        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5417,7 +5423,7 @@ final class PdfEngineHandoff
         }
         $issues = array_values(array_unique($issues));
 
-        return [
+        $provenance = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
             'root' => $root,
             'fontPaths' => $fontPaths,
@@ -5425,6 +5431,11 @@ final class PdfEngineHandoff
             'packageCache' => $packageCache,
             'issues' => $issues,
         ];
+        if ($creationTimestamp !== null) {
+            $provenance['creationTimestamp'] = $creationTimestamp;
+        }
+
+        return $provenance;
     }
 
     /**
@@ -5481,6 +5492,59 @@ final class PdfEngineHandoff
                 'issues' => [$kind . '-invalid-boundary'],
             ];
         }
+    }
+
+    /**
+     * @return array{raw:string, value:string, kind:string, timestamp:int|null, iso8601:string|null, deterministic:bool, safe:bool, issues:list<string>}
+     */
+    private function typstCreationTimestampEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $issues = [];
+        $timestamp = null;
+        $iso8601 = null;
+
+        if ($value === '') {
+            $issues[] = 'creation-timestamp-empty-boundary';
+        } elseif (preg_match('/\A[0-9]+\z/', $value) !== 1) {
+            $issues[] = 'creation-timestamp-invalid-boundary';
+        } elseif (!$this->decimalStringLessThanOrEqual($value, '253402300799')) {
+            $issues[] = 'creation-timestamp-out-of-range-boundary';
+        } else {
+            $timestamp = (int) $value;
+            $iso8601 = gmdate('Y-m-d\TH:i:s\Z', $timestamp);
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'kind' => $issues === [] ? 'unix-seconds' : 'invalid',
+            'timestamp' => $timestamp,
+            'iso8601' => $iso8601,
+            'deterministic' => $issues === [],
+            'safe' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    private function decimalStringLessThanOrEqual(string $value, string $maximum): bool
+    {
+        $value = ltrim($value, '0');
+        $maximum = ltrim($maximum, '0');
+        if ($value === '') {
+            $value = '0';
+        }
+        if ($maximum === '') {
+            $maximum = '0';
+        }
+
+        $valueLength = strlen($value);
+        $maximumLength = strlen($maximum);
+        if ($valueLength !== $maximumLength) {
+            return $valueLength < $maximumLength;
+        }
+
+        return strcmp($value, $maximum) <= 0;
     }
 
     private function safeEngineJobName(?string $value): ?string

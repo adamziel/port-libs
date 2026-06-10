@@ -152,6 +152,95 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst creation timestamp boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $timestamp = '1700000000';
+        $pdfBytes = "%PDF-1.7\n% fake Typst creation timestamp boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'issues' => [],
+            'creationTimestamp' => [
+                'raw' => $timestamp,
+                'value' => $timestamp,
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000000,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000000),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+        ];
+
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/timestamp.pdf',
+            'source' => '= Typst Timestamp Boundary Packet',
+            'engineOptions' => ['--creation-timestamp=' . $timestamp],
+        ]);
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/timestamp.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/timestamp.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:1700000000', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+
+        $invalid = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/invalid-timestamp.pdf',
+            'source' => '= Typst Timestamp Boundary Packet',
+            'engineOptions' => ['--creation-timestamp', 'not-a-unix-time'],
+        ]);
+        $invalidExpected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'issues' => ['creation-timestamp-invalid-boundary'],
+            'creationTimestamp' => [
+                'raw' => 'not-a-unix-time',
+                'value' => 'not-a-unix-time',
+                'kind' => 'invalid',
+                'timestamp' => null,
+                'iso8601' => null,
+                'deterministic' => false,
+                'safe' => false,
+                'issues' => ['creation-timestamp-invalid-boundary'],
+            ],
+        ];
+        $invalidResult = $handoff->fakeRun($invalid, [
+            'files' => [
+                'build/invalid-timestamp.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same($invalidExpected, $invalid['typstBoundaryProvenance']);
+        $t->contains('typst-creation-timestamp:invalid', implode(',', $invalid['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $invalid['diagnostics']));
+        $t->same($invalidExpected, $invalidResult['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $invalidResult['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
+    },
+
     'fake runner preserves typst dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Review Packet\n\n#image(\"figures/logo.svg\")\n";
