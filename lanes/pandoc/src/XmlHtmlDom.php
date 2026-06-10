@@ -741,6 +741,10 @@ final class XmlHtmlDom
             'text' => self::normalizedText($node),
             'children' => $children,
         ];
+        $accessibility = self::htmlAccessibilitySummary($node);
+        if ($accessibility !== []) {
+            $summary['accessibility'] = $accessibility;
+        }
 
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
@@ -854,6 +858,247 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlAccessibilitySummary(\DOMElement $element): array
+    {
+        $summary = [];
+
+        $roles = self::htmlAriaTokenList($element->getAttribute('role'));
+        if ($roles !== []) {
+            $summary['roles'] = $roles;
+        }
+
+        $label = self::cleanHtmlAccessibilityText($element->getAttribute('aria-label'));
+        if ($label !== null) {
+            $summary['label'] = $label;
+        }
+
+        foreach ([
+            'aria-activedescendant' => 'activeDescendant',
+            'aria-controls' => 'controls',
+            'aria-describedby' => 'describedBy',
+            'aria-details' => 'details',
+            'aria-errormessage' => 'errorMessage',
+            'aria-flowto' => 'flowTo',
+            'aria-labelledby' => 'labelledBy',
+            'aria-owns' => 'owns',
+        ] as $attribute => $key) {
+            $references = self::htmlAriaIdrefSummary($element, $attribute);
+            if ($references !== []) {
+                $summary[$key] = $references;
+            }
+        }
+
+        $states = self::htmlAriaStateSummary($element);
+        if ($states !== []) {
+            $summary['states'] = $states;
+        }
+
+        $properties = self::htmlAriaPropertySummary($element);
+        if ($properties !== []) {
+            $summary['properties'] = $properties;
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlAriaTokenList(string $value): array
+    {
+        $tokens = preg_split('/[ \t\r\n\f]+/', strtolower(trim($value))) ?: [];
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if ($token === '' || preg_match('/^[a-z][a-z0-9_-]*$/', $token) !== 1) {
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private static function cleanHtmlAccessibilityText(string $value): ?string
+    {
+        $cleaned = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', str_replace("\0", '', $value)) ?? $value);
+        if ($cleaned === '' || strlen($cleaned) > 512 || preg_match('/[<>{}`]/u', $cleaned) === 1) {
+            return null;
+        }
+
+        return $cleaned;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlAriaIdrefSummary(\DOMElement $element, string $attribute): array
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return [];
+        }
+
+        $references = [];
+        foreach (self::htmlAriaIdrefTokenList($element->getAttribute($attribute)) as $id) {
+            $target = self::htmlElementById($element, $id);
+            if ($target instanceof \DOMElement) {
+                $references[] = [
+                    'id' => $id,
+                    'target' => self::htmlElementName($target),
+                    'text' => self::normalizedText($target),
+                ];
+                continue;
+            }
+
+            $references[] = [
+                'id' => $id,
+                'missing' => true,
+            ];
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlAriaIdrefTokenList(string $value): array
+    {
+        $tokens = preg_split('/[ \t\r\n\f]+/', trim($value)) ?: [];
+        $normalized = [];
+        foreach ($tokens as $token) {
+            if ($token === '' || preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $token) !== 1) {
+                continue;
+            }
+            if (!in_array($token, $normalized, true)) {
+                $normalized[] = $token;
+            }
+        }
+
+        return $normalized;
+    }
+
+    private static function htmlElementById(\DOMElement $element, string $id): ?\DOMElement
+    {
+        $document = $element->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if ($candidate instanceof \DOMElement && $candidate->getAttribute('id') === $id) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function htmlAriaStateSummary(\DOMElement $element): array
+    {
+        $states = [];
+        foreach ([
+            'aria-autocomplete' => ['key' => 'autocomplete', 'allowed' => ['inline', 'list', 'both', 'none']],
+            'aria-busy' => ['key' => 'busy', 'allowed' => ['true', 'false']],
+            'aria-checked' => ['key' => 'checked', 'allowed' => ['true', 'false', 'mixed']],
+            'aria-current' => ['key' => 'current', 'allowed' => ['false', 'true', 'page', 'step', 'location', 'date', 'time']],
+            'aria-disabled' => ['key' => 'disabled', 'allowed' => ['true', 'false']],
+            'aria-expanded' => ['key' => 'expanded', 'allowed' => ['true', 'false']],
+            'aria-haspopup' => ['key' => 'hasPopup', 'allowed' => ['false', 'true', 'menu', 'listbox', 'tree', 'grid', 'dialog']],
+            'aria-hidden' => ['key' => 'hidden', 'allowed' => ['true', 'false']],
+            'aria-invalid' => ['key' => 'invalid', 'allowed' => ['false', 'true', 'grammar', 'spelling']],
+            'aria-live' => ['key' => 'live', 'allowed' => ['off', 'polite', 'assertive']],
+            'aria-modal' => ['key' => 'modal', 'allowed' => ['true', 'false']],
+            'aria-multiline' => ['key' => 'multiline', 'allowed' => ['true', 'false']],
+            'aria-multiselectable' => ['key' => 'multiselectable', 'allowed' => ['true', 'false']],
+            'aria-orientation' => ['key' => 'orientation', 'allowed' => ['horizontal', 'vertical']],
+            'aria-pressed' => ['key' => 'pressed', 'allowed' => ['true', 'false', 'mixed']],
+            'aria-readonly' => ['key' => 'readonly', 'allowed' => ['true', 'false']],
+            'aria-required' => ['key' => 'required', 'allowed' => ['true', 'false']],
+            'aria-selected' => ['key' => 'selected', 'allowed' => ['true', 'false']],
+            'aria-sort' => ['key' => 'sort', 'allowed' => ['none', 'ascending', 'descending', 'other']],
+        ] as $attribute => $config) {
+            if (!$element->hasAttribute($attribute)) {
+                continue;
+            }
+
+            $value = strtolower(trim($element->getAttribute($attribute)));
+            if (in_array($value, $config['allowed'], true)) {
+                $states[$config['key']] = $value;
+            }
+        }
+
+        return $states;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlAriaPropertySummary(\DOMElement $element): array
+    {
+        $properties = [];
+        foreach ([
+            'aria-colcount' => ['key' => 'colCount', 'min' => -1],
+            'aria-colindex' => ['key' => 'colIndex', 'min' => 1],
+            'aria-colspan' => ['key' => 'colSpan', 'min' => 1],
+            'aria-level' => ['key' => 'level', 'min' => 1],
+            'aria-posinset' => ['key' => 'posInSet', 'min' => 1],
+            'aria-rowcount' => ['key' => 'rowCount', 'min' => -1],
+            'aria-rowindex' => ['key' => 'rowIndex', 'min' => 1],
+            'aria-rowspan' => ['key' => 'rowSpan', 'min' => 1],
+            'aria-setsize' => ['key' => 'setSize', 'min' => -1],
+        ] as $attribute => $config) {
+            $integer = self::htmlAriaIntegerAttribute($element, $attribute, $config['min']);
+            if ($integer !== null) {
+                $properties[$config['key']] = $integer;
+            }
+        }
+
+        foreach ([
+            'aria-valuemin' => 'valueMin',
+            'aria-valuemax' => 'valueMax',
+            'aria-valuenow' => 'valueNow',
+        ] as $attribute => $key) {
+            $number = self::numericAttribute($element, $attribute, null);
+            if ($number !== null) {
+                $properties[$key] = $number;
+            }
+        }
+
+        $valueText = self::cleanHtmlAccessibilityText($element->getAttribute('aria-valuetext'));
+        if ($valueText !== null) {
+            $properties['valueText'] = $valueText;
+        }
+
+        return $properties;
+    }
+
+    private static function htmlAriaIntegerAttribute(\DOMElement $element, string $attribute, int $minimum): ?int
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return null;
+        }
+
+        $value = trim($element->getAttribute($attribute));
+        if (preg_match('/^-?[0-9]+$/', $value) !== 1) {
+            return null;
+        }
+
+        $integer = (int) $value;
+        if ($integer < $minimum || $integer === 0) {
+            return null;
+        }
+
+        return $integer;
     }
 
     /**

@@ -377,6 +377,51 @@ XML, 'package reader XML');
         $t->same(10.0, $clamped['max']);
         $t->same('<label for="upload-progress">Upload</label><progress id="upload-progress" max="4" value="3">75%</progress><progress id="pending">Pending</progress><label>Quality <meter high="0.9" id="quality" low="0.4" max="1" min="0" optimum="0.95" value="0.82">82%</meter></label><meter id="clamped" max="10" min="2" value="12">Too high</meter>', $html);
     },
+    'summarizes html aria role state and idref metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section role="region button" aria-label=" Import status " aria-describedby="statusNote missing-note" aria-expanded="true" aria-current="PAGE" aria-sort="descending" aria-level="2" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42.500" aria-valuetext="42 percent">'
+                . '<h2 id="statusNote">Ready &amp; imported</h2>'
+                . '<button aria-pressed="mixed" aria-controls="statusNote panel" aria-busy="false">Review</button>'
+                . '</section>',
+            'aria review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $section = $summary[0];
+        $button = $section['children'][1];
+
+        $t->same('section', $section['name']);
+        $t->same(['region', 'button'], $section['accessibility']['roles']);
+        $t->same('Import status', $section['accessibility']['label']);
+        $t->same([
+            ['id' => 'statusNote', 'target' => 'h2', 'text' => 'Ready & imported'],
+            ['id' => 'missing-note', 'missing' => true],
+        ], $section['accessibility']['describedBy']);
+        $t->same([
+            'current' => 'page',
+            'expanded' => 'true',
+            'sort' => 'descending',
+        ], $section['accessibility']['states']);
+        $t->same([
+            'level' => 2,
+            'valueMin' => 0.0,
+            'valueMax' => 100.0,
+            'valueNow' => 42.5,
+            'valueText' => '42 percent',
+        ], $section['accessibility']['properties']);
+        $t->same('button', $button['name']);
+        $t->same('button', $button['formControl']);
+        $t->same([
+            ['id' => 'statusNote', 'target' => 'h2', 'text' => 'Ready & imported'],
+            ['id' => 'panel', 'missing' => true],
+        ], $button['accessibility']['controls']);
+        $t->same([
+            'busy' => 'false',
+            'pressed' => 'mixed',
+        ], $button['accessibility']['states']);
+        $t->same('<section aria-current="PAGE" aria-describedby="statusNote missing-note" aria-expanded="true" aria-label=" Import status " aria-level="2" aria-sort="descending" aria-valuemax="100" aria-valuemin="0" aria-valuenow="42.500" aria-valuetext="42 percent" role="region button"><h2 id="statusNote">Ready &amp; imported</h2><button aria-busy="false" aria-controls="statusNote panel" aria-pressed="mixed">Review</button></section>', $html);
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
