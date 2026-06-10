@@ -8781,6 +8781,30 @@ XML;
         $t->same(8, count($result['document']->children));
         $t->same('Imported ODT Packet', $result['document']->children[0]->children[0]->attr('text'));
     },
+    'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
+            ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
+            ['name' => 'Configurations2/accelerator/current.xml', 'data' => '<accelerator/>', 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL'],
+            ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+        ]));
+        $manifestReport = $result['importReport']['manifest'];
+        $undeclaredByPart = [];
+        foreach ($manifestReport['undeclaredEntries'] as $entry) {
+            $undeclaredByPart[$entry['part']] = $entry;
+        }
+
+        $t->same(3, $manifestReport['undeclaredEntryCount']);
+        $t->same(['Pictures/orphan.png', 'Configurations2/accelerator/current.xml', 'Thumbnails/thumbnail.png'], array_keys($undeclaredByPart));
+        $t->same('odf-manifest-undeclared-package-entry', $undeclaredByPart['Pictures/orphan.png']['diagnostic']);
+        $t->same(9, $undeclaredByPart['Pictures/orphan.png']['byteLength']);
+        $t->same(sprintf('%08x', crc32('ORPHANPNG')), $undeclaredByPart['Pictures/orphan.png']['crc32']);
+        $t->same(0, $undeclaredByPart['Configurations2/accelerator/current.xml']['compressionMethod']);
+        $t->same(false, isset($undeclaredByPart['Configurations2/']));
+        $t->same(1, count($result['media']), 'undeclared ZIP payloads must stay out of declared media handoff');
+        $t->same('Pictures/hero.png', $result['media'][0]['part']);
+        $t->same(8, count($result['document']->children));
+    },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
             [
