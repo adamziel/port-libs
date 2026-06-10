@@ -509,6 +509,51 @@ return [
         $t->true(!array_key_exists('unMeta', $legacyTaggedPacket['meta']['review']['c']), 'Pre-tagged writer metadata should canonicalize legacy MetaMap wrappers');
         $t->same('writer-legacy-packet', $legacyTaggedPacket['meta']['review']['c']['queue']['c']);
     },
+    'reads legacy top-level pandoc json MetaMap unMeta wrappers as document metadata' => static function (TestRunner $t): void {
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 17, 0, 4],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'unMeta' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'legacy-top-level-filter'],
+                    'draft' => ['t' => 'MetaBool', 'c' => false],
+                    'review' => ['t' => 'MetaMap', 'c' => [
+                        'unMeta' => [
+                            'queue' => ['t' => 'MetaString', 'c' => 'wp-import'],
+                            'tags' => ['t' => 'MetaList', 'c' => [
+                                ['t' => 'MetaString', 'c' => 'json'],
+                                ['t' => 'MetaString', 'c' => 'legacy'],
+                            ]],
+                        ],
+                    ]],
+                ],
+            ]],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+            ],
+        ]);
+
+        $meta = $document->attr('meta');
+        $encoded = $writer->toArray($document);
+        $roundTripMeta = $reader->readPacket($encoded)->attr('meta');
+
+        $t->same('legacy-top-level-filter', $meta['source']);
+        $t->same(false, $meta['draft']);
+        $t->same('map', $meta['review']['type']);
+        $t->same('wp-import', $meta['review']['items']['queue']);
+        $t->same(['json', 'legacy'], $meta['review']['items']['tags']['items']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('MetaString', $encoded['meta']['source']['t']);
+        $t->same('MetaMap', $encoded['meta']['review']['t']);
+        $t->true(!array_key_exists('unMeta', $encoded['meta']), 'Top-level legacy MetaMap wrapper should re-emit canonical document metadata');
+        $t->same('legacy-top-level-filter', $roundTripMeta['source']);
+        $t->same('wp-import', $roundTripMeta['review']['items']['queue']);
+    },
     'writes shared ast documents as pandoc json filter exchange shape' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

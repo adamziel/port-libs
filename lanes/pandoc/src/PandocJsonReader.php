@@ -89,7 +89,7 @@ final class PandocJsonReader
                 throw new \InvalidArgumentException('Pandoc JSON meta constructor must be MetaMap');
             }
 
-            return $this->objectContent($content, 'MetaMap');
+            return $this->metaMapContent($content);
         }
 
         if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
