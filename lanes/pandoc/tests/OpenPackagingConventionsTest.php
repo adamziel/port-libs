@@ -8675,6 +8675,112 @@ XML;
         $t->same('thmx', $missingParts['/word/theme/theme1.thmx']['extension']);
         $t->same(['missing-content-type', 'missing-content-type-default'], $missingParts['/word/theme/theme1.thmx']['issues']);
     },
+    'summarizes OPC override content type usage for package preflight handoff' => static function (TestRunner $t): void {
+        $relationshipContentType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/_rels/document.xml.rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/media/review.bin" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Override PartName="/word/media/missing.png" ContentType="image/png"/>
+  <Override PartName="/word/_rels/missing-review.xml" ContentType="application/xml"/>
+  <Override PartName="/[Content_Types].xml" ContentType="application/xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="../Word/Styles.XML"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'Word/Styles.XML', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/media/review.bin', 'data' => 'not relationship xml'],
+        ]));
+
+        $summary = $graph->contentTypeOverrideUsageSummary();
+        $overrides = [];
+        foreach ($summary['overrides'] as $override) {
+            $overrides[$override['partName']] = $override;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(7, $summary['overrideCount']);
+        $t->same(5, $summary['usedOverrideCount']);
+        $t->same(4, $summary['exactMatchCount']);
+        $t->same(1, $summary['equivalentMatchCount']);
+        $t->same(2, $summary['missingPartCount']);
+        $t->same(4, $summary['invalidOverrideCount']);
+        $t->same(1, $summary['relationshipPartOverrideCount']);
+        $t->same(2, $summary['relationshipContentTypeOverrideCount']);
+        $t->same(1, $summary['nonRelationshipPartRelationshipContentTypeCount']);
+        $t->same(1, $summary['contentTypesItemOverrideCount']);
+        $t->same(1, $summary['reservedRelationshipDirectoryOverrideCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml' => 1,
+            $relationshipContentType => 2,
+            'application/xml' => 2,
+            'image/png' => 1,
+        ], $summary['contentTypeCounts']);
+        $t->same([
+            'content-types-override-target' => 1,
+            'override-target-missing-part' => 2,
+            'relationship-content-type-on-non-relationship-part' => 1,
+            'reserved-relationship-directory-override' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'content-types-override-target',
+            'override-target-missing-part',
+            'relationship-content-type-on-non-relationship-part',
+            'reserved-relationship-directory-override',
+        ], $summary['issues']);
+        $t->same([
+            '/[Content_Types].xml',
+            '/word/_rels/document.xml.rels',
+            '/word/document.xml',
+            '/word/media/review.bin',
+        ], $summary['exactMatchParts']);
+        $t->same(['/word/styles.xml'], $summary['equivalentMatchParts']);
+        $t->same(['/word/_rels/missing-review.xml', '/word/media/missing.png'], $summary['missingParts']);
+        $t->same([
+            '/[Content_Types].xml',
+            '/word/_rels/missing-review.xml',
+            '/word/media/missing.png',
+            '/word/media/review.bin',
+        ], $summary['invalidParts']);
+        $t->same(['/word/_rels/document.xml.rels'], $summary['relationshipPartOverrides']);
+        $t->same(['/word/_rels/document.xml.rels', '/word/media/review.bin'], $summary['relationshipContentTypeOverrideParts']);
+        $t->same(['/word/media/review.bin'], $summary['nonRelationshipPartRelationshipContentTypeParts']);
+        $t->same(['/[Content_Types].xml'], $summary['contentTypesItemOverrides']);
+        $t->same(['/word/_rels/missing-review.xml'], $summary['reservedRelationshipDirectoryOverrides']);
+
+        $t->same('equivalent', $overrides['/word/styles.xml']['matchKind']);
+        $t->same('/Word/Styles.XML', $overrides['/word/styles.xml']['packagePartName']);
+        $t->same(true, $overrides['/word/styles.xml']['valid']);
+        $t->same('exact', $overrides['/word/_rels/document.xml.rels']['matchKind']);
+        $t->same(true, $overrides['/word/_rels/document.xml.rels']['relationshipPart']);
+        $t->same('/word/document.xml', $overrides['/word/_rels/document.xml.rels']['relationshipSource']);
+        $t->same(true, $overrides['/word/_rels/document.xml.rels']['relationshipSourceLoaded']);
+        $t->same(true, $overrides['/word/_rels/document.xml.rels']['sourceExists']);
+        $t->same('missing', $overrides['/word/_rels/missing-review.xml']['matchKind']);
+        $t->same(['override-target-missing-part', 'reserved-relationship-directory-override'], $overrides['/word/_rels/missing-review.xml']['issues']);
+        $t->same(['content-types-override-target'], $overrides['/[Content_Types].xml']['issues']);
+    },
     'summarizes package-wide OPC package part relationship references for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
