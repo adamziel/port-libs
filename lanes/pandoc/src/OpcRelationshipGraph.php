@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -279,6 +279,8 @@ final class OpcRelationshipGraph
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
         $packagePartNamesByEquivalenceKey = [];
+        $contentTypes = null;
+        $contentTypesParseError = null;
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
@@ -315,6 +317,12 @@ final class OpcRelationshipGraph
                 'role' => $isDirectory ? 'directory' : 'package-part',
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
                 'contentTypesItem' => $contentTypesItem,
+                'contentType' => null,
+                'contentTypeSource' => null,
+                'contentTypeDefaultExtension' => null,
+                'contentTypeOverridePartName' => null,
+                'contentTypeOverridePartNameExactMatch' => null,
+                'contentTypeOverridePartNameEquivalentMatch' => null,
                 'relationshipPart' => false,
                 'relationshipPartCandidate' => false,
                 'relationshipSource' => null,
@@ -331,6 +339,15 @@ final class OpcRelationshipGraph
             }
         }
 
+        if (count($contentTypesEntryIndexes) === 1) {
+            $contentTypesEntry = $entries[$contentTypesEntryIndexes[0]];
+            try {
+                $contentTypes = OpcContentTypes::fromXml($package->read($contentTypesEntry['entryName']));
+            } catch (\Throwable $exception) {
+                $contentTypesParseError = $exception->getMessage();
+            }
+        }
+
         foreach ($entries as &$entry) {
             if ($entry['partName'] === null) {
                 $entry['role'] = $entry['isDirectory'] ? 'directory' : 'invalid-opc-part';
@@ -340,6 +357,25 @@ final class OpcRelationshipGraph
             }
 
             $partName = $entry['partName'];
+            if (!$entry['contentTypesItem'] && $contentTypes instanceof OpcContentTypes) {
+                $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
+                $entry['contentType'] = $contentTypeResolution['contentType'];
+                $entry['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
+                $entry['contentTypeDefaultExtension'] = $contentTypeResolution['defaultExtension'];
+                $entry['contentTypeOverridePartName'] = $contentTypeResolution['overridePartName'];
+                $entry['contentTypeOverridePartNameExactMatch'] = $contentTypeResolution['overridePartNameExactMatch'];
+                $entry['contentTypeOverridePartNameEquivalentMatch'] = $contentTypeResolution['overridePartNameEquivalentMatch'];
+
+                if ($contentTypeResolution['contentType'] === null) {
+                    $entry['issues'][] = 'missing-content-type';
+                    if (self::partNameExtension($partName) === '') {
+                        $entry['issues'][] = 'missing-content-type-extension';
+                    } else {
+                        $entry['issues'][] = 'missing-content-type-default';
+                    }
+                }
+            }
+
             $relationshipPartCandidate = self::isRelationshipPartNameCandidate($partName);
             $relationshipPart = false;
             $relationshipSource = null;
@@ -414,6 +450,14 @@ final class OpcRelationshipGraph
         $orphanRelationshipPartCount = 0;
         $relationshipPartSourceCount = 0;
         $contentTypesItemRelationshipSourceCount = 0;
+        $contentTypeResolvedPartCount = 0;
+        $contentTypeDefaultResolvedPartCount = 0;
+        $contentTypeOverrideResolvedPartCount = 0;
+        $missingContentTypePartCount = 0;
+        $missingContentTypeDefaultCount = 0;
+        $missingContentTypeExtensionlessCount = 0;
+        $missingContentTypeParts = [];
+        $missingContentTypeExtensions = [];
         $documentPropertyPartCount = 0;
         $digitalSignaturePartCount = 0;
         $embeddedPackageCandidateCount = 0;
@@ -439,6 +483,26 @@ final class OpcRelationshipGraph
             }
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
+            }
+
+            if ($contentTypes instanceof OpcContentTypes && $entry['isPackagePart'] && !$entry['contentTypesItem']) {
+                if ($entry['contentTypeSource'] === 'default') {
+                    $contentTypeResolvedPartCount++;
+                    $contentTypeDefaultResolvedPartCount++;
+                } elseif ($entry['contentTypeSource'] === 'override') {
+                    $contentTypeResolvedPartCount++;
+                    $contentTypeOverrideResolvedPartCount++;
+                } elseif ($entry['contentTypeSource'] === 'missing') {
+                    $missingContentTypePartCount++;
+                    $missingContentTypeParts[] = $entry['partName'] ?? $entry['entryName'];
+                    $extension = $entry['partName'] === null ? '' : self::partNameExtension($entry['partName']);
+                    if ($extension === '') {
+                        $missingContentTypeExtensionlessCount++;
+                    } else {
+                        $missingContentTypeDefaultCount++;
+                        self::appendUniqueString($missingContentTypeExtensions, $extension);
+                    }
+                }
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
@@ -533,6 +597,8 @@ final class OpcRelationshipGraph
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
         sort($contentTypesItems, SORT_STRING);
+        sort($missingContentTypeParts, SORT_STRING);
+        sort($missingContentTypeExtensions, SORT_STRING);
         usort(
             $relationshipParts,
             static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
@@ -552,6 +618,16 @@ final class OpcRelationshipGraph
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
             'contentTypesItemCount' => count($contentTypesItems),
+            'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
+            'contentTypesParseError' => $contentTypesParseError,
+            'contentTypeResolvedPartCount' => $contentTypeResolvedPartCount,
+            'contentTypeDefaultResolvedPartCount' => $contentTypeDefaultResolvedPartCount,
+            'contentTypeOverrideResolvedPartCount' => $contentTypeOverrideResolvedPartCount,
+            'missingContentTypePartCount' => $missingContentTypePartCount,
+            'missingContentTypeDefaultCount' => $missingContentTypeDefaultCount,
+            'missingContentTypeExtensionlessCount' => $missingContentTypeExtensionlessCount,
+            'missingContentTypeParts' => $missingContentTypeParts,
+            'missingContentTypeExtensions' => $missingContentTypeExtensions,
             'relationshipPartCount' => $relationshipPartCount,
             'rootRelationshipPartCount' => $rootRelationshipPartCount,
             'partRelationshipPartCount' => $partRelationshipPartCount,

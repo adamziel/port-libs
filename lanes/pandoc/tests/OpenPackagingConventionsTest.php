@@ -380,6 +380,75 @@ return [
         $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
         $t->same('directory', $entries['word/media/']['handoffKind']);
     },
+    'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<Relationships/>'],
+            ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ['name' => 'customXml/item1.xml', 'data' => '<audit/>'],
+            ['name' => 'word/theme/theme1.thmx', 'data' => '<a:theme/>'],
+            ['name' => 'word/media/source', 'data' => 'raw'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(true, $summary['contentTypeDeclarationAvailable']);
+        $t->same(null, $summary['contentTypesParseError']);
+        $t->same(5, $summary['contentTypeResolvedPartCount']);
+        $t->same(4, $summary['contentTypeDefaultResolvedPartCount']);
+        $t->same(1, $summary['contentTypeOverrideResolvedPartCount']);
+        $t->same(2, $summary['missingContentTypePartCount']);
+        $t->same(1, $summary['missingContentTypeDefaultCount']);
+        $t->same(1, $summary['missingContentTypeExtensionlessCount']);
+        $t->same(['/word/media/source', '/word/theme/theme1.thmx'], $summary['missingContentTypeParts']);
+        $t->same(['thmx'], $summary['missingContentTypeExtensions']);
+        $t->same([
+            'missing-content-type' => 2,
+            'missing-content-type-default' => 1,
+            'missing-content-type-extension' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'missing-content-type',
+            'missing-content-type-default',
+            'missing-content-type-extension',
+        ], $summary['issues']);
+
+        $t->same('override', $entries['word/document.xml']['contentTypeSource']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $entries['word/document.xml']['contentType']);
+        $t->same('/word/document.xml', $entries['word/document.xml']['contentTypeOverridePartName']);
+        $t->same('default', $entries['word/media/review-image.PNG']['contentTypeSource']);
+        $t->same('png', $entries['word/media/review-image.PNG']['contentTypeDefaultExtension']);
+        $t->same('image/png', $entries['word/media/review-image.PNG']['contentType']);
+        $t->same('missing', $entries['word/theme/theme1.thmx']['contentTypeSource']);
+        $t->same(['missing-content-type', 'missing-content-type-default'], $entries['word/theme/theme1.thmx']['issues']);
+        $t->same('missing', $entries['word/media/source']['contentTypeSource']);
+        $t->same(['missing-content-type', 'missing-content-type-extension'], $entries['word/media/source']['issues']);
+
+        $rawManifest = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => '<Types/>'],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+        ]));
+        $t->same(false, $rawManifest['contentTypeDeclarationAvailable']);
+        $t->contains('namespace', (string) $rawManifest['contentTypesParseError']);
+        $t->same(0, $rawManifest['missingContentTypePartCount']);
+        $t->same(true, $rawManifest['valid']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');
