@@ -205,6 +205,39 @@ BIB;
         $t->same('Desk, Archive', $item['rawBibtex']['fields']['shortauthor']);
         $t->same('Ivy Inventor. Credit Role Patent. 2026.', $bibliography);
     },
+    'carries biblatex event metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inproceedings{event-handoff,
+  author          = {Speaker, Sam},
+  title           = {Conference Packet},
+  booktitle       = {Proceedings of Migration Review},
+  eventtitle      = {Open Source Migration Summit},
+  eventtitleaddon = {package track},
+  eventtype       = {workshop},
+  eventdate       = {2026-06-10},
+  venue           = {Portland, OR},
+  eventorganizer  = {Program, Pat and Review, Riley},
+  date            = {2026},
+  pages           = {11--13}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['event-handoff'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('paper-conference', $item['type']);
+        $t->same('Open Source Migration Summit', $item['event']);
+        $t->same('package track', $item['event-title-addon']);
+        $t->same('workshop', $item['event-type']);
+        $t->same([2026, 6, 10], $item['event-date']['date-parts'][0]);
+        $t->same('Portland, OR', $item['event-place']);
+        $t->same('Program', $item['event-organizer'][0]['family']);
+        $t->same('Pat', $item['event-organizer'][0]['given']);
+        $t->same('Review', $item['event-organizer'][1]['family']);
+        $t->same('Riley', $item['event-organizer'][1]['given']);
+        $t->same('11-13', $item['page']);
+        $t->same('Sam Speaker. Conference Packet. Proceedings of Migration Review. 2026. 11-13.', $bibliography);
+    },
     'carries biblatex original publication and release state metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{translated-manual,
