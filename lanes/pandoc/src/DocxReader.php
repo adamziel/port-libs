@@ -14554,7 +14554,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array<string, mixed>>> $numbering
-     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationshipIssueCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBulletIssueCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -14603,7 +14603,7 @@ final class DocxReader
                 $numberingPartRelationships = $graph->relationshipsForSource($targetPart);
                 if ($numberingPartRelationships instanceof OpcRelationships) {
                     $numberingRelationshipsPart = $numberingPartRelationships->relationshipPartName();
-                    $numberingRelationshipItems = $graph->summarizeTargetsForSource($targetPart);
+                    $numberingRelationshipItems = $graph->preflightTargetsForSource($targetPart);
                     $numberingRelationshipCount = count($numberingRelationshipItems);
                 }
 
@@ -14654,6 +14654,10 @@ final class DocxReader
             ],
             'relationshipsPart' => $numberingRelationshipsPart,
             'numberingRelationshipCount' => $numberingRelationshipCount,
+            'numberingRelationshipIssueCount' => count(array_filter(
+                $numberingRelationshipItems,
+                static fn (array $item): bool => ($item['issues'] ?? []) !== [],
+            )),
             'numberingRelationships' => $numberingRelationshipItems,
             'definitionCount' => count($numbering),
             'abstractNumCount' => $numberingInventory['abstractNumCount'],
@@ -14665,6 +14669,10 @@ final class DocxReader
             'styleLinks' => $numberingInventory['styleLinks'],
             'instances' => $numberingInventory['instances'],
             'pictureBulletCount' => count($pictureBullets),
+            'pictureBulletIssueCount' => count(array_filter(
+                $pictureBullets,
+                static fn (array $item): bool => ($item['issues'] ?? []) !== [],
+            )),
             'pictureBullets' => $pictureBullets,
             'issues' => $issues,
         ];

@@ -4764,6 +4764,24 @@ $buildNumberingPictureBulletPackage = static function () use (
     ]);
 };
 
+$buildMissingNumberingPictureBulletPackage = static function () use (
+    $stylesNumberingRelationshipsXml,
+    $numberingPictureBulletContentTypesXml,
+    $numberingPictureBulletDocumentRelationshipsXml,
+    $numberingPictureBulletRelationshipsXml,
+    $numberingPictureBulletDocumentXml,
+    $numberingPictureBulletNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $numberingPictureBulletContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $numberingPictureBulletDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingPictureBulletDocumentRelationshipsXml],
+        ['name' => 'word/numbering.xml', 'data' => $numberingPictureBulletNumberingXml],
+        ['name' => 'word/_rels/numbering.xml.rels', 'data' => $numberingPictureBulletRelationshipsXml],
+    ]);
+};
+
 $buildNumberingLevelOverridePackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -7190,10 +7208,12 @@ return [
         $t->same('rIdNumbering', $numbering['relationship']['id']);
         $t->same('/word/_rels/numbering.xml.rels', $numbering['relationshipsPart']);
         $t->same(1, $numbering['numberingRelationshipCount']);
+        $t->same(0, $numbering['numberingRelationshipIssueCount']);
         $t->same(1, $numbering['definitionCount']);
         $t->same(1, $numbering['levelCount']);
         $t->same(0, $numbering['styleLinkedLevelCount']);
         $t->same(1, $numbering['pictureBulletCount']);
+        $t->same(0, $numbering['pictureBulletIssueCount']);
         $t->same($pictureBullet, $numbering['pictureBullets'][0]);
         $t->same($numbering, $result['importReport']['numbering']);
 
@@ -7201,6 +7221,18 @@ return [
         $t->contains('<ul data-docx-numbering-picture-bullet-id="7" data-docx-numbering-picture-relationship-id="rIdPictureBullet"', $blocks);
         $t->contains('data-docx-numbering-picture-target-part="/word/media/picture-bullet.png"', $blocks);
         $t->contains('data-docx-numbering-picture-bytes="13"', $blocks);
+    },
+    'reports DOCX numbering picture-bullet relationship issue counts' => static function (TestRunner $t) use ($buildMissingNumberingPictureBulletPackage): void {
+        $result = (new DocxReader())->readPackage($buildMissingNumberingPictureBulletPackage());
+        $numbering = $result['metadata']['docxNumbering'];
+
+        $t->same(1, $numbering['numberingRelationshipCount']);
+        $t->same(1, $numbering['numberingRelationshipIssueCount']);
+        $t->same(1, $numbering['pictureBulletCount']);
+        $t->same(1, $numbering['pictureBulletIssueCount']);
+        $t->same(['missing-in-package'], $numbering['numberingRelationships'][0]['issues']);
+        $t->same(['missing-in-package'], $numbering['pictureBullets'][0]['issues']);
+        $t->same($numbering, $result['importReport']['numbering']);
     },
     'resolves DOCX numbering levels linked to paragraph styles into AST lists' => static function (TestRunner $t) use ($buildNumberingStyleLinkPackage): void {
         $document = (new DocxReader())->readDocument($buildNumberingStyleLinkPackage());
