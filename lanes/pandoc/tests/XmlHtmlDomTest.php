@@ -102,6 +102,39 @@ XML, 'package reader XML');
         $t->same('Two', $summary[1]['children'][1]['text']);
         $t->same('<p data-id="42">Intro<br>Next<img alt="Cover" src="cover.png?x=1&amp;y=2"></p><ul><li>One</li><li>Two</li></ul>', $html);
     },
+    'closes html5 track and wbr parser boundaries before serialization' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<video><track src="captions.vtt" kind="captions" label="English"><p>fallback</p></video>'
+                . '<p>before<wbr><span>after</span></p>'
+                . '<script>var breaks = "<track><wbr>";</script><!-- <track> stays comment text -->',
+            'void parser-boundary HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $video = $summary[0];
+        $track = $video['children'][0];
+        $paragraph = $summary[1];
+
+        $t->same(4, count($summary));
+        $t->same('video', $video['name']);
+        $t->same('track', $track['name']);
+        $t->same([], $track['children']);
+        $t->same(['kind' => 'captions', 'label' => 'English', 'src' => 'captions.vtt'], $track['attributes']);
+        $t->same('p', $video['children'][1]['name']);
+        $t->same('p', $paragraph['name']);
+        $t->same('wbr', $paragraph['children'][1]['name']);
+        $t->same([], $paragraph['children'][1]['children']);
+        $t->same('span', $paragraph['children'][2]['name']);
+        $t->same('after', $paragraph['children'][2]['text']);
+        $t->same('script', $summary[2]['name']);
+        $t->same('var breaks = "<track><wbr>";', $summary[2]['text']);
+        $t->same(' <track> stays comment text ', $summary[3]['text']);
+        $t->same('<video><track kind="captions" label="English" src="captions.vtt"><p>fallback</p></video><p>before<wbr><span>after</span></p><script>var breaks = "<track><wbr>";</script><!-- <track> stays comment text -->', $html);
+        $t->true(str_contains($html, '<span>after</span>'), 'Expected following content to survive void-element serialization');
+        $t->true(str_contains($html, 'var breaks = "<track><wbr>";'), 'Expected script text to avoid void-boundary rewriting');
+        $t->true(str_contains($html, '<!-- <track> stays comment text -->'), 'Expected comment text to avoid void-boundary rewriting');
+    },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             'Text&nbsp;<span title="A &quot;quote&quot; &amp; source">source &lt;em&gt;</span><!--review--><input checked>',

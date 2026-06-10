@@ -26,6 +26,12 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const HTML5_VOID_ELEMENTS_REQUIRING_PARSE_BOUNDARY = [
+        'track' => true,
+        'wbr' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML5_BOOLEAN_ATTRIBUTES = [
         'allowfullscreen' => true,
         'async' => true,
@@ -552,8 +558,10 @@ final class XmlHtmlDom
             $name = strtolower((string) $matches['name'][0]);
             $contentStart = $startOffset + strlen($startTag);
 
-            $protected .= self::normalizeHtml5NamedCharacterReferences(
-                self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset))
+            $protected .= self::normalizeHtml5VoidElementBoundaries(
+                self::normalizeHtml5NamedCharacterReferences(
+                    self::protectHtmlCdataSections(substr($html, $offset, $startOffset - $offset))
+                )
             ) . $startTag;
 
             if ($name === 'title' && self::isHtmlTitleStartInSvgContext($html, $startOffset)) {
@@ -583,8 +591,10 @@ final class XmlHtmlDom
             $offset = $endOffset + strlen($endTag);
         }
 
-        return $protected . self::normalizeHtml5NamedCharacterReferences(
-            self::protectHtmlCdataSections(substr($html, $offset))
+        return $protected . self::normalizeHtml5VoidElementBoundaries(
+            self::normalizeHtml5NamedCharacterReferences(
+                self::protectHtmlCdataSections(substr($html, $offset))
+            )
         );
     }
 
@@ -1213,6 +1223,43 @@ final class XmlHtmlDom
                 }
 
                 return self::HTML5_ADDITIONAL_NAMED_CHARACTER_REFERENCES[$name] ?? (string) $matches[0];
+            },
+            $html
+        ) ?? $html;
+    }
+
+    private static function normalizeHtml5VoidElementBoundaries(string $html): string
+    {
+        $offset = 0;
+        $normalized = '';
+        while (($commentStart = strpos($html, '<!--', $offset)) !== false) {
+            $normalized .= self::closeHtml5VoidElementStartTags(substr($html, $offset, $commentStart - $offset));
+            $commentEnd = strpos($html, '-->', $commentStart + 4);
+            if ($commentEnd === false) {
+                return $normalized . substr($html, $commentStart);
+            }
+
+            $commentEnd += 3;
+            $normalized .= substr($html, $commentStart, $commentEnd - $commentStart);
+            $offset = $commentEnd;
+        }
+
+        return $normalized . self::closeHtml5VoidElementStartTags(substr($html, $offset));
+    }
+
+    private static function closeHtml5VoidElementStartTags(string $html): string
+    {
+        $names = implode('|', array_keys(self::HTML5_VOID_ELEMENTS_REQUIRING_PARSE_BOUNDARY));
+
+        return preg_replace_callback(
+            '~<(?P<name>' . $names . ')(?=[\s/>])(?P<attrs>(?:[^>"\']+|"[^"]*"|\'[^\']*\')*)>~i',
+            static function (array $matches): string {
+                $startTag = (string) $matches[0];
+                if (str_ends_with(rtrim($startTag), '/>')) {
+                    return $startTag;
+                }
+
+                return $startTag . '</' . strtolower((string) $matches['name']) . '>';
             },
             $html
         ) ?? $html;
