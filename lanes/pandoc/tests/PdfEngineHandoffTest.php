@@ -11355,6 +11355,138 @@ MARKDOWN);
         $t->same($result['pdfActiveActionTypes'], $sequence['finalPdfActiveActionTypes']);
     },
 
+    'fake runner summarizes bounded pdf javascript action safety metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/javascript-safety.pdf']);
+        $catalogScript = 'app.launchURL("https://example.test/review", true);';
+        $annotationScript = 'this.submitForm({cURL:"https://example.test/review/submit"}); this.getField("review.total").value = "submitted";';
+        $nameTreeScript = 'app.setTimeOut("this.mailDoc({cTo:\'review@example.test\'});", 1000); eval("1 + 1");';
+        $escapeLiteral = static fn (string $value): string => str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $value);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /OpenAction << /S /JavaScript /JS (' . $escapeLiteral($catalogScript) . ') >> /Names << /JavaScript 8 0 R >> >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /T (review.submit) /AA << /E 5 0 R >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /S /JavaScript /JS (' . $escapeLiteral($annotationScript) . ') >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Names [(ReviewTimer) 9 0 R] >>',
+            'endobj',
+            '9 0 obj',
+            '<< /S /JavaScript /JS 10 0 R >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Length ' . strlen($nameTreeScript) . ' >>',
+            'stream',
+            $nameTreeScript,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/javascript-safety.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/javascript-safety.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedActions = [
+            [
+                'source' => 'annotation:4 0 R.AA.E',
+                'target' => null,
+                'scriptBytes' => strlen($annotationScript),
+                'scriptSha256' => hash('sha256', $annotationScript),
+                'tokenFlags' => ['submit-form', 'field-write'],
+                'urlCount' => 1,
+                'submitFormCount' => 1,
+            ],
+            [
+                'source' => 'catalog.Names.JavaScript.ReviewTimer',
+                'target' => 'ReviewTimer',
+                'scriptBytes' => strlen($nameTreeScript),
+                'scriptSha256' => hash('sha256', $nameTreeScript),
+                'tokenFlags' => ['mail-doc', 'dynamic-eval', 'timer'],
+                'urlCount' => 0,
+                'submitFormCount' => 0,
+            ],
+            [
+                'source' => 'catalog.OpenAction',
+                'target' => null,
+                'scriptBytes' => strlen($catalogScript),
+                'scriptSha256' => hash('sha256', $catalogScript),
+                'tokenFlags' => ['launch-url'],
+                'urlCount' => 1,
+                'submitFormCount' => 0,
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'scriptCount' => 3,
+            'sourceCount' => 3,
+            'sourceCategories' => [
+                'annotation' => 1,
+                'catalog' => 2,
+            ],
+            'tokenCounts' => [
+                'dynamic-eval' => 1,
+                'field-write' => 1,
+                'launch-url' => 1,
+                'mail-doc' => 1,
+                'submit-form' => 1,
+                'timer' => 1,
+            ],
+            'totalScriptBytes' => strlen($catalogScript) + strlen($annotationScript) + strlen($nameTreeScript),
+            'maxScriptBytes' => max(strlen($catalogScript), strlen($annotationScript), strlen($nameTreeScript)),
+            'urlCount' => 2,
+            'submitFormCount' => 1,
+            'missingScriptCount' => 0,
+            'issues' => [
+                'javascript-dynamic-eval',
+                'javascript-field-write',
+                'javascript-launch-url',
+                'javascript-mail-doc',
+                'javascript-submit-form',
+                'javascript-timer',
+                'javascript-url-literal',
+                'script-action',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedActions, $result['pdfJavaScriptActions']);
+        $t->same($expectedPolicy, $result['pdfJavaScriptActionPolicy']);
+        $t->contains('pdf-byte-javascript-actions:3', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy:review', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy-scripts:3', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy-token:dynamic-eval:1', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy-token:submit-form:1', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy-urls:2', $diagnostics);
+        $t->contains('pdf-byte-javascript-action-policy-issue:javascript-url-literal:1', $diagnostics);
+        $t->same($expectedActions, $sequence['finalPdfJavaScriptActions']);
+        $t->same($expectedPolicy, $sequence['finalPdfJavaScriptActionPolicy']);
+    },
+
     'fake runner extracts bounded pdf optional content layer metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/layers.pdf']);

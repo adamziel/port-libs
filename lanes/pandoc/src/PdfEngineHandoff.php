@@ -435,6 +435,8 @@ final class PdfEngineHandoff
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
      *     pdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{},
+     *     pdfJavaScriptActions: list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
+     *     pdfJavaScriptActionPolicy: array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     pdfRichMediaActivationModes: array<string, int>,
      *     pdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -928,6 +930,8 @@ final class PdfEngineHandoff
         $pdfActiveActions = [];
         $pdfActiveActionTypes = [];
         $pdfActiveActionPolicy = [];
+        $pdfJavaScriptActions = [];
+        $pdfJavaScriptActionPolicy = [];
         $pdfRichMediaAnnotations = [];
         $pdfRichMediaActivationModes = [];
         $pdfAnnotations = [];
@@ -1065,6 +1069,8 @@ final class PdfEngineHandoff
                 $pdfActiveActions = $pdfInspection['activeActions'];
                 $pdfActiveActionTypes = $pdfInspection['activeActionTypes'];
                 $pdfActiveActionPolicy = $pdfInspection['activeActionPolicy'];
+                $pdfJavaScriptActions = $pdfInspection['javascriptActions'];
+                $pdfJavaScriptActionPolicy = $pdfInspection['javascriptActionPolicy'];
                 $pdfRichMediaAnnotations = $pdfInspection['richMediaAnnotations'];
                 $pdfRichMediaActivationModes = $pdfInspection['richMediaActivationModes'];
                 $pdfAnnotations = $pdfInspection['annotations'];
@@ -3375,6 +3381,49 @@ final class PdfEngineHandoff
                         }
                     }
                 }
+                if ($pdfJavaScriptActions !== []) {
+                    $diagnostics[] = 'pdf-byte-javascript-actions:' . count($pdfJavaScriptActions);
+                }
+                if ($pdfJavaScriptActionPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-javascript-action-policy:' . $pdfJavaScriptActionPolicy['reviewStatus'];
+                    if (isset($pdfJavaScriptActionPolicy['scriptCount']) && is_int($pdfJavaScriptActionPolicy['scriptCount']) && $pdfJavaScriptActionPolicy['scriptCount'] > 0) {
+                        $diagnostics[] = 'pdf-byte-javascript-action-policy-scripts:' . $pdfJavaScriptActionPolicy['scriptCount'];
+                    }
+                    foreach ([
+                        'totalScriptBytes' => 'bytes',
+                        'maxScriptBytes' => 'max-bytes',
+                        'urlCount' => 'urls',
+                        'submitFormCount' => 'submit-forms',
+                        'missingScriptCount' => 'missing-scripts',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfJavaScriptActionPolicy[$policyKey]) && is_int($pdfJavaScriptActionPolicy[$policyKey]) && $pdfJavaScriptActionPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-javascript-action-policy-' . $diagnosticName . ':' . $pdfJavaScriptActionPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfJavaScriptActionPolicy['sourceCategories']) && is_array($pdfJavaScriptActionPolicy['sourceCategories'])) {
+                        foreach ($pdfJavaScriptActionPolicy['sourceCategories'] as $sourceCategory => $sourceCount) {
+                            $diagnostics[] = 'pdf-byte-javascript-action-policy-source:' . $sourceCategory . ':' . $sourceCount;
+                        }
+                    }
+                    if (isset($pdfJavaScriptActionPolicy['tokenCounts']) && is_array($pdfJavaScriptActionPolicy['tokenCounts'])) {
+                        foreach ($pdfJavaScriptActionPolicy['tokenCounts'] as $token => $tokenCount) {
+                            $diagnostics[] = 'pdf-byte-javascript-action-policy-token:' . $token . ':' . $tokenCount;
+                        }
+                    }
+                    if (isset($pdfJavaScriptActionPolicy['issues']) && is_array($pdfJavaScriptActionPolicy['issues']) && $pdfJavaScriptActionPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-javascript-action-policy-issues:' . count($pdfJavaScriptActionPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfJavaScriptActionPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-javascript-action-policy-issue:' . $issue . ':' . $count;
+                        }
+                    }
+                }
                 if ($pdfRichMediaAnnotations !== []) {
                     $diagnostics[] = 'pdf-byte-rich-media-annotations:' . count($pdfRichMediaAnnotations);
                     $richMediaAssetCount = 0;
@@ -4091,6 +4140,8 @@ final class PdfEngineHandoff
             'pdfActiveActions' => $pdfActiveActions,
             'pdfActiveActionTypes' => $pdfActiveActionTypes,
             'pdfActiveActionPolicy' => $pdfActiveActionPolicy,
+            'pdfJavaScriptActions' => $pdfJavaScriptActions,
+            'pdfJavaScriptActionPolicy' => $pdfJavaScriptActionPolicy,
             'pdfRichMediaAnnotations' => $pdfRichMediaAnnotations,
             'pdfRichMediaActivationModes' => $pdfRichMediaActivationModes,
             'pdfAnnotations' => $pdfAnnotations,
@@ -4249,6 +4300,8 @@ final class PdfEngineHandoff
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
      *     finalPdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{},
+     *     finalPdfJavaScriptActions: list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
+     *     finalPdfJavaScriptActionPolicy: array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
      *     finalPdfRichMediaActivationModes: array<string, int>,
      *     finalPdfAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -4552,6 +4605,8 @@ final class PdfEngineHandoff
             'finalPdfActiveActions' => is_array($finalRun) && is_array($finalRun['pdfActiveActions'] ?? null) ? $finalRun['pdfActiveActions'] : [],
             'finalPdfActiveActionTypes' => is_array($finalRun) && is_array($finalRun['pdfActiveActionTypes'] ?? null) ? $finalRun['pdfActiveActionTypes'] : [],
             'finalPdfActiveActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfActiveActionPolicy'] ?? null) ? $finalRun['pdfActiveActionPolicy'] : [],
+            'finalPdfJavaScriptActions' => is_array($finalRun) && is_array($finalRun['pdfJavaScriptActions'] ?? null) ? $finalRun['pdfJavaScriptActions'] : [],
+            'finalPdfJavaScriptActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfJavaScriptActionPolicy'] ?? null) ? $finalRun['pdfJavaScriptActionPolicy'] : [],
             'finalPdfRichMediaAnnotations' => is_array($finalRun) && is_array($finalRun['pdfRichMediaAnnotations'] ?? null) ? $finalRun['pdfRichMediaAnnotations'] : [],
             'finalPdfRichMediaActivationModes' => is_array($finalRun) && is_array($finalRun['pdfRichMediaActivationModes'] ?? null) ? $finalRun['pdfRichMediaActivationModes'] : [],
             'finalPdfAnnotations' => is_array($finalRun) && is_array($finalRun['pdfAnnotations'] ?? null) ? $finalRun['pdfAnnotations'] : [],
@@ -6109,6 +6164,9 @@ final class PdfEngineHandoff
      *     documentSecurityStorePolicy:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
+     *     activeActionPolicy:array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, issues:list<string>}|array{},
+     *     javascriptActions:list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
+     *     javascriptActionPolicy:array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
      *     annotationReviewMetadata:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, borderStyle:string|null, borderStyleLabel:string|null, borderWidth:float|null, borderDashPattern:list<float>|null, popupObject:string|null, popupRect:list<float>|null, popupOpen:bool|null, popupParent:string|null}>,
      *     annotationAppearances:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, fieldName:string|null, selectedState:string|null, appearance:string, stateName:string|null, appearanceObject:string|null, source:string, bbox:list<float>|null, matrix:list<float>|null, resourcesPresent:bool, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
@@ -6173,6 +6231,7 @@ final class PdfEngineHandoff
         $catalogPermissions = $this->extractPdfCatalogPermissions($pdfBytes, $catalog);
         $signatureFieldMdpPolicies = $this->summarizePdfSignatureFieldMdpPolicies($signatures, $catalogPermissions, $signatureLockPolicies);
         $activeActions = $this->extractPdfActiveActions($pdfBytes, $catalog);
+        $javascriptActions = $this->extractPdfJavaScriptActions($pdfBytes, $catalog);
         $richMediaAnnotations = $this->extractPdfRichMediaAnnotations($pdfBytes, $catalog);
         $annotationAppearances = $this->extractPdfAnnotationAppearances($pdfBytes, $catalog);
         $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
@@ -6330,6 +6389,8 @@ final class PdfEngineHandoff
             'activeActions' => $activeActions,
             'activeActionTypes' => $this->summarizePdfActiveActionTypes($activeActions),
             'activeActionPolicy' => $this->summarizePdfActiveActionPolicy($activeActions),
+            'javascriptActions' => $javascriptActions,
+            'javascriptActionPolicy' => $this->summarizePdfJavaScriptActionPolicy($javascriptActions),
             'richMediaAnnotations' => $richMediaAnnotations,
             'richMediaActivationModes' => $this->summarizePdfRichMediaActivationModes($richMediaAnnotations),
             'annotations' => $this->extractPdfAnnotations($pdfBytes, $catalog),
@@ -11480,6 +11541,444 @@ final class PdfEngineHandoff
             'formActionCount' => $formActionCount,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @return list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>
+     */
+    private function extractPdfJavaScriptActions(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $actions = [];
+
+        if ($catalog !== null) {
+            $this->addPdfJavaScriptActionFromNamedValue($actions, 'catalog.OpenAction', $catalog, 'OpenAction', $objects);
+            $this->collectPdfAdditionalJavaScriptActions($actions, 'catalog', $catalog, $objects);
+            $this->collectPdfNamedJavaScriptActionMetadata($actions, $catalog, $objects);
+        }
+
+        foreach ($objects as $reference => $body) {
+            if (preg_match('/\/Type\s*\/Catalog\b/s', $body) === 1) {
+                continue;
+            }
+
+            $source = $this->pdfActionContainerSource($reference, $body);
+            if ($source === null) {
+                continue;
+            }
+
+            $this->addPdfJavaScriptActionFromNamedValue($actions, $source . '.A', $body, 'A', $objects);
+            $this->collectPdfAdditionalJavaScriptActions($actions, $source, $body, $objects);
+        }
+
+        $actions = array_values($actions);
+        usort(
+            $actions,
+            static fn (array $a, array $b): int => [
+                $a['source'],
+                $a['target'] ?? '',
+                $a['scriptSha256'] ?? '',
+            ] <=> [
+                $b['source'],
+                $b['target'] ?? '',
+                $b['scriptSha256'] ?? '',
+            ]
+        );
+
+        return $actions;
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     */
+    private function addPdfJavaScriptActionFromNamedValue(array &$actions, string $source, string $dictionary, string $name, array $objects, ?string $nameHint = null): void
+    {
+        $value = $this->extractPdfValueForName($dictionary, $name);
+        if ($value === null) {
+            return;
+        }
+
+        $this->addPdfJavaScriptActionFromValue($actions, $source, $value, $objects, $nameHint);
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     * @param array{kind:string, value:string, next?:int} $value
+     */
+    private function addPdfJavaScriptActionFromValue(
+        array &$actions,
+        string $source,
+        array $value,
+        array $objects,
+        ?string $nameHint = null,
+        int $depth = 0,
+        array $visited = []
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $actionDictionary = null;
+        $activeSummary = null;
+        if ($value['kind'] === 'reference') {
+            $referenceKey = $this->pdfReferenceKey($value['value']);
+            if (isset($visited[$referenceKey])) {
+                return;
+            }
+
+            $visited[$referenceKey] = true;
+            $actionDictionary = $objects[$referenceKey] ?? null;
+            if ($actionDictionary === null) {
+                return;
+            }
+
+            $activeSummary = $this->summarizePdfActiveActionDictionary($actionDictionary, $source, $objects, $nameHint);
+        } elseif ($value['kind'] === 'dictionary') {
+            $actionDictionary = $value['value'];
+            $activeSummary = $this->summarizePdfActiveActionDictionary($actionDictionary, $source, $objects, $nameHint);
+        }
+
+        if ($activeSummary === null || $actionDictionary === null) {
+            return;
+        }
+
+        if (($activeSummary['type'] ?? null) === 'JavaScript') {
+            $summary = $this->summarizePdfJavaScriptActionDictionary($actionDictionary, $source, $objects, $nameHint);
+            if ($summary !== null) {
+                $key = implode("\0", [
+                    $summary['source'],
+                    $summary['target'] ?? '',
+                    (string) ($summary['scriptBytes'] ?? ''),
+                    $summary['scriptSha256'] ?? '',
+                ]);
+                $actions[$key] = $summary;
+            }
+        }
+
+        $this->collectPdfNextJavaScriptActions($actions, $source, $actionDictionary, $objects, $depth + 1, $visited);
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfNextJavaScriptActions(array &$actions, string $source, string $dictionary, array $objects, int $depth, array $visited): void
+    {
+        if ($depth > 16) {
+            return;
+        }
+
+        $next = $this->extractPdfValueForName($dictionary, 'Next');
+        if ($next === null) {
+            return;
+        }
+
+        $this->addPdfNextJavaScriptActionValue($actions, $source . '.Next', $next, $objects, $depth, $visited);
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     * @param array{kind:string, value:string, next?:int} $value
+     */
+    private function addPdfNextJavaScriptActionValue(array &$actions, string $source, array $value, array $objects, int $depth, array $visited): void
+    {
+        if ($depth > 16) {
+            return;
+        }
+
+        if ($value['kind'] === 'array') {
+            foreach ($this->pdfTopLevelArrayValues($value['value']) as $index => $item) {
+                $this->addPdfNextJavaScriptActionValue($actions, $source . '[' . $index . ']', $item, $objects, $depth + 1, $visited);
+            }
+
+            return;
+        }
+
+        if ($value['kind'] === 'reference') {
+            $referenceKey = $this->pdfReferenceKey($value['value']);
+            if (isset($visited[$referenceKey])) {
+                return;
+            }
+
+            $body = $objects[$referenceKey] ?? null;
+            if ($body === null) {
+                return;
+            }
+
+            $resolved = $this->parsePdfValueAt($body, 0);
+            if ($resolved !== null && $resolved['kind'] === 'array') {
+                $visited[$referenceKey] = true;
+                $this->addPdfNextJavaScriptActionValue($actions, $source, $resolved, $objects, $depth + 1, $visited);
+                return;
+            }
+        }
+
+        $this->addPdfJavaScriptActionFromValue($actions, $source, $value, $objects, null, $depth + 1, $visited);
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfAdditionalJavaScriptActions(array &$actions, string $source, string $dictionary, array $objects): void
+    {
+        $additionalActions = $this->extractPdfDictionaryOrReferenceValue($dictionary, 'AA', $objects);
+        if ($additionalActions === null) {
+            return;
+        }
+
+        foreach (['E', 'X', 'D', 'U', 'Fo', 'Bl', 'PO', 'PC', 'PV', 'PI', 'O', 'C', 'K', 'F', 'V', 'WC', 'WS', 'DS', 'WP', 'DP'] as $trigger) {
+            $this->addPdfJavaScriptActionFromNamedValue($actions, $source . '.AA.' . $trigger, $additionalActions, $trigger, $objects);
+        }
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     */
+    private function collectPdfNamedJavaScriptActionMetadata(array &$actions, string $catalog, array $objects): void
+    {
+        $names = $this->extractPdfDictionaryOrReferenceValue($catalog, 'Names', $objects);
+        if ($names === null) {
+            return;
+        }
+
+        $javaScript = $this->extractPdfDictionaryOrReferenceValue($names, 'JavaScript', $objects);
+        if ($javaScript === null) {
+            return;
+        }
+
+        $visited = [];
+        $this->collectPdfJavaScriptNameTreeActionMetadata(
+            $actions,
+            'catalog.Names.JavaScript',
+            $javaScript,
+            $objects,
+            $visited,
+            0
+        );
+    }
+
+    /**
+     * @param array<string, array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     */
+    private function collectPdfJavaScriptNameTreeActionMetadata(
+        array &$actions,
+        string $source,
+        string $dictionary,
+        array $objects,
+        array &$visited,
+        int $depth
+    ): void {
+        if ($depth > 16) {
+            return;
+        }
+
+        $array = $this->extractPdfArrayValue($dictionary, 'Names');
+        if ($array !== null) {
+            $values = $this->pdfTopLevelArrayValues($array);
+            $count = count($values);
+            for ($index = 0; $index + 1 < $count; $index += 2) {
+                $name = $values[$index];
+                $action = $values[$index + 1];
+                if (!in_array($name['kind'], ['literal', 'hex', 'name'], true)) {
+                    continue;
+                }
+
+                $nameValue = trim($name['value']);
+                $actionSource = $source . ($nameValue === '' ? '' : '.' . $this->pdfActionSourceToken($nameValue));
+                $this->addPdfJavaScriptActionFromValue(
+                    $actions,
+                    $actionSource,
+                    $action,
+                    $objects,
+                    $nameValue === '' ? null : $nameValue
+                );
+            }
+        }
+
+        foreach ($this->extractPdfReferenceArray($dictionary, 'Kids') as $kidReference) {
+            $kidKey = $this->pdfReferenceKey($kidReference);
+            if (isset($visited[$kidKey]) || !isset($objects[$kidKey])) {
+                continue;
+            }
+
+            $visited[$kidKey] = true;
+            $this->collectPdfJavaScriptNameTreeActionMetadata(
+                $actions,
+                $source . '.Kids.' . $kidKey . ' R',
+                $objects[$kidKey],
+                $objects,
+                $visited,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}|null
+     */
+    private function summarizePdfJavaScriptActionDictionary(string $dictionary, string $source, array $objects, ?string $nameHint = null): ?array
+    {
+        if ($this->extractPdfNameToken($dictionary, 'S') !== 'JavaScript') {
+            return null;
+        }
+
+        $script = $this->extractPdfJavaScriptActionBytes($dictionary, $objects);
+
+        return [
+            'source' => $source,
+            'target' => $this->pdfActiveActionTarget($dictionary, 'JavaScript', $objects, $nameHint),
+            'scriptBytes' => $script === null ? null : strlen($script),
+            'scriptSha256' => $script === null ? null : hash('sha256', $script),
+            'tokenFlags' => $script === null ? [] : $this->pdfJavaScriptActionTokenFlags($script),
+            'urlCount' => $script === null ? 0 : $this->countPdfJavaScriptUrls($script),
+            'submitFormCount' => $script === null ? 0 : $this->countPdfJavaScriptSubmitForms($script),
+        ];
+    }
+
+    /**
+     * @param list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}> $actions
+     * @return array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{}
+     */
+    private function summarizePdfJavaScriptActionPolicy(array $actions): array
+    {
+        if ($actions === []) {
+            return [];
+        }
+
+        $sources = [];
+        $sourceCategories = [];
+        $tokenCounts = [];
+        $totalScriptBytes = 0;
+        $maxScriptBytes = null;
+        $urlCount = 0;
+        $submitFormCount = 0;
+        $missingScriptCount = 0;
+        $issues = ['script-action'];
+
+        foreach ($actions as $action) {
+            $source = is_string($action['source'] ?? null) ? $action['source'] : '';
+            if ($source !== '') {
+                $sources[$source] = true;
+                $sourceCategory = $this->pdfActionSourceCategory($source);
+                $sourceCategories[$sourceCategory] = ($sourceCategories[$sourceCategory] ?? 0) + 1;
+            }
+
+            if (is_int($action['scriptBytes'] ?? null)) {
+                $totalScriptBytes += $action['scriptBytes'];
+                $maxScriptBytes = $maxScriptBytes === null ? $action['scriptBytes'] : max($maxScriptBytes, $action['scriptBytes']);
+            } else {
+                $missingScriptCount++;
+                $issues[] = 'missing-javascript-source';
+            }
+
+            $urlCount += is_int($action['urlCount'] ?? null) ? $action['urlCount'] : 0;
+            $submitFormCount += is_int($action['submitFormCount'] ?? null) ? $action['submitFormCount'] : 0;
+
+            foreach (($action['tokenFlags'] ?? []) as $tokenFlag) {
+                if (!is_string($tokenFlag) || $tokenFlag === '') {
+                    continue;
+                }
+                $tokenCounts[$tokenFlag] = ($tokenCounts[$tokenFlag] ?? 0) + 1;
+                $issues[] = 'javascript-' . $tokenFlag;
+            }
+        }
+
+        if ($urlCount > 0) {
+            $issues[] = 'javascript-url-literal';
+        }
+        if ($submitFormCount > 0) {
+            $issues[] = 'javascript-submit-form';
+        }
+
+        ksort($sourceCategories);
+        ksort($tokenCounts);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => 'review',
+            'scriptCount' => count($actions),
+            'sourceCount' => count($sources),
+            'sourceCategories' => $sourceCategories,
+            'tokenCounts' => $tokenCounts,
+            'totalScriptBytes' => $totalScriptBytes,
+            'maxScriptBytes' => $maxScriptBytes,
+            'urlCount' => $urlCount,
+            'submitFormCount' => $submitFormCount,
+            'missingScriptCount' => $missingScriptCount,
+            'issues' => $issues,
+        ];
+    }
+
+    private function pdfActionSourceCategory(string $source): string
+    {
+        if (str_contains($source, ':')) {
+            $category = substr($source, 0, (int) strpos($source, ':'));
+        } elseif (str_contains($source, '.')) {
+            $category = substr($source, 0, (int) strpos($source, '.'));
+        } else {
+            $category = $source;
+        }
+
+        return $category === '' ? 'unknown' : $category;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pdfJavaScriptActionTokenFlags(string $script): array
+    {
+        $tokens = [];
+        foreach ($this->pdfJavaScriptActionTokenPatterns() as $token => $pattern) {
+            if (preg_match($pattern, $script) === 1) {
+                $tokens[] = $token;
+            }
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function pdfJavaScriptActionTokenPatterns(): array
+    {
+        return [
+            'launch-url' => '~\b(?:app\s*\.\s*)?launchURL\s*\(~i',
+            'external-open' => '~\b(?:app\s*\.\s*)?(?:openDoc|getURL)\s*\(~i',
+            'submit-form' => '~\b(?:this\s*\.\s*)?submitForm\s*\(~i',
+            'mail-doc' => '~\b(?:this\s*\.\s*)?mailDoc\s*\(~i',
+            'import-data-object' => '~\b(?:this\s*\.\s*)?importDataObject\s*\(~i',
+            'export-data-object' => '~\b(?:this\s*\.\s*)?exportDataObject\s*\(~i',
+            'dynamic-eval' => '~\beval\s*\(~i',
+            'timer' => '~\b(?:app\s*\.\s*)?(?:setTimeOut|setInterval)\s*\(~i',
+            'field-write' => '~\bgetField\s*\([^)]*\)\s*\.\s*(?:value|defaultValue|readonly|required)\s*=~i',
+        ];
+    }
+
+    private function countPdfJavaScriptUrls(string $script): int
+    {
+        return $this->countPdfJavaScriptPattern($script, '~\b(?:https?://|ftp://|mailto:)[^\s\'")<>]+~i');
+    }
+
+    private function countPdfJavaScriptSubmitForms(string $script): int
+    {
+        return $this->countPdfJavaScriptPattern($script, '~\b(?:this\s*\.\s*)?submitForm\s*\(~i');
+    }
+
+    private function countPdfJavaScriptPattern(string $script, string $pattern): int
+    {
+        $count = preg_match_all($pattern, $script, $matches);
+
+        return $count === false ? 0 : $count;
     }
 
     /**
