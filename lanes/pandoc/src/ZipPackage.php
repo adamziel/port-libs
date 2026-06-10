@@ -1782,98 +1782,128 @@ final class ZipPackage
      */
     public function commentPreflight(): array
     {
-        $packageComment = self::decodePackageComment($this->packageComment);
-        $packageCommentControlByteOffsets = self::rawControlByteOffsets($this->packageComment);
-        $packageCommentFormatControlNames = self::unicodeFormatControlNames($packageComment['text']);
-        $packageCommentBidiControlNames = self::unicodeBidiControlNames($packageComment['text']);
-        $packageCommentIssues = [];
-        if ($packageCommentControlByteOffsets !== []) {
-            $packageCommentIssues[] = 'package-comment-control-bytes';
-        }
-        if ($packageCommentFormatControlNames !== []) {
-            $packageCommentIssues[] = 'package-comment-unicode-format-control';
-        }
-        if ($packageCommentBidiControlNames !== []) {
-            $packageCommentIssues[] = 'package-comment-bidi-format-control';
-        }
-        $entries = [];
-        $commentedEntries = [];
-        $commentControlByteEntries = [];
-        $commentUnicodeFormatControlEntries = [];
-        $commentBidiControlEntries = [];
-
+        $entryComments = [];
         foreach ($this->entries as $entry) {
-            $commentControlByteOffsets = self::rawControlByteOffsets($entry->rawComment);
-            $commentFormatControlNames = self::unicodeFormatControlNames($entry->comment);
-            $commentBidiControlNames = self::unicodeBidiControlNames($entry->comment);
-            $commentIssues = [];
-            if ($commentControlByteOffsets !== []) {
-                $commentIssues[] = 'entry-comment-control-bytes';
-            }
-            if ($commentFormatControlNames !== []) {
-                $commentIssues[] = 'entry-comment-unicode-format-control';
-            }
-            if ($commentBidiControlNames !== []) {
-                $commentIssues[] = 'entry-comment-bidi-format-control';
-            }
-            $summary = [
+            $entryComments[] = [
                 'name' => $entry->name,
                 'comment' => $entry->comment,
                 'rawComment' => $entry->rawComment,
                 'commentEncoding' => $entry->commentEncoding,
-                'commentLength' => strlen($entry->rawComment),
-                'hasControlBytes' => $commentControlByteOffsets !== [],
-                'commentControlByteOffsets' => $commentControlByteOffsets,
-                'hasUnicodeFormatControls' => $commentFormatControlNames !== [],
-                'hasBidiControls' => $commentBidiControlNames !== [],
-                'unicodeFormatControlNames' => $commentFormatControlNames,
-                'bidiControlNames' => $commentBidiControlNames,
-                'issues' => $commentIssues,
             ];
-            $entries[] = $summary;
-            if ($entry->comment !== '') {
-                $commentedEntries[] = $summary;
-            }
-            if ($commentControlByteOffsets !== []) {
-                $commentControlByteEntries[] = $summary;
-            }
-            if ($commentFormatControlNames !== []) {
-                $commentUnicodeFormatControlEntries[] = $summary;
-            }
-            if ($commentBidiControlNames !== []) {
-                $commentBidiControlEntries[] = $summary;
-            }
         }
 
+        return self::commentPreflightSummary($this->packageComment, $entryComments);
+    }
+
+    /**
+     * Scan package and central-directory entry comments before package
+     * instantiation, so comment policy remains visible when a separate local
+     * header issue blocks object construction.
+     *
+     * @return array<string, mixed>
+     */
+    public static function commentPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before comments can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entryComments = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $rawComment = substr($bytes, $variableStart + $nameLength + $extraLength, $commentLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+            $decodedComment = self::decodeZipText(
+                $rawComment,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_COMMENT_EXTRA_ID,
+                'info-zip-unicode-comment',
+                "central directory entry {$decodedName['text']} comment"
+            );
+            $entryComments[] = [
+                'name' => $decodedName['text'],
+                'comment' => $decodedComment['text'],
+                'rawComment' => $rawComment,
+                'commentEncoding' => $decodedComment['encoding'],
+            ];
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $summary = self::commentPreflightSummary($archive['packageComment'], $entryComments);
+        $issues = self::commentPolicyIssues($summary);
+
         return [
-            'packageComment' => $packageComment['text'],
-            'rawPackageComment' => $this->packageComment,
-            'packageCommentEncoding' => $packageComment['encoding'],
-            'packageCommentLength' => strlen($this->packageComment),
-            'packageCommentHasControlBytes' => $packageCommentControlByteOffsets !== [],
-            'packageCommentControlByteOffsets' => $packageCommentControlByteOffsets,
-            'packageCommentHasUnicodeFormatControls' => $packageCommentFormatControlNames !== [],
-            'packageCommentHasBidiControls' => $packageCommentBidiControlNames !== [],
-            'packageCommentUnicodeFormatControlNames' => $packageCommentFormatControlNames,
-            'packageCommentBidiControlNames' => $packageCommentBidiControlNames,
-            'packageCommentIssues' => $packageCommentIssues,
-            'hasPackageComment' => $this->packageComment !== '',
-            'hasEntryComments' => $commentedEntries !== [],
-            'hasComments' => $this->packageComment !== '' || $commentedEntries !== [],
-            'hasCommentControlBytes' => $packageCommentControlByteOffsets !== [] || $commentControlByteEntries !== [],
-            'hasCommentUnicodeFormatControls' => $packageCommentFormatControlNames !== [] || $commentUnicodeFormatControlEntries !== [],
-            'hasCommentBidiControls' => $packageCommentBidiControlNames !== [] || $commentBidiControlEntries !== [],
-            'entryCommentCount' => count($commentedEntries),
-            'commentControlByteEntryCount' => count($commentControlByteEntries),
-            'commentUnicodeFormatControlEntryCount' => count($commentUnicodeFormatControlEntries),
-            'commentBidiControlEntryCount' => count($commentBidiControlEntries),
-            'commentedEntryNames' => array_map(static fn (array $entry): string => $entry['name'], $commentedEntries),
-            'commentControlByteEntries' => $commentControlByteEntries,
-            'commentUnicodeFormatControlEntries' => $commentUnicodeFormatControlEntries,
-            'commentBidiControlEntries' => $commentBidiControlEntries,
-            'commentedEntries' => $commentedEntries,
-            'entries' => $entries,
-        ];
+            'entryCount' => count($entryComments),
+            'totalEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'eocdOffset' => $archive['eocdOffset'],
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+        ] + $summary;
     }
 
     /**
@@ -1927,6 +1957,159 @@ final class ZipPackage
             'ZIP package contains package or entry comments that require explicit import review: '
             . implode(', ', $commentSources)
         );
+    }
+
+    /**
+     * @param list<array{name:string, comment:string, rawComment:string, commentEncoding:string}> $entryComments
+     * @return array{
+     *     packageComment:string,
+     *     rawPackageComment:string,
+     *     packageCommentEncoding:string,
+     *     packageCommentLength:int,
+     *     packageCommentHasControlBytes:bool,
+     *     packageCommentControlByteOffsets:list<int>,
+     *     packageCommentHasUnicodeFormatControls:bool,
+     *     packageCommentHasBidiControls:bool,
+     *     packageCommentUnicodeFormatControlNames:list<string>,
+     *     packageCommentBidiControlNames:list<string>,
+     *     packageCommentIssues:list<string>,
+     *     hasPackageComment:bool,
+     *     hasEntryComments:bool,
+     *     hasComments:bool,
+     *     hasCommentControlBytes:bool,
+     *     hasCommentUnicodeFormatControls:bool,
+     *     hasCommentBidiControls:bool,
+     *     entryCommentCount:int,
+     *     commentControlByteEntryCount:int,
+     *     commentUnicodeFormatControlEntryCount:int,
+     *     commentBidiControlEntryCount:int,
+     *     commentedEntryNames:list<string>,
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
+     * }
+     */
+    private static function commentPreflightSummary(string $rawPackageComment, array $entryComments): array
+    {
+        $packageComment = self::decodePackageComment($rawPackageComment);
+        $packageCommentControlByteOffsets = self::rawControlByteOffsets($rawPackageComment);
+        $packageCommentFormatControlNames = self::unicodeFormatControlNames($packageComment['text']);
+        $packageCommentBidiControlNames = self::unicodeBidiControlNames($packageComment['text']);
+        $packageCommentIssues = [];
+        if ($packageCommentControlByteOffsets !== []) {
+            $packageCommentIssues[] = 'package-comment-control-bytes';
+        }
+        if ($packageCommentFormatControlNames !== []) {
+            $packageCommentIssues[] = 'package-comment-unicode-format-control';
+        }
+        if ($packageCommentBidiControlNames !== []) {
+            $packageCommentIssues[] = 'package-comment-bidi-format-control';
+        }
+
+        $entries = [];
+        $commentedEntries = [];
+        $commentControlByteEntries = [];
+        $commentUnicodeFormatControlEntries = [];
+        $commentBidiControlEntries = [];
+
+        foreach ($entryComments as $entry) {
+            $commentControlByteOffsets = self::rawControlByteOffsets($entry['rawComment']);
+            $commentFormatControlNames = self::unicodeFormatControlNames($entry['comment']);
+            $commentBidiControlNames = self::unicodeBidiControlNames($entry['comment']);
+            $commentIssues = [];
+            if ($commentControlByteOffsets !== []) {
+                $commentIssues[] = 'entry-comment-control-bytes';
+            }
+            if ($commentFormatControlNames !== []) {
+                $commentIssues[] = 'entry-comment-unicode-format-control';
+            }
+            if ($commentBidiControlNames !== []) {
+                $commentIssues[] = 'entry-comment-bidi-format-control';
+            }
+
+            $summary = [
+                'name' => $entry['name'],
+                'comment' => $entry['comment'],
+                'rawComment' => $entry['rawComment'],
+                'commentEncoding' => $entry['commentEncoding'],
+                'commentLength' => strlen($entry['rawComment']),
+                'hasControlBytes' => $commentControlByteOffsets !== [],
+                'commentControlByteOffsets' => $commentControlByteOffsets,
+                'hasUnicodeFormatControls' => $commentFormatControlNames !== [],
+                'hasBidiControls' => $commentBidiControlNames !== [],
+                'unicodeFormatControlNames' => $commentFormatControlNames,
+                'bidiControlNames' => $commentBidiControlNames,
+                'issues' => $commentIssues,
+            ];
+            $entries[] = $summary;
+            if ($entry['comment'] !== '') {
+                $commentedEntries[] = $summary;
+            }
+            if ($commentControlByteOffsets !== []) {
+                $commentControlByteEntries[] = $summary;
+            }
+            if ($commentFormatControlNames !== []) {
+                $commentUnicodeFormatControlEntries[] = $summary;
+            }
+            if ($commentBidiControlNames !== []) {
+                $commentBidiControlEntries[] = $summary;
+            }
+        }
+
+        return [
+            'packageComment' => $packageComment['text'],
+            'rawPackageComment' => $rawPackageComment,
+            'packageCommentEncoding' => $packageComment['encoding'],
+            'packageCommentLength' => strlen($rawPackageComment),
+            'packageCommentHasControlBytes' => $packageCommentControlByteOffsets !== [],
+            'packageCommentControlByteOffsets' => $packageCommentControlByteOffsets,
+            'packageCommentHasUnicodeFormatControls' => $packageCommentFormatControlNames !== [],
+            'packageCommentHasBidiControls' => $packageCommentBidiControlNames !== [],
+            'packageCommentUnicodeFormatControlNames' => $packageCommentFormatControlNames,
+            'packageCommentBidiControlNames' => $packageCommentBidiControlNames,
+            'packageCommentIssues' => $packageCommentIssues,
+            'hasPackageComment' => $rawPackageComment !== '',
+            'hasEntryComments' => $commentedEntries !== [],
+            'hasComments' => $rawPackageComment !== '' || $commentedEntries !== [],
+            'hasCommentControlBytes' => $packageCommentControlByteOffsets !== [] || $commentControlByteEntries !== [],
+            'hasCommentUnicodeFormatControls' => $packageCommentFormatControlNames !== [] || $commentUnicodeFormatControlEntries !== [],
+            'hasCommentBidiControls' => $packageCommentBidiControlNames !== [] || $commentBidiControlEntries !== [],
+            'entryCommentCount' => count($commentedEntries),
+            'commentControlByteEntryCount' => count($commentControlByteEntries),
+            'commentUnicodeFormatControlEntryCount' => count($commentUnicodeFormatControlEntries),
+            'commentBidiControlEntryCount' => count($commentBidiControlEntries),
+            'commentedEntryNames' => array_map(static fn (array $entry): string => $entry['name'], $commentedEntries),
+            'commentControlByteEntries' => $commentControlByteEntries,
+            'commentUnicodeFormatControlEntries' => $commentUnicodeFormatControlEntries,
+            'commentBidiControlEntries' => $commentBidiControlEntries,
+            'commentedEntries' => $commentedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<string>
+     */
+    private static function commentPolicyIssues(array $summary): array
+    {
+        $issues = [];
+        if (($summary['hasComments'] ?? false) === true) {
+            $issues[] = 'package-or-entry-comments';
+        }
+        if (($summary['hasCommentControlBytes'] ?? false) === true) {
+            $issues[] = 'comment-control-bytes';
+        }
+        if (($summary['hasCommentUnicodeFormatControls'] ?? false) === true) {
+            $issues[] = 'comment-unicode-format-controls';
+        }
+        if (($summary['hasCommentBidiControls'] ?? false) === true) {
+            $issues[] = 'comment-bidi-format-controls';
+        }
+
+        return $issues;
     }
 
     /**
@@ -7556,6 +7739,7 @@ final class ZipPackage
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
      *     compressionMethods:?array<string, mixed>,
+     *     comments:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
      *     internalAttributes:?array<string, mixed>,
@@ -7667,6 +7851,7 @@ final class ZipPackage
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
                 'compressionMethods' => null,
+                'comments' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
                 'internalAttributes' => null,
@@ -7701,6 +7886,7 @@ final class ZipPackage
         $archiveExtraDataRecords = null;
         $encryption = null;
         $compressionMethods = null;
+        $comments = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
         $internalAttributes = null;
@@ -7799,6 +7985,14 @@ final class ZipPackage
             );
             if ($compressionMethods !== null && !$compressionMethods['isSupportedByBoundedReader']) {
                 $addDiagnostics($compressionMethods['issues']);
+            }
+
+            $comments = $runPreflight(
+                'comment-policy',
+                static fn (): array => self::commentPolicyPreflight($bytes)
+            );
+            if ($comments !== null && !$comments['isSupportedByBoundedReader']) {
+                $addDiagnostics($comments['issues']);
             }
 
             $creatorHostSystems = $runPreflight(
@@ -7955,6 +8149,7 @@ final class ZipPackage
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
             ?? $dataDescriptors['entryCount']
+            ?? $comments['entryCount']
             ?? $zip64EndOfCentralDirectory['totalEntryCount']
             ?? $endOfCentralDirectoryOffset['totalEntryCount']
             ?? $endOfCentralDirectoryTrailingBytes['totalEntryCount']
@@ -7985,6 +8180,7 @@ final class ZipPackage
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,
             'compressionMethods' => $compressionMethods,
+            'comments' => $comments,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
             'internalAttributes' => $internalAttributes,

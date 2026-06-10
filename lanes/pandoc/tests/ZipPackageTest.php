@@ -5538,6 +5538,65 @@ return [
         $t->same('Unicode comment metadata remains bounded', $package->read('/word/media/review-note.txt'));
     },
 
+    'preflights raw zip comments before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/spoofed-document.xml',
+                'data' => '<w:document><w:p>raw comment policy</w:p></w:document>',
+                'method' => 8,
+                'comment' => "entry\x7fcomment",
+            ],
+            [
+                'name' => 'word/media/review-note.txt',
+                'data' => 'raw comment metadata remains visible before package construction',
+                'method' => 0,
+            ],
+        ], "source\u{202e}package");
+
+        $summary = ZipPackage::commentPolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'package-or-entry-comments',
+            'comment-control-bytes',
+            'comment-unicode-format-controls',
+            'comment-bidi-format-controls',
+        ], $summary['issues']);
+        $t->same("source\u{202e}package", $summary['packageComment']);
+        $t->same("source\u{202e}package", $summary['rawPackageComment']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(true, $summary['hasComments']);
+        $t->same(true, $summary['hasCommentControlBytes']);
+        $t->same(true, $summary['hasCommentUnicodeFormatControls']);
+        $t->same(true, $summary['hasCommentBidiControls']);
+        $t->same(['right-to-left-override'], $summary['packageCommentUnicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $summary['packageCommentBidiControlNames']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(['word/document.xml'], $summary['commentedEntryNames']);
+        $t->same('word/document.xml', $summary['commentControlByteEntries'][0]['name']);
+        $t->same("entry\x7fcomment", $summary['commentControlByteEntries'][0]['comment']);
+        $t->same([5], $summary['commentControlByteEntries'][0]['commentControlByteOffsets']);
+        $t->same(['entry-comment-control-bytes'], $summary['commentControlByteEntries'][0]['issues']);
+        $t->same([], $summary['entries'][1]['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($summary, $rawStrict['comments']);
+        $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+        $t->contains('comment-control-bytes', implode(',', $rawStrict['diagnostics']));
+        $t->contains('comment-unicode-format-controls', implode(',', $rawStrict['diagnostics']));
+        $t->contains('comment-bidi-format-controls', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects generated zip comment control bytes before package writing' => static function (TestRunner $t): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromParts([
             [

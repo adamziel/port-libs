@@ -4434,21 +4434,8 @@ final class ArchiveCompressionStream
         self::assertLimit($maxUncompressedBytes, 'archive stream max uncompressed byte limit');
 
         $zipBytes = self::decodeZipBytes($bytes, $format, $maxUncompressedBytes);
-        $package = ZipPackage::fromString($zipBytes);
-        $policy = $package->commentPreflight();
-        $diagnostics = [];
-        if (($policy['hasComments'] ?? false) === true) {
-            $diagnostics[] = 'package-or-entry-comments';
-        }
-        if (($policy['hasCommentControlBytes'] ?? false) === true) {
-            $diagnostics[] = 'comment-control-bytes';
-        }
-        if (($policy['hasCommentUnicodeFormatControls'] ?? false) === true) {
-            $diagnostics[] = 'comment-unicode-format-controls';
-        }
-        if (($policy['hasCommentBidiControls'] ?? false) === true) {
-            $diagnostics[] = 'comment-bidi-format-controls';
-        }
+        $policy = ZipPackage::commentPolicyPreflight($zipBytes);
+        $diagnostics = $policy['issues'];
 
         return [
             'format' => $format,
