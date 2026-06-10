@@ -430,6 +430,42 @@ return [
             '\end{quote}',
         ]), (new LatexWriter())->write($document));
     },
+    'renders unsupported command structured metadata as bounded review text' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $space = static fn (): AstNode => new AstNode('space');
+
+        $document = new AstNode('document', [], [
+            new AstNode('unsupported_command', [
+                'command' => 'RawBlockCommand',
+                'arguments' => [
+                    'draft.tex',
+                    ['command' => '\include{draft}'],
+                ],
+                'options' => ['format' => 'latex'],
+                'attributes' => ['source' => 'review_queue'],
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Inline'),
+                $space(),
+                new AstNode('unsupported_command', [
+                    'command' => 'RawInlineCommand',
+                    'message' => 'inline writer extension unavailable',
+                    'args' => ['\href{javascript:alert(1)}{x}', true],
+                ]),
+                $space(),
+                $text('fallback'),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '\begin{quote}',
+                '\texttt{[unsupported block command: RawBlockCommand - arguments: draft.tex, command=\textbackslash{}include\{draft\}; options: format=latex; attributes: source=review\_queue]}',
+                '\end{quote}',
+            ]),
+            'Inline \texttt{[unsupported inline command: RawInlineCommand - inline writer extension unavailable; arguments: \textbackslash{}href\{javascript:alert(1)\}\{x\}, true]} fallback',
+        ]), (new LatexWriter())->write($document));
+    },
     'renders inline hard line break commands distinctly from soft breaks' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 

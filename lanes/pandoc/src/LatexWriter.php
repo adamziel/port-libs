@@ -837,14 +837,33 @@ final class LatexWriter
 
     private function unsupportedCommandDetail(AstNode $node): string
     {
+        $details = [];
         foreach (['reason', 'message', 'text', 'html', 'markdown', 'tex'] as $attr) {
             $detail = $node->attr($attr, null);
             if (is_string($detail) && trim($detail) !== '') {
-                return $this->summarizeUnsupportedCommandDetail($detail);
+                $details[] = $detail;
+                break;
             }
         }
 
-        return '';
+        foreach ([
+            'arguments' => 'arguments',
+            'args' => 'arguments',
+            'options' => 'options',
+            'attributes' => 'attributes',
+        ] as $attr => $label) {
+            $detail = $node->attr($attr, null);
+            if (!is_array($detail) || $detail === []) {
+                continue;
+            }
+
+            $summary = $this->summarizeUnsupportedCommandValue($detail);
+            if ($summary !== '') {
+                $details[] = $label . ': ' . $summary;
+            }
+        }
+
+        return $details === [] ? '' : $this->summarizeUnsupportedCommandDetail(implode('; ', $details));
     }
 
     private function summarizeUnsupportedCommandDetail(string $detail): string
@@ -855,6 +874,63 @@ final class LatexWriter
         }
 
         return substr($summary, 0, 157) . '...';
+    }
+
+    private function summarizeUnsupportedCommandValue(mixed $value, int $depth = 0): string
+    {
+        if ($value instanceof AstNode) {
+            $text = $value->attr('text', $value->attr('tex', null));
+            if (is_scalar($text) && trim((string) $text) !== '') {
+                return $value->type . '(' . $this->summarizeUnsupportedCommandDetail((string) $text) . ')';
+            }
+
+            if ($value->children !== [] && $depth < 2) {
+                $children = $this->summarizeUnsupportedCommandValue($value->children, $depth + 1);
+                return $children === '' ? $value->type : $value->type . '(' . $children . ')';
+            }
+
+            return $value->type;
+        }
+
+        if ($value === null) {
+            return 'null';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_scalar($value)) {
+            return $this->summarizeUnsupportedCommandDetail((string) $value);
+        }
+
+        if (!is_array($value) || $value === []) {
+            return '';
+        }
+
+        $parts = [];
+        if (array_is_list($value)) {
+            foreach (array_slice($value, 0, 4) as $item) {
+                $summary = $this->summarizeUnsupportedCommandValue($item, $depth + 1);
+                if ($summary !== '') {
+                    $parts[] = $summary;
+                }
+            }
+        } else {
+            ksort($value, SORT_STRING);
+            foreach (array_slice($value, 0, 5, true) as $key => $item) {
+                $summary = $this->summarizeUnsupportedCommandValue($item, $depth + 1);
+                if ($summary !== '') {
+                    $parts[] = (string) $key . '=' . $summary;
+                }
+            }
+        }
+
+        if (count($parts) < count($value)) {
+            $parts[] = '...';
+        }
+
+        return implode(', ', $parts);
     }
 
     private function nodeAnchorName(AstNode $node): string
