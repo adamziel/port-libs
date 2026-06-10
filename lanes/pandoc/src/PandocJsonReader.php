@@ -360,7 +360,7 @@ final class PandocJsonReader
             'Div' => $this->readDivBlock($content),
             'Figure' => $this->readFigureBlock($content),
             'Table' => $this->readTableBlock($content),
-            default => throw new \InvalidArgumentException("Unsupported Pandoc block constructor: {$tag}"),
+            default => $this->nativeFallbackNode('native_block', $tag, $value),
         };
     }
 
@@ -781,8 +781,20 @@ final class PandocJsonReader
             'Image' => $this->readTargetInline('image', $content),
             'Note' => new AstNode('note', [], $this->readBlocks($this->listContent($content, 'Note'))),
             'Span' => $this->readSpanInline($content),
-            default => throw new \InvalidArgumentException("Unsupported Pandoc inline constructor: {$tag}"),
+            default => $this->nativeFallbackNode('native_inline', $tag, $value),
         };
+    }
+
+    private function nativeFallbackNode(string $type, string $constructor, mixed $native): AstNode
+    {
+        if (!is_array($native) || array_is_list($native)) {
+            throw new \InvalidArgumentException("Pandoc {$type} fallback must carry a tagged native constructor");
+        }
+
+        return new AstNode($type, [
+            'constructor' => $constructor,
+            'native' => $native,
+        ]);
     }
 
     private function readQuotedInline(mixed $content): AstNode

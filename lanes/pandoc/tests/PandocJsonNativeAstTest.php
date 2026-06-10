@@ -848,6 +848,38 @@ return [
             new AstNode('paragraph', [], [new AstNode('native_inline')]),
         ])));
     },
+    'reads pandoc json unknown constructors as native fallbacks' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'VendorBlock', 'c' => [
+                    'source' => 'json-filter',
+                    'payload' => [['t' => 'Str', 'c' => 'opaque']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Before'],
+                    ['t' => 'Space'],
+                    ['t' => 'VendorInline', 'c' => ['name' => 'review-anchor', 'value' => 42]],
+                ]],
+            ],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $nativeBlock = $document->children[0];
+        $paragraph = $document->children[1];
+        $nativeInline = $paragraph->children[2];
+
+        $t->same('native_block', $nativeBlock->type);
+        $t->same('VendorBlock', $nativeBlock->attr('constructor'));
+        $t->same($packet['blocks'][0], $nativeBlock->attr('native'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('native_inline', $nativeInline->type);
+        $t->same('VendorInline', $nativeInline->attr('constructor'));
+        $t->same($packet['blocks'][1]['c'][2], $nativeInline->attr('native'));
+        $t->same($packet['blocks'], $encoded['blocks']);
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
