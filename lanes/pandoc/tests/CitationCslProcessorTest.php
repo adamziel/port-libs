@@ -23798,6 +23798,165 @@ XML);
         $t->contains('<p>Camel creator source [Smith | Source Review Forum | Legacy | Director | Reviewer] preserves direct CSL creator aliases.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Camel Creator Alias Packet :: Source Review Forum :: Legacy, Lina :: Director, Drew :: Reviewer, Rae</dd>', $blocks);
     },
+    'renders bounded csl plural camelcase extended creator aliases from direct items' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'plural-camel-creator-packet',
+                'type' => 'book',
+                'title' => 'Plural Camel Creator Alias Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'collectionEditors' => [
+                    ['family' => 'Collection', 'given' => 'Cora'],
+                ],
+                'editorTranslators' => [
+                    ['family' => 'Translator', 'given' => 'Eli'],
+                ],
+                'executiveProducers' => [
+                    ['family' => 'Producer', 'given' => 'Eve'],
+                ],
+                'eventOrganizers' => [
+                    ['literal' => 'Source Review Forum'],
+                ],
+                'originalAuthors' => [
+                    ['family' => 'Legacy', 'given' => 'Lina'],
+                ],
+                'scriptWriters' => [
+                    ['family' => 'Script', 'given' => 'Sam'],
+                ],
+                'editorialDirectors' => [
+                    ['family' => 'Director', 'given' => 'Drew'],
+                ],
+                'reviewedAuthors' => [
+                    ['family' => 'Reviewer', 'given' => 'Rae'],
+                ],
+                'founders' => [
+                    ['family' => 'Founder', 'given' => 'Finn'],
+                ],
+                'continuators' => [
+                    ['family' => 'Continue', 'given' => 'Cai'],
+                ],
+                'revisers' => [
+                    ['family' => 'Revise', 'given' => 'Rin'],
+                ],
+                'collaborators' => [
+                    ['family' => 'Collaborate', 'given' => 'Cam'],
+                ],
+                'commentators' => [
+                    ['family' => 'Comment', 'given' => 'Chris'],
+                ],
+                'annotators' => [
+                    ['family' => 'Annotate', 'given' => 'Ari'],
+                ],
+                'introductionAuthors' => [
+                    ['family' => 'Intro', 'given' => 'Ira'],
+                ],
+                'forewordAuthors' => [
+                    ['family' => 'Forward', 'given' => 'Fran'],
+                ],
+                'afterwordAuthors' => [
+                    ['family' => 'After', 'given' => 'Ash'],
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Plural Camel Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-plural-camel-creator-alias-review</id>
+    <updated>2026-06-10T18:29:51+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <choose>
+        <if variable="collection-editor editor-translator executive-producer event-organizer original-author script-writer editorial-director reviewed-author founder continuator reviser collaborator commentator annotator introduction foreword afterword" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <names variable="collection-editor"/>
+            <names variable="editor-translator"/>
+            <names variable="executive-producer"/>
+            <names variable="event-organizer"/>
+            <names variable="original-author"/>
+            <names variable="script-writer"/>
+            <names variable="editorial-director"/>
+            <names variable="reviewed-author"/>
+            <names variable="founder"/>
+            <names variable="continuator"/>
+            <names variable="reviser"/>
+            <names variable="collaborator"/>
+            <names variable="commentator"/>
+            <names variable="annotator"/>
+            <names variable="introduction"/>
+            <names variable="foreword"/>
+            <names variable="afterword"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-plural-creators"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="collection-editor"/>
+      <names variable="editor-translator"/>
+      <names variable="executive-producer"/>
+      <names variable="event-organizer"/>
+      <names variable="original-author"/>
+      <names variable="script-writer"/>
+      <names variable="editorial-director"/>
+      <names variable="reviewed-author"/>
+      <names variable="founder"/>
+      <names variable="continuator"/>
+      <names variable="reviser"/>
+      <names variable="collaborator"/>
+      <names variable="commentator"/>
+      <names variable="annotator"/>
+      <names variable="introduction"/>
+      <names variable="foreword"/>
+      <names variable="afterword"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $item = $processor->item('plural-camel-creator-packet');
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Plural Camel Creator Alias Review', $summary['title'] ?? null);
+        $t->same(['collection-editor', 'editor-translator', 'executive-producer', 'event-organizer', 'original-author', 'script-writer', 'editorial-director', 'reviewed-author', 'founder', 'continuator', 'reviser', 'collaborator', 'commentator', 'annotator', 'introduction', 'foreword', 'afterword'], $branch['variables'] ?? null);
+        $t->same('Collection', $item['collectionEditors'][0]['family'] ?? null);
+        $t->same('Translator', $item['editorTranslators'][0]['family'] ?? null);
+        $t->same('Producer', $item['executiveProducers'][0]['family'] ?? null);
+        $t->same('Source Review Forum', $item['eventOrganizers'][0]['literal'] ?? null);
+        $t->same('Legacy', $item['originalAuthors'][0]['family'] ?? null);
+        $t->same('Script', $item['scriptWriters'][0]['family'] ?? null);
+        $t->same('Director', $item['editorialDirectors'][0]['family'] ?? null);
+        $t->same('Reviewer', $item['reviewedAuthors'][0]['family'] ?? null);
+        $t->same('Founder', $item['founders'][0]['family'] ?? null);
+        $t->same('Continue', $item['continuators'][0]['family'] ?? null);
+        $t->same('Revise', $item['revisers'][0]['family'] ?? null);
+        $t->same('Collaborate', $item['collaborators'][0]['family'] ?? null);
+        $t->same('Comment', $item['commentators'][0]['family'] ?? null);
+        $t->same('Annotate', $item['annotators'][0]['family'] ?? null);
+        $t->same('Intro', $item['introductionAuthors'][0]['family'] ?? null);
+        $t->same('Forward', $item['forewordAuthors'][0]['family'] ?? null);
+        $t->same('After', $item['afterwordAuthors'][0]['family'] ?? null);
+
+        $t->same('[Smith | Collection | Translator | Producer | Source Review Forum | Legacy | Script | Director | Reviewer | Founder | Continue | Revise | Collaborate | Comment | Annotate | Intro | Forward | After]', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'plural-camel-creator-packet', 'text' => '[@plural-camel-creator-packet]']),
+        ]));
+        $t->same('Plural Camel Creator Alias Packet :: Collection, Cora :: Translator, Eli :: Producer, Eve :: Source Review Forum :: Legacy, Lina :: Script, Sam :: Director, Drew :: Reviewer, Rae :: Founder, Finn :: Continue, Cai :: Revise, Rin :: Collaborate, Cam :: Comment, Chris :: Annotate, Ari :: Intro, Ira :: Forward, Fran :: After, Ash', $processor->renderBibliographyEntry('plural-camel-creator-packet'));
+
+        $document = (new MarkdownReader())->read('Plural camel creator source [@plural-camel-creator-packet] preserves direct CSL creator aliases.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Plural camel creator source [Smith | Collection | Translator | Producer | Source Review Forum | Legacy | Script | Director | Reviewer | Founder | Continue | Revise | Collaborate | Comment | Annotate | Intro | Forward | After] preserves direct CSL creator aliases.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Plural Camel Creator Alias Packet :: Collection, Cora :: Translator, Eli :: Producer, Eve :: Source Review Forum :: Legacy, Lina :: Script, Sam :: Director, Drew :: Reviewer, Rae :: Founder, Finn :: Continue, Cai :: Revise, Rin :: Collaborate, Cam :: Comment, Chris :: Annotate, Ari :: Intro, Ira :: Forward, Fran :: After, Ash</dd>', $blocks);
+    },
     'renders bounded csl archive collection aliases from direct items' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
