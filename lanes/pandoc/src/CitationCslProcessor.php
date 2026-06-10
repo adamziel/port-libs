@@ -7715,6 +7715,8 @@ final class CitationCslProcessor
                 'locator-label',
                 'citation-locator-value',
                 'locator-value',
+                'citation-locator-source',
+                'locator-source',
                 'citation-locator-raw',
                 'locator-raw',
                 'citation-locator-diagnostic-summary',
@@ -8866,6 +8868,7 @@ final class CitationCslProcessor
             'locator' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
             'citation-locator-label', 'locator-label' => $this->citationLocatorLabelValue($citation),
             'citation-locator-value', 'locator-value' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
+            'citation-locator-source', 'locator-source' => $this->citationLocatorSourceClass($citation),
             'citation-locator-raw', 'locator-raw' => $this->citationLocatorRawValue($citation),
             'citation-locator-diagnostic-summary', 'citation-locator-diagnostics', 'locator-diagnostic-summary', 'locator-diagnostics' => $this->citationLocatorDiagnosticSummary($citation),
             'citation-locator-diagnostic-reasons', 'locator-diagnostic-reasons' => $this->citationLocatorDiagnosticReasons($citation),
@@ -9658,6 +9661,53 @@ final class CitationCslProcessor
         return $parts['value'] === '' ? '' : $parts['label'];
     }
 
+    private function citationLocatorSourceClass(?AstNode $citation): string
+    {
+        if (!$citation instanceof AstNode) {
+            return '';
+        }
+
+        $parts = $this->citationLocatorParts($citation);
+        if ($parts['value'] === '' && $this->citationLocatorDiagnosticsForCitation($citation) === []) {
+            return '';
+        }
+
+        $explicitValue = $this->inlineValue($citation->attr('locatorValue', ''));
+        if ($explicitValue !== '') {
+            return 'explicit';
+        }
+
+        $rawLocator = $this->inlineValue($citation->attr('locator', ''));
+        if ($rawLocator === '') {
+            $rawLocator = $this->inlineValue($citation->attr('suffix', ''));
+        }
+        if ($rawLocator === '') {
+            return 'none';
+        }
+
+        $normalizedRaw = trim(preg_replace('/\s+/u', ' ', $rawLocator) ?? $rawLocator);
+        if (
+            $parts['label'] === 'page'
+            && $parts['value'] === $normalizedRaw
+            && $this->citationLocatorUnsupportedLabelCandidate($normalizedRaw) !== ''
+        ) {
+            return 'defaulted';
+        }
+
+        return $parts['label'] === 'page' && $parts['value'] === $normalizedRaw ? 'unlabeled' : 'inferred';
+    }
+
+    private function citationLocatorUnsupportedLabelCandidate(string $locator): string
+    {
+        if (preg_match('/^([\p{L}][\p{L}\p{N}._-]{0,31})\s+\S/u', trim($locator), $match) !== 1) {
+            return '';
+        }
+
+        $candidate = $this->normalizedLocatorLabel((string) $match[1]);
+
+        return $this->supportedCitationLocatorLabel($candidate) ? '' : $candidate;
+    }
+
     private function citationLocatorRawValue(?AstNode $citation): string
     {
         if (!$citation instanceof AstNode) {
@@ -9700,6 +9750,7 @@ final class CitationCslProcessor
                 'formattedValue' => $this->formatCslLocatorValue($parts),
                 'raw' => $this->citationLocatorRawValue($citation),
                 'source' => (string) ($diagnostics[0]['source'] ?? $this->sourceCitationText($citation)),
+                'sourceClass' => $this->citationLocatorSourceClass($citation),
             ];
         }
 

@@ -14077,6 +14077,7 @@ XML
         <names variable="author"/>
         <text variable="citation-locator-label"/>
         <text variable="citation-locator-value"/>
+        <text variable="citation-locator-source"/>
         <text variable="citation-locator-diagnostic-summary"/>
         <text variable="citation-locator-diagnostic-reasons"/>
       </group>
@@ -14102,9 +14103,15 @@ XML);
         $t->same($summaryA, $citation->attr('cslLocatorDiagnosticSummary'));
         $t->same('page', $citation->attr('cslLocator')['label'] ?? null);
         $t->same('plate A', $citation->attr('cslLocator')['value'] ?? null);
+        $t->same('explicit', $citation->attr('cslLocator')['sourceClass'] ?? null);
+        $t->same('(Vale | page | plate A | defaulted | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | section | 9 | inferred; Vale | page | appendix A | explicit | page appendix A [citation-locator-explicit-value-defaulted-page/info] | citation-locator-explicit-value-defaulted-page)', $processor->renderCitationCluster([
+            new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, plate A]', 'locator' => 'plate A']),
+            new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, sec. 9]', 'locator' => 'sec. 9']),
+            new AstNode('citation', ['id' => 'locator-summary-source', 'text' => '[@locator-summary-source, appendix A]', 'locatorValue' => 'appendix A']),
+        ]));
 
         $blocks = (new WordPressBlockWriter())->write($processed);
-        $t->contains('<p>Locator summaries (Vale | page | plate A | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
+        $t->contains('<p>Locator summaries (Vale | page | plate A | explicit | page plate A [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback; Vale | page | plate B | explicit | page plate B [citation-locator-unlabeled-page-fallback/info] | citation-locator-unlabeled-page-fallback) remain visible.</p>', $blocks);
         $t->contains('<dt>Vale 2026</dt><dd>Locator Summary Packet</dd>', $blocks);
     },
     'infers pandoc json citation suffix locators for diagnostics' => static function (TestRunner $t): void {
