@@ -4847,6 +4847,67 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Reviewer Guide :: J. Import. Sources :: Migration Manual: Reviewer Packet Guide :: Journal of Imported Sources</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Full Report Packet :: Migration Proceedings :: Full Report Packet :: Migration Proceedings</dd>', $blocks);
     },
+    'renders bounded csl inner quote locale terms for citations and bibliography' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'inner-quote-source',
+                'type' => 'book',
+                'title' => 'Nested Reviewer Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'URL' => 'https://example.test/inner-quote-source',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Inner Quote Term Review</title>
+    <id>https://example.test/styles/bounded-inner-quote-term-review</id>
+    <updated>2026-06-10T16:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <date variable="issued">
+          <date-part name="year"/>
+        </date>
+        <group>
+          <text term="open-inner-quote"/>
+          <text variable="title"/>
+          <text term="close-inner-quote"/>
+        </group>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout>
+      <group>
+        <text term="open-inner-quote"/>
+        <text variable="title"/>
+        <text term="close-inner-quote"/>
+      </group>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded Inner Quote Term Review', $summary['title'] ?? null);
+        $t->same("\u{2018}", $summary['terms']['openInnerQuote'] ?? null);
+        $t->same("\u{2019}", $summary['terms']['closeInnerQuote'] ?? null);
+        $t->same('(Smith 2026 ‘Nested Reviewer Packet’)', $processor->renderCitationCluster([
+            $citation('inner-quote-source', '[@inner-quote-source]'),
+        ]));
+        $t->same('‘Nested Reviewer Packet’', $processor->renderBibliographyEntry('inner-quote-source'));
+
+        $document = (new MarkdownReader())->read('Inner quote source [@inner-quote-source] keeps nested quotation terms readable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Inner quote source (Smith 2026 ‘Nested Reviewer Packet’) keeps nested quotation terms readable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>‘Nested Reviewer Packet’</dd>', $blocks);
+    },
     'applies bounded csl abbreviation list lookup for short text variables' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
