@@ -13,10 +13,15 @@ final class DocxOpenXmlReader
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
     private const NS_DCTERMS = 'http://purl.org/dc/terms/';
+    private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+    private const NS_CUSTOM_PROPS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
+    private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+    private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
+    private const CUSTOM_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
     private const STYLES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
@@ -81,6 +86,10 @@ final class DocxOpenXmlReader
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
+        $extendedPropertiesPart = $this->rootRelatedPart($parts, $rootRelationships, self::EXTENDED_PROPERTIES_REL, 'docProps/app.xml');
+        $extendedProperties = $this->readExtendedProperties($extendedPropertiesPart['xml'], $extendedPropertiesPart['partName']);
+        $customPropertiesPart = $this->rootRelatedPart($parts, $rootRelationships, self::CUSTOM_PROPERTIES_REL, 'docProps/custom.xml');
+        $customProperties = $this->readCustomProperties($customPropertiesPart['xml'], $customPropertiesPart['partName']);
         $media = $this->mediaMetadata($parts, $contentTypes);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering);
 
@@ -103,6 +112,10 @@ final class DocxOpenXmlReader
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
+                'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
+                'extendedProperties' => $extendedProperties,
+                'customPropertiesPart' => $customPropertiesPart['partName'],
+                'customProperties' => $customProperties,
                 'media' => $media,
             ],
         ];
@@ -113,6 +126,26 @@ final class DocxOpenXmlReader
                 '_rels/.rels',
                 $corePropertiesPart['partName'],
                 $corePropertiesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($extendedPropertiesPart['relationship'] !== null) {
+            $attrs['docx']['extendedPropertiesRelationship'] = $this->relationshipSummary(
+                $extendedPropertiesPart['relationship'],
+                '/',
+                '_rels/.rels',
+                $extendedPropertiesPart['partName'],
+                $extendedPropertiesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($customPropertiesPart['relationship'] !== null) {
+            $attrs['docx']['customPropertiesRelationship'] = $this->relationshipSummary(
+                $customPropertiesPart['relationship'],
+                '/',
+                '_rels/.rels',
+                $customPropertiesPart['partName'],
+                $customPropertiesPart['exists'],
                 $contentTypes,
             );
         }
@@ -178,6 +211,13 @@ final class DocxOpenXmlReader
         }
         if ($meta !== []) {
             $attrs['meta'] = $meta;
+        }
+        if ($extendedProperties !== []) {
+            $attrs['meta']['docxExtendedProperties'] = $extendedProperties;
+        }
+        if ($customProperties !== []) {
+            $attrs['meta']['docxCustomProperties'] = $customProperties;
+            $attrs['meta']['customProperties'] = $customProperties['byName'];
         }
 
         return new AstNode('document', $attrs, $blocks);
@@ -340,6 +380,38 @@ final class DocxOpenXmlReader
         }
 
         $partName = 'docProps/core.xml';
+
+        return [
+            'partName' => $partName,
+            'xml' => $parts[$partName] ?? '',
+            'relationship' => null,
+            'exists' => isset($parts[$partName]),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool}
+     */
+    private function rootRelatedPart(array $parts, array $relationships, string $relationshipType, string $fallbackPart): array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== $relationshipType || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+
+            return [
+                'partName' => $partName,
+                'xml' => $parts[$partName] ?? '',
+                'relationship' => $relationship,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        $partName = $this->normalizePartName($fallbackPart);
 
         return [
             'partName' => $partName,
@@ -563,6 +635,239 @@ final class DocxOpenXmlReader
         }
 
         return $meta;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readExtendedProperties(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $properties = [];
+
+        foreach ([
+            'Template' => 'template',
+            'Manager' => 'manager',
+            'Company' => 'company',
+            'Application' => 'application',
+            'AppVersion' => 'appVersion',
+            'HyperlinkBase' => 'hyperlinkBase',
+        ] as $source => $target) {
+            $value = $this->extendedPropertyText($xpath, $source);
+            if ($value !== '') {
+                $properties[$target] = $value;
+            }
+        }
+
+        foreach ([
+            'Pages' => 'pages',
+            'Words' => 'words',
+            'Characters' => 'characters',
+            'CharactersWithSpaces' => 'charactersWithSpaces',
+            'Lines' => 'lines',
+            'Paragraphs' => 'paragraphs',
+        ] as $source => $target) {
+            $value = $this->extendedPropertyText($xpath, $source);
+            if ($value !== '' && is_numeric($value)) {
+                $properties[$target] = (int) $value;
+            }
+        }
+
+        foreach ([
+            'LinksUpToDate' => 'linksUpToDate',
+            'SharedDoc' => 'sharedDoc',
+            'HyperlinksChanged' => 'hyperlinksChanged',
+        ] as $source => $target) {
+            $element = $this->firstElement($xpath, '/ep:Properties/ep:' . $source, $dom);
+            if ($element instanceof \DOMElement) {
+                $properties[$target] = $this->openXmlBooleanText($element->textContent);
+            }
+        }
+
+        $headingPairs = $this->extendedHeadingPairs($xpath, $dom);
+        if ($headingPairs !== []) {
+            $properties['headingPairs'] = $headingPairs;
+        }
+
+        $titlesOfParts = $this->extendedTitlesOfParts($xpath, $dom);
+        if ($titlesOfParts !== []) {
+            $properties['titlesOfParts'] = $titlesOfParts;
+        }
+
+        return $properties;
+    }
+
+    private function extendedPropertyText(\DOMXPath $xpath, string $localName): string
+    {
+        return trim((string) $xpath->evaluate('string(/ep:Properties/ep:' . $localName . ')'));
+    }
+
+    /**
+     * @return list<array{name:string, count:int}>
+     */
+    private function extendedHeadingPairs(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $vector = $this->firstElement($xpath, '/ep:Properties/ep:HeadingPairs/vt:vector', $dom);
+        if (!$vector instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = $this->docPropsVectorValues($vector);
+        $pairs = [];
+        for ($index = 0; $index + 1 < count($values); $index += 2) {
+            $name = trim((string) $values[$index]);
+            $count = $values[$index + 1];
+            if ($name !== '' && is_int($count)) {
+                $pairs[] = ['name' => $name, 'count' => $count];
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extendedTitlesOfParts(\DOMXPath $xpath, \DOMDocument $dom): array
+    {
+        $vector = $this->firstElement($xpath, '/ep:Properties/ep:TitlesOfParts/vt:vector', $dom);
+        if (!$vector instanceof \DOMElement) {
+            return [];
+        }
+
+        $titles = [];
+        foreach ($this->docPropsVectorValues($vector) as $value) {
+            $title = trim((string) $value);
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+        }
+
+        return $titles;
+    }
+
+    /**
+     * @return array{count:int, duplicateNameCount:int, duplicateNames:list<string>, items:list<array<string, mixed>>, byName:array<string, mixed>}
+     */
+    private function readCustomProperties(string $xml, string $partName): array
+    {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $items = [];
+        $byName = [];
+        $seenNames = [];
+        $duplicateNames = [];
+
+        foreach ($this->elements($xpath, '/cust:Properties/cust:property') as $property) {
+            $name = trim($property->getAttribute('name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $valueElement = $this->firstDocPropsValueElement($property);
+            if (!$valueElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $duplicate = isset($seenNames[$name]);
+            $seenNames[$name] = true;
+            if ($duplicate) {
+                $duplicateNames[$name] = true;
+            } else {
+                $byName[$name] = $this->docPropsTypedValue($valueElement);
+            }
+
+            $item = [
+                'name' => $name,
+                'valueType' => $valueElement->localName,
+                'value' => $this->docPropsTypedValue($valueElement),
+                'duplicate' => $duplicate,
+            ];
+            $pid = $property->getAttribute('pid');
+            if ($pid !== '' && is_numeric($pid)) {
+                $item['pid'] = (int) $pid;
+            }
+            $fmtid = trim($property->getAttribute('fmtid'));
+            if ($fmtid !== '') {
+                $item['fmtid'] = $fmtid;
+            }
+
+            $items[] = $item;
+        }
+
+        if ($items === []) {
+            return [];
+        }
+
+        return [
+            'count' => count($items),
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => array_keys($duplicateNames),
+            'items' => $items,
+            'byName' => $byName,
+        ];
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function docPropsVectorValues(\DOMElement $vector): array
+    {
+        $values = [];
+        foreach ($vector->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_VT) {
+                continue;
+            }
+
+            if ($child->localName === 'variant') {
+                $valueElement = $this->firstDocPropsValueElement($child);
+                if ($valueElement instanceof \DOMElement) {
+                    $values[] = $this->docPropsTypedValue($valueElement);
+                }
+                continue;
+            }
+
+            $values[] = $this->docPropsTypedValue($child);
+        }
+
+        return $values;
+    }
+
+    private function firstDocPropsValueElement(\DOMElement $parent): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_VT) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function docPropsTypedValue(\DOMElement $valueElement): mixed
+    {
+        $value = trim($valueElement->textContent);
+
+        return match ($valueElement->localName) {
+            'bool' => $this->openXmlBooleanText($value),
+            'i1', 'i2', 'i4', 'i8', 'int', 'ui1', 'ui2', 'ui4', 'ui8', 'uint' => is_numeric($value) ? (int) $value : 0,
+            'r4', 'r8', 'decimal' => is_numeric($value) ? (float) $value : 0.0,
+            default => $value,
+        };
+    }
+
+    private function openXmlBooleanText(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['1', 'true', 'on', 'yes'], true);
     }
 
     /**
@@ -1630,6 +1935,9 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('dc', self::NS_DC);
         $xpath->registerNamespace('cp', self::NS_CP);
         $xpath->registerNamespace('dcterms', self::NS_DCTERMS);
+        $xpath->registerNamespace('ep', self::NS_EP);
+        $xpath->registerNamespace('cust', self::NS_CUSTOM_PROPS);
+        $xpath->registerNamespace('vt', self::NS_VT);
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
 

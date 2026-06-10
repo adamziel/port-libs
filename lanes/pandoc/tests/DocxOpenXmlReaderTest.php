@@ -179,6 +179,126 @@ XML;
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
+    'reports docx extended and custom package properties from root relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' . "\n" .
+            '  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml?profile=review#extended"/>' . "\n" .
+            '  <Relationship Id="rCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml#custom"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/app.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <Template>Normal.dotm</Template>
+  <Manager>Migration Lead</Manager>
+  <Company>WordPress Migration Desk</Company>
+  <Pages>12</Pages>
+  <Words>3456</Words>
+  <Characters>12000</Characters>
+  <CharactersWithSpaces>13025</CharactersWithSpaces>
+  <Lines>123</Lines>
+  <Paragraphs>48</Paragraphs>
+  <Application>Microsoft Word</Application>
+  <AppVersion>16.0000</AppVersion>
+  <HyperlinkBase>https://example.test/review/</HyperlinkBase>
+  <LinksUpToDate>false</LinksUpToDate>
+  <SharedDoc>0</SharedDoc>
+  <HyperlinksChanged>true</HyperlinksChanged>
+  <HeadingPairs>
+    <vt:vector size="4" baseType="variant">
+      <vt:variant><vt:lpstr>Title</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>2</vt:i4></vt:variant>
+      <vt:variant><vt:lpstr>Heading 1</vt:lpstr></vt:variant>
+      <vt:variant><vt:i4>4</vt:i4></vt:variant>
+    </vt:vector>
+  </HeadingPairs>
+  <TitlesOfParts>
+    <vt:vector size="2" baseType="lpstr">
+      <vt:lpstr>DOCX source packet</vt:lpstr>
+      <vt:lpstr>Reviewer checklist</vt:lpstr>
+    </vt:vector>
+  </TitlesOfParts>
+</Properties>
+XML;
+        $parts['docProps/custom.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+  xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ImportStatus"><vt:lpwstr>needs-media-review</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="ReviewBatch"><vt:i4>42</vt:i4></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Approved"><vt:bool>false</vt:bool></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="ReviewTimestamp"><vt:filetime>2026-06-07T00:00:00Z</vt:filetime></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="6" name="ImportStatus"><vt:lpwstr>approved-for-staging</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="7" name=""><vt:lpwstr>ignored-empty-name</vt:lpwstr></property>
+</Properties>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $meta = $document->attr('meta');
+        $extended = $docx['extendedProperties'];
+        $custom = $docx['customProperties'];
+
+        $t->same('docProps/app.xml', $docx['extendedPropertiesPart']);
+        $t->same('rApp', $docx['extendedPropertiesRelationship']['id']);
+        $t->same('/', $docx['extendedPropertiesRelationship']['sourcePart']);
+        $t->same('_rels/.rels', $docx['extendedPropertiesRelationship']['relationshipsPart']);
+        $t->same('docProps/app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['target']);
+        $t->same('docProps/app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['resolvedTarget']);
+        $t->same('docProps/app.xml', $docx['extendedPropertiesRelationship']['targetPart']);
+        $t->same(true, $docx['extendedPropertiesRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $docx['extendedPropertiesRelationship']['contentType']);
+        $t->same('Normal.dotm', $extended['template']);
+        $t->same('Migration Lead', $extended['manager']);
+        $t->same('WordPress Migration Desk', $extended['company']);
+        $t->same(3456, $extended['words']);
+        $t->same(13025, $extended['charactersWithSpaces']);
+        $t->same(false, $extended['linksUpToDate']);
+        $t->same(false, $extended['sharedDoc']);
+        $t->same(true, $extended['hyperlinksChanged']);
+        $t->same('Title', $extended['headingPairs'][0]['name']);
+        $t->same(2, $extended['headingPairs'][0]['count']);
+        $t->same('Heading 1', $extended['headingPairs'][1]['name']);
+        $t->same(4, $extended['headingPairs'][1]['count']);
+        $t->same(['DOCX source packet', 'Reviewer checklist'], $extended['titlesOfParts']);
+
+        $t->same('docProps/custom.xml', $docx['customPropertiesPart']);
+        $t->same('rCustom', $docx['customPropertiesRelationship']['id']);
+        $t->same('docProps/custom.xml#custom', $docx['customPropertiesRelationship']['target']);
+        $t->same('docProps/custom.xml', $docx['customPropertiesRelationship']['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.custom-properties+xml', $docx['customPropertiesRelationship']['contentType']);
+        $t->same(5, $custom['count']);
+        $t->same(1, $custom['duplicateNameCount']);
+        $t->same(['ImportStatus'], $custom['duplicateNames']);
+        $t->same('needs-media-review', $custom['byName']['ImportStatus']);
+        $t->same(42, $custom['byName']['ReviewBatch']);
+        $t->same(false, $custom['byName']['Approved']);
+        $t->same('2026-06-07T00:00:00Z', $custom['byName']['ReviewTimestamp']);
+        $t->same($custom['byName'], $meta['customProperties']);
+        $t->same('ImportStatus', $custom['items'][0]['name']);
+        $t->same(2, $custom['items'][0]['pid']);
+        $t->same('lpwstr', $custom['items'][0]['valueType']);
+        $t->same(false, $custom['items'][0]['duplicate']);
+        $t->same('ReviewBatch', $custom['items'][1]['name']);
+        $t->same('i4', $custom['items'][1]['valueType']);
+        $t->same(42, $custom['items'][1]['value']);
+        $t->same('Approved', $custom['items'][2]['name']);
+        $t->same('bool', $custom['items'][2]['valueType']);
+        $t->same(false, $custom['items'][2]['value']);
+        $t->same('ImportStatus', $custom['items'][4]['name']);
+        $t->same(true, $custom['items'][4]['duplicate']);
+        $t->same('approved-for-staging', $custom['items'][4]['value']);
+    },
     'resolves docx settings and font table from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
