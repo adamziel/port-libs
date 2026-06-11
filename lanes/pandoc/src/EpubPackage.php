@@ -4077,6 +4077,40 @@ final class EpubPackage
     }
 
     /**
+     * @return array{raw:?string, specified:bool, linear:bool, valid:bool, idref:string, diagnostics:list<array<string, mixed>>}
+     */
+    private static function spineItemLinearReport(\DOMElement $itemrefElement, string $idref): array
+    {
+        $raw = trim($itemrefElement->getAttribute('linear'));
+        $specified = $raw !== '';
+        $normalized = strtolower($raw);
+        $linear = true;
+        $valid = true;
+        $diagnostics = [];
+
+        if ($specified && $normalized === 'no') {
+            $linear = false;
+        } elseif ($specified && $normalized !== 'yes') {
+            $valid = false;
+            $diagnostics[] = [
+                'type' => 'invalid-spine-linear-value',
+                'idref' => $idref,
+                'value' => $raw,
+                'message' => 'EPUB spine itemref linear must be yes, no, or omitted; invalid values are treated as yes',
+            ];
+        }
+
+        return [
+            'raw' => $specified ? $raw : null,
+            'specified' => $specified,
+            'linear' => $linear,
+            'valid' => $valid,
+            'idref' => $idref,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
      * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
      *
@@ -4096,11 +4130,12 @@ final class EpubPackage
                 $id = $itemrefElement->hasAttribute('id')
                     ? self::emptyToNull($itemrefElement->getAttribute('id'))
                     : null;
-                $linearRaw = $itemrefElement->hasAttribute('linear')
-                    ? self::emptyToNull($itemrefElement->getAttribute('linear'))
-                    : null;
                 $properties = self::splitTokens($itemrefElement->getAttribute('properties'));
                 $itemProperties = self::spineItemPropertyReport($properties);
+                $linearProperties = self::spineItemLinearReport($itemrefElement, $idref);
+                $itemProperties['linear'] = $linearProperties;
+                $itemDiagnostics = array_merge($itemProperties['diagnostics'], $linearProperties['diagnostics']);
+                $itemProperties['diagnostics'] = $itemDiagnostics;
                 $spine[] = [
                     'id' => $id,
                     'idref' => $idref,
@@ -4109,11 +4144,13 @@ final class EpubPackage
                     'mediaType' => '',
                     'exists' => false,
                     'manifestItemMissing' => true,
-                    'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
-                    'linearRaw' => $linearRaw,
+                    'linear' => $linearProperties['linear'],
+                    'linearRaw' => $linearProperties['raw'],
+                    'linearSpecified' => $linearProperties['specified'],
+                    'linearValid' => $linearProperties['valid'],
                     'properties' => $properties,
                     'spineItemProperties' => $itemProperties,
-                    'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                    'spineItemDiagnostics' => $itemDiagnostics,
                     'pageSpread' => $itemProperties['pageSpread']['placement'],
                     'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                     'mediaOverlay' => null,
@@ -4126,14 +4163,15 @@ final class EpubPackage
             $id = $itemrefElement->hasAttribute('id')
                 ? self::emptyToNull($itemrefElement->getAttribute('id'))
                 : null;
-            $linearRaw = $itemrefElement->hasAttribute('linear')
-                ? self::emptyToNull($itemrefElement->getAttribute('linear'))
-                : null;
             $refinements = $id !== null && isset($refinementsById[$id]) && is_array($refinementsById[$id])
                 ? $refinementsById[$id]
                 : [];
             $properties = self::splitTokens($itemrefElement->getAttribute('properties'));
             $itemProperties = self::spineItemPropertyReport($properties);
+            $linearProperties = self::spineItemLinearReport($itemrefElement, $idref);
+            $itemProperties['linear'] = $linearProperties;
+            $itemDiagnostics = array_merge($itemProperties['diagnostics'], $linearProperties['diagnostics']);
+            $itemProperties['diagnostics'] = $itemDiagnostics;
 
             $spine[] = [
                 'id' => $id,
@@ -4143,11 +4181,13 @@ final class EpubPackage
                 'mediaType' => $item['mediaType'],
                 'exists' => ($item['exists'] ?? false) === true,
                 'manifestItemMissing' => false,
-                'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
-                'linearRaw' => $linearRaw,
+                'linear' => $linearProperties['linear'],
+                'linearRaw' => $linearProperties['raw'],
+                'linearSpecified' => $linearProperties['specified'],
+                'linearValid' => $linearProperties['valid'],
                 'properties' => $properties,
                 'spineItemProperties' => $itemProperties,
-                'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                'spineItemDiagnostics' => $itemDiagnostics,
                 'pageSpread' => $itemProperties['pageSpread']['placement'],
                 'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'mediaOverlay' => $item['mediaOverlay'] ?? null,
