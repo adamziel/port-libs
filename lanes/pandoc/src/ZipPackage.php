@@ -7833,8 +7833,11 @@ final class ZipPackage
         $nameBytes = 0;
         $extraFieldBytes = 0;
         $commentBytes = 0;
+        $reviewFieldBytes = 0;
         $centralExtraFieldEntryCount = 0;
         $entryCommentCount = 0;
+        $reviewFieldEntryCount = 0;
+        $largestReviewFieldEntry = null;
 
         for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
             while ($cursor < $archive['centralDirectoryEnd']) {
@@ -7872,6 +7875,7 @@ final class ZipPackage
             $recordEnd = $rawCommentOffset + $commentLength;
             $rawName = substr($bytes, $rawNameOffset, $nameLength);
             $centralExtraFieldData = substr($bytes, $centralExtraFieldOffset, $extraLength);
+            $entryReviewFieldBytes = $extraLength + $commentLength;
             self::assertSafePartName($rawName);
             $decodedName = self::decodeZipText(
                 $rawName,
@@ -7883,7 +7887,7 @@ final class ZipPackage
             );
             self::assertSafePartName($decodedName['text']);
 
-            $entries[] = [
+            $entry = [
                 'name' => $decodedName['text'],
                 'rawName' => $rawName,
                 'nameEncoding' => $decodedName['encoding'],
@@ -7901,18 +7905,30 @@ final class ZipPackage
                 'rawCommentLength' => $commentLength,
                 'recordEnd' => $recordEnd,
                 'localHeaderOffset' => $localHeaderOffset,
+                'reviewFieldBytes' => $entryReviewFieldBytes,
                 'hasCentralExtraFields' => $extraLength > 0,
                 'hasEntryComment' => $commentLength > 0,
             ];
+            $entries[] = $entry;
 
             $nameBytes += $nameLength;
             $extraFieldBytes += $extraLength;
             $commentBytes += $commentLength;
+            $reviewFieldBytes += $entryReviewFieldBytes;
             if ($extraLength > 0) {
                 $centralExtraFieldEntryCount++;
             }
             if ($commentLength > 0) {
                 $entryCommentCount++;
+            }
+            if ($entryReviewFieldBytes > 0) {
+                $reviewFieldEntryCount++;
+                if (
+                    $largestReviewFieldEntry === null
+                    || $entryReviewFieldBytes > $largestReviewFieldEntry['reviewFieldBytes']
+                ) {
+                    $largestReviewFieldEntry = $entry;
+                }
             }
 
             $cursor = $recordEnd;
@@ -7960,12 +7976,16 @@ final class ZipPackage
             'centralDirectoryNameBytes' => $nameBytes,
             'centralDirectoryExtraFieldBytes' => $extraFieldBytes,
             'centralDirectoryCommentBytes' => $commentBytes,
+            'centralDirectoryReviewFieldBytes' => $reviewFieldBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
+            'reviewFieldEntryCount' => $reviewFieldEntryCount,
             'hasCentralDirectoryVariableFields' => $nameBytes + $extraFieldBytes + $commentBytes > 0,
             'hasCentralExtraFields' => $centralExtraFieldEntryCount > 0,
             'hasEntryComments' => $entryCommentCount > 0,
+            'hasCentralDirectoryReviewFields' => $reviewFieldBytes > 0,
             'hasPackageComment' => $archive['packageCommentLength'] > 0,
+            'largestReviewFieldEntry' => $largestReviewFieldEntry,
             'scanStoppedOffset' => $cursor,
             'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,
             'unexpectedRecordOffset' => $unexpectedRecordOffset,

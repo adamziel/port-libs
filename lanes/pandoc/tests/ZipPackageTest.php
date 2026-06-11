@@ -4834,11 +4834,14 @@ return [
         $t->same(strlen('word/document.xml') + strlen('word/media/review.bin'), $summary['centralDirectoryNameBytes']);
         $t->same(strlen($centralExtra), $summary['centralDirectoryExtraFieldBytes']);
         $t->same(strlen($entryComment), $summary['centralDirectoryCommentBytes']);
+        $t->same(strlen($centralExtra) + strlen($entryComment), $summary['centralDirectoryReviewFieldBytes']);
         $t->same(1, $summary['centralExtraFieldEntryCount']);
         $t->same(1, $summary['entryCommentCount']);
+        $t->same(1, $summary['reviewFieldEntryCount']);
         $t->same(true, $summary['hasCentralDirectoryVariableFields']);
         $t->same(true, $summary['hasCentralExtraFields']);
         $t->same(true, $summary['hasEntryComments']);
+        $t->same(true, $summary['hasCentralDirectoryReviewFields']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same($summary['centralDirectoryEnd'], $summary['scanStoppedOffset']);
         $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
@@ -4861,13 +4864,16 @@ return [
         $t->same($first['centralExtraFieldOffset'] + $first['centralExtraFieldLength'], $first['rawCommentOffset']);
         $t->same(strlen($entryComment), $first['rawCommentLength']);
         $t->same($first['rawCommentOffset'] + $first['rawCommentLength'], $first['recordEnd']);
+        $t->same(strlen($centralExtra) + strlen($entryComment), $first['reviewFieldBytes']);
         $t->same(true, $first['hasCentralExtraFields']);
         $t->same(true, $first['hasEntryComment']);
+        $t->same($first, $summary['largestReviewFieldEntry']);
 
         $t->same('word/media/review.bin', $second['name']);
         $t->same($first['recordEnd'], $second['recordOffset']);
         $t->same(0, $second['centralExtraFieldLength']);
         $t->same(0, $second['rawCommentLength']);
+        $t->same(0, $second['reviewFieldBytes']);
         $t->same(false, $second['hasCentralExtraFields']);
         $t->same(false, $second['hasEntryComment']);
         $t->same($summary, $rawStrict['centralDirectoryVariableFields']);
