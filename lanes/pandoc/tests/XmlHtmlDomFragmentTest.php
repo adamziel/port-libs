@@ -84,7 +84,36 @@ return [
     'rejects xml declarations doctypes entities and malformed xml fragments' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml('<?xml version="1.0"?><root/>'));
         $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml('<!DOCTYPE x [<!ENTITY ext SYSTEM "file:///etc/passwd">]><x>&ext;</x>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><root/>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml("<root>bad\0packet</root>"));
         $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseXml('<root><unclosed></root>'));
+    },
+    'rejects unsafe html fragment declarations before parser repair' => static function (TestRunner $t): void {
+        $safe = XmlHtmlDomFragment::parseHtml(
+            '<!-- <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> -->'
+            . '<p data-source="review">Safe packet</p>'
+        );
+
+        $t->same('Safe packet', $safe->textContent());
+        $t->same('dom_comment', $safe->children()[0]->type);
+        $t->same(' <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> ', $safe->children()[0]->attr('text'));
+        $t->same('<!-- <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"> --><p data-source="review">Safe packet</p>', $safe->serializeHtml());
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseHtml('<!DOCTYPE html><p>bad</p>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseHtml('<!ENTITY reviewer SYSTEM "file:///etc/passwd"><p>&reviewer;</p>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseHtml('<?xml-stylesheet href="https://example.invalid/review.xsl"?><p>bad</p>'));
+        $t->throws(\InvalidArgumentException::class, static fn (): XmlHtmlDomFragment => XmlHtmlDomFragment::parseHtml("<p>bad\0packet</p>"));
+    },
+    'preserves declaration-looking text inside xml comments before handoff' => static function (TestRunner $t): void {
+        $fragment = XmlHtmlDomFragment::parseXml(
+            '<!-- <?xml-stylesheet href="https://example.invalid/review.xsl"?> -->'
+            . '<root data-source="review">Safe XML packet</root>'
+        );
+
+        $t->same('Safe XML packet', $fragment->textContent());
+        $t->same('dom_comment', $fragment->children()[0]->type);
+        $t->same(' <?xml-stylesheet href="https://example.invalid/review.xsl"?> ', $fragment->children()[0]->attr('text'));
+        $t->same('root', $fragment->children()[1]->attr('name'));
+        $t->same('<!-- <?xml-stylesheet href="https://example.invalid/review.xsl"?> --><root data-source="review">Safe XML packet</root>', $fragment->serializeXml());
     },
     'serializes xml text attributes and comments with xml escaping' => static function (TestRunner $t): void {
         $fragment = XmlHtmlDomFragment::parseXml('<review note="A &amp; B">Use &lt;blocks&gt; "as-is"<!--source marker--></review>');

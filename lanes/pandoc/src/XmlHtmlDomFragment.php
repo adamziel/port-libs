@@ -91,6 +91,8 @@ final class XmlHtmlDomFragment
 
     public static function parseHtml(string $html): self
     {
+        self::assertSafeHtmlSource($html, 'HTML fragment');
+
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $dom->resolveExternals = false;
@@ -111,6 +113,8 @@ final class XmlHtmlDomFragment
             throw new \InvalidArgumentException('Parsed HTML fragment did not contain a body element');
         }
 
+        self::assertNoProcessingInstructions($body, 'HTML fragment');
+
         $diagnostics = [];
         $children = self::domChildrenToFragmentNodes($body, true, $diagnostics);
 
@@ -119,13 +123,7 @@ final class XmlHtmlDomFragment
 
     public static function parseXml(string $xml): self
     {
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY)\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException('XML fragments with DOCTYPE or ENTITY declarations are not supported');
-        }
-
-        if (preg_match('/<\?xml\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException('XML declaration is not allowed inside a fragment');
-        }
+        self::assertSafeXmlSource($xml, 'XML fragment');
 
         $previous = libxml_use_internal_errors(true);
         $dom = new \DOMDocument('1.0', 'UTF-8');
@@ -142,10 +140,62 @@ final class XmlHtmlDomFragment
             throw new \InvalidArgumentException('Unable to parse XML fragment');
         }
 
+        self::assertNoProcessingInstructions($dom->documentElement, 'XML fragment');
+
         $diagnostics = [];
         $children = self::domChildrenToFragmentNodes($dom->documentElement, false, $diagnostics);
 
         return new self('xml', new AstNode('dom_fragment', ['format' => 'xml'], $children), $diagnostics);
+    }
+
+    private static function assertSafeHtmlSource(string $html, string $label): void
+    {
+        self::assertNoNullByte($html, $label);
+        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+    }
+
+    private static function assertSafeXmlSource(string $xml, string $label): void
+    {
+        self::assertNoNullByte($xml, $label);
+        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        if (preg_match('/<\?xml\b/i', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException('XML declaration is not allowed inside a fragment');
+        }
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException('XML fragments with DTD or entity declarations are not supported');
+        }
+    }
+
+    private static function sourceWithoutClosedComments(string $source): string
+    {
+        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
+    }
+
+    private static function assertNoNullByte(string $source, string $label): void
+    {
+        if (str_contains($source, "\0")) {
+            throw new \InvalidArgumentException($label . ' must not contain NUL bytes');
+        }
+    }
+
+    private static function assertNoProcessingInstructions(\DOMNode $node, string $label): void
+    {
+        if ($node instanceof \DOMProcessingInstruction) {
+            throw new \InvalidArgumentException($label . ' must not include processing instructions');
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::assertNoProcessingInstructions($child, $label);
+        }
     }
 
     public function fragment(): AstNode
