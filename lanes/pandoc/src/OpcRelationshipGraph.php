@@ -467,6 +467,9 @@ final class OpcRelationshipGraph
                 $relationshipSource
             );
             $entry['handoffKind'] = self::zipEntryManifestHandoffKind($entry['role'], $partName);
+            if (!self::isSupportedZipCompressionMethod($entry['compressionMethod'])) {
+                $entry['issues'][] = 'unsupported-compression-method';
+            }
             $entry['issues'] = array_values(array_unique($entry['issues']));
             $entry['valid'] = $entry['issues'] === [];
         }
@@ -477,6 +480,10 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $compressionMethodBuckets = [];
+        $compressionMethodBucketsByRole = [];
+        $compressionMethodBucketsByHandoffKind = [];
+        $unsupportedCompressionMethodEntries = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -485,6 +492,9 @@ final class OpcRelationshipGraph
         $fileUncompressedBytes = 0;
         $directoryCompressedBytes = 0;
         $directoryUncompressedBytes = 0;
+        $storedCompressionMethodCount = 0;
+        $deflatedCompressionMethodCount = 0;
+        $unsupportedCompressionMethodCount = 0;
         $relationshipPartCount = 0;
         $rootRelationshipPartCount = 0;
         $partRelationshipPartCount = 0;
@@ -561,6 +571,44 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            self::incrementZipCompressionMethodBucket(
+                $compressionMethodBuckets,
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+            self::incrementZipCompressionMethodBucketGroup(
+                $compressionMethodBucketsByRole,
+                $entry['role'],
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+            self::incrementZipCompressionMethodBucketGroup(
+                $compressionMethodBucketsByHandoffKind,
+                $entry['handoffKind'],
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+
+            if ($entry['compressionMethod'] === 0) {
+                $storedCompressionMethodCount++;
+            } elseif ($entry['compressionMethod'] === 8) {
+                $deflatedCompressionMethodCount++;
+            } else {
+                $unsupportedCompressionMethodCount++;
+                $unsupportedCompressionMethodEntries[] = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => self::zipCompressionMethodName($entry['compressionMethod']),
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                ];
+            }
 
             if (
                 $largestPayloadEntry === null
@@ -660,6 +708,14 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'supportedCompressionMethodEntryCount' => count($entries) - $unsupportedCompressionMethodCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'storedCompressionMethodCount' => $storedCompressionMethodCount,
+            'deflatedCompressionMethodCount' => $deflatedCompressionMethodCount,
+            'compressionMethodBuckets' => self::zipCompressionMethodBuckets($compressionMethodBuckets),
+            'compressionMethodBucketsByRole' => self::zipCompressionMethodBucketGroups($compressionMethodBucketsByRole),
+            'compressionMethodBucketsByHandoffKind' => self::zipCompressionMethodBucketGroups($compressionMethodBucketsByHandoffKind),
+            'unsupportedCompressionMethodEntries' => $unsupportedCompressionMethodEntries,
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -869,6 +925,9 @@ final class OpcRelationshipGraph
                 $relationshipSource
             );
             $entry['handoffKind'] = self::zipEntryManifestHandoffKind($entry['role'], $partName);
+            if (!self::isSupportedZipCompressionMethod($entry['compressionMethod'])) {
+                $entry['issues'][] = 'unsupported-compression-method';
+            }
             $entry['issues'] = array_values(array_unique($entry['issues']));
             $entry['valid'] = $entry['issues'] === [];
         }
@@ -882,6 +941,10 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $compressionMethodBuckets = [];
+        $compressionMethodBucketsByRole = [];
+        $compressionMethodBucketsByHandoffKind = [];
+        $unsupportedCompressionMethodEntries = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -890,6 +953,9 @@ final class OpcRelationshipGraph
         $fileUncompressedBytes = 0;
         $directoryCompressedBytes = 0;
         $directoryUncompressedBytes = 0;
+        $storedCompressionMethodCount = 0;
+        $deflatedCompressionMethodCount = 0;
+        $unsupportedCompressionMethodCount = 0;
         $relationshipPartCount = 0;
         $rootRelationshipPartCount = 0;
         $partRelationshipPartCount = 0;
@@ -938,6 +1004,44 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            self::incrementZipCompressionMethodBucket(
+                $compressionMethodBuckets,
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+            self::incrementZipCompressionMethodBucketGroup(
+                $compressionMethodBucketsByRole,
+                $entry['role'],
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+            self::incrementZipCompressionMethodBucketGroup(
+                $compressionMethodBucketsByHandoffKind,
+                $entry['handoffKind'],
+                $entry['compressionMethod'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize']
+            );
+
+            if ($entry['compressionMethod'] === 0) {
+                $storedCompressionMethodCount++;
+            } elseif ($entry['compressionMethod'] === 8) {
+                $deflatedCompressionMethodCount++;
+            } else {
+                $unsupportedCompressionMethodCount++;
+                $unsupportedCompressionMethodEntries[] = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => self::zipCompressionMethodName($entry['compressionMethod']),
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                ];
+            }
 
             if (
                 $largestPayloadEntry === null
@@ -1034,6 +1138,14 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'supportedCompressionMethodEntryCount' => count($entries) - $unsupportedCompressionMethodCount,
+            'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'storedCompressionMethodCount' => $storedCompressionMethodCount,
+            'deflatedCompressionMethodCount' => $deflatedCompressionMethodCount,
+            'compressionMethodBuckets' => self::zipCompressionMethodBuckets($compressionMethodBuckets),
+            'compressionMethodBucketsByRole' => self::zipCompressionMethodBucketGroups($compressionMethodBucketsByRole),
+            'compressionMethodBucketsByHandoffKind' => self::zipCompressionMethodBucketGroups($compressionMethodBucketsByHandoffKind),
+            'unsupportedCompressionMethodEntries' => $unsupportedCompressionMethodEntries,
             'contentTypesItemCount' => count($contentTypesItems),
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
@@ -7199,6 +7311,89 @@ final class OpcRelationshipGraph
     private static function isContentTypesItemName(string $partName): bool
     {
         return self::partNameEquivalenceKey(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
+    }
+
+    private static function isSupportedZipCompressionMethod(int $method): bool
+    {
+        return $method === 0 || $method === 8;
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $buckets
+     */
+    private static function incrementZipCompressionMethodBucket(
+        array &$buckets,
+        int $method,
+        int $compressedBytes,
+        int $uncompressedBytes
+    ): void {
+        $buckets[$method] ??= [
+            'compressionMethod' => $method,
+            'compressionMethodName' => self::zipCompressionMethodName($method),
+            'entryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'isSupported' => self::isSupportedZipCompressionMethod($method),
+        ];
+
+        $buckets[$method]['entryCount']++;
+        $buckets[$method]['compressedBytes'] += $compressedBytes;
+        $buckets[$method]['uncompressedBytes'] += $uncompressedBytes;
+    }
+
+    /**
+     * @param array<string, array<int, array<string, mixed>>> $groups
+     */
+    private static function incrementZipCompressionMethodBucketGroup(
+        array &$groups,
+        string $group,
+        int $method,
+        int $compressedBytes,
+        int $uncompressedBytes
+    ): void {
+        $groups[$group] ??= [];
+        self::incrementZipCompressionMethodBucket(
+            $groups[$group],
+            $method,
+            $compressedBytes,
+            $uncompressedBytes
+        );
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $buckets
+     * @return list<array<string, mixed>>
+     */
+    private static function zipCompressionMethodBuckets(array $buckets): array
+    {
+        ksort($buckets);
+
+        return array_values($buckets);
+    }
+
+    /**
+     * @param array<string, array<int, array<string, mixed>>> $groups
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function zipCompressionMethodBucketGroups(array $groups): array
+    {
+        ksort($groups);
+
+        $normalized = [];
+        foreach ($groups as $group => $buckets) {
+            $normalized[$group] = self::zipCompressionMethodBuckets($buckets);
+        }
+
+        return $normalized;
     }
 
     private static function zipEntryManifestRole(

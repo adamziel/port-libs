@@ -373,6 +373,127 @@ return [
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
     },
+    'summarizes raw OPC central directory compression policy buckets before package construction' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:p>deflated document</w:p></w:document>';
+        $documentRelationshipsXml = '<Relationships/>';
+        $imageBytes = 'PNGDATA';
+        $embeddedPackageBytes = 'DOCXDATA';
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 8],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+        ]);
+
+        $centralDirectory = ZipPackage::centralDirectorySizePreflight($zip);
+        $imageEntry = null;
+        foreach ($centralDirectory['entries'] as $entry) {
+            if ($entry['name'] === 'word/media/image.png') {
+                $imageEntry = $entry;
+                break;
+            }
+        }
+        $t->true(is_array($imageEntry));
+        $zip = substr_replace($zip, pack('v', 12), $imageEntry['centralDirectoryOffset'] + 10, 2);
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $deflatedDocumentBytes = strlen(gzdeflate($documentXml));
+        $storedBytes = strlen($contentTypesXml)
+            + strlen($rootRelationshipsXml)
+            + strlen($documentRelationshipsXml)
+            + strlen($embeddedPackageBytes);
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->same(6, $summary['supportedCompressionMethodEntryCount']);
+        $t->same(1, $summary['unsupportedCompressionMethodCount']);
+        $t->same(5, $summary['storedCompressionMethodCount']);
+        $t->same(1, $summary['deflatedCompressionMethodCount']);
+        $t->same(['unsupported-compression-method' => 1], $summary['issueCounts']);
+        $t->same(['unsupported-compression-method'], $summary['issues']);
+        $t->same([
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 5,
+                'compressedBytes' => $storedBytes,
+                'uncompressedBytes' => $storedBytes,
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $deflatedDocumentBytes,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+                'isSupported' => false,
+            ],
+        ], $summary['compressionMethodBuckets']);
+
+        $t->same([
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+                'isSupported' => false,
+            ],
+        ], $summary['compressionMethodBucketsByRole']['media']);
+        $t->same([
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $deflatedDocumentBytes,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+        ], $summary['compressionMethodBucketsByRole']['xml-part']);
+        $t->same([
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 2,
+                'compressedBytes' => strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml),
+                'uncompressedBytes' => strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml),
+                'isSupported' => true,
+            ],
+        ], $summary['compressionMethodBucketsByHandoffKind']['relationships+xml']);
+        $t->same([
+            'entryName' => 'word/media/image.png',
+            'partName' => '/word/media/image.png',
+            'role' => 'media',
+            'handoffKind' => 'media',
+            'compressionMethod' => 12,
+            'compressionMethodName' => 'unsupported',
+            'compressedSize' => strlen($imageBytes),
+            'uncompressedSize' => strlen($imageBytes),
+        ], $summary['unsupportedCompressionMethodEntries'][0]);
+        $t->same(['unsupported-compression-method'], $entries['word/media/image.png']['issues']);
+        $t->same(false, $entries['word/media/image.png']['valid']);
+        $t->same(12, $entries['word/media/image.png']['compressionMethod']);
+        $t->same('unsupported', $entries['word/media/image.png']['compressionMethodName']);
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
