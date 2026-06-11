@@ -26093,6 +26093,119 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json publisher place aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-pubplace-compact',
+                'type' => 'book',
+                'title' => 'Compact Publisher Place Packet',
+                'author' => [
+                    ['family' => 'Lane', 'given' => 'Lia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+                'pubplace' => 'Portland',
+            ],
+            [
+                'id' => 'direct-publication-place',
+                'type' => 'report',
+                'title' => 'Publication Place Alias Packet',
+                'author' => [
+                    ['family' => 'Mora', 'given' => 'Max'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publisher' => 'Archive Press',
+                'publicationPlace' => 'Berlin',
+            ],
+            [
+                'id' => 'direct-address-place',
+                'type' => 'book',
+                'title' => 'Address Publisher Place Packet',
+                'author' => [
+                    ['family' => 'Rios', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'publisher' => 'Field Press',
+                'address' => 'Madrid',
+            ],
+            [
+                'id' => 'direct-location-list',
+                'type' => 'book',
+                'title' => 'Location List Publisher Place Packet',
+                'author' => [
+                    ['family' => 'Nolan', 'given' => 'Noa'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'publisher' => 'Location Press',
+                'locationList' => ['Paris', 'Lyon'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-pubplace-compact');
+        $publication = $processor->item('direct-publication-place');
+        $address = $processor->item('direct-address-place');
+        $locationList = $processor->item('direct-location-list');
+        $t->same('Portland', $compact['publisherPlace'] ?? null);
+        $t->same(['Portland'], $compact['publisherPlaceList'] ?? null);
+        $t->same('Berlin', $publication['publisherPlace'] ?? null);
+        $t->same(['Berlin'], $publication['publisherPlaceList'] ?? null);
+        $t->same('Madrid', $address['publisherPlace'] ?? null);
+        $t->same(['Madrid'], $address['publisherPlaceList'] ?? null);
+        $t->same('Paris; Lyon', $locationList['publisherPlace'] ?? null);
+        $t->same(['Paris', 'Lyon'], $locationList['publisherPlaceList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher Place Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-place-alias-review</id>
+    <updated>2026-06-11T23:09:40+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter=" || ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher"/>
+        <text variable="publisher-place"/>
+        <text variable="pubplace"/>
+        <text variable="location-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publication-place"/>
+      <text variable="publisher-place-list"/>
+      <text variable="publisher"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Publisher Place Alias Review', $summary['title'] ?? null);
+        $t->same('[Lane | Review Press | Portland | Portland | Portland || Mora | Archive Press | Berlin | Berlin | Berlin || Rios | Field Press | Madrid | Madrid | Madrid || Nolan | Location Press | Paris; Lyon | Paris; Lyon | Paris; Lyon]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-pubplace-compact', 'text' => '[@direct-pubplace-compact]']),
+            new AstNode('citation', ['id' => 'direct-publication-place', 'text' => '[@direct-publication-place]']),
+            new AstNode('citation', ['id' => 'direct-address-place', 'text' => '[@direct-address-place]']),
+            new AstNode('citation', ['id' => 'direct-location-list', 'text' => '[@direct-location-list]']),
+        ]));
+        $t->same('Compact Publisher Place Packet :: Portland :: Portland :: Review Press', $styled->renderBibliographyEntry('direct-pubplace-compact'));
+        $t->same('Publication Place Alias Packet :: Berlin :: Berlin :: Archive Press', $styled->renderBibliographyEntry('direct-publication-place'));
+        $t->same('Address Publisher Place Packet :: Madrid :: Madrid :: Field Press', $styled->renderBibliographyEntry('direct-address-place'));
+        $t->same('Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press', $styled->renderBibliographyEntry('direct-location-list'));
+
+        $document = (new MarkdownReader())->read('Publisher place aliases [@direct-pubplace-compact; @direct-publication-place; @direct-address-place; @direct-location-list] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Publisher place aliases [Lane | Review Press | Portland | Portland | Portland || Mora | Archive Press | Berlin | Berlin | Berlin || Rios | Field Press | Madrid | Madrid | Madrid || Nolan | Location Press | Paris; Lyon | Paris; Lyon | Paris; Lyon] remain visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Compact Publisher Place Packet :: Portland :: Portland :: Review Press</dd>', $blocks);
+        $t->contains('<dt>Mora 2025</dt><dd>Publication Place Alias Packet :: Berlin :: Berlin :: Archive Press</dd>', $blocks);
+        $t->contains('<dt>Rios 2024</dt><dd>Address Publisher Place Packet :: Madrid :: Madrid :: Field Press</dd>', $blocks);
+        $t->contains('<dt>Nolan 2023</dt><dd>Location List Publisher Place Packet :: Paris; Lyon :: Paris; Lyon :: Location Press</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [

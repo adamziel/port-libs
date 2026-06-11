@@ -1018,7 +1018,21 @@ final class CitationCslProcessor
             'journal-title-short',
         ]);
         $publisher = self::stringField($item, 'publisher');
-        $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
+        $publisherPlace = self::firstStringField($item, [
+            'publisher-place',
+            'publisherPlace',
+            'publisherplace',
+            'publisher-location',
+            'publisherLocation',
+            'publisherlocation',
+            'publication-place',
+            'publicationPlace',
+            'publicationplace',
+            'pubplace',
+            'pubPlace',
+            'address',
+            'location',
+        ]);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origaddress']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
@@ -1028,7 +1042,29 @@ final class CitationCslProcessor
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
-        $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
+        $publisherPlaceList = self::stringListFromFirstField($item, [
+            'publisher-place-list',
+            'publisherPlaceList',
+            'publisherplacelist',
+            'publisher-location-list',
+            'publisherLocationList',
+            'publisherlocationlist',
+            'publication-place-list',
+            'publicationPlaceList',
+            'publicationplacelist',
+            'pubplace-list',
+            'pubPlaceList',
+            'pubplacelist',
+            'address-list',
+            'addressList',
+            'addresslist',
+            'location-list',
+            'locationList',
+            'locationlist',
+        ]);
+        if ($publisherPlace === '' && $publisherPlaceList !== []) {
+            $publisherPlace = implode('; ', $publisherPlaceList);
+        }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
@@ -9234,9 +9270,9 @@ final class CitationCslProcessor
             'event-place-list', 'eventplacelist', 'event-location-list', 'eventlocationlist', 'event-venue-list', 'eventvenuelist', 'venue-list' => implode('; ', is_array($item['eventPlaceList'] ?? null) ? $item['eventPlaceList'] : []),
             'event-type', 'eventtype' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
-            'publisher-place' => (string) $item['publisherPlace'],
+            'publisher-place', 'publisherplace', 'publisher-location', 'publisherlocation', 'publication-place', 'publicationplace', 'pubplace', 'address', 'location' => (string) $item['publisherPlace'],
             'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
-            'publisher-place-list' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
+            'publisher-place-list', 'publisherplacelist', 'publisher-location-list', 'publisherlocationlist', 'publication-place-list', 'publicationplacelist', 'pubplace-list', 'pubplacelist', 'address-list', 'addresslist', 'location-list', 'locationlist' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
             'page' => $this->formatCslPageRanges((string) $item['page']),
             'page-first' => (string) $item['pageFirst'],
             'pagination', 'page-label' => (string) $item['pagination'],
@@ -9629,7 +9665,8 @@ final class CitationCslProcessor
         $variable = str_replace('_', '-', strtolower(trim($variable)));
 
         return match ($variable) {
-            'publisher-place', 'archive-place', 'event-place', 'original-publisher-place' => [$variable, 'place'],
+            'publisher-place', 'publisherplace', 'publisher-location', 'publisherlocation', 'publication-place', 'publicationplace', 'pubplace', 'address', 'location' => ['publisher-place', 'place'],
+            'archive-place', 'event-place', 'original-publisher-place' => [$variable, 'place'],
             'publisher', 'original-publisher', 'authority' => [$variable, 'institution'],
             default => [$variable],
         };
