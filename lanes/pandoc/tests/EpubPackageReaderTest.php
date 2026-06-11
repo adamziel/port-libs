@@ -8,6 +8,53 @@ use PortLibs\Pandoc\WordPressBlockWriter;
 
 $fixture = static fn (): string => dirname(__DIR__) . '/fixtures/epub3-package';
 
+$copyEpubFixture = static function (string $source): string {
+    $root = sys_get_temp_dir() . '/pandoc-epub3-package-fixture-' . bin2hex(random_bytes(6));
+    if (!mkdir($root, 0777, true) && !is_dir($root)) {
+        throw new RuntimeException('Unable to create EPUB fixture directory');
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    foreach ($iterator as $fileInfo) {
+        $target = $root . DIRECTORY_SEPARATOR . $iterator->getSubPathName();
+        if ($fileInfo->isDir()) {
+            if (!is_dir($target) && !mkdir($target, 0777, true) && !is_dir($target)) {
+                throw new RuntimeException('Unable to create EPUB fixture subdirectory');
+            }
+            continue;
+        }
+
+        if (!copy($fileInfo->getPathname(), $target)) {
+            throw new RuntimeException('Unable to copy EPUB fixture file');
+        }
+    }
+
+    return $root;
+};
+
+$removeEpubFixture = static function (string $root): void {
+    if (!is_dir($root)) {
+        return;
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $fileInfo) {
+        if ($fileInfo->isDir()) {
+            rmdir($fileInfo->getPathname());
+        } else {
+            unlink($fileInfo->getPathname());
+        }
+    }
+
+    rmdir($root);
+};
+
 return [
     'maps epub container opf manifest spine and metadata handoff' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());
@@ -26,6 +73,18 @@ return [
         $t->same('EPUB/package.opf', $epub['containerRootfile']);
         $t->same('3.0', $epub['packageVersion']);
         $t->same('pub-id', $epub['uniqueIdentifierId']);
+        $t->same('schema: https://schema.org/ rendition: http://www.idpf.org/vocab/rendition/#', $epub['packagePrefix']);
+        $t->same([
+            'schema' => 'https://schema.org/',
+            'rendition' => 'http://www.idpf.org/vocab/rendition/#',
+        ], $epub['packagePrefixes']);
+        $t->same(2, count($epub['packagePrefixBindings']));
+        $t->same(0, $epub['packagePrefixBindings'][0]['index']);
+        $t->same('schema', $epub['packagePrefixBindings'][0]['prefix']);
+        $t->same('https://schema.org/', $epub['packagePrefixBindings'][0]['iri']);
+        $t->same('rendition', $epub['packagePrefixBindings'][1]['prefix']);
+        $t->same('http://www.idpf.org/vocab/rendition/#', $epub['packagePrefixBindings'][1]['iri']);
+        $t->same([], $epub['packagePrefixDiagnostics']);
         $t->same(3, count($epub['metadataProperties']));
         $t->same('dcterms:modified', $epub['metadataProperties'][0]['property']);
         $t->same('2026-06-09T11:50:37Z', $epub['metadataProperties'][0]['value']);
@@ -45,6 +104,44 @@ return [
         $t->same('chapter2', $spine[1]['idref']);
         $t->same('EPUB/chapter2.xhtml', $spine[1]['path']);
         $t->same(true, $spine[1]['linear']);
+    },
+    'maps epub package prefix duplicate and invalid diagnostics' => static function (TestRunner $t) use ($fixture, $copyEpubFixture, $removeEpubFixture): void {
+        $root = $copyEpubFixture($fixture());
+        try {
+            $opfPath = $root . '/EPUB/package.opf';
+            $opfXml = file_get_contents($opfPath);
+            if ($opfXml === false) {
+                throw new RuntimeException('Unable to read copied EPUB OPF fixture');
+            }
+
+            $prefix = 'schema: https://schema.org/ review: https://example.invalid/epub-review# review: https://example.invalid/review-vocab-2# bad-prefix';
+            $opfXml = str_replace(
+                'prefix="schema: https://schema.org/ rendition: http://www.idpf.org/vocab/rendition/#"',
+                'prefix="' . $prefix . '"',
+                $opfXml
+            );
+            if (file_put_contents($opfPath, $opfXml) === false) {
+                throw new RuntimeException('Unable to rewrite copied EPUB OPF fixture');
+            }
+
+            $epub = (new EpubPackageReader())->readDirectory($root)->attr('epub');
+
+            $t->same($prefix, $epub['packagePrefix']);
+            $t->same('https://schema.org/', $epub['packagePrefixes']['schema']);
+            $t->same('https://example.invalid/review-vocab-2#', $epub['packagePrefixes']['review']);
+            $t->same(3, count($epub['packagePrefixBindings']));
+            $t->same('review', $epub['packagePrefixBindings'][2]['prefix']);
+            $t->same('https://example.invalid/review-vocab-2#', $epub['packagePrefixBindings'][2]['iri']);
+            $t->same([
+                'duplicate-package-prefix-declaration',
+                'invalid-package-prefix-declaration',
+            ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $epub['packagePrefixDiagnostics']));
+            $t->same('review', $epub['packagePrefixDiagnostics'][0]['prefix']);
+            $t->same('https://example.invalid/epub-review#', $epub['packagePrefixDiagnostics'][0]['previousIri']);
+            $t->contains('bad-prefix', $epub['packagePrefixDiagnostics'][1]['value']);
+        } finally {
+            $removeEpubFixture($root);
+        }
     },
     'maps epub nav document and ncx fallback outlines' => static function (TestRunner $t) use ($fixture): void {
         $document = (new EpubPackageReader())->readDirectory($fixture());

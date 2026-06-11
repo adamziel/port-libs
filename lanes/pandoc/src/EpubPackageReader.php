@@ -41,6 +41,10 @@ final class EpubPackageReader
                 'containerRootfile' => $rootfile,
                 'packageVersion' => $package['version'],
                 'uniqueIdentifierId' => $package['uniqueIdentifierId'],
+                'packagePrefix' => $package['prefix'],
+                'packagePrefixes' => $package['prefixes'],
+                'packagePrefixBindings' => $package['prefixBindings'],
+                'packagePrefixDiagnostics' => $package['prefixDiagnostics'],
                 'metadataProperties' => $package['metadataProperties'],
                 'manifest' => array_values($package['manifest']),
                 'manifestById' => $package['manifest'],
@@ -74,6 +78,10 @@ final class EpubPackageReader
      * @return array{
      *     version:string,
      *     uniqueIdentifierId:string,
+     *     prefix:string,
+     *     prefixes:array<string, string>,
+     *     prefixBindings:list<array{index:int, prefix:string, iri:string}>,
+     *     prefixDiagnostics:list<array<string, mixed>>,
      *     metadata:array<string, mixed>,
      *     metadataProperties:list<array{property:string, value:string, refines:string}>,
      *     manifest:array<string, array{id:string, href:string, path:string, mediaType:string, properties:list<string>}>,
@@ -91,6 +99,7 @@ final class EpubPackageReader
         }
 
         $opfDir = $this->relativeDirname($rootfile);
+        $prefixReport = self::packagePrefixReport($packageElement->getAttribute('prefix'));
         $metadata = [
             'title' => '',
             'creators' => [],
@@ -178,10 +187,77 @@ final class EpubPackageReader
         return [
             'version' => trim($packageElement->getAttribute('version')),
             'uniqueIdentifierId' => trim($packageElement->getAttribute('unique-identifier')),
+            'prefix' => $prefixReport['raw'],
+            'prefixes' => $prefixReport['bindingsByPrefix'],
+            'prefixBindings' => $prefixReport['bindings'],
+            'prefixDiagnostics' => $prefixReport['diagnostics'],
             'metadata' => $metadata,
             'metadataProperties' => $metadataProperties,
             'manifest' => $manifest,
             'spine' => $spine,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     bindings:list<array{index:int, prefix:string, iri:string}>,
+     *     bindingsByPrefix:array<string, string>,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePrefixReport(string $raw): array
+    {
+        $value = trim($raw);
+        $bindings = [];
+        $bindingsByPrefix = [];
+        $diagnostics = [];
+
+        $offset = 0;
+        $length = strlen($value);
+        while ($offset < $length) {
+            $offset += strspn($value, " \t\r\n", $offset);
+            if ($offset >= $length) {
+                break;
+            }
+
+            $segment = substr($value, $offset);
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9._-]*):[ \t\r\n]+([^ \t\r\n]+)/', $segment, $match) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-package-prefix-declaration',
+                    'offset' => $offset,
+                    'value' => $segment,
+                    'message' => 'EPUB OPF prefix declarations must be prefix: IRI pairs separated by whitespace',
+                ];
+                break;
+            }
+
+            $prefix = $match[1];
+            $iri = $match[2];
+            if (isset($bindingsByPrefix[$prefix])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-package-prefix-declaration',
+                    'prefix' => $prefix,
+                    'previousIri' => $bindingsByPrefix[$prefix],
+                    'iri' => $iri,
+                    'message' => 'EPUB OPF prefix declaration repeats a prefix; later binding is retained',
+                ];
+            }
+
+            $bindingsByPrefix[$prefix] = $iri;
+            $bindings[] = [
+                'index' => count($bindings),
+                'prefix' => $prefix,
+                'iri' => $iri,
+            ];
+            $offset += strlen($match[0]);
+        }
+
+        return [
+            'raw' => $value,
+            'bindings' => $bindings,
+            'bindingsByPrefix' => $bindingsByPrefix,
+            'diagnostics' => $diagnostics,
         ];
     }
 
