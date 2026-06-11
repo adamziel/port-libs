@@ -13409,6 +13409,54 @@ XML;
         $t->same(null, $subdocuments['items'][4]['id']);
         $t->same(['missing-relationship-id'], $subdocuments['items'][4]['issues']);
     },
+    'reports DOCX subdocument relationship inventory in metadata' => static function (TestRunner $t) use ($buildSubdocumentPackage): void {
+        $reader = new DocxReader();
+        $result = $reader->readPackage($buildSubdocumentPackage());
+
+        $metadataSubdocuments = $result['metadata']['docxSubdocuments'];
+        $reportSubdocuments = $result['importReport']['subdocuments'];
+        $t->same($reportSubdocuments, $metadataSubdocuments);
+        $t->same(5, $metadataSubdocuments['count']);
+        $t->same(2, $metadataSubdocuments['externalCount']);
+        $t->same(1, $metadataSubdocuments['internalCount']);
+        $t->same(2, $metadataSubdocuments['missingCount']);
+        $t->same(4, $metadataSubdocuments['issueCount']);
+
+        $external = $metadataSubdocuments['items'][0];
+        $t->same('rIdMasterSubDoc', $external['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument', $external['type']);
+        $t->same('https://example.test/subdocuments/source-review.docx', $external['target']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['targetPart']);
+        $t->same(null, $external['exists']);
+        $t->same(1, $external['usedCount']);
+        $t->same(['DOCX subdocument: https://example.test/subdocuments/source-review.docx'], $external['descriptions']);
+        $t->same([], $external['issues']);
+
+        $internal = $metadataSubdocuments['items'][1];
+        $t->same('rIdInternalSubDoc', $internal['id']);
+        $t->same('/word/subdocuments/internal.docx', $internal['targetPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document', $internal['contentType']);
+        $t->same(false, $internal['external']);
+        $t->same(true, $internal['exists']);
+        $t->same(['internal-subdocument-target'], $internal['issues']);
+
+        $missing = $metadataSubdocuments['items'][2];
+        $t->same('rIdMissingSubDoc', $missing['id']);
+        $t->same(null, $missing['target']);
+        $t->same(null, $missing['targetPart']);
+        $t->same(null, $missing['exists']);
+        $t->same(['missing-relationship'], $missing['issues']);
+
+        $wrongType = $metadataSubdocuments['items'][3];
+        $t->same('rIdWrongSubDoc', $wrongType['id']);
+        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $wrongType['type']);
+        $t->same(['unexpected-relationship-type'], $wrongType['issues']);
+
+        $noId = $metadataSubdocuments['items'][4];
+        $t->same(null, $noId['id']);
+        $t->same(['missing-relationship-id'], $noId['issues']);
+    },
     'reports DOCX document settings policy metadata and attached template relationships' => static function (TestRunner $t) use ($buildSettingsPackage): void {
         $reader = new DocxReader();
         $result = $reader->readPackage($buildSettingsPackage());
