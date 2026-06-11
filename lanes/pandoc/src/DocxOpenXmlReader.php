@@ -841,6 +841,9 @@ final class DocxOpenXmlReader
      */
     private function contentTypesPartProvenance(array $parts, array $contentTypes): array
     {
+        $preflight = isset($parts['[Content_Types].xml'])
+            ? OpcContentTypes::preflightXml($parts['[Content_Types].xml'])
+            : null;
         $defaults = [];
         foreach ($contentTypes['defaults'] as $extension => $contentType) {
             $defaults[$extension] = [
@@ -866,6 +869,16 @@ final class DocxOpenXmlReader
             'overrideCount' => count($overrides),
             'defaults' => $defaults,
             'overrides' => $overrides,
+            'preflight' => $preflight,
+            'valid' => $preflight === null ? false : $preflight['valid'],
+            'issues' => $preflight === null ? ['missing-content-types-part'] : $preflight['issues'],
+            'issueCounts' => $preflight === null ? ['missing-content-types-part' => 1] : $preflight['issueCounts'],
+            'recordCount' => $preflight === null ? 0 : $preflight['recordCount'],
+            'invalidRecordCount' => $preflight === null ? 0 : $preflight['invalidCount'],
+            'duplicateDefaultExtensionCount' => $preflight === null ? 0 : $preflight['duplicateDefaultExtensionCount'],
+            'duplicateOverridePartNameCount' => $preflight === null ? 0 : $preflight['duplicateOverridePartNameCount'],
+            'duplicateDefaultExtensions' => $preflight === null ? [] : $preflight['duplicateDefaultExtensions'],
+            'duplicateOverridePartNames' => $preflight === null ? [] : $preflight['duplicateOverridePartNames'],
         ];
     }
 

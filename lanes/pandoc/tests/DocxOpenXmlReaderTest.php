@@ -139,6 +139,47 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="xml" ContentType="application/xml"/>',
+            '  <Default Extension="XML" ContentType="application/vnd.review+xml"/>' . "\n" .
+            '  <Default Extension="xml" ContentType="application/xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+            '  <Override PartName="/WORD/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' . "\n" .
+            '  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $contentTypesPart = $docx['packageProvenance']['contentTypesPart'];
+        $preflight = $contentTypesPart['preflight'];
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same('word/document.xml', $docx['documentPart']);
+        $t->same(false, $contentTypesPart['valid']);
+        $t->same(false, $preflight['valid']);
+        $t->same(7, $contentTypesPart['recordCount']);
+        $t->same(4, $preflight['defaultCount']);
+        $t->same(3, $preflight['overrideCount']);
+        $t->same(4, $contentTypesPart['invalidRecordCount']);
+        $t->same(1, $contentTypesPart['duplicateDefaultExtensionCount']);
+        $t->same(1, $contentTypesPart['duplicateOverridePartNameCount']);
+        $t->same(['xml'], $contentTypesPart['duplicateDefaultExtensions']);
+        $t->same(['/word/document.xml'], $contentTypesPart['duplicateOverridePartNames']);
+        $t->same(['XML', 'xml'], $preflight['duplicateDefaultExtensionGroups']['xml']);
+        $t->same(['/WORD/document.xml', '/word/document.xml'], $preflight['duplicateOverridePartNameGroups']['/word/document.xml']);
+        $t->same(2, $contentTypesPart['issueCounts']['duplicate-default-extension']);
+        $t->same(2, $contentTypesPart['issueCounts']['duplicate-override-part-name']);
+        $t->same('application/xml', $contentTypesPart['defaults']['xml']['contentType']);
+        $t->same(true, $contentTypesPart['overrides']['word/document.xml']['exists']);
+        $t->same('duplicate-default-extension', $preflight['records'][1]['issues'][0]);
+        $t->same('duplicate-override-part-name', $preflight['records'][4]['issues'][0]);
+    },
     'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
