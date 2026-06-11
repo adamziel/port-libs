@@ -1027,6 +1027,7 @@ final class NativeReader
     {
         return match ($this->constructorTag($mode, 'Pandoc native JSON citation mode')) {
             'AuthorInText' => 'author_in_text',
+            'NarrativeCitation' => 'narrative',
             'SuppressAuthor' => 'suppress_author',
             'NormalCitation' => 'normal',
             default => throw new \InvalidArgumentException('Unsupported Pandoc native JSON citation mode'),

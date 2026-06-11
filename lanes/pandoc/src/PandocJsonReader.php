@@ -992,6 +992,7 @@ final class PandocJsonReader
         return match ($this->enumTag($value, 'citation mode')) {
             'NormalCitation' => 'normal',
             'AuthorInText' => 'author_in_text',
+            'NarrativeCitation' => 'narrative',
             'SuppressAuthor' => 'suppress_author',
             default => throw new \InvalidArgumentException('Unsupported Pandoc citation mode'),
         };

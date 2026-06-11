@@ -968,6 +968,7 @@ final class NativeWriter
     {
         return match ($mode) {
             'author_in_text' => 'AuthorInText',
+            'narrative' => 'NarrativeCitation',
             'suppress_author' => 'SuppressAuthor',
             default => 'NormalCitation',
         };

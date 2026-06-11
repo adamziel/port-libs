@@ -2166,6 +2166,66 @@ return [
         $t->same('wp-team', $roundTripCluster->children[1]->attr('id'));
         $t->same('missing-source', $roundTripCluster->children[2]->attr('id'));
     },
+    'round trips pandoc json narrative citation mode without native fallback' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [[
+                            'citationId' => 'doe2025',
+                            'citationPrefix' => [],
+                            'citationSuffix' => [
+                                ['t' => 'Str', 'c' => 'fig.'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => '2'],
+                            ],
+                            'citationMode' => ['t' => 'NarrativeCitation'],
+                            'citationNoteNum' => 0,
+                            'citationHash' => 77,
+                        ]],
+                        [
+                            ['t' => 'Str', 'c' => '@doe2025'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'fig.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '2'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket($packet);
+        $citation = $document->children[0]->children[0];
+        $encoded = $writer->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+        $processor = CitationCslProcessor::fromItems([[
+            'id' => 'doe2025',
+            'type' => 'book',
+            'title' => 'Narrative Import Notes',
+            'author' => [
+                ['family' => 'Doe', 'given' => 'Dana'],
+            ],
+            'issued' => ['date-parts' => [[2025]]],
+        ]]);
+        $processed = $processor->apply($document);
+        $rendered = $processed->children[0]->children[0]->attr('rendered');
+
+        $t->same('citation', $citation->type);
+        $t->same('narrative', $citation->attr('mode'));
+        $t->same('Cite', $citation->attr('constructor'));
+        $t->same('Citation', $citation->attr('citationConstructor'));
+        $t->same('NarrativeCitation', $citation->attr('citationNative')['citationMode']['t']);
+        $t->same('NarrativeCitation', $encoded['blocks'][0]['c'][0]['c'][0][0]['citationMode']['t']);
+        $t->same($encoded['blocks'], $nativePacket['blocks']);
+        $t->same('narrative', $nativeRoundTrip->children[0]->children[0]->attr('mode'));
+        $t->same('Doe (2025, fig. 2)', $rendered);
+    },
     'validates malformed pandoc json packets without shelling out' => static function (TestRunner $t): void {
         $reader = new PandocJsonReader();
         $writer = new PandocJsonWriter();
@@ -2197,7 +2257,7 @@ return [
             'citationId' => 'bad',
             'citationPrefix' => [],
             'citationSuffix' => [],
-            'citationMode' => ['t' => 'NarrativeCitation'],
+            'citationMode' => ['t' => 'FutureCitation'],
         ]])));
         $t->throws(InvalidArgumentException::class, static fn (): AstNode => $reader->readPacket($citePacket([[
             'citationId' => 'bad',

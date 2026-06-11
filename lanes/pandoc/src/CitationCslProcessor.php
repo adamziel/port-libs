@@ -543,7 +543,7 @@ final class CitationCslProcessor
             return '';
         }
 
-        if (count($entries) === 1 && ((string) $citations[0]->attr('mode', 'normal')) === 'author_in_text') {
+        if (count($entries) === 1 && $this->citationModeIsNarrative((string) $citations[0]->attr('mode', 'normal'))) {
             return $entries[0];
         }
 
@@ -596,7 +596,7 @@ final class CitationCslProcessor
             return [];
         }
 
-        if (count($entries) === 1 && ((string) $citations[0]->attr('mode', 'normal')) === 'author_in_text') {
+        if (count($entries) === 1 && $this->citationModeIsNarrative((string) $citations[0]->attr('mode', 'normal'))) {
             return $entries[0];
         }
 
@@ -5923,7 +5923,7 @@ final class CitationCslProcessor
             return $prefix === '' ? $entry : $prefix . ' ' . $entry;
         }
 
-        if ($mode === 'author_in_text') {
+        if ($this->citationModeIsNarrative($mode)) {
             $entry = $author . ' (' . $year . ($suffix === '' ? '' : ', ' . $suffix) . ')';
         } elseif ($mode === 'suppress_author') {
             $entry = $year . ($suffix === '' ? '' : ', ' . $suffix);
@@ -5952,6 +5952,11 @@ final class CitationCslProcessor
         }
 
         return [['text' => $this->renderCitationEntry($citation)]];
+    }
+
+    private function citationModeIsNarrative(string $mode): bool
+    {
+        return $mode === 'author_in_text' || $mode === 'narrative';
     }
 
     /**
