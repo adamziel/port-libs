@@ -813,6 +813,62 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html time element temporal metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><time datetime="2026-06-11T18:07:51Z" data-review="dispatch">Dispatch window</time>'
+                . '<time datetime="2026-06">June batch</time>'
+                . '<time datetime="14:05:30.125-0500">Cutoff</time>'
+                . '<time>2026-06-12</time>'
+                . '<time datetime="2026-02-30">Invalid date</time></p>',
+            'time element review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $paragraph = $summary[0];
+        $dispatch = $paragraph['children'][0];
+        $month = $paragraph['children'][1];
+        $cutoff = $paragraph['children'][2];
+        $textFallback = $paragraph['children'][3];
+        $invalid = $paragraph['children'][4];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('time', $dispatch['name']);
+        $t->same(true, $dispatch['timeElement']);
+        $t->same('Dispatch window', $dispatch['timeText']);
+        $t->same('2026-06-11T18:07:51Z', $dispatch['timeDatetimeRaw']);
+        $t->same('2026-06-11T18:07:51Z', $dispatch['timeValueRaw']);
+        $t->same('2026-06-11T18:07:51Z', $dispatch['timeValue']);
+        $t->same('global-datetime', $dispatch['timeValueKind']);
+        $t->same(true, $dispatch['timeValueValid']);
+        $t->same(['review' => 'dispatch'], $dispatch['dataset']);
+
+        $t->same('2026-06', $month['timeDatetimeRaw']);
+        $t->same('2026-06', $month['timeValue']);
+        $t->same('month', $month['timeValueKind']);
+        $t->same(true, $month['timeValueValid']);
+
+        $t->same('14:05:30.125-0500', $cutoff['timeDatetimeRaw']);
+        $t->same('14:05:30.125-05:00', $cutoff['timeValue']);
+        $t->same('global-time', $cutoff['timeValueKind']);
+        $t->same(true, $cutoff['timeValueValid']);
+
+        $t->same(null, $textFallback['timeDatetimeRaw']);
+        $t->same('2026-06-12', $textFallback['timeValueRaw']);
+        $t->same('2026-06-12', $textFallback['timeValue']);
+        $t->same('date', $textFallback['timeValueKind']);
+        $t->same(true, $textFallback['timeValueValid']);
+
+        $t->same('2026-02-30', $invalid['timeDatetimeRaw']);
+        $t->same('2026-02-30', $invalid['timeValueRaw']);
+        $t->same(null, $invalid['timeValue']);
+        $t->same('invalid', $invalid['timeValueKind']);
+        $t->same(false, $invalid['timeValueValid']);
+        $t->same(
+            '<p><time data-review="dispatch" datetime="2026-06-11T18:07:51Z">Dispatch window</time><time datetime="2026-06">June batch</time><time datetime="14:05:30.125-0500">Cutoff</time><time>2026-06-12</time><time datetime="2026-02-30">Invalid date</time></p>',
+            $html
+        );
+    },
     'summarizes html quote citation provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<blockquote cite="https://example.test/source#quote"><p>Quoted <em>source</em></p></blockquote>'
