@@ -656,7 +656,7 @@ final class NativeWriter
         }
 
         return match ($node->type) {
-            'text' => $this->textInlines((string) $node->attr('text', '')),
+            'text' => $this->nativeTextInlineParts($node) ?? $this->textInlines((string) $node->attr('text', '')),
             'space' => [['t' => 'Space']],
             'softbreak' => [['t' => 'SoftBreak']],
             'linebreak' => [['t' => 'LineBreak']],
@@ -1015,6 +1015,44 @@ final class NativeWriter
         }
 
         return $inlines;
+    }
+
+    /**
+     * @return list<array<string, mixed>>|null
+     */
+    private function nativeTextInlineParts(AstNode $node): ?array
+    {
+        $parts = $node->attr('nativeInlineParts', []);
+        if (!is_array($parts) || !array_is_list($parts) || $parts === []) {
+            return null;
+        }
+
+        $text = '';
+        $normalized = [];
+        foreach ($parts as $part) {
+            if (!is_array($part) || array_is_list($part) || !is_string($part['t'] ?? null)) {
+                return null;
+            }
+
+            if ($part['t'] === 'Str') {
+                if (!is_string($part['c'] ?? null)) {
+                    return null;
+                }
+                $text .= $part['c'];
+                $normalized[] = $part;
+                continue;
+            }
+
+            if ($part['t'] === 'Space') {
+                $text .= ' ';
+                $normalized[] = $part;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $text === (string) $node->attr('text', '') ? $normalized : null;
     }
 
     /**

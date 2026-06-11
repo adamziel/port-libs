@@ -837,8 +837,7 @@ return [
         $t->same($nativePacket['blocks'][0]['c'], $encoded['blocks'][0]['c']);
         $t->same('paragraph', $document->children[1]->type);
         $t->same('native_inline', $document->children[1]->children[1]->type);
-        $t->same('VendorInline', $encoded['blocks'][1]['c'][1]['t']);
-        $t->same(['name' => 'review-anchor', 'value' => 42], $encoded['blocks'][1]['c'][1]['c']);
+        $t->same($nativePacket['blocks'][1]['c'], $encoded['blocks'][1]['c']);
 
         $writer = new PandocJsonWriter();
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [
@@ -922,6 +921,48 @@ return [
         $t->same(array_slice($packet['blocks'][0]['c'], 4, 2), $nativeChildren[2]->attr('nativeInlineParts'));
         $t->same('Code', $nativeChildren[3]->attr('constructor'));
         $t->same($packet['blocks'][0]['c'], $encodedNative['blocks'][0]['c']);
+    },
+    'preserves coalesced native text constructor parts through json and native writers' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alpha  Beta'],
+                    ['t' => 'Space'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Gamma'],
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $text = $document->children[0]->children[0];
+        $nativeEncoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $jsonEncoded = (new PandocJsonWriter())->toArray($document);
+
+        $t->same('text', $text->type);
+        $t->same('Alpha  Beta  Gamma', $text->attr('text'));
+        $t->same(['Str', 'Space', 'Space', 'Str'], $text->attr('nativeInlineConstructors'));
+        $t->same($packet['blocks'][0]['c'], $text->attr('nativeInlineParts'));
+        $t->same($packet['blocks'][0]['c'], $nativeEncoded['blocks'][0]['c']);
+        $t->same($packet['blocks'][0]['c'], $jsonEncoded['blocks'][0]['c']);
+
+        $editedText = new AstNode('text', array_replace($text->attrs, ['text' => 'Edited text']));
+        $editedDocument = new AstNode('document', $document->attrs, [
+            new AstNode('paragraph', $document->children[0]->attrs, [$editedText]),
+        ]);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+
+        $t->same([
+            ['t' => 'Str', 'c' => 'Edited'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'text'],
+        ], $editedNative['blocks'][0]['c']);
+        $t->same([
+            ['t' => 'Str', 'c' => 'Edited text'],
+        ], $editedJson['blocks'][0]['c']);
     },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
