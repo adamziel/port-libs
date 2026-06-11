@@ -1117,7 +1117,7 @@ XML;
             '</spine>',
             '</spine>
   <guide>
-    <reference type="text" title="Start reading" href="text/chapter1.xhtml#install"/>
+    <reference type="text" title="Start reading" href="text/chapter1.xhtml?source=guide#install"/>
     <reference type="cover" title="Cover image" href="images/cover.png"/>
     <reference type="glossary" title="Legacy glossary" href="https://example.invalid/glossary.xhtml"/>
   </guide>',
@@ -1154,9 +1154,16 @@ XML;
         $summary = $epub->summary();
 
         $t->same(['text', 'cover', 'glossary'], array_column($epub->guideReferences(), 'type'));
-        $t->same('/EPUB/text/chapter1.xhtml#install', $epub->guideReferences()[0]['target']);
+        $t->same('/EPUB/text/chapter1.xhtml?source=guide#install', $epub->guideReferences()[0]['target']);
+        $t->same('/EPUB/text/chapter1.xhtml', $epub->guideReferences()[0]['partName']);
         $t->same(true, $epub->guideReferences()[0]['exists']);
+        $t->same(true, $epub->guideReferences()[0]['hrefHasQuery']);
+        $t->same('source=guide', $epub->guideReferences()[0]['hrefQuery']);
+        $t->same(true, $epub->guideReferences()[0]['hrefHasFragment']);
+        $t->same('install', $epub->guideReferences()[0]['hrefFragment']);
         $t->same('/EPUB/images/cover.png', $epub->guideReferences()[1]['partName']);
+        $t->same(false, $epub->guideReferences()[1]['hrefHasQuery']);
+        $t->same(false, $epub->guideReferences()[1]['hrefHasFragment']);
         $t->same('https://example.invalid/glossary.xhtml', $epub->guideReferences()[2]['target']);
         $t->same(true, $epub->guideReferences()[2]['external']);
 
@@ -1166,7 +1173,8 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/text/chapter2.xhtml#refs'], array_column($epub->navigationSections()[1]['entries'], 'target'));
         $t->same(['1', '2'], array_column($epub->navigationSections()[2]['entries'], 'label'));
         $t->same(['/EPUB/text/chapter1.xhtml#page-1', '/EPUB/text/chapter2.xhtml#page-2'], array_column($summary['wordpressImport']['pageListTargets'], 'target'));
-        $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
+        $t->same($epub->guideReferences(), $summary['wordpressImport']['guideReferences']);
+        $t->same(['/EPUB/text/chapter1.xhtml?source=guide#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
     },
 
     'summarizes OPF guide reference provenance for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

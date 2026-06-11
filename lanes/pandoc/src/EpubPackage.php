@@ -71,7 +71,7 @@ final class EpubPackage
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $spineMetadata
-     * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
+     * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}> $guideReferences
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
@@ -244,7 +244,7 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>
+     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}>
      */
     public function guideReferences(): array
     {
@@ -1722,7 +1722,7 @@ final class EpubPackage
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
      *     spine:list<array<string, mixed>>,
      *     spineMetadata:array<string, mixed>,
-     *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
+     *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
      *     manifestFallbacks:array<string, mixed>,
@@ -4133,7 +4133,7 @@ final class EpubPackage
     /**
      * @param array<string, array<string, mixed>> $manifestByPart
      *
-     * @return list<array<string, mixed>>
+     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}>
      */
     private static function parseGuide(
         ?\DOMElement $guideElement,
