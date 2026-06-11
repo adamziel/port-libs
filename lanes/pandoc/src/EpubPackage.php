@@ -252,6 +252,14 @@ final class EpubPackage
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function guideReport(): array
+    {
+        return self::guideReferenceReport($this->guideReferences);
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     public function collections(): array
@@ -421,6 +429,7 @@ final class EpubPackage
         $validationReport = $this->validationReport();
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
+        $guideReport = $this->guideReport();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -441,6 +450,7 @@ final class EpubPackage
             'readingOrder' => $this->spine,
             'spineMetadata' => $spineMetadata,
             'guide' => $this->guideReferences,
+            'guideReport' => $guideReport,
             'collections' => $this->collections,
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
@@ -503,6 +513,9 @@ final class EpubPackage
                     $navigationEntries,
                 )),
                 'guideReferences' => $this->guideReferences,
+                'guideReferenceReport' => $guideReport,
+                'guideReferenceTargets' => $guideReport['targets'],
+                'guideReferenceDiagnostics' => $guideReport['diagnostics'],
                 'collections' => $this->collections,
                 'containerLinks' => $this->containerLinks,
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
@@ -1738,11 +1751,12 @@ final class EpubPackage
         $encryption = self::parseEncryption($package, $manifestById);
         $manifestById = self::attachEncryptionToManifest($manifestById, $encryption);
         $manifestItems = self::attachEncryptionToManifestItems($manifestItems, $encryption);
+        $manifestByPart = self::manifestByPart($manifestById);
         $packageLinks = self::parsePackageLinks(
             $metadataElement,
             $opfPartName,
             $package,
-            self::manifestByPart($manifestById),
+            $manifestByPart,
             is_array($metadata['prefixBindings'] ?? null) ? $metadata['prefixBindings'] : [],
         );
         $packageLinkReport = self::collectionLinkReport($packageLinks);
@@ -1755,7 +1769,12 @@ final class EpubPackage
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
         $spineMetadata = self::parseSpineMetadata($spineElement);
         $spine = self::parseSpine($spineElement, $manifestById, $refinementsById);
-        $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
+        $guideReferences = self::parseGuide(
+            self::firstChildElement($root, 'guide', self::OPF_NAMESPACE),
+            $opfPartName,
+            $package,
+            $manifestByPart,
+        );
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
         $bindings = self::parseBindings(self::firstChildElement($root, 'bindings', self::OPF_NAMESPACE), $manifestById, $package);
         $mediaOverlays = self::parseMediaOverlays($manifestById, $metadata, $package);
@@ -4112,45 +4131,214 @@ final class EpubPackage
     }
 
     /**
-     * @return list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return list<array<string, mixed>>
      */
-    private static function parseGuide(?\DOMElement $guideElement, string $opfPartName, ZipPackage $package): array
-    {
+    private static function parseGuide(
+        ?\DOMElement $guideElement,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
         if (!$guideElement instanceof \DOMElement) {
             return [];
         }
 
         $references = [];
-        foreach (self::childElements($guideElement, 'reference', self::OPF_NAMESPACE) as $reference) {
-            $href = trim($reference->getAttribute('href'));
-            $target = null;
-            $partName = null;
-            $external = false;
-            $exists = false;
-
-            if ($href !== '') {
-                $target = self::resolvePackageHref($opfPartName, $href);
-                $external = self::isAbsoluteUri($target);
-                if (!$external) {
-                    $partName = OpcPackagePath::stripQueryAndFragment($target);
-                    $exists = $package->has($partName);
-                }
-            }
-
-            $type = trim($reference->getAttribute('type'));
-            $title = trim($reference->getAttribute('title'));
-            $references[] = [
-                'type' => $type === '' ? null : $type,
-                'title' => $title === '' ? null : $title,
-                'href' => $href === '' ? null : $href,
-                'target' => $target,
-                'partName' => $partName,
-                'external' => $external,
-                'exists' => $exists,
-            ];
+        foreach (self::childElements($guideElement, 'reference', self::OPF_NAMESPACE) as $index => $reference) {
+            $references[] = self::parseGuideReference($reference, $index, $opfPartName, $package, $manifestByPart);
         }
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function parseGuideReference(
+        \DOMElement $reference,
+        int $index,
+        string $opfPartName,
+        ZipPackage $package,
+        array $manifestByPart
+    ): array {
+        $href = self::emptyToNull($reference->getAttribute('href'));
+        $target = null;
+        $partName = null;
+        $external = false;
+        $exists = false;
+        $entry = null;
+        $manifestItem = null;
+        $hrefSuffix = [
+            'hasQuery' => false,
+            'query' => null,
+            'hasFragment' => false,
+            'fragment' => null,
+        ];
+        $diagnostics = [];
+
+        if ($href === null) {
+            $diagnostics[] = [
+                'type' => 'missing-guide-reference-href',
+                'message' => 'EPUB OPF guide reference is missing href',
+            ];
+        } else {
+            try {
+                $target = self::resolvePackageHref($opfPartName, $href);
+                $hrefSuffix = self::packageHrefSuffixReport($target);
+                $external = self::isAbsoluteUri($target);
+                if ($external) {
+                    $diagnostics[] = [
+                        'type' => 'external-guide-reference-target',
+                        'href' => $href,
+                        'message' => 'EPUB OPF guide reference points outside the package and was not fetched',
+                    ];
+                } else {
+                    $partName = OpcPackagePath::stripQueryAndFragment($target);
+                    $exists = $package->has($partName);
+                    $entry = $exists ? $package->entry($partName) : null;
+                    $manifestItem = $manifestByPart[$partName] ?? null;
+
+                    if (!$exists) {
+                        $diagnostics[] = [
+                            'type' => 'missing-guide-reference-target',
+                            'href' => $href,
+                            'partName' => $partName,
+                            'message' => 'EPUB OPF guide reference target is missing from the package',
+                        ];
+                    } elseif (!is_array($manifestItem)) {
+                        $diagnostics[] = [
+                            'type' => 'guide-reference-target-not-in-manifest',
+                            'href' => $href,
+                            'partName' => $partName,
+                            'message' => 'EPUB OPF guide reference target is present in the ZIP but not declared in the OPF manifest',
+                        ];
+                    }
+                }
+            } catch (\InvalidArgumentException $exception) {
+                $diagnostics[] = [
+                    'type' => 'invalid-guide-reference-href',
+                    'href' => $href,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'type' => self::emptyToNull($reference->getAttribute('type')),
+            'title' => self::emptyToNull($reference->getAttribute('title')),
+            'href' => $href,
+            'target' => $target,
+            'partName' => $partName,
+            'external' => $external,
+            'exists' => $exists,
+            'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
+            'manifestMediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null,
+            'manifestProperties' => is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
+                ? array_values($manifestItem['properties'])
+                : [],
+            'hrefHasQuery' => $hrefSuffix['hasQuery'],
+            'hrefQuery' => $hrefSuffix['query'],
+            'hrefHasFragment' => $hrefSuffix['hasFragment'],
+            'hrefFragment' => $hrefSuffix['fragment'],
+            'diagnostics' => $diagnostics,
+        ] + self::zipEntryProvenance($entry);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     *
+     * @return array<string, mixed>
+     */
+    private static function guideReferenceReport(array $references): array
+    {
+        $typeCounts = [];
+        $targets = [];
+        $localTargets = [];
+        $externalTargets = [];
+        $missingTargets = [];
+        $manifestLinkedTargets = [];
+        $diagnostics = [];
+        $missingHrefCount = 0;
+        $invalidTargetCount = 0;
+
+        foreach ($references as $index => $reference) {
+            $referenceType = is_string($reference['type'] ?? null) ? $reference['type'] : null;
+            if ($referenceType !== null) {
+                $typeCounts[$referenceType] = ($typeCounts[$referenceType] ?? 0) + 1;
+            }
+
+            $target = is_string($reference['target'] ?? null) ? $reference['target'] : null;
+            if ($target !== null) {
+                $targets[] = $target;
+            }
+
+            if (($reference['external'] ?? false) === true) {
+                if ($target !== null) {
+                    $externalTargets[] = $target;
+                }
+            } elseif (($reference['exists'] ?? false) === true) {
+                if ($target !== null) {
+                    $localTargets[] = $target;
+                }
+            } elseif ($target !== null) {
+                $missingTargets[] = $target;
+            }
+
+            if (is_string($reference['manifestId'] ?? null) && $reference['manifestId'] !== '') {
+                $manifestLinkedTargets[] = [
+                    'index' => $index,
+                    'type' => $referenceType,
+                    'target' => $target,
+                    'partName' => is_string($reference['partName'] ?? null) ? $reference['partName'] : null,
+                    'manifestId' => $reference['manifestId'],
+                    'manifestMediaType' => is_string($reference['manifestMediaType'] ?? null) ? $reference['manifestMediaType'] : null,
+                ];
+            }
+
+            foreach (is_array($reference['diagnostics'] ?? null) ? $reference['diagnostics'] : [] as $diagnostic) {
+                $diagnosticType = is_string($diagnostic['type'] ?? null) ? $diagnostic['type'] : '';
+                if ($diagnosticType === 'missing-guide-reference-href') {
+                    ++$missingHrefCount;
+                }
+                if ($diagnosticType === 'invalid-guide-reference-href') {
+                    ++$invalidTargetCount;
+                }
+
+                $diagnostics[] = [
+                    'index' => $index,
+                    'guideType' => $referenceType,
+                    'href' => is_string($reference['href'] ?? null) ? $reference['href'] : null,
+                ] + $diagnostic;
+            }
+        }
+
+        return [
+            'present' => $references !== [],
+            'referenceCount' => count($references),
+            'typeCount' => count($typeCounts),
+            'types' => array_keys($typeCounts),
+            'typeCounts' => $typeCounts,
+            'targetCount' => count($targets),
+            'localTargetCount' => count($localTargets),
+            'externalTargetCount' => count($externalTargets),
+            'missingTargetCount' => count($missingTargets),
+            'missingHrefCount' => $missingHrefCount,
+            'invalidTargetCount' => $invalidTargetCount,
+            'manifestLinkedTargetCount' => count($manifestLinkedTargets),
+            'targets' => $targets,
+            'localTargets' => $localTargets,
+            'externalTargets' => $externalTargets,
+            'missingTargets' => $missingTargets,
+            'manifestLinkedTargets' => $manifestLinkedTargets,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'items' => $references,
+        ];
     }
 
     /**

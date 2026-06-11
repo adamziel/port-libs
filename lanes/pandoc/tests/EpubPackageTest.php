@@ -1169,6 +1169,79 @@ XML;
         $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png', 'https://example.invalid/glossary.xhtml'], array_column($summary['wordpressImport']['guideReferences'], 'target'));
     },
 
+    'summarizes OPF guide reference provenance for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>';
+        $opfWithGuide = str_replace(
+            '</spine>',
+            '</spine>
+  <guide>
+    <reference type="text" title="Start reading" href="text/chapter1.xhtml#install"/>
+    <reference type="cover" title="Cover thumbnail" href="images/cover.png?rendition=thumb"/>
+    <reference type="appendix" title="Missing appendix" href="text/missing.xhtml"/>
+    <reference type="glossary" title="Remote glossary" href="https://example.invalid/glossary.xhtml"/>
+    <reference type="loi" title="Loose illustration" href="images/unmanifested.svg"/>
+    <reference type="toc" title="Guide entry without href"/>
+  </guide>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithGuide],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/images/unmanifested.svg', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
+        ]));
+        $guide = $epub->guideReferences();
+        $report = $epub->guideReport();
+        $summary = $epub->summary();
+
+        $t->same(6, count($guide));
+        $t->same('chapter1', $guide[0]['manifestId']);
+        $t->same('application/xhtml+xml', $guide[0]['manifestMediaType']);
+        $t->same(strlen($chapter1), $guide[0]['byteLength']);
+        $t->same(true, $guide[0]['canExposeBytes']);
+        $t->same(true, $guide[0]['hrefHasFragment']);
+        $t->same('install', $guide[0]['hrefFragment']);
+        $t->same('cover', $guide[1]['manifestId']);
+        $t->same(true, $guide[1]['hrefHasQuery']);
+        $t->same('rendition=thumb', $guide[1]['hrefQuery']);
+        $t->same(false, $guide[2]['exists']);
+        $t->same('missing-guide-reference-target', $guide[2]['diagnostics'][0]['type']);
+        $t->same(true, $guide[3]['external']);
+        $t->same('external-guide-reference-target', $guide[3]['diagnostics'][0]['type']);
+        $t->same(true, $guide[4]['exists']);
+        $t->same(null, $guide[4]['manifestId']);
+        $t->same('guide-reference-target-not-in-manifest', $guide[4]['diagnostics'][0]['type']);
+        $t->same(null, $guide[5]['href']);
+        $t->same('missing-guide-reference-href', $guide[5]['diagnostics'][0]['type']);
+
+        $t->same(true, $report['present']);
+        $t->same(6, $report['referenceCount']);
+        $t->same(6, $report['typeCount']);
+        $t->same(['text', 'cover', 'appendix', 'glossary', 'loi', 'toc'], $report['types']);
+        $t->same(3, $report['localTargetCount']);
+        $t->same(1, $report['externalTargetCount']);
+        $t->same(1, $report['missingTargetCount']);
+        $t->same(1, $report['missingHrefCount']);
+        $t->same(2, $report['manifestLinkedTargetCount']);
+        $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png?rendition=thumb', '/EPUB/text/missing.xhtml', 'https://example.invalid/glossary.xhtml', '/EPUB/images/unmanifested.svg'], $report['targets']);
+        $t->same(['/EPUB/text/chapter1.xhtml#install', '/EPUB/images/cover.png?rendition=thumb', '/EPUB/images/unmanifested.svg'], $report['localTargets']);
+        $t->same(['https://example.invalid/glossary.xhtml'], $report['externalTargets']);
+        $t->same(['/EPUB/text/missing.xhtml'], $report['missingTargets']);
+        $t->same(['chapter1', 'cover'], array_column($report['manifestLinkedTargets'], 'manifestId'));
+        $t->same(4, $report['diagnosticCount']);
+        $t->same(['missing-guide-reference-target', 'external-guide-reference-target', 'guide-reference-target-not-in-manifest', 'missing-guide-reference-href'], array_column($report['diagnostics'], 'type'));
+        $t->same($report, $summary['guideReport']);
+        $t->same($report, $summary['wordpressImport']['guideReferenceReport']);
+        $t->same($report['targets'], $summary['wordpressImport']['guideReferenceTargets']);
+        $t->same($report['diagnostics'], $summary['wordpressImport']['guideReferenceDiagnostics']);
+    },
+
     'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $navWithAuxiliarySections = str_replace(
             '</body>',
