@@ -170,7 +170,7 @@ XML;
 
 $rightsXml = <<<'XML'
 <rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:drm="https://example.invalid/epub-drm" xml:lang="en">
-  <drm:license id="local-license" href="META-INF/licenses/source-license.xml" media-type="application/xml">Migration license</drm:license>
+  <drm:license id="local-license" href="META-INF/licenses/source-license.xml?profile=review#license" media-type="application/xml">Migration license</drm:license>
   <drm:policy id="remote-policy" href="https://rights.example.invalid/policy.xml">Remote policy</drm:policy>
   <drm:notice id="missing-notice" href="META-INF/licenses/missing.xml">Missing notice</drm:notice>
 </rights>
@@ -7656,6 +7656,7 @@ XML;
         $t->same('/META-INF/review/source.json', $metadata['items'][0]['reference']['target']);
         $t->same(true, $metadata['items'][0]['reference']['exists']);
         $t->same(strlen($sourceBytes), $metadata['items'][0]['reference']['byteLength']);
+        $t->same(hash('sha256', $sourceBytes), $metadata['items'][0]['reference']['byteSha256']);
         $t->same('application/ld+json', $metadata['items'][0]['mediaType']);
 
         $t->same(true, $metadata['items'][1]['reference']['external']);
@@ -7663,7 +7664,11 @@ XML;
         $t->same(false, $metadata['items'][2]['reference']['exists']);
         $t->same('ocf-metadata-missing-reference', $metadata['items'][2]['diagnostics'][0]['type']);
         $t->same('/META-INF/metadata.xml#container-digest', $metadata['items'][3]['reference']['target']);
+        $t->same('/META-INF/metadata.xml', $metadata['items'][3]['reference']['part']);
+        $t->same('container-digest', $metadata['items'][3]['reference']['fragment']);
+        $t->same('id', $metadata['items'][3]['reference']['fragmentKind']);
         $t->same(true, $metadata['items'][3]['reference']['exists']);
+        $t->same(hash('sha256', $metadataXml), $metadata['items'][3]['reference']['byteSha256']);
         $t->same('legacy', $metadata['items'][4]['name']);
         $t->same(null, $metadata['items'][4]['namespace']);
         $t->same(false, $metadata['items'][4]['namespaceQualified']);
@@ -7761,7 +7766,7 @@ XML;
         $t->same($ocf, $result['document']->attr('ocf'));
         $t->same(2, count($result['document']->children));
     },
-    'reports OCF rights and signatures sidecars without validating cryptography' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml): void {
+    'reports OCF rights and signatures sidecars without validating cryptography' => static function (TestRunner $t) use ($buildEpubPackage, $rightsXml, $signaturesXml, $chapter1Xhtml): void {
         $licenseBytes = '<license source="wordpress-import">review required</license>';
         $result = (new EpubReader())->readPackage($buildEpubPackage(
             null,
@@ -7800,9 +7805,13 @@ XML;
         $t->same('license', $rights['items'][0]['name']);
         $t->same('https://example.invalid/epub-drm', $rights['items'][0]['namespace']);
         $t->same('Migration license', $rights['items'][0]['text']);
-        $t->same('/META-INF/licenses/source-license.xml', $rights['items'][0]['reference']['target']);
+        $t->same('/META-INF/licenses/source-license.xml?profile=review#license', $rights['items'][0]['reference']['target']);
+        $t->same('/META-INF/licenses/source-license.xml', $rights['items'][0]['reference']['part']);
+        $t->same('license', $rights['items'][0]['reference']['fragment']);
+        $t->same('id', $rights['items'][0]['reference']['fragmentKind']);
         $t->same(true, $rights['items'][0]['reference']['exists']);
         $t->same(strlen($licenseBytes), $rights['items'][0]['reference']['byteLength']);
+        $t->same(hash('sha256', $licenseBytes), $rights['items'][0]['reference']['byteSha256']);
         $t->same('application/xml', $rights['items'][0]['mediaType']);
         $t->same(true, $rights['items'][1]['reference']['external']);
         $t->same('ocf-rights-remote-reference', $rights['items'][1]['diagnostics'][0]['type']);
@@ -7826,7 +7835,10 @@ XML;
         $t->same(true, $signatures['items'][0]['signatureValuePresent']);
         $t->same('/OEBPS/text/chapter1.xhtml#intro', $signatures['items'][0]['references'][0]['target']);
         $t->same('/OEBPS/text/chapter1.xhtml', $signatures['items'][0]['references'][0]['part']);
+        $t->same('intro', $signatures['items'][0]['references'][0]['fragment']);
+        $t->same('id', $signatures['items'][0]['references'][0]['fragmentKind']);
         $t->same(true, $signatures['items'][0]['references'][0]['exists']);
+        $t->same(hash('sha256', $chapter1Xhtml), $signatures['items'][0]['references'][0]['byteSha256']);
         $t->same('http://www.w3.org/2001/04/xmlenc#sha256', $signatures['items'][0]['references'][0]['digestMethod']);
         $t->same('chapter-digest', $signatures['items'][0]['references'][0]['digestValue']);
         $t->same(false, $signatures['items'][0]['references'][1]['exists']);

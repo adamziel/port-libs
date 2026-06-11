@@ -5737,11 +5737,15 @@ final class EpubReader
             'uri' => $uri,
             'target' => $reference['target'],
             'part' => $reference['part'],
-            'fragment' => self::targetFragment($reference['target']),
+            'fragment' => $reference['fragment'],
+            'fragmentKind' => $reference['fragmentKind'],
+            'epubCfi' => $reference['epubCfi'],
+            'mediaFragment' => $reference['mediaFragment'],
             'external' => $reference['external'],
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
             'crc32' => $reference['crc32'],
+            'byteSha256' => $reference['byteSha256'],
             'digestMethod' => $digestMethod instanceof \DOMElement
                 ? self::nullableAttribute($digestMethod, 'Algorithm')
                 : null,
@@ -5757,28 +5761,38 @@ final class EpubReader
      *     fragment:?string,
      *     fragmentKind:?string,
      *     epubCfi:?array<string, mixed>,
+     *     mediaFragment:?array<string, mixed>,
      *     external:bool,
      *     exists:bool,
      *     byteLength:?int,
      *     crc32:?string,
+     *     byteSha256:?string,
      *     diagnostics:list<array<string, mixed>>
      * }
      */
     private function ocfSidecarReference(ZipPackage $package, string $uri, string $context): array
     {
         $uri = trim($uri);
+        $fragmentFields = self::targetFragmentFields(null);
         if ($uri === '') {
             return self::missingOcfSidecarReference($context);
         }
 
         if (self::isExternalReference($uri)) {
+            $fragmentFields = self::targetFragmentFields($uri);
+
             return [
                 'target' => $uri,
                 'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => true,
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
+                'byteSha256' => null,
                 'diagnostics' => [[
                     'type' => 'ocf-' . $context . '-remote-reference',
                     'uri' => $uri,
@@ -5798,10 +5812,15 @@ final class EpubReader
             return [
                 'target' => null,
                 'part' => null,
+                'fragment' => $fragmentFields['fragment'],
+                'fragmentKind' => $fragmentFields['fragmentKind'],
+                'epubCfi' => $fragmentFields['epubCfi'],
+                'mediaFragment' => $fragmentFields['mediaFragment'],
                 'external' => false,
                 'exists' => false,
                 'byteLength' => null,
                 'crc32' => null,
+                'byteSha256' => null,
                 'diagnostics' => [[
                     'type' => 'ocf-' . $context . '-invalid-reference',
                     'uri' => $uri,
@@ -5810,6 +5829,7 @@ final class EpubReader
             ];
         }
 
+        $fragmentFields = self::targetFragmentFields($target);
         $part = OpcPackagePath::stripQueryAndFragment($target);
         $exists = $package->has($part);
         $entry = $exists ? $package->entry($part) : null;
@@ -5819,14 +5839,32 @@ final class EpubReader
             'part' => $part,
             'message' => 'EPUB OCF ' . $context . ' reference target is missing from the package',
         ]];
+        $byteSha256 = null;
+        if ($exists) {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'ocf-' . $context . '-reference-bytes-unavailable',
+                    'uri' => $uri,
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
 
         return [
             'target' => $target,
             'part' => $part,
+            'fragment' => $fragmentFields['fragment'],
+            'fragmentKind' => $fragmentFields['fragmentKind'],
+            'epubCfi' => $fragmentFields['epubCfi'],
+            'mediaFragment' => $fragmentFields['mediaFragment'],
             'external' => false,
             'exists' => $exists,
             'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
             'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'byteSha256' => $byteSha256,
             'diagnostics' => $diagnostics,
         ];
     }
@@ -5939,10 +5977,15 @@ final class EpubReader
      * @return array{
      *     target:null,
      *     part:null,
+     *     fragment:null,
+     *     fragmentKind:null,
+     *     epubCfi:null,
+     *     mediaFragment:null,
      *     external:false,
      *     exists:false,
      *     byteLength:null,
      *     crc32:null,
+     *     byteSha256:null,
      *     diagnostics:list<array<string, mixed>>
      * }
      */
@@ -5951,10 +5994,15 @@ final class EpubReader
         return [
             'target' => null,
             'part' => null,
+            'fragment' => null,
+            'fragmentKind' => null,
+            'epubCfi' => null,
+            'mediaFragment' => null,
             'external' => false,
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
+            'byteSha256' => null,
             'diagnostics' => [[
                 'type' => 'ocf-' . $context . '-missing-reference',
                 'message' => 'EPUB OCF ' . $context . ' reference is missing a URI',
