@@ -344,11 +344,22 @@ final class EpubReader
         foreach (self::childElements($linksElement, 'link', self::OCF_CONTAINER_NS) as $index => $link) {
             $href = self::nullableAttribute($link, 'href');
             $reference = $this->containerLinkReference($package, $href ?? '');
+            $mediaType = self::nullableAttribute($link, 'media-type');
+            $mediaTypeReport = self::linkMediaTypeReport($mediaType, 'container-link');
+            $linkDiagnostics = array_merge($reference['diagnostics'], $mediaTypeReport['mediaTypeDiagnostics']);
             $item = [
                 'index' => $index,
                 'href' => $href,
                 'rel' => self::spaceDelimited($link->getAttribute('rel')),
-                'mediaType' => self::nullableAttribute($link, 'media-type'),
+                'mediaType' => $mediaType,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'baseMediaType' => $mediaTypeReport['baseMediaType'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterNames' => $mediaTypeReport['mediaTypeParameterNames'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                 'properties' => self::spaceDelimited($link->getAttribute('properties')),
                 'refines' => self::nullableAttribute($link, 'refines'),
                 'target' => $reference['target'],
@@ -362,10 +373,10 @@ final class EpubReader
                 'byteLength' => $reference['byteLength'],
                 'crc32' => $reference['crc32'],
                 'byteSha256' => $reference['byteSha256'],
-                'diagnostics' => $reference['diagnostics'],
+                'diagnostics' => $linkDiagnostics,
             ];
 
-            foreach ($reference['diagnostics'] as $diagnostic) {
+            foreach ($linkDiagnostics as $diagnostic) {
                 $diagnostics[] = [
                     'index' => $index,
                     'href' => $href,
@@ -788,6 +799,86 @@ final class EpubReader
     }
 
     /**
+     * @return array{
+     *     normalizedMediaType:?string,
+     *     baseMediaType:?string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameters:array<string, string>,
+     *     mediaTypeParameterNames:list<string>,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function linkMediaTypeReport(?string $mediaType, string $context): array
+    {
+        $mediaType = is_string($mediaType) ? trim($mediaType) : '';
+        if ($mediaType === '') {
+            return [
+                'normalizedMediaType' => null,
+                'baseMediaType' => null,
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterNames' => [],
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeSyntaxValid' => true,
+                'mediaTypeDiagnostics' => [],
+            ];
+        }
+
+        $parts = self::mediaTypeParts($mediaType);
+        $parameters = is_array($parts['parameters'] ?? null) ? $parts['parameters'] : [];
+        $diagnostics = [];
+        foreach (is_array($parts['diagnostics'] ?? null) ? $parts['diagnostics'] : [] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $diagnostics[] = self::linkMediaTypeDiagnostic($diagnostic, $context);
+            }
+        }
+
+        return [
+            'normalizedMediaType' => (string) ($parts['normalized'] ?? ''),
+            'baseMediaType' => (string) ($parts['base'] ?? ''),
+            'mediaTypeHasParameters' => $parameters !== [],
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterNames' => array_keys($parameters),
+            'mediaTypeParameterCount' => count($parameters),
+            'mediaTypeSyntaxValid' => (bool) ($parts['valid'] ?? true),
+            'mediaTypeDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $diagnostic
+     *
+     * @return array<string, mixed>
+     */
+    private static function linkMediaTypeDiagnostic(array $diagnostic, string $context): array
+    {
+        $label = match ($context) {
+            'container-link' => 'EPUB OCF container link',
+            'collection-link' => 'EPUB OPF collection link',
+            'metadata-link' => 'EPUB OPF metadata link',
+            default => 'EPUB package link',
+        };
+        $diagnostic['type'] = match ((string) ($diagnostic['type'] ?? '')) {
+            'invalid-manifest-media-type' => 'invalid-' . $context . '-media-type',
+            'invalid-manifest-media-type-parameter' => 'invalid-' . $context . '-media-type-parameter',
+            'invalid-manifest-media-type-parameter-name' => 'invalid-' . $context . '-media-type-parameter-name',
+            'duplicate-manifest-media-type-parameter' => 'duplicate-' . $context . '-media-type-parameter',
+            default => (string) ($diagnostic['type'] ?? ''),
+        };
+        $diagnostic['message'] = match ($diagnostic['type']) {
+            'invalid-' . $context . '-media-type' => $label . ' media-type must be a MIME type in type/subtype form',
+            'invalid-' . $context . '-media-type-parameter' => $label . ' media-type parameters must use name=value syntax',
+            'invalid-' . $context . '-media-type-parameter-name' => $label . ' media-type parameter names must be MIME tokens',
+            'duplicate-' . $context . '-media-type-parameter' => $label . ' media-type parameter repeats a name; later value is retained for package review',
+            default => is_string($diagnostic['message'] ?? null) ? $diagnostic['message'] : $label . ' media-type requires package review',
+        };
+
+        return $diagnostic;
+    }
+
+    /**
      * @param array<string, mixed> $rootfile
      * @param array<string, mixed> $opf
      *
@@ -1089,12 +1180,22 @@ final class EpubReader
             }
 
             if ($child->localName === 'link') {
+                $mediaType = self::nullableAttribute($child, 'media-type');
+                $mediaTypeReport = self::linkMediaTypeReport($mediaType, 'metadata-link');
                 $entry = [
                     'index' => count($links),
                     'id' => self::nullableAttribute($child, 'id'),
                     'rel' => self::spaceDelimited($child->getAttribute('rel')),
                     'href' => self::nullableAttribute($child, 'href'),
-                    'mediaType' => self::nullableAttribute($child, 'media-type'),
+                    'mediaType' => $mediaType,
+                    'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                    'baseMediaType' => $mediaTypeReport['baseMediaType'],
+                    'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                    'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                    'mediaTypeParameterNames' => $mediaTypeReport['mediaTypeParameterNames'],
+                    'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                    'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                    'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                     'properties' => self::spaceDelimited($child->getAttribute('properties')),
                     'refines' => self::nullableAttribute($child, 'refines'),
                     'title' => self::nullableAttribute($child, 'title'),
@@ -2990,6 +3091,14 @@ final class EpubReader
             }
 
             $declaredMediaType = $link['mediaType'] ?? null;
+            $resolvedMediaType = is_string($declaredMediaType) && $declaredMediaType !== ''
+                ? $declaredMediaType
+                : $reference['mediaType'];
+            $mediaTypeReport = self::linkMediaTypeReport(
+                is_string($resolvedMediaType) ? $resolvedMediaType : null,
+                'metadata-link'
+            );
+            $diagnostics = array_merge($diagnostics, $mediaTypeReport['mediaTypeDiagnostics']);
             $links[] = [
                 'index' => $index,
                 'id' => is_string($link['id'] ?? null) ? $link['id'] : null,
@@ -3006,9 +3115,15 @@ final class EpubReader
                 'byteLength' => $reference['byteLength'],
                 'crc32' => $reference['crc32'],
                 'byteSha256' => $byteSha256,
-                'mediaType' => is_string($declaredMediaType) && $declaredMediaType !== ''
-                    ? $declaredMediaType
-                    : $reference['mediaType'],
+                'mediaType' => $resolvedMediaType,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'baseMediaType' => $mediaTypeReport['baseMediaType'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterNames' => $mediaTypeReport['mediaTypeParameterNames'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                 'manifestId' => $reference['manifestId'],
                 'manifestMediaType' => $reference['mediaType'],
                 'properties' => is_array($link['properties'] ?? null) ? array_values($link['properties']) : [],
@@ -3401,6 +3516,14 @@ final class EpubReader
             'fragment' => is_string($link['fragment'] ?? null) ? $link['fragment'] : null,
             'fragmentKind' => is_string($link['fragmentKind'] ?? null) ? $link['fragmentKind'] : null,
             'mediaType' => is_string($link['mediaType'] ?? null) ? $link['mediaType'] : null,
+            'normalizedMediaType' => is_string($link['normalizedMediaType'] ?? null) ? $link['normalizedMediaType'] : null,
+            'baseMediaType' => is_string($link['baseMediaType'] ?? null) ? $link['baseMediaType'] : null,
+            'mediaTypeHasParameters' => (bool) ($link['mediaTypeHasParameters'] ?? false),
+            'mediaTypeParameters' => is_array($link['mediaTypeParameters'] ?? null) ? $link['mediaTypeParameters'] : [],
+            'mediaTypeParameterNames' => is_array($link['mediaTypeParameterNames'] ?? null) ? array_values($link['mediaTypeParameterNames']) : [],
+            'mediaTypeParameterCount' => is_int($link['mediaTypeParameterCount'] ?? null) ? $link['mediaTypeParameterCount'] : 0,
+            'mediaTypeSyntaxValid' => (bool) ($link['mediaTypeSyntaxValid'] ?? true),
+            'mediaTypeDiagnostics' => is_array($link['mediaTypeDiagnostics'] ?? null) ? array_values($link['mediaTypeDiagnostics']) : [],
             'manifestId' => is_string($link['manifestId'] ?? null) ? $link['manifestId'] : null,
             'manifestMediaType' => is_string($link['manifestMediaType'] ?? null) ? $link['manifestMediaType'] : null,
             'title' => is_string($link['title'] ?? null) ? $link['title'] : null,
@@ -8343,6 +8466,8 @@ final class EpubReader
         $missingCount = 0;
         $encryptedCount = 0;
         $recordLinkCount = 0;
+        $parameterizedMediaTypeCount = 0;
+        $invalidMediaTypeCount = 0;
         $reviewRequiredCount = 0;
 
         foreach ($links as $index => $link) {
@@ -8351,6 +8476,8 @@ final class EpubReader
             $encrypted = ($link['encrypted'] ?? false) === true;
             $part = is_string($link['part'] ?? null) ? $link['part'] : null;
             $linkDiagnostics = is_array($link['diagnostics'] ?? null) ? $link['diagnostics'] : [];
+            $parameterizedMediaType = ($link['mediaTypeHasParameters'] ?? false) === true;
+            $invalidMediaType = ($link['mediaTypeSyntaxValid'] ?? true) !== true;
 
             if ($external) {
                 ++$externalCount;
@@ -8362,6 +8489,12 @@ final class EpubReader
             }
             if ($encrypted) {
                 ++$encryptedCount;
+            }
+            if ($parameterizedMediaType) {
+                ++$parameterizedMediaTypeCount;
+            }
+            if ($invalidMediaType) {
+                ++$invalidMediaTypeCount;
             }
 
             $rels = is_array($link['rel'] ?? null) ? array_values($link['rel']) : [];
@@ -8412,6 +8545,8 @@ final class EpubReader
             'missingCount' => $missingCount,
             'encryptedCount' => $encryptedCount,
             'recordLinkCount' => $recordLinkCount,
+            'parameterizedMediaTypeCount' => $parameterizedMediaTypeCount,
+            'invalidMediaTypeCount' => $invalidMediaTypeCount,
             'reviewRequiredCount' => $reviewRequiredCount,
             'relTokens' => array_keys($relCounts),
             'relCounts' => $relCounts,
@@ -8568,6 +8703,12 @@ final class EpubReader
         $href = self::nullableAttribute($linkElement, 'href');
         $reference = $this->packageReference($package, $opfPart, $href ?? '', $manifestByPart, 'collection');
         $declaredMediaType = self::nullableAttribute($linkElement, 'media-type');
+        $resolvedMediaType = $declaredMediaType ?? $reference['mediaType'];
+        $mediaTypeReport = self::linkMediaTypeReport(
+            is_string($resolvedMediaType) ? $resolvedMediaType : null,
+            'collection-link'
+        );
+        $diagnostics = array_merge($reference['diagnostics'], $mediaTypeReport['mediaTypeDiagnostics']);
 
         return [
             'id' => self::nullableAttribute($linkElement, 'id'),
@@ -8583,7 +8724,15 @@ final class EpubReader
             'exists' => $reference['exists'],
             'byteLength' => $reference['byteLength'],
             'crc32' => $reference['crc32'],
-            'mediaType' => $declaredMediaType ?? $reference['mediaType'],
+            'mediaType' => $resolvedMediaType,
+            'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+            'baseMediaType' => $mediaTypeReport['baseMediaType'],
+            'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+            'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+            'mediaTypeParameterNames' => $mediaTypeReport['mediaTypeParameterNames'],
+            'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+            'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+            'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
             'manifestId' => $reference['manifestId'],
             'manifestMediaType' => $reference['mediaType'],
             'properties' => self::spaceDelimited($linkElement->getAttribute('properties')),
@@ -8591,7 +8740,7 @@ final class EpubReader
             'refines' => self::nullableAttribute($linkElement, 'refines'),
             'encrypted' => $reference['encrypted'],
             'canExposeBytes' => $reference['canExposeBytes'],
-            'diagnostics' => $reference['diagnostics'],
+            'diagnostics' => $diagnostics,
         ];
     }
 
