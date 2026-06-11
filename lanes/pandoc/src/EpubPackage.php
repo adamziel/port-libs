@@ -70,6 +70,7 @@ final class EpubPackage
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
      * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
      * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $spineMetadata
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}> $guideReferences
      * @param list<array<string, mixed>> $collections
      * @param array<string, mixed> $bindings
@@ -90,6 +91,7 @@ final class EpubPackage
         private readonly array $manifestById,
         private readonly array $manifestItems,
         private readonly array $spine,
+        private readonly array $spineMetadata,
         private readonly array $guideReferences,
         private readonly array $collections,
         private readonly array $bindings,
@@ -146,6 +148,7 @@ final class EpubPackage
             $opf['manifestById'],
             $opf['manifestItems'],
             $opf['spine'],
+            $opf['spineMetadata'],
             $opf['guideReferences'],
             $opf['collections'],
             $opf['bindings'],
@@ -222,6 +225,14 @@ final class EpubPackage
     public function spine(): array
     {
         return $this->spine;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function spineMetadata(): array
+    {
+        return $this->spineMetadata;
     }
 
     /**
@@ -384,6 +395,7 @@ final class EpubPackage
             $this->metadata,
             $this->manifestItems,
             $this->spine,
+            $this->spineMetadata,
             $this->spineTocId,
             $this->navigation,
             $this->navigationSections,
@@ -408,6 +420,7 @@ final class EpubPackage
         $resourceProperties = $this->resourceProperties();
         $validationReport = $this->validationReport();
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
+        $spineMetadata = $this->spineMetadata();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -425,6 +438,7 @@ final class EpubPackage
             'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
             'manifest' => $this->manifestItems,
             'readingOrder' => $this->spine,
+            'spineMetadata' => $spineMetadata,
             'guide' => $this->guideReferences,
             'collections' => $this->collections,
             'bindings' => $this->bindings,
@@ -475,6 +489,10 @@ final class EpubPackage
                     'refinementsById' => $this->metadata['refinementsById'] ?? [],
                 ],
                 'readingOrderParts' => $assetSummary['readingOrderParts'],
+                'spineMetadata' => $spineMetadata,
+                'pageProgressionDirection' => $spineMetadata['pageProgressionDirection'],
+                'readingProgression' => $spineMetadata['readingProgression'],
+                'spinePackageDiagnostics' => $spineMetadata['diagnostics'],
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
@@ -535,6 +553,7 @@ final class EpubPackage
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $manifestItems
      * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $spineMetadata
      * @param ?string $spineTocId
      * @param array<string, mixed>|null $navigation
      * @param list<array<string, mixed>> $navigationSections
@@ -548,6 +567,7 @@ final class EpubPackage
         array $metadata,
         array $manifestItems,
         array $spine,
+        array $spineMetadata,
         ?string $spineTocId,
         ?array $navigation,
         array $navigationSections
@@ -557,7 +577,7 @@ final class EpubPackage
         $rootfileReport = self::packageRootfileValidationReport($package, $rootfiles, $opfPartName);
         $metadataReport = self::packageMetadataValidationReport($metadata, $epub3);
         $manifestReport = self::packageManifestValidationReport($manifestItems, $epub3);
-        $spineReport = self::packageSpineValidationReport($spine);
+        $spineReport = self::packageSpineValidationReport($spine, $spineMetadata);
         $ncxReport = self::packageNcxValidationReport($spineTocId, $manifestItems, $navigation);
         $navigationReport = self::packageNavigationValidationReport($package, $navigation, $navigationSections);
         $diagnostics = array_merge(
@@ -917,17 +937,20 @@ final class EpubPackage
 
     /**
      * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed> $spineMetadata
      *
      * @return array<string, mixed>
      */
-    private static function packageSpineValidationReport(array $spine): array
+    private static function packageSpineValidationReport(array $spine, array $spineMetadata): array
     {
         $linearCount = 0;
         $nonLinearCount = 0;
         $missingManifestItems = [];
         $missingPackagePartItems = [];
         $nonContentDocumentItems = [];
-        $diagnostics = [];
+        $diagnostics = is_array($spineMetadata['diagnostics'] ?? null)
+            ? array_values($spineMetadata['diagnostics'])
+            : [];
 
         foreach ($spine as $index => $item) {
             if (($item['linear'] ?? true) === false) {
@@ -994,6 +1017,8 @@ final class EpubPackage
         return [
             'valid' => $diagnostics === [],
             'itemCount' => count($spine),
+            'metadata' => $spineMetadata,
+            'metadataValid' => ($spineMetadata['valid'] ?? true) === true,
             'linearCount' => $linearCount,
             'nonLinearCount' => $nonLinearCount,
             'missingManifestItemCount' => count($missingManifestItems),
@@ -1633,6 +1658,7 @@ final class EpubPackage
      *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
      *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
      *     spine:list<array<string, mixed>>,
+     *     spineMetadata:array<string, mixed>,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool}>,
      *     collections:list<array<string, mixed>>,
      *     bindings:array<string, mixed>,
@@ -1676,6 +1702,7 @@ final class EpubPackage
         $metadata['linkDiagnostics'] = $packageLinkReport['diagnostics'];
         $metadata['linkVocabulary'] = self::metadataLinkVocabularySummary($packageLinks);
         $refinementsById = is_array($metadata['refinementsById'] ?? null) ? $metadata['refinementsById'] : [];
+        $spineMetadata = self::parseSpineMetadata($spineElement);
         $spine = self::parseSpine($spineElement, $manifestById, $refinementsById);
         $guideReferences = self::parseGuide(self::firstChildElement($root, 'guide', self::OPF_NAMESPACE), $opfPartName, $package);
         $collections = self::parseCollections($root, $opfPartName, $package, $manifestById);
@@ -1689,6 +1716,7 @@ final class EpubPackage
             'manifestById' => $manifestById,
             'manifestItems' => $manifestItems,
             'spine' => $spine,
+            'spineMetadata' => $spineMetadata,
             'guideReferences' => $guideReferences,
             'collections' => $collections,
             'bindings' => $bindings,
@@ -3367,6 +3395,51 @@ final class EpubPackage
         }
 
         return [$byId, $items];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseSpineMetadata(\DOMElement $spineElement): array
+    {
+        $tocSpecified = $spineElement->hasAttribute('toc');
+        $pageProgressionSpecified = $spineElement->hasAttribute('page-progression-direction');
+        $pageProgressionRaw = $pageProgressionSpecified
+            ? self::emptyToNull($spineElement->getAttribute('page-progression-direction'))
+            : null;
+        $pageProgression = $pageProgressionRaw === null ? null : strtolower($pageProgressionRaw);
+        $validPageProgressionValues = ['ltr', 'rtl', 'default'];
+        $diagnostics = [];
+
+        if ($pageProgression !== null && !in_array($pageProgression, $validPageProgressionValues, true)) {
+            $diagnostics[] = [
+                'type' => 'invalid-spine-page-progression-direction',
+                'attribute' => 'page-progression-direction',
+                'value' => $pageProgressionRaw,
+                'message' => 'EPUB OPF spine page-progression-direction must be ltr, rtl, or default',
+            ];
+            $pageProgression = null;
+        }
+
+        return [
+            'tocSpecified' => $tocSpecified,
+            'tocId' => $tocSpecified ? self::emptyToNull($spineElement->getAttribute('toc')) : null,
+            'pageProgressionDirectionSpecified' => $pageProgressionSpecified,
+            'pageProgressionDirectionRaw' => $pageProgressionRaw,
+            'pageProgressionDirection' => $pageProgression,
+            'readingProgression' => match ($pageProgression) {
+                'ltr' => 'left-to-right',
+                'rtl' => 'right-to-left',
+                'default' => 'default',
+                default => null,
+            },
+            'leftToRight' => $pageProgression === 'ltr',
+            'rightToLeft' => $pageProgression === 'rtl',
+            'defaultProgression' => $pageProgression === 'default',
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
