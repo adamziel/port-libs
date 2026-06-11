@@ -261,6 +261,61 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst certificate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cert-boundary.pdf',
+            'source' => '= Typst Certificate Boundary Packet',
+            'engineOptions' => [
+                '--cert=certs/internal-ca.pem',
+                '--cert',
+                'https://ca.example.invalid/root.pem',
+                '--cert',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst certificate boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'certificate-external-boundary',
+                'certificate-empty',
+            ],
+            'certificates' => [
+                ['raw' => 'certs/internal-ca.pem', 'path' => 'certs/internal-ca.pem', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                ['raw' => 'https://ca.example.invalid/root.pem', 'path' => 'https://ca.example.invalid/root.pem', 'kind' => 'uri', 'safe' => false, 'issues' => ['certificate-external-boundary']],
+                ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['certificate-empty']],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cert-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cert-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-certificates:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
