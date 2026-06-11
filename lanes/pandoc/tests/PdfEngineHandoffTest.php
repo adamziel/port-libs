@@ -1258,6 +1258,102 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst dependency sidecar format boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/deps-format-boundary.pdf',
+            'source' => '= Typst Dependency Format Boundary Packet',
+            'engineOptions' => [
+                '--deps=build/deps-format-boundary.d',
+                '--deps-format=custom format',
+                '--deps-format',
+                'make',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency format boundary packet\n%%EOF\n";
+        $depfile = "build/deps-format-boundary.pdf: build/deps-format-boundary.typ\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'dependency-format-invalid-boundary',
+                'dependency-format-boundary-overridden',
+            ],
+            'dependencyOutput' => [
+                'format' => [
+                    'raw' => 'make',
+                    'value' => 'make',
+                    'format' => 'make',
+                    'makeCompatible' => true,
+                    'machineReadable' => false,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'dependencyFormat',
+                    'count' => 2,
+                    'values' => ['custom format', 'make'],
+                    'selected' => 'make',
+                    'issue' => 'dependency-format-boundary-overridden',
+                ],
+            ],
+            'dependencyFormatHistory' => [
+                [
+                    'raw' => 'custom format',
+                    'value' => 'custom format',
+                    'format' => null,
+                    'makeCompatible' => false,
+                    'machineReadable' => false,
+                    'safe' => false,
+                    'issues' => ['dependency-format-invalid-boundary'],
+                ],
+                [
+                    'raw' => 'make',
+                    'value' => 'make',
+                    'format' => 'make',
+                    'makeCompatible' => true,
+                    'machineReadable' => false,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/deps-format-boundary.d' => $depfile,
+                'build/deps-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/deps-format-boundary.d' => $depfile,
+                'build/deps-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-format:make', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-dependency-output-policy:ok', implode(',', $result['diagnostics']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
