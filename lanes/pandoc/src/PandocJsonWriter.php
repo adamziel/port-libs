@@ -306,7 +306,11 @@ final class PandocJsonWriter
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->writeDefinitionItems($node->children)],
-            'line_block' => ['t' => 'LineBlock', 'c' => array_map(fn (AstNode $line): array => $this->writeInlines($this->inlineChildrenOrText($line)), $node->children)],
+            'line_block' => ['t' => 'LineBlock', 'c' => array_map(function (AstNode $line): array {
+                $inlines = $this->writeInlines($this->inlineChildrenOrText($line));
+
+                return $this->matchingNativeList($line->attr('lineNative'), $inlines) ?? $inlines;
+            }, $node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
             'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeBlocks($node->children)]],
@@ -337,7 +341,8 @@ final class PandocJsonWriter
             if ($item->type !== 'list_item') {
                 continue;
             }
-            $encoded[] = $this->childrenAsBlocks($item);
+            $blocks = $this->childrenAsBlocks($item);
+            $encoded[] = $this->matchingNativeList($item->attr('listItemNative'), $blocks) ?? $blocks;
         }
 
         return $encoded;
@@ -357,16 +362,41 @@ final class PandocJsonWriter
 
             $term = $item->children[0] ?? new AstNode('text', ['text' => (string) $item->attr('term', '')]);
             $termInlines = $this->isInlineNode($term) ? [$term] : $this->inlineChildrenOrText($term);
+            $encodedTerm = $this->writeInlines($termInlines);
+            if ($term instanceof AstNode) {
+                $encodedTerm = $this->matchingNativeList($term->attr('termNative'), $encodedTerm) ?? $encodedTerm;
+            }
             $definitions = [];
             foreach (array_slice($item->children, 1) as $definition) {
                 if ($definition->type === 'definition') {
-                    $definitions[] = $this->childrenAsBlocks($definition);
+                    $blocks = $this->childrenAsBlocks($definition);
+                    $definitions[] = $this->matchingNativeList($definition->attr('definitionNative'), $blocks) ?? $blocks;
                 }
             }
-            $encoded[] = [$this->writeInlines($termInlines), $definitions];
+
+            $itemTuple = [$encodedTerm, $definitions];
+            $encoded[] = $this->matchingNativeDefinitionItem($item->attr('definitionItemNative'), $itemTuple) ?? $itemTuple;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $generated
+     * @return list<mixed>|null
+     */
+    private function matchingNativeList(mixed $native, array $generated): ?array
+    {
+        return is_array($native) && array_is_list($native) && $native === $generated ? $native : null;
+    }
+
+    /**
+     * @param array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>> $generated
+     * @return array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>>|null
+     */
+    private function matchingNativeDefinitionItem(mixed $native, array $generated): ?array
+    {
+        return is_array($native) && array_is_list($native) && count($native) === 2 && $native === $generated ? $native : null;
     }
 
     /**

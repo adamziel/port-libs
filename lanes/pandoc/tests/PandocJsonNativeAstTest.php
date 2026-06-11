@@ -1870,6 +1870,100 @@ return [
         $t->same($blocks, $jsonPacket['blocks']);
         $t->same($blocks, $nativePacket['blocks']);
     },
+    'preserves list definition and line native structural payloads' => static function (TestRunner $t): void {
+        $bulletItem = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Bullet'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'item'],
+            ]],
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Trail'],
+            ]],
+        ];
+        $definitionItem = [
+            [
+                ['t' => 'Str', 'c' => 'Term'],
+                ['t' => 'Space'],
+                ['t' => 'Code', 'c' => [['', [], []], 'code']],
+            ],
+            [
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'First'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'definition'],
+                    ]],
+                ],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Second'],
+                    ]],
+                ],
+            ],
+        ];
+        $line = [
+            ['t' => 'Str', 'c' => 'Line'],
+            ['t' => 'Space'],
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'one'],
+            ]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => [$bulletItem]],
+                ['t' => 'DefinitionList', 'c' => [$definitionItem]],
+                ['t' => 'LineBlock', 'c' => [$line]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $listItem = $document->children[0]->children[0];
+            $definition = $document->children[1]->children[0];
+            $term = $definition->children[0];
+            $firstDefinition = $definition->children[1];
+            $secondDefinition = $definition->children[2];
+            $lineNode = $document->children[2]->children[0];
+
+            $t->same($bulletItem, $listItem->attr('listItemNative'), "{$source} list item native payload");
+            $t->same($definitionItem, $definition->attr('definitionItemNative'), "{$source} definition item native payload");
+            $t->same($definitionItem[0], $term->attr('termNative'), "{$source} definition term native payload");
+            $t->same($definitionItem[1][0], $firstDefinition->attr('definitionNative'), "{$source} first definition native payload");
+            $t->same($definitionItem[1][1], $secondDefinition->attr('definitionNative'), "{$source} second definition native payload");
+            $t->same($line, $lineNode->attr('lineNative'), "{$source} line native payload");
+            $t->same('Line one', $lineNode->attr('text'), "{$source} line text");
+        }
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same($packet['blocks'], $jsonPacket['blocks'], "{$source} json writer structural payloads");
+            $t->same($packet['blocks'], $nativePacket['blocks'], "{$source} native writer structural payloads");
+        }
+
+        $lineNode = $documents['native']->children[2]->children[0];
+        $editedLine = new AstNode('line', $lineNode->attrs, [new AstNode('text', ['text' => 'Edited line'])]);
+        $editedDocument = new AstNode('document', $documents['native']->attrs, [
+            new AstNode('line_block', $documents['native']->children[2]->attrs, [$editedLine]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([['t' => 'Str', 'c' => 'Edited line']], $editedJson['blocks'][0]['c'][0]);
+        $t->same([
+            ['t' => 'Str', 'c' => 'Edited'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'line'],
+        ], $editedNative['blocks'][0]['c'][0]);
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

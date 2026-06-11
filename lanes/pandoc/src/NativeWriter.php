@@ -296,7 +296,11 @@ final class NativeWriter
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->listItems($node->children)],
             'definition_list' => ['t' => 'DefinitionList', 'c' => $this->definitionItems($node->children)],
             'line_block' => ['t' => 'LineBlock', 'c' => array_map(
-                fn (AstNode $line): array => $this->inlines($this->inlineChildrenOrText($line)),
+                function (AstNode $line): array {
+                    $inlines = $this->inlines($this->inlineChildrenOrText($line));
+
+                    return $this->matchingNativeList($line->attr('lineNative'), $inlines) ?? $inlines;
+                },
                 $node->children
             )],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
@@ -699,7 +703,8 @@ final class NativeWriter
             if (!$item instanceof AstNode || $item->type !== 'list_item') {
                 continue;
             }
-            $encoded[] = $this->childrenAsBlocks($item);
+            $blocks = $this->childrenAsBlocks($item);
+            $encoded[] = $this->matchingNativeList($item->attr('listItemNative'), $blocks) ?? $blocks;
         }
 
         return $encoded;
@@ -722,17 +727,39 @@ final class NativeWriter
                 $term = new AstNode('text', ['text' => (string) $item->attr('term', '')]);
             }
             $termInlines = $this->isInlineNode($term) ? [$term] : $this->inlineChildrenOrText($term);
+            $encodedTerm = $this->inlines($termInlines);
+            $encodedTerm = $this->matchingNativeList($term->attr('termNative'), $encodedTerm) ?? $encodedTerm;
             $definitions = [];
             foreach (array_slice($item->children, 1) as $definition) {
                 if ($definition instanceof AstNode && $definition->type === 'definition') {
-                    $definitions[] = $this->childrenAsBlocks($definition);
+                    $blocks = $this->childrenAsBlocks($definition);
+                    $definitions[] = $this->matchingNativeList($definition->attr('definitionNative'), $blocks) ?? $blocks;
                 }
             }
 
-            $encoded[] = [$this->inlines($termInlines), $definitions];
+            $itemTuple = [$encodedTerm, $definitions];
+            $encoded[] = $this->matchingNativeDefinitionItem($item->attr('definitionItemNative'), $itemTuple) ?? $itemTuple;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $generated
+     * @return list<mixed>|null
+     */
+    private function matchingNativeList(mixed $native, array $generated): ?array
+    {
+        return is_array($native) && array_is_list($native) && $native === $generated ? $native : null;
+    }
+
+    /**
+     * @param array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>> $generated
+     * @return array{0:list<array<string, mixed>>, 1:list<list<array<string, mixed>>>>|null
+     */
+    private function matchingNativeDefinitionItem(mixed $native, array $generated): ?array
+    {
+        return is_array($native) && array_is_list($native) && count($native) === 2 && $native === $generated ? $native : null;
     }
 
     /**
