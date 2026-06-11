@@ -656,6 +656,43 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
+                . '<map name="figures"><area shape="rect" coords="0,0,10,10" href="diagram.png#hotspot" alt="Diagram hotspot" target="_self" rel="help external"></map>',
+            'hyperlink review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $anchor = $summary[0]['children'][1];
+        $map = $summary[1];
+        $area = $map['children'][0];
+
+        $t->same('a', $anchor['name']);
+        $t->same('a', $anchor['hyperlink']);
+        $t->same('chapter.html#intro', $anchor['href']);
+        $t->same('_blank', $anchor['target']);
+        $t->same('noopener noreferrer tag', $anchor['relRaw']);
+        $t->same(['noopener', 'noreferrer', 'tag'], $anchor['relTokens']);
+        $t->same('packet.html', $anchor['download']);
+        $t->same('en', $anchor['hreflang']);
+        $t->same('text/html', $anchor['mimeType']);
+        $t->same('/audit /log', $anchor['pingRaw']);
+        $t->same(['/audit', '/log'], $anchor['pingUrls']);
+        $t->same('no-referrer', $anchor['referrerpolicy']);
+        $t->same('Chapter one', $anchor['label']);
+        $t->same('map', $map['name']);
+        $t->same(['name' => 'figures'], $map['attributes']);
+        $t->same('area', $area['name']);
+        $t->same('area', $area['hyperlink']);
+        $t->same('diagram.png#hotspot', $area['href']);
+        $t->same('Diagram hotspot', $area['label']);
+        $t->same('rect', $area['shape']);
+        $t->same('0,0,10,10', $area['coords']);
+        $t->same(['help', 'external'], $area['relTokens']);
+        $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

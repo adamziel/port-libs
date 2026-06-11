@@ -870,6 +870,9 @@ final class XmlHtmlDom
         if (in_array($name, ['picture', 'img', 'audio', 'video', 'source', 'track', 'iframe', 'embed', 'object', 'param'], true)) {
             $summary += self::embeddedResourceSummary($node, $name);
         }
+        if (in_array($name, ['a', 'area'], true)) {
+            $summary += self::hyperlinkSummary($node, $name);
+        }
 
         return [$summary];
     }
@@ -1058,6 +1061,38 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkSummary(\DOMElement $element, string $name): array
+    {
+        $relRaw = self::attributeOrNull($element, 'rel');
+        $pingRaw = self::attributeOrNull($element, 'ping');
+        $summary = [
+            'hyperlink' => $name,
+            'href' => self::attributeOrNull($element, 'href'),
+            'target' => self::attributeOrNull($element, 'target'),
+            'relRaw' => $relRaw,
+            'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+            'download' => self::attributeOrNull($element, 'download'),
+            'hreflang' => self::attributeOrNull($element, 'hreflang'),
+            'mimeType' => self::attributeOrNull($element, 'type'),
+            'pingRaw' => $pingRaw,
+            'pingUrls' => $pingRaw === null ? [] : self::spaceSeparatedTokens($pingRaw),
+            'referrerpolicy' => self::attributeOrNull($element, 'referrerpolicy'),
+            'label' => $name === 'area'
+                ? self::attributeOrNull($element, 'alt')
+                : self::normalizedText($element),
+        ];
+
+        if ($name === 'area') {
+            $summary['shape'] = self::attributeOrNull($element, 'shape');
+            $summary['coords'] = self::attributeOrNull($element, 'coords');
+        }
+
+        return $summary;
     }
 
     private static function isValidDateParts(string $year, string $month, string $day): bool
