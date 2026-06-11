@@ -796,6 +796,7 @@ final class NativeReader
 
         $nodes = [];
         $text = '';
+        $textNativeParts = [];
         foreach ($nativeInlines as $inline) {
             if (!is_array($inline) || !is_string($inline['t'] ?? null)) {
                 throw new \InvalidArgumentException('Pandoc native JSON inlines must be tagged constructors');
@@ -807,18 +808,20 @@ final class NativeReader
                     throw new \InvalidArgumentException('Pandoc native JSON Str inline content must be a string');
                 }
                 $text .= $content;
+                $textNativeParts[] = $inline;
                 continue;
             }
 
             if ($inline['t'] === 'Space') {
                 $text .= ' ';
+                $textNativeParts[] = $inline;
                 continue;
             }
 
-            $this->flushText($text, $nodes);
+            $this->flushText($text, $textNativeParts, $nodes);
             $nodes[] = $this->inline($inline);
         }
-        $this->flushText($text, $nodes);
+        $this->flushText($text, $textNativeParts, $nodes);
 
         return $nodes;
     }
@@ -1276,16 +1279,31 @@ final class NativeReader
     }
 
     /**
+     * @param list<array<string, mixed>> $nativeParts
      * @param list<AstNode> $nodes
      */
-    private function flushText(string &$text, array &$nodes): void
+    private function flushText(string &$text, array &$nativeParts, array &$nodes): void
     {
         if ($text === '') {
             return;
         }
 
-        $nodes[] = new AstNode('text', ['text' => $text]);
+        $attrs = ['text' => $text];
+        if ($nativeParts !== []) {
+            $attrs['nativeInlineConstructors'] = array_values(array_map(
+                static fn (array $part): string => (string) ($part['t'] ?? ''),
+                $nativeParts
+            ));
+            $attrs['nativeInlineParts'] = $nativeParts;
+            if (count($nativeParts) === 1) {
+                $attrs['constructor'] = $nativeParts[0]['t'];
+                $attrs['native'] = $nativeParts[0];
+            }
+        }
+
+        $nodes[] = new AstNode('text', $attrs);
         $text = '';
+        $nativeParts = [];
     }
 
     private function isMarkdownRawFormat(string $format): bool

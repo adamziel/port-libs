@@ -880,6 +880,49 @@ return [
         $t->same($packet['blocks'][1]['c'][2], $nativeInline->attr('native'));
         $t->same($packet['blocks'], $encoded['blocks']);
     },
+    'records native str and space constructor provenance on coalesced text nodes' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alpha'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Beta'],
+                    ['t' => 'SoftBreak'],
+                    ['t' => 'Str', 'c' => 'Gamma'],
+                    ['t' => 'Space'],
+                    ['t' => 'Code', 'c' => [
+                        ['', ['review-code'], []],
+                        'delta',
+                    ]],
+                ]],
+            ],
+        ];
+
+        $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+        $nativeDocument = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $jsonChildren = $jsonDocument->children[0]->children;
+        $nativeChildren = $nativeDocument->children[0]->children;
+        $encodedNative = json_decode((new NativeWriter())->write($nativeDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['text', 'space', 'text', 'softbreak', 'text', 'space', 'code'], array_map(static fn (AstNode $node): string => $node->type, $jsonChildren));
+        $t->same('Str', $jsonChildren[0]->attr('constructor'));
+        $t->same($packet['blocks'][0]['c'][0], $jsonChildren[0]->attr('native'));
+        $t->same('Space', $jsonChildren[1]->attr('constructor'));
+        $t->same($packet['blocks'][0]['c'][1], $jsonChildren[1]->attr('native'));
+
+        $t->same(['text', 'softbreak', 'text', 'code'], array_map(static fn (AstNode $node): string => $node->type, $nativeChildren));
+        $t->same('Alpha Beta', $nativeChildren[0]->attr('text'));
+        $t->same(['Str', 'Space', 'Str'], $nativeChildren[0]->attr('nativeInlineConstructors'));
+        $t->same(array_slice($packet['blocks'][0]['c'], 0, 3), $nativeChildren[0]->attr('nativeInlineParts'));
+        $t->same('SoftBreak', $nativeChildren[1]->attr('constructor'));
+        $t->same('Gamma ', $nativeChildren[2]->attr('text'));
+        $t->same(['Str', 'Space'], $nativeChildren[2]->attr('nativeInlineConstructors'));
+        $t->same(array_slice($packet['blocks'][0]['c'], 4, 2), $nativeChildren[2]->attr('nativeInlineParts'));
+        $t->same('Code', $nativeChildren[3]->attr('constructor'));
+        $t->same($packet['blocks'][0]['c'], $encodedNative['blocks'][0]['c']);
+    },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
             'citationId' => 'source-a',
