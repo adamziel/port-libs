@@ -122,6 +122,7 @@ return [
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
             'inputVariables' => [],
             'issues' => ['package-cache-external-boundary'],
+            'dependencyFile' => ['raw' => 'build/boundary.d', 'path' => 'build/boundary.d', 'kind' => 'relative', 'safe' => true, 'issues' => []],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -145,7 +146,78 @@ return [
         $t->contains('typst-font-paths:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-file-boundary:build/boundary.d', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst dependency file boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/deps-boundary.pdf',
+            'source' => '= Typst Dependency File Boundary Packet',
+            'engineOptions' => [
+                '--deps=/tmp/typst-stale.d',
+                '--make-deps',
+                'build/deps-boundary.d',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency file boundary packet\n%%EOF\n";
+        $depfile = "build/deps-boundary.pdf: build/deps-boundary.typ\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'dependency-file-external-boundary',
+                'dependency-file-boundary-overridden',
+            ],
+            'dependencyFile' => ['raw' => 'build/deps-boundary.d', 'path' => 'build/deps-boundary.d', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'overrides' => [
+                [
+                    'option' => 'dependencyFile',
+                    'count' => 2,
+                    'values' => ['/tmp/typst-stale.d', 'build/deps-boundary.d'],
+                    'selected' => 'build/deps-boundary.d',
+                    'issue' => 'dependency-file-boundary-overridden',
+                ],
+            ],
+            'dependencyFileHistory' => [
+                ['raw' => '/tmp/typst-stale.d', 'path' => '/tmp/typst-stale.d', 'kind' => 'absolute', 'safe' => false, 'issues' => ['dependency-file-external-boundary']],
+                ['raw' => 'build/deps-boundary.d', 'path' => 'build/deps-boundary.d', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/deps-boundary.d' => $depfile,
+                'build/deps-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/deps-boundary.d' => $depfile,
+                'build/deps-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('build/deps-boundary.d', $plan['engineDependencyFile']);
+        $t->same(['build/deps-boundary.d'], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('pdf-engine-dependency-file:build/deps-boundary.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-file-boundary:build/deps-boundary.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);

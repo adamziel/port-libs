@@ -268,6 +268,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
             }
+            if (($typstBoundaryProvenance['dependencyFile'] ?? null) !== null) {
+                $diagnostics[] = 'typst-dependency-file-boundary:' . $typstBoundaryProvenance['dependencyFile']['path'];
+            }
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
             }
@@ -5244,23 +5247,9 @@ final class PdfEngineHandoff
             return null;
         }
 
-        foreach ($engineOptions as $index => $option) {
-            $option = trim($option);
-            if (preg_match('/\A--(?:make-)?deps=(.+)\z/i', $option, $matches) === 1) {
-                return $this->normalizeRelativePath($matches[1], 'Typst dependency file path');
-            }
+        $value = $this->engineOptionValue($engineOptions, ['--deps', '--make-deps']);
 
-            if (!in_array(strtolower($option), ['--deps', '--make-deps'], true)) {
-                continue;
-            }
-
-            $next = $engineOptions[$index + 1] ?? null;
-            if (is_string($next) && $next !== '' && !$this->looksLikeEngineOption($next)) {
-                return $this->normalizeRelativePath($next, 'Typst dependency file path');
-            }
-        }
-
-        return null;
+        return $value === null ? null : $this->normalizeRelativePath($value, 'Typst dependency file path');
     }
 
     /**
@@ -5539,6 +5528,7 @@ final class PdfEngineHandoff
             'root' => 'root-boundary-overridden',
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
+            'dependencyFile' => 'dependency-file-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
         ];
         $entries = [];
@@ -5574,10 +5564,11 @@ final class PdfEngineHandoff
         $certificateValues = $this->engineOptionValues($engineOptions, ['--cert'], true);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
+        $dependencyFileValues = $this->engineOptionValues($engineOptions, ['--deps', '--make-deps'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $dependencyFileValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5605,6 +5596,11 @@ final class PdfEngineHandoff
             $packageCacheValues
         );
         $packageCache = $packageCacheHistory === [] ? null : $packageCacheHistory[count($packageCacheHistory) - 1];
+        $dependencyFileHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'dependency-file'),
+            $dependencyFileValues
+        );
+        $dependencyFile = $dependencyFileHistory === [] ? null : $dependencyFileHistory[count($dependencyFileHistory) - 1];
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
@@ -5619,11 +5615,12 @@ final class PdfEngineHandoff
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
+            'dependencyFile' => $dependencyFileValues,
             'creationTimestamp' => $creationTimestampValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $dependencyFileHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5654,6 +5651,9 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if ($dependencyFile !== null) {
+            $provenance['dependencyFile'] = $dependencyFile;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -5677,6 +5677,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($packageCacheHistory)) {
             $provenance['packageCacheHistory'] = $packageCacheHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($dependencyFileHistory)) {
+            $provenance['dependencyFileHistory'] = $dependencyFileHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
