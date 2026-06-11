@@ -10972,12 +10972,20 @@ final class OdfReader
         }
 
         ksort($candidatesByPart);
+        $manifestByPart = $this->manifestByPart($manifest);
         $parts = [];
         $signatures = [];
         $parsedPartCount = 0;
         $parseErrorCount = 0;
         $signatureCount = 0;
         $referenceCount = 0;
+        $packagePartReferenceCount = 0;
+        $sameDocumentReferenceCount = 0;
+        $externalReferenceCount = 0;
+        $unsafeReferenceCount = 0;
+        $missingPartReferenceCount = 0;
+        $undeclaredPartReferenceCount = 0;
+        $encryptedPartReferenceCount = 0;
         $signedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
@@ -11014,7 +11022,7 @@ final class OdfReader
             }
 
             try {
-                $parsed = $this->parseSignatureMetadataPart($package->read($part, 1048576), $part);
+                $parsed = $this->parseSignatureMetadataPart($package->read($part, 1048576), $part, $package, $manifestByPart);
             } catch (\InvalidArgumentException|\RuntimeException $exception) {
                 $partMetadata['parseable'] = false;
                 $partMetadata['diagnostic'] = 'invalid-signature-xml';
@@ -11028,6 +11036,13 @@ final class OdfReader
             $parsedPartCount++;
             $signatureCount += (int) ($parsed['signatureCount'] ?? 0);
             $referenceCount += (int) ($parsed['referenceCount'] ?? 0);
+            $packagePartReferenceCount += (int) ($parsed['packagePartReferenceCount'] ?? 0);
+            $sameDocumentReferenceCount += (int) ($parsed['sameDocumentReferenceCount'] ?? 0);
+            $externalReferenceCount += (int) ($parsed['externalReferenceCount'] ?? 0);
+            $unsafeReferenceCount += (int) ($parsed['unsafeReferenceCount'] ?? 0);
+            $missingPartReferenceCount += (int) ($parsed['missingPartReferenceCount'] ?? 0);
+            $undeclaredPartReferenceCount += (int) ($parsed['undeclaredPartReferenceCount'] ?? 0);
+            $encryptedPartReferenceCount += (int) ($parsed['encryptedPartReferenceCount'] ?? 0);
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
@@ -11051,6 +11066,13 @@ final class OdfReader
             'parseErrorCount' => $parseErrorCount,
             'signatureCount' => $signatureCount,
             'referenceCount' => $referenceCount,
+            'packagePartReferenceCount' => $packagePartReferenceCount,
+            'sameDocumentReferenceCount' => $sameDocumentReferenceCount,
+            'externalReferenceCount' => $externalReferenceCount,
+            'unsafeReferenceCount' => $unsafeReferenceCount,
+            'missingPartReferenceCount' => $missingPartReferenceCount,
+            'undeclaredPartReferenceCount' => $undeclaredPartReferenceCount,
+            'encryptedPartReferenceCount' => $encryptedPartReferenceCount,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
             'parts' => $parts,
@@ -11078,8 +11100,9 @@ final class OdfReader
 
     /**
      * @return array<string, mixed>
+     * @param array<string, array<string, mixed>> $manifestByPart
      */
-    private function parseSignatureMetadataPart(string $xml, string $part): array
+    private function parseSignatureMetadataPart(string $xml, string $part, ZipPackage $package, array $manifestByPart): array
     {
         $dom = self::loadXml($xml, 'ODT signature metadata ' . $part);
         $signatureElements = $dom->getElementsByTagNameNS(self::DSIG_NS, 'Signature');
@@ -11092,7 +11115,7 @@ final class OdfReader
                 continue;
             }
 
-            $signature = $this->signatureElementMetadata($signatureElement);
+            $signature = $this->signatureElementMetadata($signatureElement, $package, $manifestByPart);
             $referenceCount += (int) ($signature['referenceCount'] ?? 0);
             foreach ($signature['references'] ?? [] as $reference) {
                 if (is_array($reference) && is_string($reference['part'] ?? null) && $reference['part'] !== '') {
@@ -11104,8 +11127,9 @@ final class OdfReader
 
         $signedParts = array_values(array_unique($signedParts));
         sort($signedParts);
+        $referenceSummary = $this->signatureReferenceSummary($signatures);
 
-        return [
+        return $referenceSummary + [
             'signatureCount' => count($signatures),
             'referenceCount' => $referenceCount,
             'signedPartCount' => count($signedParts),
@@ -11116,8 +11140,9 @@ final class OdfReader
 
     /**
      * @return array<string, mixed>
+     * @param array<string, array<string, mixed>> $manifestByPart
      */
-    private function signatureElementMetadata(\DOMElement $signature): array
+    private function signatureElementMetadata(\DOMElement $signature, ZipPackage $package, array $manifestByPart): array
     {
         $signedInfo = self::firstChildElement($signature, 'SignedInfo', self::DSIG_NS);
         $signatureValue = self::firstChildElement($signature, 'SignatureValue', self::DSIG_NS);
@@ -11132,7 +11157,7 @@ final class OdfReader
         $references = [];
         if ($signedInfo instanceof \DOMElement) {
             foreach (self::childElements($signedInfo, 'Reference', self::DSIG_NS) as $reference) {
-                $references[] = $this->signatureReferenceMetadata($reference);
+                $references[] = $this->signatureReferenceMetadata($reference, $package, $manifestByPart);
             }
         }
 
@@ -11149,8 +11174,9 @@ final class OdfReader
 
     /**
      * @return array<string, mixed>
+     * @param array<string, array<string, mixed>> $manifestByPart
      */
-    private function signatureReferenceMetadata(\DOMElement $reference): array
+    private function signatureReferenceMetadata(\DOMElement $reference, ZipPackage $package, array $manifestByPart): array
     {
         $digestMethod = self::firstChildElement($reference, 'DigestMethod', self::DSIG_NS);
         $digestValue = self::firstChildElement($reference, 'DigestValue', self::DSIG_NS);
@@ -11166,35 +11192,144 @@ final class OdfReader
         }
 
         $uri = self::domAttribute($reference, 'URI');
-        $part = $this->signatureReferencePart($uri);
+        $target = $this->signatureReferenceTargetMetadata($uri, $package, $manifestByPart);
 
         return self::withoutEmpty([
             'uri' => self::nullable($uri),
-            'part' => $part,
             'type' => self::nullable(self::domAttribute($reference, 'Type')),
             'id' => self::nullable(self::domAttribute($reference, 'Id') ?: self::domAttribute($reference, 'ID')),
             'digestMethod' => $digestMethod instanceof \DOMElement ? self::nullable(self::domAttribute($digestMethod, 'Algorithm')) : null,
             'digestValueLength' => $digestValue instanceof \DOMElement ? strlen(trim($digestValue->textContent)) : null,
             'transformCount' => count($transforms),
             'transforms' => $transforms,
-        ]);
+        ] + $target);
     }
 
-    private function signatureReferencePart(string $uri): ?string
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @return array<string, mixed>
+     */
+    private function signatureReferenceTargetMetadata(string $uri, ZipPackage $package, array $manifestByPart): array
     {
-        $path = preg_replace('/[#?].*$/', '', $uri) ?? $uri;
-        if ($path === '' || str_starts_with($path, '#')) {
-            return null;
+        $uri = trim($uri);
+        if ($uri === '') {
+            return [
+                'uriKind' => 'empty-document-reference',
+            ];
         }
-        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
-            return null;
+
+        if (str_starts_with($uri, '#')) {
+            return self::withoutEmpty([
+                'uriKind' => 'same-document-fragment',
+                'fragment' => substr($uri, 1),
+            ]);
+        }
+
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1) {
+            return [
+                'uriKind' => 'external-uri',
+                'diagnostics' => ['odf-signature-reference-external-uri'],
+            ];
+        }
+
+        $path = preg_replace('/[#?].*$/', '', $uri) ?? $uri;
+        if ($path === '') {
+            return [
+                'uriKind' => 'same-document-fragment',
+            ];
         }
 
         try {
-            return $this->manifestPackagePart($path);
+            $part = $this->manifestPackagePart($path);
         } catch (\InvalidArgumentException|\RuntimeException) {
-            return null;
+            return [
+                'uriKind' => 'unsafe-package-path',
+                'diagnostics' => ['odf-signature-reference-unsafe-package-path'],
+            ];
         }
+
+        $manifestItem = $manifestByPart[$part] ?? null;
+        $entry = $package->has($part) ? $package->entry($part) : null;
+        $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+        $diagnostics = [];
+        if (!$entry instanceof ZipPackageEntry) {
+            $diagnostics[] = 'odf-signature-reference-missing-package-part';
+        }
+        if (!is_array($manifestItem)) {
+            $diagnostics[] = 'odf-signature-reference-undeclared-package-part';
+        }
+        if ($encrypted) {
+            $diagnostics[] = 'odf-signature-reference-encrypted-package-part';
+        }
+
+        return self::withoutEmpty([
+            'uriKind' => 'package-part',
+            'part' => $part,
+            'targetExists' => $entry instanceof ZipPackageEntry,
+            'targetDeclaredInManifest' => is_array($manifestItem),
+            'targetManifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] ?? null : null,
+            'targetMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] ?? null : null,
+            'targetEncrypted' => $encrypted,
+            'targetCanExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
+            'targetStoredByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+            'targetCompressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+            'targetCompressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+            'targetCompressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+            'targetStoredCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+            'diagnostics' => $diagnostics,
+        ]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, int>
+     */
+    private function signatureReferenceSummary(array $signatures): array
+    {
+        $summary = [
+            'packagePartReferenceCount' => 0,
+            'sameDocumentReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'unsafeReferenceCount' => 0,
+            'missingPartReferenceCount' => 0,
+            'undeclaredPartReferenceCount' => 0,
+            'encryptedPartReferenceCount' => 0,
+        ];
+
+        foreach ($signatures as $signature) {
+            $references = $signature['references'] ?? [];
+            if (!is_array($references)) {
+                continue;
+            }
+
+            foreach ($references as $reference) {
+                if (!is_array($reference)) {
+                    continue;
+                }
+
+                $kind = (string) ($reference['uriKind'] ?? '');
+                if ($kind === 'package-part') {
+                    $summary['packagePartReferenceCount']++;
+                    if (($reference['targetExists'] ?? null) === false) {
+                        $summary['missingPartReferenceCount']++;
+                    }
+                    if (($reference['targetDeclaredInManifest'] ?? null) === false) {
+                        $summary['undeclaredPartReferenceCount']++;
+                    }
+                    if (($reference['targetEncrypted'] ?? null) === true) {
+                        $summary['encryptedPartReferenceCount']++;
+                    }
+                } elseif ($kind === 'same-document-fragment' || $kind === 'empty-document-reference') {
+                    $summary['sameDocumentReferenceCount']++;
+                } elseif ($kind === 'external-uri') {
+                    $summary['externalReferenceCount']++;
+                } elseif ($kind === 'unsafe-package-path') {
+                    $summary['unsafeReferenceCount']++;
+                }
+            }
+        }
+
+        return $summary;
     }
 
     /**

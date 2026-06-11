@@ -9456,6 +9456,137 @@ XML;
         $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
         $t->same('Pictures/hero.png', $signature['references'][1]['part']);
     },
+    'maps ODT XML signature reference target package diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $encryptedBytes = 'ENCRYPTEDPNG';
+        $thumbnailBytes = 'THUMBNAIL';
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="target-signature">
+    <dsig:SignedInfo>
+      <dsig:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/>
+      <dsig:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <dsig:Reference URI="content.xml#body" Id="content-ref">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>contentdigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Pictures/missing.png">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>missingdigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Pictures/encrypted.png">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>encrypteddigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="Thumbnails/thumbnail.png">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>thumbdigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="http://example.test/archive.bin">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>externaldigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="../secret.xml">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>unsafedigest</dsig:DigestValue>
+      </dsig:Reference>
+      <dsig:Reference URI="#signature-object">
+        <dsig:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <dsig:DigestValue>fragmentdigest</dsig:DigestValue>
+      </dsig:Reference>
+    </dsig:SignedInfo>
+    <dsig:SignatureValue>signature-bytes</dsig:SignatureValue>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+        $encryptedManifestEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/encrypted.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="encrypted-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="encrypted-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithSignatureTargets = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>'
+            . $encryptedManifestEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSignatureTargets, null, null, [
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
+            ['name' => 'Pictures/encrypted.png', 'data' => $encryptedBytes],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes],
+        ]));
+        $signatures = $result['signatureMetadata'];
+        $part = $signatures['parts'][0];
+        $references = $part['signatures'][0]['references'];
+        $referencesByUri = [];
+        foreach ($references as $reference) {
+            $referencesByUri[$reference['uri']] = $reference;
+        }
+
+        $t->same($signatures, $result['document']->attr('signatureMetadata'));
+        $t->same($signatures, $result['importReport']['signatureMetadata']);
+        $t->same(1, $signatures['signatureCount']);
+        $t->same(7, $signatures['referenceCount']);
+        $t->same(4, $signatures['packagePartReferenceCount']);
+        $t->same(1, $signatures['sameDocumentReferenceCount']);
+        $t->same(1, $signatures['externalReferenceCount']);
+        $t->same(1, $signatures['unsafeReferenceCount']);
+        $t->same(1, $signatures['missingPartReferenceCount']);
+        $t->same(1, $signatures['undeclaredPartReferenceCount']);
+        $t->same(1, $signatures['encryptedPartReferenceCount']);
+        $t->same(4, $signatures['signedPartCount']);
+        $t->same(['Pictures/encrypted.png', 'Pictures/missing.png', 'Thumbnails/thumbnail.png', 'content.xml'], $signatures['signedParts']);
+        $t->same(4, $part['packagePartReferenceCount']);
+        $t->same(1, $part['sameDocumentReferenceCount']);
+        $t->same(1, $part['externalReferenceCount']);
+        $t->same(1, $part['unsafeReferenceCount']);
+
+        $content = $referencesByUri['content.xml#body'];
+        $t->same('package-part', $content['uriKind']);
+        $t->same('content.xml', $content['part']);
+        $t->same(true, $content['targetExists']);
+        $t->same(true, $content['targetDeclaredInManifest']);
+        $t->same('content.xml', $content['targetManifestFullPath']);
+        $t->same('text/xml', $content['targetMediaType']);
+        $t->same(strlen($contentXml), $content['targetStoredByteLength']);
+        $t->same(sprintf('%08x', crc32($contentXml)), $content['targetStoredCrc32']);
+
+        $missing = $referencesByUri['Pictures/missing.png'];
+        $t->same('package-part', $missing['uriKind']);
+        $t->same(false, $missing['targetExists']);
+        $t->same(true, $missing['targetDeclaredInManifest']);
+        $t->same(['odf-signature-reference-missing-package-part'], $missing['diagnostics']);
+
+        $encrypted = $referencesByUri['Pictures/encrypted.png'];
+        $t->same(true, $encrypted['targetExists']);
+        $t->same(true, $encrypted['targetDeclaredInManifest']);
+        $t->same(true, $encrypted['targetEncrypted']);
+        $t->same(false, $encrypted['targetCanExposeBytes']);
+        $t->same(strlen($encryptedBytes), $encrypted['targetStoredByteLength']);
+        $t->same(['odf-signature-reference-encrypted-package-part'], $encrypted['diagnostics']);
+
+        $thumbnail = $referencesByUri['Thumbnails/thumbnail.png'];
+        $t->same(true, $thumbnail['targetExists']);
+        $t->same(false, $thumbnail['targetDeclaredInManifest']);
+        $t->same(strlen($thumbnailBytes), $thumbnail['targetStoredByteLength']);
+        $t->same(['odf-signature-reference-undeclared-package-part'], $thumbnail['diagnostics']);
+
+        $external = $referencesByUri['http://example.test/archive.bin'];
+        $t->same('external-uri', $external['uriKind']);
+        $t->same(['odf-signature-reference-external-uri'], $external['diagnostics']);
+
+        $unsafe = $referencesByUri['../secret.xml'];
+        $t->same('unsafe-package-path', $unsafe['uriKind']);
+        $t->same(['odf-signature-reference-unsafe-package-path'], $unsafe['diagnostics']);
+
+        $fragment = $referencesByUri['#signature-object'];
+        $t->same('same-document-fragment', $fragment['uriKind']);
+        $t->same('signature-object', $fragment['fragment']);
+    },
     'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
