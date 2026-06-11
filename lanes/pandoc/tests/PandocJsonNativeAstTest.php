@@ -964,6 +964,37 @@ return [
             ['t' => 'Str', 'c' => 'Edited text'],
         ], $editedJson['blocks'][0]['c']);
     },
+    'preserves coalesced native metadata inline constructor parts through pandoc json writer' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alpha  Beta'],
+                    ['t' => 'Space'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Gamma'],
+                ]],
+            ],
+            'blocks' => [],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $meta = $document->attr('meta');
+        $titleInlines = $meta['titleInlines'];
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $roundTrip = (new PandocJsonReader())->readPacket($encoded);
+
+        $t->same('text', $titleInlines[0]->type);
+        $t->same('Alpha  Beta  Gamma', $titleInlines[0]->attr('text'));
+        $t->same(['Str', 'Space', 'Space', 'Str'], $titleInlines[0]->attr('nativeInlineConstructors'));
+        $t->same($packet['meta']['title']['c'], $titleInlines[0]->attr('nativeInlineParts'));
+        $t->same($packet['meta']['title']['c'], $encoded['meta']['title']['c']);
+        $t->same(
+            ['text', 'space', 'space', 'text'],
+            array_map(static fn (AstNode $node): string => $node->type, $roundTrip->attr('meta')['titleInlines'])
+        );
+        $t->same('Gamma', $roundTrip->attr('meta')['titleInlines'][3]->attr('text'));
+    },
     'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
         $citationRecord = [
             'citationId' => 'source-a',
