@@ -812,6 +812,80 @@ return [
         $t->same('horizontal_rule', $roundTrip->children[7]->type);
         $t->same('null_block', $roundTrip->children[8]->type);
     },
+    'reads legacy table and target inline constructor shapes through json and native readers' => static function (TestRunner $t): void {
+        $legacyTable = [
+            't' => 'Table',
+            'c' => [
+                [
+                    ['t' => 'Str', 'c' => 'Legacy'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'caption'],
+                ],
+                [['t' => 'AlignLeft'], ['t' => 'AlignRight']],
+                [0.4, 0],
+                [
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Metric']]]],
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'State']]]],
+                ],
+                [
+                    [
+                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Posts']]]],
+                        [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'Ready']]]],
+                    ],
+                ],
+            ],
+        ];
+        $legacyPara = [
+            't' => 'Para',
+            'c' => [
+                ['t' => 'Link', 'c' => [
+                    [['t' => 'Str', 'c' => 'source']],
+                    ['https://example.test/source', 'Legacy source'],
+                ]],
+                ['t' => 'Space'],
+                ['t' => 'Image', 'c' => [
+                    [['t' => 'Str', 'c' => 'diagram']],
+                    ['media/diagram.png', 'Diagram title'],
+                ]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyTable, $legacyPara],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $paragraph = $document->children[1];
+
+            $t->same('table', $table->type, "{$source} table node");
+            $t->same('Table', $table->attr('constructor'), "{$source} table constructor");
+            $t->same($legacyTable, $table->attr('native'), "{$source} legacy table native payload");
+            $t->same('Legacy caption', $table->attr('caption'), "{$source} legacy caption text");
+            $t->same(['left', 'right'], $table->attr('alignments'), "{$source} legacy alignments");
+            $t->same([0.4, null], $table->attr('widths'), "{$source} legacy widths");
+            $t->same(['table_head', 'table_body'], array_map(static fn (AstNode $node): string => $node->type, $table->children), "{$source} legacy table sections");
+            $t->same('Metric', $table->children[0]->children[0]->children[0]->attr('text'), "{$source} legacy header cell text");
+            $t->same('Ready', $table->children[1]->children[0]->children[1]->attr('text'), "{$source} legacy body cell text");
+            $t->same('link', $paragraph->children[0]->type, "{$source} legacy link node");
+            $t->same('https://example.test/source', $paragraph->children[0]->attr('url'), "{$source} legacy link target");
+            $t->same('image', $paragraph->children[2]->type, "{$source} legacy image node");
+            $t->same('diagram', $paragraph->children[2]->attr('alt'), "{$source} legacy image alt");
+        }
+
+        $nativeRoundTrip = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+        $jsonEncoded = (new PandocJsonWriter())->toArray($documents['json']);
+        $t->same($packet['blocks'], $nativeRoundTrip['blocks']);
+        $t->same(6, count($jsonEncoded['blocks'][0]['c']));
+        $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][0]['c'][0]);
+        $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][2]['c'][0]);
+    },
     'emits native fallback constructors through pandoc json writer' => static function (TestRunner $t): void {
         $nativePacket = [
             'pandoc-api-version' => [1, 23, 1],

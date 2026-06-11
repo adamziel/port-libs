@@ -515,7 +515,14 @@ final class PandocJsonReader
 
     private function readTableBlock(mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 6, 'Table');
+        $tuple = $this->listContent($content, 'Table');
+        if (count($tuple) === 5) {
+            return $this->readLegacyTableBlock($tuple);
+        }
+        if (count($tuple) !== 6) {
+            throw new \InvalidArgumentException('Table must have 6 entries');
+        }
+
         $attrs = array_merge(
             $this->readAttrTuple($tuple[0]),
             $this->readTableCaptionAttrs($tuple[1]),
@@ -541,6 +548,106 @@ final class PandocJsonReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param list<mixed> $tuple
+     */
+    private function readLegacyTableBlock(array $tuple): AstNode
+    {
+        $captionInlines = $this->readInlines($this->listContent($tuple[0], 'legacy Table caption'));
+        $attrs = $this->readLegacyTableColumnAttrs($tuple[1], $tuple[2]);
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+            $attrs['captionBlocks'] = [new AstNode('plain', [], $captionInlines)];
+            $attrs['caption'] = trim($this->plainText($captionInlines));
+        } else {
+            $attrs['caption'] = '';
+        }
+
+        $children = [];
+        $headCells = $this->readLegacyTableCells($tuple[3], 'legacy Table header cells');
+        if ($headCells !== []) {
+            $children[] = new AstNode('table_head', [], [new AstNode('table_row', [], $headCells)]);
+        }
+
+        $bodyRows = $this->readLegacyTableRows($tuple[4]);
+        if ($bodyRows !== []) {
+            $children[] = new AstNode('table_body', [], $bodyRows);
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readLegacyTableColumnAttrs(mixed $alignments, mixed $widths): array
+    {
+        $alignmentValues = $this->listContent($alignments, 'legacy Table alignments');
+        $widthValues = $this->listContent($widths, 'legacy Table widths');
+        $alignmentConstructors = [];
+        $mappedAlignments = [];
+        foreach ($alignmentValues as $alignment) {
+            $constructor = $this->enumTag($alignment, 'legacy Table alignment');
+            $alignmentConstructors[] = $constructor;
+            $mappedAlignments[] = $this->tableAlignmentFromConstructor($constructor);
+        }
+
+        $mappedWidths = [];
+        foreach ($widthValues as $width) {
+            if (!is_int($width) && !is_float($width)) {
+                throw new \InvalidArgumentException('legacy Table widths must be numeric');
+            }
+            $mappedWidths[] = ((float) $width) === 0.0 ? null : (float) $width;
+        }
+
+        $attrs = [];
+        if ($mappedAlignments !== []) {
+            $attrs['alignments'] = $mappedAlignments;
+            $attrs['alignmentConstructors'] = $alignmentConstructors;
+        }
+        if ($mappedWidths !== []) {
+            $attrs['widths'] = $mappedWidths;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readLegacyTableRows(mixed $rows): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($rows, 'legacy Table rows') as $row) {
+            $nodes[] = new AstNode(
+                'table_row',
+                [],
+                $this->readLegacyTableCells($row, 'legacy Table row cells')
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function readLegacyTableCells(mixed $cells, string $context): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($cells, $context) as $cell) {
+            $blocks = $this->readBlocks($this->listContent($cell, 'legacy Table cell blocks'));
+            $attrs = [];
+            $text = $this->plainTextFromBlocks($blocks);
+            if ($text !== '') {
+                $attrs['text'] = $text;
+            }
+            $nodes[] = new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+        }
+
+        return $nodes;
     }
 
     /**
@@ -1096,14 +1203,26 @@ final class PandocJsonReader
 
     private function readTargetInline(string $type, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 3, ucfirst($type));
-        $target = $this->tuple($tuple[2], 2, ucfirst($type) . ' target');
+        $tuple = $this->listContent($content, ucfirst($type));
+        if (count($tuple) === 3) {
+            $attrs = $this->readAttrTuple($tuple[0]);
+            $labelContent = $tuple[1];
+            $targetContent = $tuple[2];
+        } elseif (count($tuple) === 2) {
+            $attrs = [];
+            $labelContent = $tuple[0];
+            $targetContent = $tuple[1];
+        } else {
+            throw new \InvalidArgumentException(ucfirst($type) . ' must have 2 or 3 entries');
+        }
+
+        $target = $this->tuple($targetContent, 2, ucfirst($type) . ' target');
         if (!is_string($target[0]) || !is_string($target[1])) {
             throw new \InvalidArgumentException(ucfirst($type) . ' target entries must be strings');
         }
 
-        $label = $this->readInlines($this->listContent($tuple[1], ucfirst($type) . ' label'));
-        $attrs = array_merge($this->readAttrTuple($tuple[0]), [
+        $label = $this->readInlines($this->listContent($labelContent, ucfirst($type) . ' label'));
+        $attrs = array_merge($attrs, [
             'url' => $target[0],
             'title' => $target[1],
         ]);

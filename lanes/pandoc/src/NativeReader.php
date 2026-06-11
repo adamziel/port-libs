@@ -317,7 +317,14 @@ final class NativeReader
      */
     private function tableBlock(array $attrs, mixed $content): AstNode
     {
-        $tuple = $this->tuple($content, 6, 'Pandoc native JSON Table content');
+        $tuple = $this->listContent($content, 'Pandoc native JSON Table content');
+        if (count($tuple) === 5) {
+            return $this->legacyTableBlock($attrs, $tuple);
+        }
+        if (count($tuple) !== 6) {
+            throw new \InvalidArgumentException('Pandoc native JSON Table content must have 6 entries');
+        }
+
         $attrs = array_replace(
             $attrs,
             $this->attrsFromTuple($tuple[0]),
@@ -344,6 +351,107 @@ final class NativeReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<mixed> $tuple
+     */
+    private function legacyTableBlock(array $attrs, array $tuple): AstNode
+    {
+        $captionInlines = $this->inlines($this->listContent($tuple[0], 'Pandoc native JSON legacy Table caption'));
+        $attrs = array_replace($attrs, $this->legacyTableColumnAttrs($tuple[1], $tuple[2]));
+        if ($captionInlines !== []) {
+            $attrs['captionInlines'] = $captionInlines;
+            $attrs['captionBlocks'] = [new AstNode('plain', [], $captionInlines)];
+            $attrs['caption'] = trim($this->plainTextFromInlines($captionInlines));
+        } else {
+            $attrs['caption'] = '';
+        }
+
+        $children = [];
+        $headCells = $this->legacyTableCells($tuple[3], 'Pandoc native JSON legacy Table header cells');
+        if ($headCells !== []) {
+            $children[] = new AstNode('table_head', [], [new AstNode('table_row', [], $headCells)]);
+        }
+
+        $bodyRows = $this->legacyTableRows($tuple[4]);
+        if ($bodyRows !== []) {
+            $children[] = new AstNode('table_body', [], $bodyRows);
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyTableColumnAttrs(mixed $alignments, mixed $widths): array
+    {
+        $alignmentValues = $this->listContent($alignments, 'Pandoc native JSON legacy Table alignments');
+        $widthValues = $this->listContent($widths, 'Pandoc native JSON legacy Table widths');
+        $alignmentConstructors = [];
+        $mappedAlignments = [];
+        foreach ($alignmentValues as $alignment) {
+            $constructor = $this->constructorTag($alignment, 'Pandoc native JSON legacy Table alignment');
+            $alignmentConstructors[] = $constructor;
+            $mappedAlignments[] = $this->tableAlignmentFromConstructor($constructor);
+        }
+
+        $mappedWidths = [];
+        foreach ($widthValues as $width) {
+            if (!is_int($width) && !is_float($width)) {
+                throw new \InvalidArgumentException('Pandoc native JSON legacy Table widths must be numeric');
+            }
+            $mappedWidths[] = ((float) $width) === 0.0 ? null : (float) $width;
+        }
+
+        $attrs = [];
+        if ($mappedAlignments !== []) {
+            $attrs['alignments'] = $mappedAlignments;
+            $attrs['alignmentConstructors'] = $alignmentConstructors;
+        }
+        if ($mappedWidths !== []) {
+            $attrs['widths'] = $mappedWidths;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function legacyTableRows(mixed $rows): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($rows, 'Pandoc native JSON legacy Table rows') as $row) {
+            $nodes[] = new AstNode(
+                'table_row',
+                [],
+                $this->legacyTableCells($row, 'Pandoc native JSON legacy Table row cells')
+            );
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function legacyTableCells(mixed $cells, string $context): array
+    {
+        $nodes = [];
+        foreach ($this->listContent($cells, $context) as $cell) {
+            $blocks = $this->blockNodes($this->listContent($cell, 'Pandoc native JSON legacy Table cell blocks'));
+            $attrs = [];
+            $text = $this->plainTextFromBlocks($blocks);
+            if ($text !== '') {
+                $attrs['text'] = $text;
+            }
+            $nodes[] = new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+        }
+
+        return $nodes;
     }
 
     /**
@@ -1194,21 +1302,31 @@ final class NativeReader
      */
     private function linkInline(array $attrs, mixed $content): AstNode
     {
-        if (!is_array($content) || !isset($content[0], $content[1], $content[2])) {
-            throw new \InvalidArgumentException('Pandoc native JSON Link inline content must contain attributes, label, and target');
+        if (!is_array($content) || !array_is_list($content)) {
+            throw new \InvalidArgumentException('Pandoc native JSON Link inline content must be a list');
         }
 
-        $target = $content[2];
+        if (count($content) === 3) {
+            $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
+            $label = $content[1];
+            $target = $content[2];
+        } elseif (count($content) === 2) {
+            $label = $content[0];
+            $target = $content[1];
+        } else {
+            throw new \InvalidArgumentException('Pandoc native JSON Link inline content must contain label and target, optionally preceded by attributes');
+        }
+
         if (!is_array($target) || !is_string($target[0] ?? null) || !is_string($target[1] ?? null)) {
             throw new \InvalidArgumentException('Pandoc native JSON Link target must contain URL and title strings');
         }
 
-        $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]), [
+        $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
         ]);
 
-        return new AstNode('link', $attrs, $this->inlines($content[1]));
+        return new AstNode('link', $attrs, $this->inlines($label));
     }
 
     /**
@@ -1216,17 +1334,27 @@ final class NativeReader
      */
     private function imageInline(array $attrs, mixed $content): AstNode
     {
-        if (!is_array($content) || !isset($content[0], $content[1], $content[2])) {
-            throw new \InvalidArgumentException('Pandoc native JSON Image inline content must contain attributes, label, and target');
+        if (!is_array($content) || !array_is_list($content)) {
+            throw new \InvalidArgumentException('Pandoc native JSON Image inline content must be a list');
         }
 
-        $target = $content[2];
+        if (count($content) === 3) {
+            $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]));
+            $labelContent = $content[1];
+            $target = $content[2];
+        } elseif (count($content) === 2) {
+            $labelContent = $content[0];
+            $target = $content[1];
+        } else {
+            throw new \InvalidArgumentException('Pandoc native JSON Image inline content must contain label and target, optionally preceded by attributes');
+        }
+
         if (!is_array($target) || !is_string($target[0] ?? null) || !is_string($target[1] ?? null)) {
             throw new \InvalidArgumentException('Pandoc native JSON Image target must contain URL and title strings');
         }
 
-        $label = $this->inlines($content[1]);
-        $attrs = array_replace($attrs, $this->attrsFromTuple($content[0]), [
+        $label = $this->inlines($labelContent);
+        $attrs = array_replace($attrs, [
             'url' => $target[0],
             'title' => $target[1],
         ]);
