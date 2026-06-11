@@ -6,6 +6,15 @@ namespace PortLibs\Pandoc;
 
 final class NativeReader
 {
+    private const META_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     public function read(string $nativeJson): AstNode
     {
         $native = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
@@ -13,11 +22,14 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON must decode to an object');
         }
         $native = $this->normalizeDocument($native);
+        $rawMeta = $native['meta'] ?? [];
+        $normalizedMeta = $this->normalizeMetadataMap($rawMeta);
 
         $attrs = [
-            'meta' => $this->metadata($native['meta'] ?? []),
+            'meta' => $this->metadata($normalizedMeta),
             'nativeFormat' => 'pandoc-json',
         ];
+        $attrs = array_replace($attrs, $this->metadataConstructorAttrs($rawMeta, $normalizedMeta));
 
         if (isset($native['pandoc-api-version'])) {
             $attrs['pandocApiVersion'] = $this->apiVersion($native['pandoc-api-version']);
@@ -184,6 +196,84 @@ final class NativeReader
         }
 
         return $content;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function metadataConstructorAttrs(mixed $rawMetadata, array $metadata): array
+    {
+        $attrs = [];
+        if ($this->taggedMetaConstructor($rawMetadata) === 'MetaMap') {
+            $attrs['metaConstructor'] = 'MetaMap';
+            $attrs['metaNative'] = $rawMetadata;
+        }
+
+        $constructors = [];
+        $nativeValues = [];
+        foreach ($metadata as $key => $value) {
+            $tree = $this->metaConstructorTree($value);
+            if ($tree !== null) {
+                $constructors[(string) $key] = $tree;
+            }
+
+            if ($this->taggedMetaConstructor($value) !== null) {
+                $nativeValues[(string) $key] = $value;
+            }
+        }
+
+        if ($constructors !== []) {
+            $attrs['metaConstructors'] = $constructors;
+        }
+        if ($nativeValues !== []) {
+            $attrs['metaNativeValues'] = $nativeValues;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metaConstructorTree(mixed $value): ?array
+    {
+        $tag = $this->taggedMetaConstructor($value);
+        if ($tag === null) {
+            return null;
+        }
+
+        $tree = ['_constructor' => $tag];
+        if ($tag === 'MetaMap') {
+            $items = [];
+            foreach ($this->metaMapContent($value['c'] ?? null) as $key => $item) {
+                $child = $this->metaConstructorTree($item);
+                if ($child !== null) {
+                    $items[(string) $key] = $child;
+                }
+            }
+            $tree['items'] = $items;
+        } elseif ($tag === 'MetaList') {
+            $items = [];
+            foreach ($this->listContent($value['c'] ?? null, 'Pandoc native JSON MetaList content') as $index => $item) {
+                $child = $this->metaConstructorTree($item);
+                if ($child !== null) {
+                    $items[(int) $index] = $child;
+                }
+            }
+            $tree['items'] = $items;
+        }
+
+        return $tree;
+    }
+
+    private function taggedMetaConstructor(mixed $value): ?string
+    {
+        if (!is_array($value) || array_is_list($value) || !isset($value['t']) || !is_string($value['t'])) {
+            return null;
+        }
+
+        return in_array($value['t'], self::META_CONSTRUCTORS, true) ? $value['t'] : null;
     }
 
     private function isTaggedConstructor(mixed $value, string $constructor): bool

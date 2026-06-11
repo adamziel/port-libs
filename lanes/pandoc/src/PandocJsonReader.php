@@ -49,9 +49,11 @@ final class PandocJsonReader
             $attrs['pandocApiVersion'] = $apiVersion;
         }
 
-        $meta = $this->normalizeMeta($packet['meta'] ?? [], $apiVersion, $legacyTuplePacket);
+        $rawMeta = $packet['meta'] ?? [];
+        $meta = $this->normalizeMeta($rawMeta, $apiVersion, $legacyTuplePacket);
         if ($meta !== []) {
             $attrs['meta'] = $this->withStandardMetaHelpers($this->readMetaMap($meta));
+            $attrs = array_replace($attrs, $this->metaConstructorAttrs($rawMeta, $meta));
         }
 
         return new AstNode('document', $attrs, array_map(fn (mixed $block): AstNode => $this->readBlock($block), $blocks));
@@ -179,6 +181,84 @@ final class PandocJsonReader
         }
 
         return $mapped;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function metaConstructorAttrs(mixed $rawMeta, array $meta): array
+    {
+        $attrs = [];
+        if ($this->taggedMetaConstructor($rawMeta) === 'MetaMap') {
+            $attrs['metaConstructor'] = 'MetaMap';
+            $attrs['metaNative'] = $rawMeta;
+        } elseif (
+            is_array($rawMeta)
+            && !array_is_list($rawMeta)
+            && count($rawMeta) === 1
+            && array_key_exists('unMeta', $rawMeta)
+            && $this->taggedMetaConstructor($rawMeta['unMeta']) === 'MetaMap'
+        ) {
+            $attrs['metaConstructor'] = 'MetaMap';
+            $attrs['metaNative'] = $rawMeta['unMeta'];
+        }
+
+        $constructors = [];
+        $nativeValues = [];
+        foreach ($meta as $key => $value) {
+            $tree = $this->metaConstructorTree($value);
+            if ($tree !== null) {
+                $constructors[(string) $key] = $tree;
+            }
+
+            if ($this->looksLikeMetaConstructor($value)) {
+                $nativeValues[(string) $key] = $value;
+            }
+        }
+
+        if ($constructors !== []) {
+            $attrs['metaConstructors'] = $constructors;
+        }
+        if ($nativeValues !== []) {
+            $attrs['metaNativeValues'] = $nativeValues;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metaConstructorTree(mixed $value): ?array
+    {
+        if (!$this->looksLikeMetaConstructor($value)) {
+            return null;
+        }
+
+        [$tag, $content] = $this->tagged($value, 'meta value');
+        $tree = ['_constructor' => $tag];
+        if ($tag === 'MetaMap') {
+            $items = [];
+            foreach ($this->metaMapContent($content) as $key => $item) {
+                $child = $this->metaConstructorTree($item);
+                if ($child !== null) {
+                    $items[(string) $key] = $child;
+                }
+            }
+            $tree['items'] = $items;
+        } elseif ($tag === 'MetaList') {
+            $items = [];
+            foreach ($this->listContent($content, 'MetaList') as $index => $item) {
+                $child = $this->metaConstructorTree($item);
+                if ($child !== null) {
+                    $items[(int) $index] = $child;
+                }
+            }
+            $tree['items'] = $items;
+        }
+
+        return $tree;
     }
 
     /**

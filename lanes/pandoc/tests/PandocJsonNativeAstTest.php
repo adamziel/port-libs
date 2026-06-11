@@ -1273,6 +1273,63 @@ return [
         $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $jsonPacket['blocks'][0]['c'][0]['c'][0]), 'json writer citation mode constructors');
         $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $nativePacket['blocks'][0]['c'][0]['c'][0]), 'native writer citation mode constructors');
     },
+    'records pandoc meta constructor provenance on json and native ast documents' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => ['t' => 'MetaMap', 'c' => [
+                'title' => ['t' => 'MetaInlines', 'c' => [
+                    ['t' => 'Str', 'c' => 'Constructor'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'metadata'],
+                ]],
+                'draft' => ['t' => 'MetaBool', 'c' => false],
+                'review' => ['t' => 'MetaMap', 'c' => [
+                    'queue' => ['t' => 'MetaString', 'c' => 'json-native'],
+                    'flags' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'core'],
+                        ['t' => 'MetaBool', 'c' => true],
+                    ]],
+                ]],
+                'body' => ['t' => 'MetaBlocks', 'c' => [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'review'],
+                    ]],
+                ]],
+            ]],
+            'blocks' => [],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $constructors = $document->attr('metaConstructors');
+            $nativeValues = $document->attr('metaNativeValues');
+
+            $t->same('MetaMap', $document->attr('metaConstructor'), "{$source} top-level meta constructor");
+            $t->same($packet['meta'], $document->attr('metaNative'), "{$source} top-level meta native payload");
+            $t->same('MetaInlines', $constructors['title']['_constructor'], "{$source} title meta constructor");
+            $t->same('MetaBool', $constructors['draft']['_constructor'], "{$source} bool meta constructor");
+            $t->same('MetaMap', $constructors['review']['_constructor'], "{$source} map meta constructor");
+            $t->same('MetaString', $constructors['review']['items']['queue']['_constructor'], "{$source} nested string meta constructor");
+            $t->same('MetaList', $constructors['review']['items']['flags']['_constructor'], "{$source} nested list meta constructor");
+            $t->same('MetaString', $constructors['review']['items']['flags']['items'][0]['_constructor'], "{$source} nested list item string constructor");
+            $t->same('MetaBool', $constructors['review']['items']['flags']['items'][1]['_constructor'], "{$source} nested list item bool constructor");
+            $t->same('MetaBlocks', $constructors['body']['_constructor'], "{$source} blocks meta constructor");
+            $t->same($packet['meta']['c']['title'], $nativeValues['title'], "{$source} title meta native value");
+            $t->same($packet['meta']['c']['draft'], $nativeValues['draft'], "{$source} bool meta native value");
+            $t->same($packet['meta']['c']['review'], $nativeValues['review'], "{$source} nested meta native value");
+            $t->same($packet['meta']['c']['body'], $nativeValues['body'], "{$source} block meta native value");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($packet['meta']['c'], $jsonPacket['meta']);
+        $t->same($packet['meta']['c'], $nativePacket['meta']);
+    },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',
