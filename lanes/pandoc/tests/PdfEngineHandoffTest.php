@@ -818,6 +818,106 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst pdf ppi boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-ppi-boundary.pdf',
+            'source' => '= Typst PDF PPI Boundary Packet',
+            'engineOptions' => [
+                '--pages=2-4',
+                '--ppi=0',
+                '--ppi',
+                '300',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF ppi boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'ppi-nonpositive-boundary',
+                'ppi-boundary-overridden',
+            ],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '2-4',
+                    'value' => '2-4',
+                    'segments' => [
+                        ['raw' => '2-4', 'kind' => 'range', 'start' => 2, 'end' => 4, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [
+                    'ppi-nonpositive-boundary',
+                    'ppi-boundary-overridden',
+                ],
+                'ppi' => [
+                    'raw' => '300',
+                    'value' => '300',
+                    'ppi' => 300,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'ppi',
+                    'count' => 2,
+                    'values' => ['0', '300'],
+                    'selected' => '300',
+                    'issue' => 'ppi-boundary-overridden',
+                ],
+            ],
+            'ppiHistory' => [
+                [
+                    'raw' => '0',
+                    'value' => '0',
+                    'ppi' => 0,
+                    'safe' => false,
+                    'issues' => ['ppi-nonpositive-boundary'],
+                ],
+                [
+                    'raw' => '300',
+                    'value' => '300',
+                    'ppi' => 300,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-ppi-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-ppi-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:2-4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-ppi:300', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst feature gate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
