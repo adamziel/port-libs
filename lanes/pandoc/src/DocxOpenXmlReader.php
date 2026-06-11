@@ -626,16 +626,14 @@ final class DocxOpenXmlReader
     ): array {
         return [
             'contentTypesPart' => $this->contentTypesPartProvenance($parts, $contentTypes),
-            'relationshipParts' => [
-                '_rels/.rels' => $this->relationshipPartProvenance($parts, '_rels/.rels', '/', $rootRelationships, $contentTypes),
-                $documentRelationshipsPart => $this->relationshipPartProvenance(
-                    $parts,
-                    $documentRelationshipsPart,
-                    $documentPart,
-                    $documentRelationships,
-                    $contentTypes,
-                ),
-            ],
+            'relationshipParts' => $this->packageRelationshipPartsProvenance(
+                $parts,
+                $contentTypes,
+                $documentPart,
+                $documentRelationshipsPart,
+                $rootRelationships,
+                $documentRelationships,
+            ),
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $this->packagePartInventory(
@@ -647,6 +645,49 @@ final class DocxOpenXmlReader
                 $documentRelationships,
             ),
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @return array<string, mixed>
+     */
+    private function packageRelationshipPartsProvenance(
+        array $parts,
+        array $contentTypes,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        array $rootRelationships,
+        array $documentRelationships,
+    ): array {
+        $relationshipParts = [
+            '_rels/.rels' => $this->relationshipPartProvenance($parts, '_rels/.rels', '/', $rootRelationships, $contentTypes),
+            $documentRelationshipsPart => $this->relationshipPartProvenance(
+                $parts,
+                $documentRelationshipsPart,
+                $documentPart,
+                $documentRelationships,
+                $contentTypes,
+            ),
+        ];
+
+        foreach ($parts as $partName => $_contents) {
+            if (!$this->isRelationshipPartName($partName) || isset($relationshipParts[$partName])) {
+                continue;
+            }
+
+            $relationshipParts[$partName] = $this->relationshipPartProvenance(
+                $parts,
+                $partName,
+                $this->relationshipSourcePartForInventory($partName),
+                $this->readRelationshipsPart($parts, $partName),
+                $contentTypes,
+            );
+        }
+
+        return $relationshipParts;
     }
 
     /**
@@ -773,6 +814,11 @@ final class DocxOpenXmlReader
         $this->addPartRole($rolesByPart, '_rels/.rels', 'package-relationships');
         $this->addPartRole($rolesByPart, $documentPart, 'office-document');
         $this->addPartRole($rolesByPart, $documentRelationshipsPart, 'office-document-relationships');
+        foreach ($parts as $partName => $_contents) {
+            if ($this->isRelationshipPartName($partName)) {
+                $this->addPartRole($rolesByPart, $partName, 'relationship-part');
+            }
+        }
 
         foreach ($rootRelationships as $relationship) {
             if ($this->isExternalRelationshipTarget($relationship)) {
@@ -785,6 +831,22 @@ final class DocxOpenXmlReader
                 continue;
             }
             $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'document-relationship-target');
+        }
+        foreach ($parts as $relationshipPart => $_contents) {
+            if (
+                !$this->isRelationshipPartName($relationshipPart)
+                || $relationshipPart === '_rels/.rels'
+                || $relationshipPart === $documentRelationshipsPart
+            ) {
+                continue;
+            }
+
+            foreach ($this->readRelationshipsPart($parts, $relationshipPart) as $relationship) {
+                if ($this->isExternalRelationshipTarget($relationship)) {
+                    continue;
+                }
+                $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'relationship-target');
+            }
         }
 
         $inventory = [];

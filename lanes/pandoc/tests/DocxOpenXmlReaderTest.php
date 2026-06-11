@@ -139,6 +139,46 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'indexes docx relationship parts beyond root and document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png?slot=header#logo"/>
+  <Relationship Id="rHeaderRemote" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-review" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/header.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $headerRelationshipsPart = $package['relationshipParts']['word/_rels/header1.xml.rels'];
+        $headerImage = $headerRelationshipsPart['relationships']['rHeaderImage'];
+        $headerRemote = $headerRelationshipsPart['relationships']['rHeaderRemote'];
+        $inventory = $package['parts'];
+
+        $t->same(3, count($package['relationshipParts']));
+        $t->same('word/_rels/header1.xml.rels', $headerRelationshipsPart['partName']);
+        $t->same('word/header1.xml', $headerRelationshipsPart['sourcePart']);
+        $t->same(true, $headerRelationshipsPart['exists']);
+        $t->same(2, $headerRelationshipsPart['relationshipCount']);
+        $t->same('media/header.png?slot=header#logo', $headerImage['target']);
+        $t->same('word/media/header.png?slot=header#logo', $headerImage['resolvedTarget']);
+        $t->same('word/media/header.png', $headerImage['targetPart']);
+        $t->same('slot=header', $headerImage['targetQuery']);
+        $t->same('logo', $headerImage['targetFragment']);
+        $t->same('?slot=header#logo', $headerImage['targetReferenceSuffix']);
+        $t->same(true, $headerImage['exists']);
+        $t->same('image/png', $headerImage['contentType']);
+        $t->same('default', $headerImage['contentTypeSource']);
+        $t->same(true, $headerRemote['external']);
+        $t->same(null, $headerRemote['targetPart']);
+        $t->same(false, $headerRemote['exists']);
+        $t->same('word/header1.xml', $inventory['word/_rels/header1.xml.rels']['relationshipSourcePart']);
+        $t->true(in_array('relationship-part', $inventory['word/_rels/header1.xml.rels']['roles'], true), 'header relationship part role missing');
+        $t->true(in_array('relationship-target', $inventory['word/media/header.png']['roles'], true), 'header image relationship target role missing');
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
