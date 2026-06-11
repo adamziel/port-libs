@@ -523,6 +523,84 @@ XML;
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
     },
+    'summarizes compact ODT package provenance roles before document handoff' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $chartBytes = '<chart/>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object Chart/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object Chart/content.xml" manifest:size="' . strlen($chartBytes) . '"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Object Chart/content.xml', 'data' => $chartBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL', 'compressionMethod' => 0],
+        ];
+        $centralOrder = [
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Object Chart/content.xml',
+            'Thumbnails/thumbnail.png',
+            'Pictures/',
+            'Object Chart/',
+            'mimetype',
+        ];
+
+        $summary = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($parts, $centralOrder)
+        )->summarize();
+        $provenance = $summary['packageProvenance'];
+        $inventory = $provenance['parts'];
+
+        $t->same(10, $provenance['entryCount']);
+        $t->same(7, $provenance['manifestDeclaredPartCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(2, $provenance['packageDirectoryCount']);
+        $t->same(false, $provenance['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same('mimetype', $provenance['mimetypeEntry']['firstLocalEntryName']);
+        $t->same(true, $provenance['mimetypeEntry']['isValid']);
+        $t->same($centralOrder, $provenance['localHeaderOrder']['centralDirectoryOrderNames']);
+        $t->same(array_column($parts, 'name'), $provenance['localHeaderOrder']['localHeaderOrderNames']);
+        $t->same(10, $provenance['compressionMethods']['entryCount']);
+        $t->same(6, $provenance['compressionMethods']['storedEntryCount']);
+        $t->same(4, $provenance['compressionMethods']['deflatedEntryCount']);
+
+        $t->same(2, $provenance['roleCounts']['embedded-object-package']);
+        $t->same(7, $provenance['roleCounts']['manifest-declared']);
+        $t->same(2, $provenance['roleCounts']['media-resource']);
+        $t->same(1, $provenance['roleCounts']['undeclared-package-entry']);
+        $t->same(2, $provenance['roleCounts']['zip-directory']);
+
+        $t->same(['odf-mimetype'], $inventory['mimetype']['roles']);
+        $t->same(['odf-manifest'], $inventory['META-INF/manifest.xml']['roles']);
+        $t->same(['odf-content', 'manifest-declared'], $inventory['content.xml']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $inventory['Pictures/hero.png']['roles']);
+        $t->same(['zip-directory', 'manifest-declared', 'media-resource'], $inventory['Pictures/']['roles']);
+        $t->same(['zip-directory', 'manifest-declared', 'embedded-object-package'], $inventory['Object Chart/']['roles']);
+        $t->same(['manifest-declared', 'embedded-object-package'], $inventory['Object Chart/content.xml']['roles']);
+        $t->same(['undeclared-package-entry'], $inventory['Thumbnails/thumbnail.png']['roles']);
+        $t->same(0, $inventory['mimetype']['localHeaderOrder']);
+        $t->same(9, $inventory['mimetype']['centralDirectoryIndex']);
+        $t->same(false, $inventory['mimetype']['matchesCentralDirectoryOrder']);
+        $t->same(true, $inventory['Object Chart/content.xml']['declaredInManifest']);
+        $t->same('Object Chart/content.xml', $inventory['Object Chart/content.xml']['manifestFullPath']);
+        $t->same('text/xml', $inventory['Object Chart/content.xml']['manifestMediaType']);
+        $t->same(false, $inventory['Thumbnails/thumbnail.png']['declaredInManifest']);
+        $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
+        $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
