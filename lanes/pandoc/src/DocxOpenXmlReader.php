@@ -2247,6 +2247,11 @@ final class DocxOpenXmlReader
         $relationshipPartMissingSourceCount = 0;
         $relationshipPartsWithMissingSources = [];
         $relationshipsFromMissingSources = [];
+        $relationshipTargetReferenceSuffixCount = 0;
+        $relationshipTargetQueryCount = 0;
+        $relationshipTargetFragmentCount = 0;
+        $relationshipPartsWithTargetReferenceSuffix = [];
+        $relationshipTargetsWithReferenceSuffix = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -2280,6 +2285,21 @@ final class DocxOpenXmlReader
                 $type = (string) ($relationship['type'] ?? '');
                 if ($type !== '') {
                     $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
+                }
+
+                $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null)
+                    ? $relationship['targetReferenceSuffix']
+                    : '';
+                if ($targetReferenceSuffix !== '') {
+                    ++$relationshipTargetReferenceSuffixCount;
+                    $relationshipPartsWithTargetReferenceSuffix[(string) $relationshipsPart] = true;
+                    $relationshipTargetsWithReferenceSuffix[] = $this->relationshipProvenanceSummaryItem($relationship);
+                }
+                if (array_key_exists('targetQuery', $relationship) && $relationship['targetQuery'] !== null) {
+                    ++$relationshipTargetQueryCount;
+                }
+                if (array_key_exists('targetFragment', $relationship) && $relationship['targetFragment'] !== null) {
+                    ++$relationshipTargetFragmentCount;
                 }
 
                 if (($relationship['external'] ?? false) === true) {
@@ -2324,6 +2344,9 @@ final class DocxOpenXmlReader
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
+            'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
+            'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
+            'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -2332,10 +2355,12 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
+            'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
+            'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
     }
@@ -2547,10 +2572,12 @@ final class DocxOpenXmlReader
             'target' => $relationship['target'] ?? '',
             'targetMode' => $relationship['targetMode'] ?? '',
             'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
+            'external' => (bool) ($relationship['external'] ?? false),
             'targetPart' => $relationship['targetPart'] ?? null,
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
             'targetQuery' => $relationship['targetQuery'] ?? null,
             'targetFragment' => $relationship['targetFragment'] ?? null,
+            'exists' => (bool) ($relationship['exists'] ?? false),
             'contentType' => $relationship['contentType'] ?? null,
             'contentTypeBase' => $relationship['contentTypeBase'] ?? null,
             'contentTypeHasParameters' => (bool) ($relationship['contentTypeHasParameters'] ?? false),

@@ -623,6 +623,69 @@ XML;
         $t->same('version=2026', $summary['externalRelationshipTargets'][1]['targetQuery']);
         $t->same('template', $summary['externalRelationshipTargets'][1]['targetFragment']);
     },
+    'summarizes docx package relationship target suffix provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml?doc=main#body"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml?thread=review#c1"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx?version=2026#template" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png?slot=header#logo"/>
+</Relationships>
+XML;
+        $parts['word/media/header.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $suffixTargets = $summary['relationshipTargetsWithReferenceSuffix'];
+
+        $t->same(5, $summary['relationshipTargetReferenceSuffixCount']);
+        $t->same(5, $summary['relationshipTargetQueryCount']);
+        $t->same(4, $summary['relationshipTargetFragmentCount']);
+        $t->same([
+            '_rels/.rels',
+            'word/_rels/document.xml.rels',
+            'word/_rels/header1.xml.rels',
+        ], $summary['relationshipPartsWithTargetReferenceSuffix']);
+        $t->same([
+            'rDoc',
+            'rLink',
+            'rMissingComments',
+            'rRemoteTemplate',
+            'rHeaderImage',
+        ], array_column($suffixTargets, 'id'));
+
+        $t->same('/', $suffixTargets[0]['sourcePart']);
+        $t->same('word/document.xml', $suffixTargets[0]['targetPart']);
+        $t->same('?doc=main#body', $suffixTargets[0]['targetReferenceSuffix']);
+        $t->same('doc=main', $suffixTargets[0]['targetQuery']);
+        $t->same('body', $suffixTargets[0]['targetFragment']);
+        $t->same('word/document.xml', $suffixTargets[2]['sourcePart']);
+        $t->same('word/comments.xml', $suffixTargets[2]['targetPart']);
+        $t->same(false, $summary['relationshipTargetsWithReferenceSuffix'][2]['contentTypeHasParameters']);
+        $t->same('thread=review', $suffixTargets[2]['targetQuery']);
+        $t->same('c1', $suffixTargets[2]['targetFragment']);
+        $t->same(true, $suffixTargets[3]['external']);
+        $t->same(null, $suffixTargets[3]['targetPart']);
+        $t->same('?version=2026#template', $suffixTargets[3]['targetReferenceSuffix']);
+        $t->same('word/_rels/header1.xml.rels', $suffixTargets[4]['relationshipsPart']);
+        $t->same('word/media/header.png', $suffixTargets[4]['targetPart']);
+        $t->same('slot=header', $suffixTargets[4]['targetQuery']);
+        $t->same('logo', $suffixTargets[4]['targetFragment']);
+        $t->same('image/png', $suffixTargets[4]['contentType']);
+        $t->same(true, $suffixTargets[4]['exists']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
