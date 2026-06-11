@@ -458,6 +458,10 @@ final class EpubPackage
                 'creators' => $this->metadata['creators'],
                 'language' => $this->metadata['language'],
                 'metadataDetails' => [
+                    'package' => $this->metadata['package'] ?? [],
+                    'packageId' => $this->metadata['packageId'] ?? null,
+                    'packageLanguage' => $this->metadata['packageLanguage'] ?? null,
+                    'packageDirection' => $this->metadata['packageDirection'] ?? null,
                     'titleDetails' => $this->metadata['titleDetails'] ?? [],
                     'titlesByType' => $this->metadata['titlesByType'] ?? [],
                     'mainTitle' => $this->metadata['mainTitle'] ?? null,
@@ -1747,6 +1751,10 @@ final class EpubPackage
         $coverImageId = null;
         $prefixReport = self::packagePrefixReport($packageElement->hasAttribute('prefix') ? $packageElement->getAttribute('prefix') : '');
         $prefixBindings = self::metadataVocabularyPrefixBindings($prefixReport['bindingsByPrefix']);
+        $packageId = $packageElement->hasAttribute('id') ? self::emptyToNull($packageElement->getAttribute('id')) : null;
+        $packageVersion = $packageElement->hasAttribute('version') ? $packageElement->getAttribute('version') : '';
+        $packageLanguage = self::metadataElementLanguage($packageElement);
+        $packageDirection = self::metadataElementDirection($packageElement);
 
         foreach (self::childElements($metadataElement) as $child) {
             if ($child->namespaceURI === self::DC_NAMESPACE) {
@@ -1848,9 +1856,26 @@ final class EpubPackage
         $bibliographicDetails = self::metadataBibliographicDetails($dc);
         $renditionLayout = self::metadataRenditionLayoutReport($metaProperties);
         $identifier = is_string($uniqueIdentifier['value'] ?? null) ? $uniqueIdentifier['value'] : '';
+        $packageRefinements = $packageId !== null && isset($refinementsById[$packageId]) && is_array($refinementsById[$packageId])
+            ? $refinementsById[$packageId]
+            : [];
 
         return [
-            'version' => $packageElement->hasAttribute('version') ? $packageElement->getAttribute('version') : '',
+            'package' => [
+                'id' => $packageId,
+                'version' => $packageVersion,
+                'uniqueIdentifierId' => $uniqueIdentifierId,
+                'language' => $packageLanguage,
+                'direction' => $packageDirection,
+                'prefix' => $prefixReport['raw'],
+                'prefixDeclarations' => $prefixReport['bindings'],
+                'prefixBindings' => $prefixBindings,
+                'refinements' => $packageRefinements,
+            ],
+            'packageId' => $packageId,
+            'packageLanguage' => $packageLanguage,
+            'packageDirection' => $packageDirection,
+            'version' => $packageVersion,
             'uniqueIdentifierId' => $uniqueIdentifierId,
             'uniqueIdentifier' => $uniqueIdentifier,
             'identifier' => $identifier,

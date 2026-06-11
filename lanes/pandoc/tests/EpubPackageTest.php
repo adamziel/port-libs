@@ -357,6 +357,53 @@ return [
         $t->same($link, $summary['packageLinks'][0]);
     },
 
+    'preserves compact OPF package root identity and direction for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPackageAttributes = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" id="package-record" version="3.0" unique-identifier="bookid" xml:lang="ar" dir="rtl">',
+            $epub3OpfXml
+        );
+        $opfWithPackageAttributes = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#package-record" property="schema:name" xml:lang="en" dir="ltr">Importer package record</meta>',
+            $opfWithPackageAttributes
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPackageAttributes],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $package = $metadata['package'];
+
+        $t->same('package-record', $metadata['packageId']);
+        $t->same('ar', $metadata['packageLanguage']);
+        $t->same('rtl', $metadata['packageDirection']);
+        $t->same('package-record', $package['id']);
+        $t->same('3.0', $package['version']);
+        $t->same('bookid', $package['uniqueIdentifierId']);
+        $t->same('ar', $package['language']);
+        $t->same('rtl', $package['direction']);
+        $t->same('Importer package record', $package['refinements']['schema:name'][0]['content']);
+        $t->same('#package-record', $package['refinements']['schema:name'][0]['refines']);
+        $t->same('package-record', $package['refinements']['schema:name'][0]['subjectId']);
+        $t->same('en', $package['refinements']['schema:name'][0]['language']);
+        $t->same('ltr', $package['refinements']['schema:name'][0]['direction']);
+        $t->same($package, $summary['metadata']['package']);
+        $t->same($package, $summary['wordpressImport']['metadataDetails']['package']);
+        $t->same('package-record', $summary['wordpressImport']['metadataDetails']['packageId']);
+        $t->same('ar', $summary['wordpressImport']['metadataDetails']['packageLanguage']);
+        $t->same('rtl', $summary['wordpressImport']['metadataDetails']['packageDirection']);
+    },
+
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithSpineRefinements = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

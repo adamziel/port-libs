@@ -486,7 +486,7 @@ XML;
         $prefix = 'schema: https://schema.org/ marc: http://id.loc.gov/vocabulary/relators/ bad-prefix';
         $opfWithPrefixes = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en">',
-            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en" prefix="' . $prefix . '">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id" xml:lang="en" dir="rtl" prefix="' . $prefix . '">',
             $opfXml
         );
 
@@ -494,6 +494,7 @@ XML;
         $package = $result['package'];
 
         $t->same($prefix, $package['prefix']);
+        $t->same('rtl', $package['direction']);
         $t->same([
             'schema' => 'https://schema.org/',
             'marc' => 'http://id.loc.gov/vocabulary/relators/',

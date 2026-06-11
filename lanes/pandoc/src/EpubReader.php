@@ -613,6 +613,7 @@ final class EpubReader
                 'uniqueIdentifier' => $metadata['uniqueIdentifier'],
                 'opfPart' => $opfPart,
                 'language' => self::xmlLang($root),
+                'direction' => self::direction($root),
                 'refinements' => self::metadataRefinementsForId($refinementsById, $packageId),
                 'linkedResources' => self::metadataLinkedResourcesForId($linkedResourcesById, $packageId),
                 'prefix' => $prefixReport['raw'],
@@ -826,6 +827,7 @@ final class EpubReader
             'uniqueIdentifierId' => $uniqueIdentifier === '' ? null : $uniqueIdentifier,
             'opfPart' => (string) $rootfile['path'],
             'language' => self::xmlLang($root),
+            'direction' => self::direction($root),
             'prefix' => trim($root->getAttribute('prefix')),
         ];
         $summary['metadata'] = self::renditionMetadataSummary($metadata);
