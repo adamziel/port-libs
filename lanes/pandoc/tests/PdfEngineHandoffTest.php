@@ -2253,6 +2253,78 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'fake runner preserves typst output format option history provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/format-history.pdf',
+            'source' => '= Typst Format History Packet',
+            'engineOptions' => [
+                '--format=html',
+                '--format',
+                'pdf',
+                '--format',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst format history packet\n%%EOF\n";
+        $missingOption = [
+            'raw' => '',
+            'value' => '',
+            'format' => null,
+            'outputCompatible' => false,
+            'issues' => ['missing-format-value'],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/format-history.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'pdf',
+            'formatOptions' => ['html', 'pdf'],
+            'issues' => ['missing-format-value', 'conflicting-format-options:2'],
+            'formatOptionProvenance' => [
+                [
+                    'raw' => 'html',
+                    'value' => 'html',
+                    'format' => 'html',
+                    'outputCompatible' => false,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'pdf',
+                    'value' => 'pdf',
+                    'format' => 'pdf',
+                    'outputCompatible' => true,
+                    'issues' => [],
+                ],
+                $missingOption,
+            ],
+            'selectedFormatOption' => $missingOption,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/format-history.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/format-history.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->contains('typst-output-format-policy:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-explicit:pdf', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-options:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+    },
+
     'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

@@ -242,6 +242,9 @@ final class PdfEngineHandoff
             if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
                 $diagnostics[] = 'typst-output-format-explicit:' . $typstOutputFormatPolicy['explicitFormat'];
             }
+            if (($typstOutputFormatPolicy['formatOptionProvenance'] ?? []) !== []) {
+                $diagnostics[] = 'typst-output-format-options:' . count($typstOutputFormatPolicy['formatOptionProvenance']);
+            }
             if ($typstOutputFormatPolicy['issues'] !== []) {
                 $diagnostics[] = 'typst-output-format-issues:' . count($typstOutputFormatPolicy['issues']);
             }
@@ -5540,7 +5543,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $engineOptions
-     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, formatOptionProvenance?:list<array{raw:string, value:string, format:string|null, outputCompatible:bool, issues:list<string>}>, selectedFormatOption?:array{raw:string, value:string, format:string|null, outputCompatible:bool, issues:list<string>}|null, issues:list<string>}|array{}
      */
     private function typstOutputFormatPolicyFor(string $engine, string $outputFile, array $engineOptions): array
     {
@@ -5550,14 +5553,35 @@ final class PdfEngineHandoff
 
         $issues = [];
         $formatOptions = [];
+        $formatOptionProvenance = [];
         foreach ($this->typstOutputFormatOptionValues($engineOptions) as $value) {
             $format = strtolower(trim($value));
+            $entryIssues = [];
             if ($format === '') {
+                $entryIssues[] = 'missing-format-value';
                 $issues[] = 'missing-format-value';
-                continue;
+            } else {
+                $formatOptions[] = $format;
             }
 
-            $formatOptions[] = $format;
+            $formatOptionProvenance[] = [
+                'raw' => $value,
+                'value' => $format,
+                'format' => $format === '' ? null : $format,
+                'outputCompatible' => $format === 'pdf',
+                'issues' => $entryIssues,
+            ];
+        }
+
+        $selectedFormatOption = $formatOptionProvenance === []
+            ? null
+            : $formatOptionProvenance[count($formatOptionProvenance) - 1];
+        $includeFormatOptionProvenance = count($formatOptionProvenance) > 1;
+        foreach ($formatOptionProvenance as $entry) {
+            if ($entry['issues'] !== []) {
+                $includeFormatOptionProvenance = true;
+                break;
+            }
         }
 
         $inferredOutputFormat = strtolower((string) pathinfo($outputFile, PATHINFO_EXTENSION));
@@ -5578,7 +5602,7 @@ final class PdfEngineHandoff
             $issues[] = 'explicit-format-not-pdf:' . $explicitFormat;
         }
 
-        return [
+        $policy = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
             'declaredOutputFile' => $outputFile,
             'inferredOutputFormat' => $inferredOutputFormat,
@@ -5586,6 +5610,12 @@ final class PdfEngineHandoff
             'formatOptions' => $formatOptions,
             'issues' => array_values(array_unique($issues)),
         ];
+        if ($includeFormatOptionProvenance) {
+            $policy['formatOptionProvenance'] = $formatOptionProvenance;
+            $policy['selectedFormatOption'] = $selectedFormatOption;
+        }
+
+        return $policy;
     }
 
     /**
