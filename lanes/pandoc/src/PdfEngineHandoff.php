@@ -369,6 +369,7 @@ final class PdfEngineHandoff
      *     engineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     engineOutputFiles: list<string>,
      *     typstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
+     *     typstExternalDependencyPolicy: array<string, mixed>,
      *     typstBoundaryProvenance: array<string, mixed>,
      *     engineBoundaryRoot: string|null,
      *     engineBoundaryViolations: list<string>,
@@ -394,7 +395,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -580,6 +581,7 @@ final class PdfEngineHandoff
         $engineDependencyArtifactsSha256 = [];
         $engineInputFiles = [];
         $engineExternalInputFiles = [];
+        $engineExternalDependencies = [];
         $engineOutputFiles = [];
         $engineDependencyEdges = [];
         $missingEngineInputFiles = [];
@@ -685,6 +687,23 @@ final class PdfEngineHandoff
                 foreach ($dependencies['externalInputFiles'] as $externalInputFile) {
                     $engineExternalInputFiles[$externalInputFile] = true;
                 }
+                foreach ($dependencies['externalDependencies'] as $externalDependency) {
+                    if (
+                        !is_array($externalDependency)
+                        || !is_string($externalDependency['input'] ?? null)
+                        || !is_string($externalDependency['raw'] ?? null)
+                        || !is_string($externalDependency['kind'] ?? null)
+                    ) {
+                        continue;
+                    }
+
+                    $key = $externalDependency['input'] . "\0" . $externalDependency['raw'] . "\0" . $externalDependency['kind'];
+                    $engineExternalDependencies[$key] = [
+                        'input' => $externalDependency['input'],
+                        'raw' => $externalDependency['raw'],
+                        'kind' => $externalDependency['kind'],
+                    ];
+                }
                 foreach ($dependencies['outputFiles'] as $outputFilePath) {
                     $engineOutputFiles[$outputFilePath] = true;
                 }
@@ -743,6 +762,11 @@ final class PdfEngineHandoff
         sort($engineInputFileList);
         $engineExternalInputFileList = array_keys($engineExternalInputFiles);
         sort($engineExternalInputFileList);
+        $engineExternalDependencyList = array_values($engineExternalDependencies);
+        usort(
+            $engineExternalDependencyList,
+            static fn (array $a, array $b): int => [$a['input'], $a['kind'], $a['raw']] <=> [$b['input'], $b['kind'], $b['raw']]
+        );
         $engineOutputFileList = array_keys($engineOutputFiles);
         sort($engineOutputFileList);
         $engineTypstPackageInputList = array_values(array_filter(
@@ -750,6 +774,11 @@ final class PdfEngineHandoff
             static fn (string $input): bool => str_starts_with($input, 'typst-package:')
         ));
         $engineTypstPackageDependencies = $this->typstPackageDependenciesFor($engineTypstPackageInputList);
+        $typstExternalDependencyPolicy = $this->typstExternalDependencyPolicy(
+            $engine,
+            $engineDependencyArtifactsSha256,
+            $engineExternalDependencyList
+        );
         $typstDependencyOutputPolicy = $this->typstDependencyOutputPolicy(
             $engine,
             $engineDependencyArtifactsSha256,
@@ -816,6 +845,13 @@ final class PdfEngineHandoff
         }
         if ($engineTypstPackageDependencies !== []) {
             $diagnostics[] = 'engine-typst-package-dependencies:' . count($engineTypstPackageDependencies);
+        }
+        if ($typstExternalDependencyPolicy !== []) {
+            $diagnostics[] = 'typst-external-dependency-policy:' . $typstExternalDependencyPolicy['reviewStatus'];
+            $diagnostics[] = 'typst-external-dependencies:' . $typstExternalDependencyPolicy['externalDependencyCount'];
+            if ($typstExternalDependencyPolicy['issues'] !== []) {
+                $diagnostics[] = 'typst-external-dependency-issues:' . count($typstExternalDependencyPolicy['issues']);
+            }
         }
         if ($engineDependencyEdges !== []) {
             $diagnostics[] = 'engine-dependency-edges:' . count($engineDependencyEdges);
@@ -4097,6 +4133,9 @@ final class PdfEngineHandoff
         if (($typstDependencyOutputPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-dependency-output-policy:' . $typstDependencyOutputPolicy['reviewStatus'];
         }
+        if (($typstExternalDependencyPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-external-dependency-policy:' . $typstExternalDependencyPolicy['reviewStatus'];
+        }
         if (($typstBoundaryProvenance['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-boundary-provenance:' . $typstBoundaryProvenance['reviewStatus'];
         }
@@ -4150,6 +4189,7 @@ final class PdfEngineHandoff
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
+            'typstExternalDependencyPolicy' => $typstExternalDependencyPolicy,
             'engineDependencyEdges' => $engineDependencyEdges,
             'issues' => $artifactProvenanceIssues,
         ];
@@ -4178,6 +4218,7 @@ final class PdfEngineHandoff
             'engineDependencyEdges' => $engineDependencyEdges,
             'engineOutputFiles' => $engineOutputFileList,
             'typstDependencyOutputPolicy' => $typstDependencyOutputPolicy,
+            'typstExternalDependencyPolicy' => $typstExternalDependencyPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
@@ -4513,6 +4554,7 @@ final class PdfEngineHandoff
      *     finalEngineDependencyEdges: list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>,
      *     finalEngineOutputFiles: list<string>,
      *     finalTypstDependencyOutputPolicy: array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{},
+     *     finalTypstExternalDependencyPolicy: array<string, mixed>,
      *     finalTypstBoundaryProvenance: array<string, mixed>,
      *     finalEngineBoundaryRoot: string|null,
      *     finalEngineBoundaryViolations: list<string>,
@@ -4826,6 +4868,7 @@ final class PdfEngineHandoff
             'finalEngineDependencyEdges' => is_array($finalRun) && is_array($finalRun['engineDependencyEdges'] ?? null) ? $finalRun['engineDependencyEdges'] : [],
             'finalEngineOutputFiles' => is_array($finalRun) && is_array($finalRun['engineOutputFiles'] ?? null) ? $finalRun['engineOutputFiles'] : [],
             'finalTypstDependencyOutputPolicy' => is_array($finalRun) && is_array($finalRun['typstDependencyOutputPolicy'] ?? null) ? $finalRun['typstDependencyOutputPolicy'] : [],
+            'finalTypstExternalDependencyPolicy' => is_array($finalRun) && is_array($finalRun['typstExternalDependencyPolicy'] ?? null) ? $finalRun['typstExternalDependencyPolicy'] : [],
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
@@ -6149,7 +6192,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, externalDependencies:list<array{input:string, raw:string, kind:string}>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
      */
     private function extractEngineDependencyArtifact(string $path, string $bytes): array
     {
@@ -6159,6 +6202,7 @@ final class PdfEngineHandoff
 
         $inputFiles = [];
         $externalInputFiles = [];
+        $externalDependencies = [];
         $outputFiles = [];
         $dependencyEdges = [];
         $recorderRows = false;
@@ -6179,6 +6223,7 @@ final class PdfEngineHandoff
                     $inputFiles[$classified['path']] = true;
                 } else {
                     $externalInputFiles[$classified['path']] = true;
+                    $this->addExternalDependency($externalDependencies, $classified);
                 }
                 continue;
             }
@@ -6196,6 +6241,9 @@ final class PdfEngineHandoff
             foreach ($makeDependencies['externalInputFiles'] as $externalInputFile) {
                 $externalInputFiles[$externalInputFile] = true;
             }
+            foreach ($makeDependencies['externalDependencies'] as $externalDependency) {
+                $externalDependencies[$externalDependency['input'] . "\0" . $externalDependency['raw'] . "\0" . $externalDependency['kind']] = $externalDependency;
+            }
             foreach ($makeDependencies['outputFiles'] as $outputFile) {
                 $outputFiles[$outputFile] = true;
             }
@@ -6208,24 +6256,31 @@ final class PdfEngineHandoff
         sort($inputFileList);
         $externalInputFileList = array_keys($externalInputFiles);
         sort($externalInputFileList);
+        $externalDependencyList = array_values($externalDependencies);
+        usort(
+            $externalDependencyList,
+            static fn (array $a, array $b): int => [$a['input'], $a['kind'], $a['raw']] <=> [$b['input'], $b['kind'], $b['raw']]
+        );
         $outputFileList = array_keys($outputFiles);
         sort($outputFileList);
 
         return [
             'inputFiles' => $inputFileList,
             'externalInputFiles' => $externalInputFileList,
+            'externalDependencies' => $externalDependencyList,
             'outputFiles' => $outputFileList,
             'dependencyEdges' => $dependencyEdges,
         ];
     }
 
     /**
-     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
+     * @return array{inputFiles:list<string>, externalInputFiles:list<string>, externalDependencies:list<array{input:string, raw:string, kind:string}>, outputFiles:list<string>, dependencyEdges:list<array{outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>}
      */
     private function extractMakeDependencyArtifact(string $path, string $bytes): array
     {
         $inputFiles = [];
         $externalInputFiles = [];
+        $externalDependencies = [];
         $outputFiles = [];
         $dependencyEdges = [];
         $text = preg_replace("/\\\\\r?\n/", ' ', $bytes) ?? $bytes;
@@ -6260,6 +6315,7 @@ final class PdfEngineHandoff
                     $edgeInputFiles[$classified['path']] = true;
                 } else {
                     $externalInputFiles[$classified['path']] = true;
+                    $this->addExternalDependency($externalDependencies, $classified);
                     $edgeExternalInputFiles[$classified['path']] = true;
                 }
             }
@@ -6283,12 +6339,18 @@ final class PdfEngineHandoff
         sort($inputFileList);
         $externalInputFileList = array_keys($externalInputFiles);
         sort($externalInputFileList);
+        $externalDependencyList = array_values($externalDependencies);
+        usort(
+            $externalDependencyList,
+            static fn (array $a, array $b): int => [$a['input'], $a['kind'], $a['raw']] <=> [$b['input'], $b['kind'], $b['raw']]
+        );
         $outputFileList = array_keys($outputFiles);
         sort($outputFileList);
 
         return [
             'inputFiles' => $inputFileList,
             'externalInputFiles' => $externalInputFileList,
+            'externalDependencies' => $externalDependencyList,
             'outputFiles' => $outputFileList,
             'dependencyEdges' => $dependencyEdges,
         ];
@@ -6356,7 +6418,26 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{path:string, local:bool}
+     * @param array<string, array{input:string, raw:string, kind:string}> $dependencies
+     * @param array{path:string, local:bool, raw:string, externalKind:string|null} $classified
+     */
+    private function addExternalDependency(array &$dependencies, array $classified): void
+    {
+        if ($classified['local']) {
+            return;
+        }
+
+        $kind = $classified['externalKind'] ?? 'external';
+        $entry = [
+            'input' => $classified['path'],
+            'raw' => $classified['raw'],
+            'kind' => $kind,
+        ];
+        $dependencies[$entry['input'] . "\0" . $entry['raw'] . "\0" . $entry['kind']] = $entry;
+    }
+
+    /**
+     * @return array{path:string, local:bool, raw:string, externalKind:string|null}
      */
     private function normalizeEngineDependencyPath(string $path, string $artifactPath): array
     {
@@ -6368,7 +6449,9 @@ final class PdfEngineHandoff
         if (str_contains($path, "\0")) {
             throw new \RuntimeException('dependency path contains NUL bytes in ' . $artifactPath);
         }
-        if (preg_match('/\Afile:\/\//i', $path) === 1) {
+        $rawPath = $path;
+        $fileUri = preg_match('/\Afile:\/\//i', $path) === 1;
+        if ($fileUri) {
             $uriPath = parse_url($path, PHP_URL_PATH);
             if (is_string($uriPath) && $uriPath !== '') {
                 $path = rawurldecode($uriPath);
@@ -6376,20 +6459,24 @@ final class PdfEngineHandoff
         }
         $typstPackageInput = $this->typstPackageInputForDependencyPath($path);
         if ($typstPackageInput !== null) {
-            return ['path' => $typstPackageInput, 'local' => false];
+            return ['path' => $typstPackageInput, 'local' => false, 'raw' => $rawPath, 'externalKind' => 'typst-package'];
         }
-        if (
-            str_starts_with($path, '/')
-            || preg_match('/\A[A-Za-z]:\//', $path) === 1
-            || $this->isUriResourceReference($path)
-        ) {
-            return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
+        $externalKind = null;
+        if (str_starts_with($path, '/')) {
+            $externalKind = $fileUri ? 'file-uri' : 'absolute';
+        } elseif (preg_match('/\A[A-Za-z]:\//', $path) === 1) {
+            $externalKind = 'windows-absolute';
+        } elseif ($this->isUriResourceReference($path)) {
+            $externalKind = 'uri';
+        }
+        if ($externalKind !== null) {
+            return ['path' => $this->externalSourceMapInputName($path), 'local' => false, 'raw' => $rawPath, 'externalKind' => $externalKind];
         }
 
         try {
-            return ['path' => $this->normalizeRelativePath($path, 'PDF engine dependency path'), 'local' => true];
+            return ['path' => $this->normalizeRelativePath($path, 'PDF engine dependency path'), 'local' => true, 'raw' => $rawPath, 'externalKind' => null];
         } catch (\InvalidArgumentException) {
-            return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
+            return ['path' => $this->externalSourceMapInputName($path), 'local' => false, 'raw' => $rawPath, 'externalKind' => 'invalid'];
         }
     }
 
@@ -6452,6 +6539,75 @@ final class PdfEngineHandoff
         }
 
         return $dependencies;
+    }
+
+    /**
+     * @param array<string, string> $engineDependencyArtifactsSha256
+     * @param list<array{input:string, raw:string, kind:string}> $externalDependencies
+     * @return array{reviewStatus:string, externalDependencyCount:int, packageDependencyCount:int, nonPackageDependencyCount:int, dependencies:list<array{input:string, raw:string, kind:string, reviewStatus:string, issues:list<string>}>, issues:list<string>}|array{}
+     */
+    private function typstExternalDependencyPolicy(
+        string $engine,
+        array $engineDependencyArtifactsSha256,
+        array $externalDependencies
+    ): array {
+        if ($engine !== 'typst' || $engineDependencyArtifactsSha256 === [] || $externalDependencies === []) {
+            return [];
+        }
+
+        $dependencies = [];
+        $issues = [];
+        $packageDependencyCount = 0;
+        $nonPackageDependencyCount = 0;
+        foreach ($externalDependencies as $externalDependency) {
+            $input = $externalDependency['input'] ?? null;
+            $raw = $externalDependency['raw'] ?? null;
+            $kind = $externalDependency['kind'] ?? null;
+            if (!is_string($input) || $input === '' || !is_string($raw) || $raw === '' || !is_string($kind) || $kind === '') {
+                continue;
+            }
+
+            $dependencyIssues = [];
+            if ($kind === 'typst-package') {
+                $packageDependencyCount++;
+            } else {
+                $nonPackageDependencyCount++;
+                if ($kind === 'uri') {
+                    $dependencyIssues[] = 'remote-dependency-boundary';
+                } elseif ($kind === 'file-uri') {
+                    $dependencyIssues[] = 'file-uri-dependency-boundary';
+                } elseif ($kind === 'invalid') {
+                    $dependencyIssues[] = 'invalid-external-dependency-boundary';
+                }
+            }
+            foreach ($dependencyIssues as $dependencyIssue) {
+                $issues[] = $dependencyIssue;
+            }
+
+            $dependencies[] = [
+                'input' => $input,
+                'raw' => $raw,
+                'kind' => $kind,
+                'reviewStatus' => $dependencyIssues === [] ? 'ok' : 'review',
+                'issues' => $dependencyIssues,
+            ];
+        }
+
+        usort(
+            $dependencies,
+            static fn (array $a, array $b): int => [$a['input'], $a['kind'], $a['raw']] <=> [$b['input'], $b['kind'], $b['raw']]
+        );
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'externalDependencyCount' => count($dependencies),
+            'packageDependencyCount' => $packageDependencyCount,
+            'nonPackageDependencyCount' => $nonPackageDependencyCount,
+            'dependencies' => $dependencies,
+            'issues' => $issues,
+        ];
     }
 
     /**

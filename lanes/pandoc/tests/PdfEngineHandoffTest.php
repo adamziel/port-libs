@@ -1053,6 +1053,95 @@ return [
         $t->same($expected, $sequence['finalEngineTypstPackageDependencies']);
     },
 
+    'fake runner reviews typst external dependency boundary provenance' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $source = "= Typst External Dependency Packet\n\n#image(\"https://cdn.example.invalid/chart.svg\")\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/typst-external.pdf',
+            'source' => $source,
+            'engineOptions' => ['--deps=build/typst-external.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst external dependency packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/typst-external.pdf: build/typst-external.typ \\',
+            '  https://cdn.example.invalid/chart.svg \\',
+            '  file:///srv/typst/fonts/Reviewer.otf \\',
+            '  /usr/share/fonts/SourceSerif4-Regular.otf \\',
+            '  @preview/cetz:0.3.2',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'externalDependencyCount' => 4,
+            'packageDependencyCount' => 1,
+            'nonPackageDependencyCount' => 3,
+            'dependencies' => [
+                [
+                    'input' => 'Reviewer.otf',
+                    'raw' => 'file:///srv/typst/fonts/Reviewer.otf',
+                    'kind' => 'file-uri',
+                    'reviewStatus' => 'review',
+                    'issues' => ['file-uri-dependency-boundary'],
+                ],
+                [
+                    'input' => 'SourceSerif4-Regular.otf',
+                    'raw' => '/usr/share/fonts/SourceSerif4-Regular.otf',
+                    'kind' => 'absolute',
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+                [
+                    'input' => 'chart.svg',
+                    'raw' => 'https://cdn.example.invalid/chart.svg',
+                    'kind' => 'uri',
+                    'reviewStatus' => 'review',
+                    'issues' => ['remote-dependency-boundary'],
+                ],
+                [
+                    'input' => 'typst-package:@preview/cetz:0.3.2',
+                    'raw' => '@preview/cetz:0.3.2',
+                    'kind' => 'typst-package',
+                    'reviewStatus' => 'ok',
+                    'issues' => [],
+                ],
+            ],
+            'issues' => ['file-uri-dependency-boundary', 'remote-dependency-boundary'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/typst-external.d' => $depfile,
+                'build/typst-external.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/typst-external.d' => $depfile,
+                    'build/typst-external.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same(true, $result['ok']);
+        $t->same([
+            'Reviewer.otf',
+            'SourceSerif4-Regular.otf',
+            'chart.svg',
+            'typst-package:@preview/cetz:0.3.2',
+        ], $result['engineExternalInputFiles']);
+        $t->same(['typst-package:@preview/cetz:0.3.2'], $result['engineTypstPackageInputs']);
+        $t->same($expectedPolicy, $result['typstExternalDependencyPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstExternalDependencyPolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-external-dependency-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependencies:4', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependency-issues:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-external-dependency-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstExternalDependencyPolicy']);
+    },
+
     'fake runner reviews typst dependency output target provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Typst Output Policy Packet\n\n#image(\"figures/chart.svg\")\n";
