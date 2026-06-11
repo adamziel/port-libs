@@ -334,7 +334,7 @@ final class EpubPackage
     {
         return array_values(array_filter(
             $this->manifestItems,
-            static fn (array $item): bool => $item['mediaType'] === self::XHTML_MEDIA_TYPE,
+            static fn (array $item): bool => self::mediaTypeBase((string) ($item['mediaType'] ?? '')) === self::XHTML_MEDIA_TYPE,
         ));
     }
 
@@ -352,15 +352,17 @@ final class EpubPackage
         $navigationPart = $this->navigation['partName'] ?? null;
 
         foreach ($this->manifestItems as $item) {
-            if ($item['mediaType'] === self::XHTML_MEDIA_TYPE) {
+            $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+
+            if ($mediaType === self::XHTML_MEDIA_TYPE) {
                 $xhtmlParts[] = $item['partName'];
             }
 
-            if ($item['mediaType'] === 'text/css') {
+            if ($mediaType === 'text/css') {
                 $stylesheetParts[] = $item['partName'];
             }
 
-            if (str_starts_with($item['mediaType'], 'image/')) {
+            if (str_starts_with($mediaType, 'image/')) {
                 $imageParts[] = $item['partName'];
             }
 
@@ -556,6 +558,9 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
+                'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
+                'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
                 'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
@@ -804,6 +809,10 @@ final class EpubPackage
         $missingItems = [];
         $parts = [];
         $ids = [];
+        $mediaTypeParameterItems = [];
+        $mediaTypeParameterNames = [];
+        $mediaTypeParameterCount = 0;
+        $mediaTypeDiagnostics = [];
         $diagnostics = [];
 
         foreach ($manifestItems as $index => $item) {
@@ -811,6 +820,54 @@ final class EpubPackage
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null)
+                ? array_values($item['mediaTypeParameters'])
+                : [];
+            if ($mediaTypeParameters !== []) {
+                $parameterNames = [];
+                foreach ($mediaTypeParameters as $parameter) {
+                    if (!is_array($parameter)) {
+                        continue;
+                    }
+
+                    $name = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                    if ($name !== '') {
+                        $parameterNames[] = $name;
+                        $mediaTypeParameterNames[$name] = true;
+                    }
+                }
+
+                $mediaTypeParameterCount += count($mediaTypeParameters);
+                $mediaTypeParameterItems[] = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                    'mediaTypeBase' => $mediaType,
+                    'parameterCount' => count($mediaTypeParameters),
+                    'parameterNames' => array_values(array_unique($parameterNames)),
+                    'parameters' => $mediaTypeParameters,
+                    'parameterMap' => is_array($item['mediaTypeParameterMap'] ?? null)
+                        ? $item['mediaTypeParameterMap']
+                        : [],
+                ];
+            }
+
+            foreach (is_array($item['mediaTypeDiagnostics'] ?? null) ? $item['mediaTypeDiagnostics'] : [] as $mediaTypeDiagnostic) {
+                if (!is_array($mediaTypeDiagnostic)) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                ] + $mediaTypeDiagnostic;
+                $mediaTypeDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+
             if ($id !== '') {
                 $ids[$id][] = [
                     'index' => $index,
@@ -986,6 +1043,10 @@ final class EpubPackage
             'duplicatePartCount' => count($duplicatePartItems),
             'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
+            'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterCount' => $mediaTypeParameterCount,
+            'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
+            'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
@@ -995,6 +1056,8 @@ final class EpubPackage
             'duplicatePartItems' => $duplicatePartItems,
             'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
+            'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3758,6 +3821,7 @@ final class EpubPackage
 
             $partName = OpcPackagePath::stripQueryAndFragment($target);
             $hrefSuffix = self::packageHrefSuffixReport($target);
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
             $exists = $package->has($partName);
             $entry = $exists ? $package->entry($partName) : null;
 
@@ -3767,6 +3831,14 @@ final class EpubPackage
                 'target' => $target,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                 'exists' => $exists,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
@@ -4008,7 +4080,7 @@ final class EpubPackage
     private static function loadNavigation(ZipPackage $package, string $opfPartName, array $manifestById, ?string $spineTocId): array
     {
         foreach ($manifestById as $item) {
-            if ($item['mediaType'] === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
+            if (self::mediaTypeBase((string) ($item['mediaType'] ?? '')) === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
                 if (($item['exists'] ?? false) !== true || !$package->has($item['partName'])) {
                     continue;
                 }
@@ -6568,7 +6640,157 @@ final class EpubPackage
 
     private static function mediaTypeBase(string $mediaType): string
     {
-        return strtolower(trim(explode(';', $mediaType, 2)[0]));
+        return self::mediaTypeReport($mediaType)['mediaTypeBase'];
+    }
+
+    /**
+     * @return array{
+     *     mediaType:string,
+     *     normalizedMediaType:string,
+     *     mediaTypeBase:string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeParameters:list<array{name:string, value:string, raw:string}>,
+     *     mediaTypeParameterMap:array<string, string>,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function mediaTypeReport(string $mediaType): array
+    {
+        $segments = self::mediaTypeSegments($mediaType);
+        $base = strtolower(trim((string) array_shift($segments)));
+        $parameters = [];
+        $parameterMap = [];
+        $diagnostics = [];
+
+        if ($base === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+\/[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $base) !== 1) {
+            $diagnostics[] = [
+                'type' => 'invalid-manifest-media-type',
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $base,
+                'message' => 'EPUB OPF manifest media-type must be a MIME type in type/subtype form',
+            ];
+        }
+
+        foreach ($segments as $index => $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $equals = strpos($raw, '=');
+            if ($equals === false) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter',
+                    'mediaType' => $mediaType,
+                    'parameter' => $raw,
+                    'parameterIndex' => $index,
+                    'message' => 'EPUB OPF manifest media-type parameters must use name=value syntax',
+                ];
+                continue;
+            }
+
+            $name = strtolower(trim(substr($raw, 0, $equals)));
+            if ($name === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $name) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter-name',
+                    'mediaType' => $mediaType,
+                    'parameter' => $raw,
+                    'parameterIndex' => $index,
+                    'name' => $name,
+                    'message' => 'EPUB OPF manifest media-type parameter names must be MIME tokens',
+                ];
+                continue;
+            }
+
+            $value = trim(substr($raw, $equals + 1));
+            if (strlen($value) >= 2 && $value[0] === '"' && substr($value, -1) === '"') {
+                $value = substr($value, 1, -1);
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $value) ?? $value;
+            }
+
+            if (isset($parameterMap[$name])) {
+                $diagnostics[] = [
+                    'type' => 'duplicate-manifest-media-type-parameter',
+                    'mediaType' => $mediaType,
+                    'parameter' => $name,
+                    'parameterIndex' => $index,
+                    'previousValue' => $parameterMap[$name],
+                    'value' => $value,
+                    'message' => 'EPUB OPF manifest media-type parameter repeats a name; later value is retained for package review',
+                ];
+            }
+
+            $parameters[] = [
+                'name' => $name,
+                'value' => $value,
+                'raw' => $raw,
+            ];
+            $parameterMap[$name] = $value;
+        }
+
+        $normalized = $base;
+        foreach ($parameterMap as $name => $value) {
+            $normalized .= '; ' . $name . '=' . strtolower($value);
+        }
+
+        return [
+            'mediaType' => $mediaType,
+            'normalizedMediaType' => $normalized,
+            'mediaTypeBase' => $base,
+            'mediaTypeHasParameters' => $parameters !== [],
+            'mediaTypeParameterCount' => count($parameters),
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterMap' => $parameterMap,
+            'mediaTypeSyntaxValid' => $diagnostics === [],
+            'mediaTypeDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function mediaTypeSegments(string $mediaType): array
+    {
+        $segments = [];
+        $current = '';
+        $inQuote = false;
+        $escaped = false;
+        $length = strlen($mediaType);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $mediaType[$index];
+            if ($escaped) {
+                $current .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $current .= $char;
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === ';' && !$inQuote) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $segments[] = $current;
+
+        return $segments;
     }
 
     /**

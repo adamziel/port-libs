@@ -241,6 +241,84 @@ return [
         $t->same(['chapter1', 'chapter2'], array_column($epub->spine(), 'idref'));
     },
 
+    'preserves OPF manifest media type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml; charset=UTF-8" properties="nav"/>',
+            $epub3OpfXml
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css; charset=&quot;UTF-8&quot;"/>',
+            $opfWithMediaTypeParameters
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png; profile=&quot;cover;review&quot;" properties="cover-image"/>',
+            $opfWithMediaTypeParameters
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml; charset=UTF-8"/>',
+            $opfWithMediaTypeParameters
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMediaTypeParameters],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $nav = $epub->manifestItem('nav');
+        $style = $epub->manifestItem('style');
+        $cover = $epub->manifestItem('cover');
+        $validation = $epub->validationReport();
+        $manifestValidation = $validation['manifest'];
+        $summary = $epub->summary();
+
+        $t->same('application/xhtml+xml; charset=UTF-8', $nav['mediaType']);
+        $t->same('application/xhtml+xml', $nav['mediaTypeBase']);
+        $t->same(true, $nav['mediaTypeHasParameters']);
+        $t->same(1, $nav['mediaTypeParameterCount']);
+        $t->same([['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8']], $nav['mediaTypeParameters']);
+        $t->same(['charset' => 'UTF-8'], $nav['mediaTypeParameterMap']);
+        $t->same('application/xhtml+xml; charset=utf-8', $nav['normalizedMediaType']);
+        $t->same(true, $nav['mediaTypeSyntaxValid']);
+        $t->same([], $nav['mediaTypeDiagnostics']);
+
+        $t->same('text/css', $style['mediaTypeBase']);
+        $t->same('charset="UTF-8"', $style['mediaTypeParameters'][0]['raw']);
+        $t->same(['charset' => 'UTF-8'], $style['mediaTypeParameterMap']);
+        $t->same('image/png', $cover['mediaTypeBase']);
+        $t->same('profile="cover;review"', $cover['mediaTypeParameters'][0]['raw']);
+        $t->same('cover;review', $cover['mediaTypeParameterMap']['profile']);
+
+        $t->same('nav', $epub->navigation()['type']);
+        $t->same('/EPUB/nav.xhtml', $epub->navigation()['partName']);
+        $t->same(['/EPUB/nav.xhtml', '/EPUB/text/chapter1.xhtml', '/EPUB/text/chapter2.xhtml'], array_column($epub->xhtmlAssets(), 'partName'));
+        $t->same(['/EPUB/styles/book.css'], $epub->assetSummary()['stylesheetParts']);
+        $t->same(['/EPUB/images/cover.png'], $epub->assetSummary()['imageParts']);
+        $t->same('/EPUB/images/cover.png', $epub->assetSummary()['coverImagePart']);
+
+        $t->same(true, $validation['valid']);
+        $t->same(0, $validation['diagnosticCount']);
+        $t->same(4, $manifestValidation['mediaTypeParameterItemCount']);
+        $t->same(4, $manifestValidation['mediaTypeParameterCount']);
+        $t->same(['charset', 'profile'], $manifestValidation['mediaTypeParameterNames']);
+        $t->same(['nav', 'style', 'cover', 'chapter1'], array_column($manifestValidation['mediaTypeParameterItems'], 'id'));
+        $t->same('cover;review', $manifestValidation['mediaTypeParameterItems'][2]['parameterMap']['profile']);
+        $t->same(0, $manifestValidation['mediaTypeDiagnosticCount']);
+        $t->same([], $manifestValidation['mediaTypeDiagnostics']);
+        $t->same($manifestValidation['mediaTypeParameterItems'], $summary['wordpressImport']['manifestMediaTypeParameterItems']);
+        $t->same($manifestValidation['mediaTypeParameterNames'], $summary['wordpressImport']['manifestMediaTypeParameterNames']);
+        $t->same([], $summary['wordpressImport']['manifestMediaTypeDiagnostics']);
+    },
+
     'preserves OPF manifest href query and fragment suffixes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithHrefSuffixes = str_replace(
             'href="styles/book.css"',
