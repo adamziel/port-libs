@@ -764,6 +764,12 @@ final class XmlHtmlDom
         if (in_array($name, ['ol', 'ul', 'menu', 'li'], true)) {
             $summary += self::listSummary($node, $name);
         }
+        if (self::isHtmlHeadingElementName($name)) {
+            $summary += self::headingSummary($node, $name);
+        }
+        if (self::isHtmlOutlineElementName($name)) {
+            $summary += self::outlineSummary($node, $name);
+        }
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
         }
@@ -908,6 +914,79 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array{documentOutline:string, heading:bool, headingTag:string, headingLevel:int, headingText:string}
+     */
+    private static function headingSummary(\DOMElement $element, string $name): array
+    {
+        return [
+            'documentOutline' => 'heading',
+            'heading' => true,
+            'headingTag' => $name,
+            'headingLevel' => self::htmlHeadingLevel($name),
+            'headingText' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return array{documentOutline:string, outlineRoot:string, sectionHeadingText:?string, sectionHeadingTag:?string, sectionHeadingLevel:?int}
+     */
+    private static function outlineSummary(\DOMElement $element, string $name): array
+    {
+        $heading = self::firstScopedHeadingElement($element);
+        $headingName = $heading instanceof \DOMElement ? self::htmlElementName($heading) : null;
+
+        return [
+            'documentOutline' => match ($name) {
+                'nav' => 'navigation',
+                default => $name,
+            },
+            'outlineRoot' => $name,
+            'sectionHeadingText' => $heading instanceof \DOMElement ? self::normalizedText($heading) : null,
+            'sectionHeadingTag' => $headingName,
+            'sectionHeadingLevel' => $headingName === null ? null : self::htmlHeadingLevel($headingName),
+        ];
+    }
+
+    private static function isHtmlHeadingElementName(string $name): bool
+    {
+        return in_array($name, ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'], true);
+    }
+
+    private static function htmlHeadingLevel(string $name): int
+    {
+        return (int) substr($name, 1);
+    }
+
+    private static function isHtmlOutlineElementName(string $name): bool
+    {
+        return in_array($name, ['article', 'aside', 'main', 'nav', 'section'], true);
+    }
+
+    private static function firstScopedHeadingElement(\DOMElement $element): ?\DOMElement
+    {
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if (self::isHtmlHeadingElementName($name)) {
+                return $child;
+            }
+            if (self::isHtmlOutlineElementName($name)) {
+                continue;
+            }
+
+            $heading = self::firstScopedHeadingElement($child);
+            if ($heading instanceof \DOMElement) {
+                return $heading;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -313,6 +313,78 @@ XML, 'package reader XML');
         $t->same(null, $invalidItem['value']);
         $t->same('<ol id="steps" reversed start="3" type="A"><li value="7">Inspect</li><li>Repair<ol start="-2" type="i"><li value="-1">Nested</li></ol></li></ol><ul id="bullets" type="square"><li>Loose</li></ul><menu id="actions"><li value="4">Action</li></menu><ol id="invalid" start="abc"><li value="bad">Invalid</li></ol>', $html);
     },
+    'summarizes html heading and sectioning outline metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article>'
+                . '<nav aria-label="Contents"><div><h3>Navigation</h3></div><a href="#chapter">Chapter</a></nav>'
+                . '<aside id="notes"><section id="nested-note"><h4>Nested note</h4></section></aside>'
+                . '<main id="main"><p>No title</p></main>',
+            'outline review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/outline-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $articleHeading = $article['children'][0]['children'][0];
+        $section = $article['children'][1];
+        $sectionHeading = $section['children'][0];
+        $nav = $summary[1];
+        $navHeading = $nav['children'][0]['children'][0];
+        $aside = $summary[2];
+        $nestedSection = $aside['children'][0];
+        $main = $summary[3];
+
+        $t->same('article', $article['name']);
+        $t->same('article', $article['documentOutline']);
+        $t->same('article', $article['outlineRoot']);
+        $t->same('Primary Title', $article['sectionHeadingText']);
+        $t->same('h1', $article['sectionHeadingTag']);
+        $t->same(1, $article['sectionHeadingLevel']);
+        $t->same('heading', $articleHeading['documentOutline']);
+        $t->same(true, $articleHeading['heading']);
+        $t->same('h1', $articleHeading['headingTag']);
+        $t->same(1, $articleHeading['headingLevel']);
+        $t->same('Primary Title', $articleHeading['headingText']);
+
+        $t->same('section', $section['documentOutline']);
+        $t->same('section', $section['outlineRoot']);
+        $t->same('Chapter', $section['sectionHeadingText']);
+        $t->same('h2', $section['sectionHeadingTag']);
+        $t->same(2, $section['sectionHeadingLevel']);
+        $t->same('heading', $sectionHeading['documentOutline']);
+        $t->same(2, $sectionHeading['headingLevel']);
+        $t->same('Chapter', $sectionHeading['headingText']);
+
+        $t->same('navigation', $nav['documentOutline']);
+        $t->same('nav', $nav['outlineRoot']);
+        $t->same('Navigation', $nav['sectionHeadingText']);
+        $t->same('h3', $nav['sectionHeadingTag']);
+        $t->same(3, $nav['sectionHeadingLevel']);
+        $t->same(['aria-label' => 'Contents'], $nav['ariaAttributes']);
+        $t->same('heading', $navHeading['documentOutline']);
+        $t->same(3, $navHeading['headingLevel']);
+
+        $t->same('aside', $aside['documentOutline']);
+        $t->same('aside', $aside['outlineRoot']);
+        $t->same(null, $aside['sectionHeadingText']);
+        $t->same(null, $aside['sectionHeadingTag']);
+        $t->same(null, $aside['sectionHeadingLevel']);
+        $t->same('section', $nestedSection['documentOutline']);
+        $t->same('Nested note', $nestedSection['sectionHeadingText']);
+        $t->same(4, $nestedSection['sectionHeadingLevel']);
+
+        $t->same('main', $main['documentOutline']);
+        $t->same('main', $main['outlineRoot']);
+        $t->same(null, $main['sectionHeadingText']);
+        $t->same(null, $main['sectionHeadingLevel']);
+        $t->same('<article id="story"><header><h1>Primary <em>Title</em></h1></header><section id="chapter"><h2>Chapter</h2><p>Body</p></section></article><nav aria-label="Contents"><div><h3>Navigation</h3></div><a href="#chapter">Chapter</a></nav><aside id="notes"><section id="nested-note"><h4>Nested note</h4></section></aside><main id="main"><p>No title</p></main>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/outline-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html text-level semantic elements for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><abbr title="HyperText Markup Language">HTML</abbr> <dfn title="Review term">term</dfn> <mark>note</mark> '
