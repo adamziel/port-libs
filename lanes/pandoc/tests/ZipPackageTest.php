@@ -757,6 +757,51 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'summarizes zip local header variable fields for package review handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $localExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local variable field review</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $spanPreflight = ZipPackage::localHeaderSpanPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 1024, 100.0, 1024);
+
+        $expectedNameBytes = strlen('mimetype') + strlen('word/document.xml');
+        $expectedVariableBytes = $expectedNameBytes + strlen($localExtra);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same($expectedNameBytes, $summary['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $summary['localHeaderExtraFieldBytes']);
+        $t->same($expectedVariableBytes, $summary['localHeaderVariableFieldBytes']);
+        $t->same(1, $summary['localExtraFieldEntryCount']);
+        $t->same(true, $summary['hasLocalHeaderVariableFields']);
+        $t->same(true, $summary['hasLocalExtraFields']);
+        $t->same(0, $summary['entries'][0]['localExtraFieldLength']);
+        $t->same(strlen($localExtra), $summary['entries'][1]['localExtraFieldLength']);
+
+        $t->same($expectedNameBytes, $spanPreflight['localHeaderNameBytes']);
+        $t->same(strlen($localExtra), $spanPreflight['localHeaderExtraFieldBytes']);
+        $t->same($expectedVariableBytes, $spanPreflight['localHeaderVariableFieldBytes']);
+        $t->same(1, $spanPreflight['localExtraFieldEntryCount']);
+        $t->same(true, $spanPreflight['hasLocalExtraFields']);
+        $t->same($summary, $package->strictImportPreflight(1024, 100.0, 1024)['localHeaders']);
+        $t->same($spanPreflight, $rawPreflight['localHeaderSpans']);
+        $t->same($summary, $rawPreflight['strictImport']['localHeaders']);
+        $t->same(true, $rawPreflight['strictImport']['isValid']);
+    },
+
     'preflights raw zip local header span gaps before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $orphanName = 'word/media/orphan.bin';
         $orphanData = "unlisted local media bytes should stay blocked\n";

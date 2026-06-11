@@ -583,6 +583,12 @@ final class ZipPackage
      *     entryCount:int,
      *     firstLocalEntryName:?string,
      *     centralDirectoryOffset:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderNameBytes:int,
+     *     localHeaderExtraFieldBytes:int,
+     *     localExtraFieldEntryCount:int,
+     *     hasLocalHeaderVariableFields:bool,
+     *     hasLocalExtraFields:bool,
      *     entries:list<array{
      *         name:string,
      *         localHeaderOffset:int,
@@ -611,6 +617,9 @@ final class ZipPackage
     {
         $entries = [];
         $localEntries = $this->localEntries();
+        $localHeaderNameBytes = 0;
+        $localHeaderExtraFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -630,6 +639,11 @@ final class ZipPackage
                 $hasZeroLocalHeaderPlaceholders = $localHeader['crc32'] === 0
                     && $localHeader['compressedSize'] === 0
                     && $localHeader['uncompressedSize'] === 0;
+            }
+            $localHeaderNameBytes += $localHeader['nameLength'];
+            $localHeaderExtraFieldBytes += $localHeader['extraFieldLength'];
+            if ($localHeader['extraFieldLength'] > 0) {
+                $localExtraFieldEntryCount++;
             }
 
             $entries[] = [
@@ -660,6 +674,12 @@ final class ZipPackage
             'entryCount' => count($localEntries),
             'firstLocalEntryName' => $localEntries[0]->name ?? null,
             'centralDirectoryOffset' => $this->centralDirectoryOffset,
+            'localHeaderVariableFieldBytes' => $localHeaderNameBytes + $localHeaderExtraFieldBytes,
+            'localHeaderNameBytes' => $localHeaderNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
+            'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
             'entries' => $entries,
         ];
     }
@@ -1243,6 +1263,12 @@ final class ZipPackage
      *     centralDirectorySize:int,
      *     unexpectedPrefixBytes:int,
      *     hasUnexpectedPrefixBytes:bool,
+     *     localHeaderVariableFieldBytes:int,
+     *     localHeaderNameBytes:int,
+     *     localHeaderExtraFieldBytes:int,
+     *     localExtraFieldEntryCount:int,
+     *     hasLocalHeaderVariableFields:bool,
+     *     hasLocalExtraFields:bool,
      *     issueEntryCount:int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
@@ -1340,6 +1366,9 @@ final class ZipPackage
 
         $entries = [];
         $issueEntries = [];
+        $localHeaderNameBytes = 0;
+        $localHeaderExtraFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
         foreach ($centralEntries as $centralEntry) {
             $offsetIssue = self::localHeaderOffsetIssue(
                 $bytes,
@@ -1407,6 +1436,11 @@ final class ZipPackage
                 $centralEntry['centralDirectoryIndex'],
                 false
             );
+            $localHeaderNameBytes += $localHeader['nameLength'];
+            $localHeaderExtraFieldBytes += $localHeader['extraFieldLength'];
+            if ($localHeader['extraFieldLength'] > 0) {
+                $localExtraFieldEntryCount++;
+            }
             $dataStart = $centralEntry['localHeaderOffset'] + $localHeader['localHeaderLength'];
             $compressedDataEnd = $dataStart + $centralEntry['compressedSize'];
             $nextOffset = self::nextEntryOrCentralDirectoryOffsetForScannedEntries(
@@ -1531,6 +1565,12 @@ final class ZipPackage
             'centralDirectorySize' => $archive['centralDirectorySize'],
             'unexpectedPrefixBytes' => $unexpectedPrefixBytes,
             'hasUnexpectedPrefixBytes' => $unexpectedPrefixBytes > 0,
+            'localHeaderVariableFieldBytes' => $localHeaderNameBytes + $localHeaderExtraFieldBytes,
+            'localHeaderNameBytes' => $localHeaderNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderVariableFields' => $localHeaderNameBytes + $localHeaderExtraFieldBytes > 0,
+            'hasLocalExtraFields' => $localExtraFieldEntryCount > 0,
             'issueEntryCount' => count($issueEntries),
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
