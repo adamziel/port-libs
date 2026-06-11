@@ -1491,6 +1491,137 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'native writer preserves compatible helper native payloads after edits' => static function (TestRunner $t): void {
+        $listStyle = ['t' => 'UpperAlpha', 'review' => 'list-style'];
+        $listDelimiter = ['t' => 'OneParen', 'review' => 'list-delimiter'];
+        $quoteType = ['t' => 'SingleQuote', 'review' => 'quote-type'];
+        $mathType = ['t' => 'DisplayMath', 'review' => 'math-type'];
+        $citationMode = ['t' => 'AuthorInText', 'review' => 'citation-mode'];
+        $columnAlignment = ['t' => 'AlignRight', 'review' => 'column-alignment'];
+        $columnWidth = ['t' => 'ColWidth', 'c' => 0.25, 'review' => 'column-width'];
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => 1, 'review' => 'row-head-columns'];
+        $cellAlignment = ['t' => 'AlignCenter', 'review' => 'cell-alignment'];
+        $rowSpan = ['t' => 'RowSpan', 'c' => 2, 'review' => 'row-span'];
+        $colSpan = ['t' => 'ColSpan', 'c' => 3, 'review' => 'col-span'];
+        $citationRecord = [
+            'citationId' => 'source-a',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => $citationMode,
+            'citationNoteNum' => 3,
+            'citationHash' => 300,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [5, $listStyle, $listDelimiter],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Original item']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [$quoteType, [['t' => 'Str', 'c' => 'original quote']]]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [$mathType, 'x+1']],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [[$citationRecord], [['t' => 'Str', 'c' => '@source-a']]]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['helper-native-table', [], []],
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [[$columnAlignment, $columnWidth]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            $rowHeadColumns,
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            $cellAlignment,
+                                            $rowSpan,
+                                            $colSpan,
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Original cell']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
+        $ordered = $document->children[0];
+        $paragraph = $document->children[1];
+        $quoted = $paragraph->children[0];
+        $math = $paragraph->children[2];
+        $citation = $paragraph->children[4];
+        $table = $document->children[2];
+        $body = $table->children[0];
+        $row = $body->children[0];
+        $cell = $row->children[0];
+
+        $editedDocument = new AstNode('document', $document->attrs, [
+            new AstNode('ordered_list', $ordered->attrs, [
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [new AstNode('text', ['text' => 'Edited item'])]),
+                ]),
+            ]),
+            new AstNode('paragraph', $paragraph->attrs, [
+                new AstNode('quoted', $quoted->attrs, [new AstNode('text', ['text' => 'edited quote'])]),
+                new AstNode('space'),
+                new AstNode('math', array_replace($math->attrs, ['text' => 'z+3'])),
+                new AstNode('space'),
+                new AstNode('citation', array_replace($citation->attrs, [
+                    'suffix' => [new AstNode('text', ['text' => 'p.']), new AstNode('space'), new AstNode('text', ['text' => '9'])],
+                    'text' => '@source-a, p. 9',
+                ]), [new AstNode('text', ['text' => '[@source-a, p. 9]'])]),
+            ]),
+            new AstNode('table', $table->attrs, [
+                new AstNode('table_body', $body->attrs, [
+                    new AstNode('table_row', $row->attrs, [
+                        new AstNode('table_cell', $cell->attrs, [
+                            new AstNode('plain', [], [new AstNode('text', ['text' => 'Edited cell'])]),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $nativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $orderedBlock = $nativePacket['blocks'][0];
+        $paragraphInlines = $nativePacket['blocks'][1]['c'];
+        $tableContent = $nativePacket['blocks'][2]['c'];
+        $bodyContent = $tableContent[4][0];
+        $cellContent = $bodyContent[3][0][1][0];
+
+        $t->same($listStyle, $orderedBlock['c'][0][1]);
+        $t->same($listDelimiter, $orderedBlock['c'][0][2]);
+        $t->same('Edited', $orderedBlock['c'][1][0][0]['c'][0]['c']);
+        $t->same('item', $orderedBlock['c'][1][0][0]['c'][2]['c']);
+        $t->same($quoteType, $paragraphInlines[0]['c'][0]);
+        $t->same('edited', $paragraphInlines[0]['c'][1][0]['c']);
+        $t->same('quote', $paragraphInlines[0]['c'][1][2]['c']);
+        $t->same($mathType, $paragraphInlines[2]['c'][0]);
+        $t->same('z+3', $paragraphInlines[2]['c'][1]);
+        $t->same($citationMode, $paragraphInlines[4]['c'][0][0]['citationMode']);
+        $t->same('9', $paragraphInlines[4]['c'][0][0]['citationSuffix'][2]['c']);
+        $t->same($columnAlignment, $tableContent[2][0][0]);
+        $t->same($columnWidth, $tableContent[2][0][1]);
+        $t->same($rowHeadColumns, $bodyContent[1]);
+        $t->same($cellAlignment, $cellContent[1]);
+        $t->same($rowSpan, $cellContent[2]);
+        $t->same($colSpan, $cellContent[3]);
+        $t->same('Edited', $cellContent[4][0]['c'][0]['c']);
+        $t->same('cell', $cellContent[4][0]['c'][2]['c']);
+    },
     'records pandoc table helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

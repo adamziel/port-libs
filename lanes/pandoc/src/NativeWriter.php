@@ -288,8 +288,8 @@ final class NativeWriter
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 [
                     (int) $node->attr('start', 1),
-                    ['t' => $this->listStyleConstructor((string) $node->attr('style', 'default'))],
-                    ['t' => $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))],
+                    $this->enumFromNative($node, 'listStyleNative', $this->listStyleConstructor((string) $node->attr('style', 'default'))),
+                    $this->enumFromNative($node, 'listDelimiterNative', $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))),
                 ],
                 $this->listItems($node->children),
             ]],
@@ -528,6 +528,8 @@ final class NativeWriter
     {
         $alignments = $node->attr('alignments', []);
         $widths = $node->attr('widths', []);
+        $alignmentNatives = $node->attr('alignmentNatives', []);
+        $columnWidthNatives = $node->attr('columnWidthNatives', []);
         $columnCount = max(
             is_array($alignments) ? count($alignments) : 0,
             is_array($widths) ? count($widths) : 0,
@@ -537,9 +539,11 @@ final class NativeWriter
         for ($index = 0; $index < $columnCount; $index++) {
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
+            $alignmentConstructor = $this->tableAlignmentConstructor($alignment);
             $specs[] = [
-                ['t' => $this->tableAlignmentConstructor($alignment)],
-                is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault'],
+                $this->taggedNativeAt($alignmentNatives, $index, $alignmentConstructor) ?? ['t' => $alignmentConstructor],
+                $this->columnWidthNativeAt($columnWidthNatives, $index, $width)
+                    ?? (is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault']),
             ];
         }
 
@@ -566,7 +570,8 @@ final class NativeWriter
 
         return [
             $this->attrTuple($body),
-            ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
+            $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
+                ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->tableRows(array_values($headRows)) : [],
             $this->tableRows($body->children),
         ];
@@ -605,11 +610,14 @@ final class NativeWriter
                 continue;
             }
 
+            $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
+            $rowspan = max(1, (int) $cell->attr('rowspan', 1));
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
             $encoded[] = [
                 $this->attrTuple($cell),
-                ['t' => $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))],
-                ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
-                ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
+                $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? ['t' => $alignmentConstructor],
+                $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
+                $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->childrenAsBlocks($cell),
             ];
         }
@@ -778,7 +786,7 @@ final class NativeWriter
             'quoted' => [[
                 't' => 'Quoted',
                 'c' => [
-                    ['t' => $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'],
+                    $this->enumFromNative($node, 'quoteTypeNative', $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'),
                     $this->inlines($node->children),
                 ],
             ]],
@@ -789,7 +797,7 @@ final class NativeWriter
             'math' => [[
                 't' => 'Math',
                 'c' => [
-                    ['t' => $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'],
+                    $this->enumFromNative($node, 'mathTypeNative', $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'),
                     (string) $node->attr('text', ''),
                 ],
             ]],
@@ -840,6 +848,82 @@ final class NativeWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function enumFromNative(AstNode $node, string $nativeAttr, string $constructor): array
+    {
+        return $this->taggedNative($node->attr($nativeAttr), $constructor) ?? ['t' => $constructor];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function taggedNative(mixed $native, string $constructor): ?array
+    {
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function taggedNativeAt(mixed $natives, int $index, string $constructor): ?array
+    {
+        if (!is_array($natives) || !array_is_list($natives) || !array_key_exists($index, $natives)) {
+            return null;
+        }
+
+        return $this->taggedNative($natives[$index], $constructor);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): ?array
+    {
+        $constructor = is_int($width) || is_float($width) ? 'ColWidth' : 'ColWidthDefault';
+        $native = $this->taggedNativeAt($natives, $index, $constructor);
+        if ($native === null) {
+            return null;
+        }
+
+        if ($constructor === 'ColWidthDefault') {
+            return $native;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content) && !is_float($content)) {
+            return null;
+        }
+
+        return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function integerConstructorNative(mixed $native, string $constructor, int $integer): ?array
+    {
+        $tagged = $this->taggedNative($native, $constructor);
+        if ($tagged === null) {
+            return null;
+        }
+
+        $content = $tagged['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return is_int($content) && $content === $integer ? $tagged : null;
     }
 
     /**
@@ -985,7 +1069,7 @@ final class NativeWriter
             'citationId' => $id,
             'citationPrefix' => $this->inlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->inlines($this->citationSuffixInlines($citation)),
-            'citationMode' => ['t' => $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))],
+            'citationMode' => $this->enumFromNative($citation, 'citationModeNative', $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
