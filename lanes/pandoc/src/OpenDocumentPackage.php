@@ -953,17 +953,50 @@ final class OpenDocumentPackage
             }
         }
 
-        $keywordText = self::firstChildElementText($meta, self::META_NAMESPACE, 'keyword');
-        if ($keywordText !== null && $keywordText !== '') {
-            $metadata['keywords'] = array_values(array_filter(
-                array_map(static fn (string $keyword): string => trim($keyword), explode(',', $keywordText)),
-                static fn (string $keyword): bool => $keyword !== ''
-            ));
+        $keywords = [];
+        foreach (self::childElements($meta, self::META_NAMESPACE, 'keyword') as $keywordElement) {
+            foreach (explode(',', self::normalizedText($keywordElement)) as $keyword) {
+                $keyword = trim($keyword);
+                if ($keyword !== '') {
+                    $keywords[] = $keyword;
+                }
+            }
+        }
+        if ($keywords !== []) {
+            $metadata['keywords'] = $keywords;
         }
 
         $userDefined = [];
         foreach ($meta->childNodes as $child) {
-            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::META_NAMESPACE || $child->localName !== 'user-defined') {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::META_NAMESPACE) {
+                continue;
+            }
+
+            if ($child->localName === 'template') {
+                $template = self::metaTemplateMetadata($child);
+                if ($template !== []) {
+                    $metadata['template'] = $template;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'auto-reload') {
+                $autoReload = self::metaAutoReloadMetadata($child);
+                if ($autoReload !== []) {
+                    $metadata['autoReload'] = $autoReload;
+                }
+                continue;
+            }
+
+            if ($child->localName === 'hyperlink-behaviour') {
+                $hyperlinkBehaviour = self::metaHyperlinkBehaviourMetadata($child);
+                if ($hyperlinkBehaviour !== []) {
+                    $metadata['hyperlinkBehaviour'] = $hyperlinkBehaviour;
+                }
+                continue;
+            }
+
+            if ($child->localName !== 'user-defined') {
                 continue;
             }
 
@@ -985,6 +1018,55 @@ final class OpenDocumentPackage
         if ($statistics !== []) {
             $metadata['statistics'] = $statistics;
         }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function metaTemplateMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutNulls([
+            'href' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'href')),
+            'type' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'type')),
+            'title' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'title')),
+            'date' => self::optionalString(self::namespacedAttribute($element, self::META_NAMESPACE, 'date')),
+            'show' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'show')),
+            'actuate' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'actuate')),
+        ]);
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function metaAutoReloadMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutNulls([
+            'href' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'href')),
+            'type' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'type')),
+            'show' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'show')),
+            'actuate' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'actuate')),
+            'delay' => self::optionalString(self::namespacedAttribute($element, self::META_NAMESPACE, 'delay')),
+        ]);
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function metaHyperlinkBehaviourMetadata(\DOMElement $element): array
+    {
+        /** @var array<string, string> $metadata */
+        $metadata = self::withoutNulls([
+            'show' => self::optionalString(self::namespacedAttribute($element, self::XLINK_NAMESPACE, 'show')),
+            'targetFrameName' => self::optionalString(self::namespacedAttribute($element, self::OFFICE_NAMESPACE, 'target-frame-name')),
+        ]);
 
         return $metadata;
     }

@@ -770,6 +770,48 @@ XML;
         $t->same(1, $metadata['statistics']['imageCount']);
         $t->same($metadata['statistics'], $summary['metadata']['statistics']);
     },
+    'maps compact ODT meta link policy metadata into package summary' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $meta = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  office:version="1.3">
+  <office:meta>
+    <dc:title>Linked Metadata Packet</dc:title>
+    <meta:keyword>review, template</meta:keyword>
+    <meta:keyword>reload</meta:keyword>
+    <meta:template xlink:href="Templates/import-review.ott" xlink:type="simple" xlink:title="Import Review Template" xlink:show="replace" xlink:actuate="onRequest" meta:date="2026-06-01T10:00:00Z"/>
+    <meta:auto-reload xlink:href="https://example.test/source.odt" xlink:type="simple" xlink:show="replace" xlink:actuate="onLoad" meta:delay="PT15M"/>
+    <meta:hyperlink-behaviour xlink:show="new" office:target-frame-name="_blank"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(meta: $meta));
+        $metadata = $odt->metadata();
+        $summary = $odt->summarize();
+        $document = $odt->readContentDocument();
+
+        $t->same('Linked Metadata Packet', $metadata['title']);
+        $t->same(['review', 'template', 'reload'], $metadata['keywords']);
+        $t->same('Templates/import-review.ott', $metadata['template']['href']);
+        $t->same('simple', $metadata['template']['type']);
+        $t->same('Import Review Template', $metadata['template']['title']);
+        $t->same('replace', $metadata['template']['show']);
+        $t->same('onRequest', $metadata['template']['actuate']);
+        $t->same('2026-06-01T10:00:00Z', $metadata['template']['date']);
+        $t->same('https://example.test/source.odt', $metadata['autoReload']['href']);
+        $t->same('replace', $metadata['autoReload']['show']);
+        $t->same('onLoad', $metadata['autoReload']['actuate']);
+        $t->same('PT15M', $metadata['autoReload']['delay']);
+        $t->same('new', $metadata['hyperlinkBehaviour']['show']);
+        $t->same('_blank', $metadata['hyperlinkBehaviour']['targetFrameName']);
+        $t->same($metadata['template'], $summary['metadata']['template']);
+        $t->same($metadata['autoReload'], $document->attr('metadata')['autoReload']);
+        $t->same('_blank', $summary['metadata']['hyperlinkBehaviour']['targetFrameName']);
+    },
     'maps compact ODT settings XML config items into package summary metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $settingsXml = <<<'XML'
 <office:document-settings
