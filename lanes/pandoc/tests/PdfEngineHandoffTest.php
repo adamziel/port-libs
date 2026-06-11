@@ -904,6 +904,110 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst execution jobs boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/jobs-boundary.pdf',
+            'source' => '= Typst Jobs Boundary Packet',
+            'engineOptions' => [
+                '--jobs=0',
+                '--jobs',
+                '12',
+                '-j',
+                'many',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst jobs boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'jobs-nonpositive-boundary',
+                'jobs-invalid-boundary',
+                'jobs-boundary-overridden',
+            ],
+            'executionPolicy' => [
+                'jobs' => [
+                    'raw' => 'many',
+                    'value' => 'many',
+                    'mode' => 'invalid',
+                    'jobCount' => null,
+                    'safe' => false,
+                    'issues' => ['jobs-invalid-boundary'],
+                ],
+                'issues' => [
+                    'jobs-nonpositive-boundary',
+                    'jobs-invalid-boundary',
+                    'jobs-boundary-overridden',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'jobs',
+                    'count' => 3,
+                    'values' => ['0', '12', 'many'],
+                    'selected' => 'many',
+                    'issue' => 'jobs-boundary-overridden',
+                ],
+            ],
+            'jobsHistory' => [
+                [
+                    'raw' => '0',
+                    'value' => '0',
+                    'mode' => 'invalid',
+                    'jobCount' => 0,
+                    'safe' => false,
+                    'issues' => ['jobs-nonpositive-boundary'],
+                ],
+                [
+                    'raw' => '12',
+                    'value' => '12',
+                    'mode' => 'fixed',
+                    'jobCount' => 12,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'many',
+                    'value' => 'many',
+                    'mode' => 'invalid',
+                    'jobCount' => null,
+                    'safe' => false,
+                    'issues' => ['jobs-invalid-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/jobs-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/jobs-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-execution-jobs:many', implode(',', $plan['diagnostics']));
+        $t->contains('typst-execution-policy-issues:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

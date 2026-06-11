@@ -311,6 +311,18 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-feature-gates:' . $featureGates['featureCount'];
                 }
             }
+            if (($typstBoundaryProvenance['executionPolicy'] ?? null) !== null) {
+                $executionPolicy = $typstBoundaryProvenance['executionPolicy'];
+                if (is_array($executionPolicy) && is_array($executionPolicy['jobs'] ?? null)) {
+                    $jobs = $executionPolicy['jobs'];
+                    if (is_string($jobs['value'] ?? null)) {
+                        $diagnostics[] = 'typst-execution-jobs:' . ($jobs['value'] === '' ? 'invalid' : $jobs['value']);
+                    }
+                }
+                if (is_array($executionPolicy) && ($executionPolicy['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-execution-policy-issues:' . count($executionPolicy['issues']);
+                }
+            }
             if (($typstBoundaryProvenance['timingsOutput'] ?? null) !== null) {
                 $timingsOutput = $typstBoundaryProvenance['timingsOutput'];
                 if (is_array($timingsOutput) && is_string($timingsOutput['path'] ?? null)) {
@@ -5671,6 +5683,7 @@ final class PdfEngineHandoff
             'pages' => 'pages-boundary-overridden',
             'pdfStandard' => 'pdf-standard-boundary-overridden',
             'features' => 'features-boundary-overridden',
+            'jobs' => 'jobs-boundary-overridden',
             'timingsOutput' => 'timings-output-boundary-overridden',
             'diagnosticFormat' => 'diagnostic-format-boundary-overridden',
             'diagnosticColor' => 'diagnostic-color-boundary-overridden',
@@ -5714,6 +5727,7 @@ final class PdfEngineHandoff
         $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
+        $jobsValues = $this->engineOptionValues($engineOptions, ['--jobs', '-j'], true);
         $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings'], true);
         $diagnosticFormatValues = $this->engineOptionValues($engineOptions, ['--diagnostic-format'], true);
         $diagnosticColorValues = $this->engineOptionValues($engineOptions, ['--color'], true);
@@ -5721,7 +5735,7 @@ final class PdfEngineHandoff
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $jobsValues === [] && $timingsOutputValues === [] && $diagnosticFormatValues === [] && $diagnosticColorValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -5773,6 +5787,11 @@ final class PdfEngineHandoff
             $featureGateValues
         );
         $featureGates = $featureGateHistory === [] ? null : $featureGateHistory[count($featureGateHistory) - 1];
+        $jobsHistory = array_map(
+            fn (string $value): array => $this->typstExecutionJobsEntry($value),
+            $jobsValues
+        );
+        $jobs = $jobsHistory === [] ? null : $jobsHistory[count($jobsHistory) - 1];
         $timingsOutputHistory = array_map(
             fn (string $value): array => $this->typstBoundaryFileEntry($value, 'timings-output'),
             $timingsOutputValues
@@ -5796,6 +5815,7 @@ final class PdfEngineHandoff
             'pages' => $pageSelectionValues,
             'pdfStandard' => $pdfStandardValues,
             'features' => $featureGateValues,
+            'jobs' => $jobsValues,
             'timingsOutput' => $timingsOutputValues,
             'diagnosticFormat' => $diagnosticFormatValues,
             'diagnosticColor' => $diagnosticColorValues,
@@ -5808,7 +5828,7 @@ final class PdfEngineHandoff
         }
         $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5850,6 +5870,23 @@ final class PdfEngineHandoff
         }
         if ($featureGates !== null) {
             $provenance['featureGates'] = $featureGates;
+        }
+        if ($jobs !== null) {
+            $jobIssues = [];
+            foreach ($jobsHistory as $entry) {
+                foreach ($entry['issues'] as $issue) {
+                    $jobIssues[] = $issue;
+                }
+            }
+            foreach ($overrides as $override) {
+                if ($override['option'] === 'jobs') {
+                    $jobIssues[] = $override['issue'];
+                }
+            }
+            $provenance['executionPolicy'] = [
+                'jobs' => $jobs,
+                'issues' => array_values(array_unique($jobIssues)),
+            ];
         }
         if ($timingsOutput !== null) {
             $provenance['timingsOutput'] = $timingsOutput;
@@ -5942,6 +5979,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($jobsHistory)) {
+            $provenance['jobsHistory'] = $jobsHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($timingsOutputHistory)) {
             $provenance['timingsOutputHistory'] = $timingsOutputHistory;
@@ -6385,6 +6425,43 @@ final class PdfEngineHandoff
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array{raw:string, value:string, mode:string, jobCount:int|null, safe:bool, issues:list<string>}
+     */
+    private function typstExecutionJobsEntry(string $raw): array
+    {
+        $value = strtolower(trim($raw));
+        $issues = [];
+        $mode = 'invalid';
+        $jobCount = null;
+
+        if ($value === '') {
+            $issues[] = 'jobs-empty-boundary';
+        } elseif ($value === 'auto') {
+            $mode = 'auto';
+        } elseif (preg_match('/\A[0-9]+\z/', $value) !== 1) {
+            $issues[] = 'jobs-invalid-boundary';
+        } elseif (!$this->decimalStringLessThanOrEqual($value, '1024')) {
+            $issues[] = 'jobs-excessive-boundary';
+        } else {
+            $jobCount = (int) $value;
+            if ($jobCount < 1) {
+                $issues[] = 'jobs-nonpositive-boundary';
+            } else {
+                $mode = 'fixed';
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'mode' => $mode,
+            'jobCount' => $jobCount,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
     }
 
     /**
