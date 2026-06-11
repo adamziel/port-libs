@@ -523,6 +523,31 @@ XML;
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
     },
+    'keeps compact ODT URI encoded manifest parts declared in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SRCIMAGE';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0]],
+        ));
+        $inventory = $odt->summarize()['packageInventory'];
+        $inventoryPart = $inventory['parts']['Pictures/source hero.png'];
+
+        $t->same(0, $inventory['undeclaredEntryCount']);
+        $t->same('Pictures/source hero.png', $inventoryPart['path']);
+        $t->same(['manifest-declared', 'media-resource'], $inventoryPart['roles']);
+        $t->same(true, $inventoryPart['declaredInManifest']);
+        $t->same(false, $inventoryPart['undeclared']);
+        $t->same('Pictures/source%20hero.png', $inventoryPart['manifestPath']);
+        $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
+        $t->same('image/png', $inventoryPart['manifestMediaType']);
+    },
     'reports compact ODT ZIP inventory and undeclared package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',

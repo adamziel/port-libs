@@ -311,6 +311,9 @@ final class OpenDocumentPackage
             }
 
             $declaredPackagePaths[$path] = true;
+            if (is_string($entry['packagePath'] ?? null) && $entry['packagePath'] !== '') {
+                $declaredPackagePaths[$entry['packagePath']] = true;
+            }
             ++$manifestDeclaredPartCount;
         }
 
@@ -352,6 +355,7 @@ final class OpenDocumentPackage
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
+                'manifestPackagePath' => is_array($manifestEntry) ? $manifestEntry['packagePath'] : null,
                 'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
