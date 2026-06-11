@@ -760,6 +760,7 @@ final class EpubPackage
         $usableNavItems = [];
         $invalidNavItems = [];
         $hrefSuffixItems = [];
+        $missingItems = [];
         $parts = [];
         $diagnostics = [];
 
@@ -768,6 +769,25 @@ final class EpubPackage
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            if (($item['exists'] ?? false) !== true) {
+                $missingItem = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                ];
+                $missingItems[] = $missingItem;
+                $diagnostics[] = [
+                    'type' => 'missing-manifest-href-target',
+                    'id' => $id,
+                    'href' => $missingItem['href'],
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                    'message' => 'EPUB OPF manifest href points at a package part that is not present in the ZIP',
+                ];
+            }
+
             $hasQuery = ($item['hrefHasQuery'] ?? false) === true;
             $hasFragment = ($item['hrefHasFragment'] ?? false) === true;
             if ($hasQuery || $hasFragment) {
@@ -879,12 +899,16 @@ final class EpubPackage
             'navItemCount' => count($navItems),
             'usableNavItemCount' => count($usableNavItems),
             'invalidNavItemCount' => count($invalidNavItems),
+            'missingItemCount' => count($missingItems),
             'duplicatePartCount' => count($duplicatePartItems),
+            'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
+            'missingItems' => $missingItems,
             'duplicatePartItems' => $duplicatePartItems,
+            'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
@@ -900,6 +924,8 @@ final class EpubPackage
     {
         $linearCount = 0;
         $nonLinearCount = 0;
+        $missingManifestItems = [];
+        $missingPackagePartItems = [];
         $nonContentDocumentItems = [];
         $diagnostics = [];
 
@@ -908,6 +934,39 @@ final class EpubPackage
                 ++$nonLinearCount;
             } else {
                 ++$linearCount;
+            }
+
+            if (($item['manifestItemMissing'] ?? false) === true) {
+                $diagnosticItem = [
+                    'index' => $index,
+                    'idref' => (string) ($item['idref'] ?? ''),
+                ];
+                $missingManifestItems[] = $diagnosticItem;
+                $diagnostics[] = [
+                    'type' => 'missing-spine-manifest-item',
+                    'index' => $index,
+                    'idref' => $diagnosticItem['idref'],
+                    'message' => 'EPUB spine itemref references a manifest item id that is not present',
+                ];
+                continue;
+            }
+
+            if (($item['exists'] ?? true) !== true) {
+                $diagnosticItem = [
+                    'index' => $index,
+                    'idref' => (string) ($item['idref'] ?? ''),
+                    'partName' => (string) ($item['partName'] ?? ''),
+                    'mediaType' => self::mediaTypeBase((string) ($item['mediaType'] ?? '')),
+                ];
+                $missingPackagePartItems[] = $diagnosticItem;
+                $diagnostics[] = [
+                    'type' => 'missing-spine-item-package-part',
+                    'index' => $index,
+                    'idref' => $diagnosticItem['idref'],
+                    'partName' => $diagnosticItem['partName'],
+                    'mediaType' => $diagnosticItem['mediaType'],
+                    'message' => 'EPUB spine item points at a manifest package part that is not present in the ZIP',
+                ];
             }
 
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
@@ -937,7 +996,11 @@ final class EpubPackage
             'itemCount' => count($spine),
             'linearCount' => $linearCount,
             'nonLinearCount' => $nonLinearCount,
+            'missingManifestItemCount' => count($missingManifestItems),
+            'missingPackagePartCount' => count($missingPackagePartItems),
             'nonContentDocumentCount' => count($nonContentDocumentItems),
+            'missingManifestItems' => $missingManifestItems,
+            'missingPackagePartItems' => $missingPackagePartItems,
             'nonContentDocumentItems' => $nonContentDocumentItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
@@ -3275,10 +3338,8 @@ final class EpubPackage
 
             $partName = OpcPackagePath::stripQueryAndFragment($target);
             $hrefSuffix = self::packageHrefSuffixReport($target);
-            if (!$package->has($partName)) {
-                throw new \RuntimeException("EPUB manifest item {$id} references missing package part: {$partName}");
-            }
-            $entry = $package->entry($partName);
+            $exists = $package->has($partName);
+            $entry = $exists ? $package->entry($partName) : null;
 
             $item = [
                 'id' => $id,
@@ -3286,7 +3347,7 @@ final class EpubPackage
                 'target' => $target,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
-                'exists' => true,
+                'exists' => $exists,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
                 'fallbackStyle' => $itemElement->hasAttribute('fallback-style') ? $itemElement->getAttribute('fallback-style') : null,
@@ -3325,7 +3386,28 @@ final class EpubPackage
 
             $item = $manifestById[$idref] ?? null;
             if (!is_array($item)) {
-                throw new \RuntimeException("EPUB spine references missing manifest item: {$idref}");
+                $id = $itemrefElement->hasAttribute('id')
+                    ? self::emptyToNull($itemrefElement->getAttribute('id'))
+                    : null;
+                $linearRaw = $itemrefElement->hasAttribute('linear')
+                    ? self::emptyToNull($itemrefElement->getAttribute('linear'))
+                    : null;
+                $spine[] = [
+                    'id' => $id,
+                    'idref' => $idref,
+                    'href' => '',
+                    'partName' => '',
+                    'mediaType' => '',
+                    'exists' => false,
+                    'manifestItemMissing' => true,
+                    'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
+                    'linearRaw' => $linearRaw,
+                    'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
+                    'mediaOverlay' => null,
+                    'refinements' => [],
+                    'renditionViewportRefinements' => [],
+                ];
+                continue;
             }
 
             $id = $itemrefElement->hasAttribute('id')
@@ -3344,6 +3426,8 @@ final class EpubPackage
                 'href' => $item['href'],
                 'partName' => $item['partName'],
                 'mediaType' => $item['mediaType'],
+                'exists' => ($item['exists'] ?? false) === true,
+                'manifestItemMissing' => false,
                 'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
                 'linearRaw' => $linearRaw,
                 'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
@@ -3372,6 +3456,10 @@ final class EpubPackage
     {
         foreach ($manifestById as $item) {
             if ($item['mediaType'] === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
+                if (($item['exists'] ?? false) !== true || !$package->has($item['partName'])) {
+                    continue;
+                }
+
                 $report = self::parseNavDocument($package->read($item['partName']), $item['partName']);
 
                 return [
@@ -3398,6 +3486,13 @@ final class EpubPackage
         }
 
         if (is_array($ncxItem)) {
+            if (($ncxItem['exists'] ?? false) !== true || !$package->has($ncxItem['partName'])) {
+                return [
+                    'navigation' => null,
+                    'sections' => [],
+                ];
+            }
+
             $entries = self::parseNcxDocument($package->read($ncxItem['partName']), $ncxItem['partName']);
 
             return [

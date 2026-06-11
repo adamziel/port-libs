@@ -2750,34 +2750,108 @@ XML;
         ])));
     },
 
-    'rejects OPF packages with missing manifest parts and bad spine references' => static function (TestRunner $t) use ($epubContainerXml): void {
+    'reports OPF spine itemrefs that miss manifest ids' => static function (TestRunner $t) use ($epubContainerXml): void {
         $badSpineOpf = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Broken</dc:title></metadata>
-  <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:bad-spine-review</dc:identifier>
+    <dc:title>Broken spine</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-11T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
   <spine><itemref idref="missing"/></spine>
 </package>
 XML;
-
-        $missingPartOpf = <<<'XML'
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Broken</dc:title></metadata>
-  <manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
-  <spine><itemref idref="chapter"/></spine>
-</package>
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="nav.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
 XML;
 
-        $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
+        $badSpine = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
             ['name' => 'EPUB/package.opf', 'data' => $badSpineOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
             ['name' => 'EPUB/chapter.xhtml', 'data' => '<html/>'],
-        ])));
+        ]));
+        $badSpineValidation = $badSpine->validationReport();
+        $badSpineSummary = $badSpine->summary();
 
-        $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
+        $t->same(false, $badSpineValidation['valid']);
+        $t->same(['missing-spine-manifest-item'], array_column($badSpineValidation['diagnostics'], 'type'));
+        $t->same(false, $badSpineValidation['spine']['valid']);
+        $t->same(1, $badSpineValidation['spine']['missingManifestItemCount']);
+        $t->same('missing', $badSpineValidation['spine']['missingManifestItems'][0]['idref']);
+        $t->same('missing-spine-manifest-item', $badSpineValidation['spine']['diagnostics'][0]['type']);
+        $t->same('missing', $badSpine->spine()[0]['idref']);
+        $t->same(true, $badSpine->spine()[0]['manifestItemMissing']);
+        $t->same(false, $badSpine->spine()[0]['exists']);
+        $t->same($badSpineValidation, $badSpineSummary['wordpressImport']['packageValidation']);
+    },
+
+    'reports OPF manifest href targets missing from the package' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $missingPartOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:missing-part-review</dc:identifier>
+    <dc:title>Missing package part</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-11T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="nav.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $missingPart = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
             ['name' => 'EPUB/package.opf', 'data' => $missingPartOpf],
-        ])));
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+        ]));
+        $missingPartValidation = $missingPart->validationReport();
+        $missingPartSummary = $missingPart->summary();
+        $chapter = $missingPart->manifestItem('chapter');
+
+        $t->same(false, $missingPartValidation['valid']);
+        $t->same(['missing-manifest-href-target', 'missing-spine-item-package-part'], array_column($missingPartValidation['diagnostics'], 'type'));
+        $t->same(false, $missingPartValidation['manifest']['valid']);
+        $t->same(1, $missingPartValidation['manifest']['missingItemCount']);
+        $t->same('chapter', $missingPartValidation['manifest']['missingItems'][0]['id']);
+        $t->same('/EPUB/chapter.xhtml', $missingPartValidation['manifest']['missingItems'][0]['partName']);
+        $t->same('missing-manifest-href-target', $missingPartValidation['manifest']['diagnostics'][0]['type']);
+        $t->same(false, $chapter['exists']);
+        $t->same(null, $chapter['byteLength']);
+        $t->same(false, $chapter['canExposeBytes']);
+        $t->same(1, $missingPartValidation['spine']['missingPackagePartCount']);
+        $t->same('chapter', $missingPartValidation['spine']['missingPackagePartItems'][0]['idref']);
+        $t->same('/EPUB/chapter.xhtml', $missingPartValidation['spine']['missingPackagePartItems'][0]['partName']);
+        $t->same('missing-spine-item-package-part', $missingPartValidation['spine']['diagnostics'][0]['type']);
+        $t->same(false, $missingPart->spine()[0]['exists']);
+        $t->same(false, $missingPart->spine()[0]['manifestItemMissing']);
+        $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
 ];
