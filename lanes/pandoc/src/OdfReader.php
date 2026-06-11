@@ -571,6 +571,8 @@ final class OdfReader
         $manifestByPart = [];
         $undeclaredByPart = [];
         $packageDirectoryCount = 0;
+        $roleCounts = [];
+        $roleBuckets = [];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -600,7 +602,7 @@ final class OdfReader
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
 
-            $parts[$entry->name] = [
+            $partProvenance = [
                 'part' => $entry->name,
                 'roles' => $this->packagePartRoles($entry, $manifestItem, $isUndeclared),
                 'centralDirectoryIndex' => $centralDirectoryIndex,
@@ -626,7 +628,15 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
             ];
+            $parts[$entry->name] = $partProvenance;
+
+            foreach ($partProvenance['roles'] as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                self::incrementPackageRoleBucket($roleBuckets, $role, $partProvenance);
+            }
         }
+        ksort($roleCounts);
+        ksort($roleBuckets);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -634,11 +644,69 @@ final class OdfReader
             'manifestDeclaredPartCount' => count($manifestByPart),
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
+            'roleCount' => count($roleCounts),
+            'roleCounts' => $roleCounts,
+            'roleBuckets' => $roleBuckets,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
             'parts' => $parts,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $buckets
+     * @param array<string, mixed> $part
+     */
+    private static function incrementPackageRoleBucket(array &$buckets, string $role, array $part): void
+    {
+        $buckets[$role] ??= [
+            'entryCount' => 0,
+            'parts' => [],
+            'declaredInManifestCount' => 0,
+            'undeclaredCount' => 0,
+            'directoryCount' => 0,
+            'encryptedCount' => 0,
+            'canExposeBytesCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'storedCompressionMethodCount' => 0,
+            'deflatedCompressionMethodCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+        ];
+
+        $buckets[$role]['entryCount']++;
+        $buckets[$role]['parts'][] = (string) ($part['part'] ?? '');
+        if (($part['declaredInManifest'] ?? false) === true) {
+            $buckets[$role]['declaredInManifestCount']++;
+        }
+        if (($part['undeclared'] ?? false) === true) {
+            $buckets[$role]['undeclaredCount']++;
+        }
+        if (($part['isDirectory'] ?? false) === true) {
+            $buckets[$role]['directoryCount']++;
+        }
+        if (($part['encrypted'] ?? false) === true) {
+            $buckets[$role]['encryptedCount']++;
+        }
+        if (($part['canExposeBytes'] ?? false) === true) {
+            $buckets[$role]['canExposeBytesCount']++;
+        }
+        if (is_int($part['compressedByteLength'] ?? null)) {
+            $buckets[$role]['compressedBytes'] += $part['compressedByteLength'];
+        }
+        if (is_int($part['byteLength'] ?? null)) {
+            $buckets[$role]['uncompressedBytes'] += $part['byteLength'];
+        }
+
+        $compressionMethod = $part['compressionMethod'] ?? null;
+        if ($compressionMethod === 0) {
+            $buckets[$role]['storedCompressionMethodCount']++;
+        } elseif ($compressionMethod === 8) {
+            $buckets[$role]['deflatedCompressionMethodCount']++;
+        } elseif (is_int($compressionMethod)) {
+            $buckets[$role]['unsupportedCompressionMethodCount']++;
+        }
     }
 
     /**

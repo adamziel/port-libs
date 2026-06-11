@@ -9799,6 +9799,81 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'summarizes ODT package role buckets for review handoff' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $secretImageBytes = 'SECRET';
+        $scriptBytes = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $thumbnailBytes = 'THUMBNAIL';
+        $manifestWithRoleBuckets = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="Pictures/secret.png" manifest:media-type="image/png">'
+            . '<manifest:encryption-data manifest:checksum-type="SHA1" manifest:checksum="abc">'
+            . '<manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv"/>'
+            . '</manifest:encryption-data>'
+            . '</manifest:file-entry>' . "\n"
+            . '  <manifest:file-entry manifest:full-path="Basic/Standard/script.xba" manifest:media-type="text/xml"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithRoleBuckets, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/secret.png', 'data' => $secretImageBytes, 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/script.xba', 'data' => $scriptBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+        ];
+        $order = array_column($parts, 'name');
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, $order));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $buckets = $provenance['roleBuckets'];
+        $manifestDeclaredBytes = strlen($contentXml)
+            + strlen($stylesXml)
+            + strlen($metaXml)
+            + strlen('PNGDATA')
+            + strlen($secretImageBytes)
+            + strlen($scriptBytes);
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(11, $provenance['roleCount']);
+        $t->same(6, $provenance['roleCounts']['manifest-declared']);
+        $t->same(2, $provenance['roleCounts']['media-resource']);
+        $t->same(1, $provenance['roleCounts']['script-package']);
+        $t->same(1, $provenance['roleCounts']['package-thumbnail']);
+        $t->same(1, $provenance['roleCounts']['undeclared-package-entry']);
+        $t->same(1, $provenance['roleCounts']['zip-directory']);
+
+        $t->same(6, $buckets['manifest-declared']['entryCount']);
+        $t->same(['content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png', 'Pictures/secret.png', 'Basic/Standard/script.xba'], $buckets['manifest-declared']['parts']);
+        $t->same($manifestDeclaredBytes, $buckets['manifest-declared']['uncompressedBytes']);
+        $t->same($manifestDeclaredBytes, $buckets['manifest-declared']['compressedBytes']);
+        $t->same(6, $buckets['manifest-declared']['declaredInManifestCount']);
+        $t->same(1, $buckets['manifest-declared']['encryptedCount']);
+        $t->same(4, $buckets['manifest-declared']['canExposeBytesCount']);
+
+        $t->same(['Pictures/hero.png', 'Pictures/secret.png'], $buckets['media-resource']['parts']);
+        $t->same(strlen('PNGDATA') + strlen($secretImageBytes), $buckets['media-resource']['uncompressedBytes']);
+        $t->same(1, $buckets['media-resource']['encryptedCount']);
+        $t->same(1, $buckets['media-resource']['canExposeBytesCount']);
+
+        $t->same(['Basic/Standard/script.xba'], $buckets['script-package']['parts']);
+        $t->same(strlen($scriptBytes), $buckets['script-package']['uncompressedBytes']);
+        $t->same(0, $buckets['script-package']['canExposeBytesCount']);
+
+        $t->same(['Thumbnails/thumbnail.png'], $buckets['package-thumbnail']['parts']);
+        $t->same(1, $buckets['package-thumbnail']['undeclaredCount']);
+        $t->same(strlen($thumbnailBytes), $buckets['package-thumbnail']['uncompressedBytes']);
+        $t->same(['Thumbnails/thumbnail.png'], $buckets['undeclared-package-entry']['parts']);
+        $t->same(1, $buckets['undeclared-package-entry']['undeclaredCount']);
+
+        $t->same(['Pictures/'], $buckets['zip-directory']['parts']);
+        $t->same(1, $buckets['zip-directory']['directoryCount']);
+        $t->same(0, $buckets['zip-directory']['uncompressedBytes']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
