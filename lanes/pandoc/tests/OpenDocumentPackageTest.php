@@ -70,6 +70,29 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
+$settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+  office:version="1.3">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ViewAreaTop" config:type="int">120</config:config-item>
+      <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
+      <config:config-item-map-indexed config:name="Views">
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">review-view</config:config-item>
+          <config:config-item config:name="VisibleAreaWidth" config:type="int">16000</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-indexed>
+    </config:config-item-set>
+    <config:config-item-set config:name="ooo:configuration-settings">
+      <config:config-item config:name="AddParaTableSpacing" config:type="boolean">false</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+
 $buildOdtPackage = static function (
     ?string $manifest = null,
     ?string $content = null,
@@ -396,6 +419,47 @@ XML;
         $t->same(210, $metadata['statistics']['syllableCount']);
         $t->same(1, $metadata['statistics']['imageCount']);
         $t->same($metadata['statistics'], $summary['metadata']['statistics']);
+    },
+    'preserves ODT settings XML configuration package metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $settingsXml): void {
+        $manifest = str_replace(
+            '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>' . "\n" .
+            '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'settings.xml', 'data' => $settingsXml]],
+        ));
+        $summary = $odt->summarize();
+        $settings = $odt->settings();
+        $settingsEntry = $odt->manifestEntry('settings.xml');
+        $document = $odt->readContentDocument();
+
+        $t->same(true, $summary['settingsXml']);
+        $t->same(6, $summary['manifestReview']['count']);
+        $t->same(true, $settingsEntry['exists']);
+        $t->same(strlen($settingsXml), $settingsEntry['byteLength']);
+        $t->same('package-bytes-exposable', $settingsEntry['byteExposurePolicy']);
+        $t->same([], $settingsEntry['diagnostics']);
+
+        $t->same(2, $settings['setCount']);
+        $t->same(5, $settings['itemCount']);
+        $t->same(1, $settings['mapCount']);
+        $t->same(1, $settings['mapEntryCount']);
+        $t->same('ooo:view-settings', $settings['sets'][0]['name']);
+        $t->same(120, $settings['byName']['ooo:view-settings']['items'][0]['value']);
+        $t->same('int', $settings['byName']['ooo:view-settings']['items'][0]['type']);
+        $t->same(true, $settings['byName']['ooo:view-settings']['items'][1]['value']);
+        $t->same('Views', $settings['byName']['ooo:view-settings']['maps'][0]['name']);
+        $t->same('indexed', $settings['byName']['ooo:view-settings']['maps'][0]['type']);
+        $t->same(1, $settings['byName']['ooo:view-settings']['maps'][0]['entryCount']);
+        $t->same('review-view', $settings['byName']['ooo:view-settings']['maps'][0]['entries'][0]['items'][0]['value']);
+        $t->same(16000, $settings['byName']['ooo:view-settings']['maps'][0]['entries'][0]['items'][1]['value']);
+        $t->same(false, $settings['byName']['ooo:configuration-settings']['items'][0]['value']);
+        $t->same($settings, $summary['settings']);
+        $t->same($settings, $document->attr('settings'));
     },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();

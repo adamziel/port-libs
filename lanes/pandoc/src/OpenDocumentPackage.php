@@ -15,6 +15,7 @@ final class OpenDocumentPackage
     public const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink';
     public const DC_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
     public const META_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
+    public const CONFIG_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
 
     /** @var array<string, array<string, mixed>> */
     private array $manifestEntriesByPath;
@@ -24,6 +25,7 @@ final class OpenDocumentPackage
      * @param array<string, array<string, mixed>> $manifestEntriesByPath
      * @param array<string, array{name:string, family:string, parent:string|null, displayName:string|null}> $stylesByName
      * @param array<string, mixed> $metadata
+     * @param array<string, mixed> $settings
      */
     private function __construct(
         private readonly ZipPackage $package,
@@ -32,6 +34,7 @@ final class OpenDocumentPackage
         array $manifestEntriesByPath,
         private readonly array $stylesByName,
         private readonly array $metadata,
+        private readonly array $settings,
     ) {
         $this->manifestEntriesByPath = $manifestEntriesByPath;
     }
@@ -68,7 +71,7 @@ final class OpenDocumentPackage
             }
         }
 
-        foreach (['styles.xml', 'meta.xml'] as $optionalPart) {
+        foreach (['styles.xml', 'meta.xml', 'settings.xml'] as $optionalPart) {
             if (isset($manifestEntriesByPath[$optionalPart]) && !$package->has($optionalPart)) {
                 throw new \RuntimeException("ODT package is missing manifest-declared part {$optionalPart}");
             }
@@ -76,8 +79,9 @@ final class OpenDocumentPackage
 
         $styles = isset($manifestEntriesByPath['styles.xml']) ? self::parseStyles($package->read('styles.xml')) : [];
         $metadata = isset($manifestEntriesByPath['meta.xml']) ? self::parseMetadata($package->read('meta.xml')) : [];
+        $settings = isset($manifestEntriesByPath['settings.xml']) ? self::parseSettings($package->read('settings.xml')) : [];
 
-        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata);
+        return new self($package, $manifest['version'], $manifestEntries, $manifestEntriesByPath, $styles, $metadata, $settings);
     }
 
     public function package(): ZipPackage
@@ -127,6 +131,14 @@ final class OpenDocumentPackage
         return $this->metadata;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function settings(): array
+    {
+        return $this->settings;
+    }
+
     public function readContentDocument(): AstNode
     {
         $dom = self::loadXml($this->package->read('content.xml'), 'ODT content.xml');
@@ -173,6 +185,7 @@ final class OpenDocumentPackage
             'format' => 'odt',
             'metadata' => $this->metadata,
             'styles' => $this->stylesByName,
+            'settings' => $this->settings,
         ], $blocks);
     }
 
@@ -183,6 +196,7 @@ final class OpenDocumentPackage
      *     contentXml:bool,
      *     stylesXml:bool,
      *     metaXml:bool,
+     *     settingsXml:bool,
      *     mediaParts:list<array<string, mixed>>,
      *     missingMediaPartCount:int,
      *     missingMediaParts:list<array{path:string, mediaType:string}>,
@@ -191,6 +205,7 @@ final class OpenDocumentPackage
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
      *     metadata:array<string, mixed>,
+     *     settings:array<string, mixed>,
      *     styleNames:list<string>,
      *     contentBlocks:int
      * }
@@ -240,6 +255,7 @@ final class OpenDocumentPackage
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
+            'settingsXml' => isset($this->manifestEntriesByPath['settings.xml']),
             'mediaParts' => $mediaParts,
             'missingMediaPartCount' => count($missingMediaParts),
             'missingMediaParts' => $missingMediaParts,
@@ -248,6 +264,7 @@ final class OpenDocumentPackage
             'encryptedParts' => $encryptedParts,
             'manifestReview' => self::manifestReview($this->manifestEntries),
             'metadata' => $this->metadata,
+            'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
         ];
@@ -613,6 +630,176 @@ final class OpenDocumentPackage
         }
 
         return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseSettings(string $xml): array
+    {
+        $dom = self::loadXml($xml, 'ODT settings.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !in_array($root->localName, ['document-settings', 'document'], true) || $root->namespaceURI !== self::OFFICE_NAMESPACE) {
+            throw new \InvalidArgumentException('ODT settings.xml must use an office:document-settings or office:document root');
+        }
+
+        $settings = self::firstElementByPath($root, [[self::OFFICE_NAMESPACE, 'settings']]);
+        if (!$settings instanceof \DOMElement) {
+            return [
+                'setCount' => 0,
+                'itemCount' => 0,
+                'mapCount' => 0,
+                'mapEntryCount' => 0,
+                'sets' => [],
+                'byName' => [],
+            ];
+        }
+
+        $sets = [];
+        $byName = [];
+        $itemCount = 0;
+        $mapCount = 0;
+        $mapEntryCount = 0;
+        foreach ($settings->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::CONFIG_NAMESPACE || $child->localName !== 'config-item-set') {
+                continue;
+            }
+
+            $set = self::settingsSet($child);
+            $sets[] = $set;
+            if ($set['name'] !== '') {
+                $byName[$set['name']] = $set;
+            }
+            $itemCount += $set['itemCount'];
+            $mapCount += $set['mapCount'];
+            $mapEntryCount += $set['mapEntryCount'];
+        }
+
+        return [
+            'setCount' => count($sets),
+            'itemCount' => $itemCount,
+            'mapCount' => $mapCount,
+            'mapEntryCount' => $mapEntryCount,
+            'sets' => $sets,
+            'byName' => $byName,
+        ];
+    }
+
+    /**
+     * @return array{name:string, itemCount:int, mapCount:int, mapEntryCount:int, items:list<array<string, mixed>>, maps:list<array<string, mixed>>}
+     */
+    private static function settingsSet(\DOMElement $set): array
+    {
+        $parsed = self::settingsItemsAndMaps($set);
+        $itemCount = count($parsed['items']);
+        $mapEntryCount = 0;
+        foreach ($parsed['maps'] as $map) {
+            $itemCount += $map['itemCount'];
+            $mapEntryCount += $map['entryCount'];
+        }
+
+        return [
+            'name' => self::namespacedAttribute($set, self::CONFIG_NAMESPACE, 'name') ?? '',
+            'itemCount' => $itemCount,
+            'mapCount' => count($parsed['maps']),
+            'mapEntryCount' => $mapEntryCount,
+            'items' => $parsed['items'],
+            'maps' => $parsed['maps'],
+        ];
+    }
+
+    /**
+     * @return array{items:list<array<string, mixed>>, maps:list<array<string, mixed>>}
+     */
+    private static function settingsItemsAndMaps(\DOMElement $container): array
+    {
+        $items = [];
+        $maps = [];
+        foreach ($container->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::CONFIG_NAMESPACE) {
+                continue;
+            }
+
+            if ($child->localName === 'config-item') {
+                $items[] = self::settingsItem($child);
+                continue;
+            }
+
+            if (in_array($child->localName, ['config-item-map-indexed', 'config-item-map-named'], true)) {
+                $maps[] = self::settingsMap($child);
+            }
+        }
+
+        return [
+            'items' => $items,
+            'maps' => $maps,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function settingsItem(\DOMElement $item): array
+    {
+        $rawValue = trim($item->textContent);
+        $type = self::namespacedAttribute($item, self::CONFIG_NAMESPACE, 'type') ?? 'string';
+
+        return [
+            'name' => self::namespacedAttribute($item, self::CONFIG_NAMESPACE, 'name') ?? '',
+            'type' => $type,
+            'value' => self::settingsValue($rawValue, $type),
+            'rawValue' => $rawValue,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function settingsMap(\DOMElement $map): array
+    {
+        $entries = [];
+        $itemCount = 0;
+        foreach ($map->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::CONFIG_NAMESPACE || $child->localName !== 'config-item-map-entry') {
+                continue;
+            }
+
+            $parsed = self::settingsItemsAndMaps($child);
+            $itemCount += count($parsed['items']);
+            $entry = [
+                'name' => self::optionalString(self::namespacedAttribute($child, self::CONFIG_NAMESPACE, 'name')),
+                'itemCount' => count($parsed['items']),
+                'items' => $parsed['items'],
+            ];
+            if ($parsed['maps'] !== []) {
+                $entry['maps'] = $parsed['maps'];
+            }
+            $entries[] = self::withoutNulls($entry);
+        }
+
+        return [
+            'name' => self::namespacedAttribute($map, self::CONFIG_NAMESPACE, 'name') ?? '',
+            'type' => $map->localName === 'config-item-map-named' ? 'named' : 'indexed',
+            'entryCount' => count($entries),
+            'itemCount' => $itemCount,
+            'entries' => $entries,
+        ];
+    }
+
+    private static function settingsValue(string $rawValue, string $type): string|int|float|bool
+    {
+        $normalizedType = strtolower($type);
+        if (in_array($normalizedType, ['boolean', 'bool'], true)) {
+            return in_array(strtolower($rawValue), ['true', '1'], true);
+        }
+        if (in_array($normalizedType, ['int', 'integer', 'long', 'short'], true) && preg_match('/^-?\d+$/', $rawValue) === 1) {
+            return (int) $rawValue;
+        }
+        if (in_array($normalizedType, ['double', 'float'], true) && is_numeric($rawValue)) {
+            return (float) $rawValue;
+        }
+
+        return $rawValue;
     }
 
     /**
