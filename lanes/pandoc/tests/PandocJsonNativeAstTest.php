@@ -1927,8 +1927,11 @@ return [
         $t->same(['review-image'], $image->attr('classes'));
         $t->same('Figure', $encoded['blocks'][0]['t']);
         $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
-        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Reviewer', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $encoded['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $encoded['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $encoded['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Short', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Reviewer', $encoded['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Reviewer figure', $roundTrip->attr('caption'));
         $t->contains(
@@ -2040,8 +2043,11 @@ return [
         $t->same('Alt text', $roundTrip->children[0]->children[0]->attr('alt'));
         $t->contains('<figure class="wp-block-image wp-import" id="json-figure" data-source="json-filter"><img src="media/hero.png" alt="Alt text" title="Hero title" class="hero-image" data-source="media-bag"/><figcaption>Long caption source</figcaption></figure>', $blocks);
         $t->same('Figure', $generated['blocks'][0]['t']);
-        $t->same('Generated', $generated['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Generated', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $generated['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $generated['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $generated['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Generated', $generated['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('Generated', $generated['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
         $t->same('generated-figure', $generatedRoundTrip->children[0]->attr('id'));
         $t->same('Generated caption', $generatedRoundTrip->children[0]->attr('caption'));
@@ -2184,8 +2190,59 @@ return [
         $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
         $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
 
-        $t->same('Edited', $editedJson['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Edited', $editedNative['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Edited', $editedJson['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Edited', $editedNative['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+    },
+    'writes generated caption maybe constructors through pandoc json and native writers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('table', [
+                'caption' => 'Long generated table',
+                'shortCaption' => 'Short generated table',
+            ], [
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'Cell']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('figure', [
+                'caption' => 'Long generated figure',
+            ], [
+                new AstNode('image', [
+                    'url' => 'media/generated.png',
+                    'alt' => 'Generated image',
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $source => $packet) {
+            $tableCaption = $packet['blocks'][0]['c'][1];
+            $figureCaption = $packet['blocks'][1]['c'][1];
+
+            $t->same('Caption', $tableCaption['t'], "{$source} table caption constructor");
+            $t->same('Just', $tableCaption['c'][0]['t'], "{$source} table short caption maybe constructor");
+            $t->same('ShortCaption', $tableCaption['c'][0]['c']['t'], "{$source} table short caption constructor");
+            $t->same('Short', $tableCaption['c'][0]['c']['c'][0][0]['c'], "{$source} table short caption first word");
+            $t->same('Plain', $tableCaption['c'][1][0]['t'], "{$source} table long caption block constructor");
+            $t->same('Long', $tableCaption['c'][1][0]['c'][0]['c'], "{$source} table long caption first word");
+            $t->same('Caption', $figureCaption['t'], "{$source} figure caption constructor");
+            $t->same('Nothing', $figureCaption['c'][0]['t'], "{$source} figure short caption maybe constructor");
+            $t->same('Plain', $figureCaption['c'][1][0]['t'], "{$source} figure long caption block constructor");
+            $t->same('Long', $figureCaption['c'][1][0]['c'][0]['c'], "{$source} figure long caption first word");
+        }
+
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+
+        $t->same('Short generated table', $jsonRoundTrip->children[0]->attr('shortCaption'));
+        $t->same('Long generated table', $nativeRoundTrip->children[0]->attr('caption'));
+        $t->same('', $jsonRoundTrip->children[1]->attr('shortCaption', ''));
+        $t->same('Long generated figure', $nativeRoundTrip->children[1]->attr('caption'));
     },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
@@ -2443,8 +2500,11 @@ return [
         $t->same(['text', 'space', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines));
         $t->same('Table', $encoded['blocks'][0]['t']);
         $t->same($tableBlock['c'][0], $encoded['blocks'][0]['c'][0]);
-        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $encoded['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $encoded['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $encoded['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Short', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Long', $encoded['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('ColWidth', $encoded['blocks'][0]['c'][2][0][1]['t']);
         $t->same(0.4, $encoded['blocks'][0]['c'][2][0][1]['c']);
         $t->same(['t' => 'RowHeadColumns', 'c' => 1], $encoded['blocks'][0]['c'][4][0][1]);
@@ -2456,8 +2516,11 @@ return [
         $t->contains('<figcaption class="wp-element-caption">Long <em>caption</em> <a href="https://example.test/review" title="Review">reviewer</a></figcaption>', $blocks);
         $t->same('captionBlocks', $packet['captions']['long']['source'] ?? null);
         $t->same('shortCaptionInlines', $packet['captions']['short']['source'] ?? null);
-        $t->same('Fallback', $generated['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Fallback', $generated['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same('Caption', $generated['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $generated['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $generated['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Fallback', $generated['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Fallback', $generated['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same(['t' => 'RowHeadColumns', 'c' => 0], $generated['blocks'][0]['c'][4][0][1]);
         $t->same(['t' => 'RowSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][2]);
         $t->same(['t' => 'ColSpan', 'c' => 1], $generated['blocks'][0]['c'][4][0][3][0][1][0][3]);
@@ -2552,10 +2615,13 @@ return [
         $roundTripPacket = TableGeometry::reviewPacket($table, ['accessibility' => false]);
 
         $t->same('shortCaptionBlocks', $sourcePacket['captions']['short']['source'] ?? null);
-        $t->same('Review', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Space', $encoded['blocks'][0]['c'][1][0][1]['t']);
-        $t->same('Emph', $encoded['blocks'][0]['c'][1][0][2]['t']);
-        $t->same('Plain', $encoded['blocks'][0]['c'][1][1][0]['t']);
+        $t->same('Caption', $encoded['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $encoded['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $encoded['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Review', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Space', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][1]['t']);
+        $t->same('Emph', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][2]['t']);
+        $t->same('Plain', $encoded['blocks'][0]['c'][1]['c'][1][0]['t']);
         $t->same('JSON long caption', $table->attr('caption'));
         $t->same('Review queue', $table->attr('shortCaption'));
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);

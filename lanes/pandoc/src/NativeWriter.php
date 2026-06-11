@@ -327,7 +327,7 @@ final class NativeWriter
     }
 
     /**
-     * @return array<string, mixed>|array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private function tableCaption(AstNode $node): array
     {
@@ -336,7 +336,32 @@ final class NativeWriter
             $this->longCaptionBlocks($node),
         ];
 
-        return $this->reusableCaptionNative($node, $caption) ?? $caption;
+        return $this->reusableCaptionNative($node, $caption) ?? [
+            't' => 'Caption',
+            'c' => [
+                $this->shortCaptionMaybe($caption[0]),
+                $caption[1],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>>|null $shortCaption
+     * @return array<string, mixed>
+     */
+    private function shortCaptionMaybe(?array $shortCaption): array
+    {
+        if ($shortCaption === null) {
+            return ['t' => 'Nothing'];
+        }
+
+        return [
+            't' => 'Just',
+            'c' => [
+                't' => 'ShortCaption',
+                'c' => [$shortCaption],
+            ],
+        ];
     }
 
     /**
