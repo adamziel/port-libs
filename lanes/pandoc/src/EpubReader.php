@@ -675,7 +675,7 @@ final class EpubReader
         $selectedIndex = null;
 
         foreach (($container['rootfiles'] ?? []) as $rootfile) {
-            if (!is_array($rootfile) || ($rootfile['mediaType'] ?? null) !== self::OPF_MEDIA_TYPE) {
+            if (!is_array($rootfile) || !self::mediaTypeBaseEquals($rootfile['mediaType'] ?? null, self::OPF_MEDIA_TYPE)) {
                 continue;
             }
 

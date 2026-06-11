@@ -1483,6 +1483,46 @@ XML;
         $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
         $t->same(2, count($result['document']->children));
     },
+    'preserves parameterized OPF rootfile renditions for EPUB package review' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $parameterizedContainer = str_replace(
+            [
+                'media-type="application/oebps-package+xml"',
+                '</rootfiles>',
+            ],
+            [
+                'media-type="application/oebps-package+xml; profile=primary"',
+                '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml; profile=fixed-layout"/>' . "\n" . '  </rootfiles>',
+            ],
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $parameterizedContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $rootfiles = $result['container']['rootfiles'];
+        $renditions = $result['renditions'];
+
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same('application/oebps-package+xml; profile=primary', $rootfiles[0]['mediaType']);
+        $t->same('application/oebps-package+xml; profile=fixed-layout', $rootfiles[1]['mediaType']);
+        $t->same(true, $rootfiles[0]['selected']);
+        $t->same(false, $rootfiles[1]['selected']);
+        $t->same(2, $renditions['count']);
+        $t->same(1, $renditions['alternateCount']);
+        $t->same(0, $renditions['selectedIndex']);
+        $t->same('application/oebps-package+xml; profile=primary', $renditions['items'][0]['mediaType']);
+        $t->same('application/oebps-package+xml; profile=fixed-layout', $renditions['items'][1]['mediaType']);
+        $t->same('/OEBPS/fixed/package.opf', $renditions['items'][1]['path']);
+        $t->same('Fixed layout reviewer edition', $renditions['items'][1]['metadata']['title']);
+        $t->same('pre-paginated', $renditions['items'][1]['renditionProperties']['layout']);
+        $t->same($renditions, $result['importReport']['renditions']);
+        $t->same($renditions, $result['document']->attr('renditions'));
+    },
     'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithFixedLayout = str_replace(
             '<meta name="cover" content="cover-image"/>',
