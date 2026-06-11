@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, contentTypeOverrideDeclarationCount:int, contentTypeUsedOverrideDeclarationCount:int, contentTypeUnusedOverrideDeclarationCount:int, contentTypeInvalidOverrideDeclarationCount:int, contentTypeUnusedOverridePartNames:list<string>, contentTypeOverrideDeclarationIssueCounts:array<string, int>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, contentTypeOverrideDeclarations:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, matchKind:string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, contentTypeOverrideDeclarationCount:int, contentTypeUsedOverrideDeclarationCount:int, contentTypeUnusedOverrideDeclarationCount:int, contentTypeInvalidOverrideDeclarationCount:int, contentTypeUnusedOverridePartNames:list<string>, contentTypeOverrideDeclarationIssueCounts:array<string, int>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, entryNamesByIssue:array<string, list<string>>, partNamesByIssue:array<string, list<string>>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, contentTypeOverrideDeclarations:list<array{partName:string, contentType:string, exists:bool, packagePartName:?string, matchKind:string, partNameExactMatch:bool, partNameEquivalentMatch:bool, relationshipPart:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -546,6 +546,8 @@ final class OpcRelationshipGraph
 
         $issues = [];
         $issueCounts = [];
+        $entryNamesByIssue = [];
+        $partNamesByIssue = [];
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
@@ -584,6 +586,13 @@ final class OpcRelationshipGraph
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = 1;
             $issues[] = 'missing-content-types-item';
+            self::recordZipManifestIssueProvenance(
+                $entryNamesByIssue,
+                $partNamesByIssue,
+                'missing-content-types-item',
+                null,
+                '/[Content_Types].xml',
+            );
         }
 
         foreach ($entries as $entry) {
@@ -651,6 +660,13 @@ final class OpcRelationshipGraph
             foreach ($entry['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
                 self::appendUniqueString($issues, $issue);
+                self::recordZipManifestIssueProvenance(
+                    $entryNamesByIssue,
+                    $partNamesByIssue,
+                    $issue,
+                    $entry['entryName'],
+                    $entry['partName'],
+                );
             }
 
             if ($entry['relationshipPart']) {
@@ -711,10 +727,19 @@ final class OpcRelationshipGraph
             foreach ($declaration['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
                 self::appendUniqueString($issues, $issue);
+                self::recordZipManifestIssueProvenance(
+                    $entryNamesByIssue,
+                    $partNamesByIssue,
+                    $issue,
+                    null,
+                    $declaration['partName'],
+                );
             }
         }
 
         ksort($issueCounts);
+        self::sortZipManifestIssueProvenance($entryNamesByIssue);
+        self::sortZipManifestIssueProvenance($partNamesByIssue);
         ksort($contentTypeOverrideDeclarationIssueCounts);
         ksort($roleCounts);
         ksort($byteCountsByRole);
@@ -783,6 +808,8 @@ final class OpcRelationshipGraph
             'binaryPayloadPartCount' => $binaryPayloadPartCount,
             'issueCounts' => $issueCounts,
             'issues' => $issues,
+            'entryNamesByIssue' => $entryNamesByIssue,
+            'partNamesByIssue' => $partNamesByIssue,
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
@@ -971,6 +998,8 @@ final class OpcRelationshipGraph
 
         $issues = $centralDirectory['issues'];
         $issueCounts = [];
+        $entryNamesByIssue = [];
+        $partNamesByIssue = [];
         foreach ($issues as $issue) {
             $issueCounts[$issue] = 1;
         }
@@ -1004,6 +1033,13 @@ final class OpcRelationshipGraph
         if ($contentTypesItems === []) {
             $issueCounts['missing-content-types-item'] = ($issueCounts['missing-content-types-item'] ?? 0) + 1;
             self::appendUniqueString($issues, 'missing-content-types-item');
+            self::recordZipManifestIssueProvenance(
+                $entryNamesByIssue,
+                $partNamesByIssue,
+                'missing-content-types-item',
+                null,
+                '/[Content_Types].xml',
+            );
         }
 
         foreach ($entries as $entry) {
@@ -1051,6 +1087,13 @@ final class OpcRelationshipGraph
             foreach ($entry['issues'] as $issue) {
                 $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
                 self::appendUniqueString($issues, $issue);
+                self::recordZipManifestIssueProvenance(
+                    $entryNamesByIssue,
+                    $partNamesByIssue,
+                    $issue,
+                    $entry['entryName'],
+                    $entry['partName'],
+                );
             }
 
             if ($entry['relationshipPart']) {
@@ -1104,6 +1147,8 @@ final class OpcRelationshipGraph
         }
 
         ksort($issueCounts);
+        self::sortZipManifestIssueProvenance($entryNamesByIssue);
+        self::sortZipManifestIssueProvenance($partNamesByIssue);
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
@@ -1148,6 +1193,8 @@ final class OpcRelationshipGraph
             'binaryPayloadPartCount' => $binaryPayloadPartCount,
             'issueCounts' => $issueCounts,
             'issues' => $issues,
+            'entryNamesByIssue' => $entryNamesByIssue,
+            'partNamesByIssue' => $partNamesByIssue,
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
@@ -7405,6 +7452,40 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['entryCount']++;
         $buckets[$bucket]['compressedBytes'] += $compressedSize;
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
+    }
+
+    /**
+     * @param array<string, list<string>> $entryNamesByIssue
+     * @param array<string, list<string>> $partNamesByIssue
+     */
+    private static function recordZipManifestIssueProvenance(
+        array &$entryNamesByIssue,
+        array &$partNamesByIssue,
+        string $issue,
+        ?string $entryName,
+        ?string $partName
+    ): void {
+        if ($entryName !== null) {
+            $entryNamesByIssue[$issue] ??= [];
+            self::appendUniqueString($entryNamesByIssue[$issue], $entryName);
+        }
+
+        if ($partName !== null) {
+            $partNamesByIssue[$issue] ??= [];
+            self::appendUniqueString($partNamesByIssue[$issue], $partName);
+        }
+    }
+
+    /**
+     * @param array<string, list<string>> $groups
+     */
+    private static function sortZipManifestIssueProvenance(array &$groups): void
+    {
+        ksort($groups, SORT_STRING);
+        foreach ($groups as &$values) {
+            sort($values, SORT_STRING);
+        }
+        unset($values);
     }
 
     private static function isEmbeddedPackageCandidate(string $partName, ?string $contentType = null): bool

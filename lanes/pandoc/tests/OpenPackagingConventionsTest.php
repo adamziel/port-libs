@@ -193,6 +193,18 @@ return [
             'content-types-item-source',
         ], $summary['issues']);
         $t->same([
+            'content-types-item-source' => ['_rels/[Content_Types].xml.rels'],
+            'invalid-relationship-part-name' => ['word/_rels/media/document.xml.rels'],
+            'orphan-relationship-part' => ['word/_rels/orphan.xml.rels'],
+            'relationship-part-source' => ['word/_rels/_rels/document.xml.rels.rels'],
+        ], $summary['entryNamesByIssue']);
+        $t->same([
+            'content-types-item-source' => ['/_rels/[Content_Types].xml.rels'],
+            'invalid-relationship-part-name' => ['/word/_rels/media/document.xml.rels'],
+            'orphan-relationship-part' => ['/word/_rels/orphan.xml.rels'],
+            'relationship-part-source' => ['/word/_rels/_rels/document.xml.rels.rels'],
+        ], $summary['partNamesByIssue']);
+        $t->same([
             'content-types' => 1,
             'digital-signature' => 2,
             'directory' => 1,
@@ -242,6 +254,8 @@ return [
         $t->same(0, $missingContentTypes['contentTypesItemCount']);
         $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
         $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
+        $t->same([], $missingContentTypes['entryNamesByIssue']);
+        $t->same(['missing-content-types-item' => ['/[Content_Types].xml']], $missingContentTypes['partNamesByIssue']);
     },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
@@ -319,6 +333,8 @@ return [
         $t->same(2, $summary['binaryPayloadPartCount']);
         $t->same(['orphan-relationship-part' => 1], $summary['issueCounts']);
         $t->same(['orphan-relationship-part'], $summary['issues']);
+        $t->same(['orphan-relationship-part' => ['word/_rels/orphan.xml.rels']], $summary['entryNamesByIssue']);
+        $t->same(['orphan-relationship-part' => ['/word/_rels/orphan.xml.rels']], $summary['partNamesByIssue']);
         $t->same([
             'content-types' => 1,
             'directory' => 1,
@@ -674,6 +690,11 @@ XML;
             'relationship-override-source-missing' => 1,
         ], $summary['issueCounts']);
         $t->same(['override-target-missing-part', 'relationship-override-source-missing'], $summary['issues']);
+        $t->same([], $summary['entryNamesByIssue']);
+        $t->same([
+            'override-target-missing-part' => ['/word/_rels/missing.xml.rels', '/word/missing.xml'],
+            'relationship-override-source-missing' => ['/word/_rels/missing.xml.rels'],
+        ], $summary['partNamesByIssue']);
 
         $t->same('exact', $overrides['/word/document.xml']['matchKind']);
         $t->same(true, $overrides['/word/document.xml']['exists']);
