@@ -480,6 +480,8 @@ final class EpubPackage
                     'sortTitle' => $this->metadata['sortTitle'] ?? null,
                     'creatorDetails' => $this->metadata['creatorDetails'] ?? [],
                     'creatorsByRole' => $this->metadata['creatorsByRole'] ?? [],
+                    'contributorDetails' => $this->metadata['contributorDetails'] ?? [],
+                    'contributorsByRole' => $this->metadata['contributorsByRole'] ?? [],
                     'uniqueIdentifier' => $this->metadata['uniqueIdentifier'] ?? null,
                     'identifierDetails' => $this->metadata['identifierDetails'] ?? [],
                     'identifierSummary' => $this->metadata['identifierSummary'] ?? [],

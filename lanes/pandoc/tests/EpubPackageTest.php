@@ -728,6 +728,64 @@ XML;
         $t->same('urn:isbn:9780000000001', $summary['wordpressImport']['metadataDetails']['identifiersByType']['15'][0]['value']);
     },
 
+    'preserves OPF contributor refinements in WordPress metadata handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithContributors = str_replace(
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>',
+            '<dc:creator id="creator">Data Liberation Team</dc:creator>
+    <dc:contributor id="editor" xml:lang="en">Review Editor</dc:contributor>
+    <dc:contributor id="translator" xml:lang="fr" dir="ltr">Equipe de traduction</dc:contributor>',
+            $epub3OpfXml
+        );
+        $opfWithContributors = str_replace(
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
+            '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>
+    <meta refines="#editor" property="role" scheme="marc:relators">edt</meta>
+    <meta refines="#editor" property="file-as">Editor, Review</meta>
+    <meta refines="#editor" property="display-seq">2</meta>
+    <meta refines="#translator" property="role" scheme="marc:relators">trl</meta>
+    <meta refines="#translator" property="alternate-script" xml:lang="en" dir="ltr">Translation Team</meta>',
+            $opfWithContributors
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithContributors],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $contributors = $metadata['contributorDetails'];
+
+        $t->same(['Review Editor', 'Equipe de traduction'], $metadata['contributors']);
+        $t->same(2, count($contributors));
+        $t->same('contributor', $contributors[0]['kind']);
+        $t->same('editor', $contributors[0]['id']);
+        $t->same('Review Editor', $contributors[0]['text']);
+        $t->same('en', $contributors[0]['language']);
+        $t->same('Editor, Review', $contributors[0]['fileAs']);
+        $t->same('2', $contributors[0]['displaySeq']);
+        $t->same(['edt'], $contributors[0]['roleValues']);
+        $t->same('edt', $contributors[0]['primaryRole']);
+        $t->same('marc:relators', $contributors[0]['roles'][0]['scheme']);
+        $t->same('translator', $contributors[1]['id']);
+        $t->same('fr', $contributors[1]['language']);
+        $t->same('ltr', $contributors[1]['direction']);
+        $t->same(['trl'], $contributors[1]['roleValues']);
+        $t->same('Translation Team', $contributors[1]['alternateScripts'][0]['text']);
+        $t->same('en', $contributors[1]['alternateScripts'][0]['language']);
+        $t->same('ltr', $contributors[1]['alternateScripts'][0]['direction']);
+        $t->same('Review Editor', $metadata['contributorsByRole']['edt'][0]['text']);
+        $t->same('Equipe de traduction', $metadata['contributorsByRole']['trl'][0]['text']);
+        $t->same($contributors, $summary['wordpressImport']['metadataDetails']['contributorDetails']);
+        $t->same($metadata['contributorsByRole'], $summary['wordpressImport']['metadataDetails']['contributorsByRole']);
+    },
+
     'preflights OPF unique identifier and duplicate identifier diagnostics for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithIdentifierDiagnostics = str_replace(
             '<dc:identifier id="bookid">urn:isbn:9780000000001</dc:identifier>',
