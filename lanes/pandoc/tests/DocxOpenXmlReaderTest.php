@@ -68,6 +68,41 @@ return [
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'normalizes docx drawing image target suffixes while preserving package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            'Target="media/review.png"',
+            'Target="media/review.png?display=preview#inline"',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $image = $document->children[4]->children[1];
+        $relationship = $docx['packageProvenance']['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('word/media/review.png', $image->attr('url'));
+        $t->same('word/media/review.png', $image->attr('mediaPath'));
+        $t->same('media/review.png?display=preview#inline', $image->attr('target'));
+        $t->same('word/media/review.png?display=preview#inline', $image->attr('resolvedTarget'));
+        $t->same('word/media/review.png', $image->attr('targetPart'));
+        $t->same('display=preview', $image->attr('targetQuery'));
+        $t->same('inline', $image->attr('targetFragment'));
+        $t->same('?display=preview#inline', $image->attr('targetReferenceSuffix'));
+        $t->same('image/png', $image->attr('contentType'));
+        $t->same(strlen('fake png bytes'), $docx['media']['word/media/review.png']['size']);
+
+        $t->same('media/review.png?display=preview#inline', $relationship['target']);
+        $t->same('word/media/review.png?display=preview#inline', $relationship['resolvedTarget']);
+        $t->same('word/media/review.png', $relationship['targetPart']);
+        $t->same('display=preview', $relationship['targetQuery']);
+        $t->same('inline', $relationship['targetFragment']);
+        $t->same('?display=preview#inline', $relationship['targetReferenceSuffix']);
+        $t->contains('![Review screenshot](word/media/review.png "Review image")', $markdown);
+        $t->contains('<img src="word/media/review.png" alt="Review screenshot" title="Review image"/>', $blocks);
+    },
     'exposes docx package content type relationship and part inventory provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
