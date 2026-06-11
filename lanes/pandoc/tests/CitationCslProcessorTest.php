@@ -7461,6 +7461,98 @@ XML);
         $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
         $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
     },
+    'maps bounded biblatex series creator aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{series-creator-source,
+  author             = {Smith, Ada},
+  title              = {Series Creator Packet},
+  date               = {2026},
+  series             = {Migration Source Series},
+  series-creator     = {Series, Sam and {{Review Desk}}},
+  series-creator+an  = {1=series plan verified}
+}
+
+@book{compact-series-creator,
+  author        = {Ng, Nia},
+  title         = {Compact Series Packet},
+  date          = {2025},
+  seriescreator = {Curator, Eli}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Series', $items[0]['series-creator'][0]['family'] ?? null);
+        $t->same('Sam', $items[0]['series-creator'][0]['given'] ?? null);
+        $t->same('Review Desk', $items[0]['series-creator'][1]['literal'] ?? null);
+        $t->same('series plan verified', $items[0]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Curator', $items[1]['series-creator'][0]['family'] ?? null);
+        $t->same('Eli', $items[1]['series-creator'][0]['given'] ?? null);
+        $t->same('Series, Sam and {{Review Desk}}', $items[0]['rawBibtex']['fields']['series-creator'] ?? null);
+        $t->same('Curator, Eli', $items[1]['rawBibtex']['fields']['seriescreator'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('series-creator-source');
+        $compact = $processor->item('compact-series-creator');
+        $t->same('Series', $source['seriesCreators'][0]['family'] ?? null);
+        $t->same('Review Desk', $source['seriesCreators'][1]['literal'] ?? null);
+        $t->same('series plan verified', $source['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Curator', $compact['seriesCreators'][0]['family'] ?? null);
+        $t->same('(Smith 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('series-creator-source', '[@series-creator-source]'),
+            $citation('compact-series-creator', '[@compact-series-creator]'),
+        ]));
+        $t->same(
+            'Smith, Ada. Series Creator Packet. Series: Migration Source Series. 2026. Name annotations: Series creator 1: series plan verified. Series created by Series, Sam; Review Desk.',
+            $processor->renderBibliographyEntry('series-creator-source')
+        );
+        $t->same(
+            'Ng, Nia. Compact Series Packet. 2025. Series created by Curator, Eli.',
+            $processor->renderBibliographyEntry('compact-series-creator')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <names variable="series-creator"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('series-creator', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Smith | Migration Source Series | Series and Review Desk | Series creator 1: series plan verified; Ng | Curator]', $styled->renderCitationCluster([
+            $citation('series-creator-source', '[@series-creator-source]'),
+            $citation('compact-series-creator', '[@compact-series-creator]'),
+        ]));
+        $t->same(
+            'Series Creator Packet :: Migration Source Series :: Series, Sam; Review Desk :: Series creator 1: series plan verified',
+            $styled->renderBibliographyEntry('series-creator-source')
+        );
+        $t->same('Compact Series Packet :: Curator, Eli', $styled->renderBibliographyEntry('compact-series-creator'));
+
+        $document = (new MarkdownReader())->read('Series creator source @series-creator-source and compact alias [@compact-series-creator] preserve source series ownership.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creator source Smith (2026) and compact alias (Ng 2025) preserve source series ownership.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Series Creator Packet. Series: Migration Source Series. 2026. Name annotations: Series creator 1: series plan verified. Series created by Series, Sam; Review Desk.</dd>', $blocks);
+    },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{direct-extended-roles,

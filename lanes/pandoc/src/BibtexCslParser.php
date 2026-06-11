@@ -45,6 +45,8 @@ final class BibtexCslParser
         'producer',
         'recipient',
         'redactor',
+        'series-creator',
+        'seriescreator',
         'founder',
         'continuator',
         'reviser',
@@ -970,6 +972,7 @@ final class BibtexCslParser
         foreach ([
             'chair' => ['chair'],
             'collection-editor' => ['collectioneditor', 'collection-editor'],
+            'series-creator' => ['seriescreator', 'series-creator'],
             'compiler' => ['compiler'],
             'composer' => ['composer'],
             'contributor' => ['contributor'],
