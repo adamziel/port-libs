@@ -25677,6 +25677,81 @@ XML);
         ]));
         $t->same('Direct Schema Field Packet :: Series Desk :: Archive Division :: source review :: Vol. Rev. :: 3rd :: 2026c :: migration, review :: migration; review', $styled->renderBibliographyEntry('direct-schema-fields'));
     },
+    'normalizes bounded direct csl json subdivision aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-subdivision-flat',
+                'type' => 'book',
+                'title' => 'Direct Subdivision Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'subdivision' => 'Migration Sources Unit',
+            ],
+            [
+                'id' => 'direct-subdivision-camel',
+                'type' => 'report',
+                'title' => 'Direct Camel Subdivision Packet',
+                'author' => [
+                    ['literal' => 'Archive Desk'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'subDivision' => 'Catalog Review Cell',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $flat = $processor->item('direct-subdivision-flat');
+        $camel = $processor->item('direct-subdivision-camel');
+        $t->same('Migration Sources Unit', $flat['division'] ?? null);
+        $t->same('Catalog Review Cell', $camel['division'] ?? null);
+        $t->same('Ng, Nia. Direct Subdivision Packet. 2026. Division: Migration Sources Unit.', $processor->renderBibliographyEntry('direct-subdivision-flat'));
+        $t->same('Archive Desk. Direct Camel Subdivision Packet. 2025. Division: Catalog Review Cell.', $processor->renderBibliographyEntry('direct-subdivision-camel'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Subdivision Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-subdivision-alias-review</id>
+    <updated>2026-06-11T22:56:33+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="division"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="division"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Subdivision Alias Review', $summary['title'] ?? null);
+        $t->same('division', $citationChildren[1]['variable'] ?? null);
+        $t->same('division', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Ng | Migration Sources Unit; Archive Desk | Catalog Review Cell]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-subdivision-flat', 'text' => '[@direct-subdivision-flat]']),
+            new AstNode('citation', ['id' => 'direct-subdivision-camel', 'text' => '[@direct-subdivision-camel]']),
+        ]));
+        $t->same('Direct Subdivision Packet :: Migration Sources Unit', $styled->renderBibliographyEntry('direct-subdivision-flat'));
+
+        $document = (new MarkdownReader())->read('Direct subdivision aliases [@direct-subdivision-flat; @direct-subdivision-camel] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct subdivision aliases [Ng | Migration Sources Unit; Archive Desk | Catalog Review Cell] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Subdivision Packet :: Migration Sources Unit</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Direct Camel Subdivision Packet :: Catalog Review Cell</dd>', $blocks);
+    },
     'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [

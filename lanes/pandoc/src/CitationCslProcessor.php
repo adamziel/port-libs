@@ -1207,7 +1207,7 @@ final class CitationCslProcessor
             'numberOfVolumes' => self::firstStringField($item, ['number-of-volumes', 'numberOfVolumes', 'numberofvolumes', 'volumes', 'volume-count', 'volumeCount', 'volumecount', 'num-volumes', 'numVolumes', 'numvolumes']),
             'numberOfPages' => self::firstStringField($item, ['number-of-pages', 'numberOfPages', 'numberofpages', 'pagetotal', 'page-total', 'pageTotal', 'num-pages', 'numPages', 'numpages', 'total-pages', 'totalPages', 'totalpages']),
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber', 'chapternumber', 'chapter']),
-            'division' => self::stringField($item, 'division'),
+            'division' => self::firstStringField($item, ['division', 'subdivision', 'subDivision']),
             'section' => self::stringField($item, 'section'),
             'part' => self::stringField($item, 'part'),
             'printingNumber' => self::firstStringField($item, ['printing-number', 'printingNumber', 'printingnumber', 'printing']),
