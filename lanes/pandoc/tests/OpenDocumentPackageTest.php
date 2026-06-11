@@ -342,6 +342,47 @@ XML;
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
     },
+    'preserves compact ODT manifest encryption metadata in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedHero = <<<'XML'
+<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $encryptedHero,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+
+        $t->same('SHA1/1K', $hero['encryption']['checksumType']);
+        $t->same(true, $mediaByPath['Pictures/hero.png']['encrypted']);
+        $t->same('checksum-base64', $mediaByPath['Pictures/hero.png']['encryption']['checksum']);
+        $t->same('Blowfish CFB', $mediaByPath['Pictures/hero.png']['encryption']['algorithm']['name']);
+        $t->same('checksum-base64', $reviewByPath['Pictures/hero.png']['encryption']['checksum']);
+        $t->same(1024, $reviewByPath['Pictures/hero.png']['encryption']['keyDerivation']['iterationCount']);
+        $t->same(20, $summary['manifestReview']['encryptedItems'][0]['encryption']['startKeyGeneration']['keySize']);
+        $t->same(true, $inventory['Pictures/hero.png']['encrypted']);
+        $t->same('iv-base64', $inventory['Pictures/hero.png']['manifestEncryption']['algorithm']['initialisationVector']);
+        $t->same(null, $inventory['content.xml']['manifestEncryption']);
+        $t->same(null, $reviewByPath['content.xml']['encryption']);
+    },
     'reports compact ODT manifest media package exposure and missing parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '</manifest:manifest>',
