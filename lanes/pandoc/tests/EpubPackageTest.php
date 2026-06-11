@@ -1479,6 +1479,72 @@ XML;
         $t->same($report['diagnostics'], $summary['wordpressImport']['guideReferenceDiagnostics']);
     },
 
+    'preserves OPF guide reference manifest media type parameter provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithGuideMediaTypes = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png; profile=&quot;guide-cover&quot;" properties="cover-image"/>',
+            $epub3OpfXml
+        );
+        $opfWithGuideMediaTypes = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml; charset=UTF-8"/>',
+            $opfWithGuideMediaTypes
+        );
+        $opfWithGuideMediaTypes = str_replace(
+            '</spine>',
+            '</spine>
+  <guide>
+    <reference type="text" title="Start reading" href="text/chapter1.xhtml#install"/>
+    <reference type="cover" title="Cover thumbnail" href="images/cover.png?rendition=thumb"/>
+  </guide>',
+            $opfWithGuideMediaTypes
+        );
+
+        $chapter1 = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1 id="install">Intro</h1></body></html>';
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithGuideMediaTypes],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $guide = $epub->guideReferences();
+        $report = $epub->guideReport();
+        $summary = $epub->summary();
+
+        $t->same(2, count($guide));
+        $t->same('chapter1', $guide[0]['manifestId']);
+        $t->same('application/xhtml+xml; charset=UTF-8', $guide[0]['manifestMediaType']);
+        $t->same('application/xhtml+xml; charset=utf-8', $guide[0]['manifestNormalizedMediaType']);
+        $t->same('application/xhtml+xml', $guide[0]['manifestMediaTypeBase']);
+        $t->same(true, $guide[0]['manifestMediaTypeHasParameters']);
+        $t->same(1, $guide[0]['manifestMediaTypeParameterCount']);
+        $t->same([['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8']], $guide[0]['manifestMediaTypeParameters']);
+        $t->same(['charset' => 'UTF-8'], $guide[0]['manifestMediaTypeParameterMap']);
+        $t->same(true, $guide[0]['manifestMediaTypeSyntaxValid']);
+        $t->same([], $guide[0]['manifestMediaTypeDiagnostics']);
+        $t->same('cover', $guide[1]['manifestId']);
+        $t->same('image/png; profile="guide-cover"', $guide[1]['manifestMediaType']);
+        $t->same('image/png', $guide[1]['manifestMediaTypeBase']);
+        $t->same(['profile' => 'guide-cover'], $guide[1]['manifestMediaTypeParameterMap']);
+
+        $t->same(2, $report['manifestLinkedTargetCount']);
+        $t->same(['application/xhtml+xml', 'image/png'], array_column($report['manifestLinkedTargets'], 'manifestMediaTypeBase'));
+        $t->same(2, $report['manifestMediaTypeParameterItemCount']);
+        $t->same(2, $report['manifestMediaTypeParameterCount']);
+        $t->same(['charset', 'profile'], $report['manifestMediaTypeParameterNames']);
+        $t->same(['chapter1', 'cover'], array_column($report['manifestMediaTypeParameterItems'], 'manifestId'));
+        $t->same('guide-cover', $report['manifestMediaTypeParameterItems'][1]['parameterMap']['profile']);
+        $t->same(0, $report['manifestMediaTypeDiagnosticCount']);
+        $t->same([], $report['manifestMediaTypeDiagnostics']);
+        $t->same($report['manifestMediaTypeParameterItems'], $summary['wordpressImport']['guideReferenceManifestMediaTypeParameterItems']);
+        $t->same($report['manifestMediaTypeParameterNames'], $summary['wordpressImport']['guideReferenceManifestMediaTypeParameterNames']);
+        $t->same([], $summary['wordpressImport']['guideReferenceManifestMediaTypeDiagnostics']);
+    },
+
     'summarizes EPUB3 auxiliary navigation sections for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $navWithAuxiliarySections = str_replace(
             '</body>',

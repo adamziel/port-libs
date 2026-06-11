@@ -562,6 +562,9 @@ final class EpubPackage
                 'guideReferenceReport' => $guideReport,
                 'guideReferenceTargets' => $guideReport['targets'],
                 'guideReferenceDiagnostics' => $guideReport['diagnostics'],
+                'guideReferenceManifestMediaTypeParameterItems' => $guideReport['manifestMediaTypeParameterItems'],
+                'guideReferenceManifestMediaTypeParameterNames' => $guideReport['manifestMediaTypeParameterNames'],
+                'guideReferenceManifestMediaTypeDiagnostics' => $guideReport['manifestMediaTypeDiagnostics'],
                 'collections' => $this->collections,
                 'containerLinks' => $this->containerLinks,
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
@@ -4820,6 +4823,20 @@ final class EpubPackage
             'exists' => $exists,
             'manifestId' => is_array($manifestItem) ? (string) ($manifestItem['id'] ?? '') : null,
             'manifestMediaType' => is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : null,
+            'manifestNormalizedMediaType' => is_array($manifestItem) ? (string) ($manifestItem['normalizedMediaType'] ?? '') : null,
+            'manifestMediaTypeBase' => is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : null,
+            'manifestMediaTypeHasParameters' => is_array($manifestItem) && ($manifestItem['mediaTypeHasParameters'] ?? false) === true,
+            'manifestMediaTypeParameterCount' => is_array($manifestItem) ? (int) ($manifestItem['mediaTypeParameterCount'] ?? 0) : 0,
+            'manifestMediaTypeParameters' => is_array($manifestItem) && is_array($manifestItem['mediaTypeParameters'] ?? null)
+                ? array_values($manifestItem['mediaTypeParameters'])
+                : [],
+            'manifestMediaTypeParameterMap' => is_array($manifestItem) && is_array($manifestItem['mediaTypeParameterMap'] ?? null)
+                ? $manifestItem['mediaTypeParameterMap']
+                : [],
+            'manifestMediaTypeSyntaxValid' => !is_array($manifestItem) || ($manifestItem['mediaTypeSyntaxValid'] ?? true) === true,
+            'manifestMediaTypeDiagnostics' => is_array($manifestItem) && is_array($manifestItem['mediaTypeDiagnostics'] ?? null)
+                ? array_values($manifestItem['mediaTypeDiagnostics'])
+                : [],
             'manifestProperties' => is_array($manifestItem) && is_array($manifestItem['properties'] ?? null)
                 ? array_values($manifestItem['properties'])
                 : [],
@@ -4844,6 +4861,10 @@ final class EpubPackage
         $externalTargets = [];
         $missingTargets = [];
         $manifestLinkedTargets = [];
+        $manifestMediaTypeParameterItems = [];
+        $manifestMediaTypeParameterNames = [];
+        $manifestMediaTypeParameterCount = 0;
+        $manifestMediaTypeDiagnostics = [];
         $diagnostics = [];
         $missingHrefCount = 0;
         $invalidTargetCount = 0;
@@ -4879,7 +4900,58 @@ final class EpubPackage
                     'partName' => is_string($reference['partName'] ?? null) ? $reference['partName'] : null,
                     'manifestId' => $reference['manifestId'],
                     'manifestMediaType' => is_string($reference['manifestMediaType'] ?? null) ? $reference['manifestMediaType'] : null,
+                    'manifestMediaTypeBase' => is_string($reference['manifestMediaTypeBase'] ?? null) ? $reference['manifestMediaTypeBase'] : null,
                 ];
+            }
+
+            $manifestMediaTypeParameters = is_array($reference['manifestMediaTypeParameters'] ?? null)
+                ? array_values($reference['manifestMediaTypeParameters'])
+                : [];
+            if ($manifestMediaTypeParameters !== []) {
+                $parameterNames = [];
+                foreach ($manifestMediaTypeParameters as $parameter) {
+                    if (!is_array($parameter)) {
+                        continue;
+                    }
+
+                    $name = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                    if ($name !== '') {
+                        $parameterNames[] = $name;
+                        $manifestMediaTypeParameterNames[$name] = true;
+                    }
+                }
+
+                $manifestMediaTypeParameterCount += count($manifestMediaTypeParameters);
+                $manifestMediaTypeParameterItems[] = [
+                    'index' => $index,
+                    'type' => $referenceType,
+                    'target' => $target,
+                    'partName' => is_string($reference['partName'] ?? null) ? $reference['partName'] : null,
+                    'manifestId' => is_string($reference['manifestId'] ?? null) ? $reference['manifestId'] : null,
+                    'manifestMediaType' => is_string($reference['manifestMediaType'] ?? null) ? $reference['manifestMediaType'] : null,
+                    'manifestMediaTypeBase' => is_string($reference['manifestMediaTypeBase'] ?? null) ? $reference['manifestMediaTypeBase'] : null,
+                    'parameterCount' => count($manifestMediaTypeParameters),
+                    'parameterNames' => array_values(array_unique($parameterNames)),
+                    'parameters' => $manifestMediaTypeParameters,
+                    'parameterMap' => is_array($reference['manifestMediaTypeParameterMap'] ?? null)
+                        ? $reference['manifestMediaTypeParameterMap']
+                        : [],
+                ];
+            }
+
+            foreach (is_array($reference['manifestMediaTypeDiagnostics'] ?? null) ? $reference['manifestMediaTypeDiagnostics'] : [] as $mediaTypeDiagnostic) {
+                if (!is_array($mediaTypeDiagnostic)) {
+                    continue;
+                }
+
+                $manifestMediaTypeDiagnostics[] = [
+                    'index' => $index,
+                    'type' => $referenceType,
+                    'target' => $target,
+                    'partName' => is_string($reference['partName'] ?? null) ? $reference['partName'] : null,
+                    'manifestId' => is_string($reference['manifestId'] ?? null) ? $reference['manifestId'] : null,
+                    'manifestMediaType' => is_string($reference['manifestMediaType'] ?? null) ? $reference['manifestMediaType'] : null,
+                ] + $mediaTypeDiagnostic;
             }
 
             foreach (is_array($reference['diagnostics'] ?? null) ? $reference['diagnostics'] : [] as $diagnostic) {
@@ -4912,11 +4984,17 @@ final class EpubPackage
             'missingHrefCount' => $missingHrefCount,
             'invalidTargetCount' => $invalidTargetCount,
             'manifestLinkedTargetCount' => count($manifestLinkedTargets),
+            'manifestMediaTypeParameterItemCount' => count($manifestMediaTypeParameterItems),
+            'manifestMediaTypeParameterCount' => $manifestMediaTypeParameterCount,
+            'manifestMediaTypeParameterNames' => array_keys($manifestMediaTypeParameterNames),
+            'manifestMediaTypeDiagnosticCount' => count($manifestMediaTypeDiagnostics),
             'targets' => $targets,
             'localTargets' => $localTargets,
             'externalTargets' => $externalTargets,
             'missingTargets' => $missingTargets,
             'manifestLinkedTargets' => $manifestLinkedTargets,
+            'manifestMediaTypeParameterItems' => $manifestMediaTypeParameterItems,
+            'manifestMediaTypeDiagnostics' => $manifestMediaTypeDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'items' => $references,
