@@ -710,10 +710,15 @@ final class OdfReader
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
         $manifestFileEntryOrder = [];
+        $manifestPreferredViewModeItems = [];
+        $manifestPreferredViewModeCounts = [];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
             $manifestIndex = $item['manifestIndex'] ?? count($manifestFileEntryOrder);
+            $preferredViewMode = is_string($item['preferredViewMode'] ?? null) && $item['preferredViewMode'] !== ''
+                ? $item['preferredViewMode']
+                : null;
             $manifestFileEntryOrder[] = [
                 'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder),
                 'fullPath' => $item['fullPath'] ?? null,
@@ -721,12 +726,27 @@ final class OdfReader
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'mediaType' => $item['mediaType'] ?? null,
+                'preferredViewMode' => $preferredViewMode,
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
+            if ($preferredViewMode !== null) {
+                $manifestPreferredViewModeItems[] = [
+                    'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder) - 1,
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'partReference' => $item['partReference'] ?? null,
+                    'preferredViewMode' => $preferredViewMode,
+                    'mediaType' => $item['mediaType'] ?? null,
+                    'exists' => ($item['exists'] ?? false) === true,
+                    'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                ];
+                $manifestPreferredViewModeCounts[$preferredViewMode] = ($manifestPreferredViewModeCounts[$preferredViewMode] ?? 0) + 1;
+            }
             if (is_string($part) && $part !== '') {
                 $manifestByPart[$part] = $item;
             }
@@ -802,6 +822,7 @@ final class OdfReader
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
+                'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
@@ -815,6 +836,10 @@ final class OdfReader
             'manifestDeclaredPartCount' => count($manifestByPart),
             'manifestFileEntryCount' => count($manifestFileEntryOrder),
             'manifestFileEntryOrder' => $manifestFileEntryOrder,
+            'manifestPreferredViewModeCount' => count($manifestPreferredViewModeItems),
+            'manifestPreferredViewModes' => array_keys($manifestPreferredViewModeCounts),
+            'manifestPreferredViewModeCounts' => $manifestPreferredViewModeCounts,
+            'manifestPreferredViewModeItems' => $manifestPreferredViewModeItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
