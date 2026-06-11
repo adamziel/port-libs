@@ -763,6 +763,7 @@ final class BibtexCslParser
             'references' => self::firstField($fields, ['references']),
             'dimensions' => self::firstField($fields, ['dimensions', 'dimension']),
             'scale' => self::firstField($fields, ['scale']),
+            'division' => self::firstField($fields, ['division', 'subdivision']),
             'number' => self::firstField($fields, ['number']),
             'volume' => self::firstField($fields, ['volume']),
             'issue' => self::issueField($type, $fields),

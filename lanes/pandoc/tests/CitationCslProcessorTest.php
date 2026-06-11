@@ -20837,6 +20837,83 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Category Review Manual. Review Press, 2026. Categories: migration review; source audit.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Category Snapshot. 2025. Categories: media audit; block imports; needs review. https://example.test/category-snapshot.</dd>', $blocks);
     },
+    'maps bounded biblatex division fields into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{division-manual,
+  author    = {Smith, Ada},
+  title     = {Division Review Manual},
+  publisher = {Review Press},
+  date      = {2026},
+  division  = {Archive Division}
+}
+
+@online{subdivision-snapshot,
+  author      = {{Archive Desk}},
+  title       = {Subdivision Snapshot},
+  date        = {2025},
+  subdivision = {Media Migration Unit},
+  url         = {https://example.test/subdivision-snapshot}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Archive Division', $items[0]['division'] ?? null);
+        $t->same('Media Migration Unit', $items[1]['division'] ?? null);
+        $t->same('Archive Division', $items[0]['rawBibtex']['fields']['division'] ?? null);
+        $t->same('Media Migration Unit', $items[1]['rawBibtex']['fields']['subdivision'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('division-manual');
+        $snapshot = $processor->item('subdivision-snapshot');
+        $t->same('Archive Division', $manual['division'] ?? null);
+        $t->same('Media Migration Unit', $snapshot['division'] ?? null);
+        $t->same('Smith, Ada. Division Review Manual. Review Press, 2026. Division: Archive Division.', $processor->renderBibliographyEntry('division-manual'));
+        $t->same('Archive Desk. Subdivision Snapshot. 2025. Division: Media Migration Unit. https://example.test/subdivision-snapshot.', $processor->renderBibliographyEntry('subdivision-snapshot'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Division Review</title>
+    <id>https://example.test/styles/bounded-biblatex-division-review</id>
+    <updated>2026-06-11T17:53:13+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="division"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="division"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Division Review', $summary['title'] ?? null);
+        $t->same('division', $citationChildren[1]['variable'] ?? null);
+        $t->same('division', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Smith | Archive Division; Archive Desk | Media Migration Unit]', $styled->renderCitationCluster([
+            $citation('division-manual', '[@division-manual]'),
+            $citation('subdivision-snapshot', '[@subdivision-snapshot]'),
+        ]));
+        $t->same('Division Review Manual :: Archive Division', $styled->renderBibliographyEntry('division-manual'));
+        $t->same('Subdivision Snapshot :: Media Migration Unit', $styled->renderBibliographyEntry('subdivision-snapshot'));
+
+        $document = (new MarkdownReader())->read('Division metadata @division-manual and snapshot [@subdivision-snapshot] stays reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Division metadata Smith (2026) and snapshot (Archive Desk 2025) stays reviewable.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Division Review Manual. Review Press, 2026. Division: Archive Division.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Subdivision Snapshot. 2025. Division: Media Migration Unit. https://example.test/subdivision-snapshot.</dd>', $blocks);
+    },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
