@@ -154,6 +154,113 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst boundary override provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/build/override.typ',
+            'outputPath' => 'build/override.pdf',
+            'source' => '= Typst Boundary Override Packet',
+            'engineOptions' => [
+                '--root=project',
+                '--root',
+                'workspace',
+                '--package-path=old-packages',
+                '--package-path',
+                'vendor/typst',
+                '--package-cache=cache-a',
+                '--package-cache',
+                'cache-b',
+                '--creation-timestamp=1700000000',
+                '--creation-timestamp',
+                '1700000001',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst boundary override packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => 'workspace', 'path' => 'workspace', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'fontPaths' => [],
+            'packagePath' => ['raw' => 'vendor/typst', 'path' => 'vendor/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'packageCache' => ['raw' => 'cache-b', 'path' => 'cache-b', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'inputVariables' => [],
+            'issues' => [
+                'root-boundary-overridden',
+                'package-path-boundary-overridden',
+                'package-cache-boundary-overridden',
+                'creation-timestamp-boundary-overridden',
+            ],
+            'creationTimestamp' => [
+                'raw' => '1700000001',
+                'value' => '1700000001',
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000001,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000001),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'root',
+                    'count' => 2,
+                    'values' => ['project', 'workspace'],
+                    'selected' => 'workspace',
+                    'issue' => 'root-boundary-overridden',
+                ],
+                [
+                    'option' => 'packagePath',
+                    'count' => 2,
+                    'values' => ['old-packages', 'vendor/typst'],
+                    'selected' => 'vendor/typst',
+                    'issue' => 'package-path-boundary-overridden',
+                ],
+                [
+                    'option' => 'packageCache',
+                    'count' => 2,
+                    'values' => ['cache-a', 'cache-b'],
+                    'selected' => 'cache-b',
+                    'issue' => 'package-cache-boundary-overridden',
+                ],
+                [
+                    'option' => 'creationTimestamp',
+                    'count' => 2,
+                    'values' => ['1700000000', '1700000001'],
+                    'selected' => '1700000001',
+                    'issue' => 'creation-timestamp-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/override.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/override.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path:vendor/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:cache-b', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:1700000001', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

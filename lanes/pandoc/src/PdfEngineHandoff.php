@@ -272,6 +272,9 @@ final class PdfEngineHandoff
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
             }
+            if (($typstBoundaryProvenance['overrides'] ?? []) !== []) {
+                $diagnostics[] = 'typst-boundary-overrides:' . count($typstBoundaryProvenance['overrides']);
+            }
             if (($typstBoundaryProvenance['issues'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-issues:' . count($typstBoundaryProvenance['issues']);
             }
@@ -5497,6 +5500,36 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param array<string, list<string>> $optionValues
+     * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
+     */
+    private function typstBoundaryOverrideEntries(array $optionValues): array
+    {
+        $issueByOption = [
+            'root' => 'root-boundary-overridden',
+            'packagePath' => 'package-path-boundary-overridden',
+            'packageCache' => 'package-cache-boundary-overridden',
+            'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+        ];
+        $entries = [];
+        foreach ($optionValues as $option => $values) {
+            if (count($values) < 2) {
+                continue;
+            }
+            $values = array_values($values);
+            $entries[] = [
+                'option' => $option,
+                'count' => count($values),
+                'values' => $values,
+                'selected' => $values[count($values) - 1],
+                'issue' => $issueByOption[$option] ?? $option . '-boundary-overridden',
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
      * @param list<string> $engineOptions
      * @return array<string, mixed>
      */
@@ -5511,8 +5544,8 @@ final class PdfEngineHandoff
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
-        $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp'], true);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
+        $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === []) {
             return [];
         }
 
@@ -5528,7 +5561,14 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
         );
+        $creationTimestampValue = $creationTimestampValues === [] ? null : $creationTimestampValues[count($creationTimestampValues) - 1];
         $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
+        $overrides = $this->typstBoundaryOverrideEntries([
+            'root' => $rootValues,
+            'packagePath' => $packagePathValues,
+            'packageCache' => $packageCacheValues,
+            'creationTimestamp' => $creationTimestampValues,
+        ]);
 
         foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
@@ -5537,6 +5577,9 @@ final class PdfEngineHandoff
             foreach ($entry['issues'] as $issue) {
                 $issues[] = $issue;
             }
+        }
+        foreach ($overrides as $override) {
+            $issues[] = $override['issue'];
         }
         $issues = array_values(array_unique($issues));
 
@@ -5551,6 +5594,9 @@ final class PdfEngineHandoff
         ];
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
+        }
+        if ($overrides !== []) {
+            $provenance['overrides'] = $overrides;
         }
 
         return $provenance;
