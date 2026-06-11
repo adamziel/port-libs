@@ -656,6 +656,69 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst page selection boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pages-boundary.pdf',
+            'source' => '= Typst Page Boundary Packet',
+            'engineOptions' => [
+                '--pages=1-2,4',
+                '--pages',
+                '7-',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst page boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['page-selection-boundary-overridden'],
+            'pageSelection' => [
+                'raw' => '7-',
+                'value' => '7-',
+                'segments' => ['7-'],
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'pageSelection',
+                    'count' => 2,
+                    'values' => ['1-2,4', '7-'],
+                    'selected' => '7-',
+                    'issue' => 'page-selection-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pages-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pages-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-page-selection:7-', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';

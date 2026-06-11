@@ -283,6 +283,12 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-ignore-system-fonts:' . $systemFonts['flagCount'];
                 }
             }
+            if (($typstBoundaryProvenance['pageSelection'] ?? null) !== null) {
+                $pageSelection = $typstBoundaryProvenance['pageSelection'];
+                if (is_array($pageSelection) && is_string($pageSelection['value'] ?? null)) {
+                    $diagnostics[] = 'typst-page-selection:' . (($pageSelection['safe'] ?? false) === true ? $pageSelection['value'] : 'invalid');
+                }
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5540,6 +5546,7 @@ final class PdfEngineHandoff
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'pageSelection' => 'page-selection-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5576,8 +5583,9 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5614,16 +5622,22 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $pageSelectionHistory = array_map(
+            fn (string $value): array => $this->typstPageSelectionEntry($value),
+            $pageSelectionValues
+        );
+        $pageSelection = $pageSelectionHistory === [] ? null : $pageSelectionHistory[count($pageSelectionHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
             'creationTimestamp' => $creationTimestampValues,
+            'pageSelection' => $pageSelectionValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5654,6 +5668,9 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if ($pageSelection !== null) {
+            $provenance['pageSelection'] = $pageSelection;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -5680,6 +5697,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($pageSelectionHistory)) {
+            $provenance['pageSelectionHistory'] = $pageSelectionHistory;
         }
 
         return $provenance;
@@ -5952,6 +5972,48 @@ final class PdfEngineHandoff
             'deterministic' => $issues === [],
             'safe' => $issues === [],
             'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, segments:list<string>, safe:bool, issues:list<string>}
+     */
+    private function typstPageSelectionEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $segments = [];
+        $issues = [];
+
+        if ($value === '') {
+            $issues[] = 'page-selection-empty-boundary';
+        } elseif (str_contains($value, "\0")) {
+            $issues[] = 'page-selection-invalid-boundary';
+        } else {
+            foreach (explode(',', $value) as $segment) {
+                $segment = trim($segment);
+                if ($segment === '') {
+                    $issues[] = 'page-selection-invalid-boundary';
+                    continue;
+                }
+
+                $segments[] = $segment;
+                if (preg_match('/\A(?:[1-9][0-9]*|[1-9][0-9]*-|-[1-9][0-9]*|[1-9][0-9]*-[1-9][0-9]*)\z/', $segment) !== 1) {
+                    $issues[] = 'page-selection-invalid-boundary';
+                    continue;
+                }
+
+                if (preg_match('/\A([1-9][0-9]*)-([1-9][0-9]*)\z/', $segment, $matches) === 1 && (int) $matches[1] > (int) $matches[2]) {
+                    $issues[] = 'page-selection-descending-boundary';
+                }
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'segments' => $segments,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
         ];
     }
 
