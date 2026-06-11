@@ -5764,6 +5764,74 @@ return [
         $t->same("safe raw path with Unicode media name\n", $package->read('/' . $safeUnicodePath));
     },
 
+    'preflights unsafe central directory names before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $safeUnicodePath = 'word/media/review.png';
+        $absoluteRawName = '/word/media/review.png';
+        $rawName = 'word/media/review-image.bin';
+        $unsafeDecodedName = "word/media/review\nimage.png";
+        $zip = $buildZipPackage([
+            [
+                'name' => $absoluteRawName,
+                'data' => 'absolute raw path with safe unicode path',
+                'flags' => 0,
+                'centralExtra' => $buildUnicodeExtra(0x7075, $absoluteRawName, $safeUnicodePath),
+            ],
+            [
+                'name' => $rawName,
+                'data' => 'safe raw path with unsafe unicode path',
+                'flags' => 0,
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $unsafeDecodedName),
+            ],
+        ]);
+
+        $summary = ZipPackage::centralDirectoryInventoryPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 100.0, 1024);
+        $rawEntry = $summary['unsafeNameEntries'][0];
+        $decodedEntry = $summary['unsafeNameEntries'][1];
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['unsafeNameEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'central-directory-unsafe-raw-name',
+            'central-directory-raw-name-absolute-path',
+            'central-directory-raw-name-empty-segment',
+            'central-directory-unsafe-decoded-name',
+            'central-directory-decoded-name-control-characters',
+        ], $summary['issues']);
+        $t->same($safeUnicodePath, $rawEntry['name']);
+        $t->same($absoluteRawName, $rawEntry['rawName']);
+        $t->same('info-zip-unicode-path', $rawEntry['nameEncoding']);
+        $t->same(false, $rawEntry['rawNameIsSafe']);
+        $t->same(['absolute-path', 'empty-segment'], $rawEntry['rawNameSafetyIssues']);
+        $t->same(true, $rawEntry['decodedNameIsSafe']);
+        $t->same([], $rawEntry['decodedNameSafetyIssues']);
+        $t->same([
+            'central-directory-unsafe-raw-name',
+            'central-directory-raw-name-absolute-path',
+            'central-directory-raw-name-empty-segment',
+        ], $rawEntry['issues']);
+        $t->same($unsafeDecodedName, $decodedEntry['name']);
+        $t->same($rawName, $decodedEntry['rawName']);
+        $t->same(true, $decodedEntry['rawNameIsSafe']);
+        $t->same([], $decodedEntry['rawNameSafetyIssues']);
+        $t->same(false, $decodedEntry['decodedNameIsSafe']);
+        $t->same(['control-characters'], $decodedEntry['decodedNameSafetyIssues']);
+        $t->same([
+            'central-directory-unsafe-decoded-name',
+            'central-directory-decoded-name-control-characters',
+        ], $decodedEntry['issues']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['centralDirectoryInventory']);
+        $t->contains('central-directory-inventory-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-directory-unsafe-raw-name', implode(',', $rawStrict['diagnostics']));
+        $t->contains('central-directory-decoded-name-control-characters', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects mismatched unicode zip path metadata before exposing package names' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawName = 'word/media/review-image.bin';
         $unicodeName = "word/media/review-\u{2603}.png";

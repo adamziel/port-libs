@@ -6596,11 +6596,13 @@ final class ZipPackage
      *     duplicateEntryNameGroups:list<array{name:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     duplicateEntryRawNameGroups:list<array{rawName:string,count:int,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>,localHeaderOffsets:list<int>}>,
      *     duplicateLocalHeaderOffsetGroups:list<array{localHeaderOffset:int,count:int,names:list<string>,centralDirectoryIndexes:list<int>,centralDirectoryOffsets:list<int>}>,
+     *     unsafeNameEntryCount:int,
+     *     unsafeNameEntries:list<array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, issues:list<string>, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>,
      *     hasCentralDirectorySignature:bool,
      *     centralDirectorySignature:?array{offset:int, dataLength:int, endOffset:int, location:string},
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
-     *     entries:list<array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>
+     *     entries:list<array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, issues:list<string>, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}>
      * }
      */
     public static function centralDirectoryInventoryPreflight(string $bytes): array
@@ -6731,6 +6733,10 @@ final class ZipPackage
         $duplicateLocalHeaderOffsetEntryCount = self::duplicateCentralDirectoryEntryCount($duplicateLocalHeaderOffsetGroups);
         $hasDuplicateEntryNames = $duplicateEntryNameGroups !== [];
         $hasDuplicateLocalHeaderOffsets = $duplicateLocalHeaderOffsetGroups !== [];
+        $unsafeNameEntries = array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => $entry['issues'] !== []
+        ));
 
         if ($entryCountMismatch) {
             $issues[] = 'central-directory-entry-count-mismatch';
@@ -6752,6 +6758,11 @@ final class ZipPackage
         }
         if ($recoverableGapEntries !== []) {
             $issues[] = 'central-directory-eocd-gap-central-headers';
+        }
+        foreach ($unsafeNameEntries as $entry) {
+            foreach ($entry['issues'] as $issue) {
+                $issues[] = $issue;
+            }
         }
 
         $issues = array_values(array_unique($issues));
@@ -6798,6 +6809,8 @@ final class ZipPackage
             'duplicateEntryNameGroups' => $duplicateEntryNameGroups,
             'duplicateEntryRawNameGroups' => $duplicateEntryRawNameGroups,
             'duplicateLocalHeaderOffsetGroups' => $duplicateLocalHeaderOffsetGroups,
+            'unsafeNameEntryCount' => count($unsafeNameEntries),
+            'unsafeNameEntries' => $unsafeNameEntries,
             'hasCentralDirectorySignature' => $centralDirectorySignature !== null,
             'centralDirectorySignature' => $centralDirectorySignature,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6807,7 +6820,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{name:string, rawName:string, nameEncoding:string, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
+     * @return array{name:string, rawName:string, nameEncoding:string, rawNameIsSafe:bool, rawNameSafetyIssues:list<string>, decodedNameIsSafe:bool, decodedNameSafetyIssues:list<string>, issues:list<string>, centralDirectoryIndex:int, offset:int, recordEnd:int, localHeaderOffset:int}
      */
     private static function centralDirectoryInventoryEntryAt(string $bytes, int $cursor, int $index): array
     {
@@ -6823,7 +6836,7 @@ final class ZipPackage
 
         $rawName = substr($bytes, $variableStart, $nameLength);
         $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
-        self::assertSafePartName($rawName);
+        $rawNameSafetyIssues = self::partNameSafetyIssues($rawName);
         $decodedName = self::decodeZipText(
             $rawName,
             $flags,
@@ -6832,12 +6845,31 @@ final class ZipPackage
             'info-zip-unicode-path',
             "central directory entry {$index} name"
         );
-        self::assertSafePartName($decodedName['text']);
+        $decodedNameSafetyIssues = self::partNameSafetyIssues($decodedName['text']);
+
+        $issues = [];
+        if ($rawNameSafetyIssues !== []) {
+            $issues[] = 'central-directory-unsafe-raw-name';
+            foreach ($rawNameSafetyIssues as $issue) {
+                $issues[] = 'central-directory-raw-name-' . $issue;
+            }
+        }
+        if ($decodedNameSafetyIssues !== []) {
+            $issues[] = 'central-directory-unsafe-decoded-name';
+            foreach ($decodedNameSafetyIssues as $issue) {
+                $issues[] = 'central-directory-decoded-name-' . $issue;
+            }
+        }
 
         return [
             'name' => $decodedName['text'],
             'rawName' => $rawName,
             'nameEncoding' => $decodedName['encoding'],
+            'rawNameIsSafe' => $rawNameSafetyIssues === [],
+            'rawNameSafetyIssues' => $rawNameSafetyIssues,
+            'decodedNameIsSafe' => $decodedNameSafetyIssues === [],
+            'decodedNameSafetyIssues' => $decodedNameSafetyIssues,
+            'issues' => $issues,
             'centralDirectoryIndex' => $index,
             'offset' => $cursor,
             'recordEnd' => $cursor + 46 + $variableLength,
