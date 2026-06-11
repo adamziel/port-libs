@@ -789,6 +789,79 @@ return [
         $t->same($commentsXml, $package->read('/word/comments.xml'));
     },
 
+    'summarizes zip local header extra field records for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentReviewExtra = pack('vva*', 0xcafe, strlen('document-review'), 'document-review');
+        $documentAuditExtra = pack('vva*', 0xbeef, strlen('document-audit'), 'document-audit');
+        $mediaExtra = pack('vva*', 0x1234, strlen('media-review'), 'media-review');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>local extra field review</w:p></w:document>',
+                'method' => 8,
+                'localExtra' => $documentReviewExtra . $documentAuditExtra,
+                'centralExtra' => $documentReviewExtra . $documentAuditExtra,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => 'review media bytes',
+                'method' => 0,
+                'localExtra' => $mediaExtra,
+                'centralExtra' => $mediaExtra,
+            ],
+            [
+                'name' => 'word/notes.xml',
+                'data' => '<w:notes/>',
+                'method' => 0,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->localHeaderPreflight();
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $document = $summary['entries'][0];
+        $documentRecords = $document['localExtraFieldRecords'];
+        $media = $summary['entries'][1];
+        $notes = $summary['entries'][2];
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['localExtraFieldEntryCount']);
+        $t->same(3, $summary['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef, 0x1234], $summary['localExtraFieldRecordIds']);
+        $t->same($summary, $rawStrict['strictImport']['localHeaders']);
+
+        $t->same('word/document.xml', $document['name']);
+        $t->same(strlen($documentReviewExtra . $documentAuditExtra), $document['localExtraFieldLength']);
+        $t->same(2, $document['localExtraFieldRecordCount']);
+        $t->same([0xcafe, 0xbeef], $document['localExtraFieldIds']);
+        $t->same([], $document['localExtraFieldStructureIssues']);
+        $t->same(2, count($documentRecords));
+
+        $t->same(0xcafe, $documentRecords[0]['id']);
+        $t->same('cafe', $documentRecords[0]['idHex']);
+        $t->same($document['localExtraFieldOffset'], $documentRecords[0]['localExtraFieldRecordOffset']);
+        $t->same($document['localExtraFieldOffset'] + 4, $documentRecords[0]['localExtraFieldDataOffset']);
+        $t->same(strlen('document-review'), $documentRecords[0]['declaredDataLength']);
+        $t->same($document['localExtraFieldOffset'] + strlen($documentReviewExtra), $documentRecords[0]['localExtraFieldRecordEnd']);
+
+        $t->same(0xbeef, $documentRecords[1]['id']);
+        $t->same('beef', $documentRecords[1]['idHex']);
+        $t->same($document['localExtraFieldOffset'] + strlen($documentReviewExtra), $documentRecords[1]['localExtraFieldRecordOffset']);
+        $t->same($document['localExtraFieldOffset'] + strlen($documentReviewExtra) + 4, $documentRecords[1]['localExtraFieldDataOffset']);
+        $t->same(strlen('document-audit'), $documentRecords[1]['declaredDataLength']);
+        $t->same($document['dataStart'], $documentRecords[1]['localExtraFieldRecordEnd']);
+
+        $t->same('word/media/review.bin', $media['name']);
+        $t->same(1, $media['localExtraFieldRecordCount']);
+        $t->same([0x1234], $media['localExtraFieldIds']);
+        $t->same('1234', $media['localExtraFieldRecords'][0]['idHex']);
+        $t->same($media['dataStart'], $media['localExtraFieldRecords'][0]['localExtraFieldRecordEnd']);
+
+        $t->same('word/notes.xml', $notes['name']);
+        $t->same(0, $notes['localExtraFieldRecordCount']);
+        $t->same([], $notes['localExtraFieldIds']);
+        $t->same([], $notes['localExtraFieldRecords']);
+    },
+
     'preflights raw zip local header span gaps before package instantiation' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $orphanName = 'word/media/orphan.bin';
         $orphanData = "unlisted local media bytes should stay blocked\n";

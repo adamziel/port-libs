@@ -589,6 +589,8 @@ final class ZipPackage
      *     localNameBytes:int,
      *     localExtraFieldBytes:int,
      *     localExtraFieldEntryCount:int,
+     *     localExtraFieldRecordCount:int,
+     *     localExtraFieldRecordIds:list<int>,
      *     entries:list<array{
      *         name:string,
      *         localHeaderOffset:int,
@@ -601,6 +603,10 @@ final class ZipPackage
      *         localNameLength:int,
      *         localExtraFieldOffset:int,
      *         localExtraFieldLength:int,
+     *         localExtraFieldRecordCount:int,
+     *         localExtraFieldIds:list<int>,
+     *         localExtraFieldStructureIssues:list<string>,
+     *         localExtraFieldRecords:list<array<string, mixed>>,
      *         dataStart:int,
      *         compressedSize:int,
      *         compressedDataEnd:int,
@@ -630,6 +636,8 @@ final class ZipPackage
         $localNameBytes = 0;
         $localExtraFieldBytes = 0;
         $localExtraFieldEntryCount = 0;
+        $localExtraFieldRecordCount = 0;
+        $localExtraFieldRecordIds = [];
 
         foreach ($localEntries as $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -658,12 +666,37 @@ final class ZipPackage
             $localNameOffset = $localVariableFieldsOffset;
             $localExtraFieldOffset = $localNameOffset + $localHeader['nameLength'];
             $hasLocalExtraFields = $localHeader['extraFieldLength'] > 0;
+            $localExtraFieldStructure = self::extraFieldStructureSummary(
+                $localHeader['extraFieldData'],
+                'local-header'
+            );
+            $localExtraFieldRecords = [];
+            $localExtraFieldIds = [];
+            foreach ($localExtraFieldStructure['fields'] as $field) {
+                $record = $field + [
+                    'localExtraFieldRecordOffset' => is_int($field['headerOffset'] ?? null)
+                        ? $localExtraFieldOffset + $field['headerOffset']
+                        : null,
+                    'localExtraFieldDataOffset' => is_int($field['dataOffset'] ?? null)
+                        ? $localExtraFieldOffset + $field['dataOffset']
+                        : null,
+                    'localExtraFieldRecordEnd' => is_int($field['recordEnd'] ?? null)
+                        ? $localExtraFieldOffset + $field['recordEnd']
+                        : null,
+                ];
+                $localExtraFieldRecords[] = $record;
+                if (is_int($field['id'] ?? null)) {
+                    $localExtraFieldIds[] = $field['id'];
+                    $localExtraFieldRecordIds[] = $field['id'];
+                }
+            }
 
             $localHeaderBytes += $localHeader['localHeaderLength'];
             $localFixedHeaderBytes += $localFixedHeaderLength;
             $localVariableFieldBytes += $localVariableFieldsLength;
             $localNameBytes += $localHeader['nameLength'];
             $localExtraFieldBytes += $localHeader['extraFieldLength'];
+            $localExtraFieldRecordCount += $localExtraFieldStructure['fieldCount'];
             if ($hasLocalExtraFields) {
                 $localExtraFieldEntryCount++;
             }
@@ -680,6 +713,10 @@ final class ZipPackage
                 'localNameLength' => $localHeader['nameLength'],
                 'localExtraFieldOffset' => $localExtraFieldOffset,
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
+                'localExtraFieldRecordCount' => $localExtraFieldStructure['fieldCount'],
+                'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldStructureIssues' => $localExtraFieldStructure['issues'],
+                'localExtraFieldRecords' => $localExtraFieldRecords,
                 'dataStart' => $localHeader['dataStart'],
                 'compressedSize' => $entry->compressedSize,
                 'compressedDataEnd' => $compressedDataEnd,
@@ -709,6 +746,8 @@ final class ZipPackage
             'localNameBytes' => $localNameBytes,
             'localExtraFieldBytes' => $localExtraFieldBytes,
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
+            'localExtraFieldRecordIds' => $localExtraFieldRecordIds,
             'entries' => $entries,
         ];
     }
