@@ -1692,6 +1692,128 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'summarizes docx custom xml data store package items' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $storeItemId = '{11111111-2222-3333-4444-555555555555}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps2.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps3.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXmlStore1" Type="' . $customXmlRel . '" Target="customXml/item1.xml?slot=one#payload"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlStore2" Type="' . $customXmlRel . '" Target="customXml/item2.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlMissingProps" Type="' . $customXmlRel . '" Target="customXml/missing-props.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlMalformedProps" Type="' . $customXmlRel . '" Target="customXml/item3.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlRemote" Type="' . $customXmlRel . '" Target="https://example.test/custom.xml" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['customXml/item1.xml'] = '<review xmlns="urn:wordpress:review"><title>Bound custom XML</title></review>';
+        $parts['customXml/_rels/item1.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rItemProps1" Type="{$customXmlPropsRel}" Target="itemProps1.xml?version=1#props"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps1.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{$storeItemId}">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:wordpress:review-packet"/>
+    <ds:schemaRef ds:uri="https://example.test/schema/review.xsd"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+        $parts['customXml/item2.xml'] = '<review><title>Duplicate store id</title></review>';
+        $parts['customXml/_rels/item2.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rItemProps2" Type="{$customXmlPropsRel}" Target="itemProps2.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps2.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml" ds:itemID="{$storeItemId}">
+  <ds:schemaRefs><ds:schemaRef ds:uri="urn:wordpress:duplicate"/></ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+        $parts['customXml/missing-props.xml'] = '<review><title>Missing properties</title></review>';
+        $parts['customXml/item3.xml'] = '<review><title>Malformed properties</title></review>';
+        $parts['customXml/_rels/item3.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rItemProps3" Type="{$customXmlPropsRel}" Target="itemProps3.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps3.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs><ds:schemaRef ds:uri="urn:wordpress:missing-id"/></ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $store = $docx['customXmlDataStores'];
+        $first = $store['byRelationshipId']['rCustomXmlStore1'];
+        $duplicate = $store['byRelationshipId']['rCustomXmlStore2'];
+        $missingProps = $store['byRelationshipId']['rCustomXmlMissingProps'];
+        $malformedProps = $store['byRelationshipId']['rCustomXmlMalformedProps'];
+        $remote = $store['byRelationshipId']['rCustomXmlRemote'];
+        $packageStore = $docx['packageProvenance']['customXmlDataStores'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same(5, $store['count']);
+        $t->same(5, $store['relationshipCount']);
+        $t->same(4, $store['existingCount']);
+        $t->same(0, $store['missingCount']);
+        $t->same(1, $store['externalCount']);
+        $t->same(3, $store['propertiesPartCount']);
+        $t->same(1, $store['boundStoreItemCount']);
+        $t->same(1, $store['duplicateStoreItemIDCount']);
+        $t->same([$storeItemId], $store['duplicateStoreItemIDs']);
+        $t->same(4, $store['issueCount']);
+        $t->same(1, $store['propertyIssueCount']);
+        $t->same(['missing-store-item-id'], $store['propertyIssueCodes']);
+        $t->same([$storeItemId], array_keys($store['byStoreItemID']));
+        $t->same($store, $packageStore);
+        $t->same(5, $summary['customXmlDataStoreCount']);
+        $t->same(4, $summary['customXmlDataStoreIssueCount']);
+
+        $t->same('rCustomXmlStore1', $first['relationshipId']);
+        $t->same('customXml/item1.xml', $first['targetPart']);
+        $t->same('slot=one', $first['targetQuery']);
+        $t->same('payload', $first['targetFragment']);
+        $t->same('?slot=one#payload', $first['targetReferenceSuffix']);
+        $t->same(true, $first['exists']);
+        $t->same('application/xml', $first['contentType']);
+        $t->same('review', $first['rootLocalName']);
+        $t->same('urn:wordpress:review', $first['rootNamespace']);
+        $t->same('Bound custom XML', $first['textPreview']);
+        $t->same($storeItemId, $first['storeItemID']);
+        $t->same('customXml/itemProps1.xml', $first['propertiesPart']);
+        $t->same('customXml/itemProps1.xml?version=1#props', $first['propertiesRelationship']['resolvedTarget']);
+        $t->same('?version=1#props', $first['propertiesRelationship']['targetReferenceSuffix']);
+        $t->same(['urn:wordpress:review-packet', 'https://example.test/schema/review.xsd'], $first['schemaRefs']);
+        $t->same([], $first['issues']);
+        $t->same([], $first['propertiesIssues']);
+
+        $t->same(['duplicate-store-item-id'], $duplicate['issues']);
+        $t->same(['missing-custom-xml-properties-relationship'], $missingProps['issues']);
+        $t->same(null, $malformedProps['storeItemID']);
+        $t->same(['missing-store-item-id'], $malformedProps['propertiesIssues']);
+        $t->same(['urn:wordpress:missing-id'], $malformedProps['schemaRefs']);
+        $t->same(true, $remote['external']);
+        $t->same(null, $remote['targetPart']);
+        $t->same(['external-custom-xml-store'], $remote['issues']);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

@@ -40,6 +40,7 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const NS_CUSTOM_XML_DATASTORE = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
@@ -161,6 +162,7 @@ final class DocxOpenXmlReader
         $extendedProperties = $this->readExtendedProperties($extendedPropertiesPart['xml'], $extendedPropertiesPart['partName']);
         $customPropertiesPart = $this->rootRelatedPart($parts, $rootRelationships, self::CUSTOM_PROPERTIES_REL, 'docProps/custom.xml');
         $customProperties = $this->readCustomProperties($customPropertiesPart['xml'], $customPropertiesPart['partName']);
+        $customXmlDataStores = $this->readCustomXmlDataStores($parts, $rootRelationships, $contentTypes);
         $media = $this->mediaMetadata($parts, $contentTypes);
         $referencedNotes = [
             'footnote' => $footnotes['nodes'],
@@ -248,6 +250,9 @@ final class DocxOpenXmlReader
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
+        $packageProvenance['customXmlDataStores'] = $customXmlDataStores;
+        $packageProvenance['summary']['customXmlDataStoreCount'] = $customXmlDataStores['count'];
+        $packageProvenance['summary']['customXmlDataStoreIssueCount'] = $customXmlDataStores['issueCount'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -274,6 +279,7 @@ final class DocxOpenXmlReader
                 'extendedProperties' => $extendedProperties,
                 'customPropertiesPart' => $customPropertiesPart['partName'],
                 'customProperties' => $customProperties,
+                'customXmlDataStores' => $customXmlDataStores,
                 'footnotesPart' => $footnotesPart['partName'],
                 'footnotes' => $footnotes['summary'],
                 'endnotesPart' => $endnotesPart['partName'],
@@ -3017,6 +3023,369 @@ final class DocxOpenXmlReader
             'items' => $items,
             'byName' => $byName,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readCustomXmlDataStores(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $items = [];
+        foreach ($rootRelationships as $relationship) {
+            if ($relationship['type'] !== self::CUSTOM_XML_REL) {
+                continue;
+            }
+
+            $items[] = $this->customXmlDataStoreItem($parts, $relationship, $contentTypes);
+        }
+
+        $seenStoreItemIds = [];
+        $duplicateStoreItemIds = [];
+        foreach ($items as &$item) {
+            $storeItemId = $item['storeItemID'] ?? null;
+            if (!is_string($storeItemId) || $storeItemId === '') {
+                continue;
+            }
+
+            $lookupKey = $this->customXmlStoreLookupKey($storeItemId);
+            if (isset($seenStoreItemIds[$lookupKey])) {
+                $item['issues'][] = 'duplicate-store-item-id';
+                $item['issues'] = array_values(array_unique($item['issues']));
+                $duplicateStoreItemIds[$lookupKey] = $seenStoreItemIds[$lookupKey];
+                continue;
+            }
+
+            $seenStoreItemIds[$lookupKey] = $storeItemId;
+        }
+        unset($item);
+
+        $byRelationshipId = [];
+        $byStoreItemId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $schemaRefs = [];
+        $propertyIssueCodes = [];
+        $existingCount = 0;
+        $missingCount = 0;
+        $externalCount = 0;
+        $propertiesPartCount = 0;
+        $issueCount = 0;
+        $propertyIssueCount = 0;
+
+        foreach ($items as $item) {
+            $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+            if ($relationshipId !== '') {
+                $relationshipIds[] = $relationshipId;
+                $byRelationshipId[$relationshipId] = $item;
+            }
+
+            if (($item['external'] ?? false) === true) {
+                ++$externalCount;
+            } elseif (($item['exists'] ?? false) === true) {
+                ++$existingCount;
+            } else {
+                ++$missingCount;
+            }
+
+            if (is_string($item['targetPart'] ?? null) && $item['targetPart'] !== '') {
+                $partNames[] = $item['targetPart'];
+            }
+            if (is_string($item['propertiesPart'] ?? null) && $item['propertiesPart'] !== '') {
+                ++$propertiesPartCount;
+            }
+            foreach (is_array($item['schemaRefs'] ?? null) ? $item['schemaRefs'] : [] as $schemaRef) {
+                $this->appendUniqueString($schemaRefs, is_string($schemaRef) ? $schemaRef : null);
+            }
+
+            $issues = is_array($item['issues'] ?? null) ? $item['issues'] : [];
+            $propertyIssues = is_array($item['propertiesIssues'] ?? null) ? $item['propertiesIssues'] : [];
+            if ($issues !== [] || $propertyIssues !== []) {
+                ++$issueCount;
+            }
+            if ($propertyIssues !== []) {
+                ++$propertyIssueCount;
+                foreach ($propertyIssues as $issue) {
+                    $this->appendUniqueString($propertyIssueCodes, is_string($issue) ? $issue : null);
+                }
+            }
+
+            $storeItemId = $item['storeItemID'] ?? null;
+            if (
+                is_string($storeItemId)
+                && $storeItemId !== ''
+                && !in_array('duplicate-store-item-id', $issues, true)
+            ) {
+                $byStoreItemId[$storeItemId] = $item;
+            }
+        }
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'existingCount' => $existingCount,
+            'missingCount' => $missingCount,
+            'externalCount' => $externalCount,
+            'propertiesPartCount' => $propertiesPartCount,
+            'boundStoreItemCount' => count($byStoreItemId),
+            'issueCount' => $issueCount,
+            'duplicateStoreItemIDCount' => count($duplicateStoreItemIds),
+            'duplicateStoreItemIDs' => array_values($duplicateStoreItemIds),
+            'propertyIssueCount' => $propertyIssueCount,
+            'propertyIssueCodes' => $propertyIssueCodes,
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'schemaRefs' => $schemaRefs,
+            'items' => $items,
+            'byRelationshipId' => $byRelationshipId,
+            'byStoreItemID' => $byStoreItemId,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customXmlDataStoreItem(array $parts, array $relationship, array $contentTypes): array
+    {
+        $external = $this->isExternalRelationshipTarget($relationship);
+        $targetPart = $external ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
+        $targetSuffix = $external ? ['query' => null, 'fragment' => null, 'suffix' => ''] : $this->targetReferenceSuffix($relationship['resolvedTarget']);
+        $contentTypeResolution = $targetPart === null
+            ? $this->missingContentTypeResolution(null)
+            : $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+        $exists = $targetPart !== null && isset($parts[$targetPart]);
+
+        $item = [
+            'relationshipId' => $relationship['id'],
+            'relationshipType' => $relationship['type'],
+            'sourcePart' => '/',
+            'relationshipsPart' => '_rels/.rels',
+            'target' => $relationship['target'],
+            'targetMode' => $relationship['targetMode'],
+            'resolvedTarget' => $relationship['resolvedTarget'],
+            'external' => $external,
+            'targetPart' => $targetPart,
+            'targetQuery' => $targetSuffix['query'],
+            'targetFragment' => $targetSuffix['fragment'],
+            'targetReferenceSuffix' => $targetSuffix['suffix'],
+            'exists' => $exists,
+            'bytes' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'textPreview' => null,
+            'textLength' => null,
+            'storeItemID' => null,
+            'schemaRefCount' => 0,
+            'schemaRefs' => [],
+            'propertiesPart' => null,
+            'propertiesContentType' => null,
+            'propertiesRelationship' => null,
+            'propertiesIssues' => [],
+            'issues' => [],
+        ] + $contentTypeResolution;
+
+        if ($external) {
+            $item['issues'][] = 'external-custom-xml-store';
+
+            return $item;
+        }
+
+        if (!in_array($item['contentTypeBase'], ['application/xml', 'text/xml'], true)) {
+            $item['issues'][] = $item['contentTypeSource'] === 'missing'
+                ? 'missing-content-type'
+                : 'unexpected-content-type';
+        }
+
+        if (!$exists || $targetPart === null) {
+            $item['issues'][] = 'missing-in-package';
+            $item['issues'] = array_values(array_unique($item['issues']));
+
+            return $item;
+        }
+
+        $bytes = $parts[$targetPart];
+        $item['bytes'] = strlen($bytes);
+        try {
+            $dom = $this->loadXml($bytes, $targetPart);
+            $root = $dom->documentElement;
+        } catch (\RuntimeException) {
+            $root = null;
+            $item['issues'][] = 'invalid-custom-xml';
+        }
+
+        if ($root instanceof \DOMElement) {
+            $text = trim(preg_replace('/[ \t\r\n\f]+/u', ' ', $root->textContent) ?? $root->textContent);
+            $item['rootName'] = $this->qualifiedDomName($root);
+            $item['rootNamespace'] = $root->namespaceURI;
+            $item['rootLocalName'] = $root->localName;
+            $item['textPreview'] = $text === '' ? null : $this->boundedTextPreview($text);
+            $item['textLength'] = strlen($text);
+        }
+
+        $properties = $this->customXmlDataStorePropertiesForItem($parts, $targetPart, $contentTypes);
+        if ($properties === []) {
+            $item['issues'][] = 'missing-custom-xml-properties-relationship';
+        } else {
+            $item['propertiesPart'] = $properties['part'];
+            $item['propertiesContentType'] = $properties['contentType'];
+            $item['propertiesRelationship'] = $properties['relationship'];
+            $item['propertiesIssues'] = $properties['issues'];
+            $item['storeItemID'] = $properties['storeItemID'];
+            $item['schemaRefs'] = $properties['schemaRefs'];
+            $item['schemaRefCount'] = count($properties['schemaRefs']);
+        }
+
+        $item['issues'] = array_values(array_unique($item['issues']));
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array{part:?string, contentType:?string, relationship:array<string, mixed>, storeItemID:?string, schemaRefs:list<string>, issues:list<string>}|array{}
+     */
+    private function customXmlDataStorePropertiesForItem(array $parts, string $itemPart, array $contentTypes): array
+    {
+        $relationshipsPart = $this->relationshipsPartFor($itemPart);
+        $relationships = $this->readRelationshipsPart($parts, $relationshipsPart);
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::CUSTOM_XML_PROPS_REL) {
+                continue;
+            }
+
+            $summary = $this->relationshipInventorySummary($parts, $relationship, $itemPart, $relationshipsPart, $contentTypes);
+            $issues = [];
+            if (($summary['external'] ?? false) === true) {
+                $issues[] = 'external-custom-xml-properties-target';
+            } elseif (($summary['exists'] ?? false) !== true) {
+                $issues[] = 'missing-in-package';
+            }
+            if (
+                is_string($summary['contentTypeBase'] ?? null)
+                && $summary['contentTypeBase'] !== 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml'
+            ) {
+                $issues[] = $summary['contentTypeSource'] === 'missing'
+                    ? 'missing-properties-content-type'
+                    : 'unexpected-properties-content-type';
+            }
+
+            $properties = [
+                'part' => $summary['targetPart'],
+                'contentType' => $summary['contentType'],
+                'relationship' => $summary,
+                'storeItemID' => null,
+                'schemaRefs' => [],
+                'issues' => [],
+            ];
+
+            if (($summary['exists'] ?? false) === true && is_string($summary['targetPart'] ?? null)) {
+                $parsed = $this->customXmlDataStoreProperties($parts[$summary['targetPart']]);
+                $properties['storeItemID'] = $parsed['storeItemID'];
+                $properties['schemaRefs'] = $parsed['schemaRefs'];
+                $issues = array_merge($issues, $parsed['issues']);
+            }
+
+            $properties['issues'] = array_values(array_unique($issues));
+
+            return $properties;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{storeItemID:?string, schemaRefs:list<string>, issues:list<string>}
+     */
+    private function customXmlDataStoreProperties(string $xml): array
+    {
+        $properties = [
+            'storeItemID' => null,
+            'schemaRefs' => [],
+            'issues' => [],
+        ];
+
+        try {
+            $dom = $this->loadXml($xml, 'DOCX custom XML data store properties');
+        } catch (\RuntimeException) {
+            $properties['issues'][] = 'invalid-custom-xml-properties';
+
+            return $properties;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_CUSTOM_XML_DATASTORE || $root->localName !== 'datastoreItem') {
+            $properties['issues'][] = 'invalid-custom-xml-properties-root';
+
+            return $properties;
+        }
+
+        $storeItemId = $this->customXmlDataStoreAttr($root, 'itemID');
+        if ($storeItemId !== '') {
+            $properties['storeItemID'] = $storeItemId;
+        } else {
+            $properties['issues'][] = 'missing-store-item-id';
+        }
+
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_CUSTOM_XML_DATASTORE || $child->localName !== 'schemaRefs') {
+                continue;
+            }
+
+            foreach ($child->childNodes as $schemaRef) {
+                if (!$schemaRef instanceof \DOMElement || $schemaRef->namespaceURI !== self::NS_CUSTOM_XML_DATASTORE || $schemaRef->localName !== 'schemaRef') {
+                    continue;
+                }
+
+                $uri = $this->customXmlDataStoreAttr($schemaRef, 'uri');
+                if ($uri !== '') {
+                    $properties['schemaRefs'][] = $uri;
+                }
+            }
+        }
+
+        return $properties;
+    }
+
+    private function customXmlDataStoreAttr(\DOMElement $element, string $localName): string
+    {
+        $value = trim($element->getAttributeNS(self::NS_CUSTOM_XML_DATASTORE, $localName));
+        if ($value !== '') {
+            return $value;
+        }
+
+        return trim($element->getAttribute($localName));
+    }
+
+    private function customXmlStoreLookupKey(string $storeItemId): string
+    {
+        return strtolower(trim($storeItemId));
+    }
+
+    private function qualifiedDomName(\DOMElement $element): string
+    {
+        $prefix = $element->prefix;
+
+        return is_string($prefix) && $prefix !== '' ? $prefix . ':' . $element->localName : $element->localName;
+    }
+
+    private function boundedTextPreview(string $text): string
+    {
+        if (strlen($text) <= 120) {
+            return $text;
+        }
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($text, 0, 120, 'UTF-8') . '...';
+        }
+
+        return substr($text, 0, 120) . '...';
     }
 
     /**
