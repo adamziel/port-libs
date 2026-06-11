@@ -24941,6 +24941,72 @@ XML);
         $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
         $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
     },
+    'maps bounded biblatex mathscinet aliases into csl registry identifiers' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@article{mathscinet-review,
+  author       = {Noether, Emmy},
+  title        = {MathSciNet Review Packet},
+  journaltitle = {Migration Mathematics Review},
+  date         = {2026},
+  mathscinet   = {MR2468101},
+  mrclass      = {13A50}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('MR2468101', $items[0]['MRNumber'] ?? null);
+        $t->same('MR2468101', $items[0]['rawBibtex']['fields']['mathscinet'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('mathscinet-review');
+        $t->same('MR2468101', $item['mrNumber'] ?? null);
+        $t->same('Noether, Emmy. MathSciNet Review Packet. Migration Mathematics Review. 2026. MR MR2468101. MR class 13A50.', $processor->renderBibliographyEntry('mathscinet-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX MathSciNet Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-mathscinet-alias-review</id>
+    <updated>2026-06-11T16:46:38+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="mathscinet"/>
+        <text variable="mrclass"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mathscinet"/>
+      <text variable="mr-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Noether | MR2468101 | 13A50]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'mathscinet-review', 'text' => '[@mathscinet-review]']),
+        ]));
+        $t->same('MathSciNet Review Packet :: MR2468101 :: MR2468101', $styled->renderBibliographyEntry('mathscinet-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-mathscinet',
+            'title' => 'Direct MathSciNet Packet',
+            'mathscinet' => 'MR1357911',
+        ]]);
+        $t->same('MR1357911', $direct->item('direct-mathscinet')['mrNumber'] ?? null);
+        $t->same('Direct MathSciNet Packet. MR MR1357911.', $direct->renderBibliographyEntry('direct-mathscinet'));
+
+        $document = (new MarkdownReader())->read('MathSciNet source @mathscinet-review keeps review identifiers visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>MathSciNet source Noether (2026) keeps review identifiers visible.</p>', $blocks);
+        $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. MathSciNet Review Packet. Migration Mathematics Review. 2026. MR MR2468101. MR class 13A50.</dd>', $blocks);
+    },
     'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{hyphen-original,
