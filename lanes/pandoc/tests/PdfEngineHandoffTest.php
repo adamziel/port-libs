@@ -154,6 +154,49 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst package cache path alias boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/cache-alias.pdf',
+            'source' => '= Typst Package Cache Alias Packet',
+            'engineOptions' => [
+                '--package-path=vendor/typst-packages',
+                '--package-cache-path=cache/typst-packages',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst package cache alias packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'packageCache' => ['raw' => 'cache/typst-packages', 'path' => 'cache/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'inputVariables' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/cache-alias.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/cache-alias.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache:cache/typst-packages', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst boundary override provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
