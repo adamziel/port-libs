@@ -134,7 +134,10 @@ final class EpubPackage
         $rootfiles = self::parseContainerXml($package->read('META-INF/container.xml'));
         $opfPartName = null;
         foreach ($rootfiles as $rootfile) {
-            if ($rootfile['mediaType'] === self::OPF_MEDIA_TYPE) {
+            $mediaTypeBase = is_string($rootfile['mediaTypeBase'] ?? null)
+                ? $rootfile['mediaTypeBase']
+                : self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
+            if ($mediaTypeBase === self::OPF_MEDIA_TYPE) {
                 $opfPartName = $rootfile['partName'];
                 break;
             }
@@ -588,6 +591,9 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'rootfileMediaTypeParameterItems' => $validationReport['rootfiles']['mediaTypeParameterItems'],
+                'rootfileMediaTypeParameterNames' => $validationReport['rootfiles']['mediaTypeParameterNames'],
+                'rootfileMediaTypeDiagnostics' => $validationReport['rootfiles']['mediaTypeDiagnostics'],
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
@@ -676,12 +682,27 @@ final class EpubPackage
         $missingRootfiles = [];
         $nonOpfRootfiles = [];
         $parts = [];
+        $mediaTypeParameterItems = [];
+        $mediaTypeParameterNames = [];
+        $mediaTypeParameterCount = 0;
+        $mediaTypeDiagnostics = [];
         $diagnostics = [];
         $selectedIndex = null;
 
         foreach ($rootfiles as $index => $rootfile) {
             $partName = (string) ($rootfile['partName'] ?? '');
-            $mediaType = self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
+            $rawMediaType = (string) ($rootfile['mediaType'] ?? '');
+            $mediaTypeReport = self::rootfileMediaTypeReport($rawMediaType);
+            $mediaType = is_string($rootfile['mediaTypeBase'] ?? null) ? $rootfile['mediaTypeBase'] : $mediaTypeReport['mediaTypeBase'];
+            $mediaTypeParameters = is_array($rootfile['mediaTypeParameters'] ?? null)
+                ? array_values($rootfile['mediaTypeParameters'])
+                : $mediaTypeReport['mediaTypeParameters'];
+            $mediaTypeParameterMap = is_array($rootfile['mediaTypeParameterMap'] ?? null)
+                ? $rootfile['mediaTypeParameterMap']
+                : $mediaTypeReport['mediaTypeParameterMap'];
+            $itemMediaTypeDiagnostics = is_array($rootfile['mediaTypeDiagnostics'] ?? null)
+                ? array_values(array_filter($rootfile['mediaTypeDiagnostics'], 'is_array'))
+                : $mediaTypeReport['mediaTypeDiagnostics'];
             $exists = $partName !== '' && $package->has($partName);
             $entry = $exists ? $package->entry($partName) : null;
             $provenance = self::zipEntryProvenance($entry);
@@ -694,7 +715,15 @@ final class EpubPackage
                 'index' => $index,
                 'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
                 'partName' => $partName,
-                'mediaType' => $mediaType,
+                'mediaType' => $rawMediaType,
+                'normalizedMediaType' => is_string($rootfile['normalizedMediaType'] ?? null) ? $rootfile['normalizedMediaType'] : $mediaTypeReport['normalizedMediaType'],
+                'mediaTypeBase' => $mediaType,
+                'mediaTypeHasParameters' => $mediaTypeParameters !== [],
+                'mediaTypeParameterCount' => count($mediaTypeParameters),
+                'mediaTypeParameters' => $mediaTypeParameters,
+                'mediaTypeParameterMap' => $mediaTypeParameterMap,
+                'mediaTypeSyntaxValid' => $itemMediaTypeDiagnostics === [],
+                'mediaTypeDiagnostics' => $itemMediaTypeDiagnostics,
                 'exists' => $exists,
                 'selected' => $selected,
                 'byteLength' => $provenance['byteLength'],
@@ -707,6 +736,50 @@ final class EpubPackage
             ];
             $items[] = $item;
 
+            if ($mediaTypeParameters !== []) {
+                $parameterNames = [];
+                foreach ($mediaTypeParameters as $parameter) {
+                    if (!is_array($parameter)) {
+                        continue;
+                    }
+
+                    $name = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                    if ($name !== '') {
+                        $parameterNames[] = $name;
+                        $mediaTypeParameterNames[$name] = true;
+                    }
+                }
+
+                $mediaTypeParameterCount += count($mediaTypeParameters);
+                $mediaTypeParameterItems[] = [
+                    'index' => $index,
+                    'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $rawMediaType,
+                    'mediaTypeBase' => $mediaType,
+                    'parameterCount' => count($mediaTypeParameters),
+                    'parameterNames' => array_values(array_unique($parameterNames)),
+                    'parameters' => $mediaTypeParameters,
+                    'parameterMap' => $mediaTypeParameterMap,
+                ];
+            }
+
+            foreach ($itemMediaTypeDiagnostics as $mediaTypeDiagnostic) {
+                if (!is_array($mediaTypeDiagnostic)) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'index' => $index,
+                    'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $rawMediaType,
+                    'mediaTypeBase' => $mediaType,
+                ] + $mediaTypeDiagnostic;
+                $mediaTypeDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+
             if ($mediaType === self::OPF_MEDIA_TYPE) {
                 $opfRootfiles[] = $item;
             } else {
@@ -715,7 +788,8 @@ final class EpubPackage
                     'type' => 'non-opf-container-rootfile',
                     'index' => $index,
                     'partName' => $partName,
-                    'mediaType' => $mediaType,
+                    'mediaType' => $rawMediaType,
+                    'mediaTypeBase' => $mediaType,
                     'message' => 'EPUB container rootfile should identify an OPF package document',
                 ];
             }
@@ -730,7 +804,8 @@ final class EpubPackage
                     'type' => 'missing-rootfile-package-part',
                     'index' => $index,
                     'partName' => $partName,
-                    'mediaType' => $mediaType,
+                    'mediaType' => $rawMediaType,
+                    'mediaTypeBase' => $mediaType,
                     'message' => 'EPUB container rootfile points at a package part that is not present in the ZIP',
                 ];
             }
@@ -750,6 +825,7 @@ final class EpubPackage
                 'partName' => $partName,
                 'indexes' => array_column($matches, 'index'),
                 'mediaTypes' => array_values(array_unique(array_column($matches, 'mediaType'))),
+                'mediaTypeBases' => array_values(array_unique(array_column($matches, 'mediaTypeBase'))),
             ];
             $duplicatePartItems[] = $duplicate;
             $diagnostics[] = [
@@ -770,12 +846,18 @@ final class EpubPackage
             'missingRootfileCount' => count($missingRootfiles),
             'nonOpfRootfileCount' => count($nonOpfRootfiles),
             'duplicatePartCount' => count($duplicatePartItems),
+            'mediaTypeParameterRootfileCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterCount' => $mediaTypeParameterCount,
+            'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
+            'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
             'items' => $items,
             'opfRootfiles' => $opfRootfiles,
             'alternateRootfiles' => $alternateRootfiles,
             'missingRootfiles' => $missingRootfiles,
             'nonOpfRootfiles' => $nonOpfRootfiles,
             'duplicatePartItems' => $duplicatePartItems,
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
+            'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -1737,11 +1819,12 @@ final class EpubPackage
                 throw new \InvalidArgumentException('EPUB rootfile full-path and media-type must be non-empty');
             }
 
+            $mediaTypeReport = self::rootfileMediaTypeReport($mediaType);
             $rootfiles[] = [
                 'fullPath' => $fullPath,
                 'partName' => OpcPackagePath::canonicalPartName($fullPath),
                 'mediaType' => $mediaType,
-            ];
+            ] + $mediaTypeReport;
         }
 
         if ($rootfiles === []) {
@@ -6896,6 +6979,40 @@ final class EpubPackage
     private static function mediaTypeBase(string $mediaType): string
     {
         return self::mediaTypeReport($mediaType)['mediaTypeBase'];
+    }
+
+    /**
+     * @return array{
+     *     mediaType:string,
+     *     normalizedMediaType:string,
+     *     mediaTypeBase:string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeParameters:list<array{name:string, value:string, raw:string}>,
+     *     mediaTypeParameterMap:array<string, string>,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function rootfileMediaTypeReport(string $mediaType): array
+    {
+        $report = self::mediaTypeReport($mediaType);
+        $diagnostics = [];
+        foreach ($report['mediaTypeDiagnostics'] as $diagnostic) {
+            if (!is_array($diagnostic)) {
+                continue;
+            }
+
+            $diagnostic['type'] = is_string($diagnostic['type'] ?? null)
+                ? str_replace('-manifest-', '-rootfile-', $diagnostic['type'])
+                : 'invalid-rootfile-media-type';
+            $diagnostic['message'] = 'EPUB OCF container rootfile media-type must use valid MIME type and parameter syntax for package review';
+            $diagnostics[] = $diagnostic;
+        }
+        $report['mediaTypeDiagnostics'] = $diagnostics;
+        $report['mediaTypeSyntaxValid'] = $diagnostics === [];
+
+        return $report;
     }
 
     /**

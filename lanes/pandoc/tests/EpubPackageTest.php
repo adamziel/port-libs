@@ -3462,6 +3462,62 @@ XML;
         $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
     },
 
+    'preserves EPUB container rootfile media type parameter provenance' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithParameterizedRootfile = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=&quot;opf;root&quot;; charset=UTF-8"/>
+  </rootfiles>
+</container>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithParameterizedRootfile],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $rootfile = $epub->rootfiles()[0];
+        $validation = $epub->validationReport();
+        $rootfiles = $validation['rootfiles'];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/package.opf', $epub->opfPartName());
+        $t->same(true, $validation['valid']);
+        $t->same(0, $validation['diagnosticCount']);
+        $t->same('application/oebps-package+xml; profile="opf;root"; charset=UTF-8', $rootfile['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfile['mediaTypeBase']);
+        $t->same('application/oebps-package+xml; profile=opf;root; charset=utf-8', $rootfile['normalizedMediaType']);
+        $t->same(true, $rootfile['mediaTypeHasParameters']);
+        $t->same(2, $rootfile['mediaTypeParameterCount']);
+        $t->same('profile="opf;root"', $rootfile['mediaTypeParameters'][0]['raw']);
+        $t->same(['profile' => 'opf;root', 'charset' => 'UTF-8'], $rootfile['mediaTypeParameterMap']);
+        $t->same(true, $rootfile['mediaTypeSyntaxValid']);
+        $t->same([], $rootfile['mediaTypeDiagnostics']);
+
+        $t->same(0, $rootfiles['selectedIndex']);
+        $t->same(true, $rootfiles['items'][0]['selected']);
+        $t->same('application/oebps-package+xml; profile="opf;root"; charset=UTF-8', $rootfiles['items'][0]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles['items'][0]['mediaTypeBase']);
+        $t->same(['profile' => 'opf;root', 'charset' => 'UTF-8'], $rootfiles['items'][0]['mediaTypeParameterMap']);
+        $t->same(1, $rootfiles['mediaTypeParameterRootfileCount']);
+        $t->same(2, $rootfiles['mediaTypeParameterCount']);
+        $t->same(['profile', 'charset'], $rootfiles['mediaTypeParameterNames']);
+        $t->same(['profile', 'charset'], $rootfiles['mediaTypeParameterItems'][0]['parameterNames']);
+        $t->same(['profile' => 'opf;root', 'charset' => 'UTF-8'], $rootfiles['mediaTypeParameterItems'][0]['parameterMap']);
+        $t->same(0, $rootfiles['mediaTypeDiagnosticCount']);
+        $t->same([], $rootfiles['mediaTypeDiagnostics']);
+        $t->same($rootfile, $summary['rootfiles'][0]);
+        $t->same($rootfiles['mediaTypeParameterItems'], $summary['wordpressImport']['rootfileMediaTypeParameterItems']);
+        $t->same($rootfiles['mediaTypeParameterNames'], $summary['wordpressImport']['rootfileMediaTypeParameterNames']);
+        $t->same([], $summary['wordpressImport']['rootfileMediaTypeDiagnostics']);
+        $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
+    },
+
     'reports compact EPUB container rootfile diagnostics for validation handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
         $containerWithAlternateRootfiles = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
