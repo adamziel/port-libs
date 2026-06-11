@@ -745,6 +745,7 @@ final class XmlHtmlDom
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
+            $summary['formOwner'] = self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
@@ -758,6 +759,7 @@ final class XmlHtmlDom
         if ($name === 'input') {
             $summary['formControl'] = 'input';
             $summary['inputType'] = self::inputType($node);
+            $summary['formOwner'] = self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
@@ -774,6 +776,7 @@ final class XmlHtmlDom
         }
         if ($name === 'textarea') {
             $summary['formControl'] = 'textarea';
+            $summary['formOwner'] = self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->textContent;
             $summary['disabled'] = $node->hasAttribute('disabled');
@@ -787,6 +790,7 @@ final class XmlHtmlDom
         if ($name === 'button') {
             $summary['formControl'] = 'button';
             $summary['buttonType'] = self::buttonType($node);
+            $summary['formOwner'] = self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['label'] = self::normalizedText($node);
@@ -796,6 +800,7 @@ final class XmlHtmlDom
         if ($name === 'output') {
             $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
             $summary['formControl'] = 'output';
+            $summary['formOwner'] = self::formOwnerSummary($node);
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->textContent;
             $summary['forRaw'] = $forRaw;
@@ -1243,6 +1248,73 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    private static function formOwnerSummary(\DOMElement $control): ?array
+    {
+        $formAttribute = trim($control->getAttribute('form'));
+        if ($formAttribute !== '') {
+            $form = self::formElementById($control, $formAttribute);
+            if (!$form instanceof \DOMElement) {
+                return [
+                    'source' => 'attribute',
+                    'requestedId' => $formAttribute,
+                    'resolved' => false,
+                ];
+            }
+
+            return self::formElementSummary($form, 'attribute', $formAttribute);
+        }
+
+        $form = self::ancestorHtmlElement($control, 'form');
+        if (!$form instanceof \DOMElement) {
+            return null;
+        }
+
+        return self::formElementSummary($form, 'ancestor', null);
+    }
+
+    private static function formElementById(\DOMElement $control, string $id): ?\DOMElement
+    {
+        $document = $control->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        foreach ($document->getElementsByTagName('form') as $form) {
+            if ($form instanceof \DOMElement && $form->getAttribute('id') === $id) {
+                return $form;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formElementSummary(\DOMElement $form, string $source, ?string $requestedId): array
+    {
+        $summary = [
+            'source' => $source,
+            'resolved' => true,
+            'id' => self::attributeOrNull($form, 'id'),
+        ];
+        if ($requestedId !== null) {
+            $summary['requestedId'] = $requestedId;
+        }
+        foreach (['name', 'action', 'method', 'enctype', 'target'] as $attribute) {
+            $value = self::attributeOrNull($form, $attribute);
+            if ($value === null) {
+                continue;
+            }
+            $summary[$attribute] = $attribute === 'method' ? strtolower(trim($value)) : $value;
+        }
+
+        return $summary;
+    }
+
+    /**
      * @param list<string> $labels
      */
     private static function appendFormControlLabel(array &$labels, string $label): void
@@ -1278,6 +1350,19 @@ final class XmlHtmlDom
             if ($child instanceof \DOMElement && strtolower(self::htmlElementName($child)) === $name) {
                 return $child;
             }
+        }
+
+        return null;
+    }
+
+    private static function ancestorHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (strtolower(self::htmlElementName($parent)) === $name) {
+                return $parent;
+            }
+            $parent = $parent->parentNode;
         }
 
         return null;

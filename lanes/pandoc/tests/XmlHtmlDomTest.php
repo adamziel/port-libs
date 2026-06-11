@@ -341,6 +341,66 @@ XML, 'package reader XML');
         $t->same(true, $submitButton['effectiveDisabled']);
         $t->same('<form id="import-form"><label for="format">Format</label><input id="format" list="format-options" name="format" placeholder="Choose format" required><datalist id="format-options"><option label="Word" value="docx"></option><option value="epub">EPUB</option><option>ODT</option></datalist><fieldset disabled><legend>Batch <button id="legend-action">Keep enabled</button></legend><label>Confirm <input checked id="confirm" name="confirm" type="checkbox"></label><select id="state" name="state" required><option value="draft">Draft</option></select><textarea id="notes" name="notes" placeholder="Reviewer note">Ready</textarea><button id="submit" name="save" type="submit" value="1">Save</button></fieldset></form>', $html);
     },
+    'summarizes html form owner relationships for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="ancestor-form" name="inside" action="/save" method="POST"><label for="inside-title">Inside title</label><input id="inside-title" name="title" value="Ready"><fieldset disabled><button id="external-save" form="external-form" name="save" value="1">Save</button></fieldset></form>'
+                . '<form id="external-form" name="external" action="/publish" method="dialog" target="_blank"></form>'
+                . '<input id="external-title" name="external-title" form="external-form" value="Packet">'
+                . '<select id="missing-owner" name="missing" form="missing-form"><option selected>Draft</option></select>'
+                . '<output id="owner-output" form="ancestor-form" for="inside-title external-title">Queued</output>',
+            'form owner review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $ancestorForm = $summary[0];
+        $insideInput = $ancestorForm['children'][1];
+        $externalButton = $ancestorForm['children'][2]['children'][0];
+        $externalInput = $summary[2];
+        $missingSelect = $summary[3];
+        $ownerOutput = $summary[4];
+
+        $t->same([
+            'source' => 'ancestor',
+            'resolved' => true,
+            'id' => 'ancestor-form',
+            'name' => 'inside',
+            'action' => '/save',
+            'method' => 'post',
+        ], $insideInput['formOwner']);
+        $t->same(['Inside title'], $insideInput['labels']);
+        $t->same([
+            'source' => 'attribute',
+            'resolved' => true,
+            'id' => 'external-form',
+            'requestedId' => 'external-form',
+            'name' => 'external',
+            'action' => '/publish',
+            'method' => 'dialog',
+            'target' => '_blank',
+        ], $externalButton['formOwner']);
+        $t->same(true, $externalButton['effectiveDisabled']);
+        $t->same('Save', $externalButton['label']);
+        $t->same($externalButton['formOwner'], $externalInput['formOwner']);
+        $t->same(false, $externalInput['effectiveDisabled']);
+        $t->same([
+            'source' => 'attribute',
+            'requestedId' => 'missing-form',
+            'resolved' => false,
+        ], $missingSelect['formOwner']);
+        $t->same(['Draft'], $missingSelect['selectedValues']);
+        $t->same([
+            'source' => 'attribute',
+            'resolved' => true,
+            'id' => 'ancestor-form',
+            'requestedId' => 'ancestor-form',
+            'name' => 'inside',
+            'action' => '/save',
+            'method' => 'post',
+        ], $ownerOutput['formOwner']);
+        $t->same(['inside-title', 'external-title'], $ownerOutput['forIds']);
+        $t->same('<form action="/save" id="ancestor-form" method="POST" name="inside"><label for="inside-title">Inside title</label><input id="inside-title" name="title" value="Ready"><fieldset disabled><button form="external-form" id="external-save" name="save" value="1">Save</button></fieldset></form><form action="/publish" id="external-form" method="dialog" name="external" target="_blank"></form><input form="external-form" id="external-title" name="external-title" value="Packet"><select form="missing-form" id="missing-owner" name="missing"><option selected>Draft</option></select><output for="inside-title external-title" form="ancestor-form" id="owner-output">Queued</output>', $html);
+    },
     'summarizes html progress and meter state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<label for="upload-progress">Upload</label><progress id="upload-progress" value="3" max="4">75%</progress><progress id="pending">Pending</progress><label>Quality <meter id="quality" value="0.82" min="0" max="1" low="0.4" high="0.9" optimum="0.95">82%</meter></label><meter id="clamped" value="12" min="2" max="10">Too high</meter>',
