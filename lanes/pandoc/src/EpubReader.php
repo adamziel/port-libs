@@ -6137,7 +6137,15 @@ final class EpubReader
                     'message' => 'EPUB OPF binding handler does not reference a manifest item',
                 ];
             } else {
-                if (($handler['exists'] ?? false) !== true) {
+                if (($handler['external'] ?? false) === true) {
+                    $itemDiagnostics[] = [
+                        'type' => 'external-binding-handler',
+                        'mediaType' => $mediaType === '' ? null : $mediaType,
+                        'handlerId' => $handlerId,
+                        'target' => (string) ($handler['target'] ?? ''),
+                        'message' => 'EPUB OPF binding handler points outside the package and was not fetched',
+                    ];
+                } elseif (($handler['exists'] ?? false) !== true) {
                     $itemDiagnostics[] = [
                         'type' => 'missing-binding-handler-part',
                         'mediaType' => $mediaType === '' ? null : $mediaType,
@@ -6148,11 +6156,15 @@ final class EpubReader
                 }
 
                 if (self::isEncryptedManifestItem($handler)) {
+                    $handlerEncryption = is_array($handler['encryption'] ?? null) ? $handler['encryption'] : [];
                     $itemDiagnostics[] = [
                         'type' => 'encrypted-binding-handler',
                         'mediaType' => $mediaType === '' ? null : $mediaType,
                         'handlerId' => $handlerId,
                         'part' => (string) $handler['part'],
+                        'handlerMediaType' => (string) ($handler['mediaType'] ?? ''),
+                        'reviewPolicy' => is_string($handlerEncryption['reviewPolicy'] ?? null) ? $handlerEncryption['reviewPolicy'] : null,
+                        'byteExposurePolicy' => is_string($handlerEncryption['byteExposurePolicy'] ?? null) ? $handlerEncryption['byteExposurePolicy'] : null,
                         'message' => 'EPUB OPF binding handler is encrypted and cannot be exposed for review',
                     ];
                 }
@@ -6162,7 +6174,7 @@ final class EpubReader
                 $diagnostics[] = ['index' => $index] + $diagnostic;
             }
 
-            $handlerPart = is_array($handler) ? (string) $handler['part'] : null;
+            $handlerPart = is_array($handler) && is_string($handler['part'] ?? null) ? $handler['part'] : null;
             $entry = $handlerPart !== null && $package->has($handlerPart) ? $package->entry($handlerPart) : null;
             $items[] = [
                 'index' => $index,
@@ -6174,10 +6186,12 @@ final class EpubReader
                 'handlerMediaType' => is_array($handler) ? (string) $handler['mediaType'] : null,
                 'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
                 'handlerExists' => is_array($handler) && ($handler['exists'] ?? false) === true,
+                'handlerExternal' => is_array($handler) && ($handler['external'] ?? false) === true,
                 'handlerEncrypted' => is_array($handler) && self::isEncryptedManifestItem($handler),
                 'handlerCanExposeBytes' => is_array($handler)
                     && ($handler['exists'] ?? false) === true
                     && (bool) ($handler['canExposeBytes'] ?? true),
+                'handlerEncryption' => is_array($handler) && is_array($handler['encryption'] ?? null) ? $handler['encryption'] : null,
                 'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
                 'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
                 'diagnostics' => $itemDiagnostics,
