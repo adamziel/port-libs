@@ -470,6 +470,71 @@ XML;
         $t->same(strlen($settingsBytes), $settings['storedByteLength']);
         $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
     },
+    'reports compact ODT Configurations2 sidecars as metadata only' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $toolbarBytes = '<config:config-item-set config:name="toolbar"/>';
+        $acceleratorBytes = '<config:config-item-set config:name="accelerator"/>';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/toolbar/statusbar.xml" manifest:size="' . strlen($toolbarBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/missing.xml"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Configurations2/toolbar/statusbar.xml', 'data' => $toolbarBytes, 'compressionMethod' => 0],
+                ['name' => 'Configurations2/accelerator/current.xml', 'data' => $acceleratorBytes, 'compressionMethod' => 0],
+            ],
+        ));
+        $summary = $odt->summarize();
+        $sidecarsByPath = [];
+        foreach ($summary['configurationSidecars'] as $sidecar) {
+            $sidecarsByPath[$sidecar['path']] = $sidecar;
+        }
+        $inventoryParts = $summary['packageInventory']['parts'];
+
+        $t->same(3, $summary['configurationSidecarCount']);
+        $t->same(1, $summary['missingConfigurationSidecarCount']);
+        $t->same(1, $summary['undeclaredConfigurationSidecarCount']);
+        $t->same(0, $summary['encryptedConfigurationSidecarCount']);
+        $t->same(1, count($summary['mediaParts']), 'Configurations2 sidecars must stay out of media byte handoff');
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('Configurations2/accelerator/current.xml', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same(7, $summary['manifestReview']['count']);
+
+        $toolbar = $sidecarsByPath['Configurations2/toolbar/statusbar.xml'];
+        $t->same('Configurations2/toolbar/statusbar.xml', $toolbar['packagePath']);
+        $t->same('text/xml', $toolbar['mediaType']);
+        $t->same(true, $toolbar['declaredInManifest']);
+        $t->same(false, $toolbar['undeclared']);
+        $t->same(true, $toolbar['exists']);
+        $t->same(strlen($toolbarBytes), $toolbar['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($toolbarBytes)), $toolbar['crc32']);
+        $t->same(false, $toolbar['canExposeBytes']);
+        $t->same('odf-configuration-sidecar-metadata-only', $toolbar['byteExposurePolicy']);
+        $t->same('package-bytes-exposable', $toolbar['sourceByteExposurePolicy']);
+        $t->same([], $toolbar['diagnostics']);
+
+        $missing = $sidecarsByPath['Configurations2/missing.xml'];
+        $t->same(true, $missing['declaredInManifest']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing-package-part', $missing['byteExposurePolicy']);
+        $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
+
+        $accelerator = $sidecarsByPath['Configurations2/accelerator/current.xml'];
+        $t->same(false, $accelerator['declaredInManifest']);
+        $t->same(true, $accelerator['undeclared']);
+        $t->same(null, $accelerator['mediaType']);
+        $t->same(strlen($acceleratorBytes), $accelerator['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($acceleratorBytes)), $accelerator['storedCrc32']);
+        $t->same('undeclared-package-entry-no-bytes', $accelerator['byteExposurePolicy']);
+        $t->same(['odf-manifest-undeclared-package-entry'], $accelerator['diagnostics']);
+
+        $t->same(['odf-configuration-sidecar', 'manifest-declared'], $inventoryParts['Configurations2/toolbar/statusbar.xml']['roles']);
+        $t->same(['odf-configuration-sidecar', 'undeclared-package-entry'], $inventoryParts['Configurations2/accelerator/current.xml']['roles']);
+    },
     'resolves compact ODT URI encoded manifest paths to ZIP package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
         $manifest = str_replace(

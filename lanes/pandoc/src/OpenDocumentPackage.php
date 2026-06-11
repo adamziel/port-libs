@@ -217,6 +217,11 @@ final class OpenDocumentPackage
      *     missingMediaPartCount:int,
      *     missingMediaParts:list<array{path:string, mediaType:string}>,
      *     exposableMediaPartCount:int,
+     *     configurationSidecarCount:int,
+     *     configurationSidecars:list<array<string, mixed>>,
+     *     missingConfigurationSidecarCount:int,
+     *     undeclaredConfigurationSidecarCount:int,
+     *     encryptedConfigurationSidecarCount:int,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
@@ -237,6 +242,7 @@ final class OpenDocumentPackage
         $exposableMediaPartCount = 0;
         $encryptedParts = [];
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
+        $configurationSidecars = $this->configurationSidecars($undeclaredPackageEntries);
         foreach ($this->manifestEntries as $entry) {
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
@@ -288,6 +294,11 @@ final class OpenDocumentPackage
             'missingMediaPartCount' => count($missingMediaParts),
             'missingMediaParts' => $missingMediaParts,
             'exposableMediaPartCount' => $exposableMediaPartCount,
+            'configurationSidecarCount' => count($configurationSidecars),
+            'configurationSidecars' => $configurationSidecars,
+            'missingConfigurationSidecarCount' => count(array_filter($configurationSidecars, static fn (array $entry): bool => ($entry['exists'] ?? false) !== true)),
+            'undeclaredConfigurationSidecarCount' => count(array_filter($configurationSidecars, static fn (array $entry): bool => ($entry['undeclared'] ?? false) === true)),
+            'encryptedConfigurationSidecarCount' => count(array_filter($configurationSidecars, static fn (array $entry): bool => ($entry['encrypted'] ?? false) === true)),
             'encryptedCount' => count($encryptedParts),
             'encryptedParts' => $encryptedParts,
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
@@ -409,6 +420,9 @@ final class OpenDocumentPackage
         }
         if ($entry->name === 'meta.xml') {
             $roles[] = 'odf-meta';
+        }
+        if (self::isConfigurationSidecarPath($entry->name)) {
+            $roles[] = 'odf-configuration-sidecar';
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
@@ -532,6 +546,111 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return list<array<string, mixed>>
+     */
+    private function configurationSidecars(array $undeclaredPackageEntries): array
+    {
+        $sidecars = [];
+        $seenPackagePaths = [];
+        foreach ($this->manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || !self::isConfigurationSidecarPath($packagePath)) {
+                continue;
+            }
+
+            $sidecars[] = self::configurationSidecarFromManifestEntry($entry);
+            $seenPackagePaths[$packagePath] = true;
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $path = $entry['path'] ?? null;
+            if (!is_string($path) || !self::isConfigurationSidecarPath($path) || isset($seenPackagePaths[$path])) {
+                continue;
+            }
+
+            $sidecars[] = self::configurationSidecarFromUndeclaredEntry($entry);
+        }
+
+        return $sidecars;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function configurationSidecarFromManifestEntry(array $entry): array
+    {
+        $exists = ($entry['exists'] ?? false) === true;
+        $isDirectory = ($entry['isDirectory'] ?? false) === true;
+        $encrypted = ($entry['encrypted'] ?? false) === true;
+        $byteExposurePolicy = $exists && !$isDirectory && !$encrypted
+            ? 'odf-configuration-sidecar-metadata-only'
+            : ($entry['byteExposurePolicy'] ?? null);
+
+        return [
+            'path' => $entry['path'],
+            'packagePath' => $entry['packagePath'] ?? null,
+            'pathReference' => $entry['pathReference'] ?? null,
+            'pathSuffix' => $entry['pathSuffix'] ?? null,
+            'pathQuery' => $entry['pathQuery'] ?? null,
+            'pathFragment' => $entry['pathFragment'] ?? null,
+            'mediaType' => $entry['mediaType'],
+            'declaredInManifest' => true,
+            'undeclared' => false,
+            'exists' => $exists,
+            'isDirectory' => $isDirectory,
+            'encrypted' => $encrypted,
+            'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'compressionMethod' => $entry['compressionMethod'] ?? null,
+            'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+            'crc32' => $entry['storedCrc32'] ?? null,
+            'storedCrc32' => $entry['storedCrc32'] ?? null,
+            'declaredSize' => $entry['declaredSize'] ?? null,
+            'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => $byteExposurePolicy,
+            'sourceByteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+            'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function configurationSidecarFromUndeclaredEntry(array $entry): array
+    {
+        return [
+            'path' => $entry['path'],
+            'packagePath' => $entry['path'],
+            'pathReference' => $entry['path'],
+            'pathSuffix' => null,
+            'pathQuery' => null,
+            'pathFragment' => null,
+            'mediaType' => null,
+            'declaredInManifest' => false,
+            'undeclared' => true,
+            'exists' => true,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'encrypted' => false,
+            'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'compressionMethod' => $entry['compressionMethod'] ?? null,
+            'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+            'crc32' => $entry['crc32'] ?? null,
+            'storedCrc32' => $entry['crc32'] ?? null,
+            'declaredSize' => null,
+            'declaredSizeMismatch' => false,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'undeclared-package-entry-no-bytes',
+            'sourceByteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+            'diagnostics' => $entry['diagnostics'] ?? [],
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $entries
      * @param list<array<string, mixed>> $undeclaredPackageEntries
      * @return array<string, mixed>
@@ -643,6 +762,11 @@ final class OpenDocumentPackage
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    private static function isConfigurationSidecarPath(string $path): bool
+    {
+        return $path === 'Configurations2/' || str_starts_with($path, 'Configurations2/');
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
