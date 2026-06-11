@@ -1362,6 +1362,9 @@ final class XmlHtmlDom
      */
     private static function iframeSummary(\DOMElement $iframe): array
     {
+        $allow = self::attributeOrNull($iframe, 'allow');
+        $allowDirectives = self::iframeAllowDirectiveSummaries($allow);
+
         $summary = [
             'embeddedResource' => 'iframe',
             'src' => self::attributeOrNull($iframe, 'src'),
@@ -1371,7 +1374,10 @@ final class XmlHtmlDom
             'height' => self::attributeOrNull($iframe, 'height'),
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
-            'allow' => self::attributeOrNull($iframe, 'allow'),
+            'allow' => $allow,
+            'allowDirectives' => $allowDirectives,
+            'allowDirectiveCount' => count($allowDirectives),
+            'allowFeatures' => array_column($allowDirectives, 'feature'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
         ];
@@ -1382,6 +1388,63 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return list<array{raw:string, feature:string, tokens:list<string>, keywordTokens:list<string>, originTokens:list<string>, wildcard:bool}>
+     */
+    private static function iframeAllowDirectiveSummaries(?string $allow): array
+    {
+        if ($allow === null || trim($allow) === '') {
+            return [];
+        }
+
+        $directives = [];
+        foreach (explode(';', $allow) as $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            $feature = strtolower((string) array_shift($parts));
+            if ($feature === '') {
+                continue;
+            }
+
+            $tokens = array_values(array_map(static fn (string $token): string => trim($token), $parts));
+            $keywordTokens = [];
+            $originTokens = [];
+            $wildcard = false;
+            foreach ($tokens as $token) {
+                if ($token === '') {
+                    continue;
+                }
+                if ($token === '*') {
+                    $wildcard = true;
+                    continue;
+                }
+
+                $unquoted = strtolower(trim($token, "'\""));
+                if (in_array($unquoted, ['self', 'src', 'none'], true)) {
+                    $keywordTokens[] = $unquoted;
+                    continue;
+                }
+
+                $originTokens[] = $token;
+            }
+
+            $directives[] = [
+                'raw' => $raw,
+                'feature' => $feature,
+                'tokens' => $tokens,
+                'keywordTokens' => array_values(array_unique($keywordTokens)),
+                'originTokens' => array_values(array_unique($originTokens)),
+                'wildcard' => $wildcard,
+            ];
+        }
+
+        return $directives;
     }
 
     /**

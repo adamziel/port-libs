@@ -708,6 +708,43 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html iframe allow policy provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe src="viewer.html" allow="fullscreen; geolocation \'self\' https://maps.example; camera \'none\'; clipboard-write *; payment \'src\'" sandbox="allow-scripts allow-same-origin">Fallback</iframe>',
+            'iframe allow policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $iframe = $summary[0];
+
+        $t->same('iframe', $iframe['embeddedResource']);
+        $t->same('viewer.html', $iframe['src']);
+        $t->same('fullscreen; geolocation \'self\' https://maps.example; camera \'none\'; clipboard-write *; payment \'src\'', $iframe['allow']);
+        $t->same(5, $iframe['allowDirectiveCount']);
+        $t->same(['fullscreen', 'geolocation', 'camera', 'clipboard-write', 'payment'], $iframe['allowFeatures']);
+        $t->same([
+            'raw' => 'fullscreen',
+            'feature' => 'fullscreen',
+            'tokens' => [],
+            'keywordTokens' => [],
+            'originTokens' => [],
+            'wildcard' => false,
+        ], $iframe['allowDirectives'][0]);
+        $t->same([
+            'raw' => 'geolocation \'self\' https://maps.example',
+            'feature' => 'geolocation',
+            'tokens' => ['\'self\'', 'https://maps.example'],
+            'keywordTokens' => ['self'],
+            'originTokens' => ['https://maps.example'],
+            'wildcard' => false,
+        ], $iframe['allowDirectives'][1]);
+        $t->same(['none'], $iframe['allowDirectives'][2]['keywordTokens']);
+        $t->same(true, $iframe['allowDirectives'][3]['wildcard']);
+        $t->same(['src'], $iframe['allowDirectives'][4]['keywordTokens']);
+        $t->same(['allow-scripts', 'allow-same-origin'], $iframe['sandboxTokens']);
+        $t->same('Fallback', $iframe['fallbackText']);
+        $t->same('<iframe allow="fullscreen; geolocation &apos;self&apos; https://maps.example; camera &apos;none&apos;; clipboard-write *; payment &apos;src&apos;" sandbox="allow-scripts allow-same-origin" src="viewer.html">Fallback</iframe>', $html);
+    },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
