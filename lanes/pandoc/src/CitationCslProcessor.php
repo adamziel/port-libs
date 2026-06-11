@@ -1008,8 +1008,8 @@ final class CitationCslProcessor
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
-        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
-        $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
+        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList', 'publisherlist']);
+        $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList', 'publisherplacelist']);
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
@@ -9179,8 +9179,8 @@ final class CitationCslProcessor
             'event-type', 'eventtype' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
-            'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
-            'publisher-place-list' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
+            'publisher-list', 'publisherlist' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
+            'publisher-place-list', 'publisherplacelist' => implode('; ', is_array($item['publisherPlaceList'] ?? null) ? $item['publisherPlaceList'] : []),
             'page' => $this->formatCslPageRanges((string) $item['page']),
             'page-first' => (string) $item['pageFirst'],
             'pagination', 'page-label' => (string) $item['pagination'],

@@ -6363,6 +6363,88 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Distributed Source Review. Review Press; Archive Desk, 2026. Publisher places: New York; London. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. https://example.test/distributed-review.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Institutional Review Packet. Migration Board; Source Lab, 2025. Publisher places: Remote; Portland.</dd>', $blocks);
     },
+    'normalizes compact direct csl publisher list aliases for style handoff' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-publisher-camel',
+                'type' => 'book',
+                'title' => 'Direct Publisher Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisherList' => ['Archive Press', 'Migration Desk'],
+                'publisherPlaceList' => ['New York', 'Toronto'],
+            ],
+            [
+                'id' => 'direct-publisher-compact',
+                'type' => 'book',
+                'title' => 'Direct Publisher Compact Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publisherlist' => 'Review Press; Source Desk',
+                'publisherplacelist' => 'London, Edinburgh',
+            ],
+        ]);
+
+        $camel = $processor->item('direct-publisher-camel');
+        $compact = $processor->item('direct-publisher-compact');
+        $t->same(['Archive Press', 'Migration Desk'], $camel['publisherList'] ?? null);
+        $t->same(['New York', 'Toronto'], $camel['publisherPlaceList'] ?? null);
+        $t->same(['Review Press', 'Source Desk'], $compact['publisherList'] ?? null);
+        $t->same(['London', 'Edinburgh'], $compact['publisherPlaceList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher List Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-list-alias-review</id>
+    <updated>2026-06-11T22:43:18+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisherlist"/>
+      <text variable="publisherplacelist"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyRendering = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Publisher List Alias Review', $summary['title'] ?? null);
+        $t->same('publisher-list', $citationChildren[1]['variable'] ?? null);
+        $t->same('publisher-place-list', $citationChildren[2]['variable'] ?? null);
+        $t->same('publisherlist', $bibliographyRendering[1]['variable'] ?? null);
+        $t->same('publisherplacelist', $bibliographyRendering[2]['variable'] ?? null);
+        $t->same('[Ames | Archive Press; Migration Desk | New York; Toronto; Bell | Review Press; Source Desk | London; Edinburgh]', $styled->renderCitationCluster([
+            $citation('direct-publisher-camel', '[@direct-publisher-camel]'),
+            $citation('direct-publisher-compact', '[@direct-publisher-compact]'),
+        ]));
+        $t->same('Direct Publisher Camel Packet :: Archive Press; Migration Desk :: New York; Toronto', $styled->renderBibliographyEntry('direct-publisher-camel'));
+        $t->same('Direct Publisher Compact Packet :: Review Press; Source Desk :: London; Edinburgh', $styled->renderBibliographyEntry('direct-publisher-compact'));
+        $t->same('Bell, Bea. Direct Publisher Compact Packet. 2025. Publisher places: London; Edinburgh.', $processor->renderBibliographyEntry('direct-publisher-compact'));
+
+        $document = (new MarkdownReader())->read('Direct publisher aliases [@direct-publisher-camel; @direct-publisher-compact] stay reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct publisher aliases [Ames | Archive Press; Migration Desk | New York; Toronto; Bell | Review Press; Source Desk | London; Edinburgh] stay reviewable.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Publisher Camel Packet :: Archive Press; Migration Desk :: New York; Toronto</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Publisher Compact Packet :: Review Press; Source Desk :: London; Edinburgh</dd>', $blocks);
+    },
     'uses bounded biblatex institutional authority as report creator fallback' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @report{institutional-report,
