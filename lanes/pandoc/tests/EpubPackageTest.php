@@ -166,6 +166,80 @@ $buildZipPackage = static function (array $entries): ZipPackage {
     );
 };
 
+$buildZipPackageWithCentralDirectoryOrder = static function (array $entries, array $centralDirectoryOrder): ZipPackage {
+    $body = '';
+    $centralByName = [];
+
+    foreach ($entries as $entry) {
+        $name = $entry['name'];
+        $data = $entry['data'] ?? '';
+        $method = $entry['method'] ?? 8;
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $crc = (int) sprintf('%u', crc32($data));
+        $offset = strlen($body);
+        $flags = 0x0800;
+        $externalAttributes = str_ends_with($name, '/') ? 0x10 : 0;
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $centralByName[$name] = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            $flags,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            $externalAttributes,
+            $offset
+        ) . $name;
+    }
+
+    $central = '';
+    foreach ($centralDirectoryOrder as $name) {
+        if (!isset($centralByName[$name])) {
+            throw new RuntimeException("Missing central-directory test entry {$name}");
+        }
+
+        $central .= $centralByName[$name];
+    }
+
+    if (count($centralDirectoryOrder) !== count($entries)) {
+        throw new RuntimeException('Central-directory test order must cover each entry exactly once');
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'preflights EPUB3 container OPF metadata manifest spine and nav handoff' => static function (TestRunner $t) use ($epub3Package): void {
         $epub = EpubPackage::fromPackage($epub3Package());
@@ -355,6 +429,90 @@ return [
         $t->same(false, $link['canExposeBytes']);
         $t->same($source, $summary['manifest'][5]);
         $t->same($link, $summary['packageLinks'][0]);
+    },
+
+    'summarizes compact EPUB package provenance before document handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackageWithCentralDirectoryOrder): void {
+        $opfWithPackageInventory = str_replace(
+            '</metadata>',
+            '    <link id="review-record" rel="record" href="meta/review-record.json" media-type="application/ld+json"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithPackageInventory = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="font-source" href="fonts/source.otf" media-type="font/otf"/>',
+            $opfWithPackageInventory
+        );
+        $entries = [
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPackageInventory, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG', 'method' => 0],
+            ['name' => 'EPUB/fonts/source.otf', 'data' => 'OTF', 'method' => 8],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => '{"review":true}', 'method' => 8],
+            ['name' => 'EPUB/images/', 'data' => '', 'method' => 0],
+            ['name' => 'EPUB/Thumbnails/cover.png', 'data' => 'THUMB', 'method' => 8],
+        ];
+        $centralDirectoryOrder = [
+            'META-INF/container.xml',
+            'EPUB/package.opf',
+            'EPUB/nav.xhtml',
+            'EPUB/text/chapter1.xhtml',
+            'EPUB/text/chapter2.xhtml',
+            'EPUB/styles/book.css',
+            'EPUB/images/cover.png',
+            'EPUB/fonts/source.otf',
+            'EPUB/meta/review-record.json',
+            'EPUB/images/',
+            'EPUB/Thumbnails/cover.png',
+            'mimetype',
+        ];
+
+        $epub = EpubPackage::fromPackage($buildZipPackageWithCentralDirectoryOrder($entries, $centralDirectoryOrder));
+        $summary = $epub->summary();
+        $provenance = $summary['packageProvenance'];
+        $parts = $provenance['parts'];
+
+        $t->same(12, $provenance['entryCount']);
+        $t->same(false, $provenance['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same('mimetype', $provenance['mimetypeEntry']['firstLocalEntryName']);
+        $t->same(true, $provenance['mimetypeEntry']['isValid']);
+        $t->same(array_column($entries, 'name'), $provenance['localHeaderOrder']['localHeaderOrderNames']);
+        $t->same($centralDirectoryOrder, $provenance['localHeaderOrder']['centralDirectoryOrderNames']);
+        $t->same(3, $provenance['compressionMethods']['storedEntryCount']);
+        $t->same(9, $provenance['compressionMethods']['deflatedEntryCount']);
+        $t->same(6, $provenance['manifestDeclaredPartCount']);
+        $t->same(2, $provenance['readingOrderPartCount']);
+        $t->same(1, $provenance['packageLinkPartCount']);
+        $t->same(1, $provenance['packageDirectoryCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(1, $provenance['roleCounts']['epub-mimetype']);
+        $t->same(6, $provenance['roleCounts']['manifest-declared']);
+        $t->same(3, $provenance['roleCounts']['xhtml-resource']);
+
+        $t->same(['epub-mimetype'], $parts['mimetype']['roles']);
+        $t->same(0, $parts['mimetype']['localHeaderOrder']);
+        $t->same(11, $parts['mimetype']['centralDirectoryIndex']);
+        $t->same(false, $parts['mimetype']['matchesCentralDirectoryOrder']);
+        $t->same(['opf-package-document', 'container-rootfile'], $parts['EPUB/package.opf']['roles']);
+        $t->same(['manifest-declared', 'xhtml-resource', 'navigation-document'], $parts['EPUB/nav.xhtml']['roles']);
+        $t->same(['manifest-declared', 'xhtml-resource', 'reading-order'], $parts['EPUB/text/chapter1.xhtml']['roles']);
+        $t->same(['chapter1'], $parts['EPUB/text/chapter1.xhtml']['manifestIds']);
+        $t->same(['chapter1'], $parts['EPUB/text/chapter1.xhtml']['spineIdrefs']);
+        $t->same(['manifest-declared', 'image-resource', 'cover-image'], $parts['EPUB/images/cover.png']['roles']);
+        $t->same(['manifest-declared', 'font-resource'], $parts['EPUB/fonts/source.otf']['roles']);
+        $t->same(['package-link'], $parts['EPUB/meta/review-record.json']['roles']);
+        $t->same(['zip-directory'], $parts['EPUB/images/']['roles']);
+        $t->same(['undeclared-package-entry'], $parts['EPUB/Thumbnails/cover.png']['roles']);
+        $t->same(true, $parts['EPUB/Thumbnails/cover.png']['undeclared']);
+        $t->same(false, $parts['EPUB/Thumbnails/cover.png']['declaredInManifest']);
+        $t->same(true, $parts['EPUB/images/cover.png']['canExposeBytes']);
+        $t->same($provenance, $summary['wordpressImport']['packageProvenance']);
     },
 
     'preserves compact OPF spine itemref ids and refinement provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {

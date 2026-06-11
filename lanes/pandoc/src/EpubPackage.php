@@ -405,6 +405,24 @@ final class EpubPackage
     /**
      * @return array<string, mixed>
      */
+    public function packageProvenance(): array
+    {
+        return self::packageProvenanceReport(
+            $this->package,
+            $this->rootfiles,
+            $this->opfPartName,
+            $this->containerLinks,
+            $this->packageLinks,
+            $this->manifestItems,
+            $this->spine,
+            $this->navigation,
+            $this->encryption,
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function summary(): array
     {
         $assetSummary = $this->assetSummary();
@@ -421,6 +439,7 @@ final class EpubPackage
         $validationReport = $this->validationReport();
         $auxiliaryNavigation = self::auxiliaryNavigationReport($this->navigationSections);
         $spineMetadata = $this->spineMetadata();
+        $packageProvenance = $this->packageProvenance();
 
         return [
             'opfPart' => $this->opfPartName,
@@ -452,6 +471,7 @@ final class EpubPackage
             'assets' => $assetSummary,
             'remoteResourcePolicy' => $remoteResourcePolicy,
             'validation' => $validationReport,
+            'packageProvenance' => $packageProvenance,
             'wordpressImport' => [
                 'title' => $this->metadata['title'],
                 'creators' => $this->metadata['creators'],
@@ -535,6 +555,7 @@ final class EpubPackage
                 'resourcePropertyDiagnostics' => $resourceProperties['propertyVocabulary']['diagnostics'],
                 'packageValidation' => $validationReport,
                 'packageValidationDiagnostics' => $validationReport['diagnostics'],
+                'packageProvenance' => $packageProvenance,
                 'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
@@ -546,6 +567,315 @@ final class EpubPackage
                 'imageParts' => $assetSummary['imageParts'],
             ],
         ];
+    }
+
+    /**
+     * @param list<array{fullPath:string, partName:string, mediaType:string}> $rootfiles
+     * @param list<array<string, mixed>> $containerLinks
+     * @param list<array<string, mixed>> $packageLinks
+     * @param list<array<string, mixed>> $manifestItems
+     * @param list<array<string, mixed>> $spine
+     * @param array<string, mixed>|null $navigation
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, mixed>
+     */
+    private static function packageProvenanceReport(
+        ZipPackage $package,
+        array $rootfiles,
+        string $opfPartName,
+        array $containerLinks,
+        array $packageLinks,
+        array $manifestItems,
+        array $spine,
+        ?array $navigation,
+        array $encryption
+    ): array {
+        $mimetypeEntry = $package->storedFirstEntryPreflight('mimetype', self::EPUB_MIMETYPE);
+        $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $compressionMethods = $package->compressionMethodPreflight();
+        $orderByName = [];
+        foreach ($localHeaderOrder['entries'] as $entryOrder) {
+            $orderByName[$entryOrder['name']] = $entryOrder;
+        }
+
+        $rootfilesByPart = [];
+        foreach ($rootfiles as $rootfile) {
+            $partName = self::zipPackageEntryName($rootfile['partName'] ?? null);
+            if ($partName !== '') {
+                $rootfilesByPart[$partName][] = $rootfile;
+            }
+        }
+
+        $manifestByPart = [];
+        foreach ($manifestItems as $item) {
+            $partName = self::zipPackageEntryName($item['partName'] ?? null);
+            if ($partName !== '') {
+                $manifestByPart[$partName][] = $item;
+            }
+        }
+
+        $spineByPart = [];
+        foreach ($spine as $itemref) {
+            $partName = self::zipPackageEntryName($itemref['partName'] ?? null);
+            if ($partName !== '') {
+                $spineByPart[$partName][] = $itemref;
+            }
+        }
+
+        $containerLinksByPart = self::packageLinksByLocalPart($containerLinks);
+        $packageLinksByPart = self::packageLinksByLocalPart($packageLinks);
+        $encryptedParts = [];
+        foreach (($encryption['encryptedParts'] ?? []) as $partName) {
+            $entryName = self::zipPackageEntryName(is_string($partName) ? $partName : null);
+            if ($entryName !== '') {
+                $encryptedParts[$entryName] = true;
+            }
+        }
+
+        $opfEntryName = self::zipPackageEntryName($opfPartName);
+        $navigationEntryName = self::zipPackageEntryName(
+            is_array($navigation) ? ($navigation['partName'] ?? null) : null
+        );
+        $parts = [];
+        $roleCounts = [];
+        $directoryEntryCount = 0;
+        $undeclaredEntryCount = 0;
+        $encryptedEntryCount = 0;
+        $totalByteLength = 0;
+        $totalCompressedByteLength = 0;
+
+        foreach ($package->entries() as $entry) {
+            $name = $entry->name;
+            $order = $orderByName[$name] ?? null;
+            $manifestForPart = $manifestByPart[$name] ?? [];
+            $spineForPart = $spineByPart[$name] ?? [];
+            $properties = self::manifestPropertiesForPart($manifestForPart);
+            $mediaTypes = self::manifestMediaTypesForPart($manifestForPart);
+            $roles = [];
+
+            if ($name === 'mimetype') {
+                self::addUniqueString($roles, 'epub-mimetype');
+            }
+
+            if ($name === 'META-INF/container.xml') {
+                self::addUniqueString($roles, 'ocf-container');
+            }
+
+            if ($name === $opfEntryName) {
+                self::addUniqueString($roles, 'opf-package-document');
+            }
+
+            if ($name === 'META-INF/encryption.xml') {
+                self::addUniqueString($roles, 'ocf-encryption');
+            }
+
+            if (isset($rootfilesByPart[$name])) {
+                self::addUniqueString($roles, 'container-rootfile');
+            }
+
+            if ($manifestForPart !== []) {
+                self::addUniqueString($roles, 'manifest-declared');
+                foreach ($mediaTypes as $mediaType) {
+                    $kind = self::coreMediaTypeKind($mediaType);
+                    if ($kind !== null) {
+                        self::addUniqueString($roles, $kind . '-resource');
+                    }
+
+                    if (self::mediaTypeBase($mediaType) === self::NCX_MEDIA_TYPE) {
+                        self::addUniqueString($roles, 'ncx-navigation');
+                    }
+                }
+
+                if (in_array('nav', $properties, true) || $name === $navigationEntryName) {
+                    self::addUniqueString($roles, 'navigation-document');
+                }
+
+                if (in_array('cover-image', $properties, true)) {
+                    self::addUniqueString($roles, 'cover-image');
+                }
+            }
+
+            if ($spineForPart !== []) {
+                self::addUniqueString($roles, 'reading-order');
+            }
+
+            if (isset($containerLinksByPart[$name])) {
+                self::addUniqueString($roles, 'container-link');
+            }
+
+            if (isset($packageLinksByPart[$name])) {
+                self::addUniqueString($roles, 'package-link');
+            }
+
+            $encrypted = isset($encryptedParts[$name]);
+            if ($encrypted) {
+                self::addUniqueString($roles, 'encrypted-resource');
+                $encryptedEntryCount++;
+            }
+
+            if ($entry->isDirectory()) {
+                self::addUniqueString($roles, 'zip-directory');
+                $directoryEntryCount++;
+            }
+
+            $undeclared = $roles === [];
+            if ($undeclared) {
+                $roles[] = 'undeclared-package-entry';
+                $undeclaredEntryCount++;
+            }
+
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+
+            $provenance = self::zipEntryProvenance($entry);
+            $canExposeBytes = $provenance['canExposeBytes'] === true && !$entry->isDirectory() && !$encrypted;
+            $totalByteLength += $entry->uncompressedSize;
+            $totalCompressedByteLength += $entry->compressedSize;
+            $parts[$name] = [
+                'part' => $name,
+                'roles' => $roles,
+                'centralDirectoryIndex' => $order['centralDirectoryIndex'] ?? null,
+                'centralDirectoryRecordOffset' => $order['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordEnd' => $order['centralDirectoryRecordEnd'] ?? null,
+                'localHeaderOrder' => $order['localHeaderOrder'] ?? null,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderNameAtCentralDirectoryIndex' => $order['localHeaderNameAtCentralDirectoryIndex'] ?? null,
+                'centralDirectoryNameAtLocalHeaderOrder' => $order['centralDirectoryNameAtLocalHeaderOrder'] ?? null,
+                'matchesCentralDirectoryOrder' => $order['matchesCentralDirectoryOrder'] ?? null,
+                'isDirectory' => $entry->isDirectory(),
+                'declaredInManifest' => $manifestForPart !== [],
+                'manifestIds' => array_values(array_map(
+                    static fn (array $item): string => (string) ($item['id'] ?? ''),
+                    $manifestForPart
+                )),
+                'manifestMediaTypes' => $mediaTypes,
+                'manifestProperties' => $properties,
+                'inReadingOrder' => $spineForPart !== [],
+                'spineIdrefs' => array_values(array_map(
+                    static fn (array $itemref): string => (string) ($itemref['idref'] ?? ''),
+                    $spineForPart
+                )),
+                'rootfileCount' => count($rootfilesByPart[$name] ?? []),
+                'containerLinkCount' => count($containerLinksByPart[$name] ?? []),
+                'packageLinkCount' => count($packageLinksByPart[$name] ?? []),
+                'encrypted' => $encrypted,
+                'undeclared' => $undeclared,
+                'byteLength' => $provenance['byteLength'],
+                'compressedByteLength' => $provenance['compressedByteLength'],
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'compressionSupported' => $provenance['compressionSupported'],
+                'crc32' => $provenance['crc32'],
+                'canExposeBytes' => $canExposeBytes,
+            ];
+        }
+
+        ksort($roleCounts);
+
+        return [
+            'mimetypeEntry' => $mimetypeEntry,
+            'entryCount' => count($package->entries()),
+            'totalByteLength' => $totalByteLength,
+            'totalCompressedByteLength' => $totalCompressedByteLength,
+            'manifestDeclaredPartCount' => count($manifestByPart),
+            'readingOrderPartCount' => count($spineByPart),
+            'containerRootfilePartCount' => count($rootfilesByPart),
+            'containerLinkPartCount' => count($containerLinksByPart),
+            'packageLinkPartCount' => count($packageLinksByPart),
+            'packageDirectoryCount' => $directoryEntryCount,
+            'undeclaredEntryCount' => $undeclaredEntryCount,
+            'encryptedEntryCount' => $encryptedEntryCount,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'roleCounts' => $roleCounts,
+            'localHeaderOrder' => $localHeaderOrder,
+            'compressionMethods' => $compressionMethods,
+            'parts' => $parts,
+        ];
+    }
+
+    private static function zipPackageEntryName(mixed $partName): string
+    {
+        if (!is_string($partName)) {
+            return '';
+        }
+
+        $partName = trim($partName);
+        if ($partName === '' || self::isAbsoluteUri($partName)) {
+            return '';
+        }
+
+        return ltrim(OpcPackagePath::stripQueryAndFragment($partName), '/');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function packageLinksByLocalPart(array $links): array
+    {
+        $byPart = [];
+        foreach ($links as $link) {
+            if (($link['external'] ?? false) === true) {
+                continue;
+            }
+
+            $partName = self::zipPackageEntryName($link['partName'] ?? null);
+            if ($partName !== '') {
+                $byPart[$partName][] = $link;
+            }
+        }
+
+        return $byPart;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return list<string>
+     */
+    private static function manifestMediaTypesForPart(array $manifestItems): array
+    {
+        $mediaTypes = [];
+        foreach ($manifestItems as $item) {
+            $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            if ($mediaType !== '') {
+                self::addUniqueString($mediaTypes, $mediaType);
+            }
+        }
+
+        return $mediaTypes;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     *
+     * @return list<string>
+     */
+    private static function manifestPropertiesForPart(array $manifestItems): array
+    {
+        $properties = [];
+        foreach ($manifestItems as $item) {
+            foreach (($item['properties'] ?? []) as $property) {
+                if (is_string($property) && $property !== '') {
+                    self::addUniqueString($properties, $property);
+                }
+            }
+        }
+
+        return $properties;
+    }
+
+    /**
+     * @param list<string> $items
+     */
+    private static function addUniqueString(array &$items, string $value): void
+    {
+        if ($value !== '' && !in_array($value, $items, true)) {
+            $items[] = $value;
+        }
     }
 
     /**
@@ -1484,8 +1814,8 @@ final class EpubPackage
             throw new \RuntimeException('EPUB package is missing the required mimetype entry');
         }
 
-        $names = $package->names();
-        if (($names[0] ?? null) !== 'mimetype') {
+        $localEntries = $package->localEntries();
+        if (($localEntries[0]->name ?? null) !== 'mimetype') {
             throw new \RuntimeException('EPUB mimetype entry must be the first ZIP package entry');
         }
 
