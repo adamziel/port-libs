@@ -327,14 +327,71 @@ final class NativeWriter
     }
 
     /**
-     * @return array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>}
+     * @return array<string, mixed>|array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>}
      */
     private function tableCaption(AstNode $node): array
     {
-        return [
+        $caption = [
             $this->shortCaption($node),
             $this->longCaptionBlocks($node),
         ];
+
+        return $this->reusableCaptionNative($node, $caption) ?? $caption;
+    }
+
+    /**
+     * @param array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>} $caption
+     * @return array<string, mixed>|null
+     */
+    private function reusableCaptionNative(AstNode $node, array $caption): ?array
+    {
+        $native = $node->attr('captionNative');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== 'Caption') {
+            return null;
+        }
+
+        $content = $native['c'] ?? null;
+        if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
+            return null;
+        }
+
+        $short = $this->normalizeCaptionShortNative($content[0]);
+        if (!($short['valid'] ?? false)) {
+            return null;
+        }
+
+        return [$short['value'], $content[1]] === $caption ? $native : null;
+    }
+
+    /**
+     * @return array{valid:bool, value:list<array<string, mixed>>|null}
+     */
+    private function normalizeCaptionShortNative(mixed $shortCaption): array
+    {
+        if (is_array($shortCaption) && !array_is_list($shortCaption) && is_string($shortCaption['t'] ?? null)) {
+            if ($shortCaption['t'] === 'Nothing') {
+                return ['valid' => true, 'value' => null];
+            }
+            if ($shortCaption['t'] === 'Just') {
+                $shortCaption = $shortCaption['c'] ?? null;
+            }
+        }
+
+        if ($shortCaption === null) {
+            return ['valid' => true, 'value' => null];
+        }
+
+        if (is_array($shortCaption) && !array_is_list($shortCaption) && ($shortCaption['t'] ?? null) === 'ShortCaption') {
+            $shortCaption = $shortCaption['c'] ?? [];
+        }
+
+        if (is_array($shortCaption) && array_is_list($shortCaption) && count($shortCaption) === 1 && is_array($shortCaption[0]) && array_is_list($shortCaption[0])) {
+            $shortCaption = $shortCaption[0];
+        }
+
+        return is_array($shortCaption) && array_is_list($shortCaption)
+            ? ['valid' => true, 'value' => $shortCaption]
+            : ['valid' => false, 'value' => null];
     }
 
     /**

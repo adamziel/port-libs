@@ -2030,8 +2030,9 @@ return [
         $t->same(['data-source' => 'media-bag'], $image->attr('attributes'));
         $t->same('Figure', $encoded['blocks'][0]['t']);
         $t->same($figureBlock['c'][0], $encoded['blocks'][0]['c'][0]);
-        $t->same('Short', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Long', $encoded['blocks'][0]['c'][1][1][0]['c'][0]['c']);
+        $t->same($figureBlock['c'][1], $encoded['blocks'][0]['c'][1]);
+        $t->same('Short', $encoded['blocks'][0]['c'][1]['c'][0]['c'][0][0]['c']);
+        $t->same('Long', $encoded['blocks'][0]['c'][1]['c'][1][0]['c'][0]['c']);
         $t->same('Plain', $encoded['blocks'][0]['c'][2][0]['t']);
         $t->same('Image', $encoded['blocks'][0]['c'][2][0]['c'][0]['t']);
         $t->same('Alt', $encoded['blocks'][0]['c'][2][0]['c'][0]['c'][1][0]['c']);
@@ -2121,6 +2122,7 @@ return [
         $document = (new PandocJsonReader())->readPacket($packet);
         $nativeDocument = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
         $encoded = (new PandocJsonWriter())->toArray($document);
+        $nativeEncoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
         $table = $document->children[0];
         $figure = $document->children[1];
         $nativeTable = $nativeDocument->children[0];
@@ -2161,10 +2163,29 @@ return [
         $t->same($figureBlock['c'][1]['c'][0], $nativeFigure->attr('shortCaptionMaybeNative'));
         $t->same(null, $nativeFigure->attr('shortCaptionConstructor'));
         $t->same('Table', $encoded['blocks'][0]['t']);
-        $t->same('Review', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Code', $encoded['blocks'][0]['c'][1][0][2]['t']);
-        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same($tableBlock['c'][1], $encoded['blocks'][0]['c'][1]);
+        $t->same($figureBlock['c'][1], $encoded['blocks'][1]['c'][1]);
+        $t->same($tableBlock['c'][1], $nativeEncoded['blocks'][0]['c'][1]);
+        $t->same($figureBlock['c'][1], $nativeEncoded['blocks'][1]['c'][1]);
+        $t->same('Review', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Code', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][2]['t']);
+        $t->same(['t' => 'Nothing'], $encoded['blocks'][1]['c'][1]['c'][0]);
         $t->same('Figure caption', (new PandocJsonReader())->readPacket($encoded)->children[1]->attr('caption'));
+
+        $editedTable = new AstNode(
+            'table',
+            array_replace($table->attrs, [
+                'shortCaption' => 'Edited queue',
+                'shortCaptionInlines' => [new AstNode('text', ['text' => 'Edited']), new AstNode('space'), new AstNode('text', ['text' => 'queue'])],
+            ]),
+            $table->children
+        );
+        $editedDocument = new AstNode('document', $document->attrs, [$editedTable]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Edited', $editedJson['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Edited', $editedNative['blocks'][0]['c'][1][0][0]['c']);
     },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
@@ -2637,9 +2658,11 @@ return [
         $t->same('Table long', $table->attr('caption'));
         $t->same(null, $table->attr('shortCaption'));
         $t->same('Figure', $encoded['blocks'][0]['t']);
-        $t->same('Figure', $encoded['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Emph', $encoded['blocks'][0]['c'][1][0][2]['t']);
-        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same($figureBlock['c'][1], $encoded['blocks'][0]['c'][1]);
+        $t->same($tableBlock['c'][1], $encoded['blocks'][1]['c'][1]);
+        $t->same('Figure', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Emph', $encoded['blocks'][0]['c'][1]['c'][0]['c']['c'][0][2]['t']);
+        $t->same(['t' => 'Nothing'], $encoded['blocks'][1]['c'][1]['c'][0]);
         $t->same('Figure maybe', $roundTrip->children[0]->attr('shortCaption'));
         $t->same('Table long', $roundTrip->children[1]->attr('caption'));
         $t->same(null, $roundTrip->children[1]->attr('shortCaption'));
