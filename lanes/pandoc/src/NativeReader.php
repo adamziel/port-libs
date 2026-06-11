@@ -80,7 +80,73 @@ final class NativeReader
             $normalized[$key] = $this->metaValue($value);
         }
 
-        return $normalized;
+        return $this->withStandardMetaHelpers($normalized);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function withStandardMetaHelpers(array $meta): array
+    {
+        $titleInlines = $this->metaInlineChildren($meta['title'] ?? null);
+        if ($titleInlines !== null && !array_key_exists('titleInlines', $meta)) {
+            $meta['titleInlines'] = $titleInlines;
+        }
+
+        $authorInlines = $this->metaListInlineChildren($meta['author'] ?? null);
+        if ($authorInlines !== null && !array_key_exists('authorInlines', $meta)) {
+            $meta['authorInlines'] = $authorInlines;
+        }
+
+        $dateInlines = $this->metaInlineChildren($meta['date'] ?? null);
+        if ($dateInlines !== null && !array_key_exists('dateInlines', $meta)) {
+            $meta['dateInlines'] = $dateInlines;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * @return list<AstNode>|null
+     */
+    private function metaInlineChildren(mixed $value): ?array
+    {
+        if (!$this->isTaggedConstructor($value, 'MetaInlines')) {
+            return null;
+        }
+
+        try {
+            return $this->inlines($value['c'] ?? []);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * @return list<list<AstNode>>|null
+     */
+    private function metaListInlineChildren(mixed $value): ?array
+    {
+        if (!$this->isTaggedConstructor($value, 'MetaList')) {
+            return null;
+        }
+
+        $items = $value['c'] ?? null;
+        if (!is_array($items) || !array_is_list($items)) {
+            return null;
+        }
+
+        $mapped = [];
+        foreach ($items as $item) {
+            $children = $this->metaInlineChildren($item);
+            if ($children === null) {
+                return null;
+            }
+            $mapped[] = $children;
+        }
+
+        return $mapped === [] ? null : $mapped;
     }
 
     /**

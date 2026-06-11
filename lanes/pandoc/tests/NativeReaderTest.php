@@ -25,6 +25,31 @@ return [
                         ['t' => 'Str', 'c' => 'Review'],
                     ],
                 ],
+                'author' => [
+                    't' => 'MetaList',
+                    'c' => [
+                        [
+                            't' => 'MetaInlines',
+                            'c' => [
+                                ['t' => 'Str', 'c' => 'Ada'],
+                                ['t' => 'Space'],
+                                ['t' => 'Str', 'c' => 'Lovelace'],
+                            ],
+                        ],
+                        [
+                            't' => 'MetaInlines',
+                            'c' => [
+                                ['t' => 'Str', 'c' => 'Grace'],
+                            ],
+                        ],
+                    ],
+                ],
+                'date' => [
+                    't' => 'MetaInlines',
+                    'c' => [
+                        ['t' => 'Str', 'c' => '2026-06-11'],
+                    ],
+                ],
                 'draft' => ['t' => 'MetaBool', 'c' => false],
                 'tags' => [
                     't' => 'MetaList',
@@ -53,11 +78,21 @@ return [
 
         $document = (new NativeReader())->read(json_encode($native, JSON_THROW_ON_ERROR));
         $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $meta = $document->attr('meta');
 
         $t->same('document', $document->type);
         $t->same('pandoc-json', $document->attr('nativeFormat'));
         $t->same($native['pandoc-api-version'], $document->attr('pandocApiVersion'));
-        $t->same($native['meta'], $document->attr('meta'));
+        $t->same($native['meta']['title'], $meta['title']);
+        $t->same($native['meta']['author'], $meta['author']);
+        $t->same($native['meta']['date'], $meta['date']);
+        $t->same($native['meta']['draft'], $meta['draft']);
+        $t->same($native['meta']['tags'], $meta['tags']);
+        $t->same($native['meta']['review'], $meta['review']);
+        $t->same('Quarterly Review', $meta['titleInlines'][0]->attr('text'));
+        $t->same('Ada Lovelace', $meta['authorInlines'][0][0]->attr('text'));
+        $t->same('Grace', $meta['authorInlines'][1][0]->attr('text'));
+        $t->same('2026-06-11', $meta['dateInlines'][0]->attr('text'));
         $t->same('Para', $document->children[0]->attr('constructor'));
         $t->same($native['meta'], $roundTrip['meta']);
         $t->same($native['blocks'], $roundTrip['blocks']);
@@ -144,7 +179,20 @@ return [
         $t->same('MetaString', $review['nullable']['t']);
         $t->same('', $review['nullable']['c']);
         $t->same(['t' => 'MetaString', 'c' => 'kept'], $meta['pretagged']);
-        $t->same($meta, $roundTrip->attr('meta'));
+        $roundTripMeta = $roundTrip->attr('meta');
+        $t->same($meta['title'], $roundTripMeta['title']);
+        $t->same($meta['author'], $roundTripMeta['author']);
+        $t->same($meta['date'], $roundTripMeta['date']);
+        $t->same($meta['draft'], $roundTripMeta['draft']);
+        $t->same($meta['priority'], $roundTripMeta['priority']);
+        $t->same($meta['review'], $roundTripMeta['review']);
+        $t->same($meta['pretagged'], $roundTripMeta['pretagged']);
+        $t->same('Native ', $roundTripMeta['titleInlines'][0]->attr('text'));
+        $t->same('emph', $roundTripMeta['titleInlines'][1]->type);
+        $t->same('metadata', $roundTripMeta['titleInlines'][1]->children[0]->attr('text'));
+        $t->same('Ada Lovelace', $roundTripMeta['authorInlines'][0][0]->attr('text'));
+        $t->same('Grace', $roundTripMeta['authorInlines'][1][0]->attr('text'));
+        $t->same('2026-06-10', $roundTripMeta['dateInlines'][0]->attr('text'));
     },
     'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
         $legacy = [
@@ -180,10 +228,13 @@ return [
 
         $document = (new NativeReader())->read(json_encode($legacy, JSON_THROW_ON_ERROR));
         $roundTrip = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $meta = $document->attr('meta');
 
         $t->same('document', $document->type);
         $t->same('pandoc-json', $document->attr('nativeFormat'));
-        $t->same($legacy[0]['unMeta'], $document->attr('meta'));
+        $t->same($legacy[0]['unMeta']['title'], $meta['title']);
+        $t->same($legacy[0]['unMeta']['review'], $meta['review']);
+        $t->same('Legacy Native', $meta['titleInlines'][0]->attr('text'));
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Legacy native', $document->children[0]->attr('text'));
         $t->same($legacy[0]['unMeta'], $roundTrip['meta']);
@@ -236,9 +287,11 @@ return [
         ], JSON_THROW_ON_ERROR));
 
         $meta = $document->attr('meta');
-        $t->same($enveloped['meta']['c'], $meta);
+        $t->same($enveloped['meta']['c']['title'], $meta['title']);
+        $t->same($enveloped['meta']['c']['review'], $meta['review']);
         $t->same('MetaInlines', $meta['title']['t']);
         $t->same('Constructor', $meta['title']['c'][0]['c']);
+        $t->same('Constructor metadata', $meta['titleInlines'][0]->attr('text'));
         $t->same('MetaMap', $meta['review']['t']);
         $t->same('native-import', $meta['review']['c']['queue']['c']);
         $t->same(false, $meta['review']['c']['draft']['c']);
