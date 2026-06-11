@@ -446,9 +446,11 @@ final class NativeReader
     {
         $content = $this->constructorContent($caption, 'Caption', "Pandoc native JSON {$context} caption", false);
         $tuple = $this->tuple($content, 2, "Pandoc native JSON {$context} caption");
-        $attrs = [];
+        $attrs = $this->captionConstructorAttrs($caption);
 
-        $shortCaptionInlines = $this->shortCaptionInlines($tuple[0], $context);
+        $shortCaption = $this->shortCaption($tuple[0], $context);
+        $attrs = array_replace($attrs, $shortCaption['attrs']);
+        $shortCaptionInlines = $shortCaption['children'];
         if ($shortCaptionInlines !== []) {
             $attrs['shortCaptionInlines'] = $shortCaptionInlines;
             $attrs['shortCaption'] = $this->plainTextFromInlines($shortCaptionInlines);
@@ -473,30 +475,63 @@ final class NativeReader
     }
 
     /**
-     * @return list<AstNode>
+     * @return array<string, mixed>
      */
-    private function shortCaptionInlines(mixed $shortCaption, string $context = 'Table'): array
+    private function captionConstructorAttrs(mixed $caption): array
     {
+        if ($this->isTaggedConstructor($caption, 'Caption')) {
+            return [
+                'captionConstructor' => 'Caption',
+                'captionNative' => $caption,
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{children:list<AstNode>, attrs:array<string, mixed>}
+     */
+    private function shortCaption(mixed $shortCaption, string $context = 'Table'): array
+    {
+        $attrs = [];
+        if ($this->isTaggedConstructor($shortCaption, 'Just') || $this->isTaggedConstructor($shortCaption, 'Nothing')) {
+            $attrs['shortCaptionMaybeConstructor'] = $shortCaption['t'];
+            $attrs['shortCaptionMaybeNative'] = $shortCaption;
+        }
+
         if ($shortCaption === null || $shortCaption === []) {
-            return [];
+            return ['children' => [], 'attrs' => $attrs];
         }
 
         $shortCaption = $this->unwrapMaybeConstructor($shortCaption);
+        if ($shortCaption === null || $shortCaption === []) {
+            return ['children' => [], 'attrs' => $attrs];
+        }
+
         if (
             is_array($shortCaption)
             && array_is_list($shortCaption)
             && count($shortCaption) === 1
-            && is_array($shortCaption[0])
-            && ($shortCaption[0]['t'] ?? null) === 'ShortCaption'
+            && $this->isTaggedConstructor($shortCaption[0], 'ShortCaption')
         ) {
             $shortCaption = $shortCaption[0];
         }
+
+        if ($this->isTaggedConstructor($shortCaption, 'ShortCaption')) {
+            $attrs['shortCaptionConstructor'] = 'ShortCaption';
+            $attrs['shortCaptionNative'] = $shortCaption;
+        }
+
         $content = $this->constructorContent($shortCaption, 'ShortCaption', "Pandoc native JSON {$context} short caption", false);
         if (is_array($content) && array_is_list($content) && count($content) === 1 && is_array($content[0]) && array_is_list($content[0])) {
             $content = $content[0];
         }
 
-        return $this->inlines($content);
+        return [
+            'children' => $this->inlines($content),
+            'attrs' => $attrs,
+        ];
     }
 
     private function unwrapMaybeConstructor(mixed $value): mixed

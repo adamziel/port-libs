@@ -551,9 +551,11 @@ final class PandocJsonReader
     {
         $content = $this->constructorContent($caption, 'Caption', "{$context} caption", false);
         $tuple = $this->tuple($content, 2, "{$context} caption");
-        $attrs = [];
+        $attrs = $this->captionConstructorAttrs($caption);
 
-        $shortCaptionInlines = $this->readShortCaptionInlines($tuple[0], $context);
+        $shortCaption = $this->readShortCaption($tuple[0], $context);
+        $attrs = array_replace($attrs, $shortCaption['attrs']);
+        $shortCaptionInlines = $shortCaption['children'];
         if ($shortCaptionInlines !== []) {
             $attrs['shortCaptionInlines'] = $shortCaptionInlines;
             $attrs['shortCaption'] = trim($this->plainText($shortCaptionInlines));
@@ -578,13 +580,48 @@ final class PandocJsonReader
     }
 
     /**
-     * @return list<AstNode>
+     * @return array<string, mixed>
      */
-    private function readShortCaptionInlines(mixed $shortCaption, string $context): array
+    private function captionConstructorAttrs(mixed $caption): array
     {
+        if ($this->isTaggedConstructor($caption, 'Caption')) {
+            return [
+                'captionConstructor' => 'Caption',
+                'captionNative' => $caption,
+            ];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array{children:list<AstNode>, attrs:array<string, mixed>}
+     */
+    private function readShortCaption(mixed $shortCaption, string $context): array
+    {
+        $attrs = [];
+        if ($this->isTaggedConstructor($shortCaption, 'Just') || $this->isTaggedConstructor($shortCaption, 'Nothing')) {
+            $attrs['shortCaptionMaybeConstructor'] = $shortCaption['t'];
+            $attrs['shortCaptionMaybeNative'] = $shortCaption;
+        }
+
         $shortCaption = $this->unwrapMaybeConstructor($shortCaption);
         if ($shortCaption === null || $shortCaption === []) {
-            return [];
+            return ['children' => [], 'attrs' => $attrs];
+        }
+
+        if (
+            is_array($shortCaption)
+            && array_is_list($shortCaption)
+            && count($shortCaption) === 1
+            && $this->isTaggedConstructor($shortCaption[0], 'ShortCaption')
+        ) {
+            $shortCaption = $shortCaption[0];
+        }
+
+        if ($this->isTaggedConstructor($shortCaption, 'ShortCaption')) {
+            $attrs['shortCaptionConstructor'] = 'ShortCaption';
+            $attrs['shortCaptionNative'] = $shortCaption;
         }
 
         $content = $this->constructorContent($shortCaption, 'ShortCaption', "{$context} short caption", false);
@@ -592,7 +629,10 @@ final class PandocJsonReader
             $content = $content[0];
         }
 
-        return $this->readInlines($this->listContent($content, "{$context} short caption"));
+        return [
+            'children' => $this->readInlines($this->listContent($content, "{$context} short caption")),
+            'attrs' => $attrs,
+        ];
     }
 
     private function unwrapMaybeConstructor(mixed $value): mixed
@@ -615,6 +655,11 @@ final class PandocJsonReader
         }
 
         return $value;
+    }
+
+    private function isTaggedConstructor(mixed $value, string $constructor): bool
+    {
+        return $this->isTaggedObject($value) && $value['t'] === $constructor;
     }
 
     /**

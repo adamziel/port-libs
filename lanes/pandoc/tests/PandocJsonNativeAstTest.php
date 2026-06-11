@@ -1529,27 +1529,53 @@ return [
                 ],
             ],
         ];
-        $document = (new PandocJsonReader())->readPacket([
+        $packet = [
             'pandoc-api-version' => [1, 23, 1],
             'meta' => [],
             'blocks' => [$tableBlock, $figureBlock],
-        ]);
+        ];
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $nativeDocument = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
         $encoded = (new PandocJsonWriter())->toArray($document);
         $table = $document->children[0];
         $figure = $document->children[1];
+        $nativeTable = $nativeDocument->children[0];
+        $nativeFigure = $nativeDocument->children[1];
         $tableShortCaptionInlines = $table->attr('shortCaptionInlines');
 
         $t->same('table', $table->type);
+        $t->same('Caption', $table->attr('captionConstructor'));
+        $t->same($tableBlock['c'][1], $table->attr('captionNative'));
+        $t->same('Just', $table->attr('shortCaptionMaybeConstructor'));
+        $t->same($tableBlock['c'][1]['c'][0], $table->attr('shortCaptionMaybeNative'));
+        $t->same('ShortCaption', $table->attr('shortCaptionConstructor'));
+        $t->same($tableBlock['c'][1]['c'][0]['c'], $table->attr('shortCaptionNative'));
         $t->same('Review Q1', $table->attr('shortCaption'));
         $t->same('Long caption', $table->attr('caption'));
         $t->same(['text', 'space', 'code'], array_map(static fn (AstNode $node): string => $node->type, $tableShortCaptionInlines));
         $t->same(['short-code'], $tableShortCaptionInlines[2]->attr('classes'));
         $t->same(['data-kind' => 'caption'], $tableShortCaptionInlines[2]->attr('attributes'));
         $t->same('figure', $figure->type);
+        $t->same('Caption', $figure->attr('captionConstructor'));
+        $t->same($figureBlock['c'][1], $figure->attr('captionNative'));
+        $t->same('Nothing', $figure->attr('shortCaptionMaybeConstructor'));
+        $t->same($figureBlock['c'][1]['c'][0], $figure->attr('shortCaptionMaybeNative'));
+        $t->same(null, $figure->attr('shortCaptionConstructor'));
         $t->same('Figure caption', $figure->attr('caption'));
         $t->same('', $figure->attr('shortCaption', ''));
         $t->same('image', $figure->children[0]->type);
         $t->same('Maybe image', $figure->children[0]->attr('alt'));
+        $t->same('Caption', $nativeTable->attr('captionConstructor'));
+        $t->same($tableBlock['c'][1], $nativeTable->attr('captionNative'));
+        $t->same('Just', $nativeTable->attr('shortCaptionMaybeConstructor'));
+        $t->same($tableBlock['c'][1]['c'][0], $nativeTable->attr('shortCaptionMaybeNative'));
+        $t->same('ShortCaption', $nativeTable->attr('shortCaptionConstructor'));
+        $t->same($tableBlock['c'][1]['c'][0]['c'], $nativeTable->attr('shortCaptionNative'));
+        $t->same('Caption', $nativeFigure->attr('captionConstructor'));
+        $t->same($figureBlock['c'][1], $nativeFigure->attr('captionNative'));
+        $t->same('Nothing', $nativeFigure->attr('shortCaptionMaybeConstructor'));
+        $t->same($figureBlock['c'][1]['c'][0], $nativeFigure->attr('shortCaptionMaybeNative'));
+        $t->same(null, $nativeFigure->attr('shortCaptionConstructor'));
         $t->same('Table', $encoded['blocks'][0]['t']);
         $t->same('Review', $encoded['blocks'][0]['c'][1][0][0]['c']);
         $t->same('Code', $encoded['blocks'][0]['c'][1][0][2]['t']);
