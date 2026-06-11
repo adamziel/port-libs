@@ -2265,6 +2265,9 @@ final class DocxOpenXmlReader
                         'missingTargetParts' => [],
                         'externalTargets' => [],
                         'contentTypes' => [],
+                        'contentTypeBases' => [],
+                        'parameterizedContentTypeCount' => 0,
+                        'contentTypeParameterNames' => [],
                         'relationships' => [],
                     ];
                 }
@@ -2276,6 +2279,14 @@ final class DocxOpenXmlReader
                 $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
                 $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
                 $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+                $contentTypeBase = is_string($relationship['contentTypeBase'] ?? null) ? $relationship['contentTypeBase'] : '';
+                $contentTypeHasParameters = ($relationship['contentTypeHasParameters'] ?? false) === true;
+                $contentTypeParameters = is_array($relationship['contentTypeParameters'] ?? null)
+                    ? $relationship['contentTypeParameters']
+                    : [];
+                $contentTypeParameterMap = is_array($relationship['contentTypeParameterMap'] ?? null)
+                    ? $relationship['contentTypeParameterMap']
+                    : [];
 
                 $types[$typeKey]['count']++;
                 if ($external) {
@@ -2296,6 +2307,16 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($types[$typeKey]['relationshipParts'], $relationshipsPart);
                 $this->appendUniqueString($types[$typeKey]['sourceParts'], $sourcePart);
                 $this->appendUniqueString($types[$typeKey]['contentTypes'], $contentType);
+                $this->appendUniqueString($types[$typeKey]['contentTypeBases'], $contentTypeBase);
+                if ($contentTypeHasParameters) {
+                    $types[$typeKey]['parameterizedContentTypeCount']++;
+                    foreach ($contentTypeParameters as $parameter) {
+                        if (is_array($parameter) && is_string($parameter['name'] ?? null)) {
+                            $this->appendUniqueString($types[$typeKey]['contentTypeParameterNames'], $parameter['name']);
+                        }
+                    }
+                    sort($types[$typeKey]['contentTypeParameterNames'], SORT_STRING);
+                }
                 $types[$typeKey]['relationships'][] = [
                     'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : '',
                     'sourcePart' => $sourcePart,
@@ -2306,6 +2327,11 @@ final class DocxOpenXmlReader
                     'targetPart' => $targetPart,
                     'exists' => $exists,
                     'contentType' => $contentType,
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypeHasParameters' => $contentTypeHasParameters,
+                    'contentTypeParameterCount' => (int) ($relationship['contentTypeParameterCount'] ?? 0),
+                    'contentTypeParameters' => $contentTypeParameters,
+                    'contentTypeParameterMap' => $contentTypeParameterMap,
                     'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
                 ];
             }

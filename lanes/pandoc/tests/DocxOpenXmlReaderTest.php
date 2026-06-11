@@ -166,6 +166,11 @@ return [
         $documentInventory = $package['parts']['word/document.xml'];
         $mediaInventory = $package['parts']['word/media/review.png'];
         $mediaRelationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $officeDocumentType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRelationshipType = $relationshipTypes[$officeDocumentType];
+        $imageRelationshipType = $relationshipTypes[$imageType];
         $image = $document->children[4]->children[1];
 
         $t->same(true, $contentTypesPart['valid']);
@@ -200,6 +205,22 @@ return [
         $t->same(['profile' => 'media-default'], $mediaRelationship['contentTypeParameterMap']);
         $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
         $t->same('image/png; profile=media-default', $image->attr('contentType'));
+        $t->same([$documentOverride['contentType']], $officeDocumentRelationshipType['contentTypes']);
+        $t->same([$documentOverride['contentTypeBase']], $officeDocumentRelationshipType['contentTypeBases']);
+        $t->same(1, $officeDocumentRelationshipType['parameterizedContentTypeCount']);
+        $t->same(['charset', 'profile'], $officeDocumentRelationshipType['contentTypeParameterNames']);
+        $t->same($documentOverride['contentTypeBase'], $officeDocumentRelationshipType['relationships'][0]['contentTypeBase']);
+        $t->same(true, $officeDocumentRelationshipType['relationships'][0]['contentTypeHasParameters']);
+        $t->same(2, $officeDocumentRelationshipType['relationships'][0]['contentTypeParameterCount']);
+        $t->same($rootDocumentRelationship['contentTypeParameters'], $officeDocumentRelationshipType['relationships'][0]['contentTypeParameters']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main-doc'], $officeDocumentRelationshipType['relationships'][0]['contentTypeParameterMap']);
+        $t->same(['image/png; profile=media-default'], $imageRelationshipType['contentTypes']);
+        $t->same(['image/png'], $imageRelationshipType['contentTypeBases']);
+        $t->same(1, $imageRelationshipType['parameterizedContentTypeCount']);
+        $t->same(['profile'], $imageRelationshipType['contentTypeParameterNames']);
+        $t->same(1, $imageRelationshipType['relationships'][0]['contentTypeParameterCount']);
+        $t->same($mediaRelationship['contentTypeParameters'], $imageRelationshipType['relationships'][0]['contentTypeParameters']);
+        $t->same(['profile' => 'media-default'], $imageRelationshipType['relationships'][0]['contentTypeParameterMap']);
     },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
