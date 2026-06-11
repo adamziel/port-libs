@@ -904,17 +904,33 @@ final class XmlHtmlDom
     private static function quoteSummary(\DOMElement $element, string $name): array
     {
         if ($name === 'cite') {
+            $text = self::normalizedText($element);
+
             return [
                 'citedWork' => 'cite',
-                'citedWorkText' => self::normalizedText($element),
+                'citedWorkText' => $text,
+                'citation' => 'cite',
+                'citationText' => $text,
             ];
         }
+
+        $cite = self::attributeOrNull($element, 'cite');
+        $footer = $name === 'blockquote' ? self::firstChildHtmlElement($element, 'footer') : null;
+        $citationTexts = array_values(array_map(
+            static fn (\DOMElement $citation): string => self::normalizedText($citation),
+            self::descendantHtmlElements($element, 'cite'),
+        ));
 
         return [
             'quote' => $name === 'blockquote' ? 'block' : 'inline',
             'quoteTag' => $name,
-            'quoteCite' => self::attributeOrNull($element, 'cite'),
+            'quoteCite' => $cite,
+            'quoteCiteRaw' => $cite,
+            'quoteCiteNormalized' => $cite === null ? null : trim($cite),
             'quoteText' => self::normalizedText($element),
+            'attributionText' => $footer instanceof \DOMElement ? self::normalizedText($footer) : null,
+            'citationTexts' => $citationTexts,
+            'citationCount' => count($citationTexts),
         ];
     }
 
