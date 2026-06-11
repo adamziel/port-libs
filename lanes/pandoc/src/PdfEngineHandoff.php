@@ -287,6 +287,10 @@ final class PdfEngineHandoff
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
             }
+            if (($typstBoundaryProvenance['rasterizationPpi'] ?? null) !== null) {
+                $ppi = $typstBoundaryProvenance['rasterizationPpi']['ppi'];
+                $diagnostics[] = 'typst-rasterization-ppi:' . (is_int($ppi) ? (string) $ppi : 'invalid');
+            }
             if (($typstBoundaryProvenance['overrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-overrides:' . count($typstBoundaryProvenance['overrides']);
             }
@@ -5540,6 +5544,7 @@ final class PdfEngineHandoff
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'rasterizationPpi' => 'rasterization-ppi-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5576,8 +5581,9 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $rasterizationPpiValues = $this->engineOptionValues($engineOptions, ['--ppi'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $rasterizationPpiValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5614,16 +5620,22 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $rasterizationPpiHistory = array_map(
+            fn (string $value): array => $this->typstRasterizationPpiEntry($value),
+            $rasterizationPpiValues
+        );
+        $rasterizationPpi = $rasterizationPpiHistory === [] ? null : $rasterizationPpiHistory[count($rasterizationPpiHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
             'creationTimestamp' => $creationTimestampValues,
+            'rasterizationPpi' => $rasterizationPpiValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $rasterizationPpiHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5654,6 +5666,9 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if ($rasterizationPpi !== null) {
+            $provenance['rasterizationPpi'] = $rasterizationPpi;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -5680,6 +5695,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($rasterizationPpiHistory)) {
+            $provenance['rasterizationPpiHistory'] = $rasterizationPpiHistory;
         }
 
         return $provenance;
@@ -5950,6 +5968,35 @@ final class PdfEngineHandoff
             'timestamp' => $timestamp,
             'iso8601' => $iso8601,
             'deterministic' => $issues === [],
+            'safe' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, kind:string, ppi:int|null, safe:bool, issues:list<string>}
+     */
+    private function typstRasterizationPpiEntry(string $raw): array
+    {
+        $value = trim($raw);
+        $issues = [];
+        $ppi = null;
+
+        if ($value === '') {
+            $issues[] = 'rasterization-ppi-empty-boundary';
+        } elseif (preg_match('/\A[0-9]+\z/', $value) !== 1) {
+            $issues[] = 'rasterization-ppi-invalid-boundary';
+        } elseif ($value === '0' || !$this->decimalStringLessThanOrEqual($value, '2400')) {
+            $issues[] = 'rasterization-ppi-out-of-range-boundary';
+        } else {
+            $ppi = (int) $value;
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'kind' => $issues === [] ? 'pixels-per-inch' : 'invalid',
+            'ppi' => $ppi,
             'safe' => $issues === [],
             'issues' => $issues,
         ];

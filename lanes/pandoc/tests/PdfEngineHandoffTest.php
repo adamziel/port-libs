@@ -656,6 +656,91 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst rasterization ppi boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/raster-boundary.pdf',
+            'source' => '= Typst Raster Boundary Packet',
+            'engineOptions' => [
+                '--ppi=oversized',
+                '--ppi',
+                '192',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst raster boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'rasterization-ppi-invalid-boundary',
+                'rasterization-ppi-boundary-overridden',
+            ],
+            'rasterizationPpi' => [
+                'raw' => '192',
+                'value' => '192',
+                'kind' => 'pixels-per-inch',
+                'ppi' => 192,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'rasterizationPpi',
+                    'count' => 2,
+                    'values' => ['oversized', '192'],
+                    'selected' => '192',
+                    'issue' => 'rasterization-ppi-boundary-overridden',
+                ],
+            ],
+            'rasterizationPpiHistory' => [
+                [
+                    'raw' => 'oversized',
+                    'value' => 'oversized',
+                    'kind' => 'invalid',
+                    'ppi' => null,
+                    'safe' => false,
+                    'issues' => ['rasterization-ppi-invalid-boundary'],
+                ],
+                [
+                    'raw' => '192',
+                    'value' => '192',
+                    'kind' => 'pixels-per-inch',
+                    'ppi' => 192,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/raster-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/raster-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-rasterization-ppi:192', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans unsafe typst boundary override histories without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
