@@ -1048,6 +1048,96 @@ XML;
         $t->same(null, $docx['fontTableRelationship']['overridePartName']);
         $t->same('application/xml', $docx['fontTableRelationship']['contentType']);
     },
+    'tracks docx selected openxml part root and content type provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/docSettings/review-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/missing-web-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/review-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../docSettings/review-settings.xml?profile=team#settings"/>' . "\n" .
+            '  <Relationship Id="rWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="web/missing-web-settings.xml?profile=browser#web"/>' . "\n" .
+            '  <Relationship Id="rTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/review-theme.xml#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['docSettings/review-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="1"/>
+</w:settings>
+XML;
+        $parts['word/theme/review-theme.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Review Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $selected = $document->attr('docx')['packageProvenance']['selectedXmlParts'];
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byKind = $selected['byKind'];
+
+        $t->same(13, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(5, $selected['relationshipSelectedCount']);
+        $t->same(1, $selected['missingRequiredOrReferencedCount']);
+        $t->same(6, $selected['validRootCount']);
+        $t->same(0, $selected['invalidRootCount']);
+        $t->same(0, $selected['unexpectedContentTypeCount']);
+        $t->same(1, $selected['issueCount']);
+        $t->same(['webSettings'], $selected['issueKinds']);
+        $t->same(13, $summary['selectedXmlPartCount']);
+        $t->same(1, $summary['selectedXmlPartIssueCount']);
+        $t->same(['webSettings'], $summary['selectedXmlPartIssueKinds']);
+
+        $t->same('relationship', $byKind['document']['selectionSource']);
+        $t->same('rDoc', $byKind['document']['relationshipId']);
+        $t->same('word/document.xml', $byKind['document']['partName']);
+        $t->same('document', $byKind['document']['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $byKind['document']['rootNamespace']);
+        $t->same(true, $byKind['document']['validRoot']);
+        $t->same(true, $byKind['document']['contentTypeMatchesExpected']);
+
+        $t->same('conventional-part', $byKind['styles']['selectionSource']);
+        $t->same('word/styles.xml', $byKind['styles']['partName']);
+        $t->same('styles', $byKind['styles']['rootLocalName']);
+        $t->same(true, $byKind['styles']['contentTypeMatchesExpected']);
+
+        $t->same('relationship', $byKind['settings']['selectionSource']);
+        $t->same('rSettings', $byKind['settings']['relationshipId']);
+        $t->same('word/_rels/document.xml.rels', $byKind['settings']['relationshipsPart']);
+        $t->same('docSettings/review-settings.xml', $byKind['settings']['partName']);
+        $t->same('?profile=team#settings', $byKind['settings']['targetReferenceSuffix']);
+        $t->same('settings', $byKind['settings']['rootLocalName']);
+        $t->same(true, $byKind['settings']['validRoot']);
+        $t->same(true, $byKind['settings']['contentTypeMatchesExpected']);
+
+        $t->same('relationship', $byKind['theme']['selectionSource']);
+        $t->same('theme', $byKind['theme']['rootLocalName']);
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/main', $byKind['theme']['rootNamespace']);
+        $t->same(true, $byKind['theme']['contentTypeMatchesExpected']);
+
+        $t->same('relationship', $byKind['webSettings']['selectionSource']);
+        $t->same('rWebSettings', $byKind['webSettings']['relationshipId']);
+        $t->same('word/web/missing-web-settings.xml', $byKind['webSettings']['partName']);
+        $t->same(false, $byKind['webSettings']['exists']);
+        $t->same(null, $byKind['webSettings']['validRoot']);
+        $t->same(true, $byKind['webSettings']['contentTypeMatchesExpected']);
+        $t->same(['missing-relationship-target'], $byKind['webSettings']['issues']);
+
+        $t->same('conventional-fallback', $byKind['comments']['selectionSource']);
+        $t->same(null, $byKind['comments']['contentTypeMatchesExpected']);
+        $t->same([], $byKind['comments']['issues']);
+    },
     'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

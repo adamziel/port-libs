@@ -37,6 +37,19 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+    private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
+    private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
+    private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
+    private const CT_WORD_STYLES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml';
+    private const CT_WORD_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+    private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
+    private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
+    private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
+    private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
+    private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
+    private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
 
     public function readFile(string $path): AstNode
     {
@@ -191,6 +204,37 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $selectedXmlParts = $this->selectedXmlPartProvenance($parts, $contentTypes, [
+            $this->selectedXmlPartDefinition(
+                'document',
+                $documentPart,
+                $parts[$documentPart],
+                true,
+                $this->firstRelationshipByType($rootRelationships, self::OFFICE_DOCUMENT_REL),
+                '/',
+                '_rels/.rels',
+                true,
+                self::NS_W,
+                'document',
+                self::CT_WORD_DOCUMENT,
+            ),
+            $this->selectedXmlPartDefinition('coreProperties', $corePropertiesPart['partName'], $corePropertiesPart['xml'], $corePropertiesPart['exists'], $corePropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_CP, 'coreProperties', self::CT_CORE_PROPERTIES),
+            $this->selectedXmlPartDefinition('extendedProperties', $extendedPropertiesPart['partName'], $extendedPropertiesPart['xml'], $extendedPropertiesPart['exists'], $extendedPropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_EP, 'Properties', self::CT_EXTENDED_PROPERTIES),
+            $this->selectedXmlPartDefinition('customProperties', $customPropertiesPart['partName'], $customPropertiesPart['xml'], $customPropertiesPart['exists'], $customPropertiesPart['relationship'], '/', '_rels/.rels', false, self::NS_CUSTOM_PROPS, 'Properties', self::CT_CUSTOM_PROPERTIES),
+            $this->selectedXmlPartDefinition('styles', $stylesPart['partName'], $stylesPart['xml'], $stylesPart['exists'], $stylesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'styles', self::CT_WORD_STYLES),
+            $this->selectedXmlPartDefinition('numbering', $numberingPart['partName'], $numberingPart['xml'], $numberingPart['exists'], $numberingPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'numbering', self::CT_WORD_NUMBERING),
+            $this->selectedXmlPartDefinition('settings', $settingsPart['partName'], $settingsPart['xml'], $settingsPart['exists'], $settingsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'settings', self::CT_WORD_SETTINGS),
+            $this->selectedXmlPartDefinition('webSettings', $webSettingsPart['partName'], $webSettingsPart['xml'], $webSettingsPart['exists'], $webSettingsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'webSettings', self::CT_WORD_WEB_SETTINGS),
+            $this->selectedXmlPartDefinition('fontTable', $fontTablePart['partName'], $fontTablePart['xml'], $fontTablePart['exists'], $fontTablePart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'fonts', self::CT_WORD_FONT_TABLE),
+            $this->selectedXmlPartDefinition('theme', $themePart['partName'], $themePart['xml'], $themePart['exists'], $themePart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_A, 'theme', self::CT_THEME),
+            $this->selectedXmlPartDefinition('footnotes', $footnotesPart['partName'], $footnotesPart['xml'], $footnotesPart['exists'], $footnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'footnotes', self::CT_WORD_FOOTNOTES),
+            $this->selectedXmlPartDefinition('endnotes', $endnotesPart['partName'], $endnotesPart['xml'], $endnotesPart['exists'], $endnotesPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'endnotes', self::CT_WORD_ENDNOTES),
+            $this->selectedXmlPartDefinition('comments', $commentsPart['partName'], $commentsPart['xml'], $commentsPart['exists'], $commentsPart['relationship'], $documentPart, $documentRelationshipsPart, false, self::NS_W, 'comments', self::CT_WORD_COMMENTS),
+        ]);
+        $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
+        $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
+        $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
+        $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -457,6 +501,21 @@ final class DocxOpenXmlReader
         }
 
         return 'word/document.xml';
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @return array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null
+     */
+    private function firstRelationshipByType(array $relationships, string $relationshipType): ?array
+    {
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] === $relationshipType && $relationship['targetMode'] !== 'External') {
+                return $relationship;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1442,6 +1501,199 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
+        ];
+    }
+
+    /**
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @return array<string, mixed>
+     */
+    private function selectedXmlPartDefinition(
+        string $kind,
+        string $partName,
+        string $xml,
+        bool $exists,
+        ?array $relationship,
+        string $relationshipSourcePart,
+        string $relationshipsPart,
+        bool $required,
+        string $expectedRootNamespace,
+        string $expectedRootLocalName,
+        string $expectedContentTypeBase,
+    ): array {
+        return [
+            'kind' => $kind,
+            'partName' => $partName,
+            'xml' => $xml,
+            'exists' => $exists,
+            'relationship' => $relationship,
+            'relationshipSourcePart' => $relationshipSourcePart,
+            'relationshipsPart' => $relationshipsPart,
+            'required' => $required,
+            'expectedRootNamespace' => $expectedRootNamespace,
+            'expectedRootLocalName' => $expectedRootLocalName,
+            'expectedContentTypeBase' => $expectedContentTypeBase,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param list<array<string, mixed>> $definitions
+     * @return array<string, mixed>
+     */
+    private function selectedXmlPartProvenance(array $parts, array $contentTypes, array $definitions): array
+    {
+        $items = [];
+        $byKind = [];
+        $issueKinds = [];
+        $issueCount = 0;
+
+        foreach ($definitions as $definition) {
+            $item = $this->selectedXmlPartProvenanceItem($parts, $contentTypes, $definition);
+            $items[] = $item;
+            $byKind[$item['kind']] = $item;
+            if ($item['issues'] !== []) {
+                $issueKinds[] = $item['kind'];
+                $issueCount += count($item['issues']);
+            }
+        }
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'relationshipSelectedCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipId'] !== null)),
+            'missingRequiredOrReferencedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-required-part', $item['issues'], true)
+                    || in_array('missing-relationship-target', $item['issues'], true),
+            )),
+            'validRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === true)),
+            'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === false)),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'issueKinds' => $issueKinds,
+            'byKind' => $byKind,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, mixed> $definition
+     * @return array<string, mixed>
+     */
+    private function selectedXmlPartProvenanceItem(array $parts, array $contentTypes, array $definition): array
+    {
+        $kind = (string) $definition['kind'];
+        $partName = (string) $definition['partName'];
+        $exists = (bool) $definition['exists'];
+        $required = (bool) $definition['required'];
+        $relationship = is_array($definition['relationship']) ? $definition['relationship'] : null;
+        $expectedRootNamespace = (string) $definition['expectedRootNamespace'];
+        $expectedRootLocalName = (string) $definition['expectedRootLocalName'];
+        $expectedContentTypeBase = (string) $definition['expectedContentTypeBase'];
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $validateContentType = $exists || $required || $relationship !== null;
+        $contentTypeMatchesExpected = null;
+        $issues = [];
+
+        if ($expectedContentTypeBase !== '' && $validateContentType) {
+            $contentTypeMatchesExpected = $contentTypeResolution['contentTypeBase'] === $expectedContentTypeBase;
+            if (!$contentTypeMatchesExpected) {
+                $issues[] = $contentTypeResolution['contentTypeSource'] === 'missing'
+                    ? 'missing-content-type'
+                    : 'unexpected-content-type';
+            }
+        }
+
+        $item = [
+            'kind' => $kind,
+            'partName' => $partName,
+            'selectionSource' => $relationship !== null ? 'relationship' : ($exists ? 'conventional-part' : 'conventional-fallback'),
+            'required' => $required,
+            'exists' => $exists,
+            'bytes' => $exists && isset($parts[$partName]) ? strlen($parts[$partName]) : 0,
+            'expectedRootNamespace' => $expectedRootNamespace,
+            'expectedRootLocalName' => $expectedRootLocalName,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'expectedContentTypeBase' => $expectedContentTypeBase,
+            'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
+            'relationshipId' => null,
+            'relationshipType' => null,
+            'relationshipSourcePart' => null,
+            'relationshipsPart' => null,
+            'relationshipTarget' => null,
+            'relationshipTargetMode' => null,
+            'relationshipResolvedTarget' => null,
+            'targetReferenceSuffix' => '',
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'issues' => $issues,
+        ] + $contentTypeResolution;
+
+        if ($relationship !== null) {
+            $suffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
+            $item['relationshipId'] = $relationship['id'];
+            $item['relationshipType'] = $relationship['type'];
+            $item['relationshipSourcePart'] = (string) $definition['relationshipSourcePart'];
+            $item['relationshipsPart'] = (string) $definition['relationshipsPart'];
+            $item['relationshipTarget'] = $relationship['target'];
+            $item['relationshipTargetMode'] = $relationship['targetMode'];
+            $item['relationshipResolvedTarget'] = $relationship['resolvedTarget'];
+            $item['targetReferenceSuffix'] = $suffix['suffix'];
+            $item['targetQuery'] = $suffix['query'];
+            $item['targetFragment'] = $suffix['fragment'];
+        }
+
+        if (!$exists) {
+            if ($required) {
+                $item['issues'][] = 'missing-required-part';
+            }
+            if ($relationship !== null) {
+                $item['issues'][] = 'missing-relationship-target';
+            }
+
+            return $item;
+        }
+
+        $xml = is_string($definition['xml']) ? $definition['xml'] : ($parts[$partName] ?? '');
+        if ($xml === '') {
+            $item['validRoot'] = false;
+            $item['issues'][] = 'empty-xml-part';
+
+            return $item;
+        }
+
+        $root = $this->xmlRootProvenance($xml, $partName);
+        $item['rootNamespace'] = $root['namespace'];
+        $item['rootLocalName'] = $root['localName'];
+        $item['validRoot'] = $root['namespace'] === $expectedRootNamespace && $root['localName'] === $expectedRootLocalName;
+        if ($item['validRoot'] === false) {
+            $item['issues'][] = 'unexpected-root';
+        }
+
+        return $item;
+    }
+
+    /**
+     * @return array{namespace:?string, localName:?string}
+     */
+    private function xmlRootProvenance(string $xml, string $partName): array
+    {
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['namespace' => null, 'localName' => null];
+        }
+
+        return [
+            'namespace' => $root->namespaceURI,
+            'localName' => $root->localName,
         ];
     }
 
