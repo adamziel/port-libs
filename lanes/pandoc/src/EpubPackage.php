@@ -1008,6 +1008,7 @@ final class EpubPackage
     {
         $linearCount = 0;
         $nonLinearCount = 0;
+        $invalidLinearItems = [];
         $missingManifestItems = [];
         $missingPackagePartItems = [];
         $nonContentDocumentItems = [];
@@ -1020,6 +1021,22 @@ final class EpubPackage
                 ++$nonLinearCount;
             } else {
                 ++$linearCount;
+            }
+
+            foreach (is_array($item['linearDiagnostics'] ?? null) ? $item['linearDiagnostics'] : [] as $linearDiagnostic) {
+                if (!is_array($linearDiagnostic)) {
+                    continue;
+                }
+
+                $diagnosticItem = [
+                    'index' => $index,
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    'idref' => (string) ($item['idref'] ?? ''),
+                    'linearRaw' => is_string($item['linearRaw'] ?? null) ? $item['linearRaw'] : null,
+                    'linearValue' => is_string($item['linearValue'] ?? null) ? $item['linearValue'] : null,
+                ];
+                $invalidLinearItems[] = $diagnosticItem;
+                $diagnostics[] = $diagnosticItem + $linearDiagnostic;
             }
 
             if (($item['manifestItemMissing'] ?? false) === true) {
@@ -1084,9 +1101,11 @@ final class EpubPackage
             'metadataValid' => ($spineMetadata['valid'] ?? true) === true,
             'linearCount' => $linearCount,
             'nonLinearCount' => $nonLinearCount,
+            'invalidLinearCount' => count($invalidLinearItems),
             'missingManifestItemCount' => count($missingManifestItems),
             'missingPackagePartCount' => count($missingPackagePartItems),
             'nonContentDocumentCount' => count($nonContentDocumentItems),
+            'invalidLinearItems' => $invalidLinearItems,
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItems' => $missingPackagePartItems,
             'nonContentDocumentItems' => $nonContentDocumentItems,
@@ -3808,9 +3827,7 @@ final class EpubPackage
                 $id = $itemrefElement->hasAttribute('id')
                     ? self::emptyToNull($itemrefElement->getAttribute('id'))
                     : null;
-                $linearRaw = $itemrefElement->hasAttribute('linear')
-                    ? self::emptyToNull($itemrefElement->getAttribute('linear'))
-                    : null;
+                $linear = self::spineItemLinearReport($itemrefElement);
                 $spine[] = [
                     'id' => $id,
                     'idref' => $idref,
@@ -3819,8 +3836,12 @@ final class EpubPackage
                     'mediaType' => '',
                     'exists' => false,
                     'manifestItemMissing' => true,
-                    'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
-                    'linearRaw' => $linearRaw,
+                    'linear' => $linear['linear'],
+                    'linearRaw' => $linear['raw'],
+                    'linearSpecified' => $linear['specified'],
+                    'linearValue' => $linear['value'],
+                    'linearValueValid' => $linear['valid'],
+                    'linearDiagnostics' => $linear['diagnostics'],
                     'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
                     'mediaOverlay' => null,
                     'refinements' => [],
@@ -3832,9 +3853,7 @@ final class EpubPackage
             $id = $itemrefElement->hasAttribute('id')
                 ? self::emptyToNull($itemrefElement->getAttribute('id'))
                 : null;
-            $linearRaw = $itemrefElement->hasAttribute('linear')
-                ? self::emptyToNull($itemrefElement->getAttribute('linear'))
-                : null;
+            $linear = self::spineItemLinearReport($itemrefElement);
             $refinements = $id !== null && isset($refinementsById[$id]) && is_array($refinementsById[$id])
                 ? $refinementsById[$id]
                 : [];
@@ -3847,8 +3866,12 @@ final class EpubPackage
                 'mediaType' => $item['mediaType'],
                 'exists' => ($item['exists'] ?? false) === true,
                 'manifestItemMissing' => false,
-                'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
-                'linearRaw' => $linearRaw,
+                'linear' => $linear['linear'],
+                'linearRaw' => $linear['raw'],
+                'linearSpecified' => $linear['specified'],
+                'linearValue' => $linear['value'],
+                'linearValueValid' => $linear['valid'],
+                'linearDiagnostics' => $linear['diagnostics'],
                 'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
                 'mediaOverlay' => $item['mediaOverlay'] ?? null,
                 'refinements' => $refinements,
@@ -3861,6 +3884,37 @@ final class EpubPackage
         }
 
         return $spine;
+    }
+
+    /**
+     * @return array{specified:bool, raw:?string, value:?string, linear:bool, valid:bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function spineItemLinearReport(\DOMElement $itemrefElement): array
+    {
+        $specified = $itemrefElement->hasAttribute('linear');
+        $raw = $specified ? self::emptyToNull($itemrefElement->getAttribute('linear')) : null;
+        $value = $raw === null ? null : strtolower($raw);
+        $valid = $value === null || in_array($value, ['yes', 'no'], true);
+        $diagnostics = [];
+
+        if (!$valid) {
+            $diagnostics[] = [
+                'type' => 'invalid-spine-itemref-linear-value',
+                'attribute' => 'linear',
+                'value' => $raw,
+                'normalizedValue' => $value,
+                'message' => 'EPUB OPF spine itemref linear must be yes or no',
+            ];
+        }
+
+        return [
+            'specified' => $specified,
+            'raw' => $raw,
+            'value' => $value,
+            'linear' => $value !== 'no',
+            'valid' => $valid,
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**
