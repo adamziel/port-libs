@@ -1688,6 +1688,104 @@ XML;
         $t->same(['external-collection-link-target', 'missing-collection-link-target'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
     },
 
+    'preserves compact OPF collection role vocabulary for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithCollectionRoles = str_replace(
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',
+            '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en" prefix="schema: https://schema.org/ review: https://example.invalid/epub-review#">',
+            $epub3OpfXml
+        );
+        $opfWithCollectionRoles = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="series" role="series schema:hasPart https://example.invalid/roles#review-packet review:packet bad/role https://example.invalid/roles/no-fragment unknown:tag series" xml:lang="en">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+      <dc:title>Migration packets</dc:title>
+    </metadata>
+    <collection id="samples" role="preview">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Review samples</dc:title>
+      </metadata>
+    </collection>
+  </collection>',
+            $opfWithCollectionRoles
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithCollectionRoles],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $series = $epub->collections()[0];
+        $roleReport = $series['roleReport'];
+        $summary = $epub->summary();
+
+        $t->same('series schema:hasPart https://example.invalid/roles#review-packet review:packet bad/role https://example.invalid/roles/no-fragment unknown:tag series', $roleReport['raw']);
+        $t->same([
+            'series',
+            'schema:hasPart',
+            'https://example.invalid/roles#review-packet',
+            'review:packet',
+            'bad/role',
+            'https://example.invalid/roles/no-fragment',
+            'unknown:tag',
+            'series',
+        ], $roleReport['values']);
+        $t->same('series', $roleReport['primaryRole']);
+        $t->same(8, $roleReport['count']);
+        $t->same(6, $roleReport['validCount']);
+        $t->same(2, $roleReport['invalidCount']);
+        $t->same(3, $roleReport['resolvedCount']);
+        $t->same(1, $roleReport['absoluteUrlCount']);
+
+        $t->same('nmtoken', $roleReport['items'][0]['kind']);
+        $t->same(true, $roleReport['items'][0]['valid']);
+        $t->same('prefixed-nmtoken', $roleReport['items'][1]['kind']);
+        $t->same('schema', $roleReport['items'][1]['prefix']);
+        $t->same('hasPart', $roleReport['items'][1]['localName']);
+        $t->same('https://schema.org/hasPart', $roleReport['items'][1]['iri']);
+        $t->same(true, $roleReport['items'][1]['resolved']);
+        $t->same('absolute-url-with-fragment', $roleReport['items'][2]['kind']);
+        $t->same(true, $roleReport['items'][2]['absoluteUrlWithFragment']);
+        $t->same('https://example.invalid/roles#review-packet', $roleReport['items'][2]['iri']);
+        $t->same('https://example.invalid/epub-review#packet', $roleReport['items'][3]['iri']);
+        $t->same('invalid-collection-role-token', $roleReport['items'][4]['diagnostics'][0]['type']);
+        $t->same('bad/role', $roleReport['items'][4]['diagnostics'][0]['role']);
+        $t->same('invalid-collection-role-url-fragment', $roleReport['items'][5]['diagnostics'][0]['type']);
+        $t->same('unknown-collection-role-prefix', $roleReport['items'][6]['diagnostics'][0]['type']);
+        $t->same('unknown', $roleReport['items'][6]['diagnostics'][0]['prefix']);
+        $t->same('duplicate-collection-role-token', $roleReport['items'][7]['diagnostics'][0]['type']);
+        $t->same(0, $roleReport['items'][7]['diagnostics'][0]['previousIndex']);
+        $t->same([
+            'invalid-collection-role-token',
+            'invalid-collection-role-url-fragment',
+            'unknown-collection-role-prefix',
+            'duplicate-collection-role-token',
+        ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $roleReport['diagnostics']));
+
+        $t->same($roleReport['values'], $series['roleTokens']);
+        $t->same('series', $series['primaryRole']);
+        $t->same(4, $series['diagnosticCount']);
+        $t->same($roleReport['diagnostics'], $series['diagnostics']);
+        $t->same('preview', $series['children'][0]['roleReport']['primaryRole']);
+        $t->same([], $series['children'][0]['roleReport']['diagnostics']);
+        $t->same($epub->collections(), $summary['collections']);
+        $t->same($epub->collections(), $summary['wordpressImport']['collections']);
+        $t->same($roleReport, $summary['wordpressImport']['collections'][0]['roleReport']);
+        $t->same([
+            'invalid-collection-role-token',
+            'invalid-collection-role-url-fragment',
+            'unknown-collection-role-prefix',
+            'duplicate-collection-role-token',
+        ], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['collectionDiagnostics']));
+        $t->same('series', $summary['wordpressImport']['collectionDiagnostics'][0]['collectionId']);
+    },
+
     'summarizes OCF metadata links for EPUB3 package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $containerRecord = '{"@context":"https://schema.org","name":"OCF container review packet"}';
         $containerMetadataXml = <<<'XML'
