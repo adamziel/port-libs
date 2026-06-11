@@ -624,6 +624,52 @@ return [
         $t->same(0, $result['diagnostics']['blocks'][0]['maxForcedWrapSegmentDisplayWidth']);
         $t->same(1, $result['diagnostics']['blocks'][0]['lineFeedBreakCount']);
     },
+    'reports wrapped source line samples in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => "Alpha beta gamma\nSuperLongTokenTail short\nTiny"]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 8]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Alpha',
+            'beta',
+            'gamma',
+            'SuperLon',
+            'gTokenTa',
+            'il short',
+            'Tiny',
+        ]), $result['text']);
+        $t->same(2, $result['diagnostics']['wrappedSourceLineCount']);
+        $t->same(24, $result['diagnostics']['maxWrappedSourceLineDisplayWidth']);
+        $t->same([
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 0,
+                'sourceDisplayWidth' => 16,
+                'outputLineCount' => 3,
+                'generatedBreakCount' => 2,
+                'maxOutputDisplayWidth' => 5,
+                'forcedWrapBreakCount' => 0,
+                'text' => 'Alpha beta gamma',
+                'truncated' => false,
+            ],
+            [
+                'blockIndex' => 0,
+                'lineIndex' => 1,
+                'sourceDisplayWidth' => 24,
+                'outputLineCount' => 3,
+                'generatedBreakCount' => 2,
+                'maxOutputDisplayWidth' => 8,
+                'forcedWrapBreakCount' => 2,
+                'text' => 'SuperLongTokenTail short',
+                'truncated' => false,
+            ],
+        ], $result['diagnostics']['wrappedSourceLines']);
+        $t->same(2, $result['diagnostics']['wrapSplitLineCount']);
+        $t->same(4, $result['diagnostics']['generatedWrapBreakCount']);
+        $t->same(2, $result['diagnostics']['forcedWrapBreakCount']);
+    },
     'reports blank lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha queue\n\nBeta tail"]),

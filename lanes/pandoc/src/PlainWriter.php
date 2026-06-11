@@ -31,6 +31,8 @@ final class PlainWriter
      *     wrapSplitLineCount:int,
      *     generatedWrapBreakCount:int,
      *     maxGeneratedWrapBreaksPerSourceLine:int,
+     *     wrappedSourceLineCount:int,
+     *     maxWrappedSourceLineDisplayWidth:int,
      *     wrappedSourceLines:list<array{
      *       blockIndex:int,
      *       lineIndex:int,
@@ -125,6 +127,8 @@ final class PlainWriter
         $wrapSplitLineCount = 0;
         $generatedWrapBreakCount = 0;
         $maxGeneratedWrapBreaksPerSourceLine = 0;
+        $wrappedSourceLineCount = 0;
+        $maxWrappedSourceLineDisplayWidth = 0;
         $wrappedSourceLines = [];
         $outputLineCount = 0;
         $blankSourceLineCount = 0;
@@ -185,6 +189,11 @@ final class PlainWriter
             $maxGeneratedWrapBreaksPerSourceLine = max(
                 $maxGeneratedWrapBreaksPerSourceLine,
                 $wrapMetrics['maxGeneratedBreaksPerSourceLine']
+            );
+            $wrappedSourceLineCount += $wrapMetrics['wrappedSourceLineCount'];
+            $maxWrappedSourceLineDisplayWidth = max(
+                $maxWrappedSourceLineDisplayWidth,
+                $wrapMetrics['maxWrappedSourceLineDisplayWidth']
             );
             foreach ($wrapMetrics['wrappedSourceLines'] as $lineDiagnostic) {
                 if (count($wrappedSourceLines) >= 16) {
@@ -286,6 +295,8 @@ final class PlainWriter
                 'wrapSplitLineCount' => $wrapSplitLineCount,
                 'generatedWrapBreakCount' => $generatedWrapBreakCount,
                 'maxGeneratedWrapBreaksPerSourceLine' => $maxGeneratedWrapBreaksPerSourceLine,
+                'wrappedSourceLineCount' => $wrappedSourceLineCount,
+                'maxWrappedSourceLineDisplayWidth' => $maxWrappedSourceLineDisplayWidth,
                 'wrappedSourceLines' => $wrappedSourceLines,
                 'outputLineCount' => $outputLineCount,
                 'blankSourceLineCount' => $blankSourceLineCount,
@@ -781,6 +792,8 @@ final class PlainWriter
      *   splitLineCount:int,
      *   generatedBreakCount:int,
      *   maxGeneratedBreaksPerSourceLine:int,
+     *   wrappedSourceLineCount:int,
+     *   maxWrappedSourceLineDisplayWidth:int,
      *   wrappedSourceLines:list<array{
      *     lineIndex:int,
      *     sourceDisplayWidth:int,
@@ -800,6 +813,8 @@ final class PlainWriter
                 'splitLineCount' => 0,
                 'generatedBreakCount' => 0,
                 'maxGeneratedBreaksPerSourceLine' => 0,
+                'wrappedSourceLineCount' => 0,
+                'maxWrappedSourceLineDisplayWidth' => 0,
                 'wrappedSourceLines' => [],
             ];
         }
@@ -812,6 +827,8 @@ final class PlainWriter
         $splitLineCount = 0;
         $generatedBreakCount = 0;
         $maxGeneratedBreaksPerSourceLine = 0;
+        $wrappedSourceLineCount = 0;
+        $maxWrappedSourceLineDisplayWidth = 0;
         $wrappedSourceLines = [];
         foreach ($sourceLines as $lineIndex => $line) {
             $wrapped = UnicodeText::wrapByDisplayWidth($line, $columns, '', $ambiguousWidth);
@@ -823,6 +840,9 @@ final class PlainWriter
             ++$splitLineCount;
             $generatedBreakCount += $generatedBreaks;
             $maxGeneratedBreaksPerSourceLine = max($maxGeneratedBreaksPerSourceLine, $generatedBreaks);
+            ++$wrappedSourceLineCount;
+            $sourceWidth = UnicodeText::displayWidth($line, $ambiguousWidth);
+            $maxWrappedSourceLineDisplayWidth = max($maxWrappedSourceLineDisplayWidth, $sourceWidth);
             if (count($wrappedSourceLines) >= 16) {
                 continue;
             }
@@ -830,7 +850,7 @@ final class PlainWriter
             [$text, $truncated] = $this->diagnosticTextSample($line);
             $wrappedSourceLines[] = [
                 'lineIndex' => $lineIndex,
-                'sourceDisplayWidth' => UnicodeText::displayWidth($line, $ambiguousWidth),
+                'sourceDisplayWidth' => $sourceWidth,
                 'outputLineCount' => count($wrapped),
                 'generatedBreakCount' => $generatedBreaks,
                 'maxOutputDisplayWidth' => $this->maxDisplayWidth($wrapped, $ambiguousWidth),
@@ -844,6 +864,8 @@ final class PlainWriter
             'splitLineCount' => $splitLineCount,
             'generatedBreakCount' => $generatedBreakCount,
             'maxGeneratedBreaksPerSourceLine' => $maxGeneratedBreaksPerSourceLine,
+            'wrappedSourceLineCount' => $wrappedSourceLineCount,
+            'maxWrappedSourceLineDisplayWidth' => $maxWrappedSourceLineDisplayWidth,
             'wrappedSourceLines' => $wrappedSourceLines,
         ];
     }

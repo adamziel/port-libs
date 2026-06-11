@@ -1603,7 +1603,9 @@
         "mappedSharedOpcZipCentralDirectorySourceRecordCases": 1,
         "legacyBiblatexLiteralListCases": 1,
         "mappedLegacyBiblatexLiteralListCases": 1,
-        "mappedJsonNativeTextRawFormatCases": 1
+        "mappedJsonNativeTextRawFormatCases": 1,
+        "mappedPlainWriterSourceLineDiagnosticsCases": 1,
+        "plainWriterSourceLineDiagnosticsAssertions": 7
     },
     "nativeImplementation": {
         "language": "PHP",
