@@ -1974,6 +1974,113 @@ return [
 
         $t->same(['t' => 'Decimal'], $editedPacket['blocks'][0]['c'][0][1], 'json writer regenerates stale list style helper payloads');
     },
+    'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
+        $styleNative = ['t' => 'UpperAlpha', 'c' => []];
+        $delimiterNative = ['t' => 'TwoParens', 'c' => []];
+        $quoteTypeNative = ['t' => 'DoubleQuote', 'c' => []];
+        $mathTypeNative = ['t' => 'DisplayMath', 'c' => []];
+        $citationModeNative = ['t' => 'AuthorInText', 'c' => []];
+        $tableAlignmentNative = ['t' => 'AlignCenter', 'c' => []];
+        $columnWidthNative = ['t' => 'ColWidth', 'c' => [0.6]];
+        $rowHeadColumnsNative = ['t' => 'RowHeadColumns', 'c' => [1]];
+        $cellAlignmentNative = ['t' => 'AlignLeft', 'c' => []];
+        $rowSpanNative = ['t' => 'RowSpan', 'c' => [2]];
+        $colSpanNative = ['t' => 'ColSpan', 'c' => [3]];
+        $citationRecord = [
+            'citationId' => 'source-helper',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => $citationModeNative,
+            'citationNoteNum' => 0,
+            'citationHash' => 99,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [4, $styleNative, $delimiterNative],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Item']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [$quoteTypeNative, [['t' => 'Str', 'c' => 'quoted']]]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [$mathTypeNative, 'x + y']],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [[$citationRecord], [['t' => 'Str', 'c' => '@source-helper']]]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    ['helper-payload-shapes', [], []],
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [[$tableAlignmentNative, $columnWidthNative]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            ['', [], []],
+                            $rowHeadColumnsNative,
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    ['', [], []],
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            ['', [], []],
+                                            $cellAlignmentNative,
+                                            $rowSpanNative,
+                                            $colSpanNative,
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $orderedList = $document->children[0];
+            $paragraph = $document->children[1];
+            $table = $document->children[2];
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', array_replace($orderedList->attrs, [
+                    'start' => 5,
+                ]), $orderedList->children),
+                new AstNode('paragraph', $paragraph->attrs, [
+                    ...$paragraph->children,
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'edited']),
+                ]),
+                new AstNode('table', array_replace($table->attrs, [
+                    'id' => 'edited-helper-payload-shapes',
+                ]), $table->children),
+            ]);
+            $nativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+            $body = $nativePacket['blocks'][2]['c'][4][0];
+            $cell = $body[3][0][1][0];
+
+            $t->same(5, $nativePacket['blocks'][0]['c'][0][0], "{$source} native writer regenerates edited list start");
+            $t->same($styleNative, $nativePacket['blocks'][0]['c'][0][1], "{$source} native writer list style native payload");
+            $t->same($delimiterNative, $nativePacket['blocks'][0]['c'][0][2], "{$source} native writer list delimiter native payload");
+            $t->same($quoteTypeNative, $nativePacket['blocks'][1]['c'][0]['c'][0], "{$source} native writer quote native payload");
+            $t->same($mathTypeNative, $nativePacket['blocks'][1]['c'][2]['c'][0], "{$source} native writer math native payload");
+            $t->same($citationModeNative, $nativePacket['blocks'][1]['c'][4]['c'][0][0]['citationMode'], "{$source} native writer citation mode native payload");
+            $t->same('edited-helper-payload-shapes', $nativePacket['blocks'][2]['c'][0][0], "{$source} native writer regenerates edited table attr");
+            $t->same($tableAlignmentNative, $nativePacket['blocks'][2]['c'][2][0][0], "{$source} native writer column alignment native payload");
+            $t->same($columnWidthNative, $nativePacket['blocks'][2]['c'][2][0][1], "{$source} native writer column width native payload");
+            $t->same($rowHeadColumnsNative, $body[1], "{$source} native writer row-head native payload");
+            $t->same($cellAlignmentNative, $cell[1], "{$source} native writer cell alignment native payload");
+            $t->same($rowSpanNative, $cell[2], "{$source} native writer rowspan native payload");
+            $t->same($colSpanNative, $cell[3], "{$source} native writer colspan native payload");
+        }
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
