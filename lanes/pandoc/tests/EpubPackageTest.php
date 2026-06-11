@@ -1132,7 +1132,7 @@ XML;
       <dc:title>Migration packets</dc:title>
       <meta property="group-position">2</meta>
     </metadata>
-    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json" properties="review"/>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json" properties="review" title="Series record" hreflang="en-GB" xml:lang="en" dir="ltr"/>
     <link id="start" rel="first" href="text/chapter1.xhtml#install" media-type="application/xhtml+xml"/>
     <link id="remote-record" rel="record alternate" href="https://example.invalid/series.json" media-type="application/json"/>
     <link id="missing-review" rel="review" href="text/missing.xhtml" media-type="application/xhtml+xml"/>
@@ -1181,6 +1181,10 @@ XML;
         $t->same('/EPUB/meta/series.json', $series['links'][0]['partName']);
         $t->same(true, $series['links'][0]['exists']);
         $t->same(strlen($seriesRecord), $series['links'][0]['byteLength']);
+        $t->same('Series record', $series['links'][0]['title']);
+        $t->same('en-GB', $series['links'][0]['hreflang']);
+        $t->same('en', $series['links'][0]['language']);
+        $t->same('ltr', $series['links'][0]['direction']);
         $t->same('series-record', $series['linksByRel']['record'][0]['id']);
         $t->same('/EPUB/text/chapter1.xhtml#install', $series['linksByRel']['first'][0]['target']);
         $t->same('remote-record', $series['linksByRel']['record'][1]['id']);

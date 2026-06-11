@@ -4039,6 +4039,9 @@ final class EpubPackage
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => self::splitTokens($linkElement->getAttribute('properties')),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
+            'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
+            'language' => self::metadataElementLanguage($linkElement),
+            'direction' => self::metadataElementDirection($linkElement),
             'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
             'diagnostics' => $diagnostics,
         ] + $provenance;
