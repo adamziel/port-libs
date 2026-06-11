@@ -1020,6 +1020,26 @@ XML, 'package reader XML');
         $t->true(!str_contains($html, '<textarea>'), 'Expected raw text textarea-looking source to stay escaped');
         $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected raw text script-looking source to stay escaped');
     },
+    'treats html noscript fallback as escaped raw text for raw handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<noscript data-source="legacy">Fallback <script>alert(1)</script> & source <img src=x></noscript><p>after</p>',
+            'noscript raw text review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $t->same(2, count($summary));
+        $t->same('noscript', $summary[0]['name']);
+        $t->same(['data-source' => 'legacy'], $summary[0]['attributes']);
+        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $summary[0]['text']);
+        $t->same('text', $summary[0]['children'][0]['type']);
+        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $summary[0]['children'][0]['text']);
+        $t->same('p', $summary[1]['name']);
+        $t->same('after', $summary[1]['text']);
+        $t->same('<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>', $html);
+        $t->true(!str_contains($html, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
+        $t->true(!str_contains($html, '<img src=x>'), 'Expected noscript image-looking source to stay escaped');
+    },
     'treats html iframe fallback as escaped raw text for raw handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<iframe data-source="legacy"><p>Fallback <script>alert(1)</script> &amp; note</p></iframe><p>after</p>',

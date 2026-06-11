@@ -306,11 +306,17 @@ final class XmlHtmlDom
             $html,
             protectTemplateContent: true,
             protectIframeContent: true,
-            protectRawTextContent: true
+            protectRawTextContent: true,
+            protectNoscriptContent: true
         );
         self::assertNoDoctype($preflight, $label);
         self::assertNoHtmlFragmentDeclarations($preflight, $label);
-        $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
+        $html = self::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectNoscriptContent: true
+        );
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
             . self::FRAGMENT_ROOT_ATTRIBUTE . '="1">' . $html . '</div></body></html>';
@@ -556,12 +562,14 @@ final class XmlHtmlDom
         string $html,
         bool $protectTemplateContent = false,
         bool $protectIframeContent = false,
-        bool $protectRawTextContent = false
+        bool $protectRawTextContent = false,
+        bool $protectNoscriptContent = false
     ): string
     {
         $offset = 0;
         $protected = '';
         $rawTextNames = 'script|style|xmp|noembed|noframes|title|textarea|plaintext'
+            . ($protectNoscriptContent ? '|noscript' : '')
             . ($protectIframeContent ? '|iframe' : '')
             . ($protectTemplateContent ? '|template' : '');
         $pattern = '~<(?P<name>' . $rawTextNames . ')(?=[\s/>])(?:[^>"\']+|"[^"]*"|\'[^\']*\')*>~is';

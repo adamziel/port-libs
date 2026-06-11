@@ -16,10 +16,16 @@ final class Html5Dom
             $html,
             protectTemplateContent: true,
             protectIframeContent: true,
-            protectRawTextContent: true
+            protectRawTextContent: true,
+            protectNoscriptContent: true
         );
         self::assertNoHtmlFragmentDeclarations($preflight, 'HTML fragment');
-        $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
+        $html = XmlHtmlDom::protectHtmlRcdataElements(
+            $html,
+            protectTemplateContent: true,
+            protectIframeContent: true,
+            protectNoscriptContent: true
+        );
 
         $dom = self::loadHtml(
             '<!doctype html><html><body>' . $html . '</body></html>',
@@ -186,7 +192,12 @@ final class Html5Dom
         $dom->resolveExternals = false;
         $dom->substituteEntities = false;
         if ($protectRcdata) {
-            $html = XmlHtmlDom::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
+            $html = XmlHtmlDom::protectHtmlRcdataElements(
+                $html,
+                protectTemplateContent: true,
+                protectIframeContent: true,
+                protectNoscriptContent: true
+            );
         }
         $loaded = $dom->loadHTML(
             '<?xml encoding="UTF-8">' . $html,
@@ -291,7 +302,8 @@ final class Html5Dom
             $html,
             protectTemplateContent: true,
             protectIframeContent: true,
-            protectRawTextContent: true
+            protectRawTextContent: true,
+            protectNoscriptContent: true
         );
         $declarationScanSource = self::sourceWithoutClosedComments($preflight);
         self::assertSimpleHtmlDocumentDoctype($declarationScanSource, $label);

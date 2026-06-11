@@ -459,6 +459,27 @@ return [
         $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected tag-looking raw text to serialize as escaped text');
         $t->true(!str_contains($serialized, '<img src=x>'), 'Expected fallback image-looking source text to serialize as escaped text');
     },
+    'treats html noscript bodies as escaped source during dom traversal' => static function (TestRunner $t): void {
+        $body = Html5Dom::parseHtmlFragment(
+            '<noscript data-source="legacy">Fallback <script>alert(1)</script> & source <img src=x></noscript><p>after</p>'
+        );
+        $noscript = Html5Dom::firstChildElement($body, 'noscript');
+        $paragraph = Html5Dom::firstChildElement($body, 'p');
+        $serialized = Html5Dom::serializeHtmlChildren($body);
+
+        $t->true($noscript instanceof DOMElement, 'Expected noscript fallback container to survive DOM parsing');
+        $t->same(['data-source' => 'legacy'], $noscript instanceof DOMElement ? Html5Dom::attributes($noscript) : []);
+        $t->same('Fallback <script>alert(1)</script> & source <img src=x>', $noscript instanceof DOMElement ? $noscript->textContent : null);
+        $t->same([], $noscript instanceof DOMElement ? Html5Dom::childElements($noscript) : []);
+        $t->true($paragraph instanceof DOMElement, 'Expected following paragraph to stay outside noscript text');
+        $t->same('after', $paragraph instanceof DOMElement ? Html5Dom::normalizedText($paragraph) : null);
+        $t->same(
+            '<noscript data-source="legacy">Fallback &lt;script&gt;alert(1)&lt;/script&gt; &amp; source &lt;img src=x&gt;</noscript><p>after</p>',
+            $serialized
+        );
+        $t->true(!str_contains($serialized, '<script>alert(1)</script>'), 'Expected noscript script-looking source to stay escaped');
+        $t->true(!str_contains($serialized, '<img src=x>'), 'Expected noscript image-looking source to stay escaped');
+    },
     'treats html plaintext as escaped source text without capturing wrapper tags' => static function (TestRunner $t): void {
         $body = Html5Dom::parseHtmlFragment(
             '<textarea><plaintext>literal</textarea><p>after</p>'
