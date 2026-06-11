@@ -23784,6 +23784,7 @@ XML;
   main-subtitle    = {Reviewer Annex},
   main-title-addon = {Alias packet},
   volume-title     = {Review Volume},
+  volume-subtitle  = {Packet Appendix},
   volume           = {2},
   part-title       = {Archive Part},
   part             = {1},
@@ -23795,22 +23796,23 @@ BIB;
         $t->same(1, count($items));
         $t->same('Migration Source Set: Reviewer Annex', $items[0]['main-title'] ?? null);
         $t->same('Alias packet', $items[0]['main-title-addon'] ?? null);
-        $t->same('Review Volume', $items[0]['volume-title'] ?? null);
+        $t->same('Review Volume: Packet Appendix', $items[0]['volume-title'] ?? null);
         $t->same('Archive Part', $items[0]['part-title'] ?? null);
         $t->same('Migration Source Set', $items[0]['rawBibtex']['fields']['main-title'] ?? null);
         $t->same('Reviewer Annex', $items[0]['rawBibtex']['fields']['main-subtitle'] ?? null);
         $t->same('Alias packet', $items[0]['rawBibtex']['fields']['main-title-addon'] ?? null);
         $t->same('Review Volume', $items[0]['rawBibtex']['fields']['volume-title'] ?? null);
+        $t->same('Packet Appendix', $items[0]['rawBibtex']['fields']['volume-subtitle'] ?? null);
         $t->same('Archive Part', $items[0]['rawBibtex']['fields']['part-title'] ?? null);
 
         $defaultProcessor = CitationCslProcessor::fromBibtex($bibtex);
         $item = $defaultProcessor->item('hyphen-title-family-source');
         $t->same('Migration Source Set: Reviewer Annex', $item['mainTitle'] ?? null);
         $t->same('Alias packet', $item['mainTitleAddon'] ?? null);
-        $t->same('Review Volume', $item['volumeTitle'] ?? null);
+        $t->same('Review Volume: Packet Appendix', $item['volumeTitle'] ?? null);
         $t->same('Archive Part', $item['partTitle'] ?? null);
         $t->same(
-            'Diaz, Dee. Migration Packet Leaf. Main title: Migration Source Set: Reviewer Annex. Main title addendum: Alias packet. Volume title: Review Volume. Part title: Archive Part. Vol. 2. Part 1. 2026.',
+            'Diaz, Dee. Migration Packet Leaf. Main title: Migration Source Set: Reviewer Annex. Main title addendum: Alias packet. Volume title: Review Volume: Packet Appendix. Part title: Archive Part. Vol. 2. Part 1. 2026.',
             $defaultProcessor->renderBibliographyEntry('hyphen-title-family-source')
         );
 
@@ -23861,15 +23863,15 @@ XML);
         $t->same('main-title-addon', $bibliographyChildren[2]['variable'] ?? null);
         $t->same('volume-title', $bibliographyChildren[3]['variable'] ?? null);
         $t->same('part-title', $bibliographyChildren[4]['variable'] ?? null);
-        $t->same('[Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume | Archive Part | 2 | 1]', $processor->renderCitationCluster([
+        $t->same('[Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume: Packet Appendix | Archive Part | 2 | 1]', $processor->renderCitationCluster([
             new AstNode('citation', ['id' => 'hyphen-title-family-source', 'text' => '[@hyphen-title-family-source]']),
         ]));
-        $t->same('Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume :: Archive Part :: 2 :: 1', $processor->renderBibliographyEntry('hyphen-title-family-source'));
+        $t->same('Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume: Packet Appendix :: Archive Part :: 2 :: 1', $processor->renderBibliographyEntry('hyphen-title-family-source'));
 
         $document = (new MarkdownReader())->read('CSL style title aliases [@hyphen-title-family-source] keep source divisions visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
-        $t->contains('<p>CSL style title aliases [Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume | Archive Part | 2 | 1] keep source divisions visible.</p>', $blocks);
-        $t->contains('<dt>Diaz 2026</dt><dd>Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume :: Archive Part :: 2 :: 1</dd>', $blocks);
+        $t->contains('<p>CSL style title aliases [Diaz | Migration Source Set: Reviewer Annex | Alias packet | Review Volume: Packet Appendix | Archive Part | 2 | 1] keep source divisions visible.</p>', $blocks);
+        $t->contains('<dt>Diaz 2026</dt><dd>Migration Packet Leaf :: Migration Source Set: Reviewer Annex :: Alias packet :: Review Volume: Packet Appendix :: Archive Part :: 2 :: 1</dd>', $blocks);
     },
     'sorts bounded csl numeric variables as integers for citation and bibliography keys' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
@@ -25587,6 +25589,7 @@ XML);
   title              = {Review Volume Alias Packet},
   date               = {2026},
   volumetitle        = {Collected Migration Reviews},
+  volumesubtitle     = {Source Appendix},
   shortvolumetitle   = {CMR},
   reviewed-title     = {Source Corpus},
   reviewedgenre      = {review essay}
@@ -25595,14 +25598,15 @@ BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
         $t->same(1, count($items));
-        $t->same('Collected Migration Reviews', $items[0]['volume-title'] ?? null);
+        $t->same('Collected Migration Reviews: Source Appendix', $items[0]['volume-title'] ?? null);
         $t->same('CMR', $items[0]['volume-title-short'] ?? null);
         $t->same('Source Corpus', $items[0]['reviewed-title'] ?? null);
         $t->same('review essay', $items[0]['reviewed-genre'] ?? null);
+        $t->same('Source Appendix', $items[0]['rawBibtex']['fields']['volumesubtitle'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $item = $processor->item('review-volume-alias');
-        $t->same('Collected Migration Reviews', $item['volumeTitle'] ?? null);
+        $t->same('Collected Migration Reviews: Source Appendix', $item['volumeTitle'] ?? null);
         $t->same('CMR', $item['volumeTitleShort'] ?? null);
         $t->same('Source Corpus', $item['reviewedTitle'] ?? null);
         $t->same('review essay', $item['reviewedGenre'] ?? null);
@@ -25640,10 +25644,69 @@ XML);
 
         $summary = $styled->cslStyleSummary();
         $t->same('Bounded BibLaTeX Review Volume Alias Review', $summary['title'] ?? null);
-        $t->same('[Curator | Collected Migration Reviews | CMR | Source Corpus | review essay]', $styled->renderCitationCluster([
+        $t->same('[Curator | Collected Migration Reviews: Source Appendix | CMR | Source Corpus | review essay]', $styled->renderCitationCluster([
             $citation('review-volume-alias', '[@review-volume-alias]'),
         ]));
-        $t->same('Review Volume Alias Packet :: Collected Migration Reviews :: CMR :: Source Corpus :: review essay', $styled->renderBibliographyEntry('review-volume-alias'));
+        $t->same('Review Volume Alias Packet :: Collected Migration Reviews: Source Appendix :: CMR :: Source Corpus :: review essay', $styled->renderBibliographyEntry('review-volume-alias'));
+    },
+    'maps bounded biblatex volume subtitle aliases into csl volume titles' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{compact-volume-subtitle,
+  author         = {Smith, Ada},
+  title          = {Compact Volume Packet},
+  date           = {2026},
+  volumetitle    = {Collected Review Sources},
+  volumesubtitle = {Archive Supplement}
+}
+
+@book{hyphen-volume-subtitle,
+  author          = {Ng, Nia},
+  title           = {Hyphen Volume Packet},
+  date            = {2025},
+  volume-title    = {Source Review Annual},
+  volume-subtitle = {Import Appendix}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('Collected Review Sources: Archive Supplement', $items[0]['volume-title'] ?? null);
+        $t->same('Source Review Annual: Import Appendix', $items[1]['volume-title'] ?? null);
+        $t->same('Archive Supplement', $items[0]['rawBibtex']['fields']['volumesubtitle'] ?? null);
+        $t->same('Import Appendix', $items[1]['rawBibtex']['fields']['volume-subtitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Volume Subtitle Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-volume-subtitle-alias-review</id>
+    <updated>2026-06-11T19:16:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Volume Subtitle Alias Review', $summary['title'] ?? null);
+        $t->same('[Smith | Collected Review Sources: Archive Supplement; Ng | Source Review Annual: Import Appendix]', $processor->renderCitationCluster([
+            $citation('compact-volume-subtitle', '[@compact-volume-subtitle]'),
+            $citation('hyphen-volume-subtitle', '[@hyphen-volume-subtitle]'),
+        ]));
+        $t->same('Compact Volume Packet :: Collected Review Sources: Archive Supplement', $processor->renderBibliographyEntry('compact-volume-subtitle'));
+        $t->same('Hyphen Volume Packet :: Source Review Annual: Import Appendix', $processor->renderBibliographyEntry('hyphen-volume-subtitle'));
     },
     'maps bounded biblatex hyphenated event metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'

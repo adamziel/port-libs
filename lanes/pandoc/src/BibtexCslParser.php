@@ -745,7 +745,7 @@ final class BibtexCslParser
             'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon', 'journal-title-addon', 'book-title-addon', 'container-title-addon', 'containertitleaddon']),
             'main-title' => self::composedTitle($fields, ['maintitle', 'main-title'], ['mainsubtitle', 'main-subtitle']),
             'main-title-addon' => self::firstField($fields, ['maintitleaddon', 'main-title-addon']),
-            'volume-title' => self::firstField($fields, ['volumetitle', 'volume-title']),
+            'volume-title' => self::composedTitle($fields, ['volumetitle', 'volume-title'], ['volumesubtitle', 'volume-subtitle']),
             'volume-title-short' => self::firstField($fields, ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short']),
             'part-title' => self::firstField($fields, ['parttitle', 'part-title']),
             'event' => self::firstField($fields, ['eventtitle', 'event-title', 'event']),
