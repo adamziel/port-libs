@@ -577,11 +577,35 @@ final class OdfReader
         $manifestByPart = [];
         $undeclaredByPart = [];
         $packageDirectoryCount = 0;
+        $manifestPartReferenceSuffixItems = [];
+        $manifestPartReferenceQueryCount = 0;
+        $manifestPartReferenceFragmentCount = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
             if (is_string($part) && $part !== '') {
                 $manifestByPart[$part] = $item;
+            }
+            if (is_string($item['partSuffix'] ?? null)) {
+                $manifestPartReferenceSuffixItems[] = [
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'partReference' => $item['partReference'] ?? null,
+                    'partSuffix' => $item['partSuffix'],
+                    'partQuery' => $item['partQuery'] ?? null,
+                    'partFragment' => $item['partFragment'] ?? null,
+                    'mediaType' => $item['mediaType'] ?? null,
+                    'exists' => ($item['exists'] ?? false) === true,
+                    'isDirectory' => ($item['isDirectory'] ?? false) === true,
+                    'encrypted' => ($item['encrypted'] ?? false) === true,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                ];
+            }
+            if (is_string($item['partQuery'] ?? null)) {
+                $manifestPartReferenceQueryCount++;
+            }
+            if (is_string($item['partFragment'] ?? null)) {
+                $manifestPartReferenceFragmentCount++;
             }
         }
 
@@ -643,6 +667,10 @@ final class OdfReader
             'mimetypeEntry' => $mimetypeEntry,
             'entryCount' => count($parts),
             'manifestDeclaredPartCount' => count($manifestByPart),
+            'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
+            'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
+            'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
+            'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],

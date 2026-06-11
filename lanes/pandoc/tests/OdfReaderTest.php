@@ -9001,6 +9001,67 @@ XML;
         );
         $t->throws(\RuntimeException::class, static fn (): array => (new OdfReader())->readPackage($buildOdtPackage(null, $duplicateResolvedPartManifest)));
     },
+    'summarizes ODT manifest URI suffix provenance in package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
+        $manifestWithSuffixedPaths = str_replace(
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:full-path="content.xml?role=body#content" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="styles.xml#styledefs" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+                    . '<manifest:file-entry manifest:full-path="Pictures/missing.png?missing=true" manifest:media-type="image/png"/>',
+            ],
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSuffixedPaths));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $suffixItems = [];
+        foreach ($provenance['manifestPartReferenceSuffixItems'] as $item) {
+            $suffixItems[$item['fullPath']] = $item;
+        }
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(3, $provenance['manifestPartReferenceSuffixCount']);
+        $t->same(2, $provenance['manifestPartReferenceQueryCount']);
+        $t->same(2, $provenance['manifestPartReferenceFragmentCount']);
+        $t->same([
+            'content.xml?role=body#content',
+            'styles.xml#styledefs',
+            'Pictures/missing.png?missing=true',
+        ], array_column($provenance['manifestPartReferenceSuffixItems'], 'fullPath'));
+
+        $content = $suffixItems['content.xml?role=body#content'];
+        $t->same('content.xml', $content['part']);
+        $t->same('content.xml', $content['partReference']);
+        $t->same('?role=body#content', $content['partSuffix']);
+        $t->same('role=body', $content['partQuery']);
+        $t->same('content', $content['partFragment']);
+        $t->same(true, $content['exists']);
+        $t->same(true, $content['canExposeBytes']);
+        $t->same(strlen($contentXml), $provenance['parts']['content.xml']['byteLength']);
+        $t->same('?role=body#content', $provenance['parts']['content.xml']['manifestPartSuffix']);
+
+        $styles = $suffixItems['styles.xml#styledefs'];
+        $t->same('styles.xml', $styles['part']);
+        $t->same('#styledefs', $styles['partSuffix']);
+        $t->same(null, $styles['partQuery']);
+        $t->same('styledefs', $styles['partFragment']);
+        $t->same(true, $styles['exists']);
+
+        $missing = $suffixItems['Pictures/missing.png?missing=true'];
+        $t->same('Pictures/missing.png', $missing['part']);
+        $t->same('?missing=true', $missing['partSuffix']);
+        $t->same('missing=true', $missing['partQuery']);
+        $t->same(null, $missing['partFragment']);
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same(1, count($result['importReport']['manifest']['missingItems']));
+        $t->same('Pictures/missing.png?missing=true', $result['importReport']['manifest']['missingItems'][0]['fullPath']);
+    },
     'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
             ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
