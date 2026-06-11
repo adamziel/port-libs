@@ -2132,6 +2132,67 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current plain and paragraph native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $plainBlock = [
+            'reviewQueue' => 'plain-import',
+            't' => 'Plain',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Plain'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ],
+        ];
+        $paragraphBlock = [
+            't' => 'Para',
+            'reviewQueue' => 'paragraph-import',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Paragraph'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$plainBlock, $paragraphBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $plain = $document->children[0];
+            $paragraph = $document->children[1];
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same('plain', $plain->type, "{$source} plain block");
+            $t->same('Plain', $plain->attr('constructor'), "{$source} plain constructor");
+            $t->same($plainBlock, $plain->attr('native'), "{$source} plain native payload");
+            $t->same('paragraph', $paragraph->type, "{$source} paragraph block");
+            $t->same('Para', $paragraph->attr('constructor'), "{$source} paragraph constructor");
+            $t->same($paragraphBlock, $paragraph->attr('native'), "{$source} paragraph native payload");
+            $t->same([$plainBlock, $paragraphBlock], $encoded['blocks'], "{$source} unchanged text block payloads are reused by JSON writer");
+        }
+
+        $jsonDocument = $documents['json'];
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('plain', $jsonDocument->children[0]->attrs, [
+                new AstNode('text', ['text' => 'Plain edited']),
+            ]),
+            new AstNode('paragraph', $jsonDocument->children[1]->attrs, [
+                new AstNode('text', ['text' => 'Paragraph edited']),
+            ]),
+        ]));
+
+        $t->same('Plain', $editedPacket['blocks'][0]['t']);
+        $t->same('Plain edited', $editedPacket['blocks'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][0]), 'edited plain block regenerates instead of reusing stale inert provenance');
+        $t->same('Para', $editedPacket['blocks'][1]['t']);
+        $t->same('Paragraph edited', $editedPacket['blocks'][1]['c'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedPacket['blocks'][1]), 'edited paragraph block regenerates instead of reusing stale inert provenance');
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
