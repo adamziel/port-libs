@@ -944,6 +944,65 @@ XML, 'package reader XML');
         $t->same(false, $invalidButton['popoverTargetActionValid']);
         $t->same('<dialog aria-modal="true" id="confirm" open popover="manual"><form method="dialog"><button value="ok">OK</button><button popovertarget="details-popover" popovertargetaction="show">More</button></form></dialog><aside id="details-popover" popover="auto">Extra</aside><button popovertarget="bad target" popovertargetaction="dismiss">Bad</button>', $html);
     },
+    'summarizes html dialog state and method dialog controls for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="review-dialog" open aria-labelledby="dialog-title"><h2 id="dialog-title">Review packet</h2>'
+                . '<form id="review-close" method="dialog" action="/ignored"><button name="decision" value="approve">Approve</button>'
+                . '<button value="cancel" formmethod="post">Cancel remotely</button><input type="submit" name="close" value="close"></form><p>Body</p></dialog>'
+                . '<dialog id="closed"><form method="POST"><button value="noop">No close</button></form></dialog>',
+            'dialog state review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dialog-state-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $dialog = $summary[0];
+        $dialogForm = $dialog['dialogMethodForms'][0];
+        $approve = $dialogForm['submitters'][0];
+        $remoteCancel = $dialogForm['submitters'][1];
+        $inputClose = $dialogForm['submitters'][2];
+        $closed = $summary[1];
+
+        $t->same('dialog', $dialog['name']);
+        $t->same('dialog', $dialog['dialog']);
+        $t->same(true, $dialog['dialogOpen']);
+        $t->same('open', $dialog['dialogState']);
+        $t->same('Review packet', $dialog['dialogHeadingText']);
+        $t->same('h2', $dialog['dialogHeadingTag']);
+        $t->same(2, $dialog['dialogHeadingLevel']);
+        $t->same(1, $dialog['dialogMethodFormCount']);
+        $t->same('review-close', $dialogForm['id']);
+        $t->same('dialog', $dialogForm['methodRaw']);
+        $t->same('/ignored', $dialogForm['action']);
+        $t->same(['approve', 'close'], $dialog['dialogCloseValues']);
+
+        $t->same('button', $approve['tag']);
+        $t->same('decision', $approve['name']);
+        $t->same('approve', $approve['value']);
+        $t->same('Approve', $approve['label']);
+        $t->same('dialog', $approve['effectiveFormMethod']);
+        $t->same(true, $approve['dialogCloses']);
+        $t->same('post', $remoteCancel['formMethod']);
+        $t->same('post', $remoteCancel['effectiveFormMethod']);
+        $t->same(false, $remoteCancel['dialogCloses']);
+        $t->same('input', $inputClose['tag']);
+        $t->same('submit', $inputClose['type']);
+        $t->same('close', $inputClose['name']);
+        $t->same('close', $inputClose['value']);
+        $t->same(false, $inputClose['effectiveDisabled']);
+
+        $t->same('closed', $closed['elementId']);
+        $t->same(false, $closed['dialogOpen']);
+        $t->same('closed', $closed['dialogState']);
+        $t->same(0, $closed['dialogMethodFormCount']);
+        $t->same([], $closed['dialogCloseValues']);
+        $t->same('<dialog aria-labelledby="dialog-title" id="review-dialog" open><h2 id="dialog-title">Review packet</h2><form action="/ignored" id="review-close" method="dialog"><button name="decision" value="approve">Approve</button><button formmethod="post" value="cancel">Cancel remotely</button><input name="close" type="submit" value="close"></form><p>Body</p></dialog><dialog id="closed"><form method="POST"><button value="noop">No close</button></form></dialog>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/dialog-state-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

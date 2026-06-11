@@ -863,6 +863,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary += self::dialogSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -1851,6 +1854,118 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dialogSummary(\DOMElement $dialog): array
+    {
+        $heading = self::firstScopedHeadingElement($dialog);
+        $headingName = $heading instanceof \DOMElement ? self::htmlElementName($heading) : null;
+        $methodForms = self::dialogMethodFormSummaries($dialog);
+
+        return [
+            'dialog' => 'dialog',
+            'dialogOpen' => $dialog->hasAttribute('open'),
+            'dialogState' => $dialog->hasAttribute('open') ? 'open' : 'closed',
+            'dialogHeadingText' => $heading instanceof \DOMElement ? self::normalizedText($heading) : null,
+            'dialogHeadingTag' => $headingName,
+            'dialogHeadingLevel' => $headingName === null ? null : self::htmlHeadingLevel($headingName),
+            'dialogMethodFormCount' => count($methodForms),
+            'dialogMethodForms' => $methodForms,
+            'dialogCloseValues' => self::dialogCloseValues($methodForms),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function dialogMethodFormSummaries(\DOMElement $dialog): array
+    {
+        $forms = [];
+        foreach (self::descendantHtmlElements($dialog, 'form') as $form) {
+            if (self::formMethod($form, 'method', 'get') !== 'dialog') {
+                continue;
+            }
+
+            $forms[] = [
+                'id' => self::attributeOrNull($form, 'id'),
+                'methodRaw' => self::attributeOrNull($form, 'method'),
+                'method' => 'dialog',
+                'action' => self::attributeOrNull($form, 'action'),
+                'submitters' => self::dialogMethodSubmitterSummaries($form),
+            ];
+        }
+
+        return $forms;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function dialogMethodSubmitterSummaries(\DOMElement $form): array
+    {
+        $submitters = [];
+        foreach ($form->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($control);
+            if ($name === 'button') {
+                $type = self::buttonType($control);
+                if ($type !== 'submit') {
+                    continue;
+                }
+                $label = self::normalizedText($control);
+                $value = $control->hasAttribute('value') ? $control->getAttribute('value') : '';
+            } elseif ($name === 'input') {
+                $type = self::inputType($control);
+                if (!self::isInputSubmitterType($type)) {
+                    continue;
+                }
+                $value = $control->getAttribute('value');
+                $label = $value;
+            } else {
+                continue;
+            }
+
+            $formMethod = self::formMethod($control, 'formmethod', null);
+            $effectiveMethod = $formMethod ?? 'dialog';
+            $submitters[] = [
+                'tag' => $name,
+                'type' => $type,
+                'name' => self::attributeOrNull($control, 'name'),
+                'value' => $value,
+                'label' => $label,
+                'formMethod' => $formMethod,
+                'effectiveFormMethod' => $effectiveMethod,
+                'disabled' => $control->hasAttribute('disabled'),
+                'effectiveDisabled' => self::isEffectivelyDisabledFormControl($control),
+                'dialogCloses' => $effectiveMethod === 'dialog',
+            ];
+        }
+
+        return $submitters;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $forms
+     * @return list<string>
+     */
+    private static function dialogCloseValues(array $forms): array
+    {
+        $values = [];
+        foreach ($forms as $form) {
+            foreach (($form['submitters'] ?? []) as $submitter) {
+                if (is_array($submitter) && ($submitter['dialogCloses'] ?? false) === true) {
+                    $values[] = (string) ($submitter['value'] ?? '');
+                }
+            }
+        }
+
+        return $values;
     }
 
     /**
