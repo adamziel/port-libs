@@ -6040,6 +6040,78 @@ return [
         $t->same('utf-8', $summary['entries'][2]['commentEncoding']);
     },
 
+    'summarizes zip comment byte totals before package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
+        $rawName = 'word/media/review-image.bin';
+        $unicodeName = "word/media/review-\u{2603}.png";
+        $rawEntryComment = 'legacy reviewer comment';
+        $unicodeEntryComment = "Unicode reviewer \u{2603} comment";
+        $cp437EntryComment = "r\x82sum\x82 media";
+        $rawPackageComment = "package r\x82sum\x82";
+        $decodedPackageComment = "package r\u{00e9}sum\u{00e9}";
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $rawName,
+                'data' => "Unicode media attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $rawEntryComment,
+                'localExtra' => $buildUnicodeExtra(0x7075, $rawName, $unicodeName),
+                'centralExtra' => $buildUnicodeExtra(0x7075, $rawName, $unicodeName)
+                    . $buildUnicodeExtra(0x6375, $rawEntryComment, $unicodeEntryComment),
+            ],
+            [
+                'name' => "word/media/caf\x82.png",
+                'data' => "legacy media attachment placeholder\n",
+                'method' => 0,
+                'flags' => 0,
+                'comment' => $cp437EntryComment,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>comment byte accounting</w:p></w:document>',
+                'method' => 8,
+            ],
+        ], $rawPackageComment);
+        $package = ZipPackage::fromString($zip);
+
+        $summary = $package->commentPreflight();
+        $rawSummary = ZipPackage::commentPolicyPreflight($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $expectedEntryCommentBytes = strlen($rawEntryComment) + strlen($cp437EntryComment);
+        $expectedEntryDecodedCommentBytes = strlen($unicodeEntryComment) + strlen("r\u{00e9}sum\u{00e9} media");
+
+        $t->same(strlen($rawPackageComment), $summary['packageCommentLength']);
+        $t->same(strlen($decodedPackageComment), $summary['packageCommentDecodedLength']);
+        $t->same($expectedEntryCommentBytes, $summary['entryCommentBytes']);
+        $t->same($expectedEntryDecodedCommentBytes, $summary['entryDecodedCommentBytes']);
+        $t->same(strlen($rawPackageComment) + $expectedEntryCommentBytes, $summary['commentBytes']);
+        $t->same(strlen($decodedPackageComment) + $expectedEntryDecodedCommentBytes, $summary['decodedCommentBytes']);
+        $t->same([
+            'source' => 'entry',
+            'name' => $unicodeName,
+            'commentLength' => strlen($rawEntryComment),
+            'decodedCommentLength' => strlen($unicodeEntryComment),
+            'commentEncoding' => 'info-zip-unicode-comment',
+        ], $summary['largestComment']);
+        $t->same(strlen($unicodeEntryComment), $summary['commentedEntries'][0]['decodedCommentLength']);
+        $t->same(strlen("r\u{00e9}sum\u{00e9} media"), $summary['commentedEntries'][1]['decodedCommentLength']);
+        $t->same(0, $summary['entries'][2]['commentLength']);
+        $t->same(0, $summary['entries'][2]['decodedCommentLength']);
+        $t->same($summary['commentBytes'], $rawSummary['commentBytes']);
+        $t->same($summary['decodedCommentBytes'], $rawSummary['decodedCommentBytes']);
+        $t->same($summary['largestComment'], $rawSummary['largestComment']);
+        $t->same($summary, $strict['comments']);
+        $t->same($rawSummary, $rawStrict['comments']);
+        $t->same($summary['commentBytes'], $rawStrict['strictImport']['comments']['commentBytes']);
+        $t->same($summary['decodedCommentBytes'], $rawStrict['strictImport']['comments']['decodedCommentBytes']);
+        $t->same($summary['largestComment'], $rawStrict['strictImport']['comments']['largestComment']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
+    },
+
     'rejects empty info zip unicode comments that hide raw entry comments' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
         $rawComment = 'review comment must remain visible';
         $emptyUnicodeCommentExtra = $buildUnicodeExtra(0x6375, $rawComment, '');

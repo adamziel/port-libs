@@ -1996,6 +1996,12 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     packageCommentDecodedLength:int,
+     *     entryCommentBytes:int,
+     *     entryDecodedCommentBytes:int,
+     *     commentBytes:int,
+     *     decodedCommentBytes:int,
+     *     largestComment:?array{source:string, name:?string, commentLength:int, decodedCommentLength:int, commentEncoding:string},
      *     packageCommentHasControlBytes:bool,
      *     packageCommentControlByteOffsets:list<int>,
      *     packageCommentHasUnicodeFormatControls:bool,
@@ -2014,11 +2020,11 @@ final class ZipPackage
      *     commentUnicodeFormatControlEntryCount:int,
      *     commentBidiControlEntryCount:int,
      *     commentedEntryNames:list<string>,
-     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
      * }
      */
     public function commentPreflight(): array
@@ -2153,6 +2159,12 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     packageCommentDecodedLength:int,
+     *     entryCommentBytes:int,
+     *     entryDecodedCommentBytes:int,
+     *     commentBytes:int,
+     *     decodedCommentBytes:int,
+     *     largestComment:?array{source:string, name:?string, commentLength:int, decodedCommentLength:int, commentEncoding:string},
      *     packageCommentHasControlBytes:bool,
      *     packageCommentControlByteOffsets:list<int>,
      *     packageCommentHasUnicodeFormatControls:bool,
@@ -2171,11 +2183,11 @@ final class ZipPackage
      *     commentUnicodeFormatControlEntryCount:int,
      *     commentBidiControlEntryCount:int,
      *     commentedEntryNames:list<string>,
-     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
      * }
      */
     public function assertNoPackageOrEntryComments(): array
@@ -2207,6 +2219,12 @@ final class ZipPackage
      *     rawPackageComment:string,
      *     packageCommentEncoding:string,
      *     packageCommentLength:int,
+     *     packageCommentDecodedLength:int,
+     *     entryCommentBytes:int,
+     *     entryDecodedCommentBytes:int,
+     *     commentBytes:int,
+     *     decodedCommentBytes:int,
+     *     largestComment:?array{source:string, name:?string, commentLength:int, decodedCommentLength:int, commentEncoding:string},
      *     packageCommentHasControlBytes:bool,
      *     packageCommentControlByteOffsets:list<int>,
      *     packageCommentHasUnicodeFormatControls:bool,
@@ -2225,16 +2243,18 @@ final class ZipPackage
      *     commentUnicodeFormatControlEntryCount:int,
      *     commentBidiControlEntryCount:int,
      *     commentedEntryNames:list<string>,
-     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
-     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
+     *     commentControlByteEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentUnicodeFormatControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentBidiControlEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     commentedEntries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>,
+     *     entries:list<array{name:string, comment:string, rawComment:string, commentEncoding:string, commentLength:int, decodedCommentLength:int, hasControlBytes:bool, commentControlByteOffsets:list<int>, hasUnicodeFormatControls:bool, hasBidiControls:bool, unicodeFormatControlNames:list<string>, bidiControlNames:list<string>, issues:list<string>}>
      * }
      */
     private static function commentPreflightSummary(string $rawPackageComment, array $entryComments): array
     {
         $packageComment = self::decodePackageComment($rawPackageComment);
+        $packageCommentLength = strlen($rawPackageComment);
+        $packageCommentDecodedLength = strlen($packageComment['text']);
         $packageCommentControlByteOffsets = self::rawControlByteOffsets($rawPackageComment);
         $packageCommentFormatControlNames = self::unicodeFormatControlNames($packageComment['text']);
         $packageCommentBidiControlNames = self::unicodeBidiControlNames($packageComment['text']);
@@ -2254,8 +2274,23 @@ final class ZipPackage
         $commentControlByteEntries = [];
         $commentUnicodeFormatControlEntries = [];
         $commentBidiControlEntries = [];
+        $entryCommentBytes = 0;
+        $entryDecodedCommentBytes = 0;
+        $largestComment = $packageCommentLength > 0
+            ? [
+                'source' => 'package',
+                'name' => null,
+                'commentLength' => $packageCommentLength,
+                'decodedCommentLength' => $packageCommentDecodedLength,
+                'commentEncoding' => $packageComment['encoding'],
+            ]
+            : null;
 
         foreach ($entryComments as $entry) {
+            $commentLength = strlen($entry['rawComment']);
+            $decodedCommentLength = strlen($entry['comment']);
+            $entryCommentBytes += $commentLength;
+            $entryDecodedCommentBytes += $decodedCommentLength;
             $commentControlByteOffsets = self::rawControlByteOffsets($entry['rawComment']);
             $commentFormatControlNames = self::unicodeFormatControlNames($entry['comment']);
             $commentBidiControlNames = self::unicodeBidiControlNames($entry['comment']);
@@ -2275,7 +2310,8 @@ final class ZipPackage
                 'comment' => $entry['comment'],
                 'rawComment' => $entry['rawComment'],
                 'commentEncoding' => $entry['commentEncoding'],
-                'commentLength' => strlen($entry['rawComment']),
+                'commentLength' => $commentLength,
+                'decodedCommentLength' => $decodedCommentLength,
                 'hasControlBytes' => $commentControlByteOffsets !== [],
                 'commentControlByteOffsets' => $commentControlByteOffsets,
                 'hasUnicodeFormatControls' => $commentFormatControlNames !== [],
@@ -2284,6 +2320,21 @@ final class ZipPackage
                 'bidiControlNames' => $commentBidiControlNames,
                 'issues' => $commentIssues,
             ];
+            if (
+                $commentLength > 0
+                && (
+                    $largestComment === null
+                    || $commentLength > $largestComment['commentLength']
+                )
+            ) {
+                $largestComment = [
+                    'source' => 'entry',
+                    'name' => $entry['name'],
+                    'commentLength' => $commentLength,
+                    'decodedCommentLength' => $decodedCommentLength,
+                    'commentEncoding' => $entry['commentEncoding'],
+                ];
+            }
             $entries[] = $summary;
             if ($entry['comment'] !== '') {
                 $commentedEntries[] = $summary;
@@ -2303,7 +2354,13 @@ final class ZipPackage
             'packageComment' => $packageComment['text'],
             'rawPackageComment' => $rawPackageComment,
             'packageCommentEncoding' => $packageComment['encoding'],
-            'packageCommentLength' => strlen($rawPackageComment),
+            'packageCommentLength' => $packageCommentLength,
+            'packageCommentDecodedLength' => $packageCommentDecodedLength,
+            'entryCommentBytes' => $entryCommentBytes,
+            'entryDecodedCommentBytes' => $entryDecodedCommentBytes,
+            'commentBytes' => $packageCommentLength + $entryCommentBytes,
+            'decodedCommentBytes' => $packageCommentDecodedLength + $entryDecodedCommentBytes,
+            'largestComment' => $largestComment,
             'packageCommentHasControlBytes' => $packageCommentControlByteOffsets !== [],
             'packageCommentControlByteOffsets' => $packageCommentControlByteOffsets,
             'packageCommentHasUnicodeFormatControls' => $packageCommentFormatControlNames !== [],
