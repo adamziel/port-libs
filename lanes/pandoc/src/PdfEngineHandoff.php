@@ -262,6 +262,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['certificates'] ?? []) !== []) {
                 $diagnostics[] = 'typst-certificates:' . count($typstBoundaryProvenance['certificates']);
             }
+            if (($typstBoundaryProvenance['pdfStandards'] ?? []) !== []) {
+                $diagnostics[] = 'typst-pdf-standards:' . count($typstBoundaryProvenance['pdfStandards']);
+            }
             if (($typstBoundaryProvenance['packagePath'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-path:' . $typstBoundaryProvenance['packagePath']['path'];
             }
@@ -5576,8 +5579,9 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pdfStandardValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5614,6 +5618,10 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $pdfStandards = array_map(
+            fn (string $value): array => $this->typstPdfStandardEntry($value),
+            $pdfStandardValues
+        );
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
@@ -5623,7 +5631,7 @@ final class PdfEngineHandoff
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $pdfStandards, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5650,6 +5658,9 @@ final class PdfEngineHandoff
         ];
         if ($certificates !== []) {
             $provenance['certificates'] = $certificates;
+        }
+        if ($pdfStandards !== []) {
+            $provenance['pdfStandards'] = $pdfStandards;
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
@@ -5950,6 +5961,44 @@ final class PdfEngineHandoff
             'timestamp' => $timestamp,
             'iso8601' => $iso8601,
             'deterministic' => $issues === [],
+            'safe' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{raw:string, value:string, family:string|null, conformance:string|null, safe:bool, issues:list<string>}
+     */
+    private function typstPdfStandardEntry(string $raw): array
+    {
+        $value = strtolower(trim($raw));
+        $issues = [];
+        $family = null;
+        $conformance = null;
+
+        if ($value === '') {
+            $issues[] = 'pdf-standard-empty-boundary';
+        } elseif (strlen($value) > 64 || preg_match('/\A[a-z0-9][a-z0-9_.:-]*\z/', $value) !== 1) {
+            $issues[] = 'pdf-standard-invalid-boundary';
+        } elseif (str_starts_with($value, 'a-')) {
+            $family = 'pdf/a';
+            $conformance = substr($value, 2);
+        } elseif (str_starts_with($value, 'ua-')) {
+            $family = 'pdf/ua';
+            $conformance = substr($value, 3);
+        } elseif (str_starts_with($value, 'x-')) {
+            $family = 'pdf/x';
+            $conformance = substr($value, 2);
+        } else {
+            $family = 'unknown';
+            $issues[] = 'pdf-standard-unknown-boundary';
+        }
+
+        return [
+            'raw' => $raw,
+            'value' => $value,
+            'family' => $family,
+            'conformance' => $conformance,
             'safe' => $issues === [],
             'issues' => $issues,
         ];
