@@ -5333,6 +5333,97 @@ XML);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Detailed Field Notes. Journal of Imports. Vol. 12, no. 3. 2026. 20-30. DOI 10.5555/detail. ISSN 1234-5678. Archive: arXiv cs.DL 2401.01234.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Review Handbook. 2nd ed. Source Review Series, no. 7. Review Press, 2025. ISBN 978-1-2345-6789-0.</dd>', $blocks);
     },
+    'maps bounded direct csl ISBN and ISSN compact aliases into review metadata' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-isbn13',
+                'type' => 'book',
+                'title' => 'Direct ISBN13 Manual',
+                'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                'issued' => ['date-parts' => [[2026]]],
+                'isbn13' => '978-1-4028-9462-6',
+            ],
+            [
+                'id' => 'direct-eisbn',
+                'type' => 'book',
+                'title' => 'Electronic ISBN Manual',
+                'author' => [['family' => 'Roe', 'given' => 'Pat']],
+                'issued' => ['date-parts' => [[2025]]],
+                'eISBN' => '978-0-596-52068-7',
+            ],
+            [
+                'id' => 'direct-print-issn',
+                'type' => 'article-journal',
+                'title' => 'Print ISSN Packet',
+                'author' => [['family' => 'Doe', 'given' => 'Jane']],
+                'issued' => ['date-parts' => [[2024]]],
+                'container-title' => 'Journal of Source Review',
+                'printISSN' => '1234-5678',
+            ],
+            [
+                'id' => 'direct-eissn',
+                'type' => 'article-journal',
+                'title' => 'Electronic ISSN Packet',
+                'author' => [['literal' => 'Repository Desk']],
+                'issued' => ['date-parts' => [[2023]]],
+                'container-title' => 'Online Import Review',
+                'eISSN' => '2468-1357',
+            ],
+        ]);
+        $isbn13 = $processor->item('direct-isbn13');
+        $eisbn = $processor->item('direct-eisbn');
+        $printIssn = $processor->item('direct-print-issn');
+        $eissn = $processor->item('direct-eissn');
+
+        $t->same('978-1-4028-9462-6', $isbn13['isbn'] ?? null);
+        $t->same('isbn13', array_key_exists('isbn13', $isbn13['raw'] ?? []) ? 'isbn13' : null);
+        $t->same('978-0-596-52068-7', $eisbn['isbn'] ?? null);
+        $t->same('eISBN', array_key_exists('eISBN', $eisbn['raw'] ?? []) ? 'eISBN' : null);
+        $t->same('1234-5678', $printIssn['issn'] ?? null);
+        $t->same('printISSN', array_key_exists('printISSN', $printIssn['raw'] ?? []) ? 'printISSN' : null);
+        $t->same('2468-1357', $eissn['issn'] ?? null);
+        $t->same('eISSN', array_key_exists('eISSN', $eissn['raw'] ?? []) ? 'eISSN' : null);
+        $t->same('Ng, Nia. Direct ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.', $processor->renderBibliographyEntry('direct-isbn13'));
+        $t->same('Roe, Pat. Electronic ISBN Manual. 2025. ISBN 978-0-596-52068-7.', $processor->renderBibliographyEntry('direct-eisbn'));
+        $t->same('Doe, Jane. Print ISSN Packet. Journal of Source Review. 2024. ISSN 1234-5678.', $processor->renderBibliographyEntry('direct-print-issn'));
+        $t->same('Repository Desk. Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.', $processor->renderBibliographyEntry('direct-eissn'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="ISBN-13"/>
+        <text variable="printISSN"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="eISBN"/>
+      <text variable="eISSN"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 978-1-4028-9462-6; Roe | 978-0-596-52068-7; Doe | 1234-5678; Repository Desk | 2468-1357]', $styled->renderCitationCluster([
+            $citation('direct-isbn13', '[@direct-isbn13]'),
+            $citation('direct-eisbn', '[@direct-eisbn]'),
+            $citation('direct-print-issn', '[@direct-print-issn]'),
+            $citation('direct-eissn', '[@direct-eissn]'),
+        ]));
+        $t->same('Direct ISBN13 Manual :: 978-1-4028-9462-6', $styled->renderBibliographyEntry('direct-isbn13'));
+        $t->same('Electronic ISSN Packet :: 2468-1357', $styled->renderBibliographyEntry('direct-eissn'));
+
+        $document = (new MarkdownReader())->read('Direct identifier aliases @direct-isbn13, ebook [@direct-eisbn], print journal @direct-print-issn, and online journal [@direct-eissn] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct identifier aliases Ng (2026), ebook (Roe 2025), print journal Doe (2024), and online journal (Repository Desk 2023) stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Direct ISBN13 Manual. 2026. ISBN 978-1-4028-9462-6.</dd>', $blocks);
+        $t->contains('<dt>Repository Desk 2023</dt><dd>Repository Desk. Electronic ISSN Packet. Online Import Review. 2023. ISSN 2468-1357.</dd>', $blocks);
+    },
     'maps bounded biblatex eprint archive summaries into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{eprint-source,
