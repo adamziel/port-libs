@@ -19438,6 +19438,104 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Archive Manual. Review Press, 2026. Call number: NYPL Manuscripts Division, MS 42 Box 7 Folder 3. https://example.test/archive-manual.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Legacy Source Card. 2025. Call number: CARD-17.</dd>', $blocks);
     },
+    'normalizes bounded csl call number compact aliases' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{shelfmark-review,
+  author    = {Lane, Lia},
+  title     = {Shelfmark Packet},
+  date      = {2026},
+  shelfmark = {MS Shelf 9}
+}
+
+@misc{callno-review,
+  author  = {{Archive Desk}},
+  title   = {Call Number Card},
+  year    = {2025},
+  call-no = {CALL-55}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $items[] = [
+            'id' => 'direct-shelf-location',
+            'type' => 'book',
+            'title' => 'Direct Shelf Location Packet',
+            'author' => [
+                ['family' => 'Ruiz', 'given' => 'Ria'],
+            ],
+            'issued' => ['date-parts' => [[2024]]],
+            'shelfLocation' => 'DIRECT-SHELF-4',
+        ];
+        $items[] = [
+            'id' => 'direct-call-num',
+            'type' => 'book',
+            'title' => 'Direct Call Num Packet',
+            'author' => [
+                ['family' => 'Ng', 'given' => 'Noor'],
+            ],
+            'issued' => ['date-parts' => [[2023]]],
+            'callNum' => 'DIRECT-CALL-2',
+        ];
+
+        $t->same('MS Shelf 9', $items[0]['call-number'] ?? null);
+        $t->same('CALL-55', $items[1]['call-number'] ?? null);
+        $t->same('MS Shelf 9', $items[0]['rawBibtex']['fields']['shelfmark'] ?? null);
+        $t->same('CALL-55', $items[1]['rawBibtex']['fields']['call-no'] ?? null);
+
+        $processor = CitationCslProcessor::fromItems($items);
+        $t->same('MS Shelf 9', $processor->item('shelfmark-review')['callNumber'] ?? null);
+        $t->same('CALL-55', $processor->item('callno-review')['callNumber'] ?? null);
+        $t->same('DIRECT-SHELF-4', $processor->item('direct-shelf-location')['callNumber'] ?? null);
+        $t->same('DIRECT-CALL-2', $processor->item('direct-call-num')['callNumber'] ?? null);
+        $t->same('Lane, Lia. Shelfmark Packet. 2026. Call number: MS Shelf 9.', $processor->renderBibliographyEntry('shelfmark-review'));
+        $t->same('Archive Desk. Call Number Card. 2025. Call number: CALL-55.', $processor->renderBibliographyEntry('callno-review'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Call Number Alias Review</title>
+    <id>https://example.test/styles/bounded-csl-call-number-alias-review</id>
+    <updated>2026-06-11T23:39:31+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="shelfmark"/>
+        <text variable="call-no"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="shelf-location"/>
+      <text variable="call-num"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded CSL Call Number Alias Review', $summary['title'] ?? null);
+        $t->same('shelfmark', $citationChildren[1]['variable'] ?? null);
+        $t->same('call-no', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Lane | MS Shelf 9 | MS Shelf 9; Archive Desk | CALL-55 | CALL-55; Ruiz | DIRECT-SHELF-4 | DIRECT-SHELF-4; Ng | DIRECT-CALL-2 | DIRECT-CALL-2]', $styled->renderCitationCluster([
+            $citation('shelfmark-review', '[@shelfmark-review]'),
+            $citation('callno-review', '[@callno-review]'),
+            $citation('direct-shelf-location', '[@direct-shelf-location]'),
+            $citation('direct-call-num', '[@direct-call-num]'),
+        ]));
+        $t->same('Direct Shelf Location Packet :: DIRECT-SHELF-4 :: DIRECT-SHELF-4', $styled->renderBibliographyEntry('direct-shelf-location'));
+
+        $document = (new MarkdownReader())->read('Call aliases [@shelfmark-review; @callno-review; @direct-shelf-location; @direct-call-num] keep shelf metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Call aliases (Lane 2026; Archive Desk 2025; Ruiz 2024; Ng 2023) keep shelf metadata visible.</p>', $blocks);
+        $t->contains('<dt>Lane 2026</dt><dd>Lane, Lia. Shelfmark Packet. 2026. Call number: MS Shelf 9.</dd>', $blocks);
+        $t->contains('<dt>Ng 2023</dt><dd>Ng, Noor. Direct Call Num Packet. 2023. Call number: DIRECT-CALL-2.</dd>', $blocks);
+    },
     'maps bounded biblatex sort override fields into csl ordering metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{visible-zed,
