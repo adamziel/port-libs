@@ -748,6 +748,7 @@ final class XmlHtmlDom
             'text' => self::normalizedText($node),
             'children' => $children,
         ];
+        $summary += self::htmlGlobalAttributeSummary($node);
 
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
@@ -875,6 +876,109 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlGlobalAttributeSummary(\DOMElement $element): array
+    {
+        $summary = [];
+
+        if ($element->hasAttribute('lang')) {
+            $summary['language'] = trim($element->getAttribute('lang'));
+        }
+        if ($element->hasAttribute('dir')) {
+            $raw = $element->getAttribute('dir');
+            $direction = self::htmlEnumeratedToken($raw, ['ltr', 'rtl', 'auto']);
+            $summary['directionRaw'] = $raw;
+            $summary['direction'] = $direction;
+            $summary['directionValid'] = $direction !== null;
+        }
+        if ($element->hasAttribute('translate')) {
+            $raw = $element->getAttribute('translate');
+            $token = strtolower(trim($raw));
+            $summary['translateRaw'] = $raw;
+            $summary['translate'] = match ($token) {
+                '', 'yes' => true,
+                'no' => false,
+                default => null,
+            };
+        }
+        if ($element->hasAttribute('spellcheck')) {
+            $raw = $element->getAttribute('spellcheck');
+            $token = strtolower(trim($raw));
+            $summary['spellcheckRaw'] = $raw;
+            $summary['spellcheck'] = match ($token) {
+                '', 'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+        if ($element->hasAttribute('contenteditable')) {
+            $raw = $element->getAttribute('contenteditable');
+            $token = strtolower(trim($raw));
+            $summary['contentEditableRaw'] = $raw;
+            $summary['contentEditable'] = match ($token) {
+                '', 'true' => 'true',
+                'plaintext-only' => 'plaintext-only',
+                'false' => 'false',
+                default => 'inherit',
+            };
+        }
+        if ($element->hasAttribute('draggable')) {
+            $raw = $element->getAttribute('draggable');
+            $token = strtolower(trim($raw));
+            $summary['draggableRaw'] = $raw;
+            $summary['draggable'] = match ($token) {
+                'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+        if ($element->hasAttribute('hidden')) {
+            $raw = $element->getAttribute('hidden');
+            $state = strtolower(trim($raw)) === 'until-found' ? 'until-found' : 'hidden';
+            $summary['hiddenRaw'] = $raw;
+            $summary['hidden'] = true;
+            $summary['hiddenState'] = $state;
+        }
+        if ($element->hasAttribute('inert')) {
+            $summary['inert'] = true;
+        }
+        if ($element->hasAttribute('popover')) {
+            $raw = $element->getAttribute('popover');
+            $token = strtolower(trim($raw));
+            $summary['popoverRaw'] = $raw;
+            $summary['popover'] = match ($token) {
+                '', 'auto' => 'auto',
+                'manual' => 'manual',
+                default => null,
+            };
+        }
+        if ($element->hasAttribute('accesskey')) {
+            $raw = $element->getAttribute('accesskey');
+            $summary['accessKeyRaw'] = $raw;
+            $summary['accessKeys'] = self::spaceSeparatedTokens($raw);
+        }
+        if ($element->hasAttribute('class')) {
+            $summary['classTokens'] = self::spaceSeparatedTokens($element->getAttribute('class'));
+        }
+        if ($element->hasAttribute('title')) {
+            $summary['titleAttribute'] = $element->getAttribute('title');
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<string> $allowed
+     */
+    private static function htmlEnumeratedToken(string $raw, array $allowed): ?string
+    {
+        $token = strtolower(trim($raw));
+
+        return in_array($token, $allowed, true) ? $token : null;
     }
 
     private static function inputType(\DOMElement $input): string

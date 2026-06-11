@@ -120,6 +120,52 @@ XML, 'package reader XML');
         $t->same(['checked' => 'checked'], $summary[3]['attributes']);
         $t->same("Text\u{00A0}<span title=\"A &quot;quote&quot; &amp; source\">source &lt;em&gt;</span><!--review--><input checked>", $html);
     },
+    'summarizes html global interaction metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article id="packet" lang="en-US" dir="RTL" translate="no" spellcheck="false" contenteditable="plaintext-only" draggable="true" hidden="until-found" inert popover="manual" accesskey="x y" class="review packet" title="Packet &amp; source"><p dir="auto" translate="yes" spellcheck="true" contenteditable="">Body</p><span dir="sideways" translate="maybe" draggable="auto" popover="invalid">Invalid</span></article>',
+            'global interaction metadata HTML fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $article = $summary[0];
+        $paragraph = $article['children'][0];
+        $invalid = $article['children'][1];
+
+        $t->same('article', $article['name']);
+        $t->same('en-US', $article['language']);
+        $t->same('RTL', $article['directionRaw']);
+        $t->same('rtl', $article['direction']);
+        $t->same(true, $article['directionValid']);
+        $t->same('no', $article['translateRaw']);
+        $t->same(false, $article['translate']);
+        $t->same('false', $article['spellcheckRaw']);
+        $t->same(false, $article['spellcheck']);
+        $t->same('plaintext-only', $article['contentEditableRaw']);
+        $t->same('plaintext-only', $article['contentEditable']);
+        $t->same('true', $article['draggableRaw']);
+        $t->same(true, $article['draggable']);
+        $t->same('until-found', $article['hiddenRaw']);
+        $t->same(true, $article['hidden']);
+        $t->same('until-found', $article['hiddenState']);
+        $t->same(true, $article['inert']);
+        $t->same('manual', $article['popoverRaw']);
+        $t->same('manual', $article['popover']);
+        $t->same('x y', $article['accessKeyRaw']);
+        $t->same(['x', 'y'], $article['accessKeys']);
+        $t->same(['review', 'packet'], $article['classTokens']);
+        $t->same('Packet & source', $article['titleAttribute']);
+        $t->same('auto', $paragraph['direction']);
+        $t->same(true, $paragraph['translate']);
+        $t->same(true, $paragraph['spellcheck']);
+        $t->same('true', $paragraph['contentEditable']);
+        $t->same(false, $invalid['directionValid']);
+        $t->same(null, $invalid['direction']);
+        $t->same(null, $invalid['translate']);
+        $t->same(null, $invalid['draggable']);
+        $t->same(null, $invalid['popover']);
+        $t->same('<article accesskey="x y" class="review packet" contenteditable="plaintext-only" dir="RTL" draggable="true" hidden="until-found" id="packet" inert lang="en-US" popover="manual" spellcheck="false" title="Packet &amp; source" translate="no"><p contenteditable="" dir="auto" spellcheck="true" translate="yes">Body</p><span dir="sideways" draggable="auto" popover="invalid" translate="maybe">Invalid</span></article>', $html);
+    },
     'decodes bounded html5 math spacing references before raw block serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-math="&af;&it;&ic;">f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>'
