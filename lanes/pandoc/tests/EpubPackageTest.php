@@ -2984,6 +2984,72 @@ XML;
         $t->same($badSpineValidation, $badSpineSummary['wordpressImport']['packageValidation']);
     },
 
+    'reports duplicate OPF manifest ids without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml): void {
+        $duplicateIdOpf = <<<'XML'
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:identifier id="bookid">urn:uuid:duplicate-manifest-id-review</dc:identifier>
+    <dc:title>Duplicate manifest id review</dc:title>
+    <dc:language>en</dc:language>
+    <meta property="dcterms:modified">2026-06-11T00:00:00Z</meta>
+  </metadata>
+  <manifest>
+    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter" href="chapter-review.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine><itemref idref="chapter"/></spine>
+</package>
+XML;
+        $navXml = <<<'XML'
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <body>
+    <nav epub:type="toc">
+      <h1>Contents</h1>
+      <ol><li><a href="chapter.xhtml">Package review</a></li></ol>
+    </nav>
+  </body>
+</html>
+XML;
+
+        $duplicateId = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $duplicateIdOpf],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $navXml],
+            ['name' => 'EPUB/chapter.xhtml', 'data' => '<html/>'],
+            ['name' => 'EPUB/chapter-review.xhtml', 'data' => '<html/>'],
+        ]));
+        $validation = $duplicateId->validationReport();
+        $summary = $duplicateId->summary();
+        $manifest = $duplicateId->manifestItems();
+        $duplicate = $validation['manifest']['duplicateIdItems'][0];
+
+        $t->same('/EPUB/chapter.xhtml', $duplicateId->manifestItem('chapter')['partName']);
+        $t->same('/EPUB/chapter.xhtml', $duplicateId->spine()[0]['partName']);
+        $t->same(false, $validation['valid']);
+        $t->same(['duplicate-manifest-item-id'], array_column($validation['diagnostics'], 'type'));
+        $t->same(1, $validation['manifest']['duplicateIdCount']);
+        $t->same(1, $validation['manifest']['duplicateManifestIdCount']);
+        $t->same('chapter', $duplicate['id']);
+        $t->same([1, 2], $duplicate['indexes']);
+        $t->same(['chapter.xhtml', 'chapter-review.xhtml'], $duplicate['hrefs']);
+        $t->same(['/EPUB/chapter.xhtml', '/EPUB/chapter-review.xhtml'], $duplicate['partNames']);
+        $t->same(1, $duplicate['selectedIndex']);
+        $t->same('/EPUB/chapter.xhtml', $duplicate['selectedPartName']);
+        $t->same('duplicate-manifest-item-id', $validation['manifest']['diagnostics'][0]['type']);
+        $t->same($validation['manifest']['duplicateIdItems'], $validation['manifest']['duplicateManifestIdItems']);
+        $t->same(true, $manifest[1]['duplicateManifestId']);
+        $t->same(true, $manifest[1]['duplicateManifestIdSelected']);
+        $t->same([1, 2], $manifest[1]['duplicateManifestIdIndexes']);
+        $t->same(0, $manifest[1]['duplicateManifestIdOrdinal']);
+        $t->same(true, $manifest[2]['duplicateManifestId']);
+        $t->same(false, $manifest[2]['duplicateManifestIdSelected']);
+        $t->same(1, $manifest[2]['duplicateManifestIdOrdinal']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
+    },
+
     'reports OPF manifest href targets missing from the package' => static function (TestRunner $t) use ($epubContainerXml): void {
         $missingPartOpf = <<<'XML'
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid">

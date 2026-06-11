@@ -788,13 +788,25 @@ final class EpubPackage
         $hrefSuffixItems = [];
         $missingItems = [];
         $parts = [];
+        $ids = [];
         $diagnostics = [];
 
-        foreach ($manifestItems as $item) {
+        foreach ($manifestItems as $index => $item) {
             $id = (string) ($item['id'] ?? '');
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            if ($id !== '') {
+                $ids[$id][] = [
+                    'index' => $index,
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => $mediaType,
+                ];
+            }
+
             if (($item['exists'] ?? false) !== true) {
                 $missingItem = [
                     'id' => $id,
@@ -898,6 +910,34 @@ final class EpubPackage
             ];
         }
 
+        $duplicateIdItems = [];
+        foreach ($ids as $id => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'id' => $id,
+                'indexes' => array_column($items, 'index'),
+                'hrefs' => array_column($items, 'href'),
+                'targets' => array_column($items, 'target'),
+                'partNames' => array_column($items, 'partName'),
+                'mediaTypes' => array_values(array_unique(array_column($items, 'mediaType'))),
+                'selectedIndex' => $items[0]['index'],
+                'selectedPartName' => $items[0]['partName'],
+            ];
+            $duplicateIdItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-manifest-item-id',
+                'id' => $id,
+                'indexes' => $duplicate['indexes'],
+                'partNames' => $duplicate['partNames'],
+                'selectedIndex' => $duplicate['selectedIndex'],
+                'selectedPartName' => $duplicate['selectedPartName'],
+                'message' => 'EPUB OPF manifest reuses an item id; compact package ingestion keeps the first item for idref resolution and exposes all occurrences for review',
+            ];
+        }
+
         $duplicatePartItems = [];
         foreach ($parts as $partName => $items) {
             if (count($items) < 2) {
@@ -926,6 +966,8 @@ final class EpubPackage
             'usableNavItemCount' => count($usableNavItems),
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
+            'duplicateIdCount' => count($duplicateIdItems),
+            'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
             'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
@@ -933,6 +975,8 @@ final class EpubPackage
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
+            'duplicateIdItems' => $duplicateIdItems,
+            'duplicateManifestIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
             'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
@@ -1693,7 +1737,7 @@ final class EpubPackage
         [$manifestById, $manifestItems] = self::parseManifest($manifestElement, $opfPartName, $package);
         $encryption = self::parseEncryption($package, $manifestById);
         $manifestById = self::attachEncryptionToManifest($manifestById, $encryption);
-        $manifestItems = array_values($manifestById);
+        $manifestItems = self::attachEncryptionToManifestItems($manifestItems, $encryption);
         $packageLinks = self::parsePackageLinks(
             $metadataElement,
             $opfPartName,
@@ -3614,6 +3658,7 @@ final class EpubPackage
     {
         $byId = [];
         $items = [];
+        $manifestIdIndexes = [];
 
         foreach (self::childElements($manifestElement, 'item', self::OPF_NAMESPACE) as $itemElement) {
             $id = $itemElement->getAttribute('id');
@@ -3621,10 +3666,6 @@ final class EpubPackage
             $mediaType = $itemElement->getAttribute('media-type');
             if ($id === '' || $href === '' || $mediaType === '') {
                 throw new \RuntimeException('EPUB manifest items must include id, href, and media-type');
-            }
-
-            if (isset($byId[$id])) {
-                throw new \RuntimeException("Duplicate EPUB manifest item id: {$id}");
             }
 
             $target = self::resolvePackageHref($opfPartName, $href);
@@ -3654,12 +3695,30 @@ final class EpubPackage
                 'hrefFragment' => $hrefSuffix['fragment'],
             ] + self::zipEntryProvenance($entry);
 
-            $byId[$id] = $item;
+            $manifestIdIndexes[$id][] = count($items);
+            $byId[$id] ??= $item;
             $items[] = $item;
         }
 
         if ($items === []) {
             throw new \RuntimeException('EPUB OPF manifest must contain at least one item');
+        }
+
+        foreach ($manifestIdIndexes as $id => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $selectedIndex = $indexes[0];
+            foreach ($indexes as $ordinal => $index) {
+                $items[$index]['duplicateManifestId'] = true;
+                $items[$index]['duplicateManifestIdIndexes'] = $indexes;
+                $items[$index]['duplicateManifestIdOrdinal'] = $ordinal;
+                $items[$index]['duplicateManifestIdSelected'] = $index === $selectedIndex;
+                if ($index === $selectedIndex) {
+                    $byId[$id] = $items[$index];
+                }
+            }
         }
 
         return [$byId, $items];
@@ -5891,6 +5950,39 @@ final class EpubPackage
      */
     private static function attachEncryptionToManifest(array $manifestById, array $encryption): array
     {
+        $encryptionByPart = self::encryptionItemsByPart($encryption);
+
+        foreach ($manifestById as $id => $item) {
+            $manifestById[$id] = self::attachEncryptionToManifestItem($item, $encryptionByPart);
+        }
+
+        return $manifestById;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestItems
+     * @param array<string, mixed> $encryption
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function attachEncryptionToManifestItems(array $manifestItems, array $encryption): array
+    {
+        $encryptionByPart = self::encryptionItemsByPart($encryption);
+
+        foreach ($manifestItems as $index => $item) {
+            $manifestItems[$index] = self::attachEncryptionToManifestItem($item, $encryptionByPart);
+        }
+
+        return $manifestItems;
+    }
+
+    /**
+     * @param array<string, mixed> $encryption
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function encryptionItemsByPart(array $encryption): array
+    {
         $encryptionByPart = [];
         foreach (is_array($encryption['items'] ?? null) ? $encryption['items'] : [] as $item) {
             if (!is_array($item)) {
@@ -5905,35 +5997,44 @@ final class EpubPackage
             $encryptionByPart[$partName][] = $item;
         }
 
-        foreach ($manifestById as $id => $item) {
-            $entries = $encryptionByPart[(string) ($item['partName'] ?? '')] ?? [];
-            if ($entries === []) {
-                continue;
-            }
+        return $encryptionByPart;
+    }
 
-            $obfuscatedFont = self::containsObfuscatedFont($entries);
-            $manifestById[$id]['encrypted'] = true;
-            $manifestById[$id]['canExposeBytes'] = false;
-            $manifestById[$id]['encryption'] = [
-                'items' => $entries,
-                'algorithm' => $entries[0]['algorithm'] ?? null,
-                'role' => $entries[0]['role'] ?? self::encryptedResourceRole(
-                    is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
-                    (string) ($item['partName'] ?? ''),
-                    is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
-                ),
-                'obfuscatedFont' => $obfuscatedFont,
-                'canExposeBytes' => false,
-                'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
-                'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
-                'attachmentCandidateBlocked' => count(array_filter(
-                    $entries,
-                    static fn (array $entry): bool => ($entry['attachmentCandidateBlocked'] ?? false) === true,
-                )) > 0,
-            ];
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, list<array<string, mixed>>> $encryptionByPart
+     *
+     * @return array<string, mixed>
+     */
+    private static function attachEncryptionToManifestItem(array $item, array $encryptionByPart): array
+    {
+        $entries = $encryptionByPart[(string) ($item['partName'] ?? '')] ?? [];
+        if ($entries === []) {
+            return $item;
         }
 
-        return $manifestById;
+        $obfuscatedFont = self::containsObfuscatedFont($entries);
+        $item['encrypted'] = true;
+        $item['canExposeBytes'] = false;
+        $item['encryption'] = [
+            'items' => $entries,
+            'algorithm' => $entries[0]['algorithm'] ?? null,
+            'role' => $entries[0]['role'] ?? self::encryptedResourceRole(
+                is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                (string) ($item['partName'] ?? ''),
+                is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
+            ),
+            'obfuscatedFont' => $obfuscatedFont,
+            'canExposeBytes' => false,
+            'reviewPolicy' => $obfuscatedFont ? 'obfuscated-font-review' : 'encrypted-resource-review',
+            'byteExposurePolicy' => $obfuscatedFont ? 'obfuscated-font-bytes-blocked' : 'encrypted-resource-bytes-blocked',
+            'attachmentCandidateBlocked' => count(array_filter(
+                $entries,
+                static fn (array $entry): bool => ($entry['attachmentCandidateBlocked'] ?? false) === true,
+            )) > 0,
+        ];
+
+        return $item;
     }
 
     /**
