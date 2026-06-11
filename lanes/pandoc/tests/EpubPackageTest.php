@@ -1865,6 +1865,77 @@ XML;
         $t->same('creator-voicing', $summary['wordpressImport']['packageLinksByRel']['voicing'][0]['id']);
     },
 
+    'preserves OPF link media type parameter provenance for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithParameterizedLinks = str_replace(
+            '</metadata>',
+            '    <link id="review-record" rel="record alternate" href="meta/review-record.json" media-type="application/ld+json; profile=&quot;https://schema.org&quot;; charset=UTF-8" properties="schema-org reviewer"/>
+    <link id="broken-record" rel="record" href="meta/broken-record.json" media-type="application/json; profile"/>
+  </metadata>',
+            $epub3OpfXml
+        );
+        $opfWithParameterizedLinks = str_replace(
+            '</spine>',
+            '</spine>
+  <collection id="review-series" role="series">
+    <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Review series</dc:title></metadata>
+    <link id="series-record" rel="record" href="meta/series.json" media-type="application/ld+json; profile=&quot;series;review&quot;"/>
+  </collection>',
+            $opfWithParameterizedLinks
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithParameterizedLinks],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review-record.json', 'data' => '{"name":"package review record"}'],
+            ['name' => 'EPUB/meta/broken-record.json', 'data' => '{"name":"broken review record"}'],
+            ['name' => 'EPUB/meta/series.json', 'data' => '{"name":"series review record"}'],
+        ]));
+
+        $links = $epub->packageLinks();
+        $collections = $epub->collections();
+        $summary = $epub->summary();
+
+        $reviewRecord = $links[0];
+        $brokenRecord = $links[1];
+        $seriesRecord = $collections[0]['links'][0];
+
+        $t->same('application/ld+json; profile="https://schema.org"; charset=UTF-8', $reviewRecord['mediaType']);
+        $t->same('application/ld+json', $reviewRecord['mediaTypeBase']);
+        $t->same(true, $reviewRecord['mediaTypeHasParameters']);
+        $t->same(2, $reviewRecord['mediaTypeParameterCount']);
+        $t->same([
+            ['name' => 'profile', 'value' => 'https://schema.org', 'raw' => 'profile="https://schema.org"'],
+            ['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8'],
+        ], $reviewRecord['mediaTypeParameters']);
+        $t->same(['profile' => 'https://schema.org', 'charset' => 'UTF-8'], $reviewRecord['mediaTypeParameterMap']);
+        $t->same('application/ld+json; profile=https://schema.org; charset=utf-8', $reviewRecord['normalizedMediaType']);
+        $t->same(true, $reviewRecord['mediaTypeSyntaxValid']);
+        $t->same([], $reviewRecord['mediaTypeDiagnostics']);
+
+        $t->same('application/json', $brokenRecord['mediaTypeBase']);
+        $t->same(false, $brokenRecord['mediaTypeSyntaxValid']);
+        $t->same('invalid-package-link-media-type-parameter', $brokenRecord['mediaTypeDiagnostics'][0]['type']);
+        $t->same('package-link', $brokenRecord['mediaTypeDiagnostics'][0]['linkKind']);
+        $t->same('invalid-package-link-media-type-parameter', $brokenRecord['diagnostics'][0]['type']);
+
+        $t->same('application/ld+json', $seriesRecord['mediaTypeBase']);
+        $t->same(['profile' => 'series;review'], $seriesRecord['mediaTypeParameterMap']);
+        $t->same(true, $seriesRecord['mediaTypeSyntaxValid']);
+        $t->same([], $seriesRecord['diagnostics']);
+
+        $t->same($links, $summary['packageLinks']);
+        $t->same('https://schema.org', $summary['wordpressImport']['packageLinks'][0]['mediaTypeParameterMap']['profile']);
+        $t->same('invalid-package-link-media-type-parameter', $summary['wordpressImport']['packageLinkDiagnostics'][0]['type']);
+        $t->same('series;review', $summary['wordpressImport']['collections'][0]['links'][0]['mediaTypeParameterMap']['profile']);
+        $t->same(['invalid-package-link-media-type-parameter'], array_map(static fn (array $diagnostic): string => (string) $diagnostic['type'], $summary['wordpressImport']['remoteResourcePolicyDiagnostics']));
+    },
+
     'preserves EPUB package link href suffix provenance for preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $containerMetadataXml = <<<'XML'
 <metadata xmlns="http://www.idpf.org/2013/metadata">
