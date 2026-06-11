@@ -1065,6 +1065,8 @@ return [
             $t->same('Citation', $citation->attr('citationConstructor'), "{$source} citation record constructor");
             $t->same($citationRecord, $citation->attr('citationNative'), "{$source} citation native payload");
             $t->same('suppress_author', $citation->attr('mode'), "{$source} citation mode");
+            $t->same('SuppressAuthor', $citation->attr('citationModeConstructor'), "{$source} citation mode constructor");
+            $t->same($citationRecord['citationMode'], $citation->attr('citationModeNative'), "{$source} citation mode native payload");
             $t->same('Table', $table->attr('constructor'), "{$source} table constructor");
             $t->same($tableBlock, $table->attr('native'), "{$source} table native payload");
             $t->same('TableHead', $head->attr('constructor'), "{$source} table head constructor");
@@ -1080,6 +1082,81 @@ return [
             $t->same(2, $bodyCell->attr('rowspan'), "{$source} body cell rowspan");
             $t->same('right', $bodyCell->attr('align'), "{$source} body cell alignment");
         }
+    },
+    'records pandoc citation mode helper constructors on json and native ast nodes' => static function (TestRunner $t): void {
+        $records = [
+            [
+                'citationId' => 'source-normal',
+                'citationPrefix' => [],
+                'citationSuffix' => [],
+                'citationMode' => ['t' => 'NormalCitation'],
+                'citationNoteNum' => 0,
+                'citationHash' => 11,
+            ],
+            [
+                'citationId' => 'source-author',
+                'citationPrefix' => [],
+                'citationSuffix' => [],
+                'citationMode' => ['t' => 'AuthorInText'],
+                'citationNoteNum' => 0,
+                'citationHash' => 22,
+            ],
+            [
+                'citationId' => 'source-suppressed',
+                'citationPrefix' => [
+                    ['t' => 'Str', 'c' => 'compare'],
+                ],
+                'citationSuffix' => [],
+                'citationMode' => ['t' => 'SuppressAuthor'],
+                'citationNoteNum' => 0,
+                'citationHash' => 33,
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        $records,
+                        [
+                            ['t' => 'Str', 'c' => '[@source-normal;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@source-author;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'compare'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '-@source-suppressed]'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $citations = $cluster->children;
+
+            $t->same('citation_group', $cluster->type, "{$source} cite cluster type");
+            $t->same(['source-normal', 'source-author', 'source-suppressed'], array_map(static fn (AstNode $citation): string => $citation->attr('id'), $citations), "{$source} citation ids");
+            $t->same(['normal', 'author_in_text', 'suppress_author'], array_map(static fn (AstNode $citation): string => $citation->attr('mode'), $citations), "{$source} citation modes");
+            $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (AstNode $citation): string => $citation->attr('citationModeConstructor'), $citations), "{$source} citation mode constructors");
+            $t->same($records[0]['citationMode'], $citations[0]->attr('citationModeNative'), "{$source} normal citation mode native payload");
+            $t->same($records[1]['citationMode'], $citations[1]->attr('citationModeNative'), "{$source} author citation mode native payload");
+            $t->same($records[2]['citationMode'], $citations[2]->attr('citationModeNative'), "{$source} suppress citation mode native payload");
+            $t->same('compare -@source-suppressed', $citations[2]->attr('text'), "{$source} suppressed citation source text");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $jsonPacket['blocks'][0]['c'][0]['c'][0]), 'json writer citation mode constructors');
+        $t->same(['NormalCitation', 'AuthorInText', 'SuppressAuthor'], array_map(static fn (array $record): string => $record['citationMode']['t'], $nativePacket['blocks'][0]['c'][0]['c'][0]), 'native writer citation mode constructors');
     },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [

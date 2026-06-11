@@ -1038,11 +1038,15 @@ final class NativeReader
 
         $prefix = $this->inlines($record['citationPrefix'] ?? []);
         $suffix = $this->inlines($record['citationSuffix'] ?? []);
-        $mode = $this->citationMode($record['citationMode'] ?? ['t' => 'NormalCitation']);
+        $citationModeNative = $record['citationMode'] ?? ['t' => 'NormalCitation'];
+        $citationModeConstructor = $this->citationModeConstructor($citationModeNative);
+        $mode = $this->citationMode($citationModeConstructor);
         $attrs = [
             'id' => $id,
             'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
             'mode' => $mode,
+            'citationModeConstructor' => $citationModeConstructor,
+            'citationModeNative' => $citationModeNative,
         ];
         if ($prefix !== []) {
             $attrs['prefix'] = $prefix;
@@ -1081,9 +1085,14 @@ final class NativeReader
         );
     }
 
-    private function citationMode(mixed $mode): string
+    private function citationModeConstructor(mixed $mode): string
     {
-        return match ($this->constructorTag($mode, 'Pandoc native JSON citation mode')) {
+        return $this->constructorTag($mode, 'Pandoc native JSON citation mode');
+    }
+
+    private function citationMode(string $constructor): string
+    {
+        return match ($constructor) {
             'AuthorInText' => 'author_in_text',
             'SuppressAuthor' => 'suppress_author',
             'NormalCitation' => 'normal',

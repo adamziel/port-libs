@@ -1017,11 +1017,15 @@ final class PandocJsonReader
 
         $prefix = $this->readInlines($this->listContent($record['citationPrefix'] ?? [], 'Cite citationPrefix'));
         $suffix = $this->readInlines($this->listContent($record['citationSuffix'] ?? [], 'Cite citationSuffix'));
-        $mode = $this->readCitationMode($record['citationMode'] ?? ['t' => 'NormalCitation']);
+        $citationModeNative = $record['citationMode'] ?? ['t' => 'NormalCitation'];
+        $citationModeConstructor = $this->readCitationModeConstructor($citationModeNative);
+        $mode = $this->readCitationMode($citationModeConstructor);
         $attrs = [
             'id' => $id,
             'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
             'mode' => $mode,
+            'citationModeConstructor' => $citationModeConstructor,
+            'citationModeNative' => $citationModeNative,
         ];
         if ($prefix !== []) {
             $attrs['prefix'] = $prefix;
@@ -1051,9 +1055,14 @@ final class PandocJsonReader
         ]);
     }
 
-    private function readCitationMode(mixed $value): string
+    private function readCitationModeConstructor(mixed $value): string
     {
-        return match ($this->enumTag($value, 'citation mode')) {
+        return $this->enumTag($value, 'citation mode');
+    }
+
+    private function readCitationMode(string $constructor): string
+    {
+        return match ($constructor) {
             'NormalCitation' => 'normal',
             'AuthorInText' => 'author_in_text',
             'SuppressAuthor' => 'suppress_author',
