@@ -880,6 +880,317 @@ return [
         $t->same($packet['blocks'][1]['c'][2], $nativeInline->attr('native'));
         $t->same($packet['blocks'], $encoded['blocks']);
     },
+    'records pandoc constructor provenance on json and native helper ast nodes' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'citationId' => 'source-a',
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '4'],
+            ],
+            'citationMode' => ['t' => 'SuppressAuthor'],
+            'citationNoteNum' => 2,
+            'citationHash' => 404,
+        ];
+        $citeInline = ['t' => 'Cite', 'c' => [
+            [$citationRecord],
+            [
+                ['t' => 'Str', 'c' => '[see'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '-@source-a,'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '4]'],
+            ],
+        ]];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['constructor-table', ['provenance'], [['data-source', 'constructor-fixture']]],
+                ['t' => 'Caption', 'c' => [
+                    null,
+                    [],
+                ]],
+                [
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidth', 'c' => 0.5]],
+                ],
+                ['t' => 'TableHead', 'c' => [
+                    ['head-attrs', [], []],
+                    [
+                        ['t' => 'Row', 'c' => [
+                            ['head-row', [], []],
+                            [
+                                ['t' => 'Cell', 'c' => [
+                                    ['head-cell', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [
+                                        ['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'Head'],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['body-attrs', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['body-row', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['body-cell', [], []],
+                                        ['t' => 'AlignRight'],
+                                        ['t' => 'RowSpan', 'c' => 2],
+                                        ['t' => 'ColSpan', 'c' => 1],
+                                        [
+                                            ['t' => 'Para', 'c' => [
+                                                ['t' => 'Str', 'c' => 'Body'],
+                                            ]],
+                                        ],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [
+                    ['foot-attrs', [], []],
+                    [
+                        ['t' => 'Row', 'c' => [
+                            ['foot-row', [], []],
+                            [
+                                ['t' => 'Cell', 'c' => [
+                                    ['foot-cell', [], []],
+                                    ['t' => 'AlignDefault'],
+                                    ['t' => 'RowSpan', 'c' => 1],
+                                    ['t' => 'ColSpan', 'c' => 1],
+                                    [
+                                        ['t' => 'Plain', 'c' => [
+                                            ['t' => 'Str', 'c' => 'Foot'],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                ]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$citeInline]],
+                $tableBlock,
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $plain = $document->children[0];
+            $citation = $plain->children[0];
+            $table = $document->children[1];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $foot = $table->children[2];
+            $headRow = $head->children[0];
+            $headCell = $headRow->children[0];
+            $bodyRow = $body->children[0];
+            $bodyCell = $bodyRow->children[0];
+            $footRow = $foot->children[0];
+            $footCell = $footRow->children[0];
+
+            $t->same('Plain', $plain->attr('constructor'), "{$source} plain constructor");
+            $t->same($packet['blocks'][0], $plain->attr('native'), "{$source} plain native payload");
+            $t->same('Cite', $citation->attr('constructor'), "{$source} cite constructor");
+            $t->same($citeInline, $citation->attr('native'), "{$source} cite native payload");
+            $t->same('Citation', $citation->attr('citationConstructor'), "{$source} citation record constructor");
+            $t->same($citationRecord, $citation->attr('citationNative'), "{$source} citation native payload");
+            $t->same('suppress_author', $citation->attr('mode'), "{$source} citation mode");
+            $t->same('Table', $table->attr('constructor'), "{$source} table constructor");
+            $t->same($tableBlock, $table->attr('native'), "{$source} table native payload");
+            $t->same('TableHead', $head->attr('constructor'), "{$source} table head constructor");
+            $t->same('TableBody', $body->attr('constructor'), "{$source} table body constructor");
+            $t->same('TableFoot', $foot->attr('constructor'), "{$source} table foot constructor");
+            $t->same('Row', $headRow->attr('constructor'), "{$source} head row constructor");
+            $t->same('Cell', $headCell->attr('constructor'), "{$source} head cell constructor");
+            $t->same('Row', $bodyRow->attr('constructor'), "{$source} body row constructor");
+            $t->same('Cell', $bodyCell->attr('constructor'), "{$source} body cell constructor");
+            $t->same('Row', $footRow->attr('constructor'), "{$source} foot row constructor");
+            $t->same('Cell', $footCell->attr('constructor'), "{$source} foot cell constructor");
+            $t->same(1, $body->attr('rowHeadColumns'), "{$source} row head columns");
+            $t->same(2, $bodyCell->attr('rowspan'), "{$source} body cell rowspan");
+            $t->same('right', $bodyCell->attr('align'), "{$source} body cell alignment");
+        }
+    },
+    'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'review' => ['type' => 'map', 'items' => [
+                    'draft' => false,
+                    'aliases' => ['type' => 'list', 'items' => ['json', 'native']],
+                    'inline' => ['type' => 'inlines', 'children' => [
+                        new AstNode('span', ['id' => 'meta-span'], [
+                            new AstNode('text', ['text' => 'meta']),
+                        ]),
+                    ]],
+                    'body' => ['type' => 'blocks', 'children' => [
+                        new AstNode('plain', [], [
+                            new AstNode('text', ['text' => 'meta-block']),
+                        ]),
+                    ]],
+                ]],
+            ],
+        ], [
+            new AstNode('plain', [], [
+                new AstNode('quoted', ['kind' => 'single'], [
+                    new AstNode('text', ['text' => 'single']),
+                ]),
+                new AstNode('space'),
+                new AstNode('math', ['display' => false, 'text' => 'x+1']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('raw_html_inline', ['html' => '<span>raw</span>']),
+                new AstNode('space'),
+                new AstNode('raw_tex', ['tex' => '\\alpha']),
+                new AstNode('space'),
+                new AstNode('raw_inline', ['format' => 'opml', 'text' => '<outline/>']),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'id' => 'link-id',
+                    'url' => 'https://example.test/source',
+                    'title' => 'Source',
+                ], [
+                    new AstNode('text', ['text' => 'link']),
+                ]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'classes' => ['asset'],
+                    'url' => 'media/image.png',
+                    'title' => 'Image title',
+                    'alt' => 'Alt text',
+                ]),
+                new AstNode('space'),
+                new AstNode('note', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'note']),
+                    ]),
+                ]),
+                new AstNode('space'),
+                new AstNode('citation_group', [], [
+                    new AstNode('citation', [
+                        'id' => 'source-a',
+                        'prefix' => [new AstNode('text', ['text' => 'see'])],
+                        'citationHash' => 10,
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-b',
+                        'mode' => 'author_in_text',
+                    ]),
+                    new AstNode('citation', [
+                        'id' => 'source-c',
+                        'mode' => 'suppress_author',
+                        'suffix' => [
+                            new AstNode('text', ['text' => 'p.']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => '2']),
+                        ],
+                    ]),
+                ]),
+            ]),
+            new AstNode('raw_tex', ['tex' => '\\clearpage']),
+            new AstNode('raw_block', ['format' => 'opml', 'text' => '<outline/>']),
+            new AstNode('table', [
+                'alignments' => ['left'],
+                'widths' => [0.25],
+            ], [
+                new AstNode('table_body', ['rowHeadColumns' => 1], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['rowspan' => 2, 'colspan' => 3], [
+                            new AstNode('text', ['text' => 'Cell']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $paragraphInlines = $jsonPacket['blocks'][1]['c'];
+        $citationRecords = $paragraphInlines[12]['c'][0];
+        $tableBlock = $jsonPacket['blocks'][4];
+        $tableBody = $tableBlock['c'][4][0];
+        $tableCell = $tableBody[3][0][1][0];
+
+        $t->same($jsonPacket['meta'], $nativePacket['meta']);
+        $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
+        $t->same(['Plain', 'Para', 'RawBlock', 'RawBlock', 'Table'], array_map(static fn (array $block): string => $block['t'], $jsonPacket['blocks']));
+        $t->same('MetaMap', $jsonPacket['meta']['review']['t']);
+        $t->same('MetaBool', $jsonPacket['meta']['review']['c']['draft']['t']);
+        $t->same('MetaList', $jsonPacket['meta']['review']['c']['aliases']['t']);
+        $t->same('MetaInlines', $jsonPacket['meta']['review']['c']['inline']['t']);
+        $t->same('Span', $jsonPacket['meta']['review']['c']['inline']['c'][0]['t']);
+        $t->same('MetaBlocks', $jsonPacket['meta']['review']['c']['body']['t']);
+        $t->same('Plain', $jsonPacket['meta']['review']['c']['body']['c'][0]['t']);
+        $t->same('SingleQuote', $jsonPacket['blocks'][0]['c'][0]['c'][0]['t']);
+        $t->same('InlineMath', $jsonPacket['blocks'][0]['c'][2]['c'][0]['t']);
+        $t->same([
+            'RawInline',
+            'Space',
+            'RawInline',
+            'Space',
+            'RawInline',
+            'Space',
+            'Link',
+            'Space',
+            'Image',
+            'Space',
+            'Note',
+            'Space',
+            'Cite',
+        ], array_map(static fn (array $inline): string => $inline['t'], $paragraphInlines));
+        $t->same(['html', '<span>raw</span>'], $paragraphInlines[0]['c']);
+        $t->same(['latex', '\\alpha'], $paragraphInlines[2]['c']);
+        $t->same(['opml', '<outline/>'], $paragraphInlines[4]['c']);
+        $t->same(['link-id', [], []], $paragraphInlines[6]['c'][0]);
+        $t->same(['media/image.png', 'Image title'], $paragraphInlines[8]['c'][2]);
+        $t->same('Plain', $paragraphInlines[10]['c'][0]['t']);
+        $t->same('NormalCitation', $citationRecords[0]['citationMode']['t']);
+        $t->same('AuthorInText', $citationRecords[1]['citationMode']['t']);
+        $t->same('SuppressAuthor', $citationRecords[2]['citationMode']['t']);
+        $t->same(['latex', '\\clearpage'], $jsonPacket['blocks'][2]['c']);
+        $t->same(['opml', '<outline/>'], $jsonPacket['blocks'][3]['c']);
+        $t->same('AlignLeft', $tableBlock['c'][2][0][0]['t']);
+        $t->same(['t' => 'ColWidth', 'c' => 0.25], $tableBlock['c'][2][0][1]);
+        $t->same(['t' => 'RowHeadColumns', 'c' => 1], $tableBody[1]);
+        $t->same(['t' => 'RowSpan', 'c' => 2], $tableCell[2]);
+        $t->same(['t' => 'ColSpan', 'c' => 3], $tableCell[3]);
+
+        $jsonRoundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR));
+        $t->same('citation_group', $jsonRoundTrip->children[1]->children[12]->type);
+        $t->same('citation_group', $nativeRoundTrip->children[1]->children[12]->type);
+        $t->same('table', $jsonRoundTrip->children[4]->type);
+        $t->same('table', $nativeRoundTrip->children[4]->type);
+        $t->same(3, $jsonRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
+        $t->same(3, $nativeRoundTrip->children[4]->children[0]->children[0]->children[0]->attr('colspan'));
+    },
     'renders pandoc div attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

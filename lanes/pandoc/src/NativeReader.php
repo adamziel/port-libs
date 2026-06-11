@@ -567,7 +567,11 @@ final class NativeReader
         $content = $this->constructorContent($section, $constructor, "Pandoc native JSON {$constructor}", false);
         $tuple = $this->tuple($content, 2, "Pandoc native JSON {$constructor}");
 
-        return new AstNode($type, $this->attrsFromTuple($tuple[0]), $this->tableRows($tuple[1]));
+        return $this->withConstructorPayload(
+            new AstNode($type, $this->attrsFromTuple($tuple[0]), $this->tableRows($tuple[1])),
+            $constructor,
+            $section
+        );
     }
 
     private function tableBody(mixed $body): AstNode
@@ -586,7 +590,11 @@ final class NativeReader
             $attrs['headRows'] = $headRows;
         }
 
-        return new AstNode('table_body', $attrs, $this->tableRows($tuple[3]));
+        return $this->withConstructorPayload(
+            new AstNode('table_body', $attrs, $this->tableRows($tuple[3])),
+            'TableBody',
+            $body
+        );
     }
 
     private function tableSectionHasContent(AstNode $section): bool
@@ -602,7 +610,18 @@ final class NativeReader
             }
         }
 
-        return $section->attrs !== [];
+        return $this->hasContentAttrs($section);
+    }
+
+    private function hasContentAttrs(AstNode $node): bool
+    {
+        foreach ($node->attrs as $key => $_value) {
+            if (!in_array($key, ['constructor', 'native'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -614,7 +633,11 @@ final class NativeReader
         foreach ($this->listContent($rows, 'Pandoc native JSON table rows') as $row) {
             $content = $this->constructorContent($row, 'Row', 'Pandoc native JSON Row', false);
             $tuple = $this->tuple($content, 2, 'Pandoc native JSON Row');
-            $nodes[] = new AstNode('table_row', $this->attrsFromTuple($tuple[0]), $this->tableCells($tuple[1]));
+            $nodes[] = $this->withConstructorPayload(
+                new AstNode('table_row', $this->attrsFromTuple($tuple[0]), $this->tableCells($tuple[1])),
+                'Row',
+                $row
+            );
         }
 
         return $nodes;
@@ -660,7 +683,11 @@ final class NativeReader
             $attrs['text'] = $text;
         }
 
-        return new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+        return $this->withConstructorPayload(
+            new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks)),
+            'Cell',
+            $cell
+        );
     }
 
     /**
@@ -979,9 +1006,21 @@ final class NativeReader
             $attrs['citationHash'] = $record['citationHash'];
         }
 
-        return new AstNode('citation', $attrs, [
+        return new AstNode('citation', array_replace([
+            'citationConstructor' => 'Citation',
+            'citationNative' => $record,
+        ], $attrs), [
             new AstNode('text', ['text' => $attrs['text']]),
         ]);
+    }
+
+    private function withConstructorPayload(AstNode $node, string $constructor, mixed $native): AstNode
+    {
+        return new AstNode(
+            $node->type,
+            array_replace(['constructor' => $constructor, 'native' => $native], $node->attrs),
+            $node->children
+        );
     }
 
     private function citationMode(mixed $mode): string

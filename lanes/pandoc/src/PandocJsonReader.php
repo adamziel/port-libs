@@ -344,7 +344,7 @@ final class PandocJsonReader
     {
         [$tag, $content] = $this->tagged($value, 'block');
 
-        return match ($tag) {
+        $node = match ($tag) {
             'Plain' => new AstNode('plain', [], $this->readInlines($this->listContent($content, 'Plain'))),
             'Para' => new AstNode('paragraph', [], $this->readInlines($this->listContent($content, 'Para'))),
             'Header' => $this->readHeaderBlock($content),
@@ -362,6 +362,8 @@ final class PandocJsonReader
             'Table' => $this->readTableBlock($content),
             default => $this->nativeFallbackNode('native_block', $tag, $value),
         };
+
+        return $this->withConstructorPayload($node, $tag, $value);
     }
 
     private function readHeaderBlock(mixed $content): AstNode
@@ -661,7 +663,11 @@ final class PandocJsonReader
         $content = $this->constructorContent($section, $constructor, $constructor, false);
         $tuple = $this->tuple($content, 2, $constructor);
 
-        return new AstNode($type, $this->readAttrTuple($tuple[0]), $this->readTableRows($tuple[1]));
+        return $this->withConstructorPayload(
+            new AstNode($type, $this->readAttrTuple($tuple[0]), $this->readTableRows($tuple[1])),
+            $constructor,
+            $section
+        );
     }
 
     private function readTableBody(mixed $body): AstNode
@@ -680,7 +686,11 @@ final class PandocJsonReader
             $attrs['headRows'] = $headRows;
         }
 
-        return new AstNode('table_body', $attrs, $this->readTableRows($tuple[3]));
+        return $this->withConstructorPayload(
+            new AstNode('table_body', $attrs, $this->readTableRows($tuple[3])),
+            'TableBody',
+            $body
+        );
     }
 
     private function tableSectionHasContent(AstNode $section): bool
@@ -696,7 +706,18 @@ final class PandocJsonReader
             }
         }
 
-        return $section->attrs !== [];
+        return $this->hasContentAttrs($section);
+    }
+
+    private function hasContentAttrs(AstNode $node): bool
+    {
+        foreach ($node->attrs as $key => $_value) {
+            if (!in_array($key, ['constructor', 'native'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -708,7 +729,11 @@ final class PandocJsonReader
         foreach ($this->listContent($rows, 'Table rows') as $row) {
             $content = $this->constructorContent($row, 'Row', 'Table row', false);
             $tuple = $this->tuple($content, 2, 'Table row');
-            $nodes[] = new AstNode('table_row', $this->readAttrTuple($tuple[0]), $this->readTableCells($tuple[1]));
+            $nodes[] = $this->withConstructorPayload(
+                new AstNode('table_row', $this->readAttrTuple($tuple[0]), $this->readTableCells($tuple[1])),
+                'Row',
+                $row
+            );
         }
 
         return $nodes;
@@ -754,7 +779,11 @@ final class PandocJsonReader
             $attrs['text'] = $text;
         }
 
-        return new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks));
+        return $this->withConstructorPayload(
+            new AstNode('table_cell', $attrs, $this->tableCellChildren($blocks)),
+            'Cell',
+            $cell
+        );
     }
 
     /**
@@ -783,7 +812,7 @@ final class PandocJsonReader
     {
         [$tag, $content] = $this->tagged($value, 'inline');
 
-        return match ($tag) {
+        $node = match ($tag) {
             'Str' => is_string($content) ? new AstNode('text', ['text' => $content]) : throw new \InvalidArgumentException('Str content must be a string'),
             'Space' => new AstNode('space'),
             'SoftBreak' => new AstNode('softbreak'),
@@ -806,6 +835,17 @@ final class PandocJsonReader
             'Span' => $this->readSpanInline($content),
             default => $this->nativeFallbackNode('native_inline', $tag, $value),
         };
+
+        return $this->withConstructorPayload($node, $tag, $value);
+    }
+
+    private function withConstructorPayload(AstNode $node, string $constructor, mixed $native): AstNode
+    {
+        return new AstNode(
+            $node->type,
+            array_replace(['constructor' => $constructor, 'native' => $native], $node->attrs),
+            $node->children
+        );
     }
 
     private function nativeFallbackNode(string $type, string $constructor, mixed $native): AstNode
@@ -939,7 +979,10 @@ final class PandocJsonReader
             $attrs['citationHash'] = $record['citationHash'];
         }
 
-        return new AstNode('citation', $attrs, [
+        return new AstNode('citation', array_replace([
+            'citationConstructor' => 'Citation',
+            'citationNative' => $record,
+        ], $attrs), [
             new AstNode('text', ['text' => $attrs['text']]),
         ]);
     }
