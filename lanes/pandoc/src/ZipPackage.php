@@ -3845,6 +3845,217 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory and local-header Unix UID/GID owner extra fields
+     * before package construction. This keeps provenance visible when another
+     * ZIP policy blocks `fromString()` first.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     ownerMetadataEntryCount:int,
+     *     centralOwnerMetadataEntryCount:int,
+     *     localOwnerMetadataEntryCount:int,
+     *     mismatchedOwnerMetadataEntryCount:int,
+     *     invalidOwnerMetadataEntryCount:int,
+     *     localHeaderUnavailableEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     ownerMetadataEntries:list<array<string, mixed>>,
+     *     mismatchedOwnerMetadataEntries:list<array<string, mixed>>,
+     *     invalidOwnerMetadataEntries:list<array<string, mixed>>,
+     *     localHeaderUnavailableEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function unixOwnerPolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before Unix owner metadata can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $ownerMetadataEntries = [];
+        $mismatchedOwnerMetadataEntries = [];
+        $invalidOwnerMetadataEntries = [];
+        $localHeaderUnavailableEntries = [];
+        $centralOwnerMetadataEntryCount = 0;
+        $localOwnerMetadataEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $centralFields = self::rawExtraFieldsForPolicy(
+                $centralExtraFieldData,
+                "central extra fields for {$decodedName['text']}"
+            );
+            $localHeader = self::localHeaderMetadataForStructurePolicy($bytes, $localHeaderOffset);
+            $localFields = $localHeader['available']
+                ? self::rawExtraFieldsForPolicy(
+                    $localHeader['extraFieldData'],
+                    "local extra fields for {$decodedName['text']}"
+                )
+                : [];
+
+            $centralOwner = self::unixOwnerExtraFieldForPolicy(
+                $centralFields,
+                "central extra fields for {$decodedName['text']}"
+            );
+            $localOwner = self::unixOwnerExtraFieldForPolicy(
+                $localFields,
+                "local extra fields for {$decodedName['text']}"
+            );
+            $hasCentralOwnerMetadata = $centralOwner['present'];
+            $hasLocalOwnerMetadata = $localOwner['present'];
+            $ownerMetadataMatches = !(
+                $centralOwner['owner'] !== null
+                && $localOwner['owner'] !== null
+            ) || $centralOwner['owner'] === $localOwner['owner'];
+            $issues = [];
+
+            if ($hasCentralOwnerMetadata) {
+                $issues[] = 'central-unix-uid-gid-extra-field';
+                ++$centralOwnerMetadataEntryCount;
+            }
+            if ($centralOwner['error'] !== null) {
+                $issues[] = 'central-unix-uid-gid-extra-field-invalid';
+            }
+            if ($hasLocalOwnerMetadata) {
+                $issues[] = 'local-unix-uid-gid-extra-field';
+                ++$localOwnerMetadataEntryCount;
+            }
+            if ($localOwner['error'] !== null) {
+                $issues[] = 'local-unix-uid-gid-extra-field-invalid';
+            }
+            if (!$ownerMetadataMatches) {
+                $issues[] = 'unix-uid-gid-mismatch';
+            }
+            if ($hasCentralOwnerMetadata && !$localHeader['available']) {
+                $issues[] = 'unix-owner-local-header-unavailable';
+            }
+
+            $entry = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'localHeaderAvailable' => $localHeader['available'],
+                'localHeaderError' => $localHeader['error'],
+                'centralOwner' => $centralOwner['owner'],
+                'localOwner' => $localOwner['owner'],
+                'hasCentralOwnerMetadata' => $hasCentralOwnerMetadata,
+                'hasLocalOwnerMetadata' => $hasLocalOwnerMetadata,
+                'ownerMetadataMatches' => $ownerMetadataMatches,
+                'centralOwnerParseError' => $centralOwner['error'],
+                'localOwnerParseError' => $localOwner['error'],
+                'policy' => $issues === [] ? 'metadata' : 'blocked',
+                'issues' => $issues,
+            ];
+            $entries[] = $entry;
+
+            if ($hasCentralOwnerMetadata || $hasLocalOwnerMetadata) {
+                $ownerMetadataEntries[] = $entry;
+            }
+            if (!$ownerMetadataMatches) {
+                $mismatchedOwnerMetadataEntries[] = $entry;
+            }
+            if ($centralOwner['error'] !== null || $localOwner['error'] !== null) {
+                $invalidOwnerMetadataEntries[] = $entry;
+            }
+            if ($hasCentralOwnerMetadata && !$localHeader['available']) {
+                $localHeaderUnavailableEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($ownerMetadataEntries !== []) {
+            $issues[] = 'unix-owner-extra-fields';
+        }
+        if ($mismatchedOwnerMetadataEntries !== []) {
+            $issues[] = 'unix-owner-metadata-mismatch';
+        }
+        if ($invalidOwnerMetadataEntries !== []) {
+            $issues[] = 'invalid-unix-owner-extra-fields';
+        }
+        if ($localHeaderUnavailableEntries !== []) {
+            $issues[] = 'unix-owner-local-header-unavailable';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'ownerMetadataEntryCount' => count($ownerMetadataEntries),
+            'centralOwnerMetadataEntryCount' => $centralOwnerMetadataEntryCount,
+            'localOwnerMetadataEntryCount' => $localOwnerMetadataEntryCount,
+            'mismatchedOwnerMetadataEntryCount' => count($mismatchedOwnerMetadataEntries),
+            'invalidOwnerMetadataEntryCount' => count($invalidOwnerMetadataEntries),
+            'localHeaderUnavailableEntryCount' => count($localHeaderUnavailableEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'ownerMetadataEntries' => $ownerMetadataEntries,
+            'mismatchedOwnerMetadataEntries' => $mismatchedOwnerMetadataEntries,
+            'invalidOwnerMetadataEntries' => $invalidOwnerMetadataEntries,
+            'localHeaderUnavailableEntries' => $localHeaderUnavailableEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * Scan central-directory names for collision policies before package
      * construction. This keeps attachment handoff review metadata available
      * even when unsupported flags or another local-header issue prevents
@@ -8631,6 +8842,7 @@ final class ZipPackage
      *     platformMetadata:?array<string, mixed>,
      *     extraFieldStructure:?array<string, mixed>,
      *     extraFields:?array<string, mixed>,
+     *     unixOwners:?array<string, mixed>,
      *     unicodeExtraFields:?array<string, mixed>,
      *     zip64ExtraFields:?array<string, mixed>,
      *     dataDescriptors:?array<string, mixed>,
@@ -8747,6 +8959,7 @@ final class ZipPackage
                 'platformMetadata' => null,
                 'extraFieldStructure' => null,
                 'extraFields' => null,
+                'unixOwners' => null,
                 'unicodeExtraFields' => null,
                 'zip64ExtraFields' => null,
                 'dataDescriptors' => null,
@@ -8786,6 +8999,7 @@ final class ZipPackage
         $platformMetadata = null;
         $extraFieldStructure = null;
         $extraFields = null;
+        $unixOwners = null;
         $unicodeExtraFields = null;
         $zip64ExtraFields = null;
         $dataDescriptors = null;
@@ -9017,6 +9231,14 @@ final class ZipPackage
                 $addDiagnostics($extraFields['issues']);
             }
 
+            $unixOwners = $runPreflight(
+                'unix-owner-policy',
+                static fn (): array => self::unixOwnerPolicyPreflight($bytes)
+            );
+            if ($unixOwners !== null && !$unixOwners['isSupportedByBoundedReader']) {
+                $addDiagnostics($unixOwners['issues']);
+            }
+
             $unicodeExtraFields = $runPreflight(
                 'unicode-extra-field-policy',
                 static fn (): array => self::unicodeExtraFieldPolicyPreflight($bytes)
@@ -9086,6 +9308,7 @@ final class ZipPackage
             ?? $platformMetadata['entryCount']
             ?? $extraFieldStructure['entryCount']
             ?? $extraFields['entryCount']
+            ?? $unixOwners['entryCount']
             ?? $unicodeExtraFields['entryCount']
             ?? $archiveExtraDataRecords['entryCount']
             ?? $zip64ExtraFields['entryCount']
@@ -9135,6 +9358,7 @@ final class ZipPackage
             'platformMetadata' => $platformMetadata,
             'extraFieldStructure' => $extraFieldStructure,
             'extraFields' => $extraFields,
+            'unixOwners' => $unixOwners,
             'unicodeExtraFields' => $unicodeExtraFields,
             'zip64ExtraFields' => $zip64ExtraFields,
             'dataDescriptors' => $dataDescriptors,
@@ -12259,6 +12483,52 @@ final class ZipPackage
         }
 
         return $fields;
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     * @return array{present:bool, owner:?array{version:int, uid:int, gid:int, uidByteLength:int, gidByteLength:int}, error:?string}
+     */
+    private static function unixOwnerExtraFieldForPolicy(array $fields, string $label): array
+    {
+        $ownerFields = [];
+        foreach ($fields as $field) {
+            if ($field['id'] === self::INFOZIP_UNIX_UID_GID_EXTRA_ID) {
+                $ownerFields[] = $field['data'];
+            }
+        }
+
+        if ($ownerFields === []) {
+            return [
+                'present' => false,
+                'owner' => null,
+                'error' => null,
+            ];
+        }
+
+        if (count($ownerFields) > 1) {
+            return [
+                'present' => true,
+                'owner' => null,
+                'error' => "ZIP {$label} contains duplicate Unix UID/GID owner extra fields",
+            ];
+        }
+
+        try {
+            $owner = ZipPackageEntry::unixUidGidFromExtraField($ownerFields[0], $label);
+        } catch (\RuntimeException $exception) {
+            return [
+                'present' => true,
+                'owner' => null,
+                'error' => $exception->getMessage(),
+            ];
+        }
+
+        return [
+            'present' => true,
+            'owner' => $owner,
+            'error' => null,
+        ];
     }
 
     /**

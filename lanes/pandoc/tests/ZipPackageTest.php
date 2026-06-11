@@ -6602,6 +6602,50 @@ return [
         ], $mismatchedSummary['mismatchedOwnerMetadataEntries'][0]['issues']);
         $t->contains('unix-owner-extra-fields', implode(',', $mismatchedPackage->strictImportPreflight(2048, 100.0, 2048)['diagnostics']));
 
+        $rawZip = $buildZipPackage([
+            [
+                'name' => 'word/media/raw-owner.txt',
+                'data' => "raw owner metadata survives unsupported flags\n",
+                'method' => 0,
+                'flags' => 0x0840,
+                'localExtra' => $buildUnixOwnerExtra(601, 602),
+                'centralExtra' => $buildUnixOwnerExtra(501, 502),
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]);
+        $rawSummary = ZipPackage::unixOwnerPolicyPreflight($rawZip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($rawZip, 2048, 100.0, 2048);
+
+        $t->same(1, $rawSummary['entryCount']);
+        $t->same(1, $rawSummary['ownerMetadataEntryCount']);
+        $t->same(1, $rawSummary['centralOwnerMetadataEntryCount']);
+        $t->same(1, $rawSummary['localOwnerMetadataEntryCount']);
+        $t->same(1, $rawSummary['mismatchedOwnerMetadataEntryCount']);
+        $t->same(0, $rawSummary['invalidOwnerMetadataEntryCount']);
+        $t->same(false, $rawSummary['isSupportedByBoundedReader']);
+        $t->same(['unix-owner-extra-fields', 'unix-owner-metadata-mismatch'], $rawSummary['issues']);
+        $t->same('word/media/raw-owner.txt', $rawSummary['ownerMetadataEntries'][0]['name']);
+        $t->same(501, $rawSummary['ownerMetadataEntries'][0]['centralOwner']['uid']);
+        $t->same(502, $rawSummary['ownerMetadataEntries'][0]['centralOwner']['gid']);
+        $t->same(601, $rawSummary['ownerMetadataEntries'][0]['localOwner']['uid']);
+        $t->same(602, $rawSummary['ownerMetadataEntries'][0]['localOwner']['gid']);
+        $t->same(false, $rawSummary['ownerMetadataEntries'][0]['ownerMetadataMatches']);
+        $t->same([
+            'central-unix-uid-gid-extra-field',
+            'local-unix-uid-gid-extra-field',
+            'unix-uid-gid-mismatch',
+        ], $rawSummary['ownerMetadataEntries'][0]['issues']);
+        $t->same('blocked', $rawSummary['ownerMetadataEntries'][0]['policy']);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->same($rawSummary, $rawStrict['unixOwners']);
+        $t->contains('unix-owner-extra-fields', implode(',', $rawStrict['diagnostics']));
+        $t->contains('unix-owner-metadata-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->contains('unsupported-general-purpose-flags', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/media/truncated-owner.txt',
