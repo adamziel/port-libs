@@ -120,6 +120,7 @@ final class OdfReader
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
+        $documentPartVersions = $this->documentPartVersionMetadata($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
         }
@@ -135,6 +136,7 @@ final class OdfReader
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
                 'packageProvenance' => $packageProvenance,
+                'documentPartVersions' => $documentPartVersions,
             ],
             'styles' => [
                 'count' => count($styleCatalog['styles']),
@@ -207,6 +209,7 @@ final class OdfReader
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
                     'packageProvenance' => $packageProvenance,
+                    'documentPartVersions' => $documentPartVersions,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
                     'missingItems' => array_values(array_filter(
@@ -638,6 +641,113 @@ final class OdfReader
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
             'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function documentPartVersionMetadata(ZipPackage $package, array $manifest): array
+    {
+        $manifestByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (is_string($part) && $part !== '') {
+                $manifestByPart[$part] = $item;
+            }
+        }
+
+        $expectedRoots = [
+            'content.xml' => 'document-content',
+            'styles.xml' => 'document-styles',
+            'meta.xml' => 'document-meta',
+            'settings.xml' => 'document-settings',
+        ];
+        $manifestVersion = $this->manifestVersion === '' ? null : $this->manifestVersion;
+        $items = [];
+        $versionCounts = [];
+        $missingVersionParts = [];
+        $versionMismatches = [];
+
+        foreach ($expectedRoots as $part => $expectedRoot) {
+            $manifestItem = $manifestByPart[$part] ?? null;
+            if (!$package->has($part) && !is_array($manifestItem)) {
+                continue;
+            }
+
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $rootName = null;
+            $officeVersion = null;
+            $validRoot = false;
+            $diagnostics = [];
+
+            if (!$entry instanceof ZipPackageEntry) {
+                $diagnostics[] = 'odf-xml-part-missing-package-part';
+            } else {
+                $dom = self::loadXml($package->read($part), 'ODT ' . $part);
+                $root = $dom->documentElement;
+                if ($root instanceof \DOMElement) {
+                    $rootName = $root->localName;
+                    $validRoot = $root->namespaceURI === self::OFFICE_NS && $root->localName === $expectedRoot;
+                    $officeVersion = self::nullable(self::attr($root, self::OFFICE_NS, 'version'));
+                }
+
+                if (!$validRoot) {
+                    $diagnostics[] = 'odf-xml-part-unexpected-root';
+                }
+                if ($officeVersion === null) {
+                    $diagnostics[] = 'odf-xml-part-missing-office-version';
+                    $missingVersionParts[] = $part;
+                } else {
+                    $versionCounts[$officeVersion] = ($versionCounts[$officeVersion] ?? 0) + 1;
+                    if ($manifestVersion !== null && $officeVersion !== $manifestVersion) {
+                        $diagnostics[] = 'odf-xml-part-version-mismatch';
+                        $versionMismatches[] = [
+                            'part' => $part,
+                            'officeVersion' => $officeVersion,
+                            'manifestVersion' => $manifestVersion,
+                        ];
+                    }
+                }
+            }
+
+            if (!is_array($manifestItem)) {
+                $diagnostics[] = 'odf-xml-part-undeclared-package-part';
+            }
+
+            $items[] = [
+                'part' => $part,
+                'expectedRoot' => $expectedRoot,
+                'rootName' => $rootName,
+                'validRoot' => $validRoot,
+                'officeVersion' => $officeVersion,
+                'manifestVersion' => $manifestVersion,
+                'declaredInManifest' => is_array($manifestItem),
+                'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
+                'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+                'exists' => $entry instanceof ZipPackageEntry,
+                'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'diagnostics' => array_values(array_unique($diagnostics)),
+            ];
+        }
+
+        ksort($versionCounts);
+
+        return [
+            'count' => count($items),
+            'versionedCount' => array_sum($versionCounts),
+            'missingVersionCount' => count($missingVersionParts),
+            'missingVersionParts' => $missingVersionParts,
+            'versionMismatchCount' => count($versionMismatches),
+            'versionMismatches' => $versionMismatches,
+            'manifestVersion' => $manifestVersion,
+            'versionCounts' => $versionCounts,
+            'items' => $items,
         ];
     }
 
