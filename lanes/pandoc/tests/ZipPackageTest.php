@@ -1046,6 +1046,7 @@ return [
         $summary = $package->localHeaderOrderPreflight();
         $rawSummary = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($zip);
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
         $entries = $summary['entries'];
 
         $t->same(3, $summary['entryCount']);
@@ -1067,13 +1068,17 @@ return [
         $t->same('mimetype', $entries[2]['name']);
         $t->same($entries[1]['centralDirectoryRecordEnd'], $entries[2]['centralDirectoryRecordOffset']);
         $t->same(0, $entries[2]['localHeaderOrder']);
-        $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
+        $t->same($summary, $strictSummary['localHeaderOrder']);
         $t->same($summary, $rawSummary);
         $t->same($summary, $rawStrict['localHeaderOrder']);
         $t->same($summary, $rawStrict['strictImport']['localHeaderOrder']);
-        $t->same(true, $package->strictImportPreflight(2048, 100.0, 2048)['isValid']);
-        $t->same(true, $rawStrict['isValid']);
-        $t->same([], $rawStrict['diagnostics']);
+        $t->same(false, $strictSummary['isValid']);
+        $t->same(['central-directory-local-header-order-mismatch'], $strictSummary['diagnostics']);
+        $t->same(true, $rawStrict['canInstantiate']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(null, $rawStrict['instantiationError']);
+        $t->contains('central-directory-local-header-order-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->same(['central-directory-local-header-order-mismatch'], $rawStrict['strictImport']['diagnostics']);
         $t->same($mimetype, $package->read('/mimetype'));
 
         $matchingPackage = ZipPackage::fromString($buildZipPackage([
