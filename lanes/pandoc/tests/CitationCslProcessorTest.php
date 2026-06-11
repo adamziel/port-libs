@@ -25909,6 +25909,101 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
         $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
     },
+    'maps bounded biblatex csl status taxonomy aliases into rendered metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@report{hyphen-status-taxonomy,
+  author             = {Ames, Ari},
+  title              = {Hyphen Status Taxonomy Packet},
+  date               = {2026},
+  publication-status = {in review},
+  keyword-list       = {ingest; csl alias},
+  category-list      = {pandoc, bibliography}
+}
+
+@software{compact-status-taxonomy,
+  author            = {Ng, Nia},
+  title             = {Compact Status Taxonomy Tool},
+  date              = {2025},
+  publicationstatus = {released},
+  keywordlist       = {tooling, validation},
+  categorylist      = {core; blocker}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('in review', $items[0]['status'] ?? null);
+        $t->same(['ingest', 'csl alias'], $items[0]['keyword'] ?? null);
+        $t->same(['pandoc', 'bibliography'], $items[0]['categories'] ?? null);
+        $t->same('released', $items[1]['status'] ?? null);
+        $t->same(['tooling', 'validation'], $items[1]['keyword'] ?? null);
+        $t->same(['core', 'blocker'], $items[1]['categories'] ?? null);
+        $t->same('in review', $items[0]['rawBibtex']['fields']['publication-status'] ?? null);
+        $t->same('released', $items[1]['rawBibtex']['fields']['publicationstatus'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-status-taxonomy');
+        $compact = $processor->item('compact-status-taxonomy');
+        $t->same('in review', $hyphen['status'] ?? null);
+        $t->same('ingest; csl alias', $hyphen['keywordSummary'] ?? null);
+        $t->same('pandoc; bibliography', $hyphen['categorySummary'] ?? null);
+        $t->same('released', $compact['status'] ?? null);
+        $t->same('tooling; validation', $compact['keywordSummary'] ?? null);
+        $t->same('core; blocker', $compact['categorySummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX CSL Status Taxonomy Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-csl-status-taxonomy-alias-review</id>
+    <updated>2026-06-11T22:07:54+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="status keyword-summary category-summary" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="status"/>
+            <text variable="keyword-summary"/>
+            <text variable="category-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-bibtex-status-taxonomy"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="status"/>
+      <text variable="keyword-summary"/>
+      <text variable="category-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded BibLaTeX CSL Status Taxonomy Alias Review', $summary['title'] ?? null);
+        $t->same(['status', 'keyword-summary', 'category-summary'], $branch['variables'] ?? null);
+        $t->same('[Ames | in review | ingest; csl alias | pandoc; bibliography; Ng | released | tooling; validation | core; blocker]', $styled->renderCitationCluster([
+            $citation('hyphen-status-taxonomy', '[@hyphen-status-taxonomy]'),
+            $citation('compact-status-taxonomy', '[@compact-status-taxonomy]'),
+        ]));
+        $t->same('Hyphen Status Taxonomy Packet :: in review :: ingest; csl alias :: pandoc; bibliography', $styled->renderBibliographyEntry('hyphen-status-taxonomy'));
+        $t->same('Compact Status Taxonomy Tool :: released :: tooling; validation :: core; blocker', $styled->renderBibliographyEntry('compact-status-taxonomy'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX status aliases [@hyphen-status-taxonomy; @compact-status-taxonomy] keep CSL taxonomy metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX status aliases [Ames | in review | ingest; csl alias | pandoc; bibliography; Ng | released | tooling; validation | core; blocker] keep CSL taxonomy metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Hyphen Status Taxonomy Packet :: in review :: ingest; csl alias :: pandoc; bibliography</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Compact Status Taxonomy Tool :: released :: tooling; validation :: core; blocker</dd>', $blocks);
+    },
     'normalizes bounded direct csl json abstract note aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
