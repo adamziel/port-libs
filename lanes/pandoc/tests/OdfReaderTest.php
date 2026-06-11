@@ -8921,6 +8921,86 @@ XML;
         $t->same(8, count($result['document']->children));
         $t->same('Imported ODT Packet', $result['document']->children[0]->children[0]->attr('text'));
     },
+    'reports ODT manifest URI suffix provenance while resolving package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SOURCEPNG';
+        $manifestWithSuffixedPaths = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png?cache=1#review" manifest:media-type="image/png"/>'
+                . '<manifest:file-entry manifest:full-path="Pictures/source%20hero.png?download=true#asset" manifest:media-type="image/png" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+        $contentWithSuffixedImage = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <draw:frame draw:name="Suffixed hero"><draw:image xlink:href="Pictures/hero.png?cache=1#review"><svg:desc>Suffixed hero alt</svg:desc></draw:image></draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithSuffixedImage,
+            $manifestWithSuffixedPaths,
+            null,
+            null,
+            [['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0]]
+        ));
+        $manifestByFullPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByFullPath[$item['fullPath']] = $item;
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $provenanceParts = $result['importReport']['manifest']['packageProvenance']['parts'];
+        $image = $result['document']->children[0]->children[0];
+
+        $hero = $manifestByFullPath['Pictures/hero.png?cache=1#review'];
+        $source = $manifestByFullPath['Pictures/source%20hero.png?download=true#asset'];
+        $t->same('Pictures/hero.png', $hero['part']);
+        $t->same('Pictures/hero.png', $hero['partReference']);
+        $t->same('?cache=1#review', $hero['partSuffix']);
+        $t->same('cache=1', $hero['partQuery']);
+        $t->same('review', $hero['partFragment']);
+        $t->same(true, $hero['exists']);
+        $t->same(7, $hero['byteLength']);
+        $t->same('Pictures/source hero.png', $source['part']);
+        $t->same('Pictures/source%20hero.png', $source['partReference']);
+        $t->same('?download=true#asset', $source['partSuffix']);
+        $t->same('download=true', $source['partQuery']);
+        $t->same('asset', $source['partFragment']);
+        $t->same(strlen($sourceBytes), $source['byteLength']);
+
+        $t->same('Pictures/hero.png?cache=1#review', $mediaByPart['Pictures/hero.png']['fullPath']);
+        $t->same('?cache=1#review', $mediaByPart['Pictures/hero.png']['partSuffix']);
+        $t->same('review', $mediaByPart['Pictures/hero.png']['partFragment']);
+        $t->same('Pictures/source%20hero.png', $mediaByPart['Pictures/source hero.png']['partReference']);
+        $t->same('download=true', $mediaByPart['Pictures/source hero.png']['partQuery']);
+        $t->same('Pictures/hero.png?cache=1#review', $provenanceParts['Pictures/hero.png']['manifestFullPath']);
+        $t->same('Pictures/hero.png', $provenanceParts['Pictures/hero.png']['manifestPartReference']);
+        $t->same('?cache=1#review', $provenanceParts['Pictures/hero.png']['manifestPartSuffix']);
+        $t->same('cache=1', $provenanceParts['Pictures/hero.png']['manifestPartQuery']);
+        $t->same('review', $provenanceParts['Pictures/hero.png']['manifestPartFragment']);
+        $t->same('image', $image->type);
+        $t->same('Pictures/hero.png?cache=1#review', $image->attr('url'));
+        $t->same('Pictures/hero.png', $image->attr('sourcePart'));
+        $t->same(7, $image->attr('bytes'));
+
+        $duplicateResolvedPartManifest = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png?cache=1" manifest:media-type="image/png"/>'
+                . '<manifest:file-entry manifest:full-path="Pictures/hero.png#review" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $t->throws(\RuntimeException::class, static fn (): array => (new OdfReader())->readPackage($buildOdtPackage(null, $duplicateResolvedPartManifest)));
+    },
     'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
             ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],

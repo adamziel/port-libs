@@ -431,7 +431,8 @@ final class OdfReader
             $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
             $encryptionElement = self::firstChildElement($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElement instanceof \DOMElement;
-            $part = $fullPath === '/' ? null : $this->manifestPackagePart($fullPath);
+            $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath);
+            $part = $packageReference['part'];
             if (is_string($part) && $part !== '') {
                 if (isset($seenParts[$part])) {
                     throw new \RuntimeException('Duplicate ODT manifest package part: ' . $part);
@@ -463,6 +464,10 @@ final class OdfReader
             $items[] = [
                 'fullPath' => $fullPath,
                 'part' => $part,
+                'partReference' => $packageReference['partReference'],
+                'partSuffix' => $packageReference['partSuffix'],
+                'partQuery' => $packageReference['partQuery'],
+                'partFragment' => $packageReference['partFragment'],
                 'mediaType' => $mediaType,
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
@@ -612,6 +617,10 @@ final class OdfReader
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestItem),
                 'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
+                'manifestPartReference' => is_array($manifestItem) ? $manifestItem['partReference'] : null,
+                'manifestPartSuffix' => is_array($manifestItem) ? $manifestItem['partSuffix'] : null,
+                'manifestPartQuery' => is_array($manifestItem) ? $manifestItem['partQuery'] : null,
+                'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
@@ -11765,6 +11774,10 @@ final class OdfReader
             $media[] = [
                 'fullPath' => $item['fullPath'],
                 'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $mediaType,
                 'exists' => $entry instanceof ZipPackageEntry,
                 'byteLength' => $canExposeBytes ? $entry->uncompressedSize : null,
@@ -11853,6 +11866,10 @@ final class OdfReader
             $items[] = [
                 'fullPath' => $item['fullPath'] ?? $part,
                 'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $item['partSuffix'] ?? null,
+                'partQuery' => $item['partQuery'] ?? null,
+                'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $mediaType === '' ? null : $mediaType,
                 'expectedMediaTypePrefix' => 'image/',
                 'exists' => $entry instanceof ZipPackageEntry,
@@ -12551,6 +12568,56 @@ final class OdfReader
         }
 
         return $path;
+    }
+
+    /**
+     * @return array{part:string,partReference:string,partSuffix:string|null,partQuery:string|null,partFragment:string|null}
+     */
+    private function manifestPackageReference(string $path): array
+    {
+        $partReference = $path;
+        $partSuffix = null;
+        $partQuery = null;
+        $partFragment = null;
+        $suffixOffset = strcspn($path, '?#');
+        if ($suffixOffset < strlen($path)) {
+            $partReference = substr($path, 0, $suffixOffset);
+            $partSuffix = substr($path, $suffixOffset);
+            if (str_starts_with($partSuffix, '?')) {
+                $queryAndFragment = substr($partSuffix, 1);
+                $fragmentOffset = strpos($queryAndFragment, '#');
+                if ($fragmentOffset === false) {
+                    $partQuery = $queryAndFragment;
+                } else {
+                    $partQuery = substr($queryAndFragment, 0, $fragmentOffset);
+                    $partFragment = substr($queryAndFragment, $fragmentOffset + 1);
+                }
+            } elseif (str_starts_with($partSuffix, '#')) {
+                $partFragment = substr($partSuffix, 1);
+            }
+        }
+
+        return [
+            'part' => $this->manifestPackagePart($partReference),
+            'partReference' => $partReference,
+            'partSuffix' => $partSuffix,
+            'partQuery' => $partQuery,
+            'partFragment' => $partFragment,
+        ];
+    }
+
+    /**
+     * @return array{part:null,partReference:null,partSuffix:null,partQuery:null,partFragment:null}
+     */
+    private static function rootManifestPackageReference(): array
+    {
+        return [
+            'part' => null,
+            'partReference' => null,
+            'partSuffix' => null,
+            'partQuery' => null,
+            'partFragment' => null,
+        ];
     }
 
     /**
