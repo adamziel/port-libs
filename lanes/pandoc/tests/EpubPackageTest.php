@@ -319,6 +319,99 @@ return [
         $t->same([], $summary['wordpressImport']['manifestMediaTypeDiagnostics']);
     },
 
+    'summarizes OPF manifest media type base buckets for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithResourceKinds = str_replace(
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+            '<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml; charset=UTF-8" properties="nav"/>',
+            $epub3OpfXml
+        );
+        $opfWithResourceKinds = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css; charset=&quot;UTF-8&quot;"/>',
+            $opfWithResourceKinds
+        );
+        $opfWithResourceKinds = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png; profile=&quot;cover;review&quot;" properties="cover-image"/>',
+            $opfWithResourceKinds
+        );
+        $opfWithResourceKinds = str_replace(
+            '</manifest>',
+            '    <item id="audio-intro" href="audio/intro.mp3" media-type="audio/mpeg"/>
+    <item id="review-script" href="scripts/review.js" media-type="application/javascript"/>
+  </manifest>',
+            $opfWithResourceKinds
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithResourceKinds],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/audio/intro.mp3', 'data' => 'MP3'],
+            ['name' => 'EPUB/scripts/review.js', 'data' => 'console.log("review");'],
+        ]));
+        $summary = $epub->summary();
+        $mediaTypes = $summary['manifestMediaTypeBases'];
+        $itemsById = [];
+        foreach ($mediaTypes['items'] as $item) {
+            $itemsById[$item['id']] = $item;
+        }
+
+        $t->same(7, $mediaTypes['itemCount']);
+        $t->same(5, $mediaTypes['baseCount']);
+        $t->same(5, $mediaTypes['kindCount']);
+        $t->same(3, $mediaTypes['parameterizedItemCount']);
+        $t->same([
+            'application/javascript' => 1,
+            'application/xhtml+xml' => 3,
+            'audio/mpeg' => 1,
+            'image/png' => 1,
+            'text/css' => 1,
+        ], $mediaTypes['baseCounts']);
+        $t->same([
+            'audio' => 1,
+            'image' => 1,
+            'script' => 1,
+            'style' => 1,
+            'xhtml' => 3,
+        ], $mediaTypes['kindCounts']);
+        $t->same([
+            'application/xhtml+xml' => 1,
+            'image/png' => 1,
+            'text/css' => 1,
+        ], $mediaTypes['parameterizedBaseCounts']);
+        $t->same(['nav', 'style', 'cover', 'chapter1', 'chapter2', 'audio-intro', 'review-script'], array_column($mediaTypes['items'], 'id'));
+
+        $t->same('xhtml', $itemsById['nav']['mediaTypeKind']);
+        $t->same(['charset' => 'UTF-8'], $itemsById['nav']['mediaTypeParameterMap']);
+        $t->same(['nav'], $itemsById['nav']['properties']);
+        $t->same('/EPUB/nav.xhtml', $itemsById['nav']['partName']);
+        $t->same(true, $itemsById['nav']['canExposeBytes']);
+        $t->same('style', $itemsById['style']['mediaTypeKind']);
+        $t->same('UTF-8', $itemsById['style']['mediaTypeParameterMap']['charset']);
+        $t->same('image', $itemsById['cover']['mediaTypeKind']);
+        $t->same('cover;review', $itemsById['cover']['mediaTypeParameterMap']['profile']);
+        $t->same('audio', $itemsById['audio-intro']['mediaTypeKind']);
+        $t->same('/EPUB/audio/intro.mp3', $itemsById['audio-intro']['partName']);
+        $t->same(true, $itemsById['audio-intro']['exists']);
+        $t->same('script', $itemsById['review-script']['mediaTypeKind']);
+        $t->same('/EPUB/scripts/review.js', $itemsById['review-script']['partName']);
+
+        $t->same($mediaTypes['baseCounts'], $summary['manifestMediaTypeBaseCounts']);
+        $t->same($mediaTypes['kindCounts'], $summary['manifestMediaTypeKindCounts']);
+        $t->same($mediaTypes['parameterizedBaseCounts'], $summary['manifestParameterizedMediaTypeBaseCounts']);
+        $t->same($mediaTypes, $summary['wordpressImport']['manifestMediaTypeBases']);
+        $t->same($mediaTypes['baseCounts'], $summary['wordpressImport']['manifestMediaTypeBaseCounts']);
+        $t->same($mediaTypes['kindCounts'], $summary['wordpressImport']['manifestMediaTypeKindCounts']);
+        $t->same($mediaTypes['parameterizedBaseCounts'], $summary['wordpressImport']['manifestParameterizedMediaTypeBaseCounts']);
+        $t->same($mediaTypes['items'], $summary['wordpressImport']['manifestMediaTypeBaseItems']);
+    },
+
     'preserves OPF manifest href query and fragment suffixes for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithHrefSuffixes = str_replace(
             'href="styles/book.css"',

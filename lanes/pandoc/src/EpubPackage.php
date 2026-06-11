@@ -472,6 +472,7 @@ final class EpubPackage
         $spineMetadata = $this->spineMetadata();
         $guideReport = $this->guideReport();
         $ocfSidecars = $this->ocfSidecars();
+        $manifestMediaTypeBases = self::manifestMediaTypeBaseReport($this->manifestItems);
 
         return [
             'opfPart' => $this->opfPartName,
@@ -491,6 +492,11 @@ final class EpubPackage
             'renditionLayout' => $this->metadata['renditionLayout'] ?? self::metadataRenditionLayoutReport([]),
             'accessibility' => $this->metadata['accessibility'] ?? self::accessibilityMetadataReport($this->metadata, $this->packageLinks),
             'manifest' => $this->manifestItems,
+            'manifestMediaTypeBases' => $manifestMediaTypeBases,
+            'manifestMediaTypeBaseCounts' => $manifestMediaTypeBases['baseCounts'],
+            'manifestMediaTypeKindCounts' => $manifestMediaTypeBases['kindCounts'],
+            'manifestParameterizedMediaTypeBaseCounts' => $manifestMediaTypeBases['parameterizedBaseCounts'],
+            'manifestMediaTypeBaseItems' => $manifestMediaTypeBases['items'],
             'readingOrder' => $this->spine,
             'spineMetadata' => $spineMetadata,
             'guide' => $this->guideReferences,
@@ -609,6 +615,11 @@ final class EpubPackage
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
+                'manifestMediaTypeBases' => $manifestMediaTypeBases,
+                'manifestMediaTypeBaseCounts' => $manifestMediaTypeBases['baseCounts'],
+                'manifestMediaTypeKindCounts' => $manifestMediaTypeBases['kindCounts'],
+                'manifestParameterizedMediaTypeBaseCounts' => $manifestMediaTypeBases['parameterizedBaseCounts'],
+                'manifestMediaTypeBaseItems' => $manifestMediaTypeBases['items'],
                 'manifestExternalItems' => $validationReport['manifest']['externalItems'],
                 'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
                 'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
@@ -7416,6 +7427,78 @@ final class EpubPackage
     private static function coreMediaTypeKind(string $mediaType): ?string
     {
         return self::CORE_MEDIA_TYPE_KINDS[self::mediaTypeBase($mediaType)] ?? null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestMediaTypeBaseReport(array $manifest): array
+    {
+        $baseCounts = [];
+        $kindCounts = [];
+        $parameterizedBaseCounts = [];
+        $items = [];
+
+        foreach ($manifest as $index => $item) {
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            $baseMediaType = is_string($item['mediaTypeBase'] ?? null)
+                ? $item['mediaTypeBase']
+                : self::mediaTypeBase($mediaType);
+            $kind = self::CORE_MEDIA_TYPE_KINDS[$baseMediaType] ?? 'unknown';
+            $parameterMap = is_array($item['mediaTypeParameterMap'] ?? null)
+                ? $item['mediaTypeParameterMap']
+                : [];
+            $properties = array_values(array_filter(
+                is_array($item['properties'] ?? null) ? $item['properties'] : [],
+                static fn (mixed $property): bool => is_string($property) && $property !== '',
+            ));
+            $hasParameters = ($item['mediaTypeHasParameters'] ?? false) === true || $parameterMap !== [];
+
+            if ($baseMediaType !== '') {
+                $baseCounts[$baseMediaType] = ($baseCounts[$baseMediaType] ?? 0) + 1;
+                $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+                if ($hasParameters) {
+                    $parameterizedBaseCounts[$baseMediaType] = ($parameterizedBaseCounts[$baseMediaType] ?? 0) + 1;
+                }
+            }
+
+            $items[] = [
+                'index' => $index,
+                'id' => (string) ($item['id'] ?? ''),
+                'href' => (string) ($item['href'] ?? ''),
+                'target' => (string) ($item['target'] ?? ''),
+                'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                'external' => ($item['external'] ?? false) === true,
+                'exists' => ($item['exists'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                'mediaType' => $mediaType,
+                'mediaTypeBase' => $baseMediaType,
+                'mediaTypeKind' => $kind,
+                'mediaTypeHasParameters' => $hasParameters,
+                'mediaTypeParameterCount' => is_int($item['mediaTypeParameterCount'] ?? null)
+                    ? $item['mediaTypeParameterCount']
+                    : count($parameterMap),
+                'mediaTypeParameterMap' => $parameterMap,
+                'properties' => $properties,
+            ];
+        }
+
+        ksort($baseCounts);
+        ksort($kindCounts);
+        ksort($parameterizedBaseCounts);
+
+        return [
+            'itemCount' => count($items),
+            'baseCount' => count($baseCounts),
+            'kindCount' => count($kindCounts),
+            'parameterizedItemCount' => array_sum($parameterizedBaseCounts),
+            'baseCounts' => $baseCounts,
+            'kindCounts' => $kindCounts,
+            'parameterizedBaseCounts' => $parameterizedBaseCounts,
+            'items' => $items,
+        ];
     }
 
     /**
