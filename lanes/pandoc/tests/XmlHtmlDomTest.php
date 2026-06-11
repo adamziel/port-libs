@@ -705,6 +705,51 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html time element temporal metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>Published <time datetime="2026-06-11 19:15Z">June 11</time>'
+                . '<time datetime="2026-06">June 2026</time>'
+                . '<time>09:30:15.25</time>'
+                . '<time datetime="2026-W24">week 24</time>'
+                . '<time datetime="2026-02-30">bad date</time></p>',
+            'time element review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $paragraph = $summary[0];
+        $global = $paragraph['children'][1];
+        $month = $paragraph['children'][2];
+        $textTime = $paragraph['children'][3];
+        $week = $paragraph['children'][4];
+        $invalid = $paragraph['children'][5];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('time', $global['name']);
+        $t->same('time', $global['temporal']);
+        $t->same('June 11', $global['timeText']);
+        $t->same('datetime-attribute', $global['timeValueSource']);
+        $t->same('2026-06-11 19:15Z', $global['timeValueRaw']);
+        $t->same('2026-06-11T19:15Z', $global['timeValue']);
+        $t->same('global-datetime', $global['timeValueKind']);
+        $t->same(true, $global['timeValueValid']);
+        $t->same('month', $month['timeValueKind']);
+        $t->same('2026-06', $month['timeValue']);
+        $t->same('text', $textTime['timeValueSource']);
+        $t->same('09:30:15.25', $textTime['timeValueRaw']);
+        $t->same('09:30:15.25', $textTime['timeValue']);
+        $t->same('time', $textTime['timeValueKind']);
+        $t->same(true, $textTime['timeValueValid']);
+        $t->same('week', $week['timeValueKind']);
+        $t->same('2026-W24', $week['timeValue']);
+        $t->same('invalid', $invalid['timeValueKind']);
+        $t->same(null, $invalid['timeValue']);
+        $t->same(false, $invalid['timeValueValid']);
+        $t->same(
+            '<p>Published <time datetime="2026-06-11 19:15Z">June 11</time><time datetime="2026-06">June 2026</time><time>09:30:15.25</time><time datetime="2026-W24">week 24</time><time datetime="2026-02-30">bad date</time></p>',
+            $html
+        );
+    },
     'summarizes html quote citation provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<blockquote cite="https://example.test/source#quote"><p>Quoted <em>source</em></p></blockquote>'

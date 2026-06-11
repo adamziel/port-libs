@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if ($name === 'time') {
+            $summary += self::timeElementSummary($node);
+        }
         if (in_array($name, ['blockquote', 'q', 'cite'], true)) {
             $summary += self::quoteSummary($node, $name);
         }
@@ -1422,6 +1425,26 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function timeElementSummary(\DOMElement $element): array
+    {
+        $datetimeRaw = self::attributeOrNull($element, 'datetime');
+        $valueRaw = $datetimeRaw ?? self::normalizedText($element);
+        $time = self::htmlTimeValueSummary($valueRaw);
+
+        return [
+            'temporal' => 'time',
+            'timeText' => self::normalizedText($element),
+            'timeValueSource' => $datetimeRaw === null ? 'text' : 'datetime-attribute',
+            'timeValueRaw' => $valueRaw,
+            'timeValue' => $time['value'] ?? null,
+            'timeValueKind' => $time['kind'] ?? ($valueRaw === '' ? null : 'invalid'),
+            'timeValueValid' => $time !== null,
+        ];
+    }
+
+    /**
      * @return array{kind:string, value:string}|null
      */
     private static function revisionDatetimeSummary(string $value): ?array
@@ -1468,6 +1491,45 @@ final class XmlHtmlDom
             return [
                 'kind' => 'date',
                 'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{kind:string, value:string}|null
+     */
+    private static function htmlTimeValueSummary(string $value): ?array
+    {
+        $datetime = self::revisionDatetimeSummary($value);
+        if ($datetime !== null) {
+            return $datetime;
+        }
+
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        if (preg_match('/^([0-9]{4})-(0[1-9]|1[0-2])$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'month',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2],
+            ];
+        }
+
+        if (preg_match('/^([0-9]{4})-W(0[1-9]|[1-4][0-9]|5[0-3])$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'week',
+                'value' => (string) $matches[1] . '-W' . (string) $matches[2],
+            ];
+        }
+
+        if (preg_match('/^((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'time',
+                'value' => (string) $matches[1],
             ];
         }
 
