@@ -2461,6 +2461,70 @@ $commentsExtendedXml = <<<'XML'
 </w15:commentsEx>
 XML;
 
+$notesSourceContentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+  <Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>
+  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>
+  <Override PartName="/word/commentsExtended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>
+</Types>
+XML;
+
+$notesSourceDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml?review=body#footnotes"/>
+  <Relationship Id="rIdEndnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes" Target="endnotes.xml"/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/>
+  <Relationship Id="rIdCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="commentsExtended.xml"/>
+</Relationships>
+XML;
+
+$notesSourceDocumentXml = <<<'XML'
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">Sources </w:t></w:r>
+      <w:r><w:footnoteReference w:id="2"/></w:r>
+      <w:r><w:t xml:space="preserve"> and </w:t></w:r>
+      <w:r><w:endnoteReference w:id="5"/></w:r>
+      <w:r><w:t xml:space="preserve"> plus </w:t></w:r>
+      <w:r><w:commentReference w:id="9"/></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML;
+
+$notesSourceFootnotesXml = <<<'XML'
+<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:footnote w:id="-1" w:type="separator"><w:p><w:r><w:t>separator</w:t></w:r></w:p></w:footnote>
+  <w:footnote w:id="2"><w:p><w:r><w:t>Footnote source part.</w:t></w:r></w:p></w:footnote>
+</w:footnotes>
+XML;
+
+$notesSourceEndnotesXml = <<<'XML'
+<w:endnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:endnote w:id="5"><w:p><w:r><w:t>Endnote source part.</w:t></w:r></w:p></w:endnote>
+</w:endnotes>
+XML;
+
+$notesSourceCommentsXml = <<<'XML'
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="9" w:author="Source Reviewer" w:initials="SR" w:date="2026-06-11T09:00:00Z">
+    <w:p w14:paraId="00AABBCC"><w:r><w:t>Comment source part.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+
+$notesSourceCommentsExtendedXml = <<<'XML'
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00AABBCC" w15:done="1"/>
+</w15:commentsEx>
+XML;
+
 $missingNotesDocumentXml = <<<'XML'
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
@@ -5376,6 +5440,28 @@ $buildCommentsExtendedPackage = static function () use (
         ['name' => 'word/_rels/document.xml.rels', 'data' => $commentsExtendedDocumentRelationshipsXml],
         ['name' => 'word/comments.xml', 'data' => $commentsExtendedCommentsXml],
         ['name' => 'word/commentsExtended.xml', 'data' => $commentsExtendedXml],
+    ]);
+};
+
+$buildNotesSourcePackage = static function () use (
+    $notesSourceContentTypesXml,
+    $packageRelationshipsXml,
+    $notesSourceDocumentRelationshipsXml,
+    $notesSourceDocumentXml,
+    $notesSourceFootnotesXml,
+    $notesSourceEndnotesXml,
+    $notesSourceCommentsXml,
+    $notesSourceCommentsExtendedXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $notesSourceContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $notesSourceDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $notesSourceDocumentRelationshipsXml],
+        ['name' => 'word/footnotes.xml', 'data' => $notesSourceFootnotesXml],
+        ['name' => 'word/endnotes.xml', 'data' => $notesSourceEndnotesXml],
+        ['name' => 'word/comments.xml', 'data' => $notesSourceCommentsXml],
+        ['name' => 'word/commentsExtended.xml', 'data' => $notesSourceCommentsExtendedXml],
     ]);
 };
 
@@ -9410,6 +9496,107 @@ return [
         $t->contains('<p>Audit trail <sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup><span class="docx-comment-range" data-docx-comment-id="9" data-docx-comment-author="Migration Reviewer" data-docx-comment-initials="MR" data-docx-comment-date="2026-06-04T09:55:00Z"> commented source </span><sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup></p>', $blocks);
         $t->contains('<li id="fn-1"><p>Endnote source audit.</p><table><tbody><tr><td><p>Review table</p></td><td><p>kept in endnote</p></td></tr></tbody></table> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
         $t->contains('<li id="fn-2"><p>Comment source audit.</p><p>Keep reviewer context with the import.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
+    },
+    'reports DOCX note and comment source part provenance from document relationships' => static function (TestRunner $t) use ($buildNotesSourcePackage): void {
+        $result = (new DocxReader())->readPackage($buildNotesSourcePackage());
+        $document = $result['document'];
+        $sources = $result['metadata']['docxNotes'];
+
+        $t->same($sources, $result['importReport']['notes']['sources']);
+        $t->same('/word/document.xml', $sources['sourcePart']);
+        $t->same('/word/_rels/document.xml.rels', $sources['relationshipsPart']);
+        $t->same(4, $sources['relationshipCount']);
+        $t->same(4, $sources['partCount']);
+        $t->same(4, $sources['loadedPartCount']);
+        $t->same(1, $sources['footnotePartCount']);
+        $t->same(1, $sources['endnotePartCount']);
+        $t->same(1, $sources['commentPartCount']);
+        $t->same(1, $sources['commentsExtendedPartCount']);
+        $t->same(0, $sources['issueCount']);
+        $t->same([], $sources['issueCodes']);
+        $t->same('/word/footnotes.xml', $sources['primaryParts']['footnotes']);
+        $t->same('/word/endnotes.xml', $sources['primaryParts']['endnotes']);
+        $t->same('/word/comments.xml', $sources['primaryParts']['comments']);
+        $t->same('/word/commentsExtended.xml', $sources['primaryParts']['commentsExtended']);
+
+        $footnoteSource = $sources['items'][0];
+        $t->same('footnotes', $footnoteSource['kind']);
+        $t->same('footnote', $footnoteSource['sourceType']);
+        $t->same('rIdFootnotes', $footnoteSource['relationshipId']);
+        $t->same('footnotes.xml?review=body#footnotes', $footnoteSource['target']);
+        $t->same('/word/footnotes.xml', $footnoteSource['targetPart']);
+        $t->same('review=body', $footnoteSource['targetQuery']);
+        $t->same('footnotes', $footnoteSource['targetFragment']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $footnoteSource['contentType']);
+        $t->same(true, $footnoteSource['exists']);
+        $t->same(true, $footnoteSource['validRoot']);
+        $t->same(2, $footnoteSource['itemCount']);
+        $t->same(1, $footnoteSource['importableItemCount']);
+        $t->same(1, $footnoteSource['specialItemCount']);
+        $t->same([], $footnoteSource['issues']);
+
+        $endnoteSource = $sources['items'][1];
+        $t->same('endnotes', $endnoteSource['kind']);
+        $t->same('/word/endnotes.xml', $endnoteSource['targetPart']);
+        $t->same(1, $endnoteSource['itemCount']);
+        $t->same(1, $endnoteSource['importableItemCount']);
+
+        $commentSource = $sources['items'][2];
+        $t->same('comments', $commentSource['kind']);
+        $t->same('comment', $commentSource['sourceType']);
+        $t->same('/word/comments.xml', $commentSource['targetPart']);
+        $t->same(1, $commentSource['itemCount']);
+        $t->same(1, $commentSource['importableItemCount']);
+
+        $commentsExtendedSource = $sources['items'][3];
+        $t->same('commentsExtended', $commentsExtendedSource['kind']);
+        $t->same('/word/commentsExtended.xml', $commentsExtendedSource['targetPart']);
+        $t->same(1, $commentsExtendedSource['itemCount']);
+        $t->same(null, $commentsExtendedSource['importableItemCount']);
+        $t->same(1, $commentsExtendedSource['resolvedCommentCount']);
+        $t->same(0, $commentsExtendedSource['threadedCommentCount']);
+
+        $paragraph = $document->children[0];
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Sources ', $paragraph->children[0]->attr('text'));
+
+        $footnote = $paragraph->children[1];
+        $t->same('note', $footnote->type);
+        $t->same('2', $footnote->attr('id'));
+        $t->same('footnote', $footnote->attr('sourceType'));
+        $t->same('/word/footnotes.xml', $footnote->attr('sourcePart'));
+        $t->same('rIdFootnotes', $footnote->attr('relationshipId'));
+        $t->same('footnotes.xml?review=body#footnotes', $footnote->attr('relationshipTarget'));
+        $t->same('/word/_rels/document.xml.rels', $footnote->attr('relationshipsPart'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $footnote->attr('contentType'));
+        $t->same('Footnote source part.', $footnote->children[0]->children[0]->attr('text'));
+
+        $endnote = $paragraph->children[3];
+        $t->same('endnote', $endnote->attr('sourceType'));
+        $t->same('/word/endnotes.xml', $endnote->attr('sourcePart'));
+        $t->same('rIdEndnotes', $endnote->attr('relationshipId'));
+        $t->same('Endnote source part.', $endnote->children[0]->children[0]->attr('text'));
+
+        $comment = $paragraph->children[5];
+        $t->same('comment', $comment->attr('sourceType'));
+        $t->same('/word/comments.xml', $comment->attr('sourcePart'));
+        $t->same('rIdComments', $comment->attr('relationshipId'));
+        $t->same(DocxReader::REL_TYPE_COMMENTS, $comment->attr('relationshipType'));
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $comment->attr('contentType'));
+        $t->same('Source Reviewer', $comment->attr('author'));
+        $t->same('00AABBCC', $comment->attr('commentParaId'));
+        $t->same('/word/commentsExtended.xml', $comment->attr('commentsExtendedPart'));
+        $t->same(true, $comment->attr('commentResolved'));
+        $t->same('Comment source part.', $comment->children[0]->children[0]->attr('text'));
+
+        $reportNotes = $result['importReport']['notes']['items'];
+        $t->same(3, count($reportNotes));
+        $t->same('/word/footnotes.xml', $reportNotes[0]['sourcePart']);
+        $t->same('rIdFootnotes', $reportNotes[0]['relationshipId']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml', $reportNotes[0]['contentType']);
+        $t->same('/word/comments.xml', $reportNotes[2]['sourcePart']);
+        $t->same('/word/commentsExtended.xml', $reportNotes[2]['commentsExtendedPart']);
+        $t->same(true, $reportNotes[2]['commentResolved']);
     },
     'wraps DOCX comment ranges with reviewer metadata without replacing note references' => static function (TestRunner $t) use ($buildNotesPackage): void {
         $document = (new DocxReader())->readDocument($buildNotesPackage());

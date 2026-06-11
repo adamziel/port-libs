@@ -88,6 +88,10 @@ final class DocxReader
 
     private const WORDPROCESSINGML_DOCUMENT_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const WORDPROCESSINGML_NUMBERING_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+    private const WORDPROCESSINGML_FOOTNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
+    private const WORDPROCESSINGML_ENDNOTES_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
+    private const WORDPROCESSINGML_COMMENTS_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+    private const WORDPROCESSINGML_COMMENTS_EXTENDED_CONTENT_TYPE = 'application/vnd.ms-word.commentsExt+xml';
     private const WORDPROCESSINGML_HEADER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml';
     private const WORDPROCESSINGML_FOOTER_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
 
@@ -226,6 +230,7 @@ final class DocxReader
             $themeColors,
             static fn (mixed $value): bool => is_string($value) && $value !== '',
         ) : [];
+        $notesPartSummary = $this->notesPartImportSummary($package, $graph, $documentPart);
         $referencedNotes = $this->loadReferencedNotes($package, $graph, $documentPart);
         $styles = $this->loadStyles($package, $graph, $documentPart);
         $numbering = $this->loadNumbering($package, $graph, $documentPart);
@@ -278,6 +283,9 @@ final class DocxReader
         if ($fontTable !== []) {
             $metadata['docxFontTable'] = $fontTable;
         }
+        if (($notesPartSummary['relationshipCount'] ?? 0) > 0) {
+            $metadata['docxNotes'] = $notesPartSummary;
+        }
         if ($numberingSummary !== []) {
             $metadata['docxNumbering'] = $numberingSummary;
         }
@@ -320,6 +328,7 @@ final class DocxReader
                 $document,
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
+                $notesPartSummary,
                 $specialNotes,
                 $docProperties,
                 $settings,
@@ -360,6 +369,7 @@ final class DocxReader
      * @param list<array{source:string, depth:int, id:string, type:string, target:string, targetPart:?string, contentType:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}> $reachableRelationships
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
+     * @param array<string, mixed> $notesPartSummary
      * @param array<string, mixed> $specialNotes
      * @param array<string, mixed> $docProperties
      * @param array<string, mixed> $settings
@@ -383,6 +393,7 @@ final class DocxReader
         AstNode $document,
         array $revisions,
         array $alternativeFormats,
+        array $notesPartSummary,
         array $specialNotes,
         array $docProperties,
         array $settings,
@@ -411,6 +422,9 @@ final class DocxReader
         }
 
         $notes = $this->notesImportReport($document);
+        if (($notesPartSummary['relationshipCount'] ?? 0) > 0) {
+            $notes['sources'] = $notesPartSummary;
+        }
         if ($specialNotes !== []) {
             $notes['specialNotes'] = $specialNotes;
         }
@@ -577,7 +591,7 @@ final class DocxReader
     }
 
     /**
-     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>}
+     * @return array{count:int, footnoteCount:int, endnoteCount:int, commentCount:int, missingCount:int, items:list<array{id:?string, sourceType:string, missing:bool, sourcePart:?string, relationshipId:?string, relationshipType:?string, relationshipTarget:?string, relationshipsPart:?string, contentType:?string, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}>}
      */
     private function notesImportReport(AstNode $document): array
     {
@@ -595,7 +609,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{id:?string, sourceType:string, missing:bool, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}> $items
+     * @param list<array{id:?string, sourceType:string, missing:bool, sourcePart:?string, relationshipId:?string, relationshipType:?string, relationshipTarget:?string, relationshipsPart:?string, contentType:?string, customMarkFollows:bool, referenceNumber:?int, referenceLabel:?string, referenceFormat:?string, referenceStart:?int, referenceRestart:?string, referenceNumberingSkipped:bool, blockCount:int, text:string, author:?string, initials:?string, date:?string, commentParaId:?string, commentParentParaId:?string, commentResolved:?bool, commentsExtendedPart:?string}> $items
      */
     private function collectNoteImportReportItems(AstNode $node, array &$items): void
     {
@@ -608,6 +622,12 @@ final class DocxReader
                 'id' => is_string($node->attr('id')) ? $node->attr('id') : null,
                 'sourceType' => is_string($sourceType) && $sourceType !== '' ? $sourceType : 'note',
                 'missing' => $node->attr('missing') === true,
+                'sourcePart' => is_string($node->attr('sourcePart')) ? $node->attr('sourcePart') : null,
+                'relationshipId' => is_string($node->attr('relationshipId')) ? $node->attr('relationshipId') : null,
+                'relationshipType' => is_string($node->attr('relationshipType')) ? $node->attr('relationshipType') : null,
+                'relationshipTarget' => is_string($node->attr('relationshipTarget')) ? $node->attr('relationshipTarget') : null,
+                'relationshipsPart' => is_string($node->attr('relationshipsPart')) ? $node->attr('relationshipsPart') : null,
+                'contentType' => is_string($node->attr('contentType')) ? $node->attr('contentType') : null,
                 'customMarkFollows' => $node->attr('customMarkFollows') === true,
                 'referenceNumber' => is_int($referenceNumber) ? $referenceNumber : null,
                 'referenceLabel' => is_string($node->attr('referenceLabel')) ? $node->attr('referenceLabel') : null,
@@ -14119,6 +14139,295 @@ final class DocxReader
     }
 
     /**
+     * @return list<array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string}>
+     */
+    private function notePartDefinitions(): array
+    {
+        return [
+            [
+                'kind' => 'footnotes',
+                'sourceType' => 'footnote',
+                'relationshipType' => self::REL_TYPE_FOOTNOTES,
+                'rootName' => 'footnotes',
+                'itemName' => 'footnote',
+                'expectedContentType' => self::WORDPROCESSINGML_FOOTNOTES_CONTENT_TYPE,
+                'label' => 'DOCX footnotes XML',
+            ],
+            [
+                'kind' => 'endnotes',
+                'sourceType' => 'endnote',
+                'relationshipType' => self::REL_TYPE_ENDNOTES,
+                'rootName' => 'endnotes',
+                'itemName' => 'endnote',
+                'expectedContentType' => self::WORDPROCESSINGML_ENDNOTES_CONTENT_TYPE,
+                'label' => 'DOCX endnotes XML',
+            ],
+            [
+                'kind' => 'comments',
+                'sourceType' => 'comment',
+                'relationshipType' => self::REL_TYPE_COMMENTS,
+                'rootName' => 'comments',
+                'itemName' => 'comment',
+                'expectedContentType' => self::WORDPROCESSINGML_COMMENTS_CONTENT_TYPE,
+                'label' => 'DOCX comments XML',
+            ],
+            [
+                'kind' => 'commentsExtended',
+                'sourceType' => 'commentsExtended',
+                'relationshipType' => self::REL_TYPE_COMMENTS_EXTENDED,
+                'rootName' => 'commentsEx',
+                'itemName' => 'commentEx',
+                'expectedContentType' => self::WORDPROCESSINGML_COMMENTS_EXTENDED_CONTENT_TYPE,
+                'label' => 'DOCX commentsExtended XML',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function notesPartImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): array
+    {
+        $relationships = $graph->relationshipsForSource($documentPart);
+        if (!$relationships instanceof OpcRelationships) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($this->notePartDefinitions() as $definition) {
+            foreach ($relationships->ofType($definition['relationshipType']) as $relationship) {
+                $items[] = $this->notePartRelationshipSummary(
+                    $package,
+                    $documentPart,
+                    $relationships,
+                    $relationship,
+                    $definition
+                );
+            }
+        }
+        if ($items === []) {
+            return [];
+        }
+
+        $issueCodes = [];
+        foreach ($items as $item) {
+            foreach ($item['issues'] as $issue) {
+                $issueCodes[$issue] = true;
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'sourcePart' => $documentPart,
+            'relationshipsPart' => $relationships->relationshipPartName(),
+            'relationshipCount' => count($items),
+            'partCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['targetPart']))),
+            'loadedPartCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['validRoot'] === true,
+            )),
+            'footnotePartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'footnotes')),
+            'endnotePartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'endnotes')),
+            'commentPartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'comments')),
+            'commentsExtendedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'commentsExtended')),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'primaryParts' => [
+                'footnotes' => $this->firstNotePartByKind($items, 'footnotes'),
+                'endnotes' => $this->firstNotePartByKind($items, 'endnotes'),
+                'comments' => $this->firstNotePartByKind($items, 'comments'),
+                'commentsExtended' => $this->firstNotePartByKind($items, 'commentsExtended'),
+            ],
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function firstNotePartByKind(array $items, string $kind): ?string
+    {
+        foreach ($items as $item) {
+            if (($item['kind'] ?? null) === $kind && is_string($item['targetPart'] ?? null)) {
+                return $item['targetPart'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string} $definition
+     * @return array<string, mixed>
+     */
+    private function notePartRelationshipSummary(
+        ZipPackage $package,
+        string $documentPart,
+        OpcRelationships $relationships,
+        OpcRelationship $relationship,
+        array $definition
+    ): array {
+        $resolvedTarget = null;
+        $targetPart = null;
+        $targetQuery = null;
+        $targetFragment = null;
+        $contentType = null;
+        $exists = null;
+        $byteCount = null;
+        $externalTarget = null;
+        $inventory = [
+            'validRoot' => null,
+            'itemCount' => null,
+            'importableItemCount' => null,
+            'specialItemCount' => null,
+            'resolvedCommentCount' => null,
+            'threadedCommentCount' => null,
+            'issues' => [],
+        ];
+        $issues = [];
+
+        try {
+            $resolvedTarget = $relationships->resolveTarget($relationship);
+            $suffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
+            $targetQuery = $suffix['query'];
+            $targetFragment = $suffix['fragment'];
+        } catch (\InvalidArgumentException) {
+            $issues[] = 'invalid-target';
+        }
+
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            $issues[] = 'external-note-part-relationship';
+            $issues = array_merge($issues, $externalTarget['issues']);
+        } elseif ($resolvedTarget !== null) {
+            $targetPart = OpcPackagePath::stripQueryAndFragment($resolvedTarget);
+            $exists = $package->has($targetPart);
+            $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+            if ($exists) {
+                $byteCount = strlen($package->read($targetPart));
+                $inventory = $this->notePartInventory($package, $targetPart, $definition);
+                $issues = array_merge($issues, $inventory['issues']);
+            } else {
+                $issues[] = 'missing-in-package';
+            }
+            if ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            } elseif (!$this->contentTypeBaseEquals($contentType, $definition['expectedContentType'])) {
+                $issues[] = 'unexpected-content-type';
+            }
+        }
+
+        return [
+            'kind' => $definition['kind'],
+            'sourceType' => $definition['sourceType'],
+            'sourcePart' => $documentPart,
+            'relationshipsPart' => $relationships->relationshipPartName(),
+            'relationshipId' => $relationship->id,
+            'relationshipType' => $relationship->type,
+            'target' => $relationship->target,
+            'targetMode' => $relationship->targetMode,
+            'resolvedTarget' => $resolvedTarget,
+            'targetPart' => $targetPart,
+            'targetQuery' => $targetQuery,
+            'targetFragment' => $targetFragment,
+            'contentType' => $contentType,
+            'expectedContentType' => $definition['expectedContentType'],
+            'external' => $relationship->isExternal(),
+            'exists' => $exists,
+            'byteCount' => $byteCount,
+            'externalTargetKind' => is_array($externalTarget) ? $externalTarget['kind'] : null,
+            'externalTargetScheme' => is_array($externalTarget) ? $externalTarget['scheme'] : null,
+            'externalTargetAllowed' => is_array($externalTarget) ? $externalTarget['allowed'] : null,
+            'rootName' => $definition['rootName'],
+            'itemName' => $definition['itemName'],
+            'validRoot' => $inventory['validRoot'],
+            'itemCount' => $inventory['itemCount'],
+            'importableItemCount' => $inventory['importableItemCount'],
+            'specialItemCount' => $inventory['specialItemCount'],
+            'resolvedCommentCount' => $inventory['resolvedCommentCount'],
+            'threadedCommentCount' => $inventory['threadedCommentCount'],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array{kind:string, sourceType:string, relationshipType:string, rootName:string, itemName:string, expectedContentType:string, label:string} $definition
+     * @return array{validRoot:?bool, itemCount:?int, importableItemCount:?int, specialItemCount:?int, resolvedCommentCount:?int, threadedCommentCount:?int, issues:list<string>}
+     */
+    private function notePartInventory(ZipPackage $package, string $targetPart, array $definition): array
+    {
+        $dom = self::loadXml($package->read($targetPart), $definition['label'] . ' source inventory');
+        $root = $dom->documentElement;
+        $validRoot = $root instanceof \DOMElement && (
+            $definition['kind'] === 'commentsExtended'
+                ? $root->localName === $definition['rootName']
+                : $this->isWordElement($root, $definition['rootName'])
+        );
+        if (!$validRoot || !$root instanceof \DOMElement) {
+            return [
+                'validRoot' => false,
+                'itemCount' => null,
+                'importableItemCount' => null,
+                'specialItemCount' => null,
+                'resolvedCommentCount' => null,
+                'threadedCommentCount' => null,
+                'issues' => ['unexpected-root-element'],
+            ];
+        }
+
+        $itemCount = 0;
+        $importableItemCount = 0;
+        $specialItemCount = 0;
+        $resolvedCommentCount = 0;
+        $threadedCommentCount = 0;
+        foreach ($root->childNodes as $item) {
+            if (!$item instanceof \DOMElement) {
+                continue;
+            }
+            $matchesItem = $definition['kind'] === 'commentsExtended'
+                ? $item->localName === $definition['itemName']
+                : $this->isWordElement($item, $definition['itemName']);
+            if (!$matchesItem) {
+                continue;
+            }
+
+            $itemCount++;
+            if ($definition['kind'] === 'commentsExtended') {
+                if ($this->onOffStringValue($this->wordExtensionAttr($item, 'done')) === true) {
+                    $resolvedCommentCount++;
+                }
+                if (($this->wordExtensionAttr($item, 'paraIdParent') ?? '') !== '') {
+                    $threadedCommentCount++;
+                }
+                continue;
+            }
+
+            $id = $this->wordAttr($item, 'id');
+            if ($id === null || $id === '') {
+                continue;
+            }
+
+            $type = strtolower((string) ($this->wordAttr($item, 'type') ?? ''));
+            if ($definition['sourceType'] !== 'comment' && (str_starts_with($id, '-') || $this->specialNoteType($id, $type) !== null)) {
+                $specialItemCount++;
+                continue;
+            }
+
+            $importableItemCount++;
+        }
+
+        return [
+            'validRoot' => true,
+            'itemCount' => $itemCount,
+            'importableItemCount' => $definition['kind'] === 'commentsExtended' ? null : $importableItemCount,
+            'specialItemCount' => $definition['kind'] === 'commentsExtended' ? null : $specialItemCount,
+            'resolvedCommentCount' => $definition['kind'] === 'commentsExtended' ? $resolvedCommentCount : null,
+            'threadedCommentCount' => $definition['kind'] === 'commentsExtended' ? $threadedCommentCount : null,
+            'issues' => [],
+        ];
+    }
+
+    /**
      * @param array<string, array{part:string, paraId:string, parentParaId?:string, resolved?:bool}> $commentsExtended
      * @return array<string, AstNode>
      */
@@ -14133,12 +14442,17 @@ final class DocxReader
         string $label,
         array $commentsExtended = []
     ): array {
-        $part = $graph->firstTargetOfType($relationshipType, $documentPart);
-        if ($part === null) {
+        $documentRelationships = $graph->relationshipsForSource($documentPart);
+        if (!$documentRelationships instanceof OpcRelationships) {
             return [];
         }
 
-        $part = OpcPackagePath::stripQueryAndFragment($part);
+        $relationship = $documentRelationships->firstOfType($relationshipType);
+        if (!$relationship instanceof OpcRelationship || $relationship->isExternal()) {
+            return [];
+        }
+
+        $part = OpcPackagePath::stripQueryAndFragment($documentRelationships->resolveTarget($relationship));
         if (!$package->has($part)) {
             return [];
         }
@@ -14165,6 +14479,12 @@ final class DocxReader
             $attrs = [
                 'id' => $id,
                 'sourceType' => $sourceType,
+                'sourcePart' => $part,
+                'relationshipId' => $relationship->id,
+                'relationshipType' => $relationship->type,
+                'relationshipTarget' => $relationship->target,
+                'relationshipsPart' => $documentRelationships->relationshipPartName(),
+                'contentType' => $this->contentTypeForPackagePart($package, $part),
             ];
             if ($sourceType === 'comment') {
                 foreach (['author', 'initials', 'date'] as $metadataName) {
