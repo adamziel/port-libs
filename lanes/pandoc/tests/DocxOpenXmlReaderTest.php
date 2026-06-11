@@ -724,6 +724,92 @@ XML;
         $t->contains('<section class="footnotes" role="doc-endnotes"><ol><li id="fn-1"><p>Footnote <a href="https://example.test/footnote-source">relationship source</a> note.</p>', $blocks);
         $t->contains('<li id="fn-2"><p>Endnote package audit.</p>', $blocks);
     },
+    'resolves docx comments and extended comment state from relationship targets' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/annotations/review-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '  <Override PartName="/word/annotations/review-comments-extended.xml" ContentType="application/vnd.ms-word.commentsExt+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="annotations/review-comments.xml?batch=review#comments"/>' . "\n" .
+            '  <Relationship Id="rCommentsExtended" Type="http://schemas.microsoft.com/office/2011/relationships/commentsExtended" Target="annotations/review-comments-extended.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>',
+            '<w:hyperlink r:id="rLink"><w:r><w:t>source link</w:t></w:r></w:hyperlink>' . "\n" .
+            '      <w:r><w:t xml:space="preserve"> with comment</w:t></w:r>' . "\n" .
+            '      <w:r><w:commentReference w:id="9"/></w:r>',
+            $parts['word/document.xml']
+        );
+        $parts['word/annotations/review-comments.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml">
+  <w:comment w:id="9" w:author="Migration Reviewer" w:initials="MR" w:date="2026-06-11T10:57:21Z">
+    <w:p w14:paraId="00A1B2C3"><w:r><w:t>Comment source package audit.</w:t></w:r></w:p>
+  </w:comment>
+</w:comments>
+XML;
+        $parts['word/annotations/review-comments-extended.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w15:commentsEx xmlns:w15="http://schemas.microsoft.com/office/word/2012/wordml">
+  <w15:commentEx w15:paraId="00A1B2C3" w15:done="1"/>
+</w15:commentsEx>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $paragraph = $document->children[1];
+        $comments = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note' && $node->attr('sourceType') === 'comment'));
+        $comment = $comments[0];
+
+        $t->same('word/annotations/review-comments.xml', $docx['commentsPart']);
+        $t->same('rComments', $docx['commentsRelationship']['id']);
+        $t->same('annotations/review-comments.xml?batch=review#comments', $docx['commentsRelationship']['target']);
+        $t->same('word/annotations/review-comments.xml?batch=review#comments', $docx['commentsRelationship']['resolvedTarget']);
+        $t->same('word/annotations/review-comments.xml', $docx['commentsRelationship']['targetPart']);
+        $t->same(true, $docx['commentsRelationship']['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml', $docx['commentsRelationship']['contentType']);
+        $t->same(1, $docx['comments']['count']);
+        $t->same(1, $docx['comments']['commentCount']);
+        $t->same(['9'], $docx['comments']['ids']);
+        $t->same('Migration Reviewer', $docx['comments']['byId']['9']['author']);
+        $t->same('MR', $docx['comments']['byId']['9']['initials']);
+        $t->same('2026-06-11T10:57:21Z', $docx['comments']['byId']['9']['date']);
+        $t->same('00A1B2C3', $docx['comments']['byId']['9']['commentParaId']);
+        $t->same(true, $docx['comments']['byId']['9']['commentResolved']);
+        $t->same('word/annotations/review-comments-extended.xml', $docx['comments']['byId']['9']['commentsExtendedPart']);
+        $t->same('Comment source package audit.', $docx['comments']['byId']['9']['text']);
+
+        $t->same('word/annotations/review-comments-extended.xml', $docx['commentsExtendedPart']);
+        $t->same('rCommentsExtended', $docx['commentsExtendedRelationship']['id']);
+        $t->same('word/annotations/review-comments-extended.xml', $docx['commentsExtendedRelationship']['targetPart']);
+        $t->same('application/vnd.ms-word.commentsExt+xml', $docx['commentsExtendedRelationship']['contentType']);
+        $t->same(1, $docx['commentsExtended']['count']);
+        $t->same(1, $docx['commentsExtended']['resolvedCount']);
+        $t->same(0, $docx['commentsExtended']['threadedCount']);
+        $t->same('00A1B2C3', $docx['commentsExtended']['items'][0]['paraId']);
+
+        $t->same(1, count($comments));
+        $t->same('9', $comment->attr('id'));
+        $t->same('Migration Reviewer', $comment->attr('author'));
+        $t->same('MR', $comment->attr('initials'));
+        $t->same('2026-06-11T10:57:21Z', $comment->attr('date'));
+        $t->same('00A1B2C3', $comment->attr('commentParaId'));
+        $t->same(true, $comment->attr('commentResolved'));
+        $t->same('word/annotations/review-comments-extended.xml', $comment->attr('commentsExtendedPart'));
+        $t->same('Comment source package audit.', $comment->children[0]->attr('text'));
+
+        $markdown = (new MarkdownWriter())->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $t->contains('[^1]: Comment source package audit.', $markdown);
+        $t->contains('<li id="fn-1"><p>Comment source package audit.</p>', $blocks);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
