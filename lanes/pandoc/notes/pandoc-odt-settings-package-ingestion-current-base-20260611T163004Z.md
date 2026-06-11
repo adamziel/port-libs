@@ -2,7 +2,7 @@
 
 Bead: `plib-rpbgw`
 
-Base: current `origin/main` `879a565238bee43250900c80cc13db10ad5c7728`
+Base: current `origin/main` `e6767f509`
 
 ## Scope
 
@@ -18,6 +18,8 @@ Base: current `origin/main` `879a565238bee43250900c80cc13db10ad5c7728`
 - `php tools/run-tests.php lanes/pandoc/tests/OdtReaderTest.php`
   - `1 test file, 167 assertions, 0 failures`
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - `44 test files, 65303 assertions, 0 failures`
+  - `44 test files, 65600 assertions, 0 failures`
 
-Lane status: `phpPass` moves `3098 -> 3099`.
+Lane status: ODT settings package ingestion remains accounted with
+`mappedOdtSettingsPackageIngestionCases = 1`,
+`odtSettingsPackageIngestionAssertions = 22`, and current `phpPass = 3107`.
