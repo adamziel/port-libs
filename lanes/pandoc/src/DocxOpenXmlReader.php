@@ -1390,6 +1390,9 @@ final class DocxOpenXmlReader
         $externalRelationshipTargets = [];
         $relationshipPartsWithMissingTargets = [];
         $targetParts = [];
+        $relationshipTargetReferenceSuffixCount = 0;
+        $relationshipTargetQueryCount = 0;
+        $relationshipTargetFragmentCount = 0;
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
@@ -1397,6 +1400,15 @@ final class DocxOpenXmlReader
                 $type = (string) ($relationship['type'] ?? '');
                 if ($type !== '') {
                     $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
+                }
+                if (($relationship['targetReferenceSuffix'] ?? '') !== '') {
+                    ++$relationshipTargetReferenceSuffixCount;
+                }
+                if (($relationship['targetQuery'] ?? null) !== null) {
+                    ++$relationshipTargetQueryCount;
+                }
+                if (($relationship['targetFragment'] ?? null) !== null) {
+                    ++$relationshipTargetFragmentCount;
                 }
 
                 if (($relationship['external'] ?? false) === true) {
@@ -1442,6 +1454,9 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
+            'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
+            'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
+            'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
         ];
     }
 
@@ -1461,6 +1476,8 @@ final class DocxOpenXmlReader
             'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
             'targetPart' => $relationship['targetPart'] ?? null,
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
+            'targetQuery' => $relationship['targetQuery'] ?? null,
+            'targetFragment' => $relationship['targetFragment'] ?? null,
             'contentType' => $relationship['contentType'] ?? null,
             'contentTypeSource' => $relationship['contentTypeSource'] ?? 'missing',
         ];
@@ -1719,7 +1736,7 @@ final class DocxOpenXmlReader
     ): array {
         $external = $this->isExternalRelationshipTarget($relationship);
         $targetPart = $external ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
-        $suffix = $external ? ['query' => null, 'fragment' => null, 'suffix' => ''] : $this->targetReferenceSuffix($relationship['resolvedTarget']);
+        $suffix = $this->targetReferenceSuffix($relationship['resolvedTarget']);
         $contentTypeResolution = $targetPart === null
             ? $this->missingContentTypeResolution(null)
             : $this->contentTypeResolutionForPart($targetPart, $contentTypes);

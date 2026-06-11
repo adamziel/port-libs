@@ -139,6 +139,49 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'summarizes docx package relationship target suffix provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml?doc=main#body"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            [
+                'Target="https://example.test/source?post=42"',
+                '</Relationships>',
+            ],
+            [
+                'Target="https://example.test/source?post=42#source"',
+                '  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png?review=missing#img"/>' . "\n" .
+                '</Relationships>',
+            ],
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $missing = $summary['missingRelationshipTargets'][0];
+        $external = $summary['externalRelationshipTargets'][0];
+
+        $t->same(5, $summary['relationshipCount']);
+        $t->same(1, $summary['missingRelationshipTargetCount']);
+        $t->same(1, $summary['externalRelationshipCount']);
+        $t->same(3, $summary['relationshipTargetReferenceSuffixCount']);
+        $t->same(3, $summary['relationshipTargetQueryCount']);
+        $t->same(3, $summary['relationshipTargetFragmentCount']);
+        $t->same('rMissingImage', $missing['id']);
+        $t->same('media/missing.png?review=missing#img', $missing['target']);
+        $t->same('word/media/missing.png?review=missing#img', $missing['resolvedTarget']);
+        $t->same('word/media/missing.png', $missing['targetPart']);
+        $t->same('?review=missing#img', $missing['targetReferenceSuffix']);
+        $t->same('review=missing', $missing['targetQuery']);
+        $t->same('img', $missing['targetFragment']);
+        $t->same('rLink', $external['id']);
+        $t->same('https://example.test/source?post=42#source', $external['target']);
+        $t->same('post=42', $external['targetQuery']);
+        $t->same('source', $external['targetFragment']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
