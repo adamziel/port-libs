@@ -648,16 +648,19 @@ final class DocxOpenXmlReader
         string $documentRelationshipsPart,
         array $documentRelationships,
     ): array {
+        $relationshipParts = $this->packageRelationshipPartsProvenance(
+            $parts,
+            $contentTypes,
+            $documentPart,
+            $documentRelationshipsPart,
+            $rootRelationships,
+            $documentRelationships,
+        );
+
         return [
             'contentTypesPart' => $this->contentTypesPartProvenance($parts, $contentTypes),
-            'relationshipParts' => $this->packageRelationshipPartsProvenance(
-                $parts,
-                $contentTypes,
-                $documentPart,
-                $documentRelationshipsPart,
-                $rootRelationships,
-                $documentRelationships,
-            ),
+            'relationshipParts' => $relationshipParts,
+            'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts),
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $this->packagePartInventory(
@@ -712,6 +715,123 @@ final class DocxOpenXmlReader
         }
 
         return $relationshipParts;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @return array<string, array<string, mixed>>
+     */
+    private function relationshipTypeProvenance(array $relationshipParts): array
+    {
+        $types = [];
+        foreach ($relationshipParts as $relationshipPart) {
+            $relationships = $relationshipPart['relationships'] ?? [];
+            if (!is_array($relationships)) {
+                continue;
+            }
+
+            foreach ($relationships as $relationship) {
+                if (!is_array($relationship)) {
+                    continue;
+                }
+
+                $type = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                $typeKey = $type === '' ? '(missing-type)' : $type;
+                if (!isset($types[$typeKey])) {
+                    $types[$typeKey] = [
+                        'type' => $type,
+                        'label' => $this->relationshipTypeLabel($type),
+                        'count' => 0,
+                        'internalCount' => 0,
+                        'externalCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'relationshipParts' => [],
+                        'sourceParts' => [],
+                        'targetParts' => [],
+                        'existingTargetParts' => [],
+                        'missingTargetParts' => [],
+                        'externalTargets' => [],
+                        'contentTypes' => [],
+                        'relationships' => [],
+                    ];
+                }
+
+                $external = (bool) ($relationship['external'] ?? false);
+                $exists = (bool) ($relationship['exists'] ?? false);
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null;
+                $relationshipsPart = is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : '';
+                $sourcePart = is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '';
+                $target = is_string($relationship['target'] ?? null) ? $relationship['target'] : '';
+                $contentType = is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : '';
+
+                $types[$typeKey]['count']++;
+                if ($external) {
+                    $types[$typeKey]['externalCount']++;
+                    $this->appendUniqueString($types[$typeKey]['externalTargets'], $target);
+                } else {
+                    $types[$typeKey]['internalCount']++;
+                    $this->appendUniqueString($types[$typeKey]['targetParts'], $targetPart);
+                    if ($exists) {
+                        $types[$typeKey]['existingTargetCount']++;
+                        $this->appendUniqueString($types[$typeKey]['existingTargetParts'], $targetPart);
+                    } else {
+                        $types[$typeKey]['missingTargetCount']++;
+                        $this->appendUniqueString($types[$typeKey]['missingTargetParts'], $targetPart);
+                    }
+                }
+
+                $this->appendUniqueString($types[$typeKey]['relationshipParts'], $relationshipsPart);
+                $this->appendUniqueString($types[$typeKey]['sourceParts'], $sourcePart);
+                $this->appendUniqueString($types[$typeKey]['contentTypes'], $contentType);
+                $types[$typeKey]['relationships'][] = [
+                    'id' => is_string($relationship['id'] ?? null) ? $relationship['id'] : '',
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => $relationshipsPart,
+                    'target' => $target,
+                    'targetMode' => is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '',
+                    'external' => $external,
+                    'targetPart' => $targetPart,
+                    'exists' => $exists,
+                    'contentType' => $contentType,
+                    'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : '',
+                ];
+            }
+        }
+
+        ksort($types);
+
+        return $types;
+    }
+
+    private function relationshipTypeLabel(string $type): string
+    {
+        if ($type === '') {
+            return 'missing-type';
+        }
+
+        $trimmed = rtrim($type, '/#');
+        $slash = strrpos($trimmed, '/');
+        $hash = strrpos($trimmed, '#');
+        $position = max($slash === false ? -1 : $slash, $hash === false ? -1 : $hash);
+
+        return $position >= 0 && $position < strlen($trimmed) - 1
+            ? substr($trimmed, $position + 1)
+            : $trimmed;
+    }
+
+    /**
+     * @param list<string> $values
+     */
+    private function appendUniqueString(array &$values, ?string $value): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        if (!in_array($value, $values, true)) {
+            $values[] = $value;
+        }
     }
 
     /**

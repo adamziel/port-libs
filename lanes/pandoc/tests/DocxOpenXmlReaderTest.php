@@ -205,6 +205,77 @@ XML;
         $t->same(false, $inventory['word/_rels/missing-header.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-target', $inventory['word/media/orphan.png']['roles'], true), 'orphan relationship target role missing');
     },
+    'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="mp3" ContentType="audio/mpeg"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail" Target="https://example.test/review.png" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>' . "\n" .
+            '  <Relationship Id="rNarration" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio" Target="media/narration.mp3"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png"/>
+</Relationships>
+XML;
+        $parts['word/media/header.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $types = $document->attr('docx')['packageProvenance']['relationshipTypes'];
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $audioType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio';
+        $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
+        $image = $types[$imageType];
+        $audio = $types[$audioType];
+        $hyperlink = $types[$hyperlinkType];
+        $thumbnail = $types[$thumbnailType];
+
+        $t->same('image', $image['label']);
+        $t->same(3, $image['count']);
+        $t->same(3, $image['internalCount']);
+        $t->same(0, $image['externalCount']);
+        $t->same(2, $image['existingTargetCount']);
+        $t->same(1, $image['missingTargetCount']);
+        $t->true(in_array('word/_rels/document.xml.rels', $image['relationshipParts'], true), 'document image relationship bucket missing');
+        $t->true(in_array('word/_rels/header1.xml.rels', $image['relationshipParts'], true), 'header image relationship bucket missing');
+        $t->true(in_array('word/media/review.png', $image['existingTargetParts'], true), 'existing document image target missing');
+        $t->true(in_array('word/media/header.png', $image['existingTargetParts'], true), 'existing header image target missing');
+        $t->same(['word/media/missing.png'], $image['missingTargetParts']);
+        $t->same('rMissingImage', $image['relationships'][1]['id']);
+        $t->same(false, $image['relationships'][1]['exists']);
+        $t->same('image/png', $image['relationships'][1]['contentType']);
+
+        $t->same('audio', $audio['label']);
+        $t->same(1, $audio['missingTargetCount']);
+        $t->same(['word/media/narration.mp3'], $audio['missingTargetParts']);
+        $t->same(['audio/mpeg'], $audio['contentTypes']);
+        $t->same('rNarration', $audio['relationships'][0]['id']);
+
+        $t->same(1, $hyperlink['externalCount']);
+        $t->same(['https://example.test/source?post=42'], $hyperlink['externalTargets']);
+        $t->same(null, $hyperlink['relationships'][0]['targetPart']);
+
+        $t->same('thumbnail', $thumbnail['label']);
+        $t->same(1, $thumbnail['externalCount']);
+        $t->same(['https://example.test/review.png'], $thumbnail['externalTargets']);
+        $t->same(['_rels/.rels'], $thumbnail['relationshipParts']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
