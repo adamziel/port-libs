@@ -1999,6 +1999,72 @@ return [
         $t->same('timestamp provenance should remain inspectable', $package->read('/word/media/reviewer-note.txt'));
     },
 
+    'preflights raw zip modification times before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $centralModifiedAt = 1780479017;
+        $centralTimestampExtra = pack('vvCV', 0x5455, 5, 0x01, $centralModifiedAt);
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/spoofed-document.xml',
+                'data' => '<w:document><w:p>raw timestamp policy</w:p></w:document>',
+                'method' => 0,
+                'modifiedTime' => 19400,
+                'modifiedDate' => 23747,
+                'localExtra' => '',
+                'centralExtra' => $centralTimestampExtra,
+            ],
+            [
+                'name' => 'word/media/bad-date.txt',
+                'data' => 'invalid DOS timestamp remains visible before construction',
+                'method' => 0,
+                'modifiedTime' => 0,
+                'modifiedDate' => 0x0020,
+            ],
+        ]);
+        $summary = ZipPackage::modificationTimePolicyPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['totalEntryCount']);
+        $t->same(1, $summary['timestampEntryCount']);
+        $t->same(2, $summary['dosTimestampEntryCount']);
+        $t->same(1, $summary['extendedTimestampEntryCount']);
+        $t->same(0, $summary['ntfsTimestampEntryCount']);
+        $t->same(1, $summary['invalidDosTimestampEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(['invalid-modification-times'], $summary['issues']);
+
+        $first = $summary['entries'][0];
+        $t->same('word/document.xml', $first['name']);
+        $t->same('word/document.xml', $first['rawName']);
+        $t->same(0, $first['centralDirectoryIndex']);
+        $t->same(19400, $first['modifiedDosTime']);
+        $t->same(23747, $first['modifiedDosDate']);
+        $t->same(true, $first['hasDosTimestamp']);
+        $t->same(true, $first['isDosTimestampValid']);
+        $t->same(1780479016, $first['dosModifiedAt']);
+        $t->same($centralModifiedAt, $first['extendedModifiedAt']);
+        $t->same($centralModifiedAt, $first['modifiedAt']);
+        $t->same('extended-timestamp', $first['timestampSource']);
+        $t->same([], $first['issues']);
+
+        $invalid = $summary['invalidDosTimestampEntries'][0];
+        $t->same('word/media/bad-date.txt', $invalid['name']);
+        $t->same(false, $invalid['isDosTimestampValid']);
+        $t->same(null, $invalid['dosModifiedAt']);
+        $t->same(null, $invalid['modifiedAt']);
+        $t->same(['invalid-dos-modified-timestamp'], $invalid['issues']);
+
+        $t->same($summary, $rawStrict['modificationTimes']);
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same(null, $rawStrict['strictImport']);
+        $t->contains('invalid-modification-times', implode(',', $rawStrict['diagnostics']));
+        $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects unsupported zip extraction versions before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($buildZipPackage([
             [
