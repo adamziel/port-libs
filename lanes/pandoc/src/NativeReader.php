@@ -995,11 +995,13 @@ final class NativeReader
     private function quotedInline(array $attrs, mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Pandoc native JSON Quoted inline content');
-        $quoteTypeConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON quote type');
+        $quoteTypeNative = $tuple[0];
+        $quoteTypeConstructor = $this->constructorTag($quoteTypeNative, 'Pandoc native JSON quote type');
 
         return new AstNode('quoted', array_replace($attrs, [
             'kind' => $this->quoteTypeFromConstructor($quoteTypeConstructor),
             'quoteTypeConstructor' => $quoteTypeConstructor,
+            'quoteTypeNative' => $quoteTypeNative,
         ]), $this->inlines($tuple[1]));
     }
 
@@ -1028,11 +1030,13 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON Math inline content must contain text');
         }
 
-        $mathTypeConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON math type');
+        $mathTypeNative = $tuple[0];
+        $mathTypeConstructor = $this->constructorTag($mathTypeNative, 'Pandoc native JSON math type');
 
         return new AstNode('math', array_replace($attrs, [
             'display' => $this->mathDisplayFromConstructor($mathTypeConstructor),
             'mathTypeConstructor' => $mathTypeConstructor,
+            'mathTypeNative' => $mathTypeNative,
             'text' => $tuple[1],
         ]));
     }

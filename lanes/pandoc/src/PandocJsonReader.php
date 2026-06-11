@@ -928,10 +928,13 @@ final class PandocJsonReader
     private function readQuotedInline(mixed $content): AstNode
     {
         $tuple = $this->tuple($content, 2, 'Quoted');
+        $quoteTypeNative = $tuple[0];
+        $quoteTypeConstructor = $this->enumTag($quoteTypeNative, 'quote type');
 
         return new AstNode('quoted', [
-            'kind' => $this->quoteTypeFromConstructor($this->enumTag($tuple[0], 'quote type')),
-            'quoteTypeConstructor' => $this->enumTag($tuple[0], 'quote type'),
+            'kind' => $this->quoteTypeFromConstructor($quoteTypeConstructor),
+            'quoteTypeConstructor' => $quoteTypeConstructor,
+            'quoteTypeNative' => $quoteTypeNative,
         ], $this->readInlines($this->listContent($tuple[1], 'Quoted inlines')));
     }
 
@@ -952,11 +955,13 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Math text must be a string');
         }
 
-        $mathTypeConstructor = $this->enumTag($tuple[0], 'Math type');
+        $mathTypeNative = $tuple[0];
+        $mathTypeConstructor = $this->enumTag($mathTypeNative, 'Math type');
 
         return new AstNode('math', [
             'display' => $mathTypeConstructor === 'DisplayMath',
             'mathTypeConstructor' => $mathTypeConstructor,
+            'mathTypeNative' => $mathTypeNative,
             'text' => $tuple[1],
         ]);
     }

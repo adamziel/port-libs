@@ -1282,10 +1282,13 @@ return [
             $t->same('TwoParens', $orderedList->attr('listDelimiterConstructor'), "{$source} list delimiter constructor");
             $t->same('single', $quoted->attr('kind'), "{$source} quote kind");
             $t->same('SingleQuote', $quoted->attr('quoteTypeConstructor'), "{$source} quote type constructor");
+            $t->same(['t' => 'SingleQuote'], $quoted->attr('quoteTypeNative'), "{$source} quote type native payload");
             $t->same(false, $mathNodes[0]->attr('display'), "{$source} inline math display flag");
             $t->same('InlineMath', $mathNodes[0]->attr('mathTypeConstructor'), "{$source} inline math constructor");
+            $t->same(['t' => 'InlineMath'], $mathNodes[0]->attr('mathTypeNative'), "{$source} inline math native payload");
             $t->same(true, $mathNodes[1]->attr('display'), "{$source} display math flag");
             $t->same('DisplayMath', $mathNodes[1]->attr('mathTypeConstructor'), "{$source} display math constructor");
+            $t->same(['t' => 'DisplayMath'], $mathNodes[1]->attr('mathTypeNative'), "{$source} display math native payload");
             $t->same(['right', 'default'], $table->attr('alignments'), "{$source} table alignments");
             $t->same([0.4, null], $table->attr('widths'), "{$source} table widths");
             $t->same(['AlignRight', 'AlignDefault'], $table->attr('alignmentConstructors'), "{$source} table alignment constructors");
@@ -1298,6 +1301,55 @@ return [
             $t->same('RowSpan', $cell->attr('rowSpanConstructor'), "{$source} cell row span constructor");
             $t->same(2, $cell->attr('colspan'), "{$source} cell column span");
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
+        }
+    },
+    'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        ['t' => 'SingleQuote'],
+                        [['t' => 'Str', 'c' => 'quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        ['t' => 'InlineMath'],
+                        'x + 1',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        ['t' => 'DisplayMath'],
+                        'y = 2',
+                    ]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $quoted = $paragraph->children[0];
+            $inlineMath = $paragraph->children[2];
+            $displayMath = $paragraph->children[4];
+
+            $t->same('quoted', $quoted->type, "{$source} quoted type");
+            $t->same('single', $quoted->attr('kind'), "{$source} quote kind");
+            $t->same('SingleQuote', $quoted->attr('quoteTypeConstructor'), "{$source} quote constructor");
+            $t->same(['t' => 'SingleQuote'], $quoted->attr('quoteTypeNative'), "{$source} quote native payload");
+            $t->same('math', $inlineMath->type, "{$source} inline math type");
+            $t->same(false, $inlineMath->attr('display'), "{$source} inline math display flag");
+            $t->same('InlineMath', $inlineMath->attr('mathTypeConstructor'), "{$source} inline math constructor");
+            $t->same(['t' => 'InlineMath'], $inlineMath->attr('mathTypeNative'), "{$source} inline math native payload");
+            $t->same('math', $displayMath->type, "{$source} display math type");
+            $t->same(true, $displayMath->attr('display'), "{$source} display math flag");
+            $t->same('DisplayMath', $displayMath->attr('mathTypeConstructor'), "{$source} display math constructor");
+            $t->same(['t' => 'DisplayMath'], $displayMath->attr('mathTypeNative'), "{$source} display math native payload");
         }
     },
     'records ordered list style and delimiter native enum payloads on json and native ast' => static function (TestRunner $t): void {
