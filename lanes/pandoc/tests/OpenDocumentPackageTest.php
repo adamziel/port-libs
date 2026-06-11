@@ -412,6 +412,52 @@ XML;
         $t->same('missing-package-part', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
     },
+    'summarizes compact ODT manifest byte exposure and diagnostic buckets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            <<<'XML'
+  <manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64"/>
+  </manifest:file-entry>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/cover.png"/>
+  <manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Pictures/missing.jpg"/>
+XML,
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/cover.png', 'data' => 'COVERPNG', 'compressionMethod' => 0],
+            ]
+        ));
+        $review = $odt->summarize()['manifestReview'];
+
+        $t->same([
+            'directory-entry-no-bytes' => 1,
+            'encrypted-resource-bytes-blocked' => 1,
+            'missing-package-part' => 1,
+            'package-bytes-exposable' => 4,
+            'package-root-no-bytes' => 1,
+        ], $review['byteExposurePolicyCounts']);
+        $t->same(['content.xml', 'styles.xml', 'meta.xml', 'Pictures/cover.png'], $review['byteExposurePolicyPaths']['package-bytes-exposable']);
+        $t->same(['Pictures/'], $review['byteExposurePolicyPaths']['directory-entry-no-bytes']);
+        $t->same(['Pictures/hero.png'], $review['byteExposurePolicyPaths']['encrypted-resource-bytes-blocked']);
+        $t->same(['Pictures/missing.jpg'], $review['byteExposurePolicyPaths']['missing-package-part']);
+        $t->same(['/'], $review['byteExposurePolicyPaths']['package-root-no-bytes']);
+
+        $t->same([
+            'odf-manifest-declared-size-mismatch' => 1,
+            'odf-manifest-directory-entry' => 1,
+            'odf-manifest-encrypted-package-part' => 1,
+            'odf-manifest-missing-package-part' => 1,
+        ], $review['diagnosticCounts']);
+        $t->same(['Pictures/hero.png'], $review['diagnosticPaths']['odf-manifest-declared-size-mismatch']);
+        $t->same(['Pictures/'], $review['diagnosticPaths']['odf-manifest-directory-entry']);
+        $t->same(['Pictures/hero.png'], $review['diagnosticPaths']['odf-manifest-encrypted-package-part']);
+        $t->same(['Pictures/missing.jpg'], $review['diagnosticPaths']['odf-manifest-missing-package-part']);
+    },
     'reports compact ODT ZIP compression provenance without exposing unsupported bytes' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $sourceBytes = 'SIDECAR-RAW';
         $manifest = str_replace(

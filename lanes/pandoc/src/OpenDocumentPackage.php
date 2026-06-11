@@ -564,6 +564,10 @@ final class OpenDocumentPackage
             'unsupportedCompressionMethodCount' => 0,
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
+            'byteExposurePolicyCounts' => [],
+            'byteExposurePolicyPaths' => [],
+            'diagnosticCounts' => [],
+            'diagnosticPaths' => [],
             'items' => [],
             'missingItems' => [],
             'directoryItems' => [],
@@ -574,6 +578,19 @@ final class OpenDocumentPackage
         foreach ($entries as $entry) {
             $item = self::manifestReviewItem($entry);
             $summary['items'][] = $item;
+            $byteExposurePolicy = $item['byteExposurePolicy'] ?? null;
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $summary['byteExposurePolicyCounts'][$byteExposurePolicy] = ($summary['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+                $summary['byteExposurePolicyPaths'][$byteExposurePolicy][] = $item['path'];
+            }
+            foreach ($item['diagnostics'] as $diagnostic) {
+                if (!is_string($diagnostic) || $diagnostic === '') {
+                    continue;
+                }
+
+                $summary['diagnosticCounts'][$diagnostic] = ($summary['diagnosticCounts'][$diagnostic] ?? 0) + 1;
+                $summary['diagnosticPaths'][$diagnostic][] = $item['path'];
+            }
             if (($entry['exists'] ?? false) === true) {
                 ++$summary['existsCount'];
             } else {
@@ -612,6 +629,11 @@ final class OpenDocumentPackage
                 ++$summary['unsupportedCompressionMethodCount'];
             }
         }
+
+        ksort($summary['byteExposurePolicyCounts']);
+        ksort($summary['byteExposurePolicyPaths']);
+        ksort($summary['diagnosticCounts']);
+        ksort($summary['diagnosticPaths']);
 
         return $summary;
     }
