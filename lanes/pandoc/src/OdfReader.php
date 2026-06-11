@@ -438,13 +438,13 @@ final class OdfReader
             $isDirectory = is_string($part) && str_ends_with($part, '/');
             $exists = $part === null || $isDirectory || $package->has($part);
             $zipEntry = $exists && $part !== null && !$isDirectory ? $package->entry($part) : null;
-            $byteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
+            $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === 0 || $compressionMethod === 8;
             $declaredSizeMismatch = !$encrypted
                 && $declaredSize !== null
-                && $byteLength !== null
-                && $declaredSize !== $byteLength;
+                && $storedByteLength !== null
+                && $declaredSize !== $storedByteLength;
 
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
             $canExposeBytes = !$encrypted
@@ -460,11 +460,13 @@ final class OdfReader
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
                 'isDirectory' => $isDirectory,
-                'byteLength' => $byteLength,
+                'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
+                'storedByteLength' => $storedByteLength,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
                 'compressionMethod' => $compressionMethod,
                 'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
-                'crc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
+                'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
                 'declaredSizeMismatch' => $declaredSizeMismatch,
                 'encrypted' => $encrypted,
@@ -11722,6 +11724,7 @@ final class OdfReader
             $encrypted = ($item['encrypted'] ?? false) === true;
             $declaredSizeMismatch = ($item['declaredSizeMismatch'] ?? false) === true;
             $byteLength = $item['byteLength'] ?? null;
+            $storedByteLength = $item['storedByteLength'] ?? null;
             $compressedByteLength = $item['compressedByteLength'] ?? null;
             $declaredSize = $item['declaredSize'] ?? null;
             $compressionMethod = $item['compressionMethod'] ?? null;
@@ -11738,11 +11741,11 @@ final class OdfReader
             if ($declaredSizeMismatch) {
                 ++$summary['declaredSizeMismatchCount'];
             }
-            if (is_int($byteLength)) {
-                $summary['storedByteLength'] += $byteLength;
-                if (($item['canExposeBytes'] ?? false) === true) {
-                    $summary['exposableByteLength'] += $byteLength;
-                }
+            if (is_int($storedByteLength)) {
+                $summary['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($byteLength) && ($item['canExposeBytes'] ?? false) === true) {
+                $summary['exposableByteLength'] += $byteLength;
             }
             if (is_int($compressedByteLength)) {
                 $summary['compressedByteLength'] += $compressedByteLength;
@@ -11801,11 +11804,11 @@ final class OdfReader
             if ($declaredSizeMismatch) {
                 ++$groups[$mediaType]['declaredSizeMismatchCount'];
             }
-            if (is_int($byteLength)) {
-                $groups[$mediaType]['storedByteLength'] += $byteLength;
-                if (($item['canExposeBytes'] ?? false) === true) {
-                    $groups[$mediaType]['exposableByteLength'] += $byteLength;
-                }
+            if (is_int($storedByteLength)) {
+                $groups[$mediaType]['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($byteLength) && ($item['canExposeBytes'] ?? false) === true) {
+                $groups[$mediaType]['exposableByteLength'] += $byteLength;
             }
             if (is_int($compressedByteLength)) {
                 $groups[$mediaType]['compressedByteLength'] += $compressedByteLength;
@@ -11871,7 +11874,9 @@ final class OdfReader
                 'mediaType' => $item['mediaType'] ?? null,
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'byteLength' => $item['byteLength'] ?? null,
+                'storedByteLength' => $item['storedByteLength'] ?? null,
                 'crc32' => $item['crc32'] ?? null,
+                'storedCrc32' => $item['storedCrc32'] ?? null,
             ]);
         }
 

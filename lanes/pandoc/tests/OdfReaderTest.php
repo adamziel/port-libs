@@ -9118,12 +9118,14 @@ XML;
         $t->same('deflated', $manifestByPath['content.xml']['compressionMethodName']);
 
         $sidecar = $manifestByPath['Pictures/source.raw'];
-        $t->same(strlen($sourceBytes), $sidecar['byteLength']);
+        $t->same(null, $sidecar['byteLength']);
+        $t->same(strlen($sourceBytes), $sidecar['storedByteLength']);
         $t->same(strlen($sourceBytes), $sidecar['compressedByteLength']);
         $t->same(12, $sidecar['compressionMethod']);
         $t->same('unsupported', $sidecar['compressionMethodName']);
         $t->same(false, $sidecar['canExposeBytes']);
-        $t->same(sprintf('%08x', crc32($sourceBytes)), $sidecar['crc32']);
+        $t->same(null, $sidecar['crc32']);
+        $t->same(sprintf('%08x', crc32($sourceBytes)), $sidecar['storedCrc32']);
 
         $sidecarMedia = $mediaByPart['Pictures/source.raw'];
         $t->same(true, $sidecarMedia['exists']);
@@ -9211,6 +9213,10 @@ XML;
         $heroManifest = $manifestByPath['Pictures/hero.png'];
         $t->same(true, $heroManifest['encrypted']);
         $t->same(false, $heroManifest['canExposeBytes']);
+        $t->same(null, $heroManifest['byteLength']);
+        $t->same(7, $heroManifest['storedByteLength']);
+        $t->same(null, $heroManifest['crc32']);
+        $t->same(sprintf('%08x', crc32('PNGDATA')), $heroManifest['storedCrc32']);
         $t->same(2048, $heroManifest['declaredSize']);
         $t->same('SHA1/1K', $heroManifest['encryption']['checksumType']);
         $t->same('checksum-base64', $heroManifest['encryption']['checksum']);
