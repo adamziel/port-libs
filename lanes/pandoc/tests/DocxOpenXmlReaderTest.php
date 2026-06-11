@@ -1746,6 +1746,122 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'summarizes docx glossary document package parts from document relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/missing.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml?slot=building#glossary"/>' . "\n" .
+            '  <Relationship Id="rMissingGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/missing.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Review boilerplate"/>
+        <w:style w:val="BodyText"/>
+        <w:category><w:name w:val="General"/></w:category>
+        <w:gallery w:val="autoTxt"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p>
+          <w:r><w:t xml:space="preserve">Glossary </w:t></w:r>
+          <w:hyperlink r:id="rGlossarySource"><w:r><w:t>source</w:t></w:r></w:hyperlink>
+          <w:r><w:t xml:space="preserve"> entry.</w:t></w:r>
+        </w:p>
+      </w:docPartBody>
+    </w:docPart>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Reusable warning"/>
+        <w:category><w:name w:val="Warnings"/></w:category>
+        <w:gallery w:val="quickParts"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>Reusable warning text.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossarySource" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/glossary-source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $glossaryDocuments = $docx['glossaryDocuments'];
+        $glossary = $glossaryDocuments['byRelationshipId']['rGlossary'];
+        $missing = $glossaryDocuments['byRelationshipId']['rMissingGlossary'];
+        $firstEntry = $glossary['entries'][0];
+        $secondEntry = $glossary['entries'][1];
+        $package = $docx['packageProvenance'];
+        $glossaryType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+
+        $t->same(2, $glossaryDocuments['count']);
+        $t->same(1, $glossaryDocuments['existingCount']);
+        $t->same(1, $glossaryDocuments['missingCount']);
+        $t->same(1, $glossaryDocuments['validRootCount']);
+        $t->same(2, $glossaryDocuments['docPartCount']);
+        $t->same(['rGlossary', 'rMissingGlossary'], $glossaryDocuments['relationshipIds']);
+        $t->same(['word/glossary/document.xml', 'word/glossary/missing.xml'], $glossaryDocuments['partNames']);
+        $t->same(['Review boilerplate', 'Reusable warning'], $glossaryDocuments['entryNames']);
+
+        $t->same('word/glossary/document.xml', $glossary['partName']);
+        $t->same(true, $glossary['exists']);
+        $t->same(true, $glossary['validRoot']);
+        $t->same('glossaryDocument', $glossary['rootName']);
+        $t->same('word/glossary/_rels/document.xml.rels', $glossary['relationshipsPart']);
+        $t->same(1, $glossary['relationshipCount']);
+        $t->same(2, $glossary['docPartCount']);
+        $t->same(2, $glossary['blockCount']);
+        $t->same('Glossary source entry. Reusable warning text.', $glossary['text']);
+        $t->same('glossary/document.xml?slot=building#glossary', $glossary['relationship']['target']);
+        $t->same('word/glossary/document.xml?slot=building#glossary', $glossary['relationship']['resolvedTarget']);
+        $t->same('word/glossary/document.xml', $glossary['relationship']['targetPart']);
+        $t->same('slot=building', $glossary['relationship']['targetQuery']);
+        $t->same('glossary', $glossary['relationship']['targetFragment']);
+        $t->same('?slot=building#glossary', $glossary['relationship']['targetReferenceSuffix']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $glossary['relationship']['contentType']);
+        $t->same('override', $glossary['relationship']['contentTypeSource']);
+
+        $t->same('Review boilerplate', $firstEntry['name']);
+        $t->same('autoTxt', $firstEntry['gallery']);
+        $t->same('General', $firstEntry['category']);
+        $t->same('BodyText', $firstEntry['styleId']);
+        $t->same(1, $firstEntry['blockCount']);
+        $t->same('Glossary source entry.', $firstEntry['text']);
+        $t->same('Reusable warning', $secondEntry['name']);
+        $t->same('quickParts', $secondEntry['gallery']);
+        $t->same('Warnings', $secondEntry['category']);
+        $t->same('Reusable warning text.', $secondEntry['text']);
+
+        $t->same('word/glossary/missing.xml', $missing['partName']);
+        $t->same(false, $missing['exists']);
+        $t->same(false, $missing['validRoot']);
+        $t->same(0, $missing['docPartCount']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $missing['relationship']['contentType']);
+        $t->same(2, $package['relationshipTypes'][$glossaryType]['count']);
+        $t->same(1, $package['relationshipTypes'][$glossaryType]['existingTargetCount']);
+        $t->same(1, $package['relationshipTypes'][$glossaryType]['missingTargetCount']);
+        $t->same('word/glossary/document.xml', $package['relationshipTypes'][$glossaryType]['existingTargetParts'][0]);
+        $t->same('word/glossary/missing.xml', $package['relationshipTypes'][$glossaryType]['missingTargetParts'][0]);
+        $t->same(true, $package['relationshipParts']['word/glossary/_rels/document.xml.rels']['relationships']['rGlossarySource']['external']);
+        $t->same(6, count($document->children));
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

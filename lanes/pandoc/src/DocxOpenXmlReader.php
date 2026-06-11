@@ -37,6 +37,7 @@ final class DocxOpenXmlReader
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
     private const CUSTOM_XML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+    private const GLOSSARY_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
@@ -194,6 +195,15 @@ final class DocxOpenXmlReader
             $numbering,
             $referencedNotes,
         );
+        $glossaryDocuments = $this->readGlossaryDocumentParts(
+            $parts,
+            $documentRelationships,
+            $documentPart,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes,
+        );
         $alternativeFormats = $this->readAlternativeFormatImports(
             $parts,
             $parts[$documentPart],
@@ -282,6 +292,7 @@ final class DocxOpenXmlReader
                 'comments' => $comments['summary'],
                 'headers' => $headers,
                 'footers' => $footers,
+                'glossaryDocuments' => $glossaryDocuments,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
                 'customXmlParts' => $customXmlParts,
@@ -958,6 +969,157 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array{count:int, existingCount:int, missingCount:int, validRootCount:int, docPartCount:int, relationshipIds:list<string>, partNames:list<string>, entryNames:list<string>, byRelationshipId:array<string, array<string, mixed>>, items:list<array<string, mixed>>}
+     */
+    private function readGlossaryDocumentParts(
+        array $parts,
+        array $relationships,
+        string $documentPart,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $existingCount = 0;
+        $missingCount = 0;
+        $validRootCount = 0;
+        $docPartCount = 0;
+        $entryNames = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::GLOSSARY_DOCUMENT_REL || $relationship['targetMode'] === 'External') {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            $partName = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            $exists = isset($parts[$partName]);
+            $partRelationshipsPart = $this->relationshipsPartFor($partName);
+            $partRelationships = $this->readRelationshipsPart($parts, $partRelationshipsPart);
+            $glossary = $exists
+                ? $this->readGlossaryDocumentPart($parts[$partName], $partName, $partRelationships, $contentTypes, $styles, $numbering, $referencedNotes)
+                : ['validRoot' => false, 'rootName' => null, 'entries' => [], 'blocks' => []];
+
+            if ($exists) {
+                ++$existingCount;
+            } else {
+                ++$missingCount;
+            }
+            if ($glossary['validRoot']) {
+                ++$validRootCount;
+            }
+            $docPartCount += count($glossary['entries']);
+            foreach ($glossary['entries'] as $entry) {
+                $this->appendUniqueString($entryNames, is_string($entry['name'] ?? null) ? $entry['name'] : null);
+            }
+
+            $item = [
+                'relationshipId' => $relationshipId,
+                'partName' => $partName,
+                'exists' => $exists,
+                'validRoot' => $glossary['validRoot'],
+                'rootName' => $glossary['rootName'],
+                'relationshipsPart' => $partRelationshipsPart,
+                'relationshipCount' => count($partRelationships),
+                'docPartCount' => count($glossary['entries']),
+                'entryNames' => array_values(array_filter(array_column($glossary['entries'], 'name'))),
+                'blockCount' => count($glossary['blocks']),
+                'text' => $this->plainBlockText($glossary['blocks']),
+                'entries' => $glossary['entries'],
+                'relationship' => $this->relationshipSummary($relationship, $documentPart, $relationshipsPart, $partName, $exists, $contentTypes),
+            ];
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+        }
+
+        return [
+            'count' => count($items),
+            'existingCount' => $existingCount,
+            'missingCount' => $missingCount,
+            'validRootCount' => $validRootCount,
+            'docPartCount' => $docPartCount,
+            'relationshipIds' => array_column($items, 'relationshipId'),
+            'partNames' => array_column($items, 'partName'),
+            'entryNames' => $entryNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array{validRoot:bool, rootName:?string, entries:list<array<string, mixed>>, blocks:list<AstNode>}
+     */
+    private function readGlossaryDocumentPart(
+        string $xml,
+        string $partName,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        if ($xml === '') {
+            return ['validRoot' => false, 'rootName' => null, 'entries' => [], 'blocks' => []];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['validRoot' => false, 'rootName' => null, 'entries' => [], 'blocks' => []];
+        }
+
+        $rootName = $root->localName;
+        if ($root->namespaceURI !== self::NS_W || $rootName !== 'glossaryDocument') {
+            return ['validRoot' => false, 'rootName' => $rootName, 'entries' => [], 'blocks' => []];
+        }
+
+        $xpath = $this->xpath($dom);
+        $entries = [];
+        $allBlocks = [];
+        foreach ($this->elements($xpath, '/w:glossaryDocument/w:docParts/w:docPart') as $index => $docPart) {
+            $properties = $this->childElement($docPart, 'docPartPr');
+            $body = $this->childElement($docPart, 'docPartBody');
+            $blocks = $body instanceof \DOMElement
+                ? $this->readNoteBlocks($body, $xpath, $relationships, $contentTypes, $styles, $numbering, $referencedNotes)
+                : [];
+            array_push($allBlocks, ...$blocks);
+
+            $category = $this->childElement($properties, 'category');
+            $entry = [
+                'index' => $index,
+                'name' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'name', 'val')) : null,
+                'gallery' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'gallery', 'val')) : null,
+                'category' => $category instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($category, 'name', 'val')) : null,
+                'styleId' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'style', 'val')) : null,
+                'blockCount' => count($blocks),
+                'text' => $this->plainBlockText($blocks),
+            ];
+            $entries[] = $entry;
+        }
+
+        return [
+            'validRoot' => true,
+            'rootName' => $rootName,
+            'entries' => $entries,
+            'blocks' => $allBlocks,
         ];
     }
 
