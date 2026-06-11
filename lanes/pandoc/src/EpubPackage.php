@@ -799,6 +799,11 @@ final class EpubPackage
         $usableNavItems = [];
         $invalidNavItems = [];
         $hrefSuffixItems = [];
+        $mediaTypeItems = [];
+        $mediaTypeParameterItems = [];
+        $mediaTypeParameterCount = 0;
+        $invalidMediaTypeItems = [];
+        $duplicateMediaTypeParameterItems = [];
         $missingItems = [];
         $parts = [];
         $ids = [];
@@ -807,7 +812,20 @@ final class EpubPackage
         foreach ($manifestItems as $index => $item) {
             $id = (string) ($item['id'] ?? '');
             $partName = (string) ($item['partName'] ?? '');
-            $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            $mediaTypeReport = self::manifestMediaTypeItemReport($item, $index);
+            $mediaType = $mediaTypeReport['baseMediaType'];
+            $mediaTypeItems[] = $mediaTypeReport;
+            $mediaTypeParameterCount += $mediaTypeReport['parameterCount'];
+            if ($mediaTypeReport['parameterCount'] > 0) {
+                $mediaTypeParameterItems[] = $mediaTypeReport;
+            }
+            if (!$mediaTypeReport['valid']) {
+                $invalidMediaTypeItems[] = $mediaTypeReport;
+            }
+            if ($mediaTypeReport['duplicateParameterCount'] > 0) {
+                $duplicateMediaTypeParameterItems[] = $mediaTypeReport;
+            }
+            array_push($diagnostics, ...$mediaTypeReport['diagnostics']);
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
             if ($id !== '') {
                 $ids[$id][] = [
@@ -984,6 +1002,10 @@ final class EpubPackage
             'duplicatePartCount' => count($duplicatePartItems),
             'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
+            'mediaTypeParameterizedItemCount' => count($mediaTypeParameterItems),
+            'mediaTypeParameterCount' => $mediaTypeParameterCount,
+            'invalidMediaTypeCount' => count($invalidMediaTypeItems),
+            'duplicateMediaTypeParameterCount' => count($duplicateMediaTypeParameterItems),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
@@ -993,6 +1015,10 @@ final class EpubPackage
             'duplicatePartItems' => $duplicatePartItems,
             'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
+            'mediaTypeItems' => $mediaTypeItems,
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
+            'invalidMediaTypeItems' => $invalidMediaTypeItems,
+            'duplicateMediaTypeParameterItems' => $duplicateMediaTypeParameterItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -6412,7 +6438,156 @@ final class EpubPackage
 
     private static function mediaTypeBase(string $mediaType): string
     {
-        return strtolower(trim(explode(';', $mediaType, 2)[0]));
+        return self::mediaTypeParts($mediaType)['base'];
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     normalized:string,
+     *     base:string,
+     *     parameters:array<string, string>,
+     *     parameterItems:list<array{index:int, raw:string, name:string, value:string, duplicate:bool, previousValue:?string}>,
+     *     duplicateParameters:list<array{index:int, raw:string, name:string, previousValue:string, value:string}>,
+     *     valid:bool,
+     *     diagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function mediaTypeParts(string $mediaType): array
+    {
+        $raw = trim($mediaType);
+        $tokens = array_map('trim', explode(';', $raw));
+        $base = strtolower(array_shift($tokens) ?? '');
+        $parameters = [];
+        $parameterItems = [];
+        $duplicateParameters = [];
+        $diagnostics = [];
+
+        if ($base === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+\/[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $base) !== 1) {
+            $diagnostics[] = [
+                'type' => 'invalid-manifest-media-type',
+                'mediaType' => $raw,
+                'baseMediaType' => $base,
+                'message' => 'EPUB OPF manifest media-type must be a MIME type in type/subtype form',
+            ];
+        }
+
+        foreach ($tokens as $index => $token) {
+            if ($token === '') {
+                continue;
+            }
+
+            if (!str_contains($token, '=')) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter',
+                    'mediaType' => $raw,
+                    'parameter' => $token,
+                    'parameterIndex' => $index,
+                    'message' => 'EPUB OPF manifest media-type parameters must use name=value syntax',
+                ];
+                continue;
+            }
+
+            [$name, $value] = array_pad(explode('=', $token, 2), 2, '');
+            $name = strtolower(trim($name));
+            if ($name === '' || preg_match('/^[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+$/', $name) !== 1) {
+                $diagnostics[] = [
+                    'type' => 'invalid-manifest-media-type-parameter-name',
+                    'mediaType' => $raw,
+                    'parameter' => $token,
+                    'parameterIndex' => $index,
+                    'name' => $name,
+                    'message' => 'EPUB OPF manifest media-type parameter names must be MIME tokens',
+                ];
+                continue;
+            }
+
+            $parameterValue = trim($value, " \t\n\r\0\x0B\"'");
+            $duplicate = isset($parameters[$name]);
+            $previousValue = $duplicate ? $parameters[$name] : null;
+            if ($duplicate) {
+                $duplicateParameters[] = [
+                    'index' => $index,
+                    'raw' => $token,
+                    'name' => $name,
+                    'previousValue' => (string) $previousValue,
+                    'value' => $parameterValue,
+                ];
+                $diagnostics[] = [
+                    'type' => 'duplicate-manifest-media-type-parameter',
+                    'mediaType' => $raw,
+                    'parameter' => $name,
+                    'parameterIndex' => $index,
+                    'previousValue' => $previousValue,
+                    'value' => $parameterValue,
+                    'message' => 'EPUB OPF manifest media-type parameter repeats a name; later value is retained for package review',
+                ];
+            }
+
+            $parameters[$name] = $parameterValue;
+            $parameterItems[] = [
+                'index' => $index,
+                'raw' => $token,
+                'name' => $name,
+                'value' => $parameterValue,
+                'duplicate' => $duplicate,
+                'previousValue' => $previousValue,
+            ];
+        }
+
+        $normalized = $base;
+        foreach ($parameters as $name => $value) {
+            $normalized .= '; ' . $name . '=' . strtolower($value);
+        }
+
+        return [
+            'raw' => $raw,
+            'normalized' => $normalized,
+            'base' => $base,
+            'parameters' => $parameters,
+            'parameterItems' => $parameterItems,
+            'duplicateParameters' => $duplicateParameters,
+            'valid' => $diagnostics === [],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return array<string, mixed>
+     */
+    private static function manifestMediaTypeItemReport(array $item, int $index): array
+    {
+        $id = (string) ($item['id'] ?? '');
+        $mediaType = (string) ($item['mediaType'] ?? '');
+        $parts = self::mediaTypeParts($mediaType);
+        $diagnostics = [];
+        foreach ($parts['diagnostics'] as $diagnostic) {
+            $diagnostics[] = [
+                'index' => $index,
+                'id' => $id,
+                'partName' => (string) ($item['partName'] ?? ''),
+            ] + $diagnostic;
+        }
+
+        return [
+            'index' => $index,
+            'id' => $id,
+            'href' => (string) ($item['href'] ?? ''),
+            'partName' => (string) ($item['partName'] ?? ''),
+            'mediaType' => $mediaType,
+            'baseMediaType' => $parts['base'],
+            'normalizedMediaType' => $parts['normalized'],
+            'mediaTypeParameters' => $parts['parameters'],
+            'parameterItems' => $parts['parameterItems'],
+            'parameterCount' => count($parts['parameterItems']),
+            'duplicateParameters' => $parts['duplicateParameters'],
+            'duplicateParameterCount' => count($parts['duplicateParameters']),
+            'valid' => $diagnostics === [],
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
     }
 
     /**

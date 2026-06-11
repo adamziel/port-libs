@@ -3186,4 +3186,97 @@ XML;
         $t->same(false, $missingPart->spine()[0]['manifestItemMissing']);
         $t->same($missingPartValidation, $missingPartSummary['wordpressImport']['packageValidation']);
     },
+
+    'reports OPF manifest media-type parameter provenance for package review' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="style" href="styles/book.css" media-type="text/css"/>',
+            '<item id="style" href="styles/book.css" media-type="text/css; charset=UTF-8; profile=print"/>',
+            $epub3OpfXml
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png; review-flag" properties="cover-image"/>',
+            $opfWithMediaTypeParameters
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml; charset=UTF-8; charset=windows-1252"/>',
+            $opfWithMediaTypeParameters
+        );
+        $opfWithMediaTypeParameters = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="review-packet" href="meta/review.packet" media-type="review-packet"/>',
+            $opfWithMediaTypeParameters
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithMediaTypeParameters],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/meta/review.packet', 'data' => 'REVIEW'],
+        ]));
+        $validation = $epub->validationReport();
+        $manifest = $validation['manifest'];
+        $summary = $epub->summary();
+        $itemsById = [];
+        foreach ($manifest['mediaTypeItems'] as $item) {
+            $itemsById[$item['id']] = $item;
+        }
+
+        $t->same(false, $validation['valid']);
+        $t->same([
+            'invalid-manifest-media-type-parameter',
+            'duplicate-manifest-media-type-parameter',
+            'invalid-manifest-media-type',
+        ], array_column($validation['diagnostics'], 'type'));
+        $t->same(6, $manifest['itemCount']);
+        $t->same(4, $manifest['mediaTypeParameterCount']);
+        $t->same(2, $manifest['mediaTypeParameterizedItemCount']);
+        $t->same(3, $manifest['invalidMediaTypeCount']);
+        $t->same(1, $manifest['duplicateMediaTypeParameterCount']);
+
+        $chapter = $itemsById['chapter1'];
+        $t->same('application/xhtml+xml; charset=UTF-8; charset=windows-1252', $chapter['mediaType']);
+        $t->same('application/xhtml+xml', $chapter['baseMediaType']);
+        $t->same('application/xhtml+xml; charset=windows-1252', $chapter['normalizedMediaType']);
+        $t->same(['charset' => 'windows-1252'], $chapter['mediaTypeParameters']);
+        $t->same(2, $chapter['parameterCount']);
+        $t->same(true, $chapter['parameterItems'][1]['duplicate']);
+        $t->same('UTF-8', $chapter['parameterItems'][1]['previousValue']);
+        $t->same('windows-1252', $chapter['duplicateParameters'][0]['value']);
+        $t->same('duplicate-manifest-media-type-parameter', $chapter['diagnostics'][0]['type']);
+        $t->same('chapter1', $chapter['diagnostics'][0]['id']);
+
+        $style = $itemsById['style'];
+        $t->same(true, $style['valid']);
+        $t->same('text/css', $style['baseMediaType']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'print'], $style['mediaTypeParameters']);
+        $t->same('text/css; charset=utf-8; profile=print', $style['normalizedMediaType']);
+        $t->same([], $style['diagnostics']);
+
+        $cover = $itemsById['cover'];
+        $t->same(false, $cover['valid']);
+        $t->same('image/png', $cover['baseMediaType']);
+        $t->same([], $cover['mediaTypeParameters']);
+        $t->same('invalid-manifest-media-type-parameter', $cover['diagnostics'][0]['type']);
+        $t->same('image/png; review-flag', $cover['diagnostics'][0]['mediaType']);
+
+        $reviewPacket = $itemsById['review-packet'];
+        $t->same(false, $reviewPacket['valid']);
+        $t->same('review-packet', $reviewPacket['baseMediaType']);
+        $t->same('invalid-manifest-media-type', $reviewPacket['diagnostics'][0]['type']);
+        $t->same('/EPUB/meta/review.packet', $reviewPacket['diagnostics'][0]['partName']);
+
+        $t->same(['style', 'chapter1'], array_column($manifest['mediaTypeParameterItems'], 'id'));
+        $t->same(['cover', 'chapter1', 'review-packet'], array_column($manifest['invalidMediaTypeItems'], 'id'));
+        $t->same(['chapter1'], array_column($manifest['duplicateMediaTypeParameterItems'], 'id'));
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+        $t->same($manifest['mediaTypeItems'], $summary['wordpressImport']['packageValidation']['manifest']['mediaTypeItems']);
+    },
 ];
