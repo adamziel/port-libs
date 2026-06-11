@@ -1384,6 +1384,127 @@ XML;
         $t->same(1, $relationshipTypes[$altChunkType]['externalCount']);
         $t->true(in_array('word/chunks/review.html', $relationshipTypes[$altChunkType]['existingTargetParts'], true), 'altChunk existing target missing from relationship type provenance');
     },
+    'summarizes docx macro project and attached template package relationships' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $vbaType = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $templateType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="bin" ContentType="application/vnd.ms-office.vbaProject"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/templates/review.dotm" ContentType="application/vnd.ms-word.template.macroEnabledTemplate.main+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rVbaProject" Type="' . $vbaType . '" Target="vbaProject.bin?project=review#macros"/>' . "\n" .
+            '  <Relationship Id="rMissingVba" Type="' . $vbaType . '" Target="missing-vba.bin"/>' . "\n" .
+            '  <Relationship Id="rRemoteVba" Type="' . $vbaType . '" Target="https://example.test/vbaProject.bin" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:attachedTemplate r:id="rTemplate"/>
+  <w:attachedTemplate r:id="rRemoteTemplate"/>
+</w:settings>
+XML;
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="templates/review.dotm?source=normal#template"/>
+  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="file:///C:/source-templates/review.dotx" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/vbaProject.bin'] = 'fake vba project bytes';
+        $parts['word/templates/review.dotm'] = 'fake template bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $macroProjects = $docx['macroProjects'];
+        $macro = $macroProjects['byRelationshipId']['rVbaProject'];
+        $missingMacro = $macroProjects['byRelationshipId']['rMissingVba'];
+        $remoteMacro = $macroProjects['byRelationshipId']['rRemoteVba'];
+        $templates = $docx['attachedTemplates'];
+        $template = $templates['byRelationshipId']['rTemplate'];
+        $remoteTemplate = $templates['byRelationshipId']['rRemoteTemplate'];
+        $settingsRelationships = $package['relationshipParts']['word/_rels/settings.xml.rels'];
+
+        $t->same(3, $macroProjects['count']);
+        $t->same(1, $macroProjects['existingCount']);
+        $t->same(1, $macroProjects['missingCount']);
+        $t->same(1, $macroProjects['externalCount']);
+        $t->same(['external-macro-project', 'missing-in-package'], $macroProjects['issueCodes']);
+        $t->same(['rVbaProject', 'rMissingVba', 'rRemoteVba'], $macroProjects['relationshipIds']);
+        $t->same(['word/vbaProject.bin', 'word/missing-vba.bin'], $macroProjects['partNames']);
+        $t->same('vbaProject.bin?project=review#macros', $macro['target']);
+        $t->same('word/vbaProject.bin?project=review#macros', $macro['resolvedTarget']);
+        $t->same('word/vbaProject.bin', $macro['partName']);
+        $t->same('project=review', $macro['targetQuery']);
+        $t->same('macros', $macro['targetFragment']);
+        $t->same('?project=review#macros', $macro['targetReferenceSuffix']);
+        $t->same(true, $macro['exists']);
+        $t->same(strlen('fake vba project bytes'), $macro['bytes']);
+        $t->same('application/vnd.ms-office.vbaProject', $macro['contentType']);
+        $t->same('application/vnd.ms-office.vbaproject', $macro['contentTypeBase']);
+        $t->same('default', $macro['contentTypeSource']);
+        $t->same('bin', $macro['defaultExtension']);
+        $t->same([], $macro['issues']);
+        $t->same('word/document.xml', $macro['relationship']['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $macro['relationship']['relationshipsPart']);
+        $t->same(false, $missingMacro['exists']);
+        $t->same('word/missing-vba.bin', $missingMacro['partName']);
+        $t->same('application/vnd.ms-office.vbaProject', $missingMacro['contentType']);
+        $t->same(['missing-in-package'], $missingMacro['issues']);
+        $t->same(true, $remoteMacro['external']);
+        $t->same(null, $remoteMacro['partName']);
+        $t->same(['external-macro-project'], $remoteMacro['issues']);
+
+        $t->same(2, $templates['count']);
+        $t->same(1, $templates['existingCount']);
+        $t->same(0, $templates['missingCount']);
+        $t->same(1, $templates['externalCount']);
+        $t->same(['external-attached-template'], $templates['issueCodes']);
+        $t->same(['rTemplate', 'rRemoteTemplate'], $templates['relationshipIds']);
+        $t->same(['word/templates/review.dotm'], $templates['partNames']);
+        $t->same($templates, $docx['settings']['attachedTemplates']);
+        $t->same($template, $docx['settings']['attachedTemplate']);
+        $t->same('templates/review.dotm?source=normal#template', $template['target']);
+        $t->same('word/templates/review.dotm?source=normal#template', $template['resolvedTarget']);
+        $t->same('word/templates/review.dotm', $template['targetPart']);
+        $t->same('source=normal', $template['targetQuery']);
+        $t->same('template', $template['targetFragment']);
+        $t->same(true, $template['exists']);
+        $t->same(strlen('fake template bytes'), $template['bytes']);
+        $t->same('application/vnd.ms-word.template.macroEnabledTemplate.main+xml', $template['contentType']);
+        $t->same('override', $template['contentTypeSource']);
+        $t->same([], $template['issues']);
+        $t->same(true, $remoteTemplate['external']);
+        $t->same('file:///C:/source-templates/review.dotx', $remoteTemplate['target']);
+        $t->same(null, $remoteTemplate['targetPart']);
+        $t->same(['external-attached-template'], $remoteTemplate['issues']);
+
+        $t->same('word/settings.xml', $settingsRelationships['sourcePart']);
+        $t->same(2, $settingsRelationships['relationshipCount']);
+        $t->same('word/templates/review.dotm', $settingsRelationships['relationships']['rTemplate']['targetPart']);
+        $t->true(in_array('document-relationship-target', $package['parts']['word/vbaProject.bin']['roles'], true), 'vba project package role missing');
+        $t->true(in_array('relationship-target', $package['parts']['word/templates/review.dotm']['roles'], true), 'attached template package role missing');
+        $t->same(3, $package['relationshipTypes'][$vbaType]['count']);
+        $t->same(1, $package['relationshipTypes'][$vbaType]['externalCount']);
+        $t->same(1, $package['relationshipTypes'][$vbaType]['missingTargetCount']);
+        $t->same(2, $package['relationshipTypes'][$templateType]['count']);
+        $t->same(1, $package['relationshipTypes'][$templateType]['externalCount']);
+        $t->same(['word/templates/review.dotm'], $package['relationshipTypes'][$templateType]['existingTargetParts']);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

@@ -34,6 +34,9 @@ final class DocxOpenXmlReader
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+    private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+    private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+    private const VBA_PROJECT_CONTENT_TYPE_BASE = 'application/vnd.ms-office.vbaproject';
 
     public function readFile(string $path): AstNode
     {
@@ -92,7 +95,21 @@ final class DocxOpenXmlReader
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
         $numbering = $this->readNumbering($numberingPart['xml'], $numberingPart['partName']);
         $settingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::SETTINGS_REL, 'settings.xml');
+        $settingsRelationshipsPart = $this->relationshipsPartFor($settingsPart['partName']);
+        $settingsRelationships = $this->readRelationshipsPart($parts, $settingsRelationshipsPart);
         $settings = $this->readSettings($settingsPart['xml'], $settingsPart['partName']);
+        $attachedTemplates = $this->readAttachedTemplates(
+            $parts,
+            $settingsPart['xml'],
+            $settingsPart['partName'],
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
+        if ($attachedTemplates['count'] > 0) {
+            $settings['attachedTemplates'] = $attachedTemplates;
+            $settings['attachedTemplate'] = $attachedTemplates['items'][0];
+        }
         $webSettingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::WEB_SETTINGS_REL, 'webSettings.xml');
         $webSettings = $this->readWebSettings($webSettingsPart['xml'], $webSettingsPart['partName']);
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
@@ -181,6 +198,7 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $macroProjects = $this->readMacroProjects($parts, $documentRelationships, $documentPart, $contentTypes);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -216,6 +234,8 @@ final class DocxOpenXmlReader
                 'headers' => $headers,
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
+                'macroProjects' => $macroProjects,
+                'attachedTemplates' => $attachedTemplates,
                 'media' => $media,
             ],
         ];
@@ -975,6 +995,250 @@ final class DocxOpenXmlReader
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readMacroProjects(array $parts, array $relationships, string $documentPart, array $contentTypes): array
+    {
+        $items = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::VBA_PROJECT_REL) {
+                continue;
+            }
+
+            $item = $this->relationshipDeclaredPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationship['id'],
+                count($items),
+            );
+            $item['expectedContentTypeBase'] = self::VBA_PROJECT_CONTENT_TYPE_BASE;
+
+            if ($item['external'] === true) {
+                $item['issues'][] = 'external-macro-project';
+            } elseif ($item['exists'] !== true) {
+                $item['issues'][] = 'missing-in-package';
+            } elseif ($item['contentTypeSource'] === 'missing') {
+                $item['issues'][] = 'missing-content-type';
+            } elseif ($item['contentTypeBase'] !== self::VBA_PROJECT_CONTENT_TYPE_BASE) {
+                $item['issues'][] = 'unexpected-content-type';
+            }
+
+            $item['issues'] = array_values(array_unique($item['issues']));
+            $items[] = $item;
+        }
+
+        return $this->relationshipDeclaredPartCollection($items);
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readAttachedTemplates(
+        array $parts,
+        string $xml,
+        string $settingsPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        if ($xml === '') {
+            return $this->relationshipDeclaredPartCollection([]);
+        }
+
+        $dom = $this->loadXml($xml, $settingsPart);
+        $xpath = $this->xpath($dom);
+        $items = [];
+
+        foreach ($this->elements($xpath, '/w:settings/w:attachedTemplate') as $template) {
+            $relationshipId = $template->getAttributeNS(self::NS_R, 'id');
+            $relationship = $relationshipId === '' ? null : ($relationships[$relationshipId] ?? null);
+            $item = $this->relationshipDeclaredPartItem(
+                $parts,
+                $relationship,
+                $settingsPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+            );
+
+            if ($relationshipId !== '' && is_array($relationship)) {
+                if ($relationship['type'] !== self::ATTACHED_TEMPLATE_REL) {
+                    $item['issues'][] = 'unexpected-relationship-type';
+                }
+                if ($item['external'] === true) {
+                    $item['issues'][] = 'external-attached-template';
+                } elseif ($item['exists'] !== true) {
+                    $item['issues'][] = 'missing-in-package';
+                } elseif ($item['contentTypeSource'] === 'missing') {
+                    $item['issues'][] = 'missing-content-type';
+                }
+            }
+
+            $item['issues'] = array_values(array_unique($item['issues']));
+            $items[] = $item;
+        }
+
+        return $this->relationshipDeclaredPartCollection($items);
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function relationshipDeclaredPartItem(
+        array $parts,
+        ?array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'sourcePart' => $sourcePart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'bytes' => 0,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'relationship' => null,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        return $item;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, mixed>
+     */
+    private function relationshipDeclaredPartCollection(array $items): array
+    {
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $issueCounts = [];
+        $existingCount = 0;
+        $missingCount = 0;
+        $externalCount = 0;
+        $unresolvedCount = 0;
+        $issueCount = 0;
+
+        foreach ($items as $item) {
+            $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $issues = is_array($item['issues'] ?? null) ? $item['issues'] : [];
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($partNames, $partName);
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            if (($item['exists'] ?? false) === true) {
+                ++$existingCount;
+            }
+            if (($item['external'] ?? false) === true) {
+                ++$externalCount;
+            }
+            if (in_array('missing-in-package', $issues, true)) {
+                ++$missingCount;
+            }
+            if (in_array('missing-relationship-id', $issues, true) || in_array('unknown-relationship', $issues, true)) {
+                ++$unresolvedCount;
+            }
+            foreach ($issues as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+                ++$issueCount;
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            }
+        }
+
+        ksort($issueCounts);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($relationshipIds),
+            'existingCount' => $existingCount,
+            'missingCount' => $missingCount,
+            'externalCount' => $externalCount,
+            'unresolvedCount' => $unresolvedCount,
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCounts),
+            'issueCounts' => $issueCounts,
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
     }
 
     /**
