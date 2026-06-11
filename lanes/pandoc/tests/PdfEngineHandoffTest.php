@@ -122,6 +122,11 @@ return [
             'packageCache' => ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
             'inputVariables' => [],
             'issues' => ['package-cache-external-boundary'],
+            'dependencyOutput' => [
+                'path' => ['raw' => 'build/boundary.d', 'path' => 'build/boundary.d', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+                'format' => null,
+                'issues' => [],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -145,6 +150,7 @@ return [
         $t->contains('typst-font-paths:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-path:vendor/typst-packages', implode(',', $plan['diagnostics']));
         $t->contains('typst-package-cache:https://cache.example.invalid/typst', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:build/boundary.d', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
@@ -1131,6 +1137,95 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $externalResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst dependency output sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/deps-output-boundary.pdf',
+            'source' => '= Typst Dependency Output Boundary Packet',
+            'engineOptions' => [
+                '--make-deps=build/deps-output-boundary.d',
+                '--deps',
+                'https://deps.example.invalid/review.d',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst dependency output boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'dependency-output-external-boundary',
+                'dependency-output-boundary-overridden',
+            ],
+            'dependencyOutput' => [
+                'path' => [
+                    'raw' => 'https://deps.example.invalid/review.d',
+                    'path' => 'https://deps.example.invalid/review.d',
+                    'kind' => 'uri',
+                    'safe' => false,
+                    'issues' => ['dependency-output-external-boundary'],
+                ],
+                'format' => null,
+                'issues' => ['dependency-output-external-boundary'],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'dependencyOutput',
+                    'count' => 2,
+                    'values' => ['build/deps-output-boundary.d', 'https://deps.example.invalid/review.d'],
+                    'selected' => 'https://deps.example.invalid/review.d',
+                    'issue' => 'dependency-output-boundary-overridden',
+                ],
+            ],
+            'dependencyOutputHistory' => [
+                [
+                    'raw' => 'build/deps-output-boundary.d',
+                    'path' => 'build/deps-output-boundary.d',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'https://deps.example.invalid/review.d',
+                    'path' => 'https://deps.example.invalid/review.d',
+                    'kind' => 'uri',
+                    'safe' => false,
+                    'issues' => ['dependency-output-external-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/deps-output-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/deps-output-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same(null, $plan['engineDependencyFile']);
+        $t->same([], $plan['expectedEngineArtifacts']);
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:https://deps.example.invalid/review.d', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst diagnostic output boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -1285,6 +1380,13 @@ return [
                 'dependency-format-boundary-overridden',
             ],
             'dependencyOutput' => [
+                'path' => [
+                    'raw' => 'build/deps-format-boundary.d',
+                    'path' => 'build/deps-format-boundary.d',
+                    'kind' => 'relative',
+                    'safe' => true,
+                    'issues' => [],
+                ],
                 'format' => [
                     'raw' => 'make',
                     'value' => 'make',
@@ -1342,6 +1444,7 @@ return [
 
         $t->same($expected, $plan['typstBoundaryProvenance']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-dependency-output:build/deps-format-boundary.d', implode(',', $plan['diagnostics']));
         $t->contains('typst-dependency-format:make', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
