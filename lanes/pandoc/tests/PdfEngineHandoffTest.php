@@ -203,6 +203,77 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst system font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/system-fonts.pdf',
+            'source' => '= Typst System Font Boundary Packet',
+            'engineOptions' => ['--ignore-system-fonts', '--font-path=project/fonts'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst system font boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'project/fonts', 'path' => 'project/fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'systemFonts' => [
+                'rawOptions' => ['--ignore-system-fonts'],
+                'ignoreSystemFonts' => true,
+                'allowSystemFonts' => false,
+                'reviewStatus' => 'ok',
+                'safe' => true,
+                'issues' => [],
+            ],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/system-fonts.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/system-fonts.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $unsafe = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/system-fonts-unsafe.pdf',
+            'source' => '= Typst System Font Boundary Packet',
+            'engineOptions' => ['--ignore-system-fonts=false'],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-policy:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-fonts:ignored', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same('review', $unsafe['typstBoundaryProvenance']['reviewStatus']);
+        $t->same([
+            'rawOptions' => ['--ignore-system-fonts=false'],
+            'ignoreSystemFonts' => false,
+            'allowSystemFonts' => true,
+            'reviewStatus' => 'review',
+            'safe' => false,
+            'issues' => ['system-fonts-not-ignored'],
+        ], $unsafe['typstBoundaryProvenance']['systemFonts']);
+        $t->contains('typst-system-font-policy:review', implode(',', $unsafe['diagnostics']));
+        $t->contains('typst-system-fonts:allowed', implode(',', $unsafe['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $unsafe['diagnostics']));
+    },
+
     'plans typst creation timestamp boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';

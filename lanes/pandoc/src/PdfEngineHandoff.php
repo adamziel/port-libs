@@ -268,6 +268,10 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
             }
+            if (is_array($typstBoundaryProvenance['systemFonts'] ?? null)) {
+                $diagnostics[] = 'typst-system-font-policy:' . $typstBoundaryProvenance['systemFonts']['reviewStatus'];
+                $diagnostics[] = 'typst-system-fonts:' . (($typstBoundaryProvenance['systemFonts']['ignoreSystemFonts'] ?? false) === true ? 'ignored' : 'allowed');
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5506,8 +5510,9 @@ final class PdfEngineHandoff
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path']);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache']);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input']);
+        $systemFonts = $this->typstSystemFontPolicyFor($engineOptions);
         $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp']);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $systemFonts === null && $creationTimestampValue === null) {
             return [];
         }
 
@@ -5525,7 +5530,7 @@ final class PdfEngineHandoff
         );
         $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $systemFonts, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5542,8 +5547,11 @@ final class PdfEngineHandoff
             'packagePath' => $packagePath,
             'packageCache' => $packageCache,
             'inputVariables' => $inputVariables,
-            'issues' => $issues,
         ];
+        if ($systemFonts !== null) {
+            $provenance['systemFonts'] = $systemFonts;
+        }
+        $provenance['issues'] = $issues;
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
@@ -5700,6 +5708,59 @@ final class PdfEngineHandoff
             'value' => $value,
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     * @return array{rawOptions:list<string>, ignoreSystemFonts:bool, allowSystemFonts:bool, reviewStatus:string, safe:bool, issues:list<string>}|null
+     */
+    private function typstSystemFontPolicyFor(array $engineOptions): ?array
+    {
+        $rawOptions = [];
+        $ignoreSystemFonts = false;
+        $issues = [];
+
+        foreach ($engineOptions as $option) {
+            $option = trim($option);
+            if ($option === '--ignore-system-fonts') {
+                $rawOptions[] = $option;
+                $ignoreSystemFonts = true;
+                continue;
+            }
+            if (!str_starts_with($option, '--ignore-system-fonts=')) {
+                continue;
+            }
+
+            $rawOptions[] = $option;
+            $value = strtolower(trim(substr($option, strlen('--ignore-system-fonts='))));
+            if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+                $ignoreSystemFonts = true;
+                continue;
+            }
+            if (in_array($value, ['0', 'false', 'no', 'off'], true)) {
+                $ignoreSystemFonts = false;
+                $issues[] = 'system-fonts-not-ignored';
+                continue;
+            }
+
+            $ignoreSystemFonts = false;
+            $issues[] = 'system-font-policy-invalid-value';
+        }
+
+        if ($rawOptions === []) {
+            return null;
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'rawOptions' => $rawOptions,
+            'ignoreSystemFonts' => $ignoreSystemFonts,
+            'allowSystemFonts' => !$ignoreSystemFonts,
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'safe' => $issues === [] && $ignoreSystemFonts,
+            'issues' => $issues,
         ];
     }
 
