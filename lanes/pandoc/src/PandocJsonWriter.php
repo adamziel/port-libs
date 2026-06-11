@@ -301,7 +301,11 @@ final class PandocJsonWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [(int) $node->attr('start', 1), $this->enum($this->listStyleConstructor((string) $node->attr('style', 'default'))), $this->enum($this->listDelimiterConstructor((string) $node->attr('delimiter', 'default')))],
+                [
+                    (int) $node->attr('start', 1),
+                    $this->enumFromNative($node, 'listStyleNative', $this->listStyleConstructor((string) $node->attr('style', 'default'))),
+                    $this->enumFromNative($node, 'listDelimiterNative', $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))),
+                ],
                 $this->writeListItems($node->children),
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
@@ -632,6 +636,8 @@ final class PandocJsonWriter
     {
         $alignments = $node->attr('alignments', []);
         $widths = $node->attr('widths', []);
+        $alignmentNatives = $node->attr('alignmentNatives', []);
+        $columnWidthNatives = $node->attr('columnWidthNatives', []);
         $columnCount = max(
             is_array($alignments) ? count($alignments) : 0,
             is_array($widths) ? count($widths) : 0,
@@ -641,9 +647,11 @@ final class PandocJsonWriter
         for ($index = 0; $index < $columnCount; $index++) {
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
+            $alignmentConstructor = $this->tableAlignmentConstructor($alignment);
             $specs[] = [
-                $this->enum($this->tableAlignmentConstructor($alignment)),
-                is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault'],
+                $this->taggedNativeAt($alignmentNatives, $index, $alignmentConstructor) ?? $this->enum($alignmentConstructor),
+                $this->columnWidthNativeAt($columnWidthNatives, $index, $width)
+                    ?? (is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault']),
             ];
         }
 
@@ -670,7 +678,8 @@ final class PandocJsonWriter
 
         return [
             $this->attrTuple($body),
-            ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
+            $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
+                ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
@@ -709,11 +718,14 @@ final class PandocJsonWriter
                 continue;
             }
 
+            $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
+            $rowspan = max(1, (int) $cell->attr('rowspan', 1));
+            $colspan = max(1, (int) $cell->attr('colspan', 1));
             $encoded[] = [
                 $this->attrTuple($cell),
-                $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
-                ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
-                ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
+                $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? $this->enum($alignmentConstructor),
+                $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
+                $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->childrenAsBlocks($cell),
             ];
         }
@@ -784,9 +796,15 @@ final class PandocJsonWriter
             'superscript' => ['t' => 'Superscript', 'c' => $this->writeInlines($node->children)],
             'subscript' => ['t' => 'Subscript', 'c' => $this->writeInlines($node->children)],
             'small_caps' => ['t' => 'SmallCaps', 'c' => $this->writeInlines($node->children)],
-            'quoted' => ['t' => 'Quoted', 'c' => [$this->enum($node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'), $this->writeInlines($node->children)]],
+            'quoted' => ['t' => 'Quoted', 'c' => [
+                $this->enumFromNative($node, 'quoteTypeNative', $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'),
+                $this->writeInlines($node->children),
+            ]],
             'code' => ['t' => 'Code', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
-            'math' => ['t' => 'Math', 'c' => [$this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath'), (string) $node->attr('text', '')]],
+            'math' => ['t' => 'Math', 'c' => [
+                $this->enumFromNative($node, 'mathTypeNative', $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'),
+                (string) $node->attr('text', ''),
+            ]],
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
@@ -810,6 +828,82 @@ final class PandocJsonWriter
         }
 
         return $native;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function enumFromNative(AstNode $node, string $nativeAttr, string $constructor): array
+    {
+        return $this->taggedNative($node->attr($nativeAttr), $constructor) ?? $this->enum($constructor);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function taggedNative(mixed $native, string $constructor): ?array
+    {
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        return $native;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function taggedNativeAt(mixed $natives, int $index, string $constructor): ?array
+    {
+        if (!is_array($natives) || !array_is_list($natives) || !array_key_exists($index, $natives)) {
+            return null;
+        }
+
+        return $this->taggedNative($natives[$index], $constructor);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function columnWidthNativeAt(mixed $natives, int $index, mixed $width): ?array
+    {
+        $constructor = is_int($width) || is_float($width) ? 'ColWidth' : 'ColWidthDefault';
+        $native = $this->taggedNativeAt($natives, $index, $constructor);
+        if ($native === null) {
+            return null;
+        }
+
+        if ($constructor === 'ColWidthDefault') {
+            return $native;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+        if (!is_int($content) && !is_float($content)) {
+            return null;
+        }
+
+        return abs((float) $content - (float) $width) < 0.000000000001 ? $native : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function integerConstructorNative(mixed $native, string $constructor, int $integer): ?array
+    {
+        $tagged = $this->taggedNative($native, $constructor);
+        if ($tagged === null) {
+            return null;
+        }
+
+        $content = $tagged['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return is_int($content) && $content === $integer ? $tagged : null;
     }
 
     /**
@@ -862,7 +956,7 @@ final class PandocJsonWriter
             'citationId' => $id,
             'citationPrefix' => $this->writeInlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->writeInlines($this->citationSuffixInlines($citation)),
-            'citationMode' => $this->enum($this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
+            'citationMode' => $this->enumFromNative($citation, 'citationModeNative', $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
