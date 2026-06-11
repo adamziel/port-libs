@@ -414,6 +414,58 @@ XML;
         $t->same(false, $inventory['word/_rels/missing-header.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-target', $inventory['word/media/orphan.png']['roles'], true), 'orphan relationship target role missing');
     },
+    'preflights docx relationship xml records without hiding duplicate ids' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-a.png"/>
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-b.png"/>
+  <Relationship Id="rMissingType" Target="media/missing-type.png"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+  <Relationship Id="1bad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bad-id.png"/>
+  <Relationship Id="rBadMode" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/bad" TargetMode="external"/>
+</Relationships>
+XML;
+        $parts['word/media/header-a.png'] = 'header a';
+        $parts['word/media/header-b.png'] = 'header b';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/header1.xml.rels'];
+        $preflight = $relationshipPart['relationshipXmlPreflight'];
+        $summary = $package['summary'];
+
+        $t->same(false, $relationshipPart['valid']);
+        $t->same(false, $preflight['valid']);
+        $t->same(true, $preflight['exists']);
+        $t->same(6, $preflight['recordCount']);
+        $t->same(5, $preflight['invalidRecordCount']);
+        $t->same(1, $preflight['duplicateRelationshipIdCount']);
+        $t->same(['rHeaderImage'], $preflight['duplicateRelationshipIds']);
+        $t->same(1, $preflight['issueCounts']['duplicate-relationship-id']);
+        $t->same(1, $preflight['issueCounts']['missing-relationship-type']);
+        $t->same(1, $preflight['issueCounts']['missing-relationship-target']);
+        $t->same(1, $preflight['issueCounts']['invalid-relationship-id']);
+        $t->same(1, $preflight['issueCounts']['invalid-relationship-target-mode']);
+        $t->same(2, $preflight['records'][0]['relationshipOrdinal']);
+        $t->same('rHeaderImage', $preflight['records'][0]['id']);
+        $t->same(1, $preflight['records'][0]['duplicateOfOrdinal']);
+        $t->same(['duplicate-relationship-id'], $preflight['records'][0]['issues']);
+        $t->same(['missing-relationship-type'], $preflight['records'][1]['issues']);
+        $t->same(['missing-relationship-target'], $preflight['records'][2]['issues']);
+        $t->same(['invalid-relationship-id'], $preflight['records'][3]['issues']);
+        $t->same(['invalid-relationship-target-mode'], $preflight['records'][4]['issues']);
+        $t->same(1, $summary['invalidRelationshipPartCount']);
+        $t->same(5, $summary['invalidRelationshipRecordCount']);
+        $t->same(1, $summary['duplicateRelationshipIdCount']);
+        $t->same(['rHeaderImage'], $summary['duplicateRelationshipIds']);
+        $t->same(['word/_rels/header1.xml.rels'], $summary['relationshipPartsWithIssues']);
+        $t->same(1, $summary['relationshipPartIssueCounts']['duplicate-relationship-id']);
+        $t->same(1, $summary['relationshipPartIssueCounts']['missing-relationship-type']);
+        $t->same('word/media/header-b.png', $relationshipPart['relationships']['rHeaderImage']['targetPart']);
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
