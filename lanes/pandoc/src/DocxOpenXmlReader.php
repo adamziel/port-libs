@@ -33,6 +33,7 @@ final class DocxOpenXmlReader
     private const WEB_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
+    private const GLOSSARY_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
@@ -54,6 +55,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
+    private const CT_WORD_GLOSSARY_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml';
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
     private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
@@ -134,6 +136,9 @@ final class DocxOpenXmlReader
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName']);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
         $theme = $this->readTheme($themePart['xml'], $themePart['partName']);
+        $glossaryPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::GLOSSARY_DOCUMENT_REL, 'glossary/document.xml');
+        $glossaryRelationshipsPart = $this->relationshipsPartFor($glossaryPart['partName']);
+        $glossaryRelationships = $this->readRelationshipsPart($parts, $glossaryRelationshipsPart);
         $footnotesPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FOOTNOTES_REL, 'footnotes.xml');
         $footnoteRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($footnotesPart['partName']));
         $footnotes = $this->readNotes(
@@ -185,6 +190,17 @@ final class DocxOpenXmlReader
             'endnote' => $endnotes['nodes'],
             'comment' => $comments['nodes'],
         ];
+        $glossary = $this->readGlossaryDocument(
+            $glossaryPart,
+            $documentPart,
+            $documentRelationshipsPart,
+            $glossaryRelationshipsPart,
+            $glossaryRelationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+            $referencedNotes,
+        );
         $headerFooterReferences = $this->readHeaderFooterReferences($parts[$documentPart], $documentPart);
         $headers = $this->readHeaderFooterParts(
             $parts,
@@ -272,6 +288,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['glossary'] = $glossary;
+        $packageProvenance['summary']['glossaryDocPartCount'] = $glossary['docPartCount'];
+        $packageProvenance['summary']['glossaryRelationshipCount'] = $glossary['relationshipCount'];
+        $packageProvenance['summary']['glossaryIssueCount'] = count($glossary['issues']);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -297,6 +317,10 @@ final class DocxOpenXmlReader
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
                 'theme' => $theme,
+                'glossaryPart' => $glossaryPart['partName'],
+                'glossaryRelationshipsPart' => $glossaryRelationshipsPart,
+                'glossaryRelationships' => $glossaryRelationships,
+                'glossary' => $glossary,
                 'extendedPropertiesPart' => $extendedPropertiesPart['partName'],
                 'extendedProperties' => $extendedProperties,
                 'customPropertiesPart' => $customPropertiesPart['partName'],
@@ -404,6 +428,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $themePart['partName'],
                 $themePart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($glossaryPart['relationship'] !== null) {
+            $attrs['docx']['glossaryRelationship'] = $this->relationshipSummary(
+                $glossaryPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $glossaryPart['partName'],
+                $glossaryPart['exists'],
                 $contentTypes,
             );
         }
@@ -919,6 +953,216 @@ final class DocxOpenXmlReader
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array{partName:string, xml:string, relationship:array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null, exists:bool} $part
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array<string, mixed>
+     */
+    private function readGlossaryDocument(
+        array $part,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes
+    ): array {
+        $partName = $part['partName'];
+        $exists = $part['exists'];
+        $relationship = $part['relationship'];
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $issues = [];
+        $validateContentType = $exists || $relationship !== null;
+        if ($validateContentType && $contentTypeResolution['contentTypeBase'] !== self::CT_WORD_GLOSSARY_DOCUMENT) {
+            $issues[] = $contentTypeResolution['contentTypeSource'] === 'missing'
+                ? 'missing-content-type'
+                : 'unexpected-content-type';
+        }
+
+        $glossary = [
+            'partName' => $partName,
+            'selectionSource' => $relationship !== null ? 'relationship' : ($exists ? 'conventional-part' : 'conventional-fallback'),
+            'exists' => $exists,
+            'bytes' => $exists ? strlen($part['xml']) : 0,
+            'relationshipId' => is_array($relationship) ? $relationship['id'] : null,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($relationships),
+            'relationship' => is_array($relationship)
+                ? $this->relationshipSummary($relationship, $documentPart, $documentRelationshipsPart, $partName, $exists, $contentTypes)
+                : null,
+            'validRoot' => null,
+            'rootName' => null,
+            'docPartCount' => 0,
+            'blockCount' => 0,
+            'text' => '',
+            'names' => [],
+            'categories' => [],
+            'galleries' => [],
+            'items' => [],
+            'issues' => $issues,
+        ] + $contentTypeResolution;
+
+        if (!$exists) {
+            if ($relationship !== null) {
+                $glossary['issues'][] = 'missing-relationship-target';
+            }
+
+            $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+            return $glossary;
+        }
+
+        $dom = $this->loadXml($part['xml'], $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement) {
+            $glossary['validRoot'] = false;
+            $glossary['issues'][] = 'empty-xml-part';
+            $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+            return $glossary;
+        }
+
+        $glossary['rootName'] = $root->localName;
+        $glossary['validRoot'] = $root->namespaceURI === self::NS_W && $root->localName === 'glossaryDocument';
+        if ($glossary['validRoot'] !== true) {
+            $glossary['issues'][] = 'unexpected-root';
+            $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+            return $glossary;
+        }
+
+        $xpath = $this->xpath($dom);
+        $container = $this->firstElement($xpath, '/w:glossaryDocument/w:docParts', $dom) ?? $root;
+        $items = [];
+        $names = [];
+        $categories = [];
+        $galleries = [];
+        $blockCount = 0;
+        $texts = [];
+
+        foreach ($this->elements($xpath, 'w:docPart', $container) as $docPart) {
+            $item = $this->glossaryDocPartItem(
+                $docPart,
+                $xpath,
+                $relationships,
+                $contentTypes,
+                $styles,
+                $numbering,
+                $referencedNotes,
+                count($items),
+            );
+            $items[] = $item;
+            $blockCount += $item['blockCount'];
+            $this->appendUniqueString($names, $item['name']);
+            $this->appendUniqueString($categories, $item['category']);
+            $this->appendUniqueString($galleries, $item['gallery']);
+            $this->appendUniqueString($texts, $item['text']);
+        }
+
+        $glossary['docPartCount'] = count($items);
+        $glossary['blockCount'] = $blockCount;
+        $glossary['text'] = implode(' ', $texts);
+        $glossary['names'] = $names;
+        $glossary['categories'] = $categories;
+        $glossary['galleries'] = $galleries;
+        $glossary['items'] = $items;
+        $glossary['issues'] = array_values(array_unique($glossary['issues']));
+
+        return $glossary;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @param array<string, array<string, AstNode>> $referencedNotes
+     * @return array<string, mixed>
+     */
+    private function glossaryDocPartItem(
+        \DOMElement $docPart,
+        \DOMXPath $xpath,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering,
+        array $referencedNotes,
+        int $index
+    ): array {
+        $properties = $this->firstElement($xpath, 'w:docPartPr', $docPart);
+        $body = $this->firstElement($xpath, 'w:docPartBody', $docPart);
+        $blocks = $body instanceof \DOMElement
+            ? $this->readNoteBlocks($body, $xpath, $relationships, $contentTypes, $styles, $numbering, $referencedNotes)
+            : [];
+
+        return $this->glossaryDocPartProperties($properties) + [
+            'index' => $index,
+            'blockCount' => count($blocks),
+            'text' => $this->plainBlockText($blocks),
+        ];
+    }
+
+    /**
+     * @return array{name:?string, style:?string, category:?string, gallery:?string, types:list<string>, description:?string, guid:?string}
+     */
+    private function glossaryDocPartProperties(?\DOMElement $properties): array
+    {
+        if (!$properties instanceof \DOMElement) {
+            return [
+                'name' => null,
+                'style' => null,
+                'category' => null,
+                'gallery' => null,
+                'types' => [],
+                'description' => null,
+                'guid' => null,
+            ];
+        }
+
+        $category = $this->childElement($properties, 'category');
+
+        return [
+            'name' => $this->emptyStringToNull($this->childAttr($properties, 'name', 'val')),
+            'style' => $this->emptyStringToNull($this->childAttr($properties, 'style', 'val')),
+            'category' => $category instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($category, 'name', 'val')) : null,
+            'gallery' => $category instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($category, 'gallery', 'val')) : null,
+            'types' => $this->glossaryDocPartTypes($properties),
+            'description' => $this->emptyStringToNull($this->childAttr($properties, 'description', 'val')),
+            'guid' => $this->emptyStringToNull($this->childAttr($properties, 'guid', 'val')),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function glossaryDocPartTypes(\DOMElement $properties): array
+    {
+        $types = $this->childElement($properties, 'types');
+        if (!$types instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($types->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W || $child->localName !== 'type') {
+                continue;
+            }
+
+            $value = $this->emptyStringToNull($child->getAttributeNS(self::NS_W, 'val'));
+            if ($value !== null) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
     }
 
     /**
