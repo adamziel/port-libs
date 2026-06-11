@@ -5268,6 +5268,7 @@ final class ZipPackage
             self::assertRange($bytes, $cursor, 46, 'central directory entry');
             $flags = self::readUInt16($bytes, $cursor + 8);
             $method = self::readUInt16($bytes, $cursor + 10);
+            $crc32 = self::readUInt32($bytes, $cursor + 16);
             $compressedSize = self::readUInt32($bytes, $cursor + 20);
             $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
             $nameLength = self::readUInt16($bytes, $cursor + 28);
@@ -7035,6 +7036,7 @@ final class ZipPackage
             self::assertRange($bytes, $cursor, 46, 'central directory entry');
             $flags = self::readUInt16($bytes, $cursor + 8);
             $method = self::readUInt16($bytes, $cursor + 10);
+            $crc32 = self::readUInt32($bytes, $cursor + 16);
             $compressedSize = self::readUInt32($bytes, $cursor + 20);
             $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
             $nameLength = self::readUInt16($bytes, $cursor + 28);
@@ -7091,6 +7093,8 @@ final class ZipPackage
                 'compressionMethod' => $method,
                 'compressionMethodName' => self::compressionMethodName($method),
                 'isDirectory' => $isDirectory,
+                'crc32' => $crc32,
+                'crc32Hex' => sprintf('%08x', $crc32),
                 'compressedSize' => $compressedSize,
                 'uncompressedSize' => $uncompressedSize,
                 'hasZip64SizeSentinel' => $hasZip64SizeSentinel,

@@ -755,6 +755,7 @@ final class OpcRelationshipGraph
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
+                'crc32Hex' => $centralEntry['crc32Hex'],
                 'compressedSize' => $centralEntry['compressedSize'],
                 'uncompressedSize' => $centralEntry['uncompressedSize'],
                 'role' => $isDirectory ? 'directory' : 'package-part',
