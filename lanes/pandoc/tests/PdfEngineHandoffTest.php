@@ -761,6 +761,98 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst feature gate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/feature-gate-boundary.pdf',
+            'source' => '= Typst Feature Gate Boundary Packet',
+            'engineOptions' => [
+                '--features=html,packages',
+                '--features',
+                'html,unsafe feature,',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst feature gate boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'features-invalid-token-boundary:unsafe feature',
+                'features-empty-token-boundary',
+                'features-boundary-overridden',
+            ],
+            'featureGates' => [
+                'raw' => 'html,unsafe feature,',
+                'value' => 'html,unsafe feature,',
+                'features' => ['html'],
+                'featureCount' => 1,
+                'safe' => false,
+                'issues' => [
+                    'features-invalid-token-boundary:unsafe feature',
+                    'features-empty-token-boundary',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'features',
+                    'count' => 2,
+                    'values' => ['html,packages', 'html,unsafe feature,'],
+                    'selected' => 'html,unsafe feature,',
+                    'issue' => 'features-boundary-overridden',
+                ],
+            ],
+            'featureGateHistory' => [
+                [
+                    'raw' => 'html,packages',
+                    'value' => 'html,packages',
+                    'features' => ['html', 'packages'],
+                    'featureCount' => 2,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'html,unsafe feature,',
+                    'value' => 'html,unsafe feature,',
+                    'features' => ['html'],
+                    'featureCount' => 1,
+                    'safe' => false,
+                    'issues' => [
+                        'features-invalid-token-boundary:unsafe feature',
+                        'features-empty-token-boundary',
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/feature-gate-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/feature-gate-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-feature-gates:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
