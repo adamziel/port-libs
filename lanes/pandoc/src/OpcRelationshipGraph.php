@@ -709,6 +709,12 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $centralDirectoryInventory = ZipPackage::centralDirectoryInventoryPreflight($bytes);
+        $centralDirectoryIssues = [];
+        foreach (array_merge($centralDirectory['issues'], $centralDirectoryInventory['issues']) as $issue) {
+            self::appendUniqueString($centralDirectoryIssues, $issue);
+        }
+
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
@@ -874,7 +880,7 @@ final class OpcRelationshipGraph
         }
         unset($entry);
 
-        $issues = $centralDirectory['issues'];
+        $issues = $centralDirectoryIssues;
         $issueCounts = [];
         foreach ($issues as $issue) {
             $issueCounts[$issue] = 1;
@@ -1021,9 +1027,24 @@ final class OpcRelationshipGraph
         return [
             'valid' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
-            'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader'],
-            'centralDirectoryIssues' => $centralDirectory['issues'],
+            'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader']
+                && $centralDirectoryInventory['isSupportedByBoundedReader'],
+            'zipCentralDirectorySizeValid' => $centralDirectory['isSupportedByBoundedReader'],
+            'zipCentralDirectoryInventoryValid' => $centralDirectoryInventory['isSupportedByBoundedReader'],
+            'centralDirectoryIssues' => $centralDirectoryIssues,
+            'centralDirectorySizeIssues' => $centralDirectory['issues'],
+            'centralDirectoryInventoryIssues' => $centralDirectoryInventory['issues'],
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
+            'centralDirectoryScannedEntryCount' => $centralDirectoryInventory['scannedEntryCount'],
+            'centralDirectoryHasEntryCountMismatch' => $centralDirectoryInventory['hasEntryCountMismatch'],
+            'centralDirectoryEntryCountDelta' => $centralDirectoryInventory['entryCountDelta'],
+            'centralDirectoryEntryCountMismatchKind' => $centralDirectoryInventory['entryCountMismatchKind'],
+            'centralDirectoryDuplicateEntryNameGroupCount' => $centralDirectoryInventory['duplicateEntryNameGroupCount'],
+            'centralDirectoryDuplicateEntryNameEntryCount' => $centralDirectoryInventory['duplicateEntryNameEntryCount'],
+            'centralDirectoryDuplicateLocalHeaderOffsetGroupCount' => $centralDirectoryInventory['duplicateLocalHeaderOffsetGroupCount'],
+            'centralDirectoryDuplicateLocalHeaderOffsetEntryCount' => $centralDirectoryInventory['duplicateLocalHeaderOffsetEntryCount'],
+            'centralDirectoryDuplicateEntryNameGroups' => $centralDirectoryInventory['duplicateEntryNameGroups'],
+            'centralDirectoryDuplicateLocalHeaderOffsetGroups' => $centralDirectoryInventory['duplicateLocalHeaderOffsetGroups'],
             'entryCount' => count($entries),
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,

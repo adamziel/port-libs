@@ -373,6 +373,68 @@ return [
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
         $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
     },
+    'blocks raw OPC central directory manifests with duplicate ZIP local header offsets' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/review-one.png', 'data' => 'PNG-ONE', 'compressionMethod' => 0],
+            ['name' => 'word/media/review-two.png', 'data' => 'PNG-TWO', 'compressionMethod' => 0],
+        ]);
+        $centralDirectory = ZipPackage::centralDirectorySizePreflight($zip);
+        $centralEntries = [];
+        foreach ($centralDirectory['entries'] as $entry) {
+            $centralEntries[$entry['name']] = $entry;
+        }
+
+        $duplicateOffsetZip = substr_replace(
+            $zip,
+            pack('V', $centralEntries['word/media/review-one.png']['localHeaderOffset']),
+            $centralEntries['word/media/review-two.png']['centralDirectoryOffset'] + 42,
+            4
+        );
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($duplicateOffsetZip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $duplicateOffsetGroup = $summary['centralDirectoryDuplicateLocalHeaderOffsetGroups'][0];
+
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($duplicateOffsetZip));
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(false, $summary['zipCentralDirectoryValid']);
+        $t->same(true, $summary['zipCentralDirectorySizeValid']);
+        $t->same(false, $summary['zipCentralDirectoryInventoryValid']);
+        $t->same([], $summary['centralDirectorySizeIssues']);
+        $t->same(['central-directory-duplicate-local-header-offsets'], $summary['centralDirectoryInventoryIssues']);
+        $t->same(['central-directory-duplicate-local-header-offsets'], $summary['centralDirectoryIssues']);
+        $t->same(5, $summary['declaredEntryCount']);
+        $t->same(5, $summary['centralDirectoryScannedEntryCount']);
+        $t->same(false, $summary['centralDirectoryHasEntryCountMismatch']);
+        $t->same(0, $summary['centralDirectoryEntryCountDelta']);
+        $t->same(null, $summary['centralDirectoryEntryCountMismatchKind']);
+        $t->same(0, $summary['centralDirectoryDuplicateEntryNameGroupCount']);
+        $t->same(1, $summary['centralDirectoryDuplicateLocalHeaderOffsetGroupCount']);
+        $t->same(2, $summary['centralDirectoryDuplicateLocalHeaderOffsetEntryCount']);
+        $t->same($centralEntries['word/media/review-one.png']['localHeaderOffset'], $duplicateOffsetGroup['localHeaderOffset']);
+        $t->same(['word/media/review-one.png', 'word/media/review-two.png'], $duplicateOffsetGroup['names']);
+        $t->same([3, 4], $duplicateOffsetGroup['centralDirectoryIndexes']);
+        $t->same(['central-directory-duplicate-local-header-offsets' => 1], $summary['issueCounts']);
+        $t->same(['central-directory-duplicate-local-header-offsets'], $summary['issues']);
+        $t->same('media', $entries['word/media/review-one.png']['role']);
+        $t->same('media', $entries['word/media/review-two.png']['role']);
+        $t->same($entries['word/media/review-one.png']['localHeaderOffset'], $entries['word/media/review-two.png']['localHeaderOffset']);
+        $t->same([], $entries['word/media/review-two.png']['issues']);
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
