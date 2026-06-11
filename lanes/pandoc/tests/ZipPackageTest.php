@@ -1215,6 +1215,10 @@ return [
 
     'preflights zip local header metadata mismatches before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $safeDocumentXml = '<w:document><w:p>safe local metadata</w:p></w:document>';
+        $safeDocumentCompressed = gzdeflate($safeDocumentXml);
+        if ($safeDocumentCompressed === false) {
+            throw new RuntimeException('Unable to deflate safe local metadata fixture');
+        }
         $safeCommentsXml = '<w:comments><w:comment>safe descriptor metadata</w:comment></w:comments>';
         $safeZip = $buildZipPackage([
             [
@@ -1244,7 +1248,7 @@ return [
         $t->same(8, $safeSummary['entries'][0]['centralCompressionMethod']);
         $t->same(8, $safeSummary['entries'][0]['localCompressionMethod']);
         $t->same($crc32($safeDocumentXml), $safeSummary['entries'][0]['localCrc32']);
-        $t->same(strlen(gzdeflate($safeDocumentXml)), $safeSummary['entries'][0]['localCompressedSize']);
+        $t->same(strlen($safeDocumentCompressed), $safeSummary['entries'][0]['localCompressedSize']);
         $t->same(strlen($safeDocumentXml), $safeSummary['entries'][0]['localUncompressedSize']);
         $t->same(false, $safeSummary['entries'][0]['usesDataDescriptor']);
         $t->same(null, $safeSummary['entries'][0]['hasZeroLocalHeaderPlaceholders']);
@@ -1335,6 +1339,89 @@ return [
         $t->same(false, $summary['mismatchedEntries'][2]['hasZeroLocalHeaderPlaceholders']);
         $t->same(1, $summary['mismatchedEntries'][2]['localCrc32']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
+    },
+
+    'preflights zip local header fixed field byte offsets before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:p>local fixed field provenance</w:p></w:document>';
+        $documentCompressed = gzdeflate($documentXml);
+        if ($documentCompressed === false) {
+            throw new RuntimeException('Unable to deflate local fixed header fixture');
+        }
+        $localExtra = pack('vva*', 0xcafe, strlen('local-fixed'), 'local-fixed');
+        $commentsXml = '<w:comments><w:comment>descriptor byte offsets</w:comment></w:comments>';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'modifiedTime' => 0x4a21,
+                'modifiedDate' => 0x5b63,
+                'localExtra' => $localExtra,
+                'centralExtra' => $localExtra,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+        $summary = ZipPackage::localHeaderMetadataPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(0, $summary['mismatchedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same($summary, $rawStrict['localHeaderMetadata']);
+
+        $first = $summary['entries'][0];
+        $t->same('word/document.xml', $first['centralName']);
+        $t->same(0, $first['localHeaderOffset']);
+        $t->same(0, $first['localFixedHeaderOffset']);
+        $t->same(30, $first['localFixedHeaderLength']);
+        $t->same(0, $first['localSignatureOffset']);
+        $t->same(4, $first['localSignatureLength']);
+        $t->same(4, $first['localVersionNeededToExtractOffset']);
+        $t->same(6, $first['localGeneralPurposeFlagsOffset']);
+        $t->same(8, $first['localCompressionMethodOffset']);
+        $t->same(10, $first['localModifiedDosTimeOffset']);
+        $t->same(12, $first['localModifiedDosDateOffset']);
+        $t->same(14, $first['localCrc32Offset']);
+        $t->same(18, $first['localCompressedSizeOffset']);
+        $t->same(22, $first['localUncompressedSizeOffset']);
+        $t->same(26, $first['localNameLengthOffset']);
+        $t->same(28, $first['localExtraFieldLengthOffset']);
+        $t->same(30 + strlen('word/document.xml') + strlen($localExtra), $first['localHeaderLength']);
+        $t->same(30, $first['localVariableFieldsOffset']);
+        $t->same(strlen('word/document.xml') + strlen($localExtra), $first['localVariableFieldsLength']);
+        $t->same(30, $first['localRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $first['localRawNameLength']);
+        $t->same(30 + strlen('word/document.xml'), $first['localExtraFieldOffset']);
+        $t->same(strlen($localExtra), $first['localExtraFieldLength']);
+        $t->same(30 + strlen('word/document.xml') + strlen($localExtra), $first['localHeaderEnd']);
+        $t->same(0x4a21, $first['localModifiedDosTime']);
+        $t->same(0x5b63, $first['localModifiedDosDate']);
+        $t->same($crc32($documentXml), $first['localCrc32']);
+        $t->same(strlen($documentCompressed), $first['localCompressedSize']);
+        $t->same(strlen($documentXml), $first['localUncompressedSize']);
+
+        $second = $summary['entries'][1];
+        $expectedSecondOffset = $first['localHeaderEnd'] + strlen($documentCompressed);
+        $t->same('word/comments.xml', $second['centralName']);
+        $t->same($expectedSecondOffset, $second['localHeaderOffset']);
+        $t->same($expectedSecondOffset, $second['localFixedHeaderOffset']);
+        $t->same($expectedSecondOffset + 14, $second['localCrc32Offset']);
+        $t->same($expectedSecondOffset + 18, $second['localCompressedSizeOffset']);
+        $t->same($expectedSecondOffset + 22, $second['localUncompressedSizeOffset']);
+        $t->same($expectedSecondOffset + 30, $second['localVariableFieldsOffset']);
+        $t->same(strlen('word/comments.xml'), $second['localVariableFieldsLength']);
+        $t->same($expectedSecondOffset + 30, $second['localRawNameOffset']);
+        $t->same($expectedSecondOffset + 30 + strlen('word/comments.xml'), $second['localHeaderEnd']);
+        $t->same(true, $second['usesDataDescriptor']);
+        $t->same(0, $second['localCrc32']);
+        $t->same(0, $second['localCompressedSize']);
+        $t->same(0, $second['localUncompressedSize']);
+        $t->same(true, $second['hasZeroLocalHeaderPlaceholders']);
     },
 
     'preflights stored first mimetype entries for ODT and EPUB containers' => static function (TestRunner $t) use ($buildZipPackage): void {
