@@ -216,9 +216,10 @@ final class OpenDocumentPackage
      *     exposableMediaPartCount:int,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
+     *     manifestReview:array<string, mixed>,
+     *     packageInventory:array<string, mixed>,
      *     undeclaredPackageEntryCount:int,
      *     undeclaredPackageEntries:list<array<string, mixed>>,
-     *     manifestReview:array<string, mixed>,
      *     metadata:array<string, mixed>,
      *     settings:array<string, mixed>,
      *     styleNames:list<string>,
@@ -227,6 +228,7 @@ final class OpenDocumentPackage
      */
     public function summarize(): array
     {
+        $packageInventory = $this->packageInventory();
         $mediaParts = [];
         $missingMediaParts = [];
         $exposableMediaPartCount = 0;
@@ -284,11 +286,134 @@ final class OpenDocumentPackage
             'undeclaredPackageEntryCount' => count($undeclaredPackageEntries),
             'undeclaredPackageEntries' => $undeclaredPackageEntries,
             'manifestReview' => self::manifestReview($this->manifestEntries, $undeclaredPackageEntries),
+            'packageInventory' => $packageInventory,
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function packageInventory(): array
+    {
+        $declaredPackagePaths = [
+            'mimetype' => true,
+            'META-INF/manifest.xml' => true,
+        ];
+        $manifestDeclaredPartCount = 0;
+        foreach ($this->manifestEntries as $entry) {
+            $path = $entry['path'] ?? null;
+            if (!is_string($path) || $path === '' || $path === '/') {
+                continue;
+            }
+
+            $declaredPackagePaths[$path] = true;
+            ++$manifestDeclaredPartCount;
+        }
+
+        $localHeaderOrder = $this->package->localHeaderOrderPreflight();
+        $compressionMethods = $this->package->compressionMethodPreflight();
+        $localOrderByName = [];
+        foreach ($localHeaderOrder['entries'] as $entry) {
+            $name = $entry['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $localOrderByName[$name] = $entry;
+            }
+        }
+
+        $parts = [];
+        $undeclaredEntries = [];
+        $packageDirectoryCount = 0;
+        foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
+            $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
+            $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
+            $localOrder = $localOrderByName[$entry->name] ?? null;
+            if ($entry->isDirectory()) {
+                ++$packageDirectoryCount;
+            }
+
+            $item = [
+                'path' => $entry->name,
+                'roles' => self::packageEntryRoles($entry, $manifestEntry, $isUndeclared),
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
+                'localHeaderOffset' => $entry->localHeaderOffset,
+                'matchesCentralDirectoryOrder' => is_array($localOrder)
+                    ? $localOrder['matchesCentralDirectoryOrder']
+                    : null,
+                'compressionMethod' => $entry->compressionMethod,
+                'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                'byteLength' => $entry->uncompressedSize,
+                'compressedByteLength' => $entry->compressedSize,
+                'crc32' => $entry->crc32Hex(),
+                'isDirectory' => $entry->isDirectory(),
+                'declaredInManifest' => is_array($manifestEntry),
+                'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
+                'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
+                'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
+                'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
+                'undeclared' => $isUndeclared,
+            ];
+
+            $parts[$entry->name] = $item;
+            if ($isUndeclared) {
+                $undeclaredEntries[] = $item;
+            }
+        }
+
+        return [
+            'entryCount' => count($parts),
+            'manifestDeclaredPartCount' => $manifestDeclaredPartCount,
+            'undeclaredEntryCount' => count($undeclaredEntries),
+            'undeclaredEntries' => $undeclaredEntries,
+            'packageDirectoryCount' => $packageDirectoryCount,
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'localHeaderOrder' => $localHeaderOrder,
+            'compressionMethods' => $compressionMethods,
+            'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $manifestEntry
+     * @return list<string>
+     */
+    private static function packageEntryRoles(ZipPackageEntry $entry, ?array $manifestEntry, bool $undeclared): array
+    {
+        $roles = [];
+        if ($entry->name === 'mimetype') {
+            $roles[] = 'odf-mimetype';
+        }
+        if ($entry->name === 'META-INF/manifest.xml') {
+            $roles[] = 'odf-manifest';
+        }
+        if ($entry->name === 'content.xml') {
+            $roles[] = 'odf-content';
+        }
+        if ($entry->name === 'styles.xml') {
+            $roles[] = 'odf-styles';
+        }
+        if ($entry->name === 'meta.xml') {
+            $roles[] = 'odf-meta';
+        }
+        if ($entry->isDirectory()) {
+            $roles[] = 'zip-directory';
+        }
+        if (is_array($manifestEntry)) {
+            $roles[] = 'manifest-declared';
+            $mediaType = (string) ($manifestEntry['mediaType'] ?? '');
+            if (!$entry->isDirectory() && (str_starts_with($mediaType, 'image/') || str_starts_with($entry->name, 'Pictures/'))) {
+                $roles[] = 'media-resource';
+            }
+        }
+        if ($undeclared) {
+            $roles[] = 'undeclared-package-entry';
+        }
+
+        return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
     }
 
     /**

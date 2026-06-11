@@ -523,6 +523,56 @@ XML;
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
     },
+    'reports compact ODT ZIP inventory and undeclared package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL', 'compressionMethod' => 0],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+
+        $t->same(8, $inventory['entryCount']);
+        $t->same(5, $inventory['manifestDeclaredPartCount']);
+        $t->same(1, $inventory['undeclaredEntryCount']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('Thumbnails/thumbnail.png', $summary['undeclaredPackageEntries'][0]['path']);
+        $t->same(1, $inventory['packageDirectoryCount']);
+        $t->same(true, $inventory['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/',
+            'Thumbnails/thumbnail.png',
+        ], $inventory['localHeaderOrder']['localHeaderOrderNames']);
+
+        $t->same(3, $inventory['compressionMethods']['storedEntryCount']);
+        $t->same(5, $inventory['compressionMethods']['deflatedEntryCount']);
+        $t->same(['odf-mimetype'], $parts['mimetype']['roles']);
+        $t->same(['odf-content', 'manifest-declared'], $parts['content.xml']['roles']);
+        $t->same(['zip-directory', 'manifest-declared'], $parts['Pictures/']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $parts['Pictures/hero.png']['roles']);
+        $t->same(['undeclared-package-entry'], $parts['Thumbnails/thumbnail.png']['roles']);
+        $t->same(false, $parts['Thumbnails/thumbnail.png']['declaredInManifest']);
+        $t->same(true, $parts['Thumbnails/thumbnail.png']['undeclared']);
+        $t->same(0, $parts['Thumbnails/thumbnail.png']['compressionMethod']);
+        $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
+        $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
