@@ -998,8 +998,8 @@ final class CitationCslProcessor
         ];
         $page = self::stringField($item, 'page');
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
-        $publisher = self::stringField($item, 'publisher');
-        $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
+        $publisher = self::firstStringField($item, ['publisher', 'institution', 'organization', 'school']);
+        $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace', 'publisherplace', 'location', 'address']);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origaddress']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
@@ -1008,8 +1008,37 @@ final class CitationCslProcessor
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
-        $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
-        $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
+        $publisherList = self::stringListFromFirstField($item, [
+            'publisher-list',
+            'publisherList',
+            'publisherlist',
+            'institution-list',
+            'institutionList',
+            'institutionlist',
+            'organization-list',
+            'organizationList',
+            'organizationlist',
+            'school-list',
+            'schoolList',
+            'schoollist',
+        ]);
+        $publisherPlaceList = self::stringListFromFirstField($item, [
+            'publisher-place-list',
+            'publisherPlaceList',
+            'publisherplacelist',
+            'location-list',
+            'locationList',
+            'locationlist',
+            'address-list',
+            'addressList',
+            'addresslist',
+        ]);
+        if ($publisher === '' && $publisherList !== []) {
+            $publisher = implode('; ', $publisherList);
+        }
+        if ($publisherPlace === '' && $publisherPlaceList !== []) {
+            $publisherPlace = implode('; ', $publisherPlaceList);
+        }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);

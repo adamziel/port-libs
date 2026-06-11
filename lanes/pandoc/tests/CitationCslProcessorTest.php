@@ -25627,6 +25627,133 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json publisher location aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-institution-location',
+                'type' => 'report',
+                'title' => 'Direct Institution Location Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'institution' => 'Archive Institute',
+                'location' => 'Lisbon',
+            ],
+            [
+                'id' => 'direct-organization-address',
+                'type' => 'book',
+                'title' => 'Direct Organization Address Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'organization' => 'Migration Board',
+                'address' => 'Porto',
+            ],
+            [
+                'id' => 'direct-publisher-list',
+                'type' => 'book',
+                'title' => 'Direct Publisher List Packet',
+                'author' => [
+                    ['family' => 'Kim', 'given' => 'Kai'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'publisherlist' => 'Review Press; Migration Desk',
+                'publisherplacelist' => ['Coimbra', 'Evora'],
+            ],
+            [
+                'id' => 'direct-school-list',
+                'type' => 'thesis',
+                'title' => 'Direct School List Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'schoolList' => ['North Faculty', 'South Faculty'],
+                'locationlist' => 'Remote, Annex',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $institution = $processor->item('direct-institution-location');
+        $organization = $processor->item('direct-organization-address');
+        $publisherList = $processor->item('direct-publisher-list');
+        $schoolList = $processor->item('direct-school-list');
+        $t->same('Archive Institute', $institution['publisher'] ?? null);
+        $t->same('Lisbon', $institution['publisherPlace'] ?? null);
+        $t->same(['Archive Institute'], $institution['publisherList'] ?? null);
+        $t->same(['Lisbon'], $institution['publisherPlaceList'] ?? null);
+        $t->same('Migration Board', $organization['publisher'] ?? null);
+        $t->same('Porto', $organization['publisherPlace'] ?? null);
+        $t->same(['Migration Board'], $organization['publisherList'] ?? null);
+        $t->same(['Porto'], $organization['publisherPlaceList'] ?? null);
+        $t->same('Review Press; Migration Desk', $publisherList['publisher'] ?? null);
+        $t->same('Coimbra; Evora', $publisherList['publisherPlace'] ?? null);
+        $t->same(['Review Press', 'Migration Desk'], $publisherList['publisherList'] ?? null);
+        $t->same(['Coimbra', 'Evora'], $publisherList['publisherPlaceList'] ?? null);
+        $t->same('North Faculty; South Faculty', $schoolList['publisher'] ?? null);
+        $t->same('Remote; Annex', $schoolList['publisherPlace'] ?? null);
+        $t->same(['North Faculty', 'South Faculty'], $schoolList['publisherList'] ?? null);
+        $t->same(['Remote', 'Annex'], $schoolList['publisherPlaceList'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Publisher Location Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-publisher-location-alias-review</id>
+    <updated>2026-06-11T20:09:44+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="publisher"/>
+        <text variable="publisher-place"/>
+        <text variable="publisher-list"/>
+        <text variable="publisher-place-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="publisher"/>
+      <text variable="publisher-place"/>
+      <text variable="publisher-list"/>
+      <text variable="publisher-place-list"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Publisher Location Alias Review', $summary['title'] ?? null);
+        $t->same('publisher', $citationChildren[1]['variable'] ?? null);
+        $t->same('publisher-place', $citationChildren[2]['variable'] ?? null);
+        $t->same('publisher-list', $citationChildren[3]['variable'] ?? null);
+        $t->same('publisher-place-list', $citationChildren[4]['variable'] ?? null);
+        $t->same('[Ng | Archive Institute | Lisbon | Archive Institute | Lisbon; Roe | Migration Board | Porto | Migration Board | Porto; Kim | Review Press; Migration Desk | Coimbra; Evora | Review Press; Migration Desk | Coimbra; Evora; Ames | North Faculty; South Faculty | Remote; Annex | North Faculty; South Faculty | Remote; Annex]', $styled->renderCitationCluster([
+            $citation('direct-institution-location', '[@direct-institution-location]'),
+            $citation('direct-organization-address', '[@direct-organization-address]'),
+            $citation('direct-publisher-list', '[@direct-publisher-list]'),
+            $citation('direct-school-list', '[@direct-school-list]'),
+        ]));
+        $t->same('Direct Institution Location Packet :: Archive Institute :: Lisbon :: Archive Institute :: Lisbon', $styled->renderBibliographyEntry('direct-institution-location'));
+        $t->same('Direct Organization Address Packet :: Migration Board :: Porto :: Migration Board :: Porto', $styled->renderBibliographyEntry('direct-organization-address'));
+        $t->same('Direct Publisher List Packet :: Review Press; Migration Desk :: Coimbra; Evora :: Review Press; Migration Desk :: Coimbra; Evora', $styled->renderBibliographyEntry('direct-publisher-list'));
+        $t->same('Direct School List Packet :: North Faculty; South Faculty :: Remote; Annex :: North Faculty; South Faculty :: Remote; Annex', $styled->renderBibliographyEntry('direct-school-list'));
+
+        $document = (new MarkdownReader())->read('Direct publisher aliases [@direct-institution-location; @direct-organization-address; @direct-publisher-list; @direct-school-list] keep local CSL metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct publisher aliases [Ng | Archive Institute | Lisbon | Archive Institute | Lisbon; Roe | Migration Board | Porto | Migration Board | Porto; Kim | Review Press; Migration Desk | Coimbra; Evora | Review Press; Migration Desk | Coimbra; Evora; Ames | North Faculty; South Faculty | Remote; Annex | North Faculty; South Faculty | Remote; Annex] keep local CSL metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Institution Location Packet :: Archive Institute :: Lisbon :: Archive Institute :: Lisbon</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Organization Address Packet :: Migration Board :: Porto :: Migration Board :: Porto</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>Direct Publisher List Packet :: Review Press; Migration Desk :: Coimbra; Evora :: Review Press; Migration Desk :: Coimbra; Evora</dd>', $blocks);
+        $t->contains('<dt>Ames 2023</dt><dd>Direct School List Packet :: North Faculty; South Faculty :: Remote; Annex :: North Faculty; South Faculty :: Remote; Annex</dd>', $blocks);
+    },
     'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
         $json = json_encode([
             [
