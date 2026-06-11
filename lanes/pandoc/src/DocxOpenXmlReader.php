@@ -45,6 +45,8 @@ final class DocxOpenXmlReader
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+    private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+    private const WORD_VBA_DATA_REL = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const CT_WORD_DOCUMENT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
@@ -62,6 +64,8 @@ final class DocxOpenXmlReader
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
     private const CT_WORD_COMMENTS_EXTENDED = 'application/vnd.ms-word.commentsext+xml';
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
+    private const CT_VBA_PROJECT = 'application/vnd.ms-office.vbaproject';
+    private const CT_WORD_VBA_DATA = 'application/vnd.ms-word.vbadata+xml';
 
     public function readFile(string $path): AstNode
     {
@@ -245,6 +249,12 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $macroProjects = $this->readMacroProjectParts(
+            $parts,
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $customXmlParts = $this->readCustomXmlParts(
             $parts,
             $documentPart,
@@ -292,6 +302,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIdCount'] = $customXmlParts['duplicateStoreItemIdCount'];
         $packageProvenance['summary']['customXmlDuplicateStoreItemIds'] = $customXmlParts['duplicateStoreItemIds'];
+        $packageProvenance['macroProjects'] = $macroProjects;
+        $packageProvenance['summary']['macroProjectRelationshipCount'] = $macroProjects['relationshipCount'];
+        $packageProvenance['summary']['macroProjectExistingCount'] = $macroProjects['existingCount'];
+        $packageProvenance['summary']['macroProjectMissingCount'] = $macroProjects['missingCount'];
+        $packageProvenance['summary']['macroProjectExternalCount'] = $macroProjects['externalCount'];
+        $packageProvenance['summary']['macroProjectIssueCount'] = $macroProjects['issueCount'];
+        $packageProvenance['summary']['macroProjectIssueCodes'] = $macroProjects['issueCodes'];
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
@@ -337,6 +354,7 @@ final class DocxOpenXmlReader
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
+                'macroProjects' => $macroProjects,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
                 'media' => $media,
@@ -1406,6 +1424,178 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readMacroProjectParts(
+        array $parts,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $issueCodes = [];
+        $issueCount = 0;
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if (!$this->isMacroProjectRelationshipType($relationship['type'])) {
+                continue;
+            }
+
+            $item = $this->macroProjectPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationship['id']] = $item;
+            $relationshipIds[] = $relationship['id'];
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $issueCount += count($item['issues']);
+            foreach ($item['issues'] as $issue) {
+                $issueCodes[(string) $issue] = true;
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'vbaProjectCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'vbaProject')),
+            'vbaDataCount' => count(array_filter($items, static fn (array $item): bool => $item['kind'] === 'wordVbaData')),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'issueCodes' => array_keys($issueCodes),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function macroProjectPartItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $kind = $this->macroProjectRelationshipKind($relationship['type']);
+        $expectedContentTypeBase = $kind === 'wordVbaData' ? self::CT_WORD_VBA_DATA : self::CT_VBA_PROJECT;
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) $summary['external'];
+        $exists = (bool) $summary['exists'];
+        $targetRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $targetRelationships = $targetRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $targetRelationshipsPart);
+        $contentTypeMatchesExpected = null;
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-macro-project';
+        } else {
+            $contentTypeMatchesExpected = $summary['contentTypeBase'] === $expectedContentTypeBase;
+            if (!$exists) {
+                $issues[] = 'missing-in-package';
+            }
+            if (!$contentTypeMatchesExpected) {
+                $issues[] = $summary['contentTypeSource'] === 'missing'
+                    ? 'missing-content-type'
+                    : 'unexpected-content-type';
+            }
+        }
+
+        $xmlRoot = [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+        ];
+        if ($kind === 'wordVbaData' && $exists && $targetPart !== null) {
+            $xmlRoot = $this->xmlRootPreflight($parts[$targetPart], $targetPart);
+            if ($xmlRoot['validXml'] === false) {
+                $issues[] = 'invalid-xml';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'kind' => $kind,
+            'relationshipId' => $relationship['id'],
+            'relationshipType' => $relationship['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'external' => $external,
+            'partName' => $targetPart,
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'exists' => $exists,
+            'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
+            'byteLength' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : null,
+            'crc32' => $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha1' => $exists && $targetPart !== null ? sha1($parts[$targetPart]) : null,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => $expectedContentTypeBase,
+            'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
+            'validXml' => $xmlRoot['validXml'],
+            'xmlParseError' => $xmlRoot['xmlParseError'],
+            'rootNamespace' => $xmlRoot['rootNamespace'],
+            'rootLocalName' => $xmlRoot['rootLocalName'],
+            'relationshipsPart' => $relationshipsPart,
+            'targetRelationshipsPart' => $targetRelationshipsPart,
+            'targetRelationshipCount' => count($targetRelationships),
+            'canExposeBytes' => false,
+            'reviewPolicy' => 'macro-project-metadata-only',
+            'relationship' => $summary,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    private function isMacroProjectRelationshipType(string $relationshipType): bool
+    {
+        return $relationshipType === self::VBA_PROJECT_REL
+            || $relationshipType === self::WORD_VBA_DATA_REL;
+    }
+
+    private function macroProjectRelationshipKind(string $relationshipType): string
+    {
+        return $relationshipType === self::WORD_VBA_DATA_REL ? 'wordVbaData' : 'vbaProject';
     }
 
     /**

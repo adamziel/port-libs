@@ -2384,6 +2384,138 @@ XML;
         $t->same('00ABCDEF', $replyNote->attr('commentParentParaId'));
         $t->same(false, $replyNote->attr('commentResolved'));
     },
+    'summarizes docx macro project package relationships as inert metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $vbaProjectRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
+        $vbaDataRel = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+        $vbaSignatureRel = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
+        $vbaBytes = "VBA\0project bytes";
+        $vbaDataXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<wne:vbaSuppData xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml">
+  <wne:mcds/>
+</wne:vbaSuppData>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/vbaProject.bin" ContentType="application/vnd.ms-office.vbaProject"/>' . "\n" .
+            '  <Override PartName="/word/vbaData.xml" ContentType="application/vnd.ms-word.vbaData+xml"/>' . "\n" .
+            '  <Override PartName="/word/vbaProjectSignature.bin" ContentType="application/vnd.ms-office.vbaProjectSignature"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rVbaProject" Type="' . $vbaProjectRel . '" Target="vbaProject.bin?audit=1#project"/>' . "\n" .
+            '  <Relationship Id="rVbaData" Type="' . $vbaDataRel . '" Target="vbaData.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingVba" Type="' . $vbaProjectRel . '" Target="vbaMissing.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalVba" Type="' . $vbaProjectRel . '" Target="https://example.test/vbaProject.bin" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/vbaProject.bin'] = $vbaBytes;
+        $parts['word/vbaData.xml'] = $vbaDataXml;
+        $parts['word/_rels/vbaProject.bin.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rVbaSignature" Type="{$vbaSignatureRel}" Target="vbaProjectSignature.bin"/>
+</Relationships>
+XML;
+        $parts['word/vbaProjectSignature.bin'] = 'signed macro project digest';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $macroProjects = $docx['macroProjects'];
+        $project = $macroProjects['byRelationshipId']['rVbaProject'];
+        $vbaData = $macroProjects['byRelationshipId']['rVbaData'];
+        $missing = $macroProjects['byRelationshipId']['rMissingVba'];
+        $external = $macroProjects['byRelationshipId']['rExternalVba'];
+        $summary = $package['summary'];
+        $vbaType = $package['relationshipTypes'][$vbaProjectRel];
+        $vbaDataType = $package['relationshipTypes'][$vbaDataRel];
+        $signaturePart = $package['relationshipParts']['word/_rels/vbaProject.bin.rels'];
+
+        $t->same($macroProjects, $package['macroProjects']);
+        $t->same(4, $macroProjects['count']);
+        $t->same(4, $macroProjects['relationshipCount']);
+        $t->same(3, $macroProjects['vbaProjectCount']);
+        $t->same(1, $macroProjects['vbaDataCount']);
+        $t->same(2, $macroProjects['existingCount']);
+        $t->same(1, $macroProjects['missingCount']);
+        $t->same(1, $macroProjects['externalCount']);
+        $t->same(1, $macroProjects['missingContentTypeCount']);
+        $t->same(0, $macroProjects['unexpectedContentTypeCount']);
+        $t->same(0, $macroProjects['invalidXmlCount']);
+        $t->same(3, $macroProjects['issueCount']);
+        $t->same(['external-macro-project', 'missing-content-type', 'missing-in-package'], $macroProjects['issueCodes']);
+        $t->same(['rVbaProject', 'rVbaData', 'rMissingVba', 'rExternalVba'], $macroProjects['relationshipIds']);
+        $t->same(['word/vbaProject.bin', 'word/vbaData.xml', 'word/vbaMissing.bin'], $macroProjects['partNames']);
+
+        $t->same(4, $summary['macroProjectRelationshipCount']);
+        $t->same(2, $summary['macroProjectExistingCount']);
+        $t->same(1, $summary['macroProjectMissingCount']);
+        $t->same(1, $summary['macroProjectExternalCount']);
+        $t->same(3, $summary['macroProjectIssueCount']);
+        $t->same($macroProjects['issueCodes'], $summary['macroProjectIssueCodes']);
+
+        $t->same('vbaProject', $project['kind']);
+        $t->same('vbaProject.bin?audit=1#project', $project['target']);
+        $t->same('word/vbaProject.bin?audit=1#project', $project['resolvedTarget']);
+        $t->same('word/vbaProject.bin', $project['targetPart']);
+        $t->same('audit=1', $project['targetQuery']);
+        $t->same('project', $project['targetFragment']);
+        $t->same('?audit=1#project', $project['targetReferenceSuffix']);
+        $t->same(true, $project['exists']);
+        $t->same(strlen($vbaBytes), $project['byteLength']);
+        $t->same(sprintf('%08x', crc32($vbaBytes)), $project['crc32']);
+        $t->same(sha1($vbaBytes), $project['sha1']);
+        $t->same('application/vnd.ms-office.vbaProject', $project['contentType']);
+        $t->same('application/vnd.ms-office.vbaproject', $project['contentTypeBase']);
+        $t->same('application/vnd.ms-office.vbaproject', $project['expectedContentTypeBase']);
+        $t->same(true, $project['contentTypeMatchesExpected']);
+        $t->same(false, $project['canExposeBytes']);
+        $t->same('macro-project-metadata-only', $project['reviewPolicy']);
+        $t->same('word/_rels/vbaProject.bin.rels', $project['targetRelationshipsPart']);
+        $t->same(1, $project['targetRelationshipCount']);
+        $t->same([], $project['issues']);
+
+        $t->same('wordVbaData', $vbaData['kind']);
+        $t->same('word/vbaData.xml', $vbaData['partName']);
+        $t->same('application/vnd.ms-word.vbadata+xml', $vbaData['expectedContentTypeBase']);
+        $t->same(true, $vbaData['contentTypeMatchesExpected']);
+        $t->same(true, $vbaData['validXml']);
+        $t->same('vbaSuppData', $vbaData['rootLocalName']);
+        $t->same('http://schemas.microsoft.com/office/word/2006/wordml', $vbaData['rootNamespace']);
+        $t->same(false, $vbaData['canExposeBytes']);
+        $t->same([], $vbaData['issues']);
+
+        $t->same('word/vbaMissing.bin', $missing['partName']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(false, $missing['contentTypeMatchesExpected']);
+        $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
+        $t->same(true, $external['external']);
+        $t->same(null, $external['partName']);
+        $t->same(null, $external['contentTypeMatchesExpected']);
+        $t->same(['external-macro-project'], $external['issues']);
+
+        $t->same('word/vbaProject.bin', $signaturePart['sourcePart']);
+        $t->same(true, $signaturePart['sourceExists']);
+        $t->same(1, $signaturePart['relationshipCount']);
+        $t->same('word/vbaProjectSignature.bin', $signaturePart['relationships']['rVbaSignature']['targetPart']);
+        $t->same(true, $signaturePart['relationships']['rVbaSignature']['exists']);
+
+        $t->same('vbaProject', $vbaType['label']);
+        $t->same(3, $vbaType['count']);
+        $t->same(2, $vbaType['internalCount']);
+        $t->same(1, $vbaType['externalCount']);
+        $t->same(['word/vbaProject.bin'], $vbaType['existingTargetParts']);
+        $t->same(['word/vbaMissing.bin'], $vbaType['missingTargetParts']);
+        $t->same(['https://example.test/vbaProject.bin'], $vbaType['externalTargets']);
+        $t->same('wordVbaData', $vbaDataType['label']);
+        $t->same(['word/vbaData.xml'], $vbaDataType['existingTargetParts']);
+    },
     'summarizes docx alternative format import chunks from document relationships' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
