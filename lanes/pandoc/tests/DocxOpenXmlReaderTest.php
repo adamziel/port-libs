@@ -139,6 +139,68 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '<Default Extension="png" ContentType="image/png"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; charset=UTF-8; profile=package-default"/>',
+                '<Default Extension="png" ContentType="image/png; profile=media-default"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; charset=&quot;utf-8&quot;; profile=main-doc"/>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $xmlDefault = $contentTypesPart['defaults']['xml'];
+        $pngDefault = $contentTypesPart['defaults']['png'];
+        $documentOverride = $contentTypesPart['overrides']['word/document.xml'];
+        $rootDocumentRelationship = $package['relationshipParts']['_rels/.rels']['relationships']['rDoc'];
+        $documentInventory = $package['parts']['word/document.xml'];
+        $mediaInventory = $package['parts']['word/media/review.png'];
+        $mediaRelationship = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rImage'];
+        $image = $document->children[4]->children[1];
+
+        $t->same(true, $contentTypesPart['valid']);
+        $t->same(3, $contentTypesPart['parameterizedContentTypeCount']);
+        $t->same(['default', 'default', 'override'], array_column($contentTypesPart['parameterizedContentTypes'], 'kind'));
+        $t->same('application/xml; charset=UTF-8; profile=package-default', $xmlDefault['contentType']);
+        $t->same('application/xml', $xmlDefault['contentTypeBase']);
+        $t->same(true, $xmlDefault['contentTypeHasParameters']);
+        $t->same(2, $xmlDefault['contentTypeParameterCount']);
+        $t->same('charset', $xmlDefault['contentTypeParameters'][0]['name']);
+        $t->same('UTF-8', $xmlDefault['contentTypeParameters'][0]['value']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'package-default'], $xmlDefault['contentTypeParameterMap']);
+        $t->same('image/png', $pngDefault['contentTypeBase']);
+        $t->same(['profile' => 'media-default'], $pngDefault['contentTypeParameterMap']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; charset="utf-8"; profile=main-doc', $documentOverride['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $documentOverride['contentTypeBase']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main-doc'], $documentOverride['contentTypeParameterMap']);
+
+        $t->same($documentOverride['contentType'], $rootDocumentRelationship['contentType']);
+        $t->same($documentOverride['contentTypeBase'], $rootDocumentRelationship['contentTypeBase']);
+        $t->same(true, $rootDocumentRelationship['contentTypeHasParameters']);
+        $t->same(2, $rootDocumentRelationship['contentTypeParameterCount']);
+        $t->same(['charset' => 'utf-8', 'profile' => 'main-doc'], $rootDocumentRelationship['contentTypeParameterMap']);
+        $t->same($documentOverride['contentTypeBase'], $docx['packageProvenance']['parts']['word/document.xml']['contentTypeBase']);
+        $t->same($rootDocumentRelationship['contentTypeParameterMap'], $documentInventory['contentTypeParameterMap']);
+        $t->same('override', $documentInventory['contentTypeSource']);
+
+        $t->same('image/png; profile=media-default', $mediaInventory['contentType']);
+        $t->same('image/png', $mediaInventory['contentTypeBase']);
+        $t->same(['profile' => 'media-default'], $mediaInventory['contentTypeParameterMap']);
+        $t->same('image/png', $mediaRelationship['contentTypeBase']);
+        $t->same(['profile' => 'media-default'], $mediaRelationship['contentTypeParameterMap']);
+        $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
+        $t->same('image/png; profile=media-default', $image->attr('contentType'));
+    },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -825,6 +825,11 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => $targetReferenceSuffix['suffix'],
             'exists' => $exists,
             'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+            'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
             'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
             'defaultExtension' => $contentTypeResolution['defaultExtension'],
             'overridePartName' => $contentTypeResolution['overridePartName'],
@@ -1163,18 +1168,17 @@ final class DocxOpenXmlReader
         foreach ($contentTypes['defaults'] as $extension => $contentType) {
             $defaults[$extension] = [
                 'extension' => $extension,
-                'contentType' => $contentType,
-            ];
+            ] + $this->contentTypeReport($contentType);
         }
 
         $overrides = [];
         foreach ($contentTypes['overrides'] as $partName => $contentType) {
             $overrides[$partName] = [
                 'partName' => $partName,
-                'contentType' => $contentType,
                 'exists' => isset($parts[$partName]),
-            ];
+            ] + $this->contentTypeReport($contentType);
         }
+        $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
 
         return [
             'partName' => '[Content_Types].xml',
@@ -1184,6 +1188,8 @@ final class DocxOpenXmlReader
             'overrideCount' => count($overrides),
             'defaults' => $defaults,
             'overrides' => $overrides,
+            'parameterizedContentTypeCount' => count($parameterizedContentTypes),
+            'parameterizedContentTypes' => $parameterizedContentTypes,
             'preflight' => $preflight,
             'valid' => $preflight === null ? false : $preflight['valid'],
             'issues' => $preflight === null ? ['missing-content-types-part'] : $preflight['issues'],
@@ -1261,6 +1267,11 @@ final class DocxOpenXmlReader
             'targetReferenceSuffix' => $suffix['suffix'],
             'exists' => $targetPart !== null && isset($parts[$targetPart]),
             'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+            'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
             'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
             'defaultExtension' => $contentTypeResolution['defaultExtension'],
             'overridePartName' => $contentTypeResolution['overridePartName'],
@@ -1334,6 +1345,11 @@ final class DocxOpenXmlReader
                 'partName' => $partName,
                 'bytes' => strlen($contents),
                 'contentType' => $contentTypeResolution['contentType'],
+                'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+                'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+                'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+                'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
                 'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
                 'defaultExtension' => $contentTypeResolution['defaultExtension'],
                 'overridePartName' => $contentTypeResolution['overridePartName'],
@@ -1411,7 +1427,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
-     * @return array{contentType:string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string}
+     * @return array<string, mixed>
      */
     private function contentTypeResolutionForPart(string $partName, array $contentTypes): array
     {
@@ -1422,7 +1438,7 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => 'override',
                 'defaultExtension' => null,
                 'overridePartName' => $partName,
-            ];
+            ] + $this->contentTypeReport($contentTypes['overrides'][$partName]);
         }
 
         $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
@@ -1432,23 +1448,118 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => 'default',
                 'defaultExtension' => $extension,
                 'overridePartName' => null,
-            ];
+            ] + $this->contentTypeReport($contentTypes['defaults'][$extension]);
         }
 
         return $this->missingContentTypeResolution($extension === '' ? null : $extension);
     }
 
     /**
-     * @return array{contentType:string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string}
+     * @return array<string, mixed>
      */
     private function missingContentTypeResolution(?string $defaultExtension): array
     {
         return [
             'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
             'contentTypeSource' => 'missing',
             'defaultExtension' => $defaultExtension,
             'overridePartName' => null,
         ];
+    }
+
+    /**
+     * @return array{contentType:string, contentTypeBase:string, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameters:list<array{name:string, value:string, raw:string}>, contentTypeParameterMap:array<string, string>}
+     */
+    private function contentTypeReport(string $contentType): array
+    {
+        $segments = explode(';', $contentType);
+        $base = strtolower(trim((string) array_shift($segments)));
+        $parameters = [];
+        $parameterMap = [];
+
+        foreach ($segments as $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $equals = strpos($raw, '=');
+            $name = $equals === false ? strtolower(trim($raw)) : strtolower(trim(substr($raw, 0, $equals)));
+            if ($name === '') {
+                continue;
+            }
+
+            $value = $equals === false ? '' : trim(substr($raw, $equals + 1));
+            if (strlen($value) >= 2 && $value[0] === '"' && substr($value, -1) === '"') {
+                $value = substr($value, 1, -1);
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $value) ?? $value;
+            }
+
+            $parameters[] = [
+                'name' => $name,
+                'value' => $value,
+                'raw' => $raw,
+            ];
+            $parameterMap[$name] = $value;
+        }
+
+        return [
+            'contentType' => $contentType,
+            'contentTypeBase' => $base,
+            'contentTypeHasParameters' => $parameters !== [],
+            'contentTypeParameterCount' => count($parameters),
+            'contentTypeParameters' => $parameters,
+            'contentTypeParameterMap' => $parameterMap,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $defaults
+     * @param array<string, array<string, mixed>> $overrides
+     * @return list<array<string, mixed>>
+     */
+    private function parameterizedContentTypeDeclarations(array $defaults, array $overrides): array
+    {
+        $items = [];
+        foreach ($defaults as $extension => $default) {
+            if (($default['contentTypeHasParameters'] ?? false) !== true) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'default',
+                'extension' => $extension,
+                'contentType' => $default['contentType'],
+                'contentTypeBase' => $default['contentTypeBase'],
+                'contentTypeParameterCount' => $default['contentTypeParameterCount'],
+                'contentTypeParameters' => $default['contentTypeParameters'],
+                'contentTypeParameterMap' => $default['contentTypeParameterMap'],
+            ];
+        }
+
+        foreach ($overrides as $partName => $override) {
+            if (($override['contentTypeHasParameters'] ?? false) !== true) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'override',
+                'partName' => $partName,
+                'exists' => $override['exists'],
+                'contentType' => $override['contentType'],
+                'contentTypeBase' => $override['contentTypeBase'],
+                'contentTypeParameterCount' => $override['contentTypeParameterCount'],
+                'contentTypeParameters' => $override['contentTypeParameters'],
+                'contentTypeParameterMap' => $override['contentTypeParameterMap'],
+            ];
+        }
+
+        return $items;
     }
 
     private function isRelationshipPartName(string $partName): bool
