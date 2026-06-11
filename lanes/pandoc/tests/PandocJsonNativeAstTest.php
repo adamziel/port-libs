@@ -1991,6 +1991,66 @@ return [
         $t->same('Table long', $roundTrip->children[1]->attr('caption'));
         $t->same(null, $roundTrip->children[1]->attr('shortCaption'));
     },
+    'accepts singleton wrapped pandoc json short caption constructors' => static function (TestRunner $t): void {
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['json-singleton-short-caption', [], []],
+                ['t' => 'Caption', 'c' => [
+                    [[
+                        't' => 'ShortCaption',
+                        'c' => [[
+                            ['t' => 'Str', 'c' => 'Singleton'],
+                            ['t' => 'Space'],
+                            ['t' => 'Strong', 'c' => [
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                        ]],
+                    ]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Figure'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Alt']],
+                            ['media/singleton.png', ''],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+
+        $reader = new PandocJsonReader();
+        $writer = new PandocJsonWriter();
+        $document = $reader->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$figureBlock],
+        ]);
+        $figure = $document->children[0];
+        $shortInlines = $figure->attr('shortCaptionInlines');
+        $encoded = $writer->toArray($document);
+        $roundTrip = $reader->readPacket($encoded);
+
+        $t->same('figure', $figure->type);
+        $t->same('Singleton caption', $figure->attr('shortCaption'));
+        $t->same(true, is_array($shortInlines));
+        $t->same(['text', 'space', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortInlines));
+        $t->same('Figure caption', $figure->attr('caption'));
+        $t->same('Singleton', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Space', $encoded['blocks'][0]['c'][1][0][1]['t']);
+        $t->same('Strong', $encoded['blocks'][0]['c'][1][0][2]['t']);
+        $t->same('Plain', $encoded['blocks'][0]['c'][1][1][0]['t']);
+        $t->same('Singleton caption', $roundTrip->children[0]->attr('shortCaption'));
+        $t->same('Figure caption', $roundTrip->children[0]->attr('caption'));
+    },
     'maps pandoc definition lists into term and definition ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
