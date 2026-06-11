@@ -103,6 +103,7 @@ final class EpubReader
      *     mediaDurations:array<string, mixed>,
      *     mediaOverlayStyles:array<string, mixed>,
      *     pageBreaks:array<string, mixed>,
+     *     spineContentProvenance:array<string, mixed>,
      *     xhtmlAssets:list<array<string, mixed>>,
      *     xhtmlResourceReport:array<string, mixed>,
      *     cssResourceReport:array<string, mixed>,
@@ -136,6 +137,7 @@ final class EpubReader
             $opf['mediaDurations'],
             $opf['mediaOverlayStyles'],
             $opf['pageBreaks'],
+            $opf['spineContentProvenance'],
             $opf['navigation'],
             $opf['navigationOutline'],
             $opf['xhtmlResourceReport'],
@@ -172,6 +174,7 @@ final class EpubReader
             'mediaDurations' => $opf['mediaDurations'],
             'mediaOverlayStyles' => $opf['mediaOverlayStyles'],
             'pageBreaks' => $opf['pageBreaks'],
+            'spineContentProvenance' => $opf['spineContentProvenance'],
             'xhtmlAssets' => $opf['xhtmlAssets'],
             'xhtmlResourceReport' => $opf['xhtmlResourceReport'],
             'cssResourceReport' => $opf['cssResourceReport'],
@@ -186,6 +189,7 @@ final class EpubReader
                     'count' => count($opf['spine']),
                     'items' => $opf['spine'],
                     'properties' => $opf['spineProperties'],
+                    'contentProvenance' => $opf['spineContentProvenance'],
                 ],
                 'nav' => $opf['nav'],
                 'ncx' => $opf['ncx'],
@@ -598,6 +602,7 @@ final class EpubReader
         $navigation = self::navigationReport($nav, $ncx, $spine);
         $navigationOutline = self::navigationOutlineReport($nav, $ncx, $navigation);
         $xhtmlAssets = $this->xhtmlAssets($package, $manifest, $manifestByPart);
+        $spineContentProvenance = self::spineContentProvenanceReport($spine, $xhtmlAssets);
         $xhtmlResourceReport = self::xhtmlResourceReport($xhtmlAssets);
         $pageBreaks = self::pageBreakReport($nav, $ncx, $spine, $xhtmlResourceReport);
         $cssResourceReport = $this->cssResourceReport($package, $manifest, $manifestByPart);
@@ -641,6 +646,7 @@ final class EpubReader
             'mediaDurations' => $mediaDurations,
             'mediaOverlayStyles' => $mediaOverlayStyles,
             'pageBreaks' => $pageBreaks,
+            'spineContentProvenance' => $spineContentProvenance,
             'xhtmlAssets' => $xhtmlAssets,
             'xhtmlResourceReport' => $xhtmlResourceReport,
             'cssResourceReport' => $cssResourceReport,
@@ -13692,7 +13698,13 @@ final class EpubReader
                 'mediaOverlay' => $item['mediaOverlay'],
                 'mediaOverlayReference' => $item['mediaOverlayReference'] ?? null,
                 'mediaOverlayDiagnostics' => $item['mediaOverlayDiagnostics'] ?? [],
+                'byteLength' => is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null,
+                'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+                'byteSha256' => is_string($item['byteSha256'] ?? null) ? $item['byteSha256'] : null,
                 'html' => $html,
+                'htmlByteLength' => strlen($html),
+                'htmlSha256' => hash('sha256', $html),
+                'htmlLineCount' => $html === '' ? 0 : substr_count($html, "\n") + 1,
                 'contentResourceReport' => $contentReport,
                 'contentResourceFlags' => $contentReport['flags'],
                 'contentResourceReviewFlags' => $contentReport['reviewFlags'],
@@ -13727,6 +13739,105 @@ final class EpubReader
         }
 
         return $assets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $spine
+     * @param list<array<string, mixed>> $xhtmlAssets
+     *
+     * @return array<string, mixed>
+     */
+    private static function spineContentProvenanceReport(array $spine, array $xhtmlAssets): array
+    {
+        $assetsByPart = [];
+        foreach ($xhtmlAssets as $asset) {
+            $part = is_string($asset['part'] ?? null) ? $asset['part'] : '';
+            if ($part !== '') {
+                $assetsByPart[$part] = $asset;
+            }
+        }
+
+        $items = [];
+        $itemsByPart = [];
+        $itemsByIdref = [];
+        $hashedItems = [];
+        $fallbackItems = [];
+        $totalByteLength = 0;
+
+        foreach ($spine as $index => $item) {
+            $contentMediaType = $item['contentMediaType'] ?? $item['mediaType'] ?? null;
+            if (!self::mediaTypeBaseEquals($contentMediaType, self::XHTML_MEDIA_TYPE)) {
+                continue;
+            }
+
+            $contentPart = (string) ($item['contentPart'] ?? $item['part'] ?? '');
+            $asset = $assetsByPart[$contentPart] ?? null;
+            if (!is_array($asset)) {
+                continue;
+            }
+
+            $byteLength = is_int($asset['byteLength'] ?? null) ? $asset['byteLength'] : null;
+            $byteSha256 = is_string($asset['byteSha256'] ?? null) ? $asset['byteSha256'] : null;
+            $isFallback = ($item['contentIsFallback'] ?? false) === true;
+            $summary = [
+                'spineIndex' => (int) $index,
+                'idref' => (string) ($item['idref'] ?? ''),
+                'spineItemId' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                'spinePart' => is_string($item['part'] ?? null) ? $item['part'] : null,
+                'spineMediaType' => is_string($item['mediaType'] ?? null) ? $item['mediaType'] : null,
+                'contentManifestId' => (string) ($asset['id'] ?? ''),
+                'contentHref' => (string) ($asset['href'] ?? ''),
+                'contentTarget' => is_string($asset['target'] ?? null) ? $asset['target'] : null,
+                'contentPart' => $contentPart,
+                'contentMediaType' => is_string($contentMediaType) ? $contentMediaType : null,
+                'contentIsFallback' => $isFallback,
+                'fallbackOf' => $isFallback ? (string) ($item['idref'] ?? '') : null,
+                'byteLength' => $byteLength,
+                'crc32' => is_string($asset['crc32'] ?? null) ? $asset['crc32'] : null,
+                'byteSha256' => $byteSha256,
+                'htmlByteLength' => is_int($asset['htmlByteLength'] ?? null) ? $asset['htmlByteLength'] : null,
+                'htmlSha256' => is_string($asset['htmlSha256'] ?? null) ? $asset['htmlSha256'] : null,
+                'htmlLineCount' => is_int($asset['htmlLineCount'] ?? null) ? $asset['htmlLineCount'] : null,
+                'resourceReviewFlags' => is_array($asset['resourceReviewFlags'] ?? null) ? array_values($asset['resourceReviewFlags']) : [],
+                'contentResourceReviewFlags' => is_array($asset['contentResourceReviewFlags'] ?? null) ? array_values($asset['contentResourceReviewFlags']) : [],
+                'diagnosticCount' => count(is_array($asset['contentDiagnostics'] ?? null) ? $asset['contentDiagnostics'] : []),
+            ];
+
+            $items[] = $summary;
+            if ($contentPart !== '' && !isset($itemsByPart[$contentPart])) {
+                $itemsByPart[$contentPart] = $summary;
+            }
+            if ($summary['idref'] !== '' && !isset($itemsByIdref[$summary['idref']])) {
+                $itemsByIdref[$summary['idref']] = $summary;
+            }
+            if ($byteSha256 !== null) {
+                $hashedItems[] = $summary;
+            }
+            if ($isFallback) {
+                $fallbackItems[] = $summary;
+            }
+            if ($byteLength !== null) {
+                $totalByteLength += $byteLength;
+            }
+        }
+
+        ksort($itemsByPart, SORT_STRING);
+        ksort($itemsByIdref, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'spineItemCount' => count($spine),
+            'contentDocumentCount' => count($items),
+            'directContentCount' => count($items) - count($fallbackItems),
+            'fallbackContentCount' => count($fallbackItems),
+            'hashedContentCount' => count($hashedItems),
+            'totalByteLength' => $totalByteLength,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
+            'itemsByIdref' => $itemsByIdref,
+            'hashedItems' => $hashedItems,
+            'fallbackItems' => $fallbackItems,
+        ];
     }
 
     /**
@@ -19867,6 +19978,7 @@ final class EpubReader
      * @param array<string, mixed> $mediaDurations
      * @param array<string, mixed> $mediaOverlayStyles
      * @param array<string, mixed> $pageBreaks
+     * @param array<string, mixed> $spineContentProvenance
      * @param array<string, mixed> $navigation
      * @param array<string, mixed> $navigationOutline
      * @param array<string, mixed> $xhtmlResourceReport
@@ -19891,6 +20003,7 @@ final class EpubReader
         array $mediaDurations,
         array $mediaOverlayStyles,
         array $pageBreaks,
+        array $spineContentProvenance,
         array $navigation,
         array $navigationOutline,
         array $xhtmlResourceReport,
@@ -19903,9 +20016,15 @@ final class EpubReader
         foreach ($xhtmlAssets as $asset) {
             $assetsByPart[(string) $asset['part']] = $asset;
         }
+        $spineContentByIndex = [];
+        foreach (is_array($spineContentProvenance['items'] ?? null) ? $spineContentProvenance['items'] : [] as $provenance) {
+            if (is_array($provenance) && is_int($provenance['spineIndex'] ?? null)) {
+                $spineContentByIndex[(int) $provenance['spineIndex']] = $provenance;
+            }
+        }
 
         $children = [];
-        foreach ($spine as $item) {
+        foreach ($spine as $index => $item) {
             $contentMediaType = $item['contentMediaType'] ?? $item['mediaType'];
             if (!self::mediaTypeBaseEquals($contentMediaType, self::XHTML_MEDIA_TYPE)) {
                 continue;
@@ -19918,10 +20037,16 @@ final class EpubReader
             }
 
             $isFallback = (bool) ($item['contentIsFallback'] ?? false);
+            $contentProvenance = $spineContentByIndex[(int) $index] ?? null;
             $attributes = [
                 'format' => 'html',
                 'html' => $asset['html'],
                 'part' => $asset['part'],
+                'contentProvenance' => $contentProvenance,
+                'contentByteLength' => is_array($contentProvenance) ? $contentProvenance['byteLength'] : null,
+                'contentCrc32' => is_array($contentProvenance) ? $contentProvenance['crc32'] : null,
+                'contentByteSha256' => is_array($contentProvenance) ? $contentProvenance['byteSha256'] : null,
+                'contentHtmlSha256' => is_array($contentProvenance) ? $contentProvenance['htmlSha256'] : null,
                 'id' => $item['idref'],
                 'spineItemId' => $item['id'] ?? null,
                 'linear' => $item['linear'],
@@ -20023,6 +20148,7 @@ final class EpubReader
             'mediaDurations' => $mediaDurations,
             'mediaOverlayStyles' => $mediaOverlayStyles,
             'pageBreaks' => $pageBreaks,
+            'spineContentProvenance' => $spineContentProvenance,
             'renditions' => $renditions,
             'ocf' => $ocf,
             'title' => $metadata['title'] ?? '',

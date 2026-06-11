@@ -369,7 +369,7 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
 };
 
 return [
-    'reads EPUB3 container OPF metadata manifest spine and XHTML assets' => static function (TestRunner $t) use ($buildEpubPackage): void {
+    'reads EPUB3 container OPF metadata manifest spine and XHTML assets' => static function (TestRunner $t) use ($buildEpubPackage, $chapter1Xhtml, $chapter2Xhtml): void {
         $reader = new EpubReader();
         $result = $reader->readPackage($buildEpubPackage());
         $document = $result['document'];
@@ -407,10 +407,28 @@ return [
         $t->same(false, $result['spine'][1]['linear']);
         $t->same(3, count($result['xhtmlAssets']));
         $t->contains('<h1 id="intro">Imported packet</h1>', $result['xhtmlAssets'][1]['html']);
+        $contentProvenance = $result['spineContentProvenance'];
+        $t->same(true, $contentProvenance['present']);
+        $t->same(2, $contentProvenance['contentDocumentCount']);
+        $t->same(2, $contentProvenance['directContentCount']);
+        $t->same(0, $contentProvenance['fallbackContentCount']);
+        $t->same(2, $contentProvenance['hashedContentCount']);
+        $t->same(strlen($chapter1Xhtml) + strlen($chapter2Xhtml), $contentProvenance['totalByteLength']);
+        $t->same('/OEBPS/text/chapter1.xhtml', $contentProvenance['items'][0]['contentPart']);
+        $t->same('chapter-1', $contentProvenance['items'][0]['idref']);
+        $t->same(hash('sha256', $chapter1Xhtml), $contentProvenance['items'][0]['byteSha256']);
+        $t->same(hash('crc32b', $chapter1Xhtml), $contentProvenance['items'][0]['crc32']);
+        $t->same(hash('sha256', $chapter2Xhtml), $contentProvenance['itemsByIdref']['chapter-2']['htmlSha256']);
+        $t->same($contentProvenance['items'][0], $contentProvenance['itemsByPart']['/OEBPS/text/chapter1.xhtml']);
+        $t->same($contentProvenance, $result['importReport']['spine']['contentProvenance']);
         $t->same(2, count($document->children));
         $t->same('epub3', $document->attr('source'));
+        $t->same($contentProvenance, $document->attr('spineContentProvenance'));
         $t->same('raw_html', $document->children[0]->type);
         $t->same('/OEBPS/text/chapter1.xhtml', $document->children[0]->attr('part'));
+        $t->same($contentProvenance['items'][0], $document->children[0]->attr('contentProvenance'));
+        $t->same(hash('sha256', $chapter1Xhtml), $document->children[0]->attr('contentByteSha256'));
+        $t->same(strlen($chapter1Xhtml), $document->children[0]->attr('contentByteLength'));
         $t->contains('Chapter XHTML stays available', $markdown);
         $t->contains('<!-- wp:html -->', $blocks);
     },
