@@ -872,12 +872,111 @@ XML;
         $t->same(['odf-content', 'manifest-declared'], $parts['content.xml']['roles']);
         $t->same(['zip-directory', 'manifest-declared'], $parts['Pictures/']['roles']);
         $t->same(['manifest-declared', 'media-resource'], $parts['Pictures/hero.png']['roles']);
-        $t->same(['undeclared-package-entry'], $parts['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $parts['Thumbnails/thumbnail.png']['roles']);
         $t->same(false, $parts['Thumbnails/thumbnail.png']['declaredInManifest']);
         $t->same(true, $parts['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(0, $parts['Thumbnails/thumbnail.png']['compressionMethod']);
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $thumbnailBytes = 'THUMBNAIL';
+        $encryptedBytes = 'ENCRYPTEDPNG';
+        $invalidBytes = 'NOT-IMAGE';
+        $orphanBytes = 'WEBPTHUMB';
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Thumbnails/encrypted.png" manifest:size="12">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="thumbnail-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="thumbnail-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Thumbnails/thumbnail.png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Thumbnails/missing.jpg"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Thumbnails/not-image.png"/>'
+            . $encryptedEntry,
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/encrypted.png', 'data' => $encryptedBytes, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/not-image.png', 'data' => $invalidBytes, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/orphan.webp', 'data' => $orphanBytes, 'compressionMethod' => 0],
+            ]
+        ))->summarize();
+        $thumbnails = $summary['packageThumbnails'];
+        $itemsByPath = [];
+        foreach ($thumbnails['items'] as $item) {
+            $itemsByPath[$item['packagePath']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(5, $thumbnails['count']);
+        $t->same(3, $thumbnails['readableCount']);
+        $t->same(4, $thumbnails['declaredCount']);
+        $t->same(1, $thumbnails['undeclaredCount']);
+        $t->same(1, $thumbnails['missingCount']);
+        $t->same(1, $thumbnails['encryptedCount']);
+        $t->same(1, $thumbnails['invalidMediaTypeCount']);
+        $t->same(4, $thumbnails['issueCount']);
+        $t->same([
+            'odf-thumbnail-encrypted-package-part',
+            'odf-thumbnail-invalid-media-type',
+            'odf-thumbnail-missing-package-part',
+            'odf-thumbnail-undeclared-package-part',
+        ], $thumbnails['issueCodes']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+
+        $declared = $itemsByPath['Thumbnails/thumbnail.png'];
+        $t->same('Thumbnails/thumbnail.png', $declared['fullPath']);
+        $t->same('image/png', $declared['mediaType']);
+        $t->same(true, $declared['declared']);
+        $t->same(false, $declared['undeclared']);
+        $t->same(true, $declared['valid']);
+        $t->same(strlen($thumbnailBytes), $declared['byteLength']);
+        $t->same(sprintf('%08x', crc32($thumbnailBytes)), $declared['crc32']);
+        $t->same(false, $declared['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-metadata-only', $declared['reviewPolicy']);
+        $t->same([], $declared['issues']);
+
+        $missing = $itemsByPath['Thumbnails/missing.jpg'];
+        $t->same(false, $missing['exists']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(['odf-thumbnail-missing-package-part'], $missing['issues']);
+
+        $encrypted = $itemsByPath['Thumbnails/encrypted.png'];
+        $t->same(true, $encrypted['exists']);
+        $t->same(true, $encrypted['encrypted']);
+        $t->same(null, $encrypted['byteLength']);
+        $t->same(strlen($encryptedBytes), $encrypted['storedByteLength']);
+        $t->same(null, $encrypted['crc32']);
+        $t->same(sprintf('%08x', crc32($encryptedBytes)), $encrypted['storedCrc32']);
+        $t->same(['odf-thumbnail-encrypted-package-part'], $encrypted['issues']);
+
+        $invalid = $itemsByPath['Thumbnails/not-image.png'];
+        $t->same('application/octet-stream', $invalid['mediaType']);
+        $t->same('application/octet-stream', $invalid['mediaTypeBase']);
+        $t->same(false, $invalid['valid']);
+        $t->same(['odf-thumbnail-invalid-media-type'], $invalid['issues']);
+
+        $orphan = $itemsByPath['Thumbnails/orphan.webp'];
+        $t->same(false, $orphan['declared']);
+        $t->same(true, $orphan['undeclared']);
+        $t->same('image/webp', $orphan['mediaType']);
+        $t->same(strlen($orphanBytes), $orphan['byteLength']);
+        $t->same(['odf-thumbnail-undeclared-package-part'], $orphan['issues']);
+
+        $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/not-image.png']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['Thumbnails/orphan.webp']['roles']);
+        $t->same(1, $summary['undeclaredPackageEntryCount']);
+        $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
     },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
