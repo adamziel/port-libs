@@ -616,6 +616,91 @@ XML;
         $t->same(1, $metadata['statistics']['imageCount']);
         $t->same($metadata['statistics'], $summary['metadata']['statistics']);
     },
+    'maps compact ODT settings XML config items into package summary metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ViewAreaTop" config:type="int">1440</config:config-item>
+      <config:config-item config:name="ShowRedlineChanges" config:type="boolean">true</config:config-item>
+      <config:config-item-map-indexed config:name="Views">
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">view-1</config:config-item>
+          <config:config-item config:name="ViewLeft" config:type="int">120</config:config-item>
+        </config:config-item-map-entry>
+        <config:config-item-map-entry>
+          <config:config-item config:name="ViewId" config:type="string">view-2</config:config-item>
+          <config:config-item config:name="ViewLeft" config:type="int">240</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-indexed>
+    </config:config-item-set>
+    <config:config-item-set config:name="ooo:configuration-settings">
+      <config:config-item config:name="LoadReadonly" config:type="boolean">false</config:config-item>
+      <config:config-item-map-named config:name="ForbiddenCharacters">
+        <config:config-item-map-entry config:name="en-US">
+          <config:config-item config:name="Language" config:type="string">en</config:config-item>
+        </config:config-item-map-entry>
+      </config:config-item-map-named>
+    </config:config-item-set>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSettings,
+            extraParts: [['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0]],
+        ));
+        $summary = $odt->summarize();
+        $settings = $odt->settings();
+        $view = $settings['setsByName']['ooo:view-settings'];
+        $configuration = $settings['setsByName']['ooo:configuration-settings'];
+        $views = $view['mapsByName']['Views'];
+        $forbiddenCharacters = $configuration['mapsByName']['ForbiddenCharacters'];
+
+        $t->same(true, $summary['settingsXml']);
+        $t->same($settings, $summary['settings']);
+        $t->same($settings, $odt->readContentDocument()->attr('settings'));
+        $t->same('settings.xml', $odt->manifestEntry('settings.xml')['path']);
+        $t->same(true, $odt->manifestEntry('settings.xml')['exists']);
+        $t->same('text/xml', $odt->mediaTypeForPath('settings.xml'));
+        $t->same(1, count($summary['mediaParts']), 'settings.xml must stay out of media byte handoff');
+
+        $t->same(2, $settings['count']);
+        $t->same(8, $settings['itemCount']);
+        $t->same(3, $settings['mapEntryCount']);
+        $t->same(['ooo:view-settings', 'ooo:configuration-settings'], array_column($settings['sets'], 'name'));
+        $t->same(6, $view['itemCount']);
+        $t->same(2, $view['mapEntryCount']);
+        $t->same(1440, $view['itemsByName']['ViewAreaTop']['typedValue']);
+        $t->same('1440', $view['itemsByName']['ViewAreaTop']['value']);
+        $t->same(true, $view['itemsByName']['ShowRedlineChanges']['typedValue']);
+        $t->same('indexed', $views['type']);
+        $t->same(2, $views['entryCount']);
+        $t->same('view-1', $views['entries'][0]['itemsByName']['ViewId']['typedValue']);
+        $t->same(240, $views['entries'][1]['itemsByName']['ViewLeft']['typedValue']);
+        $t->same(2, $configuration['itemCount']);
+        $t->same(false, $configuration['itemsByName']['LoadReadonly']['typedValue']);
+        $t->same('named', $forbiddenCharacters['type']);
+        $t->same(1, $forbiddenCharacters['entryCount']);
+        $t->same('en-US', $forbiddenCharacters['entries'][0]['name']);
+        $t->same('en', $forbiddenCharacters['entriesByName']['en-US']['itemsByName']['Language']['typedValue']);
+
+        $t->throws(\RuntimeException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifestWithSettings)));
+        $badSettingsXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"/>';
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSettings,
+            extraParts: [['name' => 'settings.xml', 'data' => $badSettingsXml]],
+        )));
+    },
     'renders mapped ODT content through the WordPress block writer' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $document = OpenDocumentPackage::fromPackage($buildOdtPackage())->readContentDocument();
         $blocks = (new WordPressBlockWriter())->write($document);
