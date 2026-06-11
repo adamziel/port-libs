@@ -5554,7 +5554,11 @@ final class PdfEngineHandoff
         }
 
         $issues = [];
-        $root = $rootValues === [] ? null : $this->typstBoundaryPathEntry($rootValues[count($rootValues) - 1], 'root');
+        $rootHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'root'),
+            $rootValues
+        );
+        $root = $rootHistory === [] ? null : $rootHistory[count($rootHistory) - 1];
         $fontPaths = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'font-path'),
             $fontPathValues
@@ -5563,14 +5567,25 @@ final class PdfEngineHandoff
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'certificate'),
             $certificateValues
         );
-        $packagePath = $packagePathValues === [] ? null : $this->typstBoundaryPathEntry($packagePathValues[count($packagePathValues) - 1], 'package-path');
-        $packageCache = $packageCacheValues === [] ? null : $this->typstBoundaryPathEntry($packageCacheValues[count($packageCacheValues) - 1], 'package-cache');
+        $packagePathHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-path'),
+            $packagePathValues
+        );
+        $packagePath = $packagePathHistory === [] ? null : $packagePathHistory[count($packagePathHistory) - 1];
+        $packageCacheHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-cache'),
+            $packageCacheValues
+        );
+        $packageCache = $packageCacheHistory === [] ? null : $packageCacheHistory[count($packageCacheHistory) - 1];
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
         );
-        $creationTimestampValue = $creationTimestampValues === [] ? null : $creationTimestampValues[count($creationTimestampValues) - 1];
-        $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
+        $creationTimestampHistory = array_map(
+            fn (string $value): array => $this->typstCreationTimestampEntry($value),
+            $creationTimestampValues
+        );
+        $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
@@ -5578,7 +5593,7 @@ final class PdfEngineHandoff
             'creationTimestamp' => $creationTimestampValues,
         ]);
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5609,8 +5624,38 @@ final class PdfEngineHandoff
         if ($overrides !== []) {
             $provenance['overrides'] = $overrides;
         }
+        if ($this->typstBoundaryHistoryHasIssues($rootHistory)) {
+            $provenance['rootHistory'] = $rootHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($packagePathHistory)) {
+            $provenance['packagePathHistory'] = $packagePathHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($packageCacheHistory)) {
+            $provenance['packageCacheHistory'] = $packageCacheHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
+            $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
 
         return $provenance;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $history
+     */
+    private function typstBoundaryHistoryHasIssues(array $history): bool
+    {
+        if (count($history) < 2) {
+            return false;
+        }
+
+        foreach ($history as $entry) {
+            if (($entry['issues'] ?? []) !== []) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
