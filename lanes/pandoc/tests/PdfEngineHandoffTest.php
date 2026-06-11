@@ -1156,6 +1156,123 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },
 
+    'plans typst pdf standard boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-standard.pdf',
+            'source' => '= Typst PDF Standard Packet',
+            'engineOptions' => ['--pdf-standard=PDF/A-2B', '--pdf-standard', 'pdf/ua-1'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst PDF standard packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'pdfStandards' => [
+                [
+                    'raw' => 'PDF/A-2B',
+                    'value' => 'pdf/a-2b',
+                    'normalized' => 'pdf/a-2b',
+                    'family' => 'pdf/a',
+                    'part' => 2,
+                    'conformance' => 'b',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'pdf/ua-1',
+                    'value' => 'pdf/ua-1',
+                    'normalized' => 'pdf/ua-1',
+                    'family' => 'pdf/ua',
+                    'part' => 1,
+                    'conformance' => null,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-standard.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-standard.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-standards:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+
+        $invalid = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-standard-invalid.pdf',
+            'source' => '= Typst PDF Standard Packet',
+            'engineOptions' => ['--pdf-standard', '--pdf-standard=screen'],
+        ]);
+        $invalidExpected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'pdf-standard-empty-boundary',
+                'pdf-standard-unrecognized-boundary',
+            ],
+            'pdfStandards' => [
+                [
+                    'raw' => '',
+                    'value' => '',
+                    'normalized' => null,
+                    'family' => null,
+                    'part' => null,
+                    'conformance' => null,
+                    'safe' => false,
+                    'issues' => ['pdf-standard-empty-boundary'],
+                ],
+                [
+                    'raw' => 'screen',
+                    'value' => 'screen',
+                    'normalized' => null,
+                    'family' => null,
+                    'part' => null,
+                    'conformance' => null,
+                    'safe' => false,
+                    'issues' => ['pdf-standard-unrecognized-boundary'],
+                ],
+            ],
+        ];
+        $invalidResult = $handoff->fakeRun($invalid, [
+            'files' => [
+                'build/pdf-standard-invalid.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same($invalidExpected, $invalid['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $invalid['diagnostics']));
+        $t->contains('typst-pdf-standards:2', implode(',', $invalid['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $invalid['diagnostics']));
+        $t->same(true, $invalidResult['ok']);
+        $t->same($invalidExpected, $invalidResult['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $invalidResult['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
+    },
+
     'fake runner preserves typst make dependency edge provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
