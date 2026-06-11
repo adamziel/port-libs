@@ -464,7 +464,17 @@ final class PandocJsonWriter
             return null;
         }
 
-        return [$short['value'], $content[1]] === $caption ? $native : null;
+        if ([$short['value'], $content[1]] === $caption) {
+            return $native;
+        }
+
+        return [
+            't' => 'Caption',
+            'c' => [
+                $this->captionShortNative($content[0], $caption[0]),
+                $caption[1],
+            ],
+        ];
     }
 
     /**
@@ -496,6 +506,47 @@ final class PandocJsonWriter
         return is_array($shortCaption) && array_is_list($shortCaption)
             ? ['valid' => true, 'value' => $shortCaption]
             : ['valid' => false, 'value' => null];
+    }
+
+    /**
+     * @param list<array<string, mixed>>|null $generatedShort
+     */
+    private function captionShortNative(mixed $sourceShort, ?array $generatedShort): mixed
+    {
+        $normalized = $this->normalizeCaptionShortNative($sourceShort);
+        if (($normalized['valid'] ?? false) && $normalized['value'] === $generatedShort) {
+            return $sourceShort;
+        }
+
+        if (is_array($sourceShort) && !array_is_list($sourceShort) && is_string($sourceShort['t'] ?? null)) {
+            if ($sourceShort['t'] === 'Nothing') {
+                return $generatedShort === null ? $sourceShort : ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [$generatedShort]]];
+            }
+
+            if ($sourceShort['t'] === 'Just') {
+                return $generatedShort === null
+                    ? ['t' => 'Nothing']
+                    : ['t' => 'Just', 'c' => $this->shortCaptionNativeContent($sourceShort['c'] ?? null, $generatedShort)];
+            }
+
+            if ($sourceShort['t'] === 'ShortCaption') {
+                return $generatedShort === null ? null : ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+            }
+        }
+
+        return $generatedShort;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $generatedShort
+     */
+    private function shortCaptionNativeContent(mixed $sourceShort, array $generatedShort): mixed
+    {
+        if (is_array($sourceShort) && !array_is_list($sourceShort) && ($sourceShort['t'] ?? null) === 'ShortCaption') {
+            return ['t' => 'ShortCaption', 'c' => [$generatedShort]];
+        }
+
+        return $generatedShort;
     }
 
     /**
