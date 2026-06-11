@@ -142,6 +142,30 @@ return [
         $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
         $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
     },
+    'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $inventory = $package['parts'];
+        $summary = $package['summary'];
+
+        $t->same(sprintf('%08x', crc32($parts['[Content_Types].xml'])), $inventory['[Content_Types].xml']['crc32']);
+        $t->same(sprintf('%08x', crc32($parts['_rels/.rels'])), $inventory['_rels/.rels']['crc32']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $inventory['word/document.xml']['crc32']);
+        $t->same(sprintf('%08x', crc32($parts['word/_rels/document.xml.rels'])), $inventory['word/_rels/document.xml.rels']['crc32']);
+        $t->same(sprintf('%08x', crc32($parts['word/media/review.png'])), $inventory['word/media/review.png']['crc32']);
+        $t->same(sprintf('%08x', crc32($parts['customXml/raw-review.bin'])), $inventory['customXml/raw-review.bin']['crc32']);
+
+        $t->same('missing', $inventory['customXml/raw-review.bin']['contentTypeSource']);
+        $t->same('bin', $inventory['customXml/raw-review.bin']['defaultExtension']);
+        $t->same(['package-part'], $inventory['customXml/raw-review.bin']['roles']);
+        $t->same(1, $summary['missingContentTypePartCount']);
+        $t->same('customXml/raw-review.bin', $summary['partsWithoutContentType'][0]['partName']);
+        $t->same(strlen($parts['customXml/raw-review.bin']), $summary['partsWithoutContentType'][0]['bytes']);
+        $t->same($inventory['customXml/raw-review.bin']['crc32'], $summary['partsWithoutContentType'][0]['crc32']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

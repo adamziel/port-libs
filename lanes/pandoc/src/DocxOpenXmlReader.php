@@ -2332,6 +2332,7 @@ final class DocxOpenXmlReader
             $partsWithoutContentType[] = [
                 'partName' => (string) ($part['partName'] ?? ''),
                 'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
                 'defaultExtension' => $part['defaultExtension'] ?? null,
                 'roles' => $part['roles'] ?? [],
                 'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
@@ -3268,6 +3269,7 @@ final class DocxOpenXmlReader
             $entry = [
                 'partName' => $partName,
                 'bytes' => strlen($contents),
+                'crc32' => sprintf('%08x', crc32($contents)),
                 'contentType' => $contentTypeResolution['contentType'],
                 'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
                 'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
