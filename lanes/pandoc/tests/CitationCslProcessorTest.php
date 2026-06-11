@@ -24838,6 +24838,71 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{review-volume-alias,
+  author             = {Curator, Vera},
+  title              = {Review Volume Alias Packet},
+  date               = {2026},
+  volumetitle        = {Collected Migration Reviews},
+  shortvolumetitle   = {CMR},
+  reviewed-title     = {Source Corpus},
+  reviewedgenre      = {review essay}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Collected Migration Reviews', $items[0]['volume-title'] ?? null);
+        $t->same('CMR', $items[0]['volume-title-short'] ?? null);
+        $t->same('Source Corpus', $items[0]['reviewed-title'] ?? null);
+        $t->same('review essay', $items[0]['reviewed-genre'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('review-volume-alias');
+        $t->same('Collected Migration Reviews', $item['volumeTitle'] ?? null);
+        $t->same('CMR', $item['volumeTitleShort'] ?? null);
+        $t->same('Source Corpus', $item['reviewedTitle'] ?? null);
+        $t->same('review essay', $item['reviewedGenre'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Review Volume Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-review-volume-alias-review</id>
+    <updated>2026-06-11T11:57:31+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="volume-title"/>
+        <text variable="volume-title" form="short"/>
+        <text variable="reviewed-title"/>
+        <text variable="reviewed-genre"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="volume-title"/>
+      <text variable="volume-title-short"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-genre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Review Volume Alias Review', $summary['title'] ?? null);
+        $t->same('[Curator | Collected Migration Reviews | CMR | Source Corpus | review essay]', $styled->renderCitationCluster([
+            $citation('review-volume-alias', '[@review-volume-alias]'),
+        ]));
+        $t->same('Review Volume Alias Packet :: Collected Migration Reviews :: CMR :: Source Corpus :: review essay', $styled->renderBibliographyEntry('review-volume-alias'));
+    },
     'maps bounded biblatex hyphenated event metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @proceedings{hyphen-event-metadata,
