@@ -252,6 +252,7 @@ final class DocxReader
             $numbering,
         );
         $embeddedObjects = $this->embeddedObjectImportReport($package, $reachableRelationships, $document);
+        $subdocuments = $this->subdocumentImportReport($document);
         $glossary = $this->readGlossaryDocument($package, $graph, $documentPart, $referencedNotes, $styles, $numbering);
         $metadata = $this->readCoreProperties($package, $graph);
         $documentBackground = $document->attr('docxBackground', []);
@@ -299,6 +300,9 @@ final class DocxReader
         if ($embeddedObjects['count'] > 0) {
             $metadata['docxEmbeddedObjects'] = $embeddedObjects;
         }
+        if ($subdocuments['count'] > 0) {
+            $metadata['docxSubdocuments'] = $subdocuments;
+        }
         if ($customXmlStore['count'] > 0) {
             $metadata['docxCustomXmlStore'] = [
                 'count' => $customXmlStore['count'],
@@ -333,6 +337,7 @@ final class DocxReader
                 $this->revisionImportReport($documentXml),
                 $this->alternativeFormatImportReport($documentXml, $package, $documentRelationships),
                 $embeddedObjects,
+                $subdocuments,
                 $notesPartSummary,
                 $specialNotes,
                 $docProperties,
@@ -375,6 +380,7 @@ final class DocxReader
      * @param array{insertionCount:int, deletionCount:int, formattingCount:int, items:list<array{type:string, accepted:bool, id:?string, author:?string, date:?string, text:string}>} $revisions
      * @param array<string, mixed> $alternativeFormats
      * @param array<string, mixed> $embeddedObjects
+     * @param array<string, mixed> $subdocuments
      * @param array<string, mixed> $notesPartSummary
      * @param array<string, mixed> $specialNotes
      * @param array<string, mixed> $docProperties
@@ -400,6 +406,7 @@ final class DocxReader
         array $revisions,
         array $alternativeFormats,
         array $embeddedObjects,
+        array $subdocuments,
         array $notesPartSummary,
         array $specialNotes,
         array $docProperties,
@@ -445,7 +452,7 @@ final class DocxReader
             'relationshipIssues' => $relationshipIssues,
             'media' => $this->mediaImportReport($package, $reachableRelationships, $document),
             'embeddedObjects' => $embeddedObjects,
-            'subdocuments' => $this->subdocumentImportReport($document),
+            'subdocuments' => $subdocuments,
             'alternativeFormats' => $alternativeFormats,
             'notes' => $notes,
             'revisions' => $revisions,
