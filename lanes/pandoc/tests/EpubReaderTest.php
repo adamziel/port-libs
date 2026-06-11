@@ -1483,6 +1483,51 @@ XML;
         $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
         $t->same(2, count($result['document']->children));
     },
+    'preserves OCF rootfile media-type parameter provenance for rendition review' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $parameterizedRootfiles = str_replace(
+            '<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/>',
+            '<rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml; profile=primary; charset=UTF-8"/>'
+            . "\n" . '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml; profile=&quot;fixed-layout&quot;"/>',
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $parameterizedRootfiles,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $rootfiles = $result['container']['rootfiles'];
+        $t->same(2, count($rootfiles));
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same(0, $result['container']['selectedRootfileIndex']);
+        $t->same('application/oebps-package+xml; profile=primary; charset=UTF-8', $rootfiles[0]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles[0]['mediaTypeBase']);
+        $t->same(['profile' => 'primary', 'charset' => 'UTF-8'], $rootfiles[0]['mediaTypeParameters']);
+        $t->same(2, $rootfiles[0]['mediaTypeParameterCount']);
+        $t->same(true, $rootfiles[0]['selected']);
+        $t->same('application/oebps-package+xml; profile="fixed-layout"', $rootfiles[1]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles[1]['mediaTypeBase']);
+        $t->same(['profile' => 'fixed-layout'], $rootfiles[1]['mediaTypeParameters']);
+        $t->same(1, $rootfiles[1]['mediaTypeParameterCount']);
+        $t->same(false, $rootfiles[1]['selected']);
+
+        $renditions = $result['renditions'];
+        $t->same(2, $renditions['count']);
+        $t->same(1, $renditions['alternateCount']);
+        $t->same(0, $renditions['selectedIndex']);
+        $t->same('application/oebps-package+xml; profile=primary; charset=UTF-8', $renditions['items'][0]['mediaType']);
+        $t->same('application/oebps-package+xml', $renditions['items'][0]['mediaTypeBase']);
+        $t->same(['profile' => 'primary', 'charset' => 'UTF-8'], $renditions['items'][0]['mediaTypeParameters']);
+        $t->same('application/oebps-package+xml; profile="fixed-layout"', $renditions['items'][1]['mediaType']);
+        $t->same('application/oebps-package+xml', $renditions['items'][1]['mediaTypeBase']);
+        $t->same(['profile' => 'fixed-layout'], $renditions['items'][1]['mediaTypeParameters']);
+        $t->same('Fixed layout reviewer edition', $renditions['items'][1]['metadata']['title']);
+        $t->same($renditions, $result['importReport']['renditions']);
+        $t->same($renditions, $result['document']->attr('renditions'));
+    },
     'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithFixedLayout = str_replace(
             '<meta name="cover" content="cover-image"/>',

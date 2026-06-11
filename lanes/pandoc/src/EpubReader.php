@@ -258,6 +258,7 @@ final class EpubReader
         foreach (self::childElements($rootfilesElement, 'rootfile', self::OCF_CONTAINER_NS) as $index => $rootfile) {
             $path = trim($rootfile->getAttribute('full-path'));
             $mediaType = trim($rootfile->getAttribute('media-type'));
+            $mediaTypeParts = self::mediaTypeParts($mediaType);
             if ($path === '') {
                 throw new \RuntimeException('EPUB rootfile is missing full-path');
             }
@@ -267,6 +268,9 @@ final class EpubReader
                 'index' => $index,
                 'path' => $part,
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeParts['base'],
+                'mediaTypeParameters' => $mediaTypeParts['parameters'],
+                'mediaTypeParameterCount' => count($mediaTypeParts['parameters']),
                 'exists' => $package->has($part),
                 'selected' => false,
             ];
@@ -675,7 +679,7 @@ final class EpubReader
         $selectedIndex = null;
 
         foreach (($container['rootfiles'] ?? []) as $rootfile) {
-            if (!is_array($rootfile) || ($rootfile['mediaType'] ?? null) !== self::OPF_MEDIA_TYPE) {
+            if (!is_array($rootfile) || !self::mediaTypeBaseEquals($rootfile['mediaType'] ?? null, self::OPF_MEDIA_TYPE)) {
                 continue;
             }
 
@@ -725,6 +729,9 @@ final class EpubReader
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
+            'mediaTypeBase' => (string) ($rootfile['mediaTypeBase'] ?? self::baseMediaType($rootfile['mediaType'] ?? '')),
+            'mediaTypeParameters' => is_array($rootfile['mediaTypeParameters'] ?? null) ? $rootfile['mediaTypeParameters'] : [],
+            'mediaTypeParameterCount' => (int) ($rootfile['mediaTypeParameterCount'] ?? 0),
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => (bool) ($rootfile['selected'] ?? false),
             'package' => is_array($opf['package'] ?? null) ? $opf['package'] : null,
@@ -750,6 +757,9 @@ final class EpubReader
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
+            'mediaTypeBase' => (string) ($rootfile['mediaTypeBase'] ?? self::baseMediaType($rootfile['mediaType'] ?? '')),
+            'mediaTypeParameters' => is_array($rootfile['mediaTypeParameters'] ?? null) ? $rootfile['mediaTypeParameters'] : [],
+            'mediaTypeParameterCount' => (int) ($rootfile['mediaTypeParameterCount'] ?? 0),
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => false,
             'package' => null,

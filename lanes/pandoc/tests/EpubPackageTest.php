@@ -3169,6 +3169,43 @@ XML;
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'preserves compact EPUB rootfile media-type parameter provenance' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithParameterizedRootfile = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml; profile=primary; charset=UTF-8"/>
+  </rootfiles>
+</container>
+XML;
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithParameterizedRootfile],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $rootfile = $epub->rootfiles()[0];
+        $validationRootfile = $epub->validationReport()['rootfiles']['items'][0];
+        $summary = $epub->summary();
+
+        $t->same('/EPUB/package.opf', $epub->opfPartName());
+        $t->same('application/oebps-package+xml; profile=primary; charset=UTF-8', $rootfile['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfile['mediaTypeBase']);
+        $t->same(['profile' => 'primary', 'charset' => 'UTF-8'], $rootfile['mediaTypeParameters']);
+        $t->same(2, $rootfile['mediaTypeParameterCount']);
+        $t->same('application/oebps-package+xml; profile=primary; charset=UTF-8', $validationRootfile['mediaType']);
+        $t->same('application/oebps-package+xml', $validationRootfile['mediaTypeBase']);
+        $t->same(['profile' => 'primary', 'charset' => 'UTF-8'], $validationRootfile['mediaTypeParameters']);
+        $t->same(true, $validationRootfile['selected']);
+        $t->same(1, $summary['validation']['rootfiles']['opfRootfileCount']);
+        $t->same(0, $summary['validation']['rootfiles']['nonOpfRootfileCount']);
+        $t->same($summary['validation']['rootfiles'], $summary['wordpressImport']['packageValidation']['rootfiles']);
+    },
+
     'rejects EPUB OCF packages with invalid mimetype or container rootfile' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $t->throws(\RuntimeException::class, static fn (): EpubPackage => EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],

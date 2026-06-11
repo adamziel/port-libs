@@ -120,7 +120,7 @@ final class EpubPackage
         $rootfiles = self::parseContainerXml($package->read('META-INF/container.xml'));
         $opfPartName = null;
         foreach ($rootfiles as $rootfile) {
-            if ($rootfile['mediaType'] === self::OPF_MEDIA_TYPE) {
+            if (self::mediaTypeBase($rootfile['mediaType']) === self::OPF_MEDIA_TYPE) {
                 $opfPartName = $rootfile['partName'];
                 break;
             }
@@ -646,9 +646,11 @@ final class EpubPackage
 
         foreach ($rootfiles as $index => $rootfile) {
             $partName = (string) ($rootfile['partName'] ?? '');
-            $mediaType = self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
+            $mediaType = (string) ($rootfile['mediaType'] ?? '');
+            $mediaTypeBase = (string) ($rootfile['mediaTypeBase'] ?? self::mediaTypeBase($mediaType));
+            $mediaTypeParameters = is_array($rootfile['mediaTypeParameters'] ?? null) ? $rootfile['mediaTypeParameters'] : [];
             $exists = $partName !== '' && $package->has($partName);
-            $selected = $selectedIndex === null && $partName === $opfPartName && $mediaType === self::OPF_MEDIA_TYPE;
+            $selected = $selectedIndex === null && $partName === $opfPartName && $mediaTypeBase === self::OPF_MEDIA_TYPE;
             if ($selected) {
                 $selectedIndex = $index;
             }
@@ -658,12 +660,15 @@ final class EpubPackage
                 'fullPath' => (string) ($rootfile['fullPath'] ?? ''),
                 'partName' => $partName,
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeBase,
+                'mediaTypeParameters' => $mediaTypeParameters,
+                'mediaTypeParameterCount' => (int) ($rootfile['mediaTypeParameterCount'] ?? count($mediaTypeParameters)),
                 'exists' => $exists,
                 'selected' => $selected,
             ];
             $items[] = $item;
 
-            if ($mediaType === self::OPF_MEDIA_TYPE) {
+            if ($mediaTypeBase === self::OPF_MEDIA_TYPE) {
                 $opfRootfiles[] = $item;
             } else {
                 $nonOpfRootfiles[] = $item;
@@ -672,6 +677,7 @@ final class EpubPackage
                     'index' => $index,
                     'partName' => $partName,
                     'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
                     'message' => 'EPUB container rootfile should identify an OPF package document',
                 ];
             }
@@ -687,6 +693,7 @@ final class EpubPackage
                     'index' => $index,
                     'partName' => $partName,
                     'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
                     'message' => 'EPUB container rootfile points at a package part that is not present in the ZIP',
                 ];
             }
@@ -706,6 +713,7 @@ final class EpubPackage
                 'partName' => $partName,
                 'indexes' => array_column($matches, 'index'),
                 'mediaTypes' => array_values(array_unique(array_column($matches, 'mediaType'))),
+                'mediaTypeBases' => array_values(array_unique(array_column($matches, 'mediaTypeBase'))),
             ];
             $duplicatePartItems[] = $duplicate;
             $diagnostics[] = [
@@ -1635,10 +1643,14 @@ final class EpubPackage
                 throw new \InvalidArgumentException('EPUB rootfile full-path and media-type must be non-empty');
             }
 
+            $mediaTypeParts = self::mediaTypeParts($mediaType);
             $rootfiles[] = [
                 'fullPath' => $fullPath,
                 'partName' => OpcPackagePath::canonicalPartName($fullPath),
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeParts['base'],
+                'mediaTypeParameters' => $mediaTypeParts['parameters'],
+                'mediaTypeParameterCount' => count($mediaTypeParts['parameters']),
             ];
         }
 
@@ -6566,9 +6578,39 @@ final class EpubPackage
         return self::emptyToNull($value);
     }
 
+    /**
+     * @return array{base:string, parameters:array<string, string>}
+     */
+    private static function mediaTypeParts(string $mediaType): array
+    {
+        $raw = trim($mediaType);
+        $segments = array_map('trim', explode(';', $raw));
+        $base = strtolower(array_shift($segments) ?? '');
+        $parameters = [];
+
+        foreach ($segments as $segment) {
+            if ($segment === '' || !str_contains($segment, '=')) {
+                continue;
+            }
+
+            [$name, $value] = array_pad(explode('=', $segment, 2), 2, '');
+            $name = strtolower(trim($name));
+            if ($name === '') {
+                continue;
+            }
+
+            $parameters[$name] = trim($value, " \t\n\r\0\x0B\"'");
+        }
+
+        return [
+            'base' => $base,
+            'parameters' => $parameters,
+        ];
+    }
+
     private static function mediaTypeBase(string $mediaType): string
     {
-        return strtolower(trim(explode(';', $mediaType, 2)[0]));
+        return self::mediaTypeParts($mediaType)['base'];
     }
 
     /**
