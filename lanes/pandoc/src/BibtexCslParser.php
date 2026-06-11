@@ -1140,7 +1140,7 @@ final class BibtexCslParser
             $item['event-date'] = $eventDate;
         }
 
-        $availableDate = self::dateFromFields($fields, ['availabledate'], ['availableyear', 'availablemonth', 'availableday'], [
+        $availableDate = self::dateFromFields($fields, ['availabledate', 'available-date'], ['availableyear', 'availablemonth', 'availableday'], [
             'hour' => 'availablehour',
             'minute' => 'availableminute',
             'second' => 'availablesecond',
@@ -1155,7 +1155,7 @@ final class BibtexCslParser
             $item['available-date'] = $availableDate;
         }
 
-        $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday'], [
+        $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday'], [
             'hour' => 'submittedhour',
             'minute' => 'submittedminute',
             'second' => 'submittedsecond',

@@ -24823,6 +24823,70 @@ XML);
         ]));
         $t->same('Hyphenated Event Proceedings :: Hyphen Review Clinic :: source track :: clinic :: Remote Hall; Review Room :: 2026-07-08/2026-07-09 :: CC0 :: iv', $styled->renderBibliographyEntry('hyphen-event-metadata'));
     },
+    'maps bounded biblatex hyphenated availability and submission date aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{hyphen-date-alias,
+  author         = {Access, Ada},
+  title          = {Hyphen Date Alias Packet},
+  date           = {2026},
+  available-date = {2026-06-01/2026-06-02},
+  submitted-date = {2026-05-30},
+  url            = {https://example.test/hyphen-date-alias}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same(['date-parts' => [[2026, 6, 1], [2026, 6, 2]]], $items[0]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2026, 5, 30]]], $items[0]['submitted'] ?? null);
+        $t->same('2026-06-01/2026-06-02', $items[0]['rawBibtex']['fields']['available-date'] ?? null);
+        $t->same('2026-05-30', $items[0]['rawBibtex']['fields']['submitted-date'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('hyphen-date-alias');
+        $t->same('2026-06-01/2026-06-02', $item['availableDate']['display'] ?? null);
+        $t->same('2026-05-30', $item['submittedDate']['display'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Hyphen Date Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-hyphen-date-alias-review</id>
+    <updated>2026-06-11T11:09:12+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <date variable="submitted-date"/>
+        <text variable="url"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Hyphen Date Alias Review', $summary['title'] ?? null);
+        $t->same('[Access | 2026-06-01/2026-06-02 | 2026-05-30 | https://example.test/hyphen-date-alias]', $styled->renderCitationCluster([
+            $citation('hyphen-date-alias', '[@hyphen-date-alias]'),
+        ]));
+        $t->same('Hyphen Date Alias Packet :: 2026-06-01/2026-06-02 :: 2026-05-30', $styled->renderBibliographyEntry('hyphen-date-alias'));
+
+        $document = (new MarkdownReader())->read('Hyphen date source [@hyphen-date-alias] keeps availability and submission provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Hyphen date source [Access | 2026-06-01/2026-06-02 | 2026-05-30 | https://example.test/hyphen-date-alias] keeps availability and submission provenance visible.</p>', $blocks);
+        $t->contains('<dt>Access 2026</dt><dd>Hyphen Date Alias Packet :: 2026-06-01/2026-06-02 :: 2026-05-30</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
