@@ -990,7 +990,7 @@ final class CitationCslProcessor
             throw new \InvalidArgumentException('CSL item at index ' . $index . ' has an empty id');
         }
 
-        $issuedDate = self::dateVariable($item['issued'] ?? null, $id, 'issued');
+        $issuedDate = self::dateVariable(self::firstPresentField($item, ['issued', 'issuedDate', 'issued-date', 'issueddate', 'date']), $id, 'issued');
         $sourceFilePolicy = self::sourceFilesWithDiagnostics($item['sourceFiles'] ?? [], $id);
         $sourceFileDiagnostics = [
             ...$sourceFilePolicy['diagnostics'],
@@ -1000,8 +1000,8 @@ final class CitationCslProcessor
         $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
         $publisher = self::stringField($item, 'publisher');
         $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
-        $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'origpublisher']);
-        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'origlocation', 'origaddress']);
+        $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
+        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origaddress']);
         $archive = self::stringField($item, 'archive');
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace']);
@@ -1010,32 +1010,32 @@ final class CitationCslProcessor
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
-        $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList']);
-        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList']);
+        $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist']);
+        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList']);
         $language = self::stringField($item, 'language');
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
         }
-        $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList']);
-        $originalLanguage = self::stringField($item, 'original-language');
+        $originalLanguageList = self::stringListFromFirstField($item, ['original-language-list', 'originalLanguageList', 'originallanguagelist', 'origlanguagelist']);
+        $originalLanguage = self::firstStringField($item, ['original-language', 'originalLanguage', 'originallanguage', 'origlanguage']);
         if ($originalLanguage === '' && $originalLanguageList !== []) {
             $originalLanguage = implode('; ', $originalLanguageList);
         }
         $originalGenre = self::firstStringField($item, ['original-genre', 'originalGenre', 'origtype', 'origgenre']);
-        $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace']);
-        $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList']);
+        $eventPlace = self::firstStringField($item, ['event-place', 'eventPlace', 'eventplace', 'event-location', 'eventLocation', 'eventlocation', 'event-venue', 'eventVenue', 'eventvenue', 'venue']);
+        $eventPlaceList = self::stringListFromFirstField($item, ['event-place-list', 'eventPlaceList', 'eventplacelist', 'event-location-list', 'eventLocationList', 'eventlocationlist', 'event-venue-list', 'eventVenueList', 'eventvenuelist', 'venue-list', 'venueList']);
         if ($eventPlace === '' && $eventPlaceList !== []) {
             $eventPlace = implode('; ', $eventPlaceList);
         }
         $authorityNames = self::namesOrLiteral($item['authority'] ?? [], $id, 'authority');
         $authority = self::stringOrNamesField($item, 'authority', $id, $authorityNames);
-        $accessedDate = self::dateVariable($item['accessed'] ?? null, $id, 'accessed');
-        $availableDate = self::dateVariable($item['available-date'] ?? $item['availableDate'] ?? null, $id, 'available-date');
-        $originalDate = self::dateVariable($item['original-date'] ?? null, $id, 'original-date');
-        $reprintDate = self::dateVariable($item['reprint-date'] ?? $item['reprintDate'] ?? null, $id, 'reprint-date');
-        $submittedDate = self::dateVariable($item['submitted'] ?? $item['submitted-date'] ?? $item['submittedDate'] ?? null, $id, 'submitted');
-        $eventDate = self::dateVariable($item['event-date'] ?? null, $id, 'event-date');
+        $accessedDate = self::dateVariable(self::firstPresentField($item, ['accessed', 'accessedDate', 'accessed-date', 'accesseddate', 'accessdate', 'lastchecked', 'lastaccessed']), $id, 'accessed');
+        $availableDate = self::dateVariable(self::firstPresentField($item, ['available-date', 'availableDate', 'availabledate']), $id, 'available-date');
+        $originalDate = self::dateVariable(self::firstPresentField($item, ['original-date', 'originalDate', 'originaldate', 'origdate']), $id, 'original-date');
+        $reprintDate = self::dateVariable(self::firstPresentField($item, ['reprint-date', 'reprintDate', 'reprintdate']), $id, 'reprint-date');
+        $submittedDate = self::dateVariable(self::firstPresentField($item, ['submitted', 'submitted-date', 'submittedDate', 'submitteddate']), $id, 'submitted');
+        $eventDate = self::dateVariable(self::firstPresentField($item, ['event-date', 'eventDate', 'eventdate']), $id, 'event-date');
         $dateMarkerSummary = self::dateMarkerSummary([
             'issued' => $issuedDate,
             'accessed' => $accessedDate,
@@ -1154,11 +1154,11 @@ final class CitationCslProcessor
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon']),
             'volumeTitle' => self::firstStringField($item, ['volume-title', 'volumeTitle', 'volumetitle']),
             'partTitle' => self::firstStringField($item, ['part-title', 'partTitle', 'parttitle']),
-            'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle']),
-            'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon']),
+            'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
+            'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
             'eventPlace' => $eventPlace,
             'eventPlaceList' => $eventPlaceList !== [] ? $eventPlaceList : ($eventPlace !== '' ? [$eventPlace] : []),
-            'eventType' => self::firstStringField($item, ['event-type', 'eventType']),
+            'eventType' => self::firstStringField($item, ['event-type', 'eventType', 'eventtype']),
             'publisher' => $publisher,
             'publisherPlace' => $publisherPlace,
             'publisherList' => $publisherList !== [] ? $publisherList : ($publisher !== '' ? [$publisher] : []),
@@ -1278,8 +1278,8 @@ final class CitationCslProcessor
             'issuedDate' => $issuedDate,
             'accessedDate' => $accessedDate,
             'availableDate' => $availableDate,
-            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'origtitle']),
-            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'origtitleaddon']),
+            'originalTitle' => self::firstStringField($item, ['original-title', 'originalTitle', 'originaltitle', 'origtitle']),
+            'originalTitleAddon' => self::firstStringField($item, ['original-title-addon', 'originalTitleAddon', 'originaltitleaddon', 'origtitleaddon']),
             'originalPublisher' => $originalPublisher,
             'originalPublisherPlace' => $originalPublisherPlace,
             'originalPublisherList' => $originalPublisherList !== [] ? $originalPublisherList : ($originalPublisher !== '' ? [$originalPublisher] : []),
@@ -1477,6 +1477,28 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $keys
+     */
+    private static function firstPresentField(array $item, array $keys): mixed
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $item)) {
+                continue;
+            }
+
+            $value = $item[$key];
+            if ($value === null || $value === []) {
+                continue;
+            }
+
+            return $value;
+        }
+
+        return null;
     }
 
     private static function patentTypeLabel(string $type): string
@@ -9078,8 +9100,8 @@ final class CitationCslProcessor
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
-            'original-title', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
-            'original-title-addon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
+            'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
+            'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'container-title' => (string) $item['containerTitle'],
             'container-title-short' => (string) $item['containerTitleShort'],
@@ -9087,11 +9109,11 @@ final class CitationCslProcessor
             'container-title-addon' => (string) $item['containerTitleAddon'],
             'main-title' => (string) $item['mainTitle'],
             'main-title-addon' => (string) $item['mainTitleAddon'],
-            'event', 'event-title' => (string) $item['eventTitle'],
-            'event-title-addon' => (string) $item['eventTitleAddon'],
-            'event-place' => (string) $item['eventPlace'],
-            'event-place-list' => implode('; ', is_array($item['eventPlaceList'] ?? null) ? $item['eventPlaceList'] : []),
-            'event-type' => (string) $item['eventType'],
+            'event', 'event-title', 'eventtitle' => (string) $item['eventTitle'],
+            'event-title-addon', 'eventtitleaddon' => (string) $item['eventTitleAddon'],
+            'event-place', 'eventplace', 'event-location', 'eventlocation', 'event-venue', 'eventvenue', 'venue' => (string) $item['eventPlace'],
+            'event-place-list', 'eventplacelist', 'event-location-list', 'eventlocationlist', 'event-venue-list', 'eventvenuelist', 'venue-list' => implode('; ', is_array($item['eventPlaceList'] ?? null) ? $item['eventPlaceList'] : []),
+            'event-type', 'eventtype' => (string) $item['eventType'],
             'publisher' => (string) $item['publisher'],
             'publisher-place' => (string) $item['publisherPlace'],
             'publisher-list' => implode('; ', is_array($item['publisherList'] ?? null) ? $item['publisherList'] : []),
@@ -9260,22 +9282,22 @@ final class CitationCslProcessor
             'xref-summary' => $this->xrefSummary($item),
             'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),
             'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
-            'original-publisher', 'origpublisher' => (string) ($item['originalPublisher'] ?? ''),
-            'original-publisher-place', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
-            'original-publisher-list' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
-            'original-publisher-place-list' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
-            'original-language', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
-            'original-language-list' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
+            'original-publisher', 'originalpublisher', 'origpublisher' => (string) ($item['originalPublisher'] ?? ''),
+            'original-publisher-place', 'originalpublisherplace', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
+            'original-publisher-list', 'originalpublisherlist', 'origpublisherlist' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
+            'original-publisher-place-list', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
+            'original-language', 'originallanguage', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
+            'original-language-list', 'originallanguagelist', 'origlanguagelist' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
             'keyword', 'keywords' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'keyword-summary', 'keywords-summary' => (string) ($item['keywordSummary'] ?? ''),
-            'issued', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
+            'issued', 'issued-date', 'issueddate', 'date' => $this->renderDateVariable($item['issuedDate'] ?? null, $scope, 'issued'),
             'year-suffix' => (string) ($item['yearSuffix'] ?? ($citation instanceof AstNode ? $citation->attr('cslYearSuffix', '') : '')),
-            'available-date' => $this->renderDateVariable($item['availableDate'] ?? null, $scope, 'available-date'),
-            'submitted' => $this->renderDateVariable($item['submittedDate'] ?? null, $scope, 'submitted'),
-            'event-date' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
-            'accessed' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
-            'original-date' => $this->renderDateVariable($item['originalDate'] ?? null, $scope, 'original-date'),
-            'reprint-date' => $this->renderDateVariable($item['reprintDate'] ?? null, $scope, 'reprint-date'),
+            'available-date', 'availabledate' => $this->renderDateVariable($item['availableDate'] ?? null, $scope, 'available-date'),
+            'submitted', 'submitted-date', 'submitteddate' => $this->renderDateVariable($item['submittedDate'] ?? null, $scope, 'submitted'),
+            'event-date', 'eventdate' => $this->renderDateVariable($item['eventDate'] ?? null, $scope, 'event-date'),
+            'accessed', 'accessed-date', 'accesseddate' => $this->renderDateVariable($item['accessedDate'] ?? null, $scope, 'accessed'),
+            'original-date', 'originaldate', 'origdate' => $this->renderDateVariable($item['originalDate'] ?? null, $scope, 'original-date'),
+            'reprint-date', 'reprintdate' => $this->renderDateVariable($item['reprintDate'] ?? null, $scope, 'reprint-date'),
             'short-author' => $this->renderNamesElement(['variable' => 'short-author'], $item, $scope),
             'short-editor' => $this->renderNamesElement(['variable' => 'short-editor'], $item, $scope),
             'author' => $this->renderNamesElement(['variable' => 'author'], $item, $scope),
@@ -9575,7 +9597,7 @@ final class CitationCslProcessor
             return $this->namesForRenderingVariable($item, $normalized) !== [];
         }
 
-        if (in_array($normalized, ['issued', 'date', 'accessed', 'available-date', 'event-date', 'original-date', 'reprint-date', 'submitted'], true)) {
+        if (in_array($normalized, ['issued', 'issued-date', 'issueddate', 'date', 'accessed', 'accessed-date', 'accesseddate', 'available-date', 'availabledate', 'event-date', 'eventdate', 'original-date', 'originaldate', 'origdate', 'reprint-date', 'reprintdate', 'submitted', 'submitted-date', 'submitteddate'], true)) {
             $date = $this->dateVariableForRendering($item, $normalized);
             if (!is_array($date)) {
                 return false;
@@ -10302,13 +10324,13 @@ final class CitationCslProcessor
         $normalized = strtolower(trim($variable));
 
         return match ($normalized) {
-            'issued', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
-            'accessed' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
-            'available-date' => is_array($item['availableDate'] ?? null) ? $item['availableDate'] : null,
-            'event-date' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
-            'original-date' => is_array($item['originalDate'] ?? null) ? $item['originalDate'] : null,
-            'reprint-date' => is_array($item['reprintDate'] ?? null) ? $item['reprintDate'] : null,
-            'submitted' => is_array($item['submittedDate'] ?? null) ? $item['submittedDate'] : null,
+            'issued', 'issued-date', 'issueddate', 'date' => is_array($item['issuedDate'] ?? null) ? $item['issuedDate'] : null,
+            'accessed', 'accessed-date', 'accesseddate' => is_array($item['accessedDate'] ?? null) ? $item['accessedDate'] : null,
+            'available-date', 'availabledate' => is_array($item['availableDate'] ?? null) ? $item['availableDate'] : null,
+            'event-date', 'eventdate' => is_array($item['eventDate'] ?? null) ? $item['eventDate'] : null,
+            'original-date', 'originaldate', 'origdate' => is_array($item['originalDate'] ?? null) ? $item['originalDate'] : null,
+            'reprint-date', 'reprintdate' => is_array($item['reprintDate'] ?? null) ? $item['reprintDate'] : null,
+            'submitted', 'submitted-date', 'submitteddate' => is_array($item['submittedDate'] ?? null) ? $item['submittedDate'] : null,
             default => null,
         };
     }

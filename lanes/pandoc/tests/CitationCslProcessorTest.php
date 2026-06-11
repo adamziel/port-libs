@@ -24621,6 +24621,208 @@ XML);
         $t->contains('<dt>Diaz 2026</dt><dd>Alias Review Manual :: Manual Fuente: Archivo Appendix :: 1999-03 :: Archivo Press; Migration Desk :: Madrid; Barcelona :: spanish; catalan</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Compact Alias Manual :: Manual Original: Compact Appendix :: 2001-04-05 :: Legacy Press :: Lyon :: french</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact citation metadata aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-metadata-alias',
+                'type' => 'paper-conference',
+                'title' => 'Direct Metadata Alias Packet',
+                'authors' => [
+                    ['family' => 'Alias', 'given' => 'Ari'],
+                ],
+                'issuedDate' => ['date-parts' => [[2026, 6, 10]]],
+                'citationAliases' => ['direct-alias'],
+                'eventtitle' => 'Migration Review Summit',
+                'eventtitleaddon' => 'metadata track',
+                'eventlocation' => 'Remote Hall',
+                'eventtype' => 'workshop',
+                'eventDate' => ['date-parts' => [[2026, 6, 11]]],
+                'originaltitle' => 'Manual Fuente',
+                'originaltitleaddon' => 'source leaf',
+                'originalDate' => ['date-parts' => [[1999, 3]]],
+                'originalpublisher' => 'Legacy Press',
+                'originalpublisherplace' => 'Madrid',
+                'originallanguage' => 'spanish',
+                'reprinttitle' => 'Reprint Packet',
+                'reprintdate' => ['date-parts' => [[2001, 4, 5]]],
+                'reprintdateaddon' => 'review copy',
+                'copyright' => 'CC-BY-4.0',
+                'printingnumber' => '2',
+                'supplementnumber' => '3',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-metadata-alias');
+        $alias = $processor->item('direct-alias');
+        $t->same(['direct-alias'], $item['citationAliases'] ?? null);
+        $t->same('direct-metadata-alias', $alias['id'] ?? null);
+        $t->same('2026-06-10', $item['issuedDate']['display'] ?? null);
+        $t->same('Migration Review Summit', $item['eventTitle'] ?? null);
+        $t->same('metadata track', $item['eventTitleAddon'] ?? null);
+        $t->same('Remote Hall', $item['eventPlace'] ?? null);
+        $t->same('workshop', $item['eventType'] ?? null);
+        $t->same('2026-06-11', $item['eventDate']['display'] ?? null);
+        $t->same('Manual Fuente', $item['originalTitle'] ?? null);
+        $t->same('source leaf', $item['originalTitleAddon'] ?? null);
+        $t->same('1999-03', $item['originalDate']['display'] ?? null);
+        $t->same('Legacy Press', $item['originalPublisher'] ?? null);
+        $t->same('Madrid', $item['originalPublisherPlace'] ?? null);
+        $t->same('spanish', $item['originalLanguage'] ?? null);
+        $t->same('Reprint Packet', $item['reprintTitle'] ?? null);
+        $t->same('2001-04-05', $item['reprintDate']['display'] ?? null);
+        $t->same('review copy', $item['reprintDateAddon'] ?? null);
+        $t->same('CC-BY-4.0', $item['rights'] ?? null);
+        $t->same('2', $item['printingNumber'] ?? null);
+        $t->same('3', $item['supplementNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Metadata Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-metadata-alias-review</id>
+    <updated>2026-06-11T00:13:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="citation-aliases"/>
+        <date variable="issueddate"/>
+        <text variable="eventtitle"/>
+        <text variable="eventtitleaddon"/>
+        <text variable="eventlocation"/>
+        <text variable="eventtype"/>
+        <date variable="eventdate"/>
+        <text variable="originaltitle"/>
+        <text variable="originaltitleaddon"/>
+        <date variable="originaldate"/>
+        <text variable="originalpublisher"/>
+        <text variable="originalpublisherplace"/>
+        <text variable="originallanguage"/>
+        <text variable="reprint-title"/>
+        <date variable="reprintdate"/>
+        <text variable="reprint-date-addon"/>
+        <text variable="rights"/>
+        <number variable="printing-number" form="ordinal"/>
+        <number variable="supplement-number" form="roman"/>
+        <text variable="locator-label"/>
+        <text variable="locator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="eventtitle"/>
+      <date variable="eventdate"/>
+      <text variable="originaltitle"/>
+      <date variable="originaldate"/>
+      <text variable="reprint-title"/>
+      <date variable="reprintdate"/>
+      <text variable="rights"/>
+      <number variable="printing-number" form="ordinal"/>
+      <number variable="supplement-number" form="roman"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Metadata Alias Review', $summary['title'] ?? null);
+        $t->same('[Alias | direct-alias | 2026-06-10 | Migration Review Summit | metadata track | Remote Hall | workshop | 2026-06-11 | Manual Fuente | source leaf | 1999-03 | Legacy Press | Madrid | spanish | Reprint Packet | 2001-04-05 | review copy | CC-BY-4.0 | 2nd | iii | section | 7]', $styled->renderCitationCluster([
+            new AstNode('citation', [
+                'id' => 'direct-alias',
+                'text' => '[@direct-alias, sec. 7]',
+                'locatorLabel' => 'section',
+                'locatorValue' => '7',
+            ]),
+        ]));
+        $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
+    },
+    'maps bounded biblatex hyphenated event metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@proceedings{hyphen-event-metadata,
+  editor            = {Curator, Eli},
+  title             = {Hyphenated Event Proceedings},
+  date              = {2026},
+  event-title       = {Hyphen Review Clinic},
+  event-title-addon = {source track},
+  event-type        = {clinic},
+  event-place       = {{Remote Hall} and {Review Room}},
+  event-date        = {2026-07-08/2026-07-09},
+  license           = {CC0},
+  supplement-number = {4}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('Hyphen Review Clinic', $items[0]['event'] ?? null);
+        $t->same('source track', $items[0]['event-title-addon'] ?? null);
+        $t->same('clinic', $items[0]['event-type'] ?? null);
+        $t->same('Remote Hall; Review Room', $items[0]['event-place'] ?? null);
+        $t->same(['Remote Hall', 'Review Room'], $items[0]['event-place-list'] ?? null);
+        $t->same(['date-parts' => [[2026, 7, 8], [2026, 7, 9]]], $items[0]['event-date'] ?? null);
+        $t->same('CC0', $items[0]['rights'] ?? null);
+        $t->same('4', $items[0]['supplement-number'] ?? null);
+        $t->same('2026-07-08/2026-07-09', $items[0]['rawBibtex']['fields']['event-date'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('hyphen-event-metadata');
+        $t->same('Hyphen Review Clinic', $item['eventTitle'] ?? null);
+        $t->same('source track', $item['eventTitleAddon'] ?? null);
+        $t->same('clinic', $item['eventType'] ?? null);
+        $t->same('Remote Hall; Review Room', $item['eventPlace'] ?? null);
+        $t->same('2026-07-08/2026-07-09', $item['eventDate']['display'] ?? null);
+        $t->same('CC0', $item['rights'] ?? null);
+        $t->same('4', $item['supplementNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Hyphen Event Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-hyphen-event-alias-review</id>
+    <updated>2026-06-11T00:14:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="editor"/>
+        <text variable="event-title"/>
+        <text variable="event-title-addon"/>
+        <text variable="event-type"/>
+        <text variable="event-place-list"/>
+        <date variable="event-date"/>
+        <text variable="rights"/>
+        <number variable="supplement-number" form="roman"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="event-title"/>
+      <text variable="event-title-addon"/>
+      <text variable="event-type"/>
+      <text variable="event-place"/>
+      <date variable="event-date"/>
+      <text variable="rights"/>
+      <number variable="supplement-number" form="roman"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Hyphen Event Alias Review', $summary['title'] ?? null);
+        $t->same('[Curator | Hyphen Review Clinic | source track | clinic | Remote Hall; Review Room | 2026-07-08/2026-07-09 | CC0 | iv]', $styled->renderCitationCluster([
+            $citation('hyphen-event-metadata', '[@hyphen-event-metadata]'),
+        ]));
+        $t->same('Hyphenated Event Proceedings :: Hyphen Review Clinic :: source track :: clinic :: Remote Hall; Review Room :: 2026-07-08/2026-07-09 :: CC0 :: iv', $styled->renderBibliographyEntry('hyphen-event-metadata'));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));

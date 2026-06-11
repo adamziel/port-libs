@@ -694,10 +694,10 @@ final class BibtexCslParser
         $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place']);
         $languageList = self::literalListFromFirstField($fields, ['language']);
         $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage', 'originallanguage', 'original-language']);
-        $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'eventlocation', 'eventplace', 'venue']);
+        $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place', 'venue']);
         $eventPlace = self::literalListDisplay($eventPlaceList);
         if ($eventPlace === '') {
-            $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'eventlocation', 'eventplace']);
+            $eventPlace = self::firstField($fields, ['venue', 'eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place']);
         }
         $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
         $archiveCollection = self::firstField($fields, ['archivecollection', 'archive-collection', 'archive_collection']);
@@ -743,10 +743,10 @@ final class BibtexCslParser
             'main-title-addon' => self::firstField($fields, ['maintitleaddon', 'main-title-addon']),
             'volume-title' => self::firstField($fields, ['volumetitle', 'volume-title']),
             'part-title' => self::firstField($fields, ['parttitle', 'part-title']),
-            'event' => self::firstField($fields, ['eventtitle']),
-            'event-title-addon' => self::firstField($fields, ['eventtitleaddon']),
+            'event' => self::firstField($fields, ['eventtitle', 'event-title', 'event']),
+            'event-title-addon' => self::firstField($fields, ['eventtitleaddon', 'event-title-addon']),
             'event-place' => $eventPlace,
-            'event-type' => self::firstField($fields, ['eventtype']),
+            'event-type' => self::firstField($fields, ['eventtype', 'event-type']),
             'publisher' => self::literalListDisplay($publisherList),
             'publisher-place' => self::literalListDisplay($publisherPlaceList),
             'page' => $page,
@@ -1125,7 +1125,7 @@ final class BibtexCslParser
             $item['reprint-date'] = $reprintDate;
         }
 
-        $eventDate = self::dateFromFields($fields, ['eventdate'], ['eventyear', 'eventmonth', 'eventday'], [
+        $eventDate = self::dateFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday'], [
             'hour' => 'eventhour',
             'minute' => 'eventminute',
             'second' => 'eventsecond',
