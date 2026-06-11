@@ -25024,6 +25024,69 @@ XML);
         $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
         $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
     },
+    'normalizes mathscinet aliases into csl registry metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@article{mathscinet-review,
+  author       = {Tao, Terence},
+  title        = {Alias Review Lemma},
+  journaltitle = {Notices Review},
+  date         = {2026},
+  mathscinet   = {MR246810}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('MR246810', $items[0]['MRNumber'] ?? null);
+        $t->same('MR246810', $items[0]['rawBibtex']['fields']['mathscinet'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('MR246810', $processor->item('mathscinet-review')['mrNumber'] ?? null);
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <text variable="mathscinet"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mr-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[MR246810]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'mathscinet-review', 'text' => '[@mathscinet-review]']),
+        ]));
+        $t->same('Alias Review Lemma :: MR246810', $styled->renderBibliographyEntry('mathscinet-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-mathscinet',
+            'title' => 'Direct MathSciNet Packet',
+            'mathscinet' => 'MR97531',
+        ]]);
+        $t->same('MR97531', $direct->item('direct-mathscinet')['mrNumber'] ?? null);
+        $directStyled = $direct->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <text variable="mathscinet"/>
+    </layout>
+  </citation>
+</style>
+XML);
+        $t->same('[MR97531]', $directStyled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-mathscinet', 'text' => '[@direct-mathscinet]']),
+        ]));
+
+        $document = (new MarkdownReader())->read('MathSciNet handoff [@mathscinet-review] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>MathSciNet handoff (Tao 2026) stays visible.</p>', $blocks);
+        $t->contains('<dt>Tao 2026</dt><dd>Tao, Terence. Alias Review Lemma. Notices Review. 2026. MR MR246810.</dd>', $blocks);
+    },
     'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{hyphen-original,

@@ -1216,7 +1216,7 @@ final class CitationCslProcessor
             'iswc' => self::firstStringField($item, ['ISWC', 'iswc']),
             'pmid' => self::firstStringField($item, ['PMID', 'pmid']),
             'pmcid' => self::firstStringField($item, ['PMCID', 'pmcid']),
-            'mrNumber' => self::firstStringField($item, ['MRNumber', 'mrNumber', 'mrnumber', 'mr-number', 'mr']),
+            'mrNumber' => self::firstStringField($item, ['MRNumber', 'mrNumber', 'mrnumber', 'mr-number', 'mr', 'mathscinet']),
             'mrClass' => self::firstStringField($item, ['MRClass', 'mrClass', 'mrclass', 'mr-class']),
             'zbl' => self::firstStringField($item, ['Zbl', 'zbl', 'zbmath']),
             'jstor' => self::firstStringField($item, ['JSTOR', 'jstor']),
