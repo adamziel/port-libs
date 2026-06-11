@@ -810,6 +810,38 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'
+                . '<figcaption data-review="orphan">Orphan caption</figcaption>',
+            'figure caption review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $figure = $summary[0];
+        $image = $figure['children'][0];
+        $caption = $figure['children'][1];
+        $extraCaption = $figure['children'][3];
+        $orphanCaption = $summary[1];
+
+        $t->same('figure', $figure['name']);
+        $t->same('figure', $figure['figurePart']);
+        $t->same('Figure one: imports', $figure['captionText']);
+        $t->same(2, $figure['captionCount']);
+        $t->same('image', $image['embeddedResource']);
+        $t->same('chart.png', $image['src']);
+        $t->same('Quarterly chart', $image['alt']);
+        $t->same('figcaption', $caption['name']);
+        $t->same('caption', $caption['figurePart']);
+        $t->same('Figure one: imports', $caption['captionText']);
+        $t->same('Extra caption', $extraCaption['captionText']);
+        $t->same('figcaption', $orphanCaption['name']);
+        $t->same('caption', $orphanCaption['figurePart']);
+        $t->same('Orphan caption', $orphanCaption['captionText']);
+        $t->same(['review' => 'orphan'], $orphanCaption['dataset']);
+        $t->same('<figure id="fig-review"><img alt="Quarterly chart" src="chart.png"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure><figcaption data-review="orphan">Orphan caption</figcaption>', $html);
+    },
     'summarizes html table structure spans and header references for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<table id="review"><caption>Quarterly <strong>review</strong></caption><colgroup span="2"><col span="3"><col span="0"></colgroup><thead><tr><th id="h1" scope="col" abbr="Q1">Quarter</th><th id="h2" scope="bad" colspan="2">Status</th></tr></thead><tbody><tr><th id="r1" scope="row">Batch A</th><td headers="h1 r1" rowspan="0" colspan="3">Ready</td><td colspan="2000" rowspan="-1">Overflow</td></tr></tbody></table>',

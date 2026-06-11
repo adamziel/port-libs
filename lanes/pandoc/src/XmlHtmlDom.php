@@ -767,6 +767,9 @@ final class XmlHtmlDom
         if (in_array($name, ['caption', 'col', 'td', 'th'], true)) {
             $summary += self::tableElementSummary($node, $name);
         }
+        if ($name === 'figure' || $name === 'figcaption') {
+            $summary += self::figureSummary($node, $name);
+        }
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
@@ -890,6 +893,27 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function figureSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'figure') {
+            $captions = self::childHtmlElements($element, 'figcaption');
+
+            return [
+                'figurePart' => 'figure',
+                'captionText' => isset($captions[0]) ? self::normalizedText($captions[0]) : null,
+                'captionCount' => count($captions),
+            ];
+        }
+
+        return [
+            'figurePart' => 'caption',
+            'captionText' => self::normalizedText($element),
+        ];
     }
 
     /**
