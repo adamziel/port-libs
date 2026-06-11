@@ -25363,6 +25363,118 @@ XML);
         ]));
         $t->same('Direct Metadata Alias Packet :: Migration Review Summit :: 2026-06-11 :: Manual Fuente :: 1999-03 :: Reprint Packet :: 2001-04-05 :: CC-BY-4.0 :: 2nd :: iii', $styled->renderBibliographyEntry('direct-metadata-alias'));
     },
+    'normalizes bounded direct csl json status and taxonomy aliases' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-status-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct Status Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publicationStatus' => 'forthcoming',
+                'keywordList' => ['review queue', 'source audit'],
+                'categoryList' => 'csl, taxonomy, handoff',
+            ],
+            [
+                'id' => 'direct-status-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Status Hyphen Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'publication-status' => 'in press',
+                'keyword-list' => 'dataset; audit',
+                'category-list' => ['direct', 'json'],
+            ],
+            [
+                'id' => 'direct-status-pubstate',
+                'type' => 'paper-conference',
+                'title' => 'Direct Status Pubstate Packet',
+                'author' => [
+                    ['family' => 'Kim', 'given' => 'Kai'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'pubstate' => 'preprint',
+                'keywordlist' => 'conference, source packet',
+                'categorylist' => 'handoff; review',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-status-camel');
+        $hyphen = $processor->item('direct-status-hyphen');
+        $pubstate = $processor->item('direct-status-pubstate');
+        $t->same('forthcoming', $camel['status'] ?? null);
+        $t->same(['review queue', 'source audit'], $camel['keywords'] ?? null);
+        $t->same('review queue; source audit', $camel['keywordSummary'] ?? null);
+        $t->same(['csl', 'taxonomy', 'handoff'], $camel['categories'] ?? null);
+        $t->same('csl; taxonomy; handoff', $camel['categorySummary'] ?? null);
+        $t->same('in press', $hyphen['status'] ?? null);
+        $t->same(['dataset', 'audit'], $hyphen['keywords'] ?? null);
+        $t->same(['direct', 'json'], $hyphen['categories'] ?? null);
+        $t->same('preprint', $pubstate['status'] ?? null);
+        $t->same(['conference', 'source packet'], $pubstate['keywords'] ?? null);
+        $t->same(['handoff', 'review'], $pubstate['categories'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Status Taxonomy Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-status-taxonomy-alias-review</id>
+    <updated>2026-06-11T18:09:29+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="status keyword-summary category-summary" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <text variable="status"/>
+            <text variable="keyword-summary"/>
+            <text variable="category-summary"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-status-taxonomy"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="status"/>
+      <text variable="keywords"/>
+      <text variable="category-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Status Taxonomy Alias Review', $summary['title'] ?? null);
+        $t->same(['status', 'keyword-summary', 'category-summary'], $branch['variables'] ?? null);
+        $t->same('[Ng | forthcoming | review queue; source audit | csl; taxonomy; handoff; Roe | in press | dataset; audit | direct; json; Kim | preprint | conference; source packet | handoff; review]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-status-camel', 'text' => '[@direct-status-camel]']),
+            new AstNode('citation', ['id' => 'direct-status-hyphen', 'text' => '[@direct-status-hyphen]']),
+            new AstNode('citation', ['id' => 'direct-status-pubstate', 'text' => '[@direct-status-pubstate]']),
+        ]));
+        $t->same('Direct Status Camel Packet :: forthcoming :: review queue, source audit :: csl; taxonomy; handoff', $styled->renderBibliographyEntry('direct-status-camel'));
+        $t->same('Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json', $styled->renderBibliographyEntry('direct-status-hyphen'));
+        $t->same('Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review', $styled->renderBibliographyEntry('direct-status-pubstate'));
+
+        $document = (new MarkdownReader())->read('Direct status aliases [@direct-status-camel; @direct-status-hyphen; @direct-status-pubstate] keep taxonomy metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct status aliases [Ng | forthcoming | review queue; source audit | csl; taxonomy; handoff; Roe | in press | dataset; audit | direct; json; Kim | preprint | conference; source packet | handoff; review] keep taxonomy metadata visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Status Camel Packet :: forthcoming :: review queue, source audit :: csl; taxonomy; handoff</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Status Hyphen Packet :: in press :: dataset, audit :: direct; json</dd>', $blocks);
+        $t->contains('<dt>Kim 2024</dt><dd>Direct Status Pubstate Packet :: preprint :: conference, source packet :: handoff; review</dd>', $blocks);
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,

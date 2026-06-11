@@ -1072,8 +1072,8 @@ final class CitationCslProcessor
             'submitted' => $submittedDate,
             'event-date' => $eventDate,
         ]);
-        $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords']);
-        $categories = self::stringListFromFirstField($item, ['categories', 'category']);
+        $keywords = self::stringListFromFirstField($item, ['keyword', 'keywords', 'keyword-list', 'keywordList', 'keywordlist']);
+        $categories = self::stringListFromFirstField($item, ['categories', 'category', 'category-list', 'categoryList', 'categorylist']);
         $biblatexOptions = self::stringListFromFirstField($item, ['biblatexOptions', 'biblatex-options', 'biblatexoptions']);
         $biblatexSkipBibliography = self::biblatexSkipBibliography($biblatexOptions);
         $biblatexLanguageOptions = self::stringListFromFirstField($item, [
@@ -1202,7 +1202,7 @@ final class CitationCslProcessor
             'biblatexGenderSummary' => $biblatexGender,
             'authority' => $authority,
             'jurisdiction' => self::stringField($item, 'jurisdiction'),
-            'status' => self::stringField($item, 'status'),
+            'status' => self::firstStringField($item, ['status', 'publication-status', 'publicationStatus', 'publicationstatus', 'pubstate']),
             'version' => self::stringField($item, 'version'),
             'rights' => self::firstStringField($item, ['rights', 'copyright', 'license', 'licence']),
             'doi' => self::firstStringField($item, ['DOI', 'doi']),
