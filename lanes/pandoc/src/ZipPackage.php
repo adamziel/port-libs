@@ -4121,6 +4121,21 @@ final class ZipPackage
         return $this->entriesByName[$name];
     }
 
+    public function hasPackagePart(string $partName): bool
+    {
+        return isset($this->entriesByName[$this->normalizePackagePartLookupName($partName)]);
+    }
+
+    public function packagePartEntry(string $partName): ZipPackageEntry
+    {
+        $name = $this->normalizePackagePartLookupName($partName);
+        if (!isset($this->entriesByName[$name])) {
+            throw new \RuntimeException("ZIP package part not found: {$partName}");
+        }
+
+        return $this->entriesByName[$name];
+    }
+
     /**
      * @return list<array{id:int, data:string}>
      */
@@ -4261,8 +4276,18 @@ final class ZipPackage
         return $this->read($partName, $maxUncompressedBytes);
     }
 
+    public function readPackagePart(string $partName, ?int $maxUncompressedBytes = null): string
+    {
+        return $this->read($this->normalizePackagePartLookupName($partName), $maxUncompressedBytes);
+    }
+
+    public function readPackagePartBounded(string $partName, int $maxUncompressedBytes): string
+    {
+        return $this->readPackagePart($partName, $maxUncompressedBytes);
+    }
+
     /**
-     * @param list<string|array{name:string, required?:bool, kind?:string, role?:string, maxUncompressedBytes?:int|null}> $requests
+     * @param list<string|array{name:string, required?:bool, kind?:string, role?:string, packagePart?:bool, maxUncompressedBytes?:int|null}> $requests
      * @return array{
      *     requestedEntryCount:int,
      *     requiredEntryCount:int,
@@ -4319,12 +4344,14 @@ final class ZipPackage
                     throw new \InvalidArgumentException('ZIP selected entry handoff kind must be a string');
                 }
                 $role = isset($request['role']) && is_string($request['role']) ? $request['role'] : null;
+                $packagePartLookup = (bool) ($request['packagePart'] ?? false);
                 $entryMaxUncompressedBytes = array_key_exists('maxUncompressedBytes', $request)
                     ? $request['maxUncompressedBytes']
                     : $maxEntryUncompressedBytes;
             } else {
                 throw new \InvalidArgumentException('ZIP selected entry handoff requests must be entry names or arrays with a name');
             }
+            $packagePartLookup ??= false;
 
             if (!in_array($expectedKind, ['file', 'directory', 'any'], true)) {
                 throw new \InvalidArgumentException('ZIP selected entry handoff kind must be file, directory, or any');
@@ -4337,8 +4364,23 @@ final class ZipPackage
 
             $required ? $requiredEntryCount++ : $optionalEntryCount++;
 
-            $name = $this->normalizeLookupPartName($requestedName);
+            $name = $packagePartLookup
+                ? $this->normalizePackagePartLookupName($requestedName)
+                : $this->normalizeLookupPartName($requestedName);
             $entry = $this->entriesByName[$name] ?? null;
+            $partName = $packagePartLookup ? OpcPackagePath::canonicalPartNameFromUriReference($requestedName) : null;
+            $partNameParseError = null;
+            $partNameIsOpcSafe = false;
+            if (!$packagePartLookup && $entry !== null && !$entry->isDirectory()) {
+                try {
+                    $partName = OpcPackagePath::canonicalPartName($entry->name);
+                    $partNameIsOpcSafe = true;
+                } catch (\InvalidArgumentException $exception) {
+                    $partNameParseError = $exception->getMessage();
+                }
+            } elseif ($packagePartLookup) {
+                $partNameIsOpcSafe = true;
+            }
             $entryIssues = [];
             $error = null;
             $bytesRead = null;
@@ -4351,12 +4393,22 @@ final class ZipPackage
                 'requestIndex' => $requestIndex,
                 'requestedName' => $requestedName,
                 'name' => $name,
+                'lookupMode' => $packagePartLookup ? 'opc-package-part' : 'zip-entry',
+                'partName' => $partName,
+                'partNameIsOpcSafe' => $partNameIsOpcSafe,
+                'partNameParseError' => $partNameParseError,
                 'role' => $role,
                 'required' => $required,
                 'expectedKind' => $expectedKind,
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'generalPurposeFlags' => null,
+                'usesDataDescriptor' => null,
+                'localHeaderOffset' => null,
+                'dataStart' => null,
+                'compressedDataEnd' => null,
                 'compressedSize' => null,
                 'uncompressedSize' => null,
                 'crc32' => null,
@@ -4393,10 +4445,17 @@ final class ZipPackage
             $isDirectory = $entry->isDirectory();
             $summary['isDirectory'] = $isDirectory;
             $summary['compressionMethod'] = $entry->compressionMethod;
+            $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
+            $summary['generalPurposeFlags'] = $entry->generalPurposeFlags;
+            $summary['usesDataDescriptor'] = ($entry->generalPurposeFlags & 0x0008) !== 0;
+            $summary['localHeaderOffset'] = $entry->localHeaderOffset;
             $summary['compressedSize'] = $entry->compressedSize;
             $summary['uncompressedSize'] = $entry->uncompressedSize;
             $summary['crc32'] = $entry->crc32;
             $summary['crc32Hex'] = $entry->crc32Hex();
+            $localHeader = $this->readLocalHeader($entry);
+            $summary['dataStart'] = $localHeader['dataStart'];
+            $summary['compressedDataEnd'] = $localHeader['dataStart'] + $entry->compressedSize;
 
             if ($expectedKind === 'file' && $isDirectory) {
                 $entryIssues[] = 'directory-entry-not-file';
@@ -11799,6 +11858,11 @@ final class ZipPackage
         self::assertSafePartName($name);
 
         return $name;
+    }
+
+    private function normalizePackagePartLookupName(string $partName): string
+    {
+        return ltrim(OpcPackagePath::canonicalPartNameFromUriReference($partName), '/');
     }
 
     /**

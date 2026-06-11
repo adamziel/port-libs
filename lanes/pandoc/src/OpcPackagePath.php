@@ -84,6 +84,27 @@ final class OpcPackagePath
         return self::canonicalPartName(self::decodeUriPath($path, 'OPC part name'), $allowRoot);
     }
 
+    public static function canonicalPartNameFromUriReference(string $partName, bool $allowRoot = false): string
+    {
+        if ($partName === '') {
+            throw new \InvalidArgumentException('OPC part name must not be empty');
+        }
+
+        $split = strcspn($partName, '?#');
+        $path = substr($partName, 0, $split);
+        $suffix = substr($partName, $split);
+        self::assertUriReferenceSuffix($suffix, 'OPC part name');
+        if ($path === '') {
+            if ($allowRoot) {
+                return '/';
+            }
+
+            throw new \InvalidArgumentException('OPC part name must identify a package part');
+        }
+
+        return self::canonicalPartNameFromUri($path, $allowRoot);
+    }
+
     public static function partNameToUri(string $partName, bool $allowRoot = false): string
     {
         $partName = self::canonicalPartName($partName, $allowRoot);

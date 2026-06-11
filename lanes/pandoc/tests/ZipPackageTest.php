@@ -8195,10 +8195,19 @@ return [
             ],
         ]));
 
+        $t->same(true, $package->hasPackagePart('/word/document.xml?view=review#body'));
+        $t->same(false, $package->hasPackagePart('/word/missing.xml'));
+        $t->same($package->entry('/word/document.xml'), $package->packagePartEntry('/word/document.xml#body'));
+        $t->same($documentXml, $package->readPackagePart('/word/document.xml?view=review#body', strlen($documentXml)));
+        $t->same($documentXml, $package->readPackagePartBounded('/word/document.xml', strlen($documentXml)));
         $t->same($documentXml, $package->readBounded('/word/document.xml', strlen($documentXml)));
         $t->same($mediaBytes, $package->read('/word/media/review.bin', strlen($mediaBytes)));
         $t->same('', $package->readBounded('/word/media/', 0));
         $t->throws(\RuntimeException::class, static fn (): string => $package->readBounded('/word/document.xml', strlen($documentXml) - 1));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->readPackagePart('/word/document.xml', strlen($documentXml) - 1));
+        $t->throws(\RuntimeException::class, static fn (): string => $package->readPackagePart('/word/missing.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): bool => $package->hasPackagePart('/word/%2e%2e/document.xml'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readPackagePart('/word/document.xml#bad%00'));
         $t->throws(\RuntimeException::class, static fn (): string => $package->read('/word/media/review.bin', 32));
         $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readBounded('/word/document.xml', -1));
     },
@@ -8242,7 +8251,7 @@ return [
         ]));
 
         $summary = $package->entryHandoffPreflight([
-            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => '/word/document.xml?view=review#body', 'required' => true, 'kind' => 'file', 'role' => 'main-document', 'packagePart' => true],
             ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
             ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
             ['name' => 'word/missing.xml', 'required' => true, 'kind' => 'file', 'role' => 'required-sidecar'],
@@ -8276,14 +8285,24 @@ return [
 
         $documentEntry = $summary['entries'][0];
         $t->same(0, $documentEntry['requestIndex']);
-        $t->same('/word/document.xml', $documentEntry['requestedName']);
+        $t->same('/word/document.xml?view=review#body', $documentEntry['requestedName']);
         $t->same('word/document.xml', $documentEntry['name']);
+        $t->same('opc-package-part', $documentEntry['lookupMode']);
+        $t->same('/word/document.xml', $documentEntry['partName']);
+        $t->same(true, $documentEntry['partNameIsOpcSafe']);
+        $t->same(null, $documentEntry['partNameParseError']);
         $t->same('main-document', $documentEntry['role']);
         $t->same(true, $documentEntry['required']);
         $t->same('file', $documentEntry['expectedKind']);
         $t->same(true, $documentEntry['exists']);
         $t->same(false, $documentEntry['isDirectory']);
         $t->same(8, $documentEntry['compressionMethod']);
+        $t->same('deflated', $documentEntry['compressionMethodName']);
+        $t->same(0x0800, $documentEntry['generalPurposeFlags']);
+        $t->same(false, $documentEntry['usesDataDescriptor']);
+        $t->same(0, $documentEntry['localHeaderOffset']);
+        $t->same(30 + strlen('word/document.xml'), $documentEntry['dataStart']);
+        $t->same($documentEntry['dataStart'] + $documentEntry['compressedSize'], $documentEntry['compressedDataEnd']);
         $t->same(strlen($documentXml), $documentEntry['uncompressedSize']);
         $t->same(strlen($documentXml), $documentEntry['bytesRead']);
         $t->same(hash('sha256', $documentXml), $documentEntry['contentSha256']);
@@ -8292,8 +8311,12 @@ return [
 
         $directoryEntry = $summary['entries'][2];
         $t->same('word/media/', $directoryEntry['name']);
+        $t->same('zip-entry', $directoryEntry['lookupMode']);
+        $t->same(null, $directoryEntry['partName']);
+        $t->same(false, $directoryEntry['partNameIsOpcSafe']);
         $t->same('directory', $directoryEntry['expectedKind']);
         $t->same(true, $directoryEntry['isDirectory']);
+        $t->same('stored', $directoryEntry['compressionMethodName']);
         $t->same(0, $directoryEntry['bytesRead']);
         $t->same(hash('sha256', ''), $directoryEntry['contentSha256']);
         $t->same('ready', $directoryEntry['status']);
@@ -8320,6 +8343,7 @@ return [
         $unsupportedEntry = $summary['entries'][6];
         $t->same('word/media/unsupported.bin', $unsupportedEntry['name']);
         $t->same(12, $unsupportedEntry['compressionMethod']);
+        $t->same('unsupported', $unsupportedEntry['compressionMethodName']);
         $t->same(false, $unsupportedEntry['isReadable']);
         $t->same(['unreadable-entry'], $unsupportedEntry['issues']);
         $t->contains('Unsupported ZIP compression method 12', $unsupportedEntry['error']);
@@ -8343,6 +8367,9 @@ return [
         $t->same([], $safeSummary['issues']);
         $t->same(2, $safeSummary['handoffEntryCount']);
         $t->same(2, $safeSummary['readableEntryCount']);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml#bad%00', 'packagePart' => true],
+        ], 128));
     },
 
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {

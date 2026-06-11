@@ -1010,6 +1010,7 @@ XML;
         $utf8Name = "\u{00E9}" . 'preuve.xml';
 
         $t->same('/word/media/source diagram.png', OpcPackagePath::canonicalPartNameFromUri('/word/media/source%20diagram.png'));
+        $t->same('/word/media/source diagram.png', OpcPackagePath::canonicalPartNameFromUriReference('/word/media/source%20diagram.png?variant=review#asset'));
         $t->same('/word/media/source%20diagram.png', OpcPackagePath::partNameToUri('/word/media/source diagram.png'));
         $t->same('image/png', $types->contentTypeForPart('/word/media/source%20diagram.png'));
         $t->same('application/xml', $types->contentTypeForPart('/customXml/' . $utf8Name));
@@ -1024,6 +1025,8 @@ XML;
             $xml = '<Types xmlns="' . OpcContentTypes::NAMESPACE_URI . '"><Override PartName="' . $partName . '" ContentType="image/png"/></Types>';
             $t->throws(\InvalidArgumentException::class, static fn (): OpcContentTypes => OpcContentTypes::fromXml($xml));
         }
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromUriReference('/word/media/source.png#bad%00'));
+        $t->throws(\InvalidArgumentException::class, static fn (): string => OpcPackagePath::canonicalPartNameFromUriReference('/word/media/source.png?bad=%7F'));
 
         foreach ([
             "/word/media/source\ndiagram.png",
