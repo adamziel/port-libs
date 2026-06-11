@@ -120,6 +120,7 @@ final class OdfReader
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
+        $officeDocumentParts = $this->officeDocumentPartProvenance($package, $manifest);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
         }
@@ -135,6 +136,7 @@ final class OdfReader
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
                 'packageProvenance' => $packageProvenance,
+                'officeDocumentParts' => $officeDocumentParts,
             ],
             'styles' => [
                 'count' => count($styleCatalog['styles']),
@@ -207,6 +209,7 @@ final class OdfReader
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
                     'packageProvenance' => $packageProvenance,
+                    'officeDocumentParts' => $officeDocumentParts,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
                     'missingItems' => array_values(array_filter(
@@ -649,6 +652,113 @@ final class OdfReader
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
             'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function officeDocumentPartProvenance(ZipPackage $package, array $manifest): array
+    {
+        $expectedParts = [
+            'content.xml' => ['role' => 'odf-content', 'rootLocalName' => 'document-content'],
+            'styles.xml' => ['role' => 'odf-styles', 'rootLocalName' => 'document-styles'],
+            'meta.xml' => ['role' => 'odf-meta', 'rootLocalName' => 'document-meta'],
+            'settings.xml' => ['role' => 'odf-settings', 'rootLocalName' => 'document-settings'],
+        ];
+        $manifestByPart = [];
+        $rootManifestVersion = null;
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (($item['fullPath'] ?? null) === '/') {
+                $rootManifestVersion = is_string($item['version'] ?? null) && $item['version'] !== ''
+                    ? $item['version']
+                    : null;
+            }
+            if (is_string($part) && $part !== '') {
+                $manifestByPart[$part] = $item;
+            }
+        }
+
+        $items = [];
+        $itemsByPart = [];
+        $versionCounts = [];
+        $versionMismatches = [];
+        $comparisonVersion = self::nullable($this->manifestVersion) ?? $rootManifestVersion;
+
+        foreach ($expectedParts as $part => $expected) {
+            $manifestItem = $manifestByPart[$part] ?? null;
+            $exists = $package->has($part);
+            $rootLocalName = null;
+            $rootNamespace = null;
+            $officeVersion = null;
+            $validRoot = null;
+            $diagnostics = [];
+
+            if ($exists) {
+                $dom = self::loadXml($package->read($part), 'ODT ' . $part . ' provenance XML');
+                $root = $dom->documentElement;
+                if ($root instanceof \DOMElement) {
+                    $rootLocalName = $root->localName;
+                    $rootNamespace = $root->namespaceURI;
+                    $officeVersion = self::nullable(self::attr($root, self::OFFICE_NS, 'version'));
+                    $validRoot = $rootNamespace === self::OFFICE_NS && $rootLocalName === $expected['rootLocalName'];
+                    if (!$validRoot) {
+                        $diagnostics[] = 'odf-office-document-part-invalid-root';
+                    }
+                    if ($officeVersion !== null) {
+                        $versionCounts[$officeVersion] = ($versionCounts[$officeVersion] ?? 0) + 1;
+                        if ($comparisonVersion !== null && $officeVersion !== $comparisonVersion) {
+                            $versionMismatches[] = [
+                                'part' => $part,
+                                'officeVersion' => $officeVersion,
+                                'manifestVersion' => self::nullable($this->manifestVersion),
+                                'rootManifestVersion' => $rootManifestVersion,
+                            ];
+                        }
+                    }
+                }
+            } elseif (is_array($manifestItem)) {
+                $diagnostics[] = 'odf-office-document-part-missing-package-part';
+            }
+
+            $item = [
+                'part' => $part,
+                'role' => $expected['role'],
+                'exists' => $exists,
+                'manifestDeclared' => is_array($manifestItem),
+                'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] : null,
+                'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+                'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
+                'expectedRootLocalName' => $expected['rootLocalName'],
+                'rootLocalName' => $rootLocalName,
+                'rootNamespace' => $rootNamespace,
+                'validOfficeDocumentRoot' => $validRoot,
+                'officeVersion' => $officeVersion,
+                'diagnostics' => $diagnostics,
+            ];
+
+            $items[] = $item;
+            $itemsByPart[$part] = $item;
+        }
+
+        ksort($versionCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['manifestDeclared'] === true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'versionedCount' => array_sum($versionCounts),
+            'manifestVersion' => self::nullable($this->manifestVersion),
+            'rootManifestVersion' => $rootManifestVersion,
+            'versions' => array_keys($versionCounts),
+            'versionCounts' => $versionCounts,
+            'mixedVersion' => count($versionCounts) > 1,
+            'versionMismatchCount' => count($versionMismatches),
+            'versionMismatches' => $versionMismatches,
+            'items' => $items,
+            'itemsByPart' => $itemsByPart,
         ];
     }
 

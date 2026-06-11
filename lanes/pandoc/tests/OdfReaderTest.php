@@ -645,6 +645,70 @@ XML;
         $t->same('presentation-slide-show', $result['media'][0]['preferredViewMode']);
         $t->same('presentation-slide-show', $result['importReport']['media']['items'][0]['preferredViewMode']);
     },
+    'preserves ODT office document part version provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $officeNamespace = 'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"';
+        $versionedContentXml = str_replace($officeNamespace, $officeNamespace . ' office:version="1.3"', $contentXml);
+        $versionedStylesXml = str_replace($officeNamespace, $officeNamespace . ' office:version="1.3"', $stylesXml);
+        $versionedMetaXml = str_replace($officeNamespace, $officeNamespace . ' office:version="1.3"', $metaXml);
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+  office:version="1.2">
+  <office:settings>
+    <config:config-item-set config:name="ooo:configuration-settings"/>
+  </office:settings>
+</office:document-settings>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+                . "\n  "
+                . '<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $versionedContentXml,
+            $manifestWithSettings,
+            $versionedStylesXml,
+            $versionedMetaXml,
+            [['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0]]
+        ));
+        $parts = $result['importReport']['manifest']['officeDocumentParts'];
+        $content = $parts['itemsByPart']['content.xml'];
+        $settings = $parts['itemsByPart']['settings.xml'];
+
+        $t->same($parts, $result['document']->attr('manifest')['officeDocumentParts']);
+        $t->same(4, $parts['count']);
+        $t->same(4, $parts['declaredCount']);
+        $t->same(4, $parts['existingCount']);
+        $t->same(4, $parts['versionedCount']);
+        $t->same('1.3', $parts['manifestVersion']);
+        $t->same('1.3', $parts['rootManifestVersion']);
+        $t->same(['1.2', '1.3'], $parts['versions']);
+        $t->same(['1.2' => 1, '1.3' => 3], $parts['versionCounts']);
+        $t->same(true, $parts['mixedVersion']);
+        $t->same(1, $parts['versionMismatchCount']);
+        $t->same('settings.xml', $parts['versionMismatches'][0]['part']);
+        $t->same('1.2', $parts['versionMismatches'][0]['officeVersion']);
+        $t->same('1.3', $parts['versionMismatches'][0]['manifestVersion']);
+
+        $t->same('odf-content', $content['role']);
+        $t->same(true, $content['manifestDeclared']);
+        $t->same('text/xml', $content['manifestMediaType']);
+        $t->same('document-content', $content['rootLocalName']);
+        $t->same('urn:oasis:names:tc:opendocument:xmlns:office:1.0', $content['rootNamespace']);
+        $t->same(true, $content['validOfficeDocumentRoot']);
+        $t->same('1.3', $content['officeVersion']);
+        $t->same([], $content['diagnostics']);
+
+        $t->same('odf-settings', $settings['role']);
+        $t->same('document-settings', $settings['expectedRootLocalName']);
+        $t->same('settings.xml', $settings['manifestFullPath']);
+        $t->same('1.2', $settings['officeVersion']);
+        $t->same(true, $settings['validOfficeDocumentRoot']);
+    },
     'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithTypedUserDefined = <<<'XML'
 <office:document-meta
