@@ -256,14 +256,23 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['root'] ?? null) !== null) {
                 $diagnostics[] = 'typst-root-boundary:' . $typstBoundaryProvenance['root']['path'];
             }
+            if (($typstBoundaryProvenance['rootCandidates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-root-boundary-candidates:' . count($typstBoundaryProvenance['rootCandidates']);
+            }
             if (($typstBoundaryProvenance['fontPaths'] ?? []) !== []) {
                 $diagnostics[] = 'typst-font-paths:' . count($typstBoundaryProvenance['fontPaths']);
             }
             if (($typstBoundaryProvenance['packagePath'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-path:' . $typstBoundaryProvenance['packagePath']['path'];
             }
+            if (($typstBoundaryProvenance['packagePathCandidates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-package-path-candidates:' . count($typstBoundaryProvenance['packagePathCandidates']);
+            }
             if (($typstBoundaryProvenance['packageCache'] ?? null) !== null) {
                 $diagnostics[] = 'typst-package-cache:' . $typstBoundaryProvenance['packageCache']['path'];
+            }
+            if (($typstBoundaryProvenance['packageCacheCandidates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-package-cache-candidates:' . count($typstBoundaryProvenance['packageCacheCandidates']);
             }
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
@@ -271,6 +280,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
+            }
+            if (($typstBoundaryProvenance['creationTimestampCandidates'] ?? []) !== []) {
+                $diagnostics[] = 'typst-creation-timestamp-candidates:' . count($typstBoundaryProvenance['creationTimestampCandidates']);
             }
             if (($typstBoundaryProvenance['issues'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-issues:' . count($typstBoundaryProvenance['issues']);
@@ -5506,31 +5518,55 @@ final class PdfEngineHandoff
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path']);
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache']);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input']);
-        $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp']);
-        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
+        $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp']);
+        if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === []) {
             return [];
         }
 
         $issues = [];
-        $root = $rootValues === [] ? null : $this->typstBoundaryPathEntry($rootValues[count($rootValues) - 1], 'root');
+        $rootCandidates = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'root'),
+            $rootValues
+        );
+        $root = $rootCandidates === [] ? null : $rootCandidates[count($rootCandidates) - 1];
         $fontPaths = array_map(
             fn (string $value): array => $this->typstBoundaryPathEntry($value, 'font-path'),
             $fontPathValues
         );
-        $packagePath = $packagePathValues === [] ? null : $this->typstBoundaryPathEntry($packagePathValues[count($packagePathValues) - 1], 'package-path');
-        $packageCache = $packageCacheValues === [] ? null : $this->typstBoundaryPathEntry($packageCacheValues[count($packageCacheValues) - 1], 'package-cache');
+        $packagePathCandidates = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-path'),
+            $packagePathValues
+        );
+        $packagePath = $packagePathCandidates === [] ? null : $packagePathCandidates[count($packagePathCandidates) - 1];
+        $packageCacheCandidates = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'package-cache'),
+            $packageCacheValues
+        );
+        $packageCache = $packageCacheCandidates === [] ? null : $packageCacheCandidates[count($packageCacheCandidates) - 1];
         $inputVariables = array_map(
             fn (string $value): array => $this->typstInputVariableEntry($value),
             $inputVariableValues
         );
-        $creationTimestamp = $creationTimestampValue === null ? null : $this->typstCreationTimestampEntry($creationTimestampValue);
+        $creationTimestampCandidates = array_map(
+            fn (string $value): array => $this->typstCreationTimestampEntry($value),
+            $creationTimestampValues
+        );
+        $creationTimestamp = $creationTimestampCandidates === [] ? null : $creationTimestampCandidates[count($creationTimestampCandidates) - 1];
 
-        foreach (array_filter(array_merge([$root, $packagePath, $packageCache, $creationTimestamp], $fontPaths, $inputVariables)) as $entry) {
-            if (!is_array($entry)) {
-                continue;
-            }
+        foreach (array_merge($rootCandidates, $fontPaths, $packagePathCandidates, $packageCacheCandidates, $inputVariables, $creationTimestampCandidates) as $entry) {
             foreach ($entry['issues'] as $issue) {
                 $issues[] = $issue;
+            }
+        }
+        foreach ([
+            'root' => $rootCandidates,
+            'package-path' => $packagePathCandidates,
+            'package-cache' => $packageCacheCandidates,
+            'creation-timestamp' => $creationTimestampCandidates,
+        ] as $kind => $candidates) {
+            $conflictIssue = $this->typstBoundaryCandidateConflictIssue($candidates, $kind);
+            if ($conflictIssue !== null) {
+                $issues[] = $conflictIssue;
             }
         }
         $issues = array_values(array_unique($issues));
@@ -5547,8 +5583,47 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if (count($rootCandidates) > 1) {
+            $provenance['rootCandidates'] = $rootCandidates;
+        }
+        if (count($packagePathCandidates) > 1) {
+            $provenance['packagePathCandidates'] = $packagePathCandidates;
+        }
+        if (count($packageCacheCandidates) > 1) {
+            $provenance['packageCacheCandidates'] = $packageCacheCandidates;
+        }
+        if (count($creationTimestampCandidates) > 1) {
+            $provenance['creationTimestampCandidates'] = $creationTimestampCandidates;
+        }
 
         return $provenance;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     */
+    private function typstBoundaryCandidateConflictIssue(array $candidates, string $kind): ?string
+    {
+        if (count($candidates) < 2) {
+            return null;
+        }
+
+        $signatures = [];
+        foreach ($candidates as $candidate) {
+            $value = $candidate['path'] ?? $candidate['value'] ?? $candidate['raw'] ?? '';
+            if (!is_string($value)) {
+                $value = '';
+            }
+            $candidateKind = $candidate['kind'] ?? 'unknown';
+            $signatures[(is_string($candidateKind) ? $candidateKind : 'unknown') . ':' . $value] = true;
+        }
+
+        $distinctCount = count($signatures);
+        if ($distinctCount < 2) {
+            return null;
+        }
+
+        return $kind . '-conflicting-boundary:' . $distinctCount;
     }
 
     /**

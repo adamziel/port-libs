@@ -294,6 +294,121 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $invalidResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst overridden boundary candidate provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $timestamp = '1700000100';
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/overridden-boundary.pdf',
+            'source' => '= Typst Overridden Boundary Packet',
+            'engineOptions' => [
+                '--root=https://outside.example.invalid/root',
+                '--root',
+                'project',
+                '--package-path=/opt/typst/packages',
+                '--package-path',
+                'vendor/typst-packages',
+                '--package-cache=https://cache.example.invalid/typst',
+                '--package-cache',
+                'cache/typst',
+                '--creation-timestamp',
+                'not-a-time',
+                '--creation-timestamp=' . $timestamp,
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst overridden boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => 'project', 'path' => 'project', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'fontPaths' => [],
+            'packagePath' => ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'packageCache' => ['raw' => 'cache/typst', 'path' => 'cache/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            'inputVariables' => [],
+            'issues' => [
+                'root-external-boundary',
+                'package-path-external-boundary',
+                'package-cache-external-boundary',
+                'creation-timestamp-invalid-boundary',
+                'root-conflicting-boundary:2',
+                'package-path-conflicting-boundary:2',
+                'package-cache-conflicting-boundary:2',
+                'creation-timestamp-conflicting-boundary:2',
+            ],
+            'creationTimestamp' => [
+                'raw' => $timestamp,
+                'value' => $timestamp,
+                'kind' => 'unix-seconds',
+                'timestamp' => 1700000100,
+                'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000100),
+                'deterministic' => true,
+                'safe' => true,
+                'issues' => [],
+            ],
+            'rootCandidates' => [
+                ['raw' => 'https://outside.example.invalid/root', 'path' => 'https://outside.example.invalid/root', 'kind' => 'uri', 'safe' => false, 'issues' => ['root-external-boundary']],
+                ['raw' => 'project', 'path' => 'project', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePathCandidates' => [
+                ['raw' => '/opt/typst/packages', 'path' => '/opt/typst/packages', 'kind' => 'absolute', 'safe' => false, 'issues' => ['package-path-external-boundary']],
+                ['raw' => 'vendor/typst-packages', 'path' => 'vendor/typst-packages', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packageCacheCandidates' => [
+                ['raw' => 'https://cache.example.invalid/typst', 'path' => 'https://cache.example.invalid/typst', 'kind' => 'uri', 'safe' => false, 'issues' => ['package-cache-external-boundary']],
+                ['raw' => 'cache/typst', 'path' => 'cache/typst', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'creationTimestampCandidates' => [
+                [
+                    'raw' => 'not-a-time',
+                    'value' => 'not-a-time',
+                    'kind' => 'invalid',
+                    'timestamp' => null,
+                    'iso8601' => null,
+                    'deterministic' => false,
+                    'safe' => false,
+                    'issues' => ['creation-timestamp-invalid-boundary'],
+                ],
+                [
+                    'raw' => $timestamp,
+                    'value' => $timestamp,
+                    'kind' => 'unix-seconds',
+                    'timestamp' => 1700000100,
+                    'iso8601' => gmdate('Y-m-d\TH:i:s\Z', 1700000100),
+                    'deterministic' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/overridden-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/overridden-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->same('project', $plan['engineBoundaryRoot']);
+        $t->contains('typst-root-boundary-candidates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-path-candidates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-package-cache-candidates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp-candidates:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:8', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'fake runner preserves typst dependency sidecar provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $source = "= Review Packet\n\n#image(\"figures/logo.svg\")\n";
