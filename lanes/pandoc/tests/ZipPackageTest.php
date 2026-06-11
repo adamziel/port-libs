@@ -4811,6 +4811,57 @@ return [
         $t->same(false, $tailedRaw['canInstantiate']);
     },
 
+    'preflights zip end of central directory comment and trailing byte previews before raw import' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $comment = 'eocd-comment-preview-packet';
+        $tail = 'detached-tail-preview-bytes';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>EOCD comment preview</w:p></w:document>',
+                'method' => 8,
+            ],
+        ], $comment);
+        $tailedZip = $zip . $tail;
+
+        $fixed = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($tailedZip);
+        $trailing = ZipPackage::endOfCentralDirectoryTrailingBytesPreflight($tailedZip);
+        $raw = ZipPackage::rawStrictImportPreflight($tailedZip, 1024, 100.0, 1024);
+        $commentPreview = substr($comment, 0, 16);
+        $tailPreview = substr($tail, 0, 16);
+
+        $t->same(strlen($tailedZip), $fixed['archiveLength']);
+        $t->same(strlen($comment), $fixed['packageCommentLength']);
+        $t->same(strlen($comment), $fixed['availablePackageCommentBytes']);
+        $t->same(strlen($commentPreview), $fixed['packageCommentPreviewByteCount']);
+        $t->same(bin2hex($commentPreview), $fixed['packageCommentPreviewHex']);
+        $t->same(strlen($zip), $fixed['declaredArchiveEndOffset']);
+        $t->same(strlen($zip), $fixed['trailingBytesOffset']);
+        $t->same(strlen($tail), $fixed['trailingByteCount']);
+        $t->same(strlen($tailPreview), $fixed['trailingBytesPreviewByteCount']);
+        $t->same(bin2hex($tailPreview), $fixed['trailingBytesPreviewHex']);
+        $t->same(['eocd-trailing-bytes'], $fixed['issues']);
+
+        $t->same($fixed['eocdOffset'], $trailing['eocdOffset']);
+        $t->same(strlen($comment), $trailing['declaredPackageCommentLength']);
+        $t->same(strlen($comment), $trailing['availablePackageCommentBytes']);
+        $t->same(strlen($commentPreview), $trailing['packageCommentPreviewByteCount']);
+        $t->same(bin2hex($commentPreview), $trailing['packageCommentPreviewHex']);
+        $t->same(strlen($zip), $trailing['declaredArchiveEndOffset']);
+        $t->same(strlen($zip), $trailing['trailingBytesOffset']);
+        $t->same(strlen($tail), $trailing['trailingByteCount']);
+        $t->same(strlen($tailPreview), $trailing['trailingBytesPreviewByteCount']);
+        $t->same(bin2hex($tailPreview), $trailing['trailingBytesPreviewHex']);
+        $t->same(['eocd-trailing-bytes'], $trailing['issues']);
+
+        $t->same($fixed, $raw['endOfCentralDirectoryFixedFields']);
+        $t->same($trailing, $raw['endOfCentralDirectoryTrailingBytes']);
+        $t->same(false, $raw['isValid']);
+        $t->same(false, $raw['canInstantiate']);
+        $t->same(1, $raw['entryCount']);
+        $t->contains('eocd-trailing-bytes', implode(',', $raw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $raw['diagnostics']));
+    },
+
     'preflights trailing bytes after the zip end of central directory before raw import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [
