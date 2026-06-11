@@ -438,9 +438,9 @@ final class PandocJsonWriter
                 $this->attrTuple($node),
                 $this->writeTableCaption($node),
                 $this->writeTableColumnSpecs($node),
-                $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head')),
+                $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head'), 'TableHead'),
                 array_map(fn (AstNode $body): array => $this->writeTableBody($body), $this->tableSections($node, 'table_body')),
-                $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot')),
+                $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot'), 'TableFoot'),
             ],
         ];
     }
@@ -670,35 +670,39 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>}
+     * @return array<int|string, mixed>
      */
-    private function writeTableSection(AstNode $section): array
+    private function writeTableSection(AstNode $section, string $constructor): array
     {
-        return [
+        $content = [
             $this->attrTuple($section),
             $this->writeTableRows($section->children),
         ];
+
+        return $this->taggedTableHelper($section, $constructor, $content) ?? $content;
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array<int|string, mixed>
      */
     private function writeTableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
 
-        return [
+        $content = [
             $this->attrTuple($body),
             $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
                 ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
+
+        return $this->taggedTableHelper($body, 'TableBody', $content) ?? $content;
     }
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     * @return list<array<int|string, mixed>>
      */
     private function writeTableRows(array $rows): array
     {
@@ -708,10 +712,11 @@ final class PandocJsonWriter
                 continue;
             }
 
-            $encoded[] = [
+            $content = [
                 $this->attrTuple($row),
                 $this->writeTableCells($row->children),
             ];
+            $encoded[] = $this->taggedTableHelper($row, 'Row', $content) ?? $content;
         }
 
         return $encoded;
@@ -719,7 +724,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array<int|string, mixed>>
      */
     private function writeTableCells(array $cells): array
     {
@@ -732,16 +737,35 @@ final class PandocJsonWriter
             $alignmentConstructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
             $rowspan = max(1, (int) $cell->attr('rowspan', 1));
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $encoded[] = [
+            $content = [
                 $this->attrTuple($cell),
                 $this->taggedNative($cell->attr('alignmentNative'), $alignmentConstructor) ?? $this->enum($alignmentConstructor),
                 $this->integerConstructorNative($cell->attr('rowSpanNative'), 'RowSpan', $rowspan) ?? ['t' => 'RowSpan', 'c' => $rowspan],
                 $this->integerConstructorNative($cell->attr('colSpanNative'), 'ColSpan', $colspan) ?? ['t' => 'ColSpan', 'c' => $colspan],
                 $this->childrenAsBlocks($cell),
             ];
+            $encoded[] = $this->taggedTableHelper($cell, 'Cell', $content) ?? $content;
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param array<int, mixed> $content
+     * @return array<string, mixed>|null
+     */
+    private function taggedTableHelper(AstNode $node, string $constructor, array $content): ?array
+    {
+        $native = $node->attr('native');
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return ($native['c'] ?? null) === $content
+                ? $native
+                : ['t' => $constructor, 'c' => $content];
+        }
+
+        return $node->attr('constructor') === $constructor
+            ? ['t' => $constructor, 'c' => $content]
+            : null;
     }
 
     /**
