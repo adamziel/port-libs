@@ -6308,6 +6308,190 @@ final class ZipPackage
     }
 
     /**
+     * Scan central-directory DOS attribute bits before package construction,
+     * so hidden/system/volume-label provenance remains visible when another
+     * raw ZIP policy blocks object instantiation.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     dosAttributeEntryCount:int,
+     *     readOnlyEntryCount:int,
+     *     hiddenEntryCount:int,
+     *     systemEntryCount:int,
+     *     volumeLabelEntryCount:int,
+     *     directoryAttributeEntryCount:int,
+     *     archiveEntryCount:int,
+     *     hiddenSystemOrVolumeLabelEntryCount:int,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     hiddenSystemOrVolumeLabelEntries:list<array<string, mixed>>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function dosAttributePolicyPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before DOS attributes can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $hiddenSystemOrVolumeLabelEntries = [];
+        $dosAttributeEntryCount = 0;
+        $readOnlyEntryCount = 0;
+        $hiddenEntryCount = 0;
+        $systemEntryCount = 0;
+        $volumeLabelEntryCount = 0;
+        $directoryAttributeEntryCount = 0;
+        $archiveEntryCount = 0;
+        $cursor = $archive['centralDirectoryOffset'];
+        $index = 0;
+
+        while ($index < $archive['totalEntryCount']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                throw new \RuntimeException("Invalid ZIP central directory header at entry {$index}");
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $externalAttributes = self::readUInt32($bytes, $cursor + 38);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $decodedName = self::decodeZipNameForPolicy($rawName, $flags, "central directory entry {$index} name");
+            $name = $decodedName['text'];
+            $dosAttributes = $externalAttributes & 0xff;
+            $hasReadOnly = ($dosAttributes & self::DOS_READ_ONLY_ATTRIBUTE) !== 0;
+            $hasHidden = ($dosAttributes & self::DOS_HIDDEN_ATTRIBUTE) !== 0;
+            $hasSystem = ($dosAttributes & self::DOS_SYSTEM_ATTRIBUTE) !== 0;
+            $hasVolumeLabel = ($dosAttributes & self::DOS_VOLUME_LABEL_ATTRIBUTE) !== 0;
+            $hasDirectory = ($dosAttributes & self::DOS_DIRECTORY_ATTRIBUTE) !== 0;
+            $hasArchive = ($dosAttributes & self::DOS_ARCHIVE_ATTRIBUTE) !== 0;
+            $entryIssues = [];
+            $diagnostics = [];
+
+            if ($hasHidden) {
+                $entryIssues[] = 'dos-hidden-attribute';
+                $diagnostics[] = 'zip-dos-hidden-attribute';
+                ++$hiddenEntryCount;
+            }
+            if ($hasSystem) {
+                $entryIssues[] = 'dos-system-attribute';
+                $diagnostics[] = 'zip-dos-system-attribute';
+                ++$systemEntryCount;
+            }
+            if ($hasVolumeLabel) {
+                $entryIssues[] = 'dos-volume-label-attribute';
+                $diagnostics[] = 'zip-dos-volume-label-attribute';
+                ++$volumeLabelEntryCount;
+            }
+            if ($hasReadOnly) {
+                ++$readOnlyEntryCount;
+            }
+            if ($hasDirectory) {
+                ++$directoryAttributeEntryCount;
+            }
+            if ($hasArchive) {
+                ++$archiveEntryCount;
+            }
+            if ($dosAttributes !== 0) {
+                ++$dosAttributeEntryCount;
+            }
+
+            $entry = [
+                'name' => $name,
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'centralDirectoryOffset' => $cursor,
+                'localHeaderOffset' => $localHeaderOffset,
+                'isDirectory' => str_ends_with($name, '/'),
+                'dosAttributes' => $dosAttributes,
+                'dosAttributeNames' => self::dosAttributeNamesFromBits($dosAttributes),
+                'hasReadOnlyAttribute' => $hasReadOnly,
+                'hasHiddenAttribute' => $hasHidden,
+                'hasSystemAttribute' => $hasSystem,
+                'hasVolumeLabelAttribute' => $hasVolumeLabel,
+                'hasDirectoryAttribute' => $hasDirectory,
+                'hasArchiveAttribute' => $hasArchive,
+                'externalAttributes' => $externalAttributes,
+                'policy' => $entryIssues === [] ? 'metadata' : 'blocked',
+                'diagnostics' => $diagnostics,
+                'issues' => $entryIssues,
+            ];
+            $entries[] = $entry;
+            if ($hasHidden || $hasSystem || $hasVolumeLabel) {
+                $hiddenSystemOrVolumeLabelEntries[] = $entry;
+            }
+
+            $cursor += 46 + $variableLength;
+            ++$index;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
+        }
+
+        $issues = [];
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+        if ($hiddenSystemOrVolumeLabelEntries !== []) {
+            $issues[] = 'hidden-system-or-volume-label-entries';
+        }
+
+        return [
+            'entryCount' => count($entries),
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'readOnlyEntryCount' => $readOnlyEntryCount,
+            'hiddenEntryCount' => $hiddenEntryCount,
+            'systemEntryCount' => $systemEntryCount,
+            'volumeLabelEntryCount' => $volumeLabelEntryCount,
+            'directoryAttributeEntryCount' => $directoryAttributeEntryCount,
+            'archiveEntryCount' => $archiveEntryCount,
+            'hiddenSystemOrVolumeLabelEntryCount' => count($hiddenSystemOrVolumeLabelEntries),
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'hiddenSystemOrVolumeLabelEntries' => $hiddenSystemOrVolumeLabelEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{
      *     entryCount:int,
      *     internalAttributeEntryCount:int,
@@ -8654,6 +8838,7 @@ final class ZipPackage
      *     comments:?array<string, mixed>,
      *     creatorHostSystems:?array<string, mixed>,
      *     externalAttributes:?array<string, mixed>,
+     *     dosAttributes:?array<string, mixed>,
      *     internalAttributes:?array<string, mixed>,
      *     centralDirectoryNameCollisions:?array<string, mixed>,
      *     centralDirectoryPathHierarchy:?array<string, mixed>,
@@ -8770,6 +8955,7 @@ final class ZipPackage
                 'comments' => null,
                 'creatorHostSystems' => null,
                 'externalAttributes' => null,
+                'dosAttributes' => null,
                 'internalAttributes' => null,
                 'centralDirectoryNameCollisions' => null,
                 'centralDirectoryPathHierarchy' => null,
@@ -8809,6 +8995,7 @@ final class ZipPackage
         $comments = null;
         $creatorHostSystems = null;
         $externalAttributes = null;
+        $dosAttributes = null;
         $internalAttributes = null;
         $centralDirectoryNameCollisions = null;
         $centralDirectoryPathHierarchy = null;
@@ -8979,6 +9166,17 @@ final class ZipPackage
                 $addDiagnostics($externalAttributes['issues']);
             }
 
+            $dosAttributes = $runPreflight(
+                'dos-attribute-policy',
+                static fn (): array => self::dosAttributePolicyPreflight($bytes)
+            );
+            if ($dosAttributes !== null && !$dosAttributes['isSupportedByBoundedReader']) {
+                $addDiagnostics($dosAttributes['issues']);
+            }
+            if ($dosAttributes !== null && $dosAttributes['hiddenSystemOrVolumeLabelEntryCount'] > 0) {
+                $addDiagnostic('hidden-system-or-volume-label-entries');
+            }
+
             $internalAttributes = $runPreflight(
                 'internal-attribute-policy',
                 static fn (): array => self::internalAttributePolicyPreflight($bytes)
@@ -9109,6 +9307,7 @@ final class ZipPackage
             ?? $compressionMethods['entryCount']
             ?? $creatorHostSystems['entryCount']
             ?? $externalAttributes['entryCount']
+            ?? $dosAttributes['entryCount']
             ?? $internalAttributes['entryCount']
             ?? $centralDirectoryNameCollisions['entryCount']
             ?? $centralDirectoryPathHierarchy['entryCount']
@@ -9158,6 +9357,7 @@ final class ZipPackage
             'comments' => $comments,
             'creatorHostSystems' => $creatorHostSystems,
             'externalAttributes' => $externalAttributes,
+            'dosAttributes' => $dosAttributes,
             'internalAttributes' => $internalAttributes,
             'centralDirectoryNameCollisions' => $centralDirectoryNameCollisions,
             'centralDirectoryPathHierarchy' => $centralDirectoryPathHierarchy,
