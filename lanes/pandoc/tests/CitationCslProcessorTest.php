@@ -6404,6 +6404,95 @@ XML);
         $t->contains('<p>Series source Curator (2026) and packet (Ng 2025) keep collection abbreviations.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Source Series Handbook. Migration Review Studies, no. 5. Series abbreviation: Migr. Rev. Stud. Review Press, 2026.</dd>', $blocks);
     },
+    'maps bounded biblatex collection title field aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-collection-alias,
+  author                 = {Curator, Eli},
+  title                  = {Alias Series Manual},
+  date                   = {2026},
+  collection-title       = {Package Review Studies},
+  collection-number      = {14},
+  collection-title-short = {Pkg. Rev. Stud.},
+  publisher              = {Review Press}
+}
+
+@book{compact-collection-alias,
+  author               = {Ng, Nia},
+  title                = {Compact Series Manual},
+  date                 = {2025},
+  collectiontitle      = {Compact Review Library},
+  collectionnumber     = {8},
+  collectiontitleshort = {Compact Rev. Lib.}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Package Review Studies', $items[0]['collection-title'] ?? null);
+        $t->same('Pkg. Rev. Stud.', $items[0]['collection-title-short'] ?? null);
+        $t->same('14', $items[0]['collection-number'] ?? null);
+        $t->same('Compact Review Library', $items[1]['collection-title'] ?? null);
+        $t->same('Compact Rev. Lib.', $items[1]['collection-title-short'] ?? null);
+        $t->same('8', $items[1]['collection-number'] ?? null);
+        $t->same('Package Review Studies', $items[0]['rawBibtex']['fields']['collection-title'] ?? null);
+        $t->same('Compact Review Library', $items[1]['rawBibtex']['fields']['collectiontitle'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-collection-alias');
+        $compact = $processor->item('compact-collection-alias');
+        $t->same('Package Review Studies', $hyphen['collectionTitle'] ?? null);
+        $t->same('Pkg. Rev. Stud.', $hyphen['collectionTitleShort'] ?? null);
+        $t->same('14', $hyphen['collectionNumber'] ?? null);
+        $t->same('Compact Review Library', $compact['collectionTitle'] ?? null);
+        $t->same('Compact Rev. Lib.', $compact['collectionTitleShort'] ?? null);
+        $t->same('8', $compact['collectionNumber'] ?? null);
+        $t->same(
+            'Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.',
+            $processor->renderBibliographyEntry('hyphen-collection-alias')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Collection Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-collection-alias-review</id>
+    <updated>2026-06-11T16:25:46+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <text variable="collection-title" form="short"/>
+        <text variable="collection-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-title" form="short"/>
+      <text variable="collection-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibLaTeX Collection Alias Review', $summary['title'] ?? null);
+        $t->same('[Curator | Package Review Studies | Pkg. Rev. Stud. | 14; Ng | Compact Review Library | Compact Rev. Lib. | 8]', $styled->renderCitationCluster([
+            $citation('hyphen-collection-alias', '[@hyphen-collection-alias]'),
+            $citation('compact-collection-alias', '[@compact-collection-alias]'),
+        ]));
+        $t->same('Alias Series Manual :: Package Review Studies :: Pkg. Rev. Stud. :: 14', $styled->renderBibliographyEntry('hyphen-collection-alias'));
+        $t->same('Compact Series Manual :: Compact Review Library :: Compact Rev. Lib. :: 8', $styled->renderBibliographyEntry('compact-collection-alias'));
+
+        $document = (new MarkdownReader())->read('Collection aliases @hyphen-collection-alias and [@compact-collection-alias] keep source series visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Collection aliases Curator (2026) and (Ng 2025) keep source series visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.</dd>', $blocks);
+    },
     'maps bounded biblatex page first metadata for page ranges' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @article{range-detail,
