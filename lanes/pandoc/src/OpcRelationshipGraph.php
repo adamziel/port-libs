@@ -1516,7 +1516,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, targetPartCount:int, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, sourceCount:int, targetPartCount:int, sourcePartCounts:array<string, int>, relationshipTypeCounts:array<string, int>, externalTargetKindCounts:array<string, int>, externalTargetSchemeCounts:array<string, int>, contentTypeCounts:array<string, int>, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function relationshipTargetSummary(?string $relationshipType = null): array
     {
@@ -1539,7 +1539,13 @@ final class OpcRelationshipGraph
             'unsafeExternalTargetCount' => 0,
             'relativeExternalTargetCount' => 0,
             'rewriteRequiredExternalTargetCount' => 0,
+            'sourceCount' => 0,
             'targetPartCount' => 0,
+            'sourcePartCounts' => [],
+            'relationshipTypeCounts' => [],
+            'externalTargetKindCounts' => [],
+            'externalTargetSchemeCounts' => [],
+            'contentTypeCounts' => [],
             'targetParts' => [],
             'missingTargetParts' => [],
             'externalTargets' => [],
@@ -1552,6 +1558,8 @@ final class OpcRelationshipGraph
 
         foreach ($this->preflightAllRelationshipTargets($relationshipType) as $target) {
             $summary['relationshipCount']++;
+            $summary['sourcePartCounts'][$target['source']] = ($summary['sourcePartCounts'][$target['source']] ?? 0) + 1;
+            $summary['relationshipTypeCounts'][$target['type']] = ($summary['relationshipTypeCounts'][$target['type']] ?? 0) + 1;
             if ($target['valid']) {
                 $summary['validTargetCount']++;
             } else {
@@ -1570,6 +1578,10 @@ final class OpcRelationshipGraph
 
             if ($target['external']) {
                 $summary['externalTargetCount']++;
+                $externalKind = $target['externalTargetKind'] ?? 'unknown';
+                $summary['externalTargetKindCounts'][$externalKind] = ($summary['externalTargetKindCounts'][$externalKind] ?? 0) + 1;
+                $externalScheme = $target['externalTargetScheme'] ?? 'none';
+                $summary['externalTargetSchemeCounts'][$externalScheme] = ($summary['externalTargetSchemeCounts'][$externalScheme] ?? 0) + 1;
                 self::appendUniqueString($summary['externalTargets'], $target['target']);
                 if ($target['externalTargetAllowed'] === false) {
                     $summary['unsafeExternalTargetCount']++;
@@ -1620,6 +1632,7 @@ final class OpcRelationshipGraph
 
             if ($target['contentType'] !== null) {
                 self::appendUniqueString($summary['contentTypes'], $target['contentType']);
+                $summary['contentTypeCounts'][$target['contentType']] = ($summary['contentTypeCounts'][$target['contentType']] ?? 0) + 1;
             }
             if ($target['contentTypeSource'] !== null) {
                 $summary['contentTypeSourceCounts'][$target['contentTypeSource']]
@@ -1665,7 +1678,13 @@ final class OpcRelationshipGraph
         ] as $listKey) {
             sort($summary[$listKey], SORT_STRING);
         }
+        $summary['sourceCount'] = count($summary['sourcePartCounts']);
         $summary['targetPartCount'] = count($summary['targetParts']);
+        ksort($summary['sourcePartCounts'], SORT_STRING);
+        ksort($summary['relationshipTypeCounts'], SORT_STRING);
+        ksort($summary['externalTargetKindCounts'], SORT_STRING);
+        ksort($summary['externalTargetSchemeCounts'], SORT_STRING);
+        ksort($summary['contentTypeCounts'], SORT_STRING);
         ksort($summary['contentTypeSourceCounts'], SORT_STRING);
         ksort($summary['issueCounts'], SORT_STRING);
         usort(

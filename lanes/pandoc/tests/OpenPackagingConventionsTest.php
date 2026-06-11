@@ -8661,6 +8661,97 @@ XML;
         $t->same(1, $imageSummary['relationshipCount']);
         $t->same(['/word/media/hero.png'], $imageSummary['targetParts']);
     },
+    'summarizes OPC relationship target aggregate buckets for reviewer handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>
+</Types>
+XML;
+
+        $packageRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rIdAudit" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/package-source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdFootnotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>
+  <Relationship Id="rIdHero" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/hero.png?asset=1#main"/>
+  <Relationship Id="rIdMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rIdFile" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="file:///tmp/source.docx" TargetMode="External"/>
+  <Relationship Id="rIdRelativeExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="../review.html" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $footnotesRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNoteImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/note.png"/>
+  <Relationship Id="rIdNoteLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/note-source" TargetMode="External"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/footnotes.xml', 'data' => '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $footnotesRelationshipsXml],
+            ['name' => 'word/media/hero.png', 'data' => 'HERO'],
+            ['name' => 'word/media/note.png', 'data' => 'NOTE'],
+        ]));
+
+        $summary = $graph->relationshipTargetSummary();
+        $imageSummary = $graph->relationshipTargetSummary(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE);
+
+        $t->same(3, $summary['sourceCount']);
+        $t->same([
+            '/' => 2,
+            '/word/document.xml' => 5,
+            '/word/footnotes.xml' => 2,
+        ], $summary['sourcePartCounts']);
+        $t->same([
+            OpcRelationshipGraph::WORDPROCESSING_FOOTNOTES_RELATIONSHIP_TYPE => 1,
+            OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE => 4,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => 3,
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE => 1,
+        ], $summary['relationshipTypeCounts']);
+        $t->same([
+            'absolute-uri' => 3,
+            'relative-reference' => 1,
+        ], $summary['externalTargetKindCounts']);
+        $t->same([
+            'file' => 1,
+            'https' => 2,
+            'none' => 1,
+        ], $summary['externalTargetSchemeCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml' => 1,
+            'image/png' => 3,
+        ], $summary['contentTypeCounts']);
+        $t->same(['default' => 3, 'override' => 2], $summary['contentTypeSourceCounts']);
+        $t->same(9, $summary['relationshipCount']);
+        $t->same(4, $summary['externalTargetCount']);
+        $t->same(1, $summary['missingInternalTargetCount']);
+        $t->same(['/word/media/missing.png'], $summary['missingTargetParts']);
+        $t->same(1, $summary['queryTargetCount']);
+        $t->same(1, $summary['fragmentTargetCount']);
+
+        $t->same(2, $imageSummary['sourceCount']);
+        $t->same([
+            '/word/document.xml' => 2,
+            '/word/footnotes.xml' => 1,
+        ], $imageSummary['sourcePartCounts']);
+        $t->same([OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE => 3], $imageSummary['relationshipTypeCounts']);
+        $t->same([], $imageSummary['externalTargetSchemeCounts']);
+        $t->same(['image/png' => 3], $imageSummary['contentTypeCounts']);
+    },
     'summarizes package-wide OPC content type inventory for import review' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
