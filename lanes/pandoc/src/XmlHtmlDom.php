@@ -756,6 +756,7 @@ final class XmlHtmlDom
             'text' => self::normalizedText($node),
             'children' => $children,
         ];
+        $summary += self::globalHtmlAttributeSummary($node);
 
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
@@ -999,6 +1000,184 @@ final class XmlHtmlDom
             'list' => $name === 'menu' ? 'menu' : 'unordered',
             'markerType' => self::attributeOrNull($element, 'type'),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function globalHtmlAttributeSummary(\DOMElement $element): array
+    {
+        $summary = [];
+        $attributes = self::htmlAttributes($element);
+
+        if (array_key_exists('id', $attributes)) {
+            $summary['elementId'] = $attributes['id'];
+        }
+
+        if (array_key_exists('class', $attributes)) {
+            $summary['classRaw'] = $attributes['class'];
+            $summary['classList'] = self::spaceSeparatedTokens($attributes['class']);
+        }
+
+        $dataAttributes = self::dataAttributeSummary($attributes);
+        if ($dataAttributes !== []) {
+            $summary['dataAttributes'] = $dataAttributes;
+            $summary['dataset'] = self::datasetSummary($dataAttributes);
+        }
+
+        $ariaAttributes = self::ariaAttributeSummary($attributes);
+        if ($ariaAttributes !== []) {
+            $summary['ariaAttributes'] = $ariaAttributes;
+        }
+
+        if (array_key_exists('role', $attributes)) {
+            $summary['roleRaw'] = $attributes['role'];
+            $summary['roles'] = self::spaceSeparatedTokens($attributes['role']);
+        }
+
+        if (array_key_exists('lang', $attributes)) {
+            $summary['languageRaw'] = $attributes['lang'];
+            $summary['language'] = trim($attributes['lang']);
+        } elseif (array_key_exists('xml:lang', $attributes)) {
+            $summary['languageRaw'] = $attributes['xml:lang'];
+            $summary['language'] = trim($attributes['xml:lang']);
+        }
+
+        if (array_key_exists('dir', $attributes)) {
+            $dir = strtolower(trim($attributes['dir']));
+            $summary['dirRaw'] = $attributes['dir'];
+            $summary['direction'] = in_array($dir, ['ltr', 'rtl', 'auto'], true) ? $dir : null;
+        }
+
+        if (array_key_exists('title', $attributes)) {
+            $summary['titleAttribute'] = $attributes['title'];
+        }
+
+        if (array_key_exists('hidden', $attributes)) {
+            $hidden = strtolower(trim($attributes['hidden']));
+            $summary['hiddenRaw'] = $attributes['hidden'];
+            $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
+        }
+
+        if (array_key_exists('translate', $attributes)) {
+            $translate = strtolower(trim($attributes['translate']));
+            $summary['translateRaw'] = $attributes['translate'];
+            $summary['translate'] = match ($translate) {
+                '', 'yes' => true,
+                'no' => false,
+                default => null,
+            };
+        }
+
+        if (array_key_exists('contenteditable', $attributes)) {
+            $contentEditable = strtolower(trim($attributes['contenteditable']));
+            $summary['contentEditableRaw'] = $attributes['contenteditable'];
+            $summary['contentEditable'] = match ($contentEditable) {
+                '', 'true' => true,
+                'false' => false,
+                'plaintext-only' => 'plaintext-only',
+                default => null,
+            };
+        }
+
+        if (array_key_exists('draggable', $attributes)) {
+            $draggable = strtolower(trim($attributes['draggable']));
+            $summary['draggableRaw'] = $attributes['draggable'];
+            $summary['draggable'] = match ($draggable) {
+                'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+
+        if (array_key_exists('spellcheck', $attributes)) {
+            $spellcheck = strtolower(trim($attributes['spellcheck']));
+            $summary['spellcheckRaw'] = $attributes['spellcheck'];
+            $summary['spellcheck'] = match ($spellcheck) {
+                '', 'true' => true,
+                'false' => false,
+                default => null,
+            };
+        }
+
+        if (array_key_exists('tabindex', $attributes)) {
+            $summary['tabIndexRaw'] = $attributes['tabindex'];
+            $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, string>
+     */
+    private static function dataAttributeSummary(array $attributes): array
+    {
+        $data = [];
+        foreach ($attributes as $name => $value) {
+            if (!str_starts_with($name, 'data-') || strlen($name) <= 5) {
+                continue;
+            }
+
+            $data[$name] = $value;
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param array<string, string> $dataAttributes
+     * @return array<string, string>
+     */
+    private static function datasetSummary(array $dataAttributes): array
+    {
+        $dataset = [];
+        foreach ($dataAttributes as $name => $value) {
+            $datasetName = self::datasetPropertyName($name);
+            if ($datasetName !== '') {
+                $dataset[$datasetName] = $value;
+            }
+        }
+        ksort($dataset);
+
+        return $dataset;
+    }
+
+    private static function datasetPropertyName(string $attributeName): string
+    {
+        $name = substr($attributeName, 5);
+        $property = '';
+        $length = strlen($name);
+        for ($index = 0; $index < $length; ++$index) {
+            $char = $name[$index];
+            $next = $index + 1 < $length ? $name[$index + 1] : '';
+            if ($char === '-' && $next >= 'a' && $next <= 'z') {
+                $property .= strtoupper($next);
+                ++$index;
+                continue;
+            }
+
+            $property .= $char;
+        }
+
+        return $property;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, string>
+     */
+    private static function ariaAttributeSummary(array $attributes): array
+    {
+        $aria = [];
+        foreach ($attributes as $name => $value) {
+            if (str_starts_with($name, 'aria-') && strlen($name) > 5) {
+                $aria[$name] = $value;
+            }
+        }
+
+        return $aria;
     }
 
     private static function inputType(\DOMElement $input): string
@@ -1990,6 +2169,7 @@ final class XmlHtmlDom
             'text' => self::summaryText($children),
             'children' => $children,
         ];
+        $summary += self::globalHtmlAttributeSummary($element);
         $summary += self::tableElementSummary($element, self::htmlElementName($element));
 
         return [$fostered, $summary];

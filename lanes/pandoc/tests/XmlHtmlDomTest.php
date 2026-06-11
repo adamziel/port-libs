@@ -102,6 +102,71 @@ XML, 'package reader XML');
         $t->same('Two', $summary[1]['children'][1]['text']);
         $t->same('<p data-id="42">Intro<br>Next<img alt="Cover" src="cover.png?x=1&amp;y=2"></p><ul><li>One</li><li>Two</li></ul>', $html);
     },
+    'summarizes html global attributes and dataset state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="packet" class="alpha  beta alpha" lang="en-US" dir="RTL" title="Review &amp; Source" data-review-id="A-42" data-package-part="word/document.xml" hidden="until-found" translate="no" contenteditable="plaintext-only" draggable="true" spellcheck="false" tabindex="-1" role="doc-chapter region" aria-label="Packet Section"><p class="child">Body</p></section>'
+                . '<p data-review-stage="preflight" dir="sideways" translate="maybe" contenteditable="maybe" draggable="maybe" spellcheck="maybe">Fallback</p>'
+                . '<table id="review-table" class="data-grid" data-package-part="word/tables.xml"><tr><td>Cell</td></tr></table>',
+            'global attribute review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $section = $summary[0];
+        $fallback = $summary[1];
+        $table = $summary[2];
+
+        $t->same('packet', $section['elementId']);
+        $t->same('alpha  beta alpha', $section['classRaw']);
+        $t->same(['alpha', 'beta', 'alpha'], $section['classList']);
+        $t->same('en-US', $section['languageRaw']);
+        $t->same('en-US', $section['language']);
+        $t->same('RTL', $section['dirRaw']);
+        $t->same('rtl', $section['direction']);
+        $t->same('Review & Source', $section['titleAttribute']);
+        $t->same('until-found', $section['hiddenRaw']);
+        $t->same('until-found', $section['hiddenState']);
+        $t->same('no', $section['translateRaw']);
+        $t->same(false, $section['translate']);
+        $t->same('plaintext-only', $section['contentEditable']);
+        $t->same(true, $section['draggable']);
+        $t->same(false, $section['spellcheck']);
+        $t->same('-1', $section['tabIndexRaw']);
+        $t->same(-1, $section['tabIndex']);
+        $t->same('doc-chapter region', $section['roleRaw']);
+        $t->same(['doc-chapter', 'region'], $section['roles']);
+        $t->same(['aria-label' => 'Packet Section'], $section['ariaAttributes']);
+        $t->same([
+            'data-package-part' => 'word/document.xml',
+            'data-review-id' => 'A-42',
+        ], $section['dataAttributes']);
+        $t->same([
+            'packagePart' => 'word/document.xml',
+            'reviewId' => 'A-42',
+        ], $section['dataset']);
+        $t->same('child', $section['children'][0]['classRaw']);
+        $t->same(['child'], $section['children'][0]['classList']);
+
+        $t->same('sideways', $fallback['dirRaw']);
+        $t->same(null, $fallback['direction']);
+        $t->same('maybe', $fallback['translateRaw']);
+        $t->same(null, $fallback['translate']);
+        $t->same(null, $fallback['contentEditable']);
+        $t->same(null, $fallback['draggable']);
+        $t->same(null, $fallback['spellcheck']);
+        $t->same(['reviewStage' => 'preflight'], $fallback['dataset']);
+
+        $t->same('review-table', $table['elementId']);
+        $t->same(['data-grid'], $table['classList']);
+        $t->same(['packagePart' => 'word/tables.xml'], $table['dataset']);
+        $t->same('table', $table['tablePart']);
+        $t->same(
+            '<section aria-label="Packet Section" class="alpha  beta alpha" contenteditable="plaintext-only" data-package-part="word/document.xml" data-review-id="A-42" dir="RTL" draggable="true" hidden="until-found" id="packet" lang="en-US" role="doc-chapter region" spellcheck="false" tabindex="-1" title="Review &amp; Source" translate="no"><p class="child">Body</p></section>'
+                . '<p contenteditable="maybe" data-review-stage="preflight" dir="sideways" draggable="maybe" spellcheck="maybe" translate="maybe">Fallback</p>'
+                . '<table class="data-grid" data-package-part="word/tables.xml" id="review-table"><tr><td>Cell</td></tr></table>',
+            $html
+        );
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'
