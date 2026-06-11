@@ -372,6 +372,53 @@ return [
         $t->same($validation['diagnostics'], $summary['wordpressImport']['packageValidationDiagnostics']);
     },
 
+    'reports external OPF manifest hrefs without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithExternalManifestItem = str_replace(
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>',
+            '<item id="cover" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+    <item id="remote-preview" href="https://cdn.example.invalid/previews/cover.jpg" media-type="image/jpeg"/>',
+            $epub3OpfXml
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithExternalManifestItem],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $remote = $epub->manifestItem('remote-preview');
+        $validation = $epub->validationReport();
+        $manifestValidation = $validation['manifest'];
+        $summary = $epub->summary();
+
+        $t->same('https://cdn.example.invalid/previews/cover.jpg', $remote['target']);
+        $t->same(null, $remote['partName']);
+        $t->same(true, $remote['external']);
+        $t->same(false, $remote['exists']);
+        $t->same(null, $remote['byteLength']);
+        $t->same(false, $remote['canExposeBytes']);
+        $t->same('external-manifest-href-target', $remote['diagnostics'][0]['type']);
+        $t->same(['/EPUB/images/cover.png'], $epub->assetSummary()['imageParts']);
+
+        $t->same(false, $validation['valid']);
+        $t->same(['external-manifest-href-target'], array_column($validation['diagnostics'], 'type'));
+        $t->same(0, $manifestValidation['missingItemCount']);
+        $t->same(1, $manifestValidation['externalItemCount']);
+        $t->same('remote-preview', $manifestValidation['externalItems'][0]['id']);
+        $t->same('https://cdn.example.invalid/previews/cover.jpg', $manifestValidation['externalItems'][0]['target']);
+        $t->same(1, $manifestValidation['itemDiagnosticCount']);
+        $t->same('external-manifest-href-target', $manifestValidation['itemDiagnostics'][0]['type']);
+        $t->same(null, $manifestValidation['itemDiagnostics'][0]['partName']);
+        $t->same($manifestValidation['externalItems'], $summary['wordpressImport']['manifestExternalItems']);
+        $t->same($manifestValidation['itemDiagnostics'], $summary['wordpressImport']['manifestItemDiagnostics']);
+        $t->same($validation, $summary['wordpressImport']['packageValidation']);
+    },
+
     'records EPUB manifest ZIP compression provenance without inflating unsupported parts' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
         $opfWithZipProvenance = str_replace(
             '</metadata>',

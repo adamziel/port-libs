@@ -80,8 +80,8 @@ final class EpubPackage
      * @param list<array<string, mixed>> $containerLinks
      * @param array<string, mixed> $ocfSidecars
      * @param list<array<string, mixed>> $packageLinks
-     * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
-     * @param list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
+     * @param array<string, array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
+     * @param list<array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestItems
      * @param list<array<string, mixed>> $spine
      * @param array<string, mixed> $spineMetadata
      * @param list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}> $guideReferences
@@ -380,28 +380,40 @@ final class EpubPackage
 
         foreach ($this->manifestItems as $item) {
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            $partName = is_string($item['partName'] ?? null) && $item['partName'] !== ''
+                ? $item['partName']
+                : null;
+
+            if ($partName === null) {
+                continue;
+            }
 
             if ($mediaType === self::XHTML_MEDIA_TYPE) {
-                $xhtmlParts[] = $item['partName'];
+                $xhtmlParts[] = $partName;
             }
 
             if ($mediaType === 'text/css') {
-                $stylesheetParts[] = $item['partName'];
+                $stylesheetParts[] = $partName;
             }
 
             if (str_starts_with($mediaType, 'image/')) {
-                $imageParts[] = $item['partName'];
+                $imageParts[] = $partName;
             }
 
             if (in_array('cover-image', $item['properties'], true) || ($legacyCoverImageId !== null && $item['id'] === $legacyCoverImageId)) {
-                $coverImagePart ??= $item['partName'];
+                $coverImagePart ??= $partName;
             }
         }
 
         return [
-            'readingOrderParts' => array_values(array_map(
-                static fn (array $item): string => $item['partName'],
-                $this->spine,
+            'readingOrderParts' => array_values(array_filter(
+                array_map(
+                    static fn (array $item): ?string => is_string($item['partName'] ?? null) && $item['partName'] !== ''
+                        ? $item['partName']
+                        : null,
+                    $this->spine,
+                ),
+                static fn (?string $partName): bool => $partName !== null,
             )),
             'xhtmlParts' => $xhtmlParts,
             'stylesheetParts' => $stylesheetParts,
@@ -594,6 +606,8 @@ final class EpubPackage
                 'manifestMediaTypeParameterItems' => $validationReport['manifest']['mediaTypeParameterItems'],
                 'manifestMediaTypeParameterNames' => $validationReport['manifest']['mediaTypeParameterNames'],
                 'manifestMediaTypeDiagnostics' => $validationReport['manifest']['mediaTypeDiagnostics'],
+                'manifestExternalItems' => $validationReport['manifest']['externalItems'],
+                'manifestItemDiagnostics' => $validationReport['manifest']['itemDiagnostics'],
                 'navDocumentDiagnostics' => $validationReport['navigation']['documentDiagnostics'],
                 'landmarkTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'landmarks'),
                 'pageListTargets' => self::navigationEntriesForSectionType($this->navigationSections, 'page-list'),
@@ -927,19 +941,22 @@ final class EpubPackage
         $invalidNavItems = [];
         $hrefSuffixItems = [];
         $missingItems = [];
+        $externalItems = [];
         $parts = [];
         $ids = [];
         $mediaTypeParameterItems = [];
         $mediaTypeParameterNames = [];
         $mediaTypeParameterCount = 0;
         $mediaTypeDiagnostics = [];
+        $itemDiagnostics = [];
         $diagnostics = [];
 
         foreach ($manifestItems as $index => $item) {
             $id = (string) ($item['id'] ?? '');
-            $partName = (string) ($item['partName'] ?? '');
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : '';
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
+            $external = ($item['external'] ?? false) === true;
             $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null)
                 ? array_values($item['mediaTypeParameters'])
                 : [];
@@ -988,6 +1005,22 @@ final class EpubPackage
                 $diagnostics[] = $diagnostic;
             }
 
+            foreach (is_array($item['diagnostics'] ?? null) ? $item['diagnostics'] : [] as $itemDiagnostic) {
+                if (!is_array($itemDiagnostic)) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => $partName === '' ? null : $partName,
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                ] + $itemDiagnostic;
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
+            }
+
             if ($id !== '') {
                 $ids[$id][] = [
                     'index' => $index,
@@ -999,7 +1032,15 @@ final class EpubPackage
                 ];
             }
 
-            if (($item['exists'] ?? false) !== true) {
+            if ($external) {
+                $externalItems[] = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => null,
+                    'mediaType' => $mediaType,
+                ];
+            } elseif ($partName !== '' && ($item['exists'] ?? false) !== true) {
                 $missingItem = [
                     'id' => $id,
                     'href' => (string) ($item['href'] ?? ''),
@@ -1158,6 +1199,7 @@ final class EpubPackage
             'usableNavItemCount' => count($usableNavItems),
             'invalidNavItemCount' => count($invalidNavItems),
             'missingItemCount' => count($missingItems),
+            'externalItemCount' => count($externalItems),
             'duplicateIdCount' => count($duplicateIdItems),
             'duplicateManifestIdCount' => count($duplicateIdItems),
             'duplicatePartCount' => count($duplicatePartItems),
@@ -1167,10 +1209,12 @@ final class EpubPackage
             'mediaTypeParameterCount' => $mediaTypeParameterCount,
             'mediaTypeParameterNames' => array_keys($mediaTypeParameterNames),
             'mediaTypeDiagnosticCount' => count($mediaTypeDiagnostics),
+            'itemDiagnosticCount' => count($itemDiagnostics),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
             'missingItems' => $missingItems,
+            'externalItems' => $externalItems,
             'duplicateIdItems' => $duplicateIdItems,
             'duplicateManifestIdItems' => $duplicateIdItems,
             'duplicatePartItems' => $duplicatePartItems,
@@ -1178,6 +1222,7 @@ final class EpubPackage
             'hrefSuffixItems' => $hrefSuffixItems,
             'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'mediaTypeDiagnostics' => $mediaTypeDiagnostics,
+            'itemDiagnostics' => $itemDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -2144,8 +2189,8 @@ final class EpubPackage
      * @return array{
      *     metadata:array<string, mixed>,
      *     packageLinks:list<array<string, mixed>>,
-     *     manifestById:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
-     *     manifestItems:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     manifestById:array<string, array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     manifestItems:list<array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
      *     spine:list<array<string, mixed>>,
      *     spineMetadata:array<string, mixed>,
      *     guideReferences:list<array{type:?string, title:?string, href:?string, target:?string, partName:?string, external:bool, exists:bool, hrefHasQuery:bool, hrefQuery:?string, hrefHasFragment:bool, hrefFragment:?string}>,
@@ -4095,8 +4140,8 @@ final class EpubPackage
 
     /**
      * @return array{
-     *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
-     *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
+     *     0:array<string, array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
+     *     1:list<array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
      * }
      */
     private static function parseManifest(\DOMElement $manifestElement, string $opfPartName, ZipPackage $package): array
@@ -4114,21 +4159,29 @@ final class EpubPackage
             }
 
             $target = self::resolvePackageHref($opfPartName, $href);
-            if (self::isAbsoluteUri($target)) {
-                throw new \RuntimeException("EPUB manifest item {$id} must reference an internal package part");
-            }
-
-            $partName = OpcPackagePath::stripQueryAndFragment($target);
+            $external = self::isAbsoluteUri($target);
+            $partName = $external ? null : OpcPackagePath::stripQueryAndFragment($target);
             $hrefSuffix = self::packageHrefSuffixReport($target);
             $mediaTypeReport = self::mediaTypeReport($mediaType);
-            $exists = $package->has($partName);
+            $exists = $partName !== null && $package->has($partName);
             $entry = $exists ? $package->entry($partName) : null;
+            $diagnostics = [];
+            if ($external) {
+                $diagnostics[] = [
+                    'type' => 'external-manifest-href-target',
+                    'id' => $id,
+                    'href' => $href,
+                    'target' => $target,
+                    'message' => 'EPUB OPF manifest item points outside the package and was not fetched',
+                ];
+            }
 
             $item = [
                 'id' => $id,
                 'href' => $href,
                 'target' => $target,
                 'partName' => $partName,
+                'external' => $external,
                 'mediaType' => $mediaType,
                 'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
@@ -4143,6 +4196,7 @@ final class EpubPackage
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
                 'fallbackStyle' => $itemElement->hasAttribute('fallback-style') ? $itemElement->getAttribute('fallback-style') : null,
                 'mediaOverlay' => $itemElement->hasAttribute('media-overlay') ? $itemElement->getAttribute('media-overlay') : null,
+                'diagnostics' => $diagnostics,
                 'hrefHasQuery' => $hrefSuffix['hasQuery'],
                 'hrefQuery' => $hrefSuffix['query'],
                 'hrefHasFragment' => $hrefSuffix['hasFragment'],
@@ -4311,6 +4365,7 @@ final class EpubPackage
                     'idref' => $idref,
                     'href' => '',
                     'partName' => '',
+                    'external' => false,
                     'mediaType' => '',
                     'exists' => false,
                     'manifestItemMissing' => true,
@@ -4345,6 +4400,7 @@ final class EpubPackage
                 'idref' => $idref,
                 'href' => $item['href'],
                 'partName' => $item['partName'],
+                'external' => ($item['external'] ?? false) === true,
                 'mediaType' => $item['mediaType'],
                 'exists' => ($item['exists'] ?? false) === true,
                 'manifestItemMissing' => false,
@@ -4876,7 +4932,12 @@ final class EpubPackage
     {
         $byPart = [];
         foreach ($manifestById as $item) {
-            $byPart[$item['partName']] = $item;
+            $partName = $item['partName'] ?? null;
+            if (!is_string($partName) || $partName === '') {
+                continue;
+            }
+
+            $byPart[$partName] = $item;
         }
 
         return $byPart;
