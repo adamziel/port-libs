@@ -11661,6 +11661,52 @@ XML;
         $t->same('rIdMissingTarget', $summary['relationshipXmlIssueRecords'][1]['id']);
         $t->same(['missing-relationship-target'], $summary['relationshipXmlIssueRecords'][1]['issues']);
     },
+    'preserves OPC closure stop query fragment and same-source provenance for review' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml): void {
+        $documentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSelfReview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="?review=ready#bookmark"/>
+  <Relationship Id="rIdStylesQuery" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml?theme=light"/>
+</Relationships>
+XML;
+
+        $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml],
+            ['name' => 'word/document.xml', 'data' => '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml],
+            ['name' => 'word/styles.xml', 'data' => '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'],
+            ['name' => 'docProps/core.xml', 'data' => '<cp:coreProperties/>'],
+        ]));
+
+        $closure = $graph->relationshipSourceClosureInventory('/', OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE);
+        $stops = [];
+        foreach ($closure['stops'] as $stop) {
+            $stops[$stop['id']] = $stop;
+        }
+
+        $t->same(2, $closure['stopCount']);
+        $t->same('cycle-target', $stops['rIdSelfReview']['stopReason']);
+        $t->same('/word/document.xml', $stops['rIdSelfReview']['targetPart']);
+        $t->same('review=ready', $stops['rIdSelfReview']['targetQuery']);
+        $t->same('bookmark', $stops['rIdSelfReview']['targetFragment']);
+        $t->same(true, $stops['rIdSelfReview']['sameSourceReference']);
+        $t->same('target-source-not-loaded', $stops['rIdStylesQuery']['stopReason']);
+        $t->same('/word/styles.xml', $stops['rIdStylesQuery']['targetPart']);
+        $t->same('theme=light', $stops['rIdStylesQuery']['targetQuery']);
+        $t->same(null, $stops['rIdStylesQuery']['targetFragment']);
+        $t->same(false, $stops['rIdStylesQuery']['sameSourceReference']);
+
+        $summary = $graph->relationshipSourceClosureCoverageSummary(
+            '/',
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE
+        );
+        $t->same(2, $summary['stopCount']);
+        $t->same(2, $summary['stopQueryTargetCount']);
+        $t->same(1, $summary['stopFragmentTargetCount']);
+        $t->same(1, $summary['stopSameSourceReferenceCount']);
+        $t->same(['rIdSelfReview'], $summary['stopIdsByReason']['cycle-target']);
+        $t->same(['rIdStylesQuery'], $summary['stopIdsByReason']['target-source-not-loaded']);
+    },
     'walks reachable OPC relationship closure from office document root' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml, $footnotesRelationshipsXml): void {
         $graph = OpcRelationshipGraph::fromPackage(ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
