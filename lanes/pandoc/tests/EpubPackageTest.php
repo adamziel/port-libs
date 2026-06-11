@@ -1244,6 +1244,87 @@ XML;
         $t->same($metadata['sourceSummary'], $summary['wordpressImport']['metadataDetails']['sourceSummary']);
     },
 
+    'summarizes OPF subject refinement metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithSubjectMetadata = str_replace(
+            '<dc:language>en-US</dc:language>',
+            '<dc:subject id="subject-keyword" scheme="bisac" xml:lang="en" dir="ltr">Data Liberation</dc:subject>
+    <dc:subject id="subject-audience" scheme="thema" xml:lang="fr">Migration guidance</dc:subject>
+    <dc:language>en-US</dc:language>',
+            $epub3OpfXml
+        );
+        $opfWithSubjectMetadata = str_replace(
+            '</metadata>',
+            '    <meta refines="#subject-keyword" property="authority">BISAC</meta>
+    <meta refines="#subject-keyword" property="term">COM060000</meta>
+    <meta refines="#subject-keyword" property="display-seq">1</meta>
+    <meta refines="#subject-keyword" property="file-as">Liberation, Data</meta>
+    <meta refines="#subject-keyword" property="alternate-script" xml:lang="ar" dir="rtl">Tahrir al-bayanat</meta>
+    <meta refines="#subject-audience" property="authority">Thema</meta>
+    <meta refines="#subject-audience" property="term">UDB</meta>
+  </metadata>',
+            $opfWithSubjectMetadata
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithSubjectMetadata],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $metadata = $epub->metadata();
+        $summary = $epub->summary();
+        $details = $metadata['subjectDetails'];
+        $subjectSummary = $metadata['subjectSummary'];
+
+        $t->same(['Data Liberation', 'Migration guidance'], $metadata['subjects']);
+        $t->same(2, count($details));
+
+        $keyword = $details[0];
+        $t->same('subject-keyword', $keyword['id']);
+        $t->same('Data Liberation', $keyword['text']);
+        $t->same('bisac', $keyword['scheme']);
+        $t->same('en', $keyword['language']);
+        $t->same('ltr', $keyword['direction']);
+        $t->same('BISAC', $keyword['authority']);
+        $t->same('COM060000', $keyword['term']);
+        $t->same('1', $keyword['displaySeq']);
+        $t->same('Liberation, Data', $keyword['fileAs']);
+        $t->same('Tahrir al-bayanat', $keyword['alternateScripts'][0]['text']);
+        $t->same('ar', $keyword['alternateScripts'][0]['language']);
+        $t->same('rtl', $keyword['alternateScripts'][0]['direction']);
+
+        $audience = $details[1];
+        $t->same('subject-audience', $audience['id']);
+        $t->same('Migration guidance', $audience['text']);
+        $t->same('thema', $audience['scheme']);
+        $t->same('fr', $audience['language']);
+        $t->same(null, $audience['direction']);
+        $t->same('Thema', $audience['authority']);
+        $t->same('UDB', $audience['term']);
+
+        $t->same($keyword, $metadata['subjectsByAuthority']['BISAC'][0]);
+        $t->same($audience, $metadata['subjectsByTerm']['UDB'][0]);
+        $t->same(true, $subjectSummary['present']);
+        $t->same(2, $subjectSummary['count']);
+        $t->same(['bisac', 'thema'], $subjectSummary['schemes']);
+        $t->same(['BISAC', 'Thema'], $subjectSummary['authorities']);
+        $t->same(['COM060000', 'UDB'], $subjectSummary['terms']);
+        $t->same(['en', 'fr'], $subjectSummary['languages']);
+        $t->same(['ltr'], $subjectSummary['directions']);
+        $t->same(1, $subjectSummary['alternateScriptCount']);
+        $t->same([], $subjectSummary['diagnostics']);
+
+        $t->same($details, $summary['wordpressImport']['metadataDetails']['subjectDetails']);
+        $t->same($metadata['subjectsByAuthority'], $summary['wordpressImport']['metadataDetails']['subjectsByAuthority']);
+        $t->same($metadata['subjectsByTerm'], $summary['wordpressImport']['metadataDetails']['subjectsByTerm']);
+        $t->same($subjectSummary, $summary['wordpressImport']['metadataDetails']['subjectSummary']);
+    },
+
     'summarizes OPF bibliographic Dublin Core metadata for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithBibliographicMetadata = str_replace(
             '<dc:language>en-US</dc:language>',
