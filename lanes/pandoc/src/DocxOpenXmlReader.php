@@ -30,6 +30,7 @@ final class DocxOpenXmlReader
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+    private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
 
     public function readFile(string $path): AstNode
     {
@@ -121,6 +122,16 @@ final class DocxOpenXmlReader
             $styles,
             $numbering,
         );
+        $commentsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::COMMENTS_REL, 'comments.xml');
+        $commentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($commentsPart['partName']));
+        $comments = $this->readComments(
+            $commentsPart['xml'],
+            $commentsPart['partName'],
+            $commentRelationships,
+            $contentTypes,
+            $styles,
+            $numbering,
+        );
         $corePropertiesPart = $this->corePropertiesPart($parts, $rootRelationships);
         $meta = $this->readCoreProperties($corePropertiesPart['xml'], $corePropertiesPart['partName']);
         $extendedPropertiesPart = $this->rootRelatedPart($parts, $rootRelationships, self::EXTENDED_PROPERTIES_REL, 'docProps/app.xml');
@@ -131,6 +142,7 @@ final class DocxOpenXmlReader
         $referencedNotes = [
             'footnote' => $footnotes['nodes'],
             'endnote' => $endnotes['nodes'],
+            'comment' => $comments['nodes'],
         ];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
@@ -162,6 +174,8 @@ final class DocxOpenXmlReader
                 'footnotes' => $footnotes['summary'],
                 'endnotesPart' => $endnotesPart['partName'],
                 'endnotes' => $endnotes['summary'],
+                'commentsPart' => $commentsPart['partName'],
+                'comments' => $comments['summary'],
                 'media' => $media,
             ],
         ];
@@ -272,6 +286,16 @@ final class DocxOpenXmlReader
                 $this->relationshipsPartFor($documentPart),
                 $endnotesPart['partName'],
                 $endnotesPart['exists'],
+                $contentTypes,
+            );
+        }
+        if ($commentsPart['relationship'] !== null) {
+            $attrs['docx']['commentsRelationship'] = $this->relationshipSummary(
+                $commentsPart['relationship'],
+                $documentPart,
+                $this->relationshipsPartFor($documentPart),
+                $commentsPart['partName'],
+                $commentsPart['exists'],
                 $contentTypes,
             );
         }
@@ -1814,6 +1838,95 @@ final class DocxOpenXmlReader
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
      * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
+     * @return array{summary:array{count:int, ids:list<string>, byId:array<string, array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string}>, items:list<array{id:string, sourceType:string, type:string, blockCount:int, text:string, author:?string, initials:?string, date:?string}>}, nodes:array<string, AstNode>}
+     */
+    private function readComments(
+        string $xml,
+        string $partName,
+        array $relationships,
+        array $contentTypes,
+        array $styles,
+        array $numbering
+    ): array {
+        if ($xml === '') {
+            return [
+                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'nodes' => [],
+            ];
+        }
+
+        $dom = $this->loadXml($xml, $partName);
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->namespaceURI !== self::NS_W || $root->localName !== 'comments') {
+            return [
+                'summary' => ['count' => 0, 'ids' => [], 'byId' => [], 'items' => []],
+                'nodes' => [],
+            ];
+        }
+
+        $xpath = $this->xpath($dom);
+        $items = [];
+        $byId = [];
+        $nodes = [];
+        foreach ($root->childNodes as $comment) {
+            if (!$comment instanceof \DOMElement || $comment->namespaceURI !== self::NS_W || $comment->localName !== 'comment') {
+                continue;
+            }
+
+            $id = $comment->getAttributeNS(self::NS_W, 'id');
+            if ($id === '') {
+                continue;
+            }
+
+            $blocks = $this->readNoteBlocks($comment, $xpath, $relationships, $contentTypes, $styles, $numbering);
+            $attrs = [
+                'id' => $id,
+                'sourceType' => 'comment',
+            ];
+            $author = $this->emptyStringToNull($comment->getAttributeNS(self::NS_W, 'author'));
+            $initials = $this->emptyStringToNull($comment->getAttributeNS(self::NS_W, 'initials'));
+            $date = $this->emptyStringToNull($comment->getAttributeNS(self::NS_W, 'date'));
+            if ($author !== null) {
+                $attrs['author'] = $author;
+            }
+            if ($initials !== null) {
+                $attrs['initials'] = $initials;
+            }
+            if ($date !== null) {
+                $attrs['date'] = $date;
+            }
+
+            $item = [
+                'id' => $id,
+                'sourceType' => 'comment',
+                'type' => 'normal',
+                'blockCount' => count($blocks),
+                'text' => $this->plainBlockText($blocks),
+                'author' => $author,
+                'initials' => $initials,
+                'date' => $date,
+            ];
+            $items[] = $item;
+            $byId[$id] = $item;
+            $nodes[$id] = new AstNode('note', $attrs, $blocks);
+        }
+
+        return [
+            'summary' => [
+                'count' => count($items),
+                'ids' => array_column($items, 'id'),
+                'byId' => $byId,
+                'items' => $items,
+            ],
+            'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, name:string, headingLevel:int|null}> $styles
+     * @param array<string, array{abstractNumId:string, levels:array<int, array{format:string, text:string, start:int}>}> $numbering
      * @return list<AstNode>
      */
     private function readNoteBlocks(
@@ -1826,7 +1939,7 @@ final class DocxOpenXmlReader
     ): array {
         $blocks = [];
         $currentList = null;
-        $emptyReferencedNotes = ['footnote' => [], 'endnote' => []];
+        $emptyReferencedNotes = ['footnote' => [], 'endnote' => [], 'comment' => []];
         foreach ($note->childNodes as $child) {
             if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W) {
                 continue;
@@ -2179,6 +2292,13 @@ final class DocxOpenXmlReader
                 if ($note !== null) {
                     $inlines[] = $note;
                 }
+                continue;
+            }
+            if ($child->namespaceURI === self::NS_W && $child->localName === 'commentReference') {
+                $note = $this->referencedNoteNode($referencedNotes, 'comment', $child);
+                if ($note !== null) {
+                    $inlines[] = $note;
+                }
             }
         }
 
@@ -2435,6 +2555,13 @@ final class DocxOpenXmlReader
         }
 
         $nodes[] = new AstNode('text', ['text' => $text]);
+    }
+
+    private function emptyStringToNull(string $value): ?string
+    {
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     /**
