@@ -834,6 +834,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'time') {
+            $summary += self::timeElementSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -977,6 +980,47 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    private static function timeElementSummary(\DOMElement $element): array
+    {
+        $text = self::normalizedText($element);
+        $raw = self::attributeOrNull($element, 'datetime');
+        $source = 'datetime-attribute';
+        if ($raw === null) {
+            $raw = $text === '' ? null : $text;
+            $source = $raw === null ? 'missing' : 'text';
+        }
+
+        $summary = [
+            'temporal' => 'time',
+            'timeText' => $text,
+            'timeDatetimeSource' => $source,
+            'timeDatetimeRaw' => $raw,
+            'timeDatetime' => null,
+            'timeDatetimeKind' => null,
+            'timeDatetimeValid' => false,
+        ];
+
+        if ($raw === null) {
+            return $summary;
+        }
+
+        $datetime = self::htmlDateOrDatetimeSummary($raw);
+        if ($datetime === null) {
+            $summary['timeDatetimeKind'] = 'invalid';
+
+            return $summary;
+        }
+
+        $summary['timeDatetime'] = $datetime['value'];
+        $summary['timeDatetimeKind'] = $datetime['kind'];
+        $summary['timeDatetimeValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private static function revisionSummary(\DOMElement $element, string $name): array
     {
         $summary = [
@@ -993,7 +1037,7 @@ final class XmlHtmlDom
             return $summary;
         }
 
-        $datetime = self::revisionDatetimeSummary($summary['revisionDatetimeRaw']);
+        $datetime = self::htmlDateOrDatetimeSummary($summary['revisionDatetimeRaw']);
         if ($datetime === null) {
             $summary['revisionDatetimeKind'] = 'invalid';
 
@@ -1010,7 +1054,7 @@ final class XmlHtmlDom
     /**
      * @return array{kind:string, value:string}|null
      */
-    private static function revisionDatetimeSummary(string $value): ?array
+    private static function htmlDateOrDatetimeSummary(string $value): ?array
     {
         $value = trim($value);
         if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {

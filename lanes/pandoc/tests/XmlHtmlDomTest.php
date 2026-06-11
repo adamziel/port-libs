@@ -491,6 +491,66 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html time datetime metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>Published <time datetime="2026-06-11 16:04Z">June 11</time>'
+                . '<time datetime="2026-06-11T09:15:30-0500">Morning</time>'
+                . '<time>2026-06-12</time>'
+                . '<time datetime="2026-02-30">Invalid</time>'
+                . '<time>Loose text</time>'
+                . '<time></time></p>',
+            'time review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $paragraph = $summary[0];
+        $times = array_values(array_filter(
+            $paragraph['children'],
+            static fn (array $child): bool => ($child['type'] ?? null) === 'element' && ($child['name'] ?? null) === 'time'
+        ));
+        $attributeTime = $times[0];
+        $offsetTime = $times[1];
+        $textTime = $times[2];
+        $invalidDate = $times[3];
+        $invalidText = $times[4];
+        $missing = $times[5];
+
+        $t->same('p', $paragraph['name']);
+        $t->same(6, count($times));
+        $t->same('time', $attributeTime['temporal']);
+        $t->same('June 11', $attributeTime['timeText']);
+        $t->same('datetime-attribute', $attributeTime['timeDatetimeSource']);
+        $t->same('2026-06-11 16:04Z', $attributeTime['timeDatetimeRaw']);
+        $t->same('2026-06-11T16:04Z', $attributeTime['timeDatetime']);
+        $t->same('global-datetime', $attributeTime['timeDatetimeKind']);
+        $t->same(true, $attributeTime['timeDatetimeValid']);
+        $t->same('2026-06-11T09:15:30-05:00', $offsetTime['timeDatetime']);
+        $t->same('global-datetime', $offsetTime['timeDatetimeKind']);
+        $t->same('text', $textTime['timeDatetimeSource']);
+        $t->same('2026-06-12', $textTime['timeDatetimeRaw']);
+        $t->same('2026-06-12', $textTime['timeDatetime']);
+        $t->same('date', $textTime['timeDatetimeKind']);
+        $t->same(true, $textTime['timeDatetimeValid']);
+        $t->same('2026-02-30', $invalidDate['timeDatetimeRaw']);
+        $t->same(null, $invalidDate['timeDatetime']);
+        $t->same('invalid', $invalidDate['timeDatetimeKind']);
+        $t->same(false, $invalidDate['timeDatetimeValid']);
+        $t->same('text', $invalidText['timeDatetimeSource']);
+        $t->same('Loose text', $invalidText['timeDatetimeRaw']);
+        $t->same(null, $invalidText['timeDatetime']);
+        $t->same('invalid', $invalidText['timeDatetimeKind']);
+        $t->same(false, $invalidText['timeDatetimeValid']);
+        $t->same('missing', $missing['timeDatetimeSource']);
+        $t->same(null, $missing['timeDatetimeRaw']);
+        $t->same(null, $missing['timeDatetime']);
+        $t->same(null, $missing['timeDatetimeKind']);
+        $t->same(false, $missing['timeDatetimeValid']);
+        $t->same(
+            '<p>Published <time datetime="2026-06-11 16:04Z">June 11</time><time datetime="2026-06-11T09:15:30-0500">Morning</time><time>2026-06-12</time><time datetime="2026-02-30">Invalid</time><time>Loose text</time><time></time></p>',
+            $html
+        );
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
