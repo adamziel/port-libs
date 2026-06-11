@@ -837,8 +837,10 @@ return [
         $t->same($nativePacket['blocks'][0]['c'], $encoded['blocks'][0]['c']);
         $t->same('paragraph', $document->children[1]->type);
         $t->same('native_inline', $document->children[1]->children[1]->type);
-        $t->same('VendorInline', $encoded['blocks'][1]['c'][1]['t']);
-        $t->same(['name' => 'review-anchor', 'value' => 42], $encoded['blocks'][1]['c'][1]['c']);
+        $t->same('Before ', $document->children[1]->children[0]->attr('text'));
+        $t->same('Space', $encoded['blocks'][1]['c'][1]['t']);
+        $t->same('VendorInline', $encoded['blocks'][1]['c'][2]['t']);
+        $t->same(['name' => 'review-anchor', 'value' => 42], $encoded['blocks'][1]['c'][2]['c']);
 
         $writer = new PandocJsonWriter();
         $t->throws(InvalidArgumentException::class, static fn (): array => $writer->toArray(new AstNode('document', [], [
@@ -1037,6 +1039,44 @@ return [
             $t->same(2, $bodyCell->attr('rowspan'), "{$source} body cell rowspan");
             $t->same('right', $bodyCell->attr('align'), "{$source} body cell alignment");
         }
+    },
+    'emits shared text whitespace as explicit pandoc json constructors' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [
+                'title' => ['type' => 'inlines', 'children' => [
+                    new AstNode('text', ['text' => 'Meta title']),
+                ]],
+            ],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Alpha beta']),
+                new AstNode('space'),
+                new AstNode('emph', [], [
+                    new AstNode('text', ['text' => 'nested words']),
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $jsonInlines = $jsonPacket['blocks'][0]['c'];
+        $nativeInlines = $nativePacket['blocks'][0]['c'];
+        $roundTripChildren = (new PandocJsonReader())->readPacket($jsonPacket)->children[0]->children;
+
+        $t->same($nativePacket['blocks'], $jsonPacket['blocks']);
+        $t->same(['Str', 'Space', 'Str', 'Space', 'Emph'], array_map(static fn (array $inline): string => $inline['t'], $jsonInlines));
+        $t->same('Alpha', $jsonInlines[0]['c']);
+        $t->same('beta', $jsonInlines[2]['c']);
+        $t->same(['Str', 'Space', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $jsonInlines[4]['c']));
+        $t->same('nested', $jsonInlines[4]['c'][0]['c']);
+        $t->same('words', $jsonInlines[4]['c'][2]['c']);
+        $t->same(['Str', 'Space', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $jsonPacket['meta']['title']['c']));
+        $t->same($nativeInlines, $jsonInlines);
+        $t->same(['text', 'space', 'text', 'space', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $roundTripChildren));
+        $t->same('Alpha', $roundTripChildren[0]->attr('text'));
+        $t->same('beta', $roundTripChildren[2]->attr('text'));
+        $t->same('nested', $roundTripChildren[4]->children[0]->attr('text'));
     },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
@@ -2257,7 +2297,10 @@ JSON;
         $t->contains("\"pandoc-api-version\": [\n        1,\n        23,\n        1\n    ]", $json);
         $t->same('Image', $decoded['blocks'][0]['c'][0]['t']);
         $t->same('https://example.test/uploads/source packet(1).jpg', $decoded['blocks'][0]['c'][0]['c'][2][0]);
+        $t->same(['Str', 'Space', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $decoded['blocks'][0]['c'][0]['c'][1]));
         $t->same('image', $roundTrip->children[0]->children[0]->type);
-        $t->same('Source screenshot', $roundTrip->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Source screenshot', $roundTrip->children[0]->children[0]->attr('alt'));
+        $t->same('Source', $roundTrip->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('screenshot', $roundTrip->children[0]->children[0]->children[2]->attr('text'));
     },
 ];

@@ -189,9 +189,9 @@ final class PandocJsonWriter
         }
 
         if ($value instanceof AstNode) {
-            $content = $this->isInlineNode($value) ? $this->writeInline($value) : $this->writeBlock($value);
+            $content = $this->isInlineNode($value) ? $this->writeInlines([$value]) : [$this->writeBlock($value)];
 
-            return ['t' => $this->isInlineNode($value) ? 'MetaInlines' : 'MetaBlocks', 'c' => [$content]];
+            return ['t' => $this->isInlineNode($value) ? 'MetaInlines' : 'MetaBlocks', 'c' => $content];
         }
 
         if (is_array($value)) {
@@ -210,7 +210,7 @@ final class PandocJsonWriter
 
                     return [
                         't' => $inline ? 'MetaInlines' : 'MetaBlocks',
-                        'c' => array_map(fn (AstNode $node): array => $inline ? $this->writeInline($node) : $this->writeBlock($node), $nodes),
+                        'c' => $inline ? $this->writeInlines($nodes) : array_map(fn (AstNode $node): array => $this->writeBlock($node), $nodes),
                     ];
                 }
 
@@ -230,7 +230,7 @@ final class PandocJsonWriter
     private function writeTypedMetaValue(array $value): array
     {
         return match ($value['type']) {
-            'inlines' => ['t' => 'MetaInlines', 'c' => array_map(fn (AstNode $node): array => $this->writeInline($node), $this->metaChildren($value))],
+            'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
             'blocks' => ['t' => 'MetaBlocks', 'c' => array_map(fn (AstNode $node): array => $this->writeBlock($node), $this->metaChildren($value))],
             'list' => ['t' => 'MetaList', 'c' => array_map(fn (mixed $item): array => $this->writeMetaValue($item), is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [])],
             'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [])],
@@ -645,7 +645,21 @@ final class PandocJsonWriter
      */
     private function writeInlines(array $nodes): array
     {
-        return array_map(fn (AstNode $node): array => $this->writeInline($node), $nodes);
+        $inlines = [];
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                throw new \InvalidArgumentException('Pandoc JSON writer inline children must be AST nodes');
+            }
+
+            if ($node->type === 'text') {
+                array_push($inlines, ...$this->textInlineConstructors((string) $node->attr('text', '')));
+                continue;
+            }
+
+            $inlines[] = $this->writeInline($node);
+        }
+
+        return $inlines;
     }
 
     /**
@@ -837,6 +851,33 @@ final class PandocJsonWriter
             'suppress_author' => 'SuppressAuthor',
             default => 'NormalCitation',
         };
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function textInlineConstructors(string $text): array
+    {
+        if ($text === '') {
+            return [];
+        }
+
+        $parts = preg_split('/([ \t]+)/', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+        if ($parts === false) {
+            throw new \RuntimeException('Unable to split Pandoc JSON inline text');
+        }
+
+        $inlines = [];
+        foreach ($parts as $part) {
+            if (preg_match('/^[ \t]+$/', $part) === 1) {
+                $inlines[] = ['t' => 'Space'];
+                continue;
+            }
+
+            $inlines[] = ['t' => 'Str', 'c' => $part];
+        }
+
+        return $inlines;
     }
 
     /**
