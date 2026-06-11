@@ -24728,6 +24728,72 @@ XML);
         $t->contains('<dt>Noether 2026</dt><dd>Noether, Emmy. Invariant Review Packet. Migration Mathematics Review. 2026. MR MR1234567. MR class 13A50. Zbl 1234.56789. JSTOR 10.2307/9999999.</dd>', $blocks);
         $t->contains('<dt>Archive Library Desk 2025</dt><dd>Archive Library Desk. Catalog Review Manual. Review Press, 2025. HDL 20.500.12345/source-review. LCCN 2026123456. OCLC 987654321.</dd>', $blocks);
     },
+    'maps bounded mathscinet aliases into csl mr metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@article{mathscinet-review,
+  author       = {Hopper, Grace},
+  title        = {MathSciNet Alias Packet},
+  journaltitle = {Migration Algebra Notes},
+  date         = {2026},
+  mathscinet   = {MR2468135}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('MR2468135', $items[0]['MRNumber'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('mathscinet-review');
+        $t->same('MR2468135', $item['mrNumber'] ?? null);
+        $t->same('Hopper, Grace. MathSciNet Alias Packet. Migration Algebra Notes. 2026. MR MR2468135.', $processor->renderBibliographyEntry('mathscinet-review'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-mathscinet',
+            'type' => 'article-journal',
+            'title' => 'Direct MathSciNet Packet',
+            'author' => [['family' => 'Noether', 'given' => 'Emmy']],
+            'issued' => ['date-parts' => [[2025]]],
+            'mathscinet' => 'MR1357924',
+        ]]);
+        $directItem = $direct->item('direct-mathscinet');
+        $t->same('MR1357924', $directItem['mrNumber'] ?? null);
+        $t->same('Noether, Emmy. Direct MathSciNet Packet. 2025. MR MR1357924.', $direct->renderBibliographyEntry('direct-mathscinet'));
+
+        $styled = $direct->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded MathSciNet Alias Review</title>
+    <id>https://example.test/styles/bounded-mathscinet-alias-review</id>
+    <updated>2026-06-11T16:46:38+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="mathscinet"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mathscinet"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded MathSciNet Alias Review', $summary['title'] ?? null);
+        $t->same('mathscinet', $citationChildren[1]['variable'] ?? null);
+        $t->same('[Noether | MR1357924]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-mathscinet', 'text' => '[@direct-mathscinet]']),
+        ]));
+        $t->same('Direct MathSciNet Packet :: MR1357924', $styled->renderBibliographyEntry('direct-mathscinet'));
+    },
     'maps bounded biblatex original publication aliases into csl metadata' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @book{hyphen-original,
