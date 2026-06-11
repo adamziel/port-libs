@@ -319,9 +319,9 @@ final class NativeWriter
                 $this->attrTuple($node),
                 $this->tableCaption($node),
                 $this->tableColumnSpecs($node),
-                $this->tableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head')),
+                $this->tableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head'), 'TableHead'),
                 array_map(fn (AstNode $body): array => $this->tableBody($body), $this->tableSections($node, 'table_body')),
-                $this->tableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot')),
+                $this->tableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot'), 'TableFoot'),
             ],
         ];
     }
@@ -547,34 +547,34 @@ final class NativeWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<string, mixed>|array<int, mixed>>}
      */
-    private function tableSection(AstNode $section): array
+    private function tableSection(AstNode $section, string $constructor): array
     {
-        return [
+        return $this->preserveTaggedHelperConstructor($section, $constructor, [
             $this->attrTuple($section),
             $this->tableRows($section->children),
-        ];
+        ]);
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<string, mixed>|array<int, mixed>>, 3:list<array<string, mixed>|array<int, mixed>>}
      */
     private function tableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
 
-        return [
+        return $this->preserveTaggedHelperConstructor($body, 'TableBody', [
             $this->attrTuple($body),
             ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
             is_array($headRows) ? $this->tableRows(array_values($headRows)) : [],
             $this->tableRows($body->children),
-        ];
+        ]);
     }
 
     /**
      * @param list<AstNode> $rows
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<string, mixed>|array<int, mixed>>}>
      */
     private function tableRows(array $rows): array
     {
@@ -584,10 +584,10 @@ final class NativeWriter
                 continue;
             }
 
-            $encoded[] = [
+            $encoded[] = $this->preserveTaggedHelperConstructor($row, 'Row', [
                 $this->attrTuple($row),
                 $this->tableCells($row->children),
-            ];
+            ]);
         }
 
         return $encoded;
@@ -595,7 +595,7 @@ final class NativeWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
      */
     private function tableCells(array $cells): array
     {
@@ -605,16 +605,30 @@ final class NativeWriter
                 continue;
             }
 
-            $encoded[] = [
+            $encoded[] = $this->preserveTaggedHelperConstructor($cell, 'Cell', [
                 $this->attrTuple($cell),
                 ['t' => $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))],
                 ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
                 ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
                 $this->childrenAsBlocks($cell),
-            ];
+            ]);
         }
 
         return $encoded;
+    }
+
+    /**
+     * @param list<mixed> $content
+     * @return array<string, mixed>|list<mixed>
+     */
+    private function preserveTaggedHelperConstructor(AstNode $node, string $constructor, array $content): array
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return $content;
+        }
+
+        return ($native['c'] ?? null) === $content ? $native : ['t' => $constructor, 'c' => $content];
     }
 
     /**

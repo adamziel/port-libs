@@ -1577,6 +1577,96 @@ return [
         $t->same($tableBlock, $nativeFromJson['blocks'][0]);
         $t->same($tableBlock, $nativeFromNative['blocks'][0]);
     },
+    'preserves tagged pandoc table helper constructors after table edits' => static function (TestRunner $t): void {
+        $cellBlock = static fn (string $text): array => [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => $text],
+            ]],
+        ];
+        $cell = static fn (string $id, string $text): array => [
+            't' => 'Cell',
+            'c' => [
+                [$id, [], []],
+                ['t' => 'AlignDefault'],
+                ['t' => 'RowSpan', 'c' => 1],
+                ['t' => 'ColSpan', 'c' => 1],
+                $cellBlock($text),
+            ],
+        ];
+        $row = static fn (string $id, array $cells): array => [
+            't' => 'Row',
+            'c' => [
+                [$id, [], []],
+                $cells,
+            ],
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['tagged-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [
+                    ['head-section', [], []],
+                    [$row('head-row', [$cell('head-cell', 'Head')])],
+                ]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['body-section', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [$row('body-row', [$cell('body-cell', 'Body')])],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [
+                    ['foot-section', [], []],
+                    [$row('foot-row', [$cell('foot-cell', 'Foot')])],
+                ]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $editedAttrs = array_replace($table->attrs, [
+                'attributes' => ['data-edited' => $source],
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('table', $editedAttrs, $table->children),
+            ]);
+            $packets = [
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($editedDocument),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ];
+
+            foreach ($packets as $label => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $head = $encodedTable['c'][3];
+                $body = $encodedTable['c'][4][0];
+                $foot = $encodedTable['c'][5];
+
+                $t->same(['tagged-table', [], [['data-edited', $source]]], $encodedTable['c'][0], "{$label} edited table attrs");
+                $t->same('TableHead', $head['t'], "{$label} table head constructor");
+                $t->same('TableBody', $body['t'], "{$label} table body constructor");
+                $t->same('TableFoot', $foot['t'], "{$label} table foot constructor");
+                $t->same('RowHeadColumns', $body['c'][1]['t'], "{$label} row head columns constructor");
+                $t->same('Row', $head['c'][1][0]['t'], "{$label} head row constructor");
+                $t->same('Cell', $head['c'][1][0]['c'][1][0]['t'], "{$label} head cell constructor");
+                $t->same('Row', $body['c'][3][0]['t'], "{$label} body row constructor");
+                $t->same('Cell', $body['c'][3][0]['c'][1][0]['t'], "{$label} body cell constructor");
+                $t->same('Row', $foot['c'][1][0]['t'], "{$label} foot row constructor");
+                $t->same('Cell', $foot['c'][1][0]['c'][1][0]['t'], "{$label} foot cell constructor");
+            }
+        }
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];
@@ -1671,10 +1761,12 @@ return [
 
         $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
         $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
-        $jsonTableBody = $jsonPacket['blocks'][3]['c'][4][0];
-        $jsonTableRow = $jsonTableBody[3][0];
-        $jsonTableCell = $jsonTableRow[1][0];
-        $nativeTableBody = $nativePacket['blocks'][3]['c'][4][0]['c'];
+        $jsonTableBodyNode = $jsonPacket['blocks'][3]['c'][4][0];
+        $jsonTableBody = $jsonTableBodyNode['c'];
+        $jsonTableRow = $jsonTableBody[3][0]['c'];
+        $jsonTableCell = $jsonTableRow[1][0]['c'];
+        $nativeTableBodyNode = $nativePacket['blocks'][3]['c'][4][0];
+        $nativeTableBody = $nativeTableBodyNode['c'];
         $nativeTableRow = $nativeTableBody[3][0]['c'];
         $nativeTableCell = $nativeTableRow[1][0]['c'];
 
@@ -1688,10 +1780,11 @@ return [
         $t->same($spanAttr, $jsonPacket['blocks'][1]['c'][6]['c'][0]);
         $t->same($divAttr, $jsonPacket['blocks'][2]['c'][0]);
         $t->same($tableAttr, $jsonPacket['blocks'][3]['c'][0]);
+        $t->same('TableBody', $jsonTableBodyNode['t']);
         $t->same($bodyAttr, $jsonTableBody[0]);
         $t->same($rowAttr, $jsonTableRow[0]);
         $t->same($cellAttr, $jsonTableCell[0]);
-        $t->same('TableBody', $nativePacket['blocks'][3]['c'][4][0]['t']);
+        $t->same('TableBody', $nativeTableBodyNode['t']);
         $t->same($tableAttr, $nativePacket['blocks'][3]['c'][0]);
         $t->same($bodyAttr, $nativeTableBody[0]);
         $t->same($rowAttr, $nativeTableRow[0]);
