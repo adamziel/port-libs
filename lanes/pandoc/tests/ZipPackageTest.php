@@ -7507,6 +7507,93 @@ return [
         $t->same([], $safeSummary['unsupportedEntries']);
     },
 
+    'preflights compression method byte buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>bucketed compression accounting</w:p></w:document>';
+        $storedNote = "stored package reviewer note\n";
+        $unsupportedBytes = 'bzip2-like package bytes remain blocked';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $storedNote,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review-bzip2.bin',
+                'data' => $unsupportedBytes,
+                'method' => 12,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->compressionMethodPreflight();
+        $deflatedCompressed = strlen(gzdeflate($documentXml));
+        $storedCompressed = strlen($storedNote);
+        $unsupportedCompressed = strlen($unsupportedBytes);
+        $expectedBuckets = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 2,
+                'compressedBytes' => $storedCompressed,
+                'uncompressedBytes' => strlen($storedNote),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'compressedBytes' => $deflatedCompressed,
+                'uncompressedBytes' => strlen($documentXml),
+                'isSupported' => true,
+            ],
+            [
+                'compressionMethod' => 12,
+                'compressionMethodName' => 'unsupported',
+                'entryCount' => 1,
+                'compressedBytes' => $unsupportedCompressed,
+                'uncompressedBytes' => strlen($unsupportedBytes),
+                'isSupported' => false,
+            ],
+        ];
+
+        $t->same(4, $summary['entryCount']);
+        $t->same(3, $summary['supportedEntryCount']);
+        $t->same(2, $summary['storedEntryCount']);
+        $t->same(1, $summary['deflatedEntryCount']);
+        $t->same(1, $summary['unsupportedCompressionMethodCount']);
+        $t->same($storedCompressed, $summary['storedCompressedBytes']);
+        $t->same(strlen($storedNote), $summary['storedUncompressedBytes']);
+        $t->same($deflatedCompressed, $summary['deflatedCompressedBytes']);
+        $t->same(strlen($documentXml), $summary['deflatedUncompressedBytes']);
+        $t->same($unsupportedCompressed, $summary['unsupportedCompressedBytes']);
+        $t->same(strlen($unsupportedBytes), $summary['unsupportedUncompressedBytes']);
+        $t->same($expectedBuckets, $summary['methodBuckets']);
+
+        $rawPolicy = ZipPackage::compressionMethodPolicyPreflight($zip);
+        $t->same($summary['storedCompressedBytes'], $rawPolicy['storedCompressedBytes']);
+        $t->same($summary['storedUncompressedBytes'], $rawPolicy['storedUncompressedBytes']);
+        $t->same($summary['deflatedCompressedBytes'], $rawPolicy['deflatedCompressedBytes']);
+        $t->same($summary['deflatedUncompressedBytes'], $rawPolicy['deflatedUncompressedBytes']);
+        $t->same($summary['unsupportedCompressedBytes'], $rawPolicy['unsupportedCompressedBytes']);
+        $t->same($summary['unsupportedUncompressedBytes'], $rawPolicy['unsupportedUncompressedBytes']);
+        $t->same($expectedBuckets, $rawPolicy['methodBuckets']);
+        $t->same(false, $rawPolicy['isSupportedByBoundedReader']);
+
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 256, 20.0, 256);
+        $t->same($expectedBuckets, $rawStrict['compressionMethods']['methodBuckets']);
+        $t->same($expectedBuckets, $rawStrict['strictImport']['compressionMethods']['methodBuckets']);
+        $t->contains('unsupported-compression-methods', implode(',', $rawStrict['diagnostics']));
+    },
+
     'aggregates strict zip import preflight policy before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $safePackage = ZipPackage::fromParts([
             [

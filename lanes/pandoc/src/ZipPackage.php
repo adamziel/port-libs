@@ -5651,6 +5651,12 @@ final class ZipPackage
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
+     *     storedCompressedBytes:int,
+     *     storedUncompressedBytes:int,
+     *     deflatedCompressedBytes:int,
+     *     deflatedUncompressedBytes:int,
+     *     unsupportedCompressedBytes:int,
+     *     unsupportedUncompressedBytes:int,
      *     methodMismatchEntryCount:int,
      *     unsupportedVersionEntryCount:int,
      *     versionNeededExceedsBoundedReaderEntryCount:int,
@@ -5664,6 +5670,7 @@ final class ZipPackage
      *     unsupportedVersionEntries:list<array<string, mixed>>,
      *     versionNeededExceedsBoundedReaderEntries:list<array<string, mixed>>,
      *     understatedVersionEntries:list<array<string, mixed>>,
+     *     methodBuckets:list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>,
      *     entries:list<array<string, mixed>>
      * }
      */
@@ -5693,6 +5700,13 @@ final class ZipPackage
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
         $supportedEntryCount = 0;
+        $storedCompressedBytes = 0;
+        $storedUncompressedBytes = 0;
+        $deflatedCompressedBytes = 0;
+        $deflatedUncompressedBytes = 0;
+        $unsupportedCompressedBytes = 0;
+        $unsupportedUncompressedBytes = 0;
+        $methodBuckets = [];
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
         while ($index < $archive['totalEntryCount']) {
@@ -5720,9 +5734,22 @@ final class ZipPackage
 
             if ($method === 0) {
                 $storedEntryCount++;
+                $storedCompressedBytes += $compressedSize;
+                $storedUncompressedBytes += $uncompressedSize;
             } elseif ($method === 8) {
                 $deflatedEntryCount++;
+                $deflatedCompressedBytes += $compressedSize;
+                $deflatedUncompressedBytes += $uncompressedSize;
+            } else {
+                $unsupportedCompressedBytes += $compressedSize;
+                $unsupportedUncompressedBytes += $uncompressedSize;
             }
+            self::addCompressionMethodBucket(
+                $methodBuckets,
+                $method,
+                $compressedSize,
+                $uncompressedSize
+            );
 
             $methodIsSupported = $method === 0 || $method === 8;
             $localMethodIsSupported = $localHeader['compressionMethod'] === 0 || $localHeader['compressionMethod'] === 8;
@@ -5849,6 +5876,12 @@ final class ZipPackage
             'unsupportedCompressionMethodCount' => count($unsupportedEntries),
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
+            'storedCompressedBytes' => $storedCompressedBytes,
+            'storedUncompressedBytes' => $storedUncompressedBytes,
+            'deflatedCompressedBytes' => $deflatedCompressedBytes,
+            'deflatedUncompressedBytes' => $deflatedUncompressedBytes,
+            'unsupportedCompressedBytes' => $unsupportedCompressedBytes,
+            'unsupportedUncompressedBytes' => $unsupportedUncompressedBytes,
             'methodMismatchEntryCount' => count($mismatchedEntries),
             'unsupportedVersionEntryCount' => count($unsupportedVersionEntries),
             'versionNeededExceedsBoundedReaderEntryCount' => count($versionNeededExceedsBoundedReaderEntries),
@@ -5862,6 +5895,7 @@ final class ZipPackage
             'unsupportedVersionEntries' => $unsupportedVersionEntries,
             'versionNeededExceedsBoundedReaderEntries' => $versionNeededExceedsBoundedReaderEntries,
             'understatedVersionEntries' => $understatedVersionEntries,
+            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
             'entries' => $entries,
         ];
     }
@@ -9567,7 +9601,14 @@ final class ZipPackage
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
+     *     storedCompressedBytes:int,
+     *     storedUncompressedBytes:int,
+     *     deflatedCompressedBytes:int,
+     *     deflatedUncompressedBytes:int,
+     *     unsupportedCompressedBytes:int,
+     *     unsupportedUncompressedBytes:int,
      *     unsupportedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int}>,
+     *     methodBuckets:list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>,
      *     entries:list<array{name:string, compressionMethod:int, compressionMethodName:string, isSupported:bool, isDirectory:bool, compressedSize:int, uncompressedSize:int}>
      * }
      */
@@ -9575,15 +9616,35 @@ final class ZipPackage
     {
         $storedEntryCount = 0;
         $deflatedEntryCount = 0;
+        $storedCompressedBytes = 0;
+        $storedUncompressedBytes = 0;
+        $deflatedCompressedBytes = 0;
+        $deflatedUncompressedBytes = 0;
+        $unsupportedCompressedBytes = 0;
+        $unsupportedUncompressedBytes = 0;
         $unsupportedEntries = [];
+        $methodBuckets = [];
         $entries = [];
 
         foreach ($this->entries as $entry) {
             if ($entry->compressionMethod === 0) {
                 $storedEntryCount++;
+                $storedCompressedBytes += $entry->compressedSize;
+                $storedUncompressedBytes += $entry->uncompressedSize;
             } elseif ($entry->compressionMethod === 8) {
                 $deflatedEntryCount++;
+                $deflatedCompressedBytes += $entry->compressedSize;
+                $deflatedUncompressedBytes += $entry->uncompressedSize;
+            } else {
+                $unsupportedCompressedBytes += $entry->compressedSize;
+                $unsupportedUncompressedBytes += $entry->uncompressedSize;
             }
+            self::addCompressionMethodBucket(
+                $methodBuckets,
+                $entry->compressionMethod,
+                $entry->compressedSize,
+                $entry->uncompressedSize
+            );
 
             $isSupported = $entry->compressionMethod === 0 || $entry->compressionMethod === 8;
             $summary = [
@@ -9613,7 +9674,14 @@ final class ZipPackage
             'unsupportedCompressionMethodCount' => count($unsupportedEntries),
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
+            'storedCompressedBytes' => $storedCompressedBytes,
+            'storedUncompressedBytes' => $storedUncompressedBytes,
+            'deflatedCompressedBytes' => $deflatedCompressedBytes,
+            'deflatedUncompressedBytes' => $deflatedUncompressedBytes,
+            'unsupportedCompressedBytes' => $unsupportedCompressedBytes,
+            'unsupportedUncompressedBytes' => $unsupportedUncompressedBytes,
             'unsupportedEntries' => $unsupportedEntries,
+            'methodBuckets' => self::compressionMethodBuckets($methodBuckets),
             'entries' => $entries,
         ];
     }
@@ -9625,7 +9693,14 @@ final class ZipPackage
      *     unsupportedCompressionMethodCount:int,
      *     storedEntryCount:int,
      *     deflatedEntryCount:int,
+     *     storedCompressedBytes:int,
+     *     storedUncompressedBytes:int,
+     *     deflatedCompressedBytes:int,
+     *     deflatedUncompressedBytes:int,
+     *     unsupportedCompressedBytes:int,
+     *     unsupportedUncompressedBytes:int,
      *     unsupportedEntries:list<array{name:string, compressionMethod:int, isDirectory:bool, compressedSize:int, uncompressedSize:int}>,
+     *     methodBuckets:list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>,
      *     entries:list<array{name:string, compressionMethod:int, compressionMethodName:string, isSupported:bool, isDirectory:bool, compressedSize:int, uncompressedSize:int}>
      * }
      */
@@ -11877,6 +11952,42 @@ final class ZipPackage
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    /**
+     * @param array<int, array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}> $buckets
+     */
+    private static function addCompressionMethodBucket(
+        array &$buckets,
+        int $method,
+        int $compressedBytes,
+        int $uncompressedBytes
+    ): void {
+        if (!isset($buckets[$method])) {
+            $buckets[$method] = [
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'entryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'isSupported' => $method === 0 || $method === 8,
+            ];
+        }
+
+        $buckets[$method]['entryCount']++;
+        $buckets[$method]['compressedBytes'] += $compressedBytes;
+        $buckets[$method]['uncompressedBytes'] += $uncompressedBytes;
+    }
+
+    /**
+     * @param array<int, array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}> $buckets
+     * @return list<array{compressionMethod:int, compressionMethodName:string, entryCount:int, compressedBytes:int, uncompressedBytes:int, isSupported:bool}>
+     */
+    private static function compressionMethodBuckets(array $buckets): array
+    {
+        ksort($buckets);
+
+        return array_values($buckets);
     }
 
     /**
