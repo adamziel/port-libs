@@ -487,6 +487,72 @@ XML, 'package reader XML');
         $t->same('.legacy > .target::before { content: "&"; }', $summary[1]['text']);
         $t->same('<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script><style disabled>.legacy > .target::before { content: "&"; }</style>', $html);
     },
+    'summarizes html script and style side effect provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<script type="module" src="/review/app.js" async crossorigin="anonymous" integrity="sha384-review" referrerpolicy="no-referrer" fetchpriority="low" blocking="render"></script>'
+                . '<script nomodule defer nonce="legacy-token">if (window.review) { importPacket("&"); }</script>'
+                . '<style media="print" title="Review sheet" disabled blocking="render" nonce="style-token">.packet > .item { color: red; }</style>',
+            'script style side effect review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/script-style-side-effects.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $externalScript = $summary[0];
+        $inlineScript = $summary[1];
+        $style = $summary[2];
+
+        $t->same('script', $externalScript['name']);
+        $t->same('script', $externalScript['sideEffectResource']);
+        $t->same('external-script', $externalScript['scriptResource']);
+        $t->same('/review/app.js', $externalScript['src']);
+        $t->same('module', $externalScript['mimeType']);
+        $t->same(true, $externalScript['module']);
+        $t->same(true, $externalScript['async']);
+        $t->same(false, $externalScript['defer']);
+        $t->same(false, $externalScript['noModule']);
+        $t->same('anonymous', $externalScript['crossorigin']);
+        $t->same('sha384-review', $externalScript['integrity']);
+        $t->same('no-referrer', $externalScript['referrerpolicy']);
+        $t->same('low', $externalScript['fetchpriority']);
+        $t->same('render', $externalScript['blockingRaw']);
+        $t->same(['render'], $externalScript['blockingTokens']);
+        $t->same(0, $externalScript['inlineTextBytes']);
+        $t->same('', $externalScript['inlineTextPreview']);
+        $t->same('inert-external-script-review', $externalScript['sideEffectPolicy']);
+
+        $t->same('inline-script', $inlineScript['scriptResource']);
+        $t->same(null, $inlineScript['src']);
+        $t->same(false, $inlineScript['module']);
+        $t->same(false, $inlineScript['async']);
+        $t->same(true, $inlineScript['defer']);
+        $t->same(true, $inlineScript['noModule']);
+        $t->same('legacy-token', $inlineScript['nonce']);
+        $t->same(41, $inlineScript['inlineTextBytes']);
+        $t->same('if (window.review) { importPacket("&"); }', $inlineScript['inlineTextPreview']);
+        $t->same('inert-inline-script-review', $inlineScript['sideEffectPolicy']);
+
+        $t->same('style', $style['name']);
+        $t->same('style', $style['sideEffectResource']);
+        $t->same('inline-style', $style['styleResource']);
+        $t->same('print', $style['media']);
+        $t->same('Review sheet', $style['styleTitle']);
+        $t->same(true, $style['disabled']);
+        $t->same('render', $style['blockingRaw']);
+        $t->same(['render'], $style['blockingTokens']);
+        $t->same('style-token', $style['nonce']);
+        $t->same(31, $style['inlineTextBytes']);
+        $t->same('.packet > .item { color: red; }', $style['inlineTextPreview']);
+        $t->same('inert-style-review', $style['sideEffectPolicy']);
+
+        $t->contains('<script async blocking="render" crossorigin="anonymous" fetchpriority="low" integrity="sha384-review" referrerpolicy="no-referrer" src="/review/app.js" type="module"></script>', $html);
+        $t->contains('<script defer nomodule nonce="legacy-token">if (window.review) { importPacket("&"); }</script>', $blocks);
+        $t->contains('<style blocking="render" disabled media="print" nonce="style-token" title="Review sheet">.packet > .item { color: red; }</style>', $blocks);
+        $t->same('/migration/script-style-side-effects.html', $document->children[0]->attr('part'));
+    },
     'preflights html declarations outside protected raw text serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script type="application/json">{"doctype":"<!DOCTYPE html>","pi":"<?review href=\"file\"?>"}</script>'

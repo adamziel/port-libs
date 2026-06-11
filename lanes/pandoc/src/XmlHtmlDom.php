@@ -897,6 +897,9 @@ final class XmlHtmlDom
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
+        if (in_array($name, ['script', 'style'], true)) {
+            $summary += self::scriptStyleSummary($node, $name);
+        }
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
@@ -966,6 +969,51 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptStyleSummary(\DOMElement $element, string $name): array
+    {
+        $blockingRaw = self::attributeOrNull($element, 'blocking');
+        $text = $element->textContent;
+        $common = [
+            'sideEffectResource' => $name,
+            'mimeType' => self::attributeOrNull($element, 'type'),
+            'nonce' => self::attributeOrNull($element, 'nonce'),
+            'blockingRaw' => $blockingRaw,
+            'blockingTokens' => $blockingRaw === null ? [] : self::spaceSeparatedTokens($blockingRaw),
+            'inlineTextBytes' => strlen($text),
+            'inlineTextPreview' => substr($text, 0, 120),
+        ];
+
+        if ($name === 'style') {
+            return $common + [
+                'styleResource' => 'inline-style',
+                'media' => self::attributeOrNull($element, 'media'),
+                'styleTitle' => self::attributeOrNull($element, 'title'),
+                'disabled' => $element->hasAttribute('disabled'),
+                'sideEffectPolicy' => 'inert-style-review',
+            ];
+        }
+
+        $src = self::attributeOrNull($element, 'src');
+        $type = strtolower(trim($element->getAttribute('type')));
+
+        return $common + [
+            'scriptResource' => $src === null ? 'inline-script' : 'external-script',
+            'src' => $src,
+            'module' => $type === 'module',
+            'async' => $element->hasAttribute('async'),
+            'defer' => $element->hasAttribute('defer'),
+            'noModule' => $element->hasAttribute('nomodule'),
+            'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
+            'integrity' => self::attributeOrNull($element, 'integrity'),
+            'referrerpolicy' => self::attributeOrNull($element, 'referrerpolicy'),
+            'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
+            'sideEffectPolicy' => $src === null ? 'inert-inline-script-review' : 'inert-external-script-review',
+        ];
     }
 
     /**
