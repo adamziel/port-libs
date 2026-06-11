@@ -87,7 +87,7 @@ final class NativeWriter
 
         if (is_array($value)) {
             if ($this->isTaggedMetaValue($value)) {
-                return $value;
+                return $this->writeCompatibleMetaValue($value);
             }
 
             if (isset($value['type']) && is_string($value['type'])) {
@@ -215,6 +215,24 @@ final class NativeWriter
                 'MetaList',
                 'MetaMap',
             ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function writeCompatibleMetaValue(array $value): array
+    {
+        $document = (new PandocJsonReader())->readPacket([
+            'meta' => ['__value' => $value],
+            'blocks' => [],
+        ]);
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || !array_key_exists('__value', $meta)) {
+            throw new \InvalidArgumentException('Unable to normalize tagged Pandoc native metadata value');
+        }
+
+        return $this->metaValue($meta['__value']);
     }
 
     /**

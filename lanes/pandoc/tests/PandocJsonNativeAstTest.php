@@ -723,6 +723,60 @@ return [
         $t->same(['json-filter', 'legacy-packet'], $meta['review']['items']['aliases']['items']);
         $t->same('paragraph', $meta['review']['items']['body']['children'][0]->type);
     },
+    'canonicalizes pre-tagged native metadata constructors like pandoc json writer' => static function (TestRunner $t): void {
+        $legacyReview = ['t' => 'MetaMap', 'c' => [
+            'unMeta' => [
+                'queue' => ['t' => 'MetaString', 'c' => 'native-writer'],
+                'flags' => ['t' => 'MetaList', 'c' => [
+                    ['t' => 'MetaString', 'c' => 'canonical'],
+                    ['t' => 'MetaBool', 'c' => true],
+                ]],
+                'nested' => ['t' => 'MetaMap', 'c' => [
+                    'unMeta' => [
+                        'owner' => ['t' => 'MetaInlines', 'c' => [
+                            ['t' => 'Str', 'c' => 'Review'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'team'],
+                        ]],
+                    ],
+                ]],
+            ],
+        ]];
+        $document = new AstNode('document', [
+            'meta' => [
+                'review' => $legacyReview,
+                'literalRecord' => [
+                    't' => 'review-record',
+                    'c' => [
+                        'state' => 'queued',
+                    ],
+                ],
+            ],
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTrip = (new NativeReader())->read(json_encode($nativePacket, JSON_THROW_ON_ERROR))->attr('meta');
+        $review = $nativePacket['meta']['review'];
+        $literal = $nativePacket['meta']['literalRecord'];
+
+        $t->same($jsonPacket['meta'], $nativePacket['meta']);
+        $t->same('MetaMap', $review['t']);
+        $t->true(!array_key_exists('unMeta', $review['c']), 'Native writer should canonicalize legacy MetaMap unMeta wrappers');
+        $t->same('native-writer', $review['c']['queue']['c']);
+        $t->same('MetaList', $review['c']['flags']['t']);
+        $t->same('canonical', $review['c']['flags']['c'][0]['c']);
+        $t->same(true, $review['c']['flags']['c'][1]['c']);
+        $t->same('MetaMap', $review['c']['nested']['t']);
+        $t->true(!array_key_exists('unMeta', $review['c']['nested']['c']), 'Nested native MetaMap wrappers should canonicalize');
+        $t->same('MetaInlines', $review['c']['nested']['c']['owner']['t']);
+        $t->same('Review', $review['c']['nested']['c']['owner']['c'][0]['c']);
+        $t->same('MetaMap', $literal['t']);
+        $t->same('review-record', $literal['c']['t']['c']);
+        $t->same('queued', $literal['c']['c']['c']['state']['c']);
+        $t->same($review, $nativeRoundTrip['review']);
+        $t->same($literal, $nativeRoundTrip['literalRecord']);
+    },
     'round trips core inline constructors through pandoc json' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
