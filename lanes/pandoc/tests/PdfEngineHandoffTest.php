@@ -316,6 +316,60 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst system font boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/system-font-boundary.pdf',
+            'source' => '= Typst System Font Boundary Packet',
+            'engineOptions' => [
+                '--ignore-system-fonts',
+                '--font-path=review-fonts',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst system font boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [
+                ['raw' => 'review-fonts', 'path' => 'review-fonts', 'kind' => 'relative', 'safe' => true, 'issues' => []],
+            ],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'systemFonts' => [
+                'ignoreSystemFonts' => true,
+                'systemFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'fontPathCount' => 1,
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/system-font-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/system-font-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-font-paths:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-system-font-access:disabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-ignore-system-fonts:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

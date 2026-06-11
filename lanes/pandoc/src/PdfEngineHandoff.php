@@ -274,6 +274,15 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
             }
+            if (($typstBoundaryProvenance['systemFonts'] ?? []) !== []) {
+                $systemFonts = $typstBoundaryProvenance['systemFonts'];
+                if (is_array($systemFonts) && is_string($systemFonts['systemFontAccess'] ?? null)) {
+                    $diagnostics[] = 'typst-system-font-access:' . $systemFonts['systemFontAccess'];
+                }
+                if (is_array($systemFonts) && is_int($systemFonts['flagCount'] ?? null) && $systemFonts['flagCount'] > 0) {
+                    $diagnostics[] = 'typst-ignore-system-fonts:' . $systemFonts['flagCount'];
+                }
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5506,6 +5515,21 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<string> $engineOptions
+     */
+    private function engineOptionFlagCount(array $engineOptions, string $name): int
+    {
+        $count = 0;
+        foreach ($engineOptions as $option) {
+            if (trim($option) === $name) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param array<string, list<string>> $optionValues
      * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
      */
@@ -5552,7 +5576,8 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === []) {
+        $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5631,6 +5656,15 @@ final class PdfEngineHandoff
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
+        }
+        if ($ignoreSystemFontCount > 0) {
+            $provenance['systemFonts'] = [
+                'ignoreSystemFonts' => true,
+                'systemFontAccess' => 'disabled',
+                'flagCount' => $ignoreSystemFontCount,
+                'fontPathCount' => count($fontPaths),
+                'issues' => [],
+            ];
         }
         if ($overrides !== []) {
             $provenance['overrides'] = $overrides;
