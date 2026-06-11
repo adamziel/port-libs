@@ -5454,9 +5454,9 @@ final class PdfEngineHandoff
      * @param list<string> $engineOptions
      * @param list<string> $names
      */
-    private function engineOptionValue(array $engineOptions, array $names): ?string
+    private function engineOptionValue(array $engineOptions, array $names, bool $preserveMissing = false): ?string
     {
-        $values = $this->engineOptionValues($engineOptions, $names);
+        $values = $this->engineOptionValues($engineOptions, $names, $preserveMissing);
 
         return $values === [] ? null : $values[count($values) - 1];
     }
@@ -5466,20 +5466,25 @@ final class PdfEngineHandoff
      * @param list<string> $names
      * @return list<string>
      */
-    private function engineOptionValues(array $engineOptions, array $names): array
+    private function engineOptionValues(array $engineOptions, array $names, bool $preserveMissing = false): array
     {
         $values = [];
         $count = count($engineOptions);
         foreach ($engineOptions as $index => $option) {
             $option = trim($option);
             foreach ($names as $name) {
-                if (
-                    $option === $name
-                    && $index + 1 < $count
-                    && $engineOptions[$index + 1] !== ''
-                    && !str_starts_with($engineOptions[$index + 1], '-')
-                ) {
-                    $values[] = $engineOptions[$index + 1];
+                if ($option === $name) {
+                    if (
+                        $index + 1 < $count
+                        && $engineOptions[$index + 1] !== ''
+                        && !str_starts_with($engineOptions[$index + 1], '-')
+                    ) {
+                        $values[] = $engineOptions[$index + 1];
+                        continue;
+                    }
+                    if ($preserveMissing) {
+                        $values[] = '';
+                    }
                     continue;
                 }
                 if (str_starts_with($option, $name . '=')) {
@@ -5501,12 +5506,12 @@ final class PdfEngineHandoff
             return [];
         }
 
-        $rootValues = $this->engineOptionValues($engineOptions, ['--root']);
-        $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path']);
-        $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path']);
-        $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache']);
-        $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input']);
-        $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp']);
+        $rootValues = $this->engineOptionValues($engineOptions, ['--root'], true);
+        $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
+        $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
+        $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
+        $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
+        $creationTimestampValue = $this->engineOptionValue($engineOptions, ['--creation-timestamp'], true);
         if ($rootValues === [] && $fontPathValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValue === null) {
             return [];
         }

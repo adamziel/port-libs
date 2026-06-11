@@ -203,6 +203,81 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans missing typst boundary option values as review provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/missing-boundary.pdf',
+            'source' => '= Typst Missing Boundary Packet',
+            'engineOptions' => [
+                '--root',
+                '--font-path',
+                '--package-path',
+                '--package-cache',
+                '--input',
+                '--creation-timestamp',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst missing boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['root-empty']],
+            'fontPaths' => [
+                ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['font-path-empty']],
+            ],
+            'packagePath' => ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['package-path-empty']],
+            'packageCache' => ['raw' => '', 'path' => '', 'kind' => 'invalid', 'safe' => false, 'issues' => ['package-cache-empty']],
+            'inputVariables' => [
+                ['raw' => '', 'name' => '', 'value' => '', 'safe' => false, 'issues' => ['input-variable-invalid-boundary']],
+            ],
+            'issues' => [
+                'root-empty',
+                'package-path-empty',
+                'package-cache-empty',
+                'creation-timestamp-empty-boundary',
+                'font-path-empty',
+                'input-variable-invalid-boundary',
+            ],
+            'creationTimestamp' => [
+                'raw' => '',
+                'value' => '',
+                'kind' => 'invalid',
+                'timestamp' => null,
+                'iso8601' => null,
+                'deterministic' => false,
+                'safe' => false,
+                'issues' => ['creation-timestamp-empty-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/missing-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/missing-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->same(true, in_array('typst-root-boundary:', $plan['diagnostics'], true));
+        $t->contains('typst-font-paths:1', implode(',', $plan['diagnostics']));
+        $t->same(true, in_array('typst-package-path:', $plan['diagnostics'], true));
+        $t->same(true, in_array('typst-package-cache:', $plan['diagnostics'], true));
+        $t->contains('typst-boundary-inputs:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:6', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst creation timestamp boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $timestamp = '1700000000';
