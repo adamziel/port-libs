@@ -286,6 +286,59 @@ XML;
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
     },
+    'propagates compact ODT manifest version preferred view and byte policy into review inventory' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifest = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3" manifest:preferred-view-mode="edit"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" manifest:version="1.2" manifest:preferred-view-mode="view"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:version="1.4" manifest:size="2048" manifest:preferred-view-mode="presentation-slide-show"/>
+</manifest:manifest>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL', 'compressionMethod' => 0]],
+        ));
+        $summary = $odt->summarize();
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $parts = $summary['packageInventory']['parts'];
+        $contentPart = $parts['content.xml'];
+        $heroPart = $parts['Pictures/hero.png'];
+        $thumbnailPart = $parts['Thumbnails/thumbnail.png'];
+
+        $t->same('1.3', $reviewByPath['/']['version']);
+        $t->same('edit', $reviewByPath['/']['preferredViewMode']);
+        $t->same('1.2', $reviewByPath['content.xml']['version']);
+        $t->same('view', $reviewByPath['content.xml']['preferredViewMode']);
+        $t->same('1.4', $reviewByPath['Pictures/hero.png']['version']);
+        $t->same('presentation-slide-show', $reviewByPath['Pictures/hero.png']['preferredViewMode']);
+
+        $t->same('1.2', $contentPart['manifestVersion']);
+        $t->same('view', $contentPart['manifestPreferredViewMode']);
+        $t->same(null, $contentPart['manifestDeclaredSize']);
+        $t->same(false, $contentPart['manifestDeclaredSizeMismatch']);
+        $t->same('package-bytes-exposable', $contentPart['manifestByteExposurePolicy']);
+        $t->same([], $contentPart['manifestDiagnostics']);
+
+        $t->same('1.4', $heroPart['manifestVersion']);
+        $t->same('presentation-slide-show', $heroPart['manifestPreferredViewMode']);
+        $t->same(2048, $heroPart['manifestDeclaredSize']);
+        $t->same(true, $heroPart['manifestDeclaredSizeMismatch']);
+        $t->same('package-bytes-exposable', $heroPart['manifestByteExposurePolicy']);
+        $t->same(['odf-manifest-declared-size-mismatch'], $heroPart['manifestDiagnostics']);
+
+        $t->same(null, $thumbnailPart['manifestVersion']);
+        $t->same(null, $thumbnailPart['manifestPreferredViewMode']);
+        $t->same(null, $thumbnailPart['manifestDeclaredSize']);
+        $t->same(false, $thumbnailPart['manifestDeclaredSizeMismatch']);
+        $t->same(null, $thumbnailPart['manifestByteExposurePolicy']);
+        $t->same([], $thumbnailPart['manifestDiagnostics']);
+    },
     'reports compact ODT manifest media package exposure and missing parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '</manifest:manifest>',
