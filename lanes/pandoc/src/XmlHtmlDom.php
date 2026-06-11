@@ -851,6 +851,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if ($name === 'time') {
+            $summary += self::timeSummary($node);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -1185,6 +1188,146 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function timeSummary(\DOMElement $element): array
+    {
+        $raw = self::attributeOrNull($element, 'datetime');
+        $summary = [
+            'time' => true,
+            'timeText' => self::normalizedText($element),
+            'timeDatetimeRaw' => $raw,
+            'timeDatetime' => null,
+            'timeDatetimeKind' => null,
+            'timeDatetimeValid' => false,
+        ];
+
+        if ($raw === null) {
+            return $summary;
+        }
+
+        $datetime = self::timeDatetimeSummary($raw);
+        if ($datetime === null) {
+            $summary['timeDatetimeKind'] = 'invalid';
+
+            return $summary;
+        }
+
+        $summary['timeDatetime'] = $datetime['value'];
+        $summary['timeDatetimeKind'] = $datetime['kind'];
+        $summary['timeDatetimeValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array{kind:string, value:string}|null
+     */
+    private static function timeDatetimeSummary(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        $datePattern = '([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])';
+        $timePattern = '((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)';
+        $timezonePattern = '([Zz]|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])';
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'global-datetime',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3]
+                    . 'T' . (string) $matches[4]
+                    . self::normalizeTimezone((string) $matches[5]),
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'local-datetime',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3]
+                    . 'T' . (string) $matches[4],
+            ];
+        }
+
+        if (preg_match('/^' . $datePattern . '$/', $value, $matches) === 1) {
+            if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'date',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3],
+            ];
+        }
+
+        if (preg_match('/^([0-9]{4})-(0[1-9]|1[0-2])$/', $value, $matches) === 1) {
+            return ['kind' => 'month', 'value' => (string) $matches[1] . '-' . (string) $matches[2]];
+        }
+
+        if (preg_match('/^([0-9]{4})-W(0[1-9]|[1-4][0-9]|5[0-3])$/', $value, $matches) === 1) {
+            $year = (int) $matches[1];
+            $week = (int) $matches[2];
+            $date = (new \DateTimeImmutable())->setISODate($year, $week, 1);
+            if ((int) $date->format('o') !== $year || (int) $date->format('W') !== $week) {
+                return null;
+            }
+
+            return ['kind' => 'week', 'value' => (string) $matches[1] . '-W' . (string) $matches[2]];
+        }
+
+        if (preg_match('/^[0-9]{4}$/', $value) === 1) {
+            return ['kind' => 'year', 'value' => $value];
+        }
+
+        if (preg_match('/^' . $timePattern . '$/', $value, $matches) === 1) {
+            return ['kind' => 'time', 'value' => (string) $matches[1]];
+        }
+
+        $duration = self::normalizeTimeDuration($value);
+        if ($duration !== null) {
+            return ['kind' => 'duration', 'value' => $duration];
+        }
+
+        return null;
+    }
+
+    private static function normalizeTimeDuration(string $value): ?string
+    {
+        $duration = strtoupper($value);
+        if ($duration === '' || preg_match('/^[P0-9YMWDTHS.]+$/', $duration) !== 1) {
+            return null;
+        }
+
+        if (preg_match('/^P[0-9]+W$/', $duration) === 1) {
+            return $duration;
+        }
+
+        if (str_contains($duration, 'W')) {
+            return null;
+        }
+
+        if (preg_match('/^P(?=.*[0-9])(?:[0-9]+Y)?(?:[0-9]+M)?(?:[0-9]+D)?(?:T(?:[0-9]+H)?(?:[0-9]+M)?(?:[0-9]+(?:\.[0-9]{1,3})?S)?)?$/', $duration) !== 1) {
+            return null;
+        }
+
+        if (str_ends_with($duration, 'T')) {
+            return null;
+        }
+
+        return $duration;
     }
 
     /**

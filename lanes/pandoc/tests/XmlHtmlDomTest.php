@@ -517,6 +517,42 @@ XML, 'package reader XML');
         $t->same(10.0, $clamped['max']);
         $t->same('<label for="upload-progress">Upload</label><progress id="upload-progress" max="4" value="3">75%</progress><progress id="pending">Pending</progress><label>Quality <meter high="0.9" id="quality" low="0.4" max="1" min="0" optimum="0.95" value="0.82">82%</meter></label><meter id="clamped" max="10" min="2" value="12">Too high</meter>', $html);
     },
+    'summarizes html time datetime metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p><time datetime=" 2026-06-08 ">June 8</time><time datetime="2026-06-08 09:30:05.120Z">Published</time><time datetime="2026-06">June 2026</time><time datetime="2026-W23">Week 23</time><time datetime="2026">Year</time><time datetime="09:30:05.120">Clock</time><time datetime="PT2H30M">Duration</time><time datetime="2026-06-08T09:30">Local</time><time datetime="2026-13-40">Bad date</time><time>No datetime</time></p>',
+            'time metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $paragraph = $summary[0];
+        $times = $paragraph['children'];
+
+        $t->same('p', $paragraph['name']);
+        $t->same(array_fill(0, 10, 'time'), array_map(static fn (array $time): string => $time['name'], $times));
+        $t->same(array_fill(0, 10, true), array_map(static fn (array $time): bool => $time['time'], $times));
+        $t->same(
+            ['date', 'global-datetime', 'month', 'week', 'year', 'time', 'duration', 'local-datetime', 'invalid', null],
+            array_map(static fn (array $time): ?string => $time['timeDatetimeKind'], $times)
+        );
+        $t->same(
+            ['2026-06-08', '2026-06-08T09:30:05.120Z', '2026-06', '2026-W23', '2026', '09:30:05.120', 'PT2H30M', '2026-06-08T09:30', null, null],
+            array_map(static fn (array $time): ?string => $time['timeDatetime'], $times)
+        );
+        $t->same(
+            [true, true, true, true, true, true, true, true, false, false],
+            array_map(static fn (array $time): bool => $time['timeDatetimeValid'], $times)
+        );
+        $t->same(' 2026-06-08 ', $times[0]['timeDatetimeRaw']);
+        $t->same(null, $times[9]['timeDatetimeRaw']);
+        $t->same('June 8', $times[0]['timeText']);
+        $t->same('Bad date', $times[8]['timeText']);
+        $t->same('No datetime', $times[9]['timeText']);
+        $t->same(
+            '<p><time datetime=" 2026-06-08 ">June 8</time><time datetime="2026-06-08 09:30:05.120Z">Published</time><time datetime="2026-06">June 2026</time><time datetime="2026-W23">Week 23</time><time datetime="2026">Year</time><time datetime="09:30:05.120">Clock</time><time datetime="PT2H30M">Duration</time><time datetime="2026-06-08T09:30">Local</time><time datetime="2026-13-40">Bad date</time><time>No datetime</time></p>',
+            $html
+        );
+    },
     'summarizes html disclosure state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details>'
