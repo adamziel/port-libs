@@ -686,6 +686,72 @@ XML;
         $t->same('image/png', $suffixTargets[4]['contentType']);
         $t->same(true, $suffixTargets[4]['exists']);
     },
+    'preserves docx duplicate relationship id record provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/audit-a.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/customXml/audit-b.xml" ContentType="application/xml; profile=last-duplicate"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rAuditDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/audit-a.xml"/>' . "\n" .
+            '  <Relationship Id="rAuditDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/audit-b.xml?winner=last#payload"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/audit-a.xml'] = '<audit source="first"/>';
+        $parts['customXml/audit-b.xml'] = '<audit source="last"/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $records = $relationshipPart['relationshipRecords'];
+        $resolved = $relationshipPart['relationships']['rAuditDuplicate'];
+        $issueRecord = $summary['relationshipXmlIssueRecords'][0];
+
+        $t->same(4, $relationshipPart['relationshipRecordCount']);
+        $t->same(1, $relationshipPart['relationshipXmlIssueCount']);
+        $t->same(['duplicate-relationship-id'], $relationshipPart['relationshipXmlIssues']);
+        $t->same(1, $relationshipPart['duplicateRelationshipIdCount']);
+        $t->same(['rAuditDuplicate'], $relationshipPart['duplicateRelationshipIds']);
+        $t->same('rAuditDuplicate', $records[2]['id']);
+        $t->same('../customXml/audit-a.xml', $records[2]['target']);
+        $t->same([], $records[2]['issues']);
+        $t->same('rAuditDuplicate', $records[3]['id']);
+        $t->same('../customXml/audit-b.xml?winner=last#payload', $records[3]['target']);
+        $t->same(3, $records[3]['duplicateOfOrdinal']);
+        $t->same(['duplicate-relationship-id'], $records[3]['issues']);
+
+        $t->same('../customXml/audit-b.xml?winner=last#payload', $resolved['target']);
+        $t->same('customXml/audit-b.xml?winner=last#payload', $resolved['resolvedTarget']);
+        $t->same('customXml/audit-b.xml', $resolved['targetPart']);
+        $t->same('winner=last', $resolved['targetQuery']);
+        $t->same('payload', $resolved['targetFragment']);
+        $t->same(true, $resolved['exists']);
+        $t->same('application/xml; profile=last-duplicate', $resolved['contentType']);
+        $t->same(['profile' => 'last-duplicate'], $resolved['contentTypeParameterMap']);
+
+        $t->same(1, $summary['relationshipXmlIssueCount']);
+        $t->same(1, $summary['relationshipDuplicateIdCount']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithXmlIssues']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithDuplicateIds']);
+        $t->same(['duplicate-relationship-id'], $summary['relationshipXmlIssues']);
+        $t->same('word/_rels/document.xml.rels', $issueRecord['relationshipsPart']);
+        $t->same('word/document.xml', $issueRecord['sourcePart']);
+        $t->same(4, $issueRecord['relationshipOrdinal']);
+        $t->same('rAuditDuplicate', $issueRecord['id']);
+        $t->same(3, $issueRecord['duplicateOfOrdinal']);
+        $t->same(['duplicate-relationship-id'], $issueRecord['issues']);
+        $t->same([
+            'relationshipsPart' => 'word/_rels/document.xml.rels',
+            'sourcePart' => 'word/document.xml',
+            'id' => 'rAuditDuplicate',
+        ], $summary['duplicateRelationshipIds'][0]);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

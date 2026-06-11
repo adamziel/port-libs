@@ -2252,6 +2252,13 @@ final class DocxOpenXmlReader
         $relationshipTargetFragmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
         $relationshipTargetsWithReferenceSuffix = [];
+        $relationshipXmlIssueCount = 0;
+        $relationshipDuplicateIdCount = 0;
+        $relationshipPartsWithXmlIssues = [];
+        $relationshipPartsWithDuplicateIds = [];
+        $relationshipXmlIssues = [];
+        $relationshipXmlIssueRecords = [];
+        $duplicateRelationshipIds = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -2270,6 +2277,40 @@ final class DocxOpenXmlReader
         }
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            $partXmlIssueCount = (int) ($relationshipPart['relationshipXmlIssueCount'] ?? 0);
+            if ($partXmlIssueCount > 0) {
+                $relationshipXmlIssueCount += $partXmlIssueCount;
+                $relationshipPartsWithXmlIssues[] = (string) $relationshipsPart;
+                foreach (($relationshipPart['relationshipXmlIssues'] ?? []) as $issue) {
+                    $this->appendUniqueString($relationshipXmlIssues, is_string($issue) ? $issue : null);
+                }
+                foreach (($relationshipPart['relationshipRecords'] ?? []) as $record) {
+                    if (!is_array($record) || ($record['issues'] ?? []) === []) {
+                        continue;
+                    }
+                    $relationshipXmlIssueRecords[] = [
+                        'relationshipsPart' => (string) $relationshipsPart,
+                        'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                    ] + $record;
+                }
+            }
+
+            $partDuplicateIdCount = (int) ($relationshipPart['duplicateRelationshipIdCount'] ?? 0);
+            if ($partDuplicateIdCount > 0) {
+                $relationshipDuplicateIdCount += $partDuplicateIdCount;
+                $relationshipPartsWithDuplicateIds[] = (string) $relationshipsPart;
+                foreach (($relationshipPart['duplicateRelationshipIds'] ?? []) as $id) {
+                    if (!is_string($id) || $id === '') {
+                        continue;
+                    }
+                    $duplicateRelationshipIds[] = [
+                        'relationshipsPart' => (string) $relationshipsPart,
+                        'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                        'id' => $id,
+                    ];
+                }
+            }
+
             if (($relationshipPart['sourceExists'] ?? true) === false) {
                 ++$relationshipPartMissingSourceCount;
                 $relationshipPartsWithMissingSources[] = (string) $relationshipsPart;
@@ -2344,6 +2385,8 @@ final class DocxOpenXmlReader
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
+            'relationshipXmlIssueCount' => $relationshipXmlIssueCount,
+            'relationshipDuplicateIdCount' => $relationshipDuplicateIdCount,
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
@@ -2355,11 +2398,16 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
+            'relationshipPartsWithXmlIssues' => $relationshipPartsWithXmlIssues,
+            'relationshipPartsWithDuplicateIds' => $relationshipPartsWithDuplicateIds,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
+            'relationshipXmlIssues' => $relationshipXmlIssues,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
+            'relationshipXmlIssueRecords' => $relationshipXmlIssueRecords,
+            'duplicateRelationshipIds' => $duplicateRelationshipIds,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
@@ -2827,6 +2875,7 @@ final class DocxOpenXmlReader
         array $relationships,
         array $contentTypes,
     ): array {
+        $recordProvenance = $this->relationshipRecordProvenance($parts[$relationshipsPart] ?? '');
         $relationshipSummaries = [];
         foreach ($relationships as $id => $relationship) {
             $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
@@ -2840,6 +2889,86 @@ final class DocxOpenXmlReader
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
             'relationshipCount' => count($relationshipSummaries),
             'relationships' => $relationshipSummaries,
+        ] + $recordProvenance;
+    }
+
+    /**
+     * @return array{relationshipRecordCount:int, relationshipXmlIssueCount:int, relationshipXmlIssues:list<string>, duplicateRelationshipIdCount:int, duplicateRelationshipIds:list<string>, relationshipRecords:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}
+     */
+    private function relationshipRecordProvenance(string $xml): array
+    {
+        if ($xml === '') {
+            return [
+                'relationshipRecordCount' => 0,
+                'relationshipXmlIssueCount' => 0,
+                'relationshipXmlIssues' => [],
+                'duplicateRelationshipIdCount' => 0,
+                'duplicateRelationshipIds' => [],
+                'relationshipRecords' => [],
+            ];
+        }
+
+        $dom = $this->loadXml($xml, 'relationship record provenance');
+        $xpath = $this->xpath($dom);
+        $records = [];
+        $issues = [];
+        $seenIds = [];
+        $duplicateIds = [];
+        $issueCount = 0;
+        $ordinal = 0;
+
+        foreach ($this->elements($xpath, '/rel:Relationships/rel:Relationship') as $node) {
+            ++$ordinal;
+            $id = $node->hasAttribute('Id') ? $node->getAttribute('Id') : null;
+            $type = $node->hasAttribute('Type') ? $node->getAttribute('Type') : null;
+            $target = $node->hasAttribute('Target') ? $node->getAttribute('Target') : null;
+            $targetMode = $node->hasAttribute('TargetMode') ? $node->getAttribute('TargetMode') : null;
+            $recordIssues = [];
+            $duplicateOfOrdinal = null;
+
+            if ($id === null || $id === '') {
+                $recordIssues[] = 'missing-relationship-id';
+            } elseif (isset($seenIds[$id])) {
+                $recordIssues[] = 'duplicate-relationship-id';
+                $duplicateOfOrdinal = $seenIds[$id];
+                $this->appendUniqueString($duplicateIds, $id);
+            } else {
+                $seenIds[$id] = $ordinal;
+            }
+
+            if ($type === null || $type === '') {
+                $recordIssues[] = 'missing-relationship-type';
+            }
+            if ($target === null || $target === '') {
+                $recordIssues[] = 'missing-relationship-target';
+            }
+            if ($targetMode !== null && $targetMode !== '' && $targetMode !== 'External') {
+                $recordIssues[] = 'invalid-relationship-target-mode';
+            }
+
+            foreach ($recordIssues as $issue) {
+                $this->appendUniqueString($issues, $issue);
+            }
+            $issueCount += count($recordIssues);
+
+            $records[] = [
+                'relationshipOrdinal' => $ordinal,
+                'id' => $id,
+                'type' => $type,
+                'target' => $target,
+                'targetMode' => $targetMode,
+                'duplicateOfOrdinal' => $duplicateOfOrdinal,
+                'issues' => $recordIssues,
+            ];
+        }
+
+        return [
+            'relationshipRecordCount' => count($records),
+            'relationshipXmlIssueCount' => $issueCount,
+            'relationshipXmlIssues' => $issues,
+            'duplicateRelationshipIdCount' => count($duplicateIds),
+            'duplicateRelationshipIds' => $duplicateIds,
+            'relationshipRecords' => $records,
         ];
     }
 
