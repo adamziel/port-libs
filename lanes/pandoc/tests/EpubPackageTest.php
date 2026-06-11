@@ -1941,6 +1941,57 @@ XML;
         $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
     },
 
+    'summarizes OCF manifest sidecar ZIP provenance for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $ocfManifestXml = '<manifest xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><item href="EPUB/package.opf" media-type="application/oebps-package+xml"/></manifest>';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/manifest.xml', 'data' => $ocfManifestXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $sidecars = $epub->ocfSidecars();
+        $manifest = $sidecars['itemsByKind']['manifest'];
+        $summary = $epub->summary();
+
+        $t->same(true, $sidecars['present']);
+        $t->same(1, $sidecars['sidecarCount']);
+        $t->same(true, $sidecars['manifestPresent']);
+        $t->same(false, $sidecars['rightsPresent']);
+        $t->same(false, $sidecars['signaturesPresent']);
+        $t->same(['manifest'], $sidecars['kinds']);
+        $t->same('manifest', $manifest['kind']);
+        $t->same('/META-INF/manifest.xml', $manifest['partName']);
+        $t->same('META-INF/manifest.xml', $manifest['packagePath']);
+        $t->same('manifest', $manifest['expectedRootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $manifest['expectedRootNamespace']);
+        $t->same('ocf-manifest-sidecar-review', $manifest['reviewPolicy']);
+        $t->same('ocf-sidecar-metadata-only', $manifest['byteExposurePolicy']);
+        $t->same(false, $manifest['canExposeBytes']);
+        $t->same(true, $manifest['xmlRootChecked']);
+        $t->same(true, $manifest['xmlWellFormed']);
+        $t->same('manifest', $manifest['rootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $manifest['rootNamespace']);
+        $t->same(true, $manifest['rootValid']);
+        $t->same(strlen($ocfManifestXml), $manifest['byteLength']);
+        $t->same(strlen(gzdeflate($ocfManifestXml)), $manifest['compressedByteLength']);
+        $t->same(8, $manifest['compressionMethod']);
+        $t->same('deflated', $manifest['compressionMethodName']);
+        $t->same(true, $manifest['compressionSupported']);
+        $t->same(hash('crc32b', $ocfManifestXml), $manifest['crc32']);
+        $t->same(0, $manifest['diagnosticCount']);
+        $t->same([], $manifest['diagnostics']);
+        $t->same($sidecars, $summary['ocfSidecars']);
+        $t->same($sidecars, $summary['wordpressImport']['ocfSidecars']);
+        $t->same($sidecars['items'], $summary['wordpressImport']['ocfSidecarItems']);
+    },
+
     'reports OCF sidecar XML root diagnostics without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $rightsXml = '<license xmlns="urn:oasis:names:tc:opendocument:xmlns:container">Review license</license>';
         $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><Signature></signatures>';

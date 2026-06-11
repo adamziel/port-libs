@@ -62,6 +62,11 @@ final class EpubPackage
         'switch' => 'switch',
     ];
     private const OCF_PACKAGE_SIDECARS = [
+        'manifest' => [
+            'partName' => '/META-INF/manifest.xml',
+            'expectedRootName' => 'manifest',
+            'reviewPolicy' => 'ocf-manifest-sidecar-review',
+        ],
         'rights' => [
             'partName' => '/META-INF/rights.xml',
             'expectedRootName' => 'rights',
@@ -1995,6 +2000,7 @@ final class EpubPackage
             'present' => $items !== [],
             'sidecarCount' => count($items),
             'count' => count($items),
+            'manifestPresent' => isset($itemsByKind['manifest']),
             'rightsPresent' => isset($itemsByKind['rights']),
             'signaturesPresent' => isset($itemsByKind['signatures']),
             'kinds' => array_keys($itemsByKind),
