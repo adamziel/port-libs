@@ -531,6 +531,62 @@ return [
         $t->same($invalidMetadata, $invalidSummary['wordpressImport']['packageValidation']['spine']['metadata']);
     },
 
+    'summarizes OPF spine itemref page-spread properties for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithPageSpread = str_replace(
+            '<itemref idref="chapter1"/>',
+            '<itemref idref="chapter1" properties="rendition:page-spread-left page-spread-left"/>',
+            $epub3OpfXml
+        );
+        $opfWithPageSpread = str_replace(
+            '<itemref idref="chapter2" linear="no" properties="page-spread-right"/>',
+            '<itemref idref="chapter2" linear="no" properties="page-spread-right rendition:page-spread-center"/>',
+            $opfWithPageSpread
+        );
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithPageSpread],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $readingOrder = $epub->readingOrder();
+        $validation = $epub->validationReport();
+        $summary = $epub->summary();
+
+        $t->same('left', $readingOrder[0]['pageSpread']);
+        $t->same(['rendition:page-spread-left', 'page-spread-left'], $readingOrder[0]['pageSpreadProperties']);
+        $t->same(false, $readingOrder[0]['spineItemProperties']['pageSpread']['conflicting']);
+        $t->same([], $readingOrder[0]['spineItemDiagnostics']);
+
+        $t->same('right', $readingOrder[1]['pageSpread']);
+        $t->same(['page-spread-right', 'rendition:page-spread-center'], $readingOrder[1]['pageSpreadProperties']);
+        $t->same(true, $readingOrder[1]['spineItemProperties']['pageSpread']['conflicting']);
+        $t->same(['right', 'center'], $readingOrder[1]['spineItemProperties']['pageSpread']['placements']);
+        $t->same(['conflicting-spine-page-spread-properties'], array_column($readingOrder[1]['spineItemDiagnostics'], 'type'));
+
+        $spineValidation = $validation['spine'];
+        $t->same(false, $spineValidation['valid']);
+        $t->same(2, $spineValidation['pageSpreadCount']);
+        $t->same(1, $spineValidation['pageSpreadLeftCount']);
+        $t->same(1, $spineValidation['pageSpreadRightCount']);
+        $t->same(0, $spineValidation['pageSpreadCenterCount']);
+        $t->same('left', $spineValidation['pageSpreadItems'][0]['placement']);
+        $t->same('right', $spineValidation['pageSpreadItems'][1]['placement']);
+        $t->same(true, $spineValidation['pageSpreadItems'][1]['conflicting']);
+        $t->same(1, $spineValidation['itemDiagnosticCount']);
+        $t->same('conflicting-spine-page-spread-properties', $spineValidation['itemDiagnostics'][0]['type']);
+        $t->same(1, $spineValidation['itemDiagnostics'][0]['index']);
+        $t->same('chapter2', $spineValidation['itemDiagnostics'][0]['idref']);
+        $t->same(['right', 'center'], $spineValidation['itemDiagnostics'][0]['placements']);
+        $t->same($spineValidation['pageSpreadItems'], $summary['wordpressImport']['spinePageSpreadItems']);
+        $t->same($spineValidation['itemDiagnostics'], $summary['wordpressImport']['spineItemDiagnostics']);
+        $t->same('conflicting-spine-page-spread-properties', $summary['wordpressImport']['packageValidationDiagnostics'][0]['type']);
+    },
+
     'summarizes OPF media-type bindings for package preflight handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $handlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Slideshow fallback</h1></body></html>';
         $opfWithBindings = str_replace(

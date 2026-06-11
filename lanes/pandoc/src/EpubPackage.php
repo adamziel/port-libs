@@ -508,6 +508,8 @@ final class EpubPackage
                 'pageProgressionDirection' => $spineMetadata['pageProgressionDirection'],
                 'readingProgression' => $spineMetadata['readingProgression'],
                 'spinePackageDiagnostics' => $spineMetadata['diagnostics'],
+                'spinePageSpreadItems' => $validationReport['spine']['pageSpreadItems'],
+                'spineItemDiagnostics' => $validationReport['spine']['itemDiagnostics'],
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
@@ -1011,6 +1013,13 @@ final class EpubPackage
         $missingManifestItems = [];
         $missingPackagePartItems = [];
         $nonContentDocumentItems = [];
+        $pageSpreadItems = [];
+        $pageSpreadCounts = [
+            'left' => 0,
+            'right' => 0,
+            'center' => 0,
+        ];
+        $itemDiagnostics = [];
         $diagnostics = is_array($spineMetadata['diagnostics'] ?? null)
             ? array_values($spineMetadata['diagnostics'])
             : [];
@@ -1020,6 +1029,40 @@ final class EpubPackage
                 ++$nonLinearCount;
             } else {
                 ++$linearCount;
+            }
+
+            $itemProperties = is_array($item['spineItemProperties'] ?? null) ? $item['spineItemProperties'] : [];
+            $pageSpread = is_string($item['pageSpread'] ?? null) ? $item['pageSpread'] : null;
+            $pageSpreadProperties = is_array($item['pageSpreadProperties'] ?? null)
+                ? array_values($item['pageSpreadProperties'])
+                : [];
+            if ($pageSpread !== null || $pageSpreadProperties !== []) {
+                if ($pageSpread !== null && array_key_exists($pageSpread, $pageSpreadCounts)) {
+                    ++$pageSpreadCounts[$pageSpread];
+                }
+
+                $pageSpreadItems[] = [
+                    'index' => $index,
+                    'id' => is_string($item['id'] ?? null) ? $item['id'] : null,
+                    'idref' => (string) ($item['idref'] ?? ''),
+                    'partName' => (string) ($item['partName'] ?? ''),
+                    'placement' => $pageSpread,
+                    'properties' => $pageSpreadProperties,
+                    'conflicting' => (bool) ($itemProperties['pageSpread']['conflicting'] ?? false),
+                ];
+            }
+
+            foreach (is_array($item['spineItemDiagnostics'] ?? null) ? $item['spineItemDiagnostics'] : [] as $itemDiagnostic) {
+                if (!is_array($itemDiagnostic)) {
+                    continue;
+                }
+
+                $diagnostic = [
+                    'index' => $index,
+                    'idref' => (string) ($item['idref'] ?? ''),
+                ] + $itemDiagnostic;
+                $itemDiagnostics[] = $diagnostic;
+                $diagnostics[] = $diagnostic;
             }
 
             if (($item['manifestItemMissing'] ?? false) === true) {
@@ -1087,9 +1130,16 @@ final class EpubPackage
             'missingManifestItemCount' => count($missingManifestItems),
             'missingPackagePartCount' => count($missingPackagePartItems),
             'nonContentDocumentCount' => count($nonContentDocumentItems),
+            'pageSpreadCount' => count($pageSpreadItems),
+            'pageSpreadLeftCount' => $pageSpreadCounts['left'],
+            'pageSpreadRightCount' => $pageSpreadCounts['right'],
+            'pageSpreadCenterCount' => $pageSpreadCounts['center'],
+            'pageSpreadItems' => $pageSpreadItems,
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItems' => $missingPackagePartItems,
             'nonContentDocumentItems' => $nonContentDocumentItems,
+            'itemDiagnosticCount' => count($itemDiagnostics),
+            'itemDiagnostics' => $itemDiagnostics,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3800,6 +3850,64 @@ final class EpubPackage
     }
 
     /**
+     * @param list<string> $properties
+     *
+     * @return array{pageSpread:array{placement:?string, properties:list<string>, matches:list<array{property:string, placement:string}>, placements:list<string>, conflicting:bool}, diagnostics:list<array<string, mixed>>}
+     */
+    private static function spineItemPropertyReport(array $properties): array
+    {
+        $matches = [];
+        $placements = [];
+
+        foreach ($properties as $property) {
+            $placement = match ($property) {
+                'page-spread-left', 'rendition:page-spread-left' => 'left',
+                'page-spread-right', 'rendition:page-spread-right' => 'right',
+                'spread-none', 'rendition:page-spread-center' => 'center',
+                default => null,
+            };
+
+            if ($placement === null) {
+                continue;
+            }
+
+            $matches[] = [
+                'property' => $property,
+                'placement' => $placement,
+            ];
+            $placements[$placement] = true;
+        }
+
+        $spreadProperties = array_map(
+            static fn (array $match): string => (string) $match['property'],
+            $matches
+        );
+        $spreadPlacements = array_keys($placements);
+        $conflicting = count($spreadPlacements) > 1;
+        $diagnostics = [];
+
+        if ($conflicting) {
+            $diagnostics[] = [
+                'type' => 'conflicting-spine-page-spread-properties',
+                'properties' => $spreadProperties,
+                'placements' => $spreadPlacements,
+                'message' => 'EPUB spine itemref declares more than one page-spread placement',
+            ];
+        }
+
+        return [
+            'pageSpread' => [
+                'placement' => $matches[0]['placement'] ?? null,
+                'properties' => $spreadProperties,
+                'matches' => $matches,
+                'placements' => $spreadPlacements,
+                'conflicting' => $conflicting,
+            ],
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
      * @param array<string, array<string, list<array<string, mixed>>>> $refinementsById
      *
@@ -3822,6 +3930,8 @@ final class EpubPackage
                 $linearRaw = $itemrefElement->hasAttribute('linear')
                     ? self::emptyToNull($itemrefElement->getAttribute('linear'))
                     : null;
+                $properties = self::splitTokens($itemrefElement->getAttribute('properties'));
+                $itemProperties = self::spineItemPropertyReport($properties);
                 $spine[] = [
                     'id' => $id,
                     'idref' => $idref,
@@ -3832,7 +3942,11 @@ final class EpubPackage
                     'manifestItemMissing' => true,
                     'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
                     'linearRaw' => $linearRaw,
-                    'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
+                    'properties' => $properties,
+                    'spineItemProperties' => $itemProperties,
+                    'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                    'pageSpread' => $itemProperties['pageSpread']['placement'],
+                    'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                     'mediaOverlay' => null,
                     'refinements' => [],
                     'renditionViewportRefinements' => [],
@@ -3849,6 +3963,8 @@ final class EpubPackage
             $refinements = $id !== null && isset($refinementsById[$id]) && is_array($refinementsById[$id])
                 ? $refinementsById[$id]
                 : [];
+            $properties = self::splitTokens($itemrefElement->getAttribute('properties'));
+            $itemProperties = self::spineItemPropertyReport($properties);
 
             $spine[] = [
                 'id' => $id,
@@ -3860,7 +3976,11 @@ final class EpubPackage
                 'manifestItemMissing' => false,
                 'linear' => $linearRaw === null || strtolower($linearRaw) !== 'no',
                 'linearRaw' => $linearRaw,
-                'properties' => self::splitTokens($itemrefElement->getAttribute('properties')),
+                'properties' => $properties,
+                'spineItemProperties' => $itemProperties,
+                'spineItemDiagnostics' => $itemProperties['diagnostics'],
+                'pageSpread' => $itemProperties['pageSpread']['placement'],
+                'pageSpreadProperties' => $itemProperties['pageSpread']['properties'],
                 'mediaOverlay' => $item['mediaOverlay'] ?? null,
                 'refinements' => $refinements,
                 'renditionViewportRefinements' => self::metadataRefinementEntries($refinements, 'rendition:viewport'),
