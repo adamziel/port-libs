@@ -7450,13 +7450,40 @@ final class EpubPackage
 
             $flags = self::resourcePropertyFlags($properties);
             $reviewFlags = self::resourceReviewFlags($flags);
+            $partName = is_string($item['partName'] ?? null) && $item['partName'] !== ''
+                ? $item['partName']
+                : null;
+            $target = is_string($item['target'] ?? null) && $item['target'] !== ''
+                ? $item['target']
+                : $partName;
             $reportItem = [
                 'id' => (string) ($item['id'] ?? ''),
                 'href' => (string) ($item['href'] ?? ''),
-                'target' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
-                'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                'target' => $target,
+                'partName' => $partName,
+                'external' => ($item['external'] ?? false) === true,
                 'mediaType' => (string) ($item['mediaType'] ?? ''),
-                'exists' => true,
+                'mediaTypeBase' => is_string($item['mediaTypeBase'] ?? null)
+                    ? $item['mediaTypeBase']
+                    : self::mediaTypeBase((string) ($item['mediaType'] ?? '')),
+                'exists' => ($item['exists'] ?? false) === true,
+                'hrefHasQuery' => ($item['hrefHasQuery'] ?? false) === true,
+                'hrefQuery' => is_string($item['hrefQuery'] ?? null) ? $item['hrefQuery'] : null,
+                'hrefHasFragment' => ($item['hrefHasFragment'] ?? false) === true,
+                'hrefFragment' => is_string($item['hrefFragment'] ?? null) ? $item['hrefFragment'] : null,
+                'byteLength' => is_int($item['byteLength'] ?? null) ? $item['byteLength'] : null,
+                'compressedByteLength' => is_int($item['compressedByteLength'] ?? null)
+                    ? $item['compressedByteLength']
+                    : null,
+                'compressionMethod' => is_int($item['compressionMethod'] ?? null) ? $item['compressionMethod'] : null,
+                'compressionMethodName' => is_string($item['compressionMethodName'] ?? null)
+                    ? $item['compressionMethodName']
+                    : null,
+                'compressionSupported' => is_bool($item['compressionSupported'] ?? null)
+                    ? $item['compressionSupported']
+                    : null,
+                'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'properties' => $recognized,
                 'allProperties' => $properties,
                 'propertyVocabulary' => self::manifestItemPropertyVocabularyReport(
@@ -7467,6 +7494,7 @@ final class EpubPackage
                 'flags' => $flags,
                 'reviewFlags' => $reviewFlags,
                 'reviewRequired' => $reviewFlags !== [],
+                'diagnostics' => is_array($item['diagnostics'] ?? null) ? array_values($item['diagnostics']) : [],
             ];
 
             $items[] = $reportItem;

@@ -2711,6 +2711,80 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['resourcePropertyDiagnostics']);
     },
 
+    'preserves EPUB resource property package availability and suffix provenance' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $opfWithResourcePropertyTargets = str_replace(
+            '<item id="chapter1" href="text/chapter1.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter1" href="text/chapter1.xhtml?profile=remote#eq-1" media-type="application/xhtml+xml" properties="mathml remote-resources"/>',
+            $epub3OpfXml
+        );
+        $opfWithResourcePropertyTargets = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="remote-widget" href="https://cdn.example.invalid/widgets/widget.js#review" media-type="text/javascript" properties="scripted remote-resources"/>
+    <item id="missing-script" href="scripts/missing.js?build=preview" media-type="text/javascript" properties="scripted"/>',
+            $opfWithResourcePropertyTargets
+        );
+        $chapter1Bytes = '<html xmlns="http://www.w3.org/1999/xhtml"><body><math/></body></html>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithResourcePropertyTargets],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => $chapter1Bytes],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $report = $epub->resourceProperties();
+        $summary = $epub->summary();
+        $chapter = $report['itemsById']['chapter1'];
+        $remote = $report['itemsById']['remote-widget'];
+        $missing = $report['itemsById']['missing-script'];
+
+        $t->same(2, $report['summary']['remoteResourcesCount']);
+        $t->same(2, $report['summary']['scriptedCount']);
+        $t->same(3, $report['summary']['reviewRequiredCount']);
+        $t->same(['chapter1', 'remote-widget', 'missing-script'], array_column($report['reviewItems'], 'id'));
+
+        $t->same('/EPUB/text/chapter1.xhtml?profile=remote#eq-1', $chapter['target']);
+        $t->same('/EPUB/text/chapter1.xhtml', $chapter['partName']);
+        $t->same(false, $chapter['external']);
+        $t->same(true, $chapter['exists']);
+        $t->same(true, $chapter['hrefHasQuery']);
+        $t->same('profile=remote', $chapter['hrefQuery']);
+        $t->same(true, $chapter['hrefHasFragment']);
+        $t->same('eq-1', $chapter['hrefFragment']);
+        $t->same(strlen($chapter1Bytes), $chapter['byteLength']);
+        $t->same(hash('crc32b', $chapter1Bytes), $chapter['crc32']);
+        $t->same(true, $chapter['canExposeBytes']);
+
+        $t->same('https://cdn.example.invalid/widgets/widget.js#review', $remote['target']);
+        $t->same(null, $remote['partName']);
+        $t->same(true, $remote['external']);
+        $t->same(false, $remote['exists']);
+        $t->same(false, $remote['hrefHasQuery']);
+        $t->same(true, $remote['hrefHasFragment']);
+        $t->same('review', $remote['hrefFragment']);
+        $t->same(null, $remote['byteLength']);
+        $t->same(false, $remote['canExposeBytes']);
+        $t->same('external-manifest-href-target', $remote['diagnostics'][0]['type']);
+
+        $t->same('/EPUB/scripts/missing.js?build=preview', $missing['target']);
+        $t->same('/EPUB/scripts/missing.js', $missing['partName']);
+        $t->same(false, $missing['external']);
+        $t->same(false, $missing['exists']);
+        $t->same(true, $missing['hrefHasQuery']);
+        $t->same('build=preview', $missing['hrefQuery']);
+        $t->same(null, $missing['byteLength']);
+        $t->same(false, $missing['canExposeBytes']);
+        $t->same([], $missing['diagnostics']);
+
+        $t->same($report, $summary['wordpressImport']['resourceProperties']);
+        $t->same($report['reviewItems'], $summary['wordpressImport']['resourcePropertyReviewItems']);
+    },
+
     'summarizes OPF package rendition metadata for compact package preflight' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithRenditionMetadata = str_replace(
             '<meta property="dcterms:modified">2026-06-03T22:09:50Z</meta>',
