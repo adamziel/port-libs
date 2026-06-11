@@ -196,6 +196,11 @@ final class PdfEngineHandoff
         if ($engineDependencyFile !== null && !in_array($engineDependencyFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $engineDependencyFile;
         }
+        foreach ($this->typstTimingOutputArtifactsFor($engine, $profile['family'], $engineOptions) as $timingOutputArtifact) {
+            if (!in_array($timingOutputArtifact, $expectedEngineArtifacts, true)) {
+                $expectedEngineArtifacts[] = $timingOutputArtifact;
+            }
+        }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
@@ -281,6 +286,12 @@ final class PdfEngineHandoff
                 }
                 if (is_array($systemFonts) && is_int($systemFonts['flagCount'] ?? null) && $systemFonts['flagCount'] > 0) {
                     $diagnostics[] = 'typst-ignore-system-fonts:' . $systemFonts['flagCount'];
+                }
+            }
+            if (($typstBoundaryProvenance['timingOutput'] ?? null) !== null) {
+                $timingOutput = $typstBoundaryProvenance['timingOutput'];
+                if (is_array($timingOutput) && is_string($timingOutput['path'] ?? null)) {
+                    $diagnostics[] = 'typst-timings-output:' . (($timingOutput['safe'] ?? false) === true ? $timingOutput['path'] : 'invalid');
                 }
             }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
@@ -5265,6 +5276,29 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $engineOptions
+     * @return list<string>
+     */
+    private function typstTimingOutputArtifactsFor(string $engine, string $family, array $engineOptions): array
+    {
+        if ($engine !== 'typst' || $family !== 'typst') {
+            return [];
+        }
+
+        $timingOutput = $this->engineOptionValue($engineOptions, ['--timings']);
+        if ($timingOutput === null) {
+            return [];
+        }
+
+        $entry = $this->typstBoundaryPathEntry($timingOutput, 'timings');
+        if (($entry['safe'] ?? false) !== true || ($entry['path'] ?? '') === '') {
+            return [];
+        }
+
+        return [$entry['path']];
+    }
+
+    /**
+     * @param list<string> $engineOptions
      */
     private function engineBoundaryRootFor(string $engine, string $family, array $engineOptions): ?string
     {
@@ -5540,6 +5574,7 @@ final class PdfEngineHandoff
             'packagePath' => 'package-path-boundary-overridden',
             'packageCache' => 'package-cache-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
+            'timings' => 'timings-boundary-overridden',
         ];
         $entries = [];
         foreach ($optionValues as $option => $values) {
@@ -5576,8 +5611,9 @@ final class PdfEngineHandoff
         $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
+        $timingOutputValues = $this->engineOptionValues($engineOptions, ['--timings'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $ignoreSystemFontCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $timingOutputValues === [] && $ignoreSystemFontCount === 0) {
             return [];
         }
 
@@ -5614,16 +5650,22 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $timingOutputHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryPathEntry($value, 'timings'),
+            $timingOutputValues
+        );
+        $timingOutput = $timingOutputHistory === [] ? null : $timingOutputHistory[count($timingOutputHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
             'packageCache' => $packageCacheValues,
             'creationTimestamp' => $creationTimestampValues,
+            'timings' => $timingOutputValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $timingOutputHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5654,6 +5696,9 @@ final class PdfEngineHandoff
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
         }
+        if ($timingOutput !== null) {
+            $provenance['timingOutput'] = $timingOutput;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -5680,6 +5725,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($creationTimestampHistory)) {
             $provenance['creationTimestampHistory'] = $creationTimestampHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($timingOutputHistory)) {
+            $provenance['timingOutputHistory'] = $timingOutputHistory;
         }
 
         return $provenance;
