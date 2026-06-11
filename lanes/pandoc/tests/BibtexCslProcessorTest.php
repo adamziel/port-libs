@@ -379,6 +379,32 @@ BIB;
         $t->contains('Rights: Copyright 2025 Source Archive', $blocks);
         $t->contains('Rights: Internal migration review only', $blocks);
     },
+    'carries biblatex extent number metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inbook{extent-handoff,
+  author    = {Chapter, Casey},
+  title     = {Extent Review Chapter},
+  booktitle = {Migration Extent Handbook},
+  date      = {2026},
+  volume    = {2},
+  volumes   = {4},
+  chapter   = {7},
+  pages     = {101--120},
+  pagetotal = {320}
+}
+BIB;
+
+        $item = (new BibtexCslProcessor())->cslItems($source)['extent-handoff'];
+        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+
+        $t->same('chapter', $item['type']);
+        $t->same('2', $item['volume']);
+        $t->same('4', $item['number-of-volumes']);
+        $t->same('7', $item['chapter-number']);
+        $t->same('101-120', $item['page']);
+        $t->same('320', $item['number-of-pages']);
+        $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
