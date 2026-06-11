@@ -531,6 +531,8 @@ final class PdfEngineHandoff
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     pdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     pdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
+     *     pdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     pdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
@@ -1120,6 +1122,8 @@ final class PdfEngineHandoff
         $pdfPageRotations = [];
         $pdfPageProductionMetadata = [];
         $pdfPageDisplayMetadata = [];
+        $pdfPageThumbnails = [];
+        $pdfPageThumbnailPolicy = [];
         $pdfPageLabels = [];
         $pdfPageLabelPolicy = [];
         $pdfPageTimings = [];
@@ -1259,6 +1263,8 @@ final class PdfEngineHandoff
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
                 $pdfPageDisplayMetadata = $pdfInspection['pageDisplayMetadata'];
+                $pdfPageThumbnails = $pdfInspection['pageThumbnails'];
+                $pdfPageThumbnailPolicy = $pdfInspection['pageThumbnailPolicy'];
                 $pdfPageLabels = $pdfInspection['pageLabels'];
                 $pdfPageLabelPolicy = $pdfInspection['pageLabelPolicy'];
                 $pdfPageTimings = $pdfInspection['pageTimings'];
@@ -1478,6 +1484,54 @@ final class PdfEngineHandoff
                     }
                     if ($pageLastModifiedCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-last-modified:' . $pageLastModifiedCount;
+                    }
+                }
+                if ($pdfPageThumbnails !== []) {
+                    $diagnostics[] = 'pdf-byte-page-thumbnail-objects:' . count($pdfPageThumbnails);
+                    $thumbnailStreams = 0;
+                    $thumbnailStreamSkips = [];
+                    foreach ($pdfPageThumbnails as $thumbnail) {
+                        if (($thumbnail['streamBytes'] ?? null) !== null) {
+                            $thumbnailStreams++;
+                        }
+                        if (is_string($thumbnail['streamSkipped'] ?? null) && $thumbnail['streamSkipped'] !== '') {
+                            $thumbnailStreamSkips[$thumbnail['streamSkipped']] = true;
+                        }
+                    }
+                    if ($thumbnailStreams > 0) {
+                        $diagnostics[] = 'pdf-byte-page-thumbnail-streams:' . $thumbnailStreams;
+                    }
+                    foreach (array_keys($thumbnailStreamSkips) as $skipReason) {
+                        $diagnostics[] = 'pdf-byte-page-thumbnail-stream-skipped:' . $skipReason;
+                    }
+                }
+                if ($pdfPageThumbnailPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-thumbnail-policy:' . $pdfPageThumbnailPolicy['reviewStatus'];
+                    foreach ([
+                        'thumbnailCount' => 'thumbnails',
+                        'imageThumbnailCount' => 'images',
+                        'missingObjectCount' => 'missing-objects',
+                        'nonImageCount' => 'non-images',
+                        'missingStreamCount' => 'missing-streams',
+                        'skippedStreamCount' => 'skipped-streams',
+                        'streamCount' => 'streams',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageThumbnailPolicy[$policyKey]) && is_int($pdfPageThumbnailPolicy[$policyKey]) && $pdfPageThumbnailPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-thumbnail-policy-' . $diagnosticName . ':' . $pdfPageThumbnailPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageThumbnailPolicy['filters']) && is_array($pdfPageThumbnailPolicy['filters'])) {
+                        foreach ($pdfPageThumbnailPolicy['filters'] as $filter => $filterCount) {
+                            $diagnostics[] = 'pdf-byte-page-thumbnail-policy-filter:' . $filter . ':' . $filterCount;
+                        }
+                    }
+                    if (isset($pdfPageThumbnailPolicy['issues']) && is_array($pdfPageThumbnailPolicy['issues']) && $pdfPageThumbnailPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-thumbnail-policy-issues:' . count($pdfPageThumbnailPolicy['issues']);
+                        foreach ($pdfPageThumbnailPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-page-thumbnail-policy-issue:' . $issue;
+                            }
+                        }
                     }
                 }
                 if ($pdfPageLabels !== []) {
@@ -4367,6 +4421,8 @@ final class PdfEngineHandoff
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
             'pdfPageDisplayMetadata' => $pdfPageDisplayMetadata,
+            'pdfPageThumbnails' => $pdfPageThumbnails,
+            'pdfPageThumbnailPolicy' => $pdfPageThumbnailPolicy,
             'pdfPageLabels' => $pdfPageLabels,
             'pdfPageLabelPolicy' => $pdfPageLabelPolicy,
             'pdfPageTimings' => $pdfPageTimings,
@@ -4518,6 +4574,8 @@ final class PdfEngineHandoff
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
      *     finalPdfPageDisplayMetadata: list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     finalPdfPageThumbnails: list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
+     *     finalPdfPageThumbnailPolicy: array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     finalPdfPageLabels: list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     finalPdfPageLabelPolicy: array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
@@ -4833,6 +4891,8 @@ final class PdfEngineHandoff
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
             'finalPdfPageDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageDisplayMetadata'] ?? null) ? $finalRun['pdfPageDisplayMetadata'] : [],
+            'finalPdfPageThumbnails' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnails'] ?? null) ? $finalRun['pdfPageThumbnails'] : [],
+            'finalPdfPageThumbnailPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageThumbnailPolicy'] ?? null) ? $finalRun['pdfPageThumbnailPolicy'] : [],
             'finalPdfPageLabels' => is_array($finalRun) && is_array($finalRun['pdfPageLabels'] ?? null) ? $finalRun['pdfPageLabels'] : [],
             'finalPdfPageLabelPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageLabelPolicy'] ?? null) ? $finalRun['pdfPageLabelPolicy'] : [],
             'finalPdfPageTimings' => is_array($finalRun) && is_array($finalRun['pdfPageTimings'] ?? null) ? $finalRun['pdfPageTimings'] : [],
@@ -7948,6 +8008,8 @@ final class PdfEngineHandoff
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
      *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
+     *     pageThumbnails:list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>,
+     *     pageThumbnailPolicy:array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{},
      *     pageLabels:list<array{pageIndex:int, pageNumber:int, style:string|null, styleLabel:string|null, prefix:string, start:int, firstLabel:string, source:string}>,
      *     pageLabelPolicy:array{source:string, object:string|null, reviewStatus:string, pageCount:int|null, entryCount:int, kidCount:int, limits:list<int>, issues:list<string>, nodes:list<array{source:string, object:string|null, kind:string, entryCount:int, pageIndexes:list<int>, kidCount:int, limits:list<int>, reviewStatus:string, issues:list<string>}>}|array{},
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
@@ -8068,6 +8130,7 @@ final class PdfEngineHandoff
         $pageBoxes = $this->extractPdfPageBoxes($pdfBytes, $catalog);
         $pageProductionMetadata = $this->extractPdfPageProductionMetadata($pdfBytes, $catalog);
         $pageDisplayMetadata = $this->extractPdfPageDisplayMetadata($pdfBytes, $catalog);
+        $pageThumbnails = $this->extractPdfPageThumbnails($pdfBytes, $catalog);
         $pageTimings = $this->extractPdfPageTimings($pdfBytes, $catalog);
         $pageActions = $this->extractPdfPageActions($pdfBytes, $catalog);
         $pageViewports = $this->extractPdfPageViewports($pdfBytes, $catalog);
@@ -8156,6 +8219,8 @@ final class PdfEngineHandoff
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageProductionMetadata' => $pageProductionMetadata,
             'pageDisplayMetadata' => $pageDisplayMetadata,
+            'pageThumbnails' => $pageThumbnails,
+            'pageThumbnailPolicy' => $this->summarizePdfPageThumbnailPolicy($pageThumbnails, $this->extractPdfPageCount($pdfBytes)),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageLabelPolicy' => $this->extractPdfPageLabelPolicy($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
@@ -21078,6 +21143,284 @@ final class PdfEngineHandoff
         ksort($orders);
 
         return $orders;
+    }
+
+    /**
+     * @return list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}>
+     */
+    private function extractPdfPageThumbnails(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $thumbnails = [];
+        $visited = [];
+        $pageNumber = 0;
+        $pagesReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+
+        if ($pagesReference !== null) {
+            $this->collectPdfPageThumbnailsFromTree(
+                $objects,
+                $this->pdfReferenceKey($pagesReference),
+                $visited,
+                $thumbnails,
+                $pageNumber,
+                0
+            );
+        }
+
+        if ($thumbnails === []) {
+            $pageNumber = 0;
+            uksort($objects, fn (string $a, string $b): int => $this->pdfReferenceSortKey($a . ' R') <=> $this->pdfReferenceSortKey($b . ' R'));
+            foreach ($objects as $reference => $body) {
+                if (preg_match('/\/Type\s*\/Page\b/s', $body) !== 1) {
+                    continue;
+                }
+
+                $pageNumber++;
+                $summary = $this->summarizePdfPageThumbnail($body, $reference, $objects, $pageNumber);
+                if ($summary !== null) {
+                    $thumbnails[] = $summary;
+                }
+            }
+        }
+
+        usort(
+            $thumbnails,
+            static fn (array $a, array $b): int => [
+                $a['page'],
+                $a['thumbnailObject'] ?? '',
+                $a['pageObject'] ?? '',
+            ] <=> [
+                $b['page'],
+                $b['thumbnailObject'] ?? '',
+                $b['pageObject'] ?? '',
+            ]
+        );
+
+        return array_values($thumbnails);
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}> $thumbnails
+     */
+    private function collectPdfPageThumbnailsFromTree(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$thumbnails,
+        int &$pageNumber,
+        int $depth
+    ): void {
+        if ($depth > 32 || isset($visited[$reference]) || !isset($objects[$reference])) {
+            return;
+        }
+        $visited[$reference] = true;
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $pageNumber++;
+            $summary = $this->summarizePdfPageThumbnail($body, $reference, $objects, $pageNumber);
+            if ($summary !== null) {
+                $thumbnails[] = $summary;
+            }
+
+            return;
+        }
+
+        foreach ($this->extractPdfReferenceArray($body, 'Kids') as $kidReference) {
+            $this->collectPdfPageThumbnailsFromTree(
+                $objects,
+                $kidReference,
+                $visited,
+                $thumbnails,
+                $pageNumber,
+                $depth + 1
+            );
+        }
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @return array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}|null
+     */
+    private function summarizePdfPageThumbnail(string $dictionary, ?string $reference, array $objects, int $pageNumber): ?array
+    {
+        $value = $this->extractPdfValueForName($dictionary, 'Thumb');
+        if ($value === null) {
+            return null;
+        }
+
+        $thumbnailObject = null;
+        $thumbnailDictionary = null;
+        $issues = [];
+
+        if ($value['kind'] === 'reference') {
+            $thumbnailObject = $value['value'];
+            $thumbnailDictionary = $objects[$this->pdfReferenceKey($value['value'])] ?? null;
+            if ($thumbnailDictionary === null) {
+                $issues[] = 'missing-thumbnail-object';
+            }
+        } elseif ($value['kind'] === 'dictionary') {
+            $thumbnailDictionary = $value['value'];
+        } else {
+            $issues[] = 'invalid-thumbnail-value';
+        }
+
+        $subtype = null;
+        $validImage = false;
+        $width = null;
+        $height = null;
+        $bitsPerComponent = null;
+        $colorSpace = null;
+        $filters = [];
+        $interpolate = null;
+        $imageMask = null;
+        $softMask = null;
+        $stream = [
+            'bytes' => null,
+            'sha256' => null,
+            'skipped' => null,
+        ];
+
+        if ($thumbnailDictionary !== null) {
+            $subtype = $this->extractPdfNameToken($thumbnailDictionary, 'Subtype');
+            $validImage = $subtype === 'Image';
+            if (!$validImage) {
+                $issues[] = $subtype === null ? 'missing-image-subtype' : 'non-image-thumbnail';
+            } else {
+                $width = $this->extractPdfIntegerToken($thumbnailDictionary, 'Width');
+                $height = $this->extractPdfIntegerToken($thumbnailDictionary, 'Height');
+                $bitsPerComponent = $this->extractPdfIntegerToken($thumbnailDictionary, 'BitsPerComponent');
+                $colorSpace = $this->extractPdfColorSpaceValue($thumbnailDictionary, $objects);
+                $filters = $this->extractPdfFilterNames($thumbnailDictionary, $objects);
+                $interpolate = $this->extractPdfBooleanToken($thumbnailDictionary, 'Interpolate');
+                $imageMask = $this->extractPdfBooleanToken($thumbnailDictionary, 'ImageMask');
+                $softMask = $this->extractPdfReferenceToken($thumbnailDictionary, 'SMask') ?? $this->extractPdfNameToken($thumbnailDictionary, 'SMask');
+                $stream = $this->summarizePdfImageStream($thumbnailDictionary);
+
+                if ($width === null || $height === null) {
+                    $issues[] = 'missing-thumbnail-dimensions';
+                }
+                if ($stream['bytes'] === null) {
+                    $issues[] = 'missing-thumbnail-stream';
+                }
+                if ($stream['skipped'] !== null) {
+                    $issues[] = 'thumbnail-stream-' . $stream['skipped'];
+                }
+            }
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'page' => $pageNumber,
+            'pageObject' => $reference === null ? null : $reference . ' R',
+            'thumbnailObject' => $thumbnailObject,
+            'valueKind' => $value['kind'],
+            'subtype' => $subtype,
+            'validImage' => $validImage,
+            'width' => $width,
+            'height' => $height,
+            'bitsPerComponent' => $bitsPerComponent,
+            'colorSpace' => $colorSpace,
+            'filters' => $filters,
+            'interpolate' => $interpolate,
+            'imageMask' => $imageMask,
+            'softMask' => $softMask,
+            'streamBytes' => $stream['bytes'],
+            'streamSha256' => $stream['sha256'],
+            'streamSkipped' => $stream['skipped'],
+            'reviewStatus' => $issues === [] ? 'accepted' : 'review',
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param list<array{page:int, pageObject:string|null, thumbnailObject:string|null, valueKind:string, subtype:string|null, validImage:bool, width:int|null, height:int|null, bitsPerComponent:int|null, colorSpace:string|null, filters:list<string>, interpolate:bool|null, imageMask:bool|null, softMask:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, reviewStatus:string, issues:list<string>}> $thumbnails
+     * @return array{reviewStatus:string, pageCount:int|null, thumbnailCount:int, thumbnailPages:list<int>, imageThumbnailCount:int, missingObjectCount:int, nonImageCount:int, missingStreamCount:int, skippedStreamCount:int, streamCount:int, colorSpaces:array<string, int>, filters:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfPageThumbnailPolicy(array $thumbnails, ?int $pageCount): array
+    {
+        if ($thumbnails === []) {
+            return [];
+        }
+
+        $thumbnailPages = [];
+        $imageThumbnailCount = 0;
+        $missingObjectCount = 0;
+        $nonImageCount = 0;
+        $missingStreamCount = 0;
+        $skippedStreamCount = 0;
+        $streamCount = 0;
+        $colorSpaces = [];
+        $filters = [];
+        $issues = [];
+
+        foreach ($thumbnails as $thumbnail) {
+            if (isset($thumbnail['page']) && is_int($thumbnail['page']) && $thumbnail['page'] > 0) {
+                $thumbnailPages[$thumbnail['page']] = true;
+            }
+            if (($thumbnail['validImage'] ?? false) === true) {
+                $imageThumbnailCount++;
+            }
+            if (($thumbnail['streamBytes'] ?? null) !== null) {
+                $streamCount++;
+            }
+            if (($thumbnail['streamSkipped'] ?? null) !== null) {
+                $skippedStreamCount++;
+            }
+
+            $colorSpace = $thumbnail['colorSpace'] ?? null;
+            if (is_string($colorSpace) && $colorSpace !== '') {
+                $colorSpaces[$colorSpace] = ($colorSpaces[$colorSpace] ?? 0) + 1;
+            }
+            foreach (($thumbnail['filters'] ?? []) as $filter) {
+                if (!is_string($filter) || $filter === '') {
+                    continue;
+                }
+                $filters[$filter] = ($filters[$filter] ?? 0) + 1;
+            }
+
+            foreach (($thumbnail['issues'] ?? []) as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+                $issues[$issue] = true;
+                if ($issue === 'missing-thumbnail-object') {
+                    $missingObjectCount++;
+                } elseif ($issue === 'non-image-thumbnail' || $issue === 'missing-image-subtype' || $issue === 'invalid-thumbnail-value') {
+                    $nonImageCount++;
+                } elseif ($issue === 'missing-thumbnail-stream') {
+                    $missingStreamCount++;
+                }
+            }
+        }
+
+        $thumbnailPages = array_map('intval', array_keys($thumbnailPages));
+        sort($thumbnailPages);
+        ksort($colorSpaces);
+        ksort($filters);
+        $issues = array_keys($issues);
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'accepted' : 'review',
+            'pageCount' => $pageCount,
+            'thumbnailCount' => count($thumbnails),
+            'thumbnailPages' => $thumbnailPages,
+            'imageThumbnailCount' => $imageThumbnailCount,
+            'missingObjectCount' => $missingObjectCount,
+            'nonImageCount' => $nonImageCount,
+            'missingStreamCount' => $missingStreamCount,
+            'skippedStreamCount' => $skippedStreamCount,
+            'streamCount' => $streamCount,
+            'colorSpaces' => $colorSpaces,
+            'filters' => $filters,
+            'issues' => $issues,
+        ];
     }
 
     /**

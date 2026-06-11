@@ -4043,6 +4043,159 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageDisplayMetadata']);
     },
 
+    'fake runner extracts bounded pdf page thumbnail provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'typst', 'outputPath' => 'packets/thumbs.pdf']);
+        $thumbnailBytes = 'fake cover thumbnail bytes';
+        $formBytes = 'fake thumbnail form bytes';
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R 5 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Thumb 8 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Thumb 9 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Thumb 10 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Type /XObject /Subtype /Image /Width 80 /Height 48 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /DCTDecode /Interpolate true /SMask /None /Length ' . strlen($thumbnailBytes) . ' >>',
+            'stream',
+            $thumbnailBytes,
+            'endstream',
+            'endobj',
+            '9 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Length ' . strlen($formBytes) . ' >>',
+            'stream',
+            $formBytes,
+            'endstream',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/thumbs.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/thumbs.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedThumbnails = [
+            [
+                'page' => 1,
+                'pageObject' => '3 0 R',
+                'thumbnailObject' => '8 0 R',
+                'valueKind' => 'reference',
+                'subtype' => 'Image',
+                'validImage' => true,
+                'width' => 80,
+                'height' => 48,
+                'bitsPerComponent' => 8,
+                'colorSpace' => 'DeviceRGB',
+                'filters' => ['DCTDecode'],
+                'interpolate' => true,
+                'imageMask' => null,
+                'softMask' => 'None',
+                'streamBytes' => strlen($thumbnailBytes),
+                'streamSha256' => hash('sha256', $thumbnailBytes),
+                'streamSkipped' => null,
+                'reviewStatus' => 'accepted',
+                'issues' => [],
+            ],
+            [
+                'page' => 2,
+                'pageObject' => '4 0 R',
+                'thumbnailObject' => '9 0 R',
+                'valueKind' => 'reference',
+                'subtype' => 'Form',
+                'validImage' => false,
+                'width' => null,
+                'height' => null,
+                'bitsPerComponent' => null,
+                'colorSpace' => null,
+                'filters' => [],
+                'interpolate' => null,
+                'imageMask' => null,
+                'softMask' => null,
+                'streamBytes' => null,
+                'streamSha256' => null,
+                'streamSkipped' => null,
+                'reviewStatus' => 'review',
+                'issues' => ['non-image-thumbnail'],
+            ],
+            [
+                'page' => 3,
+                'pageObject' => '5 0 R',
+                'thumbnailObject' => '10 0 R',
+                'valueKind' => 'reference',
+                'subtype' => null,
+                'validImage' => false,
+                'width' => null,
+                'height' => null,
+                'bitsPerComponent' => null,
+                'colorSpace' => null,
+                'filters' => [],
+                'interpolate' => null,
+                'imageMask' => null,
+                'softMask' => null,
+                'streamBytes' => null,
+                'streamSha256' => null,
+                'streamSkipped' => null,
+                'reviewStatus' => 'review',
+                'issues' => ['missing-thumbnail-object'],
+            ],
+        ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 3,
+            'thumbnailCount' => 3,
+            'thumbnailPages' => [1, 2, 3],
+            'imageThumbnailCount' => 1,
+            'missingObjectCount' => 1,
+            'nonImageCount' => 1,
+            'missingStreamCount' => 0,
+            'skippedStreamCount' => 0,
+            'streamCount' => 1,
+            'colorSpaces' => ['DeviceRGB' => 1],
+            'filters' => ['DCTDecode' => 1],
+            'issues' => ['missing-thumbnail-object', 'non-image-thumbnail'],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedThumbnails, $result['pdfPageThumbnails']);
+        $t->same($expectedPolicy, $result['pdfPageThumbnailPolicy']);
+        $t->contains('pdf-byte-page-thumbnails:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-objects:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-streams:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-thumbnails:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-images:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-missing-objects:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-non-images:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-filter:DCTDecode:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-issue:missing-thumbnail-object', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-thumbnail-policy-issue:non-image-thumbnail', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedThumbnails, $sequence['finalPdfPageThumbnails']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageThumbnailPolicy']);
+    },
+
     'fake runner extracts bounded pdf page durations and transitions from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/slides.pdf']);
