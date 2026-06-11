@@ -264,6 +264,10 @@ return [
         foreach ($summary['manifestReview']['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $orderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $orderByPath[$item['path']] = $item;
+        }
         $mediaByPath = [];
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
@@ -285,6 +289,19 @@ return [
         $t->same('page-preview', $reviewByPath['content.xml']['preferredViewMode']);
         $t->same('1.1', $reviewByPath['Pictures/hero.png']['version']);
         $t->same('thumbnail', $reviewByPath['Pictures/hero.png']['preferredViewMode']);
+        $t->same(3, $summary['manifestReview']['manifestVersionEntryCount']);
+        $t->same(['1.1' => 1, '1.2' => 1, '1.4' => 1], $summary['manifestReview']['manifestVersionCounts']);
+        $t->same(3, $summary['manifestReview']['manifestPreferredViewModeEntryCount']);
+        $t->same(
+            ['edit' => 1, 'page-preview' => 1, 'thumbnail' => 1],
+            $summary['manifestReview']['manifestPreferredViewModeCounts']
+        );
+        $t->same('1.4', $orderByPath['/']['version']);
+        $t->same('edit', $orderByPath['/']['preferredViewMode']);
+        $t->same('1.2', $orderByPath['content.xml']['version']);
+        $t->same('page-preview', $orderByPath['content.xml']['preferredViewMode']);
+        $t->same('1.1', $orderByPath['Pictures/hero.png']['version']);
+        $t->same('thumbnail', $orderByPath['Pictures/hero.png']['preferredViewMode']);
 
         $t->same('1.1', $mediaByPath['Pictures/hero.png']['version']);
         $t->same('thumbnail', $mediaByPath['Pictures/hero.png']['preferredViewMode']);

@@ -603,6 +603,10 @@ final class OpenDocumentPackage
             'unsupportedCompressionMethodCount' => 0,
             'manifestFileEntryCount' => count($entries),
             'manifestFileEntryOrder' => [],
+            'manifestVersionEntryCount' => 0,
+            'manifestVersionCounts' => [],
+            'manifestPreferredViewModeEntryCount' => 0,
+            'manifestPreferredViewModeCounts' => [],
             'manifestPartReferenceSuffixCount' => 0,
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
@@ -620,6 +624,16 @@ final class OpenDocumentPackage
             $item = self::manifestReviewItem($entry);
             $summary['items'][] = $item;
             $summary['manifestFileEntryOrder'][] = self::manifestFileEntryOrderItem($entry);
+            $version = $entry['version'] ?? null;
+            if (is_string($version) && $version !== '') {
+                ++$summary['manifestVersionEntryCount'];
+                $summary['manifestVersionCounts'][$version] = ($summary['manifestVersionCounts'][$version] ?? 0) + 1;
+            }
+            $preferredViewMode = $entry['preferredViewMode'] ?? null;
+            if (is_string($preferredViewMode) && $preferredViewMode !== '') {
+                ++$summary['manifestPreferredViewModeEntryCount'];
+                $summary['manifestPreferredViewModeCounts'][$preferredViewMode] = ($summary['manifestPreferredViewModeCounts'][$preferredViewMode] ?? 0) + 1;
+            }
             if (is_string($entry['pathSuffix'] ?? null)) {
                 $summary['manifestPartReferenceSuffixItems'][] = self::manifestPartReferenceSuffixItem($entry);
             }
@@ -668,6 +682,8 @@ final class OpenDocumentPackage
             }
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
+        ksort($summary['manifestVersionCounts']);
+        ksort($summary['manifestPreferredViewModeCounts']);
 
         return $summary;
     }
@@ -735,6 +751,8 @@ final class OpenDocumentPackage
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
             'mediaType' => $entry['mediaType'],
+            'version' => $entry['version'] ?? null,
+            'preferredViewMode' => $entry['preferredViewMode'] ?? null,
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
