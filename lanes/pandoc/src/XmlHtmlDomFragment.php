@@ -258,8 +258,7 @@ final class XmlHtmlDomFragment
     {
         $children = [];
         foreach ($parent->childNodes as $node) {
-            $fragmentNode = self::domNodeToFragmentNode($node, $html, $diagnostics);
-            if ($fragmentNode instanceof AstNode) {
+            foreach (self::domNodeToFragmentNodes($node, $html, $diagnostics) as $fragmentNode) {
                 $children[] = $fragmentNode;
             }
         }
@@ -269,40 +268,50 @@ final class XmlHtmlDomFragment
 
     /**
      * @param list<array<string, string>> $diagnostics
+     * @return list<AstNode>
      */
-    private static function domNodeToFragmentNode(\DOMNode $node, bool $html, array &$diagnostics): ?AstNode
+    private static function domNodeToFragmentNodes(\DOMNode $node, bool $html, array &$diagnostics): array
     {
         if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
             $text = $node->wholeText;
 
-            return $text === '' ? null : new AstNode('dom_text', ['text' => $text]);
+            return $text === '' ? [] : [new AstNode('dom_text', ['text' => $text])];
         }
 
         if ($node instanceof \DOMComment) {
-            return new AstNode('dom_comment', ['text' => $node->data]);
+            return [new AstNode('dom_comment', ['text' => $node->data])];
         }
 
         if (!$node instanceof \DOMElement) {
-            return null;
+            return [];
         }
 
         $name = $html ? strtolower($node->localName) : $node->nodeName;
+        if ($html && $name === 'template') {
+            $diagnostics[] = [
+                'code' => 'unwrapped-template-element',
+                'element' => $name,
+            ];
+
+            return self::domChildrenToFragmentNodes($node, $html, $diagnostics);
+        }
+
         if ($html && in_array($name, self::HTML_ACTIVE_ELEMENTS, true)) {
             $diagnostics[] = [
                 'code' => 'dropped-active-element',
                 'element' => $name,
             ];
 
-            return null;
+            return [];
         }
 
         $attrs = self::domElementAttributes($node, $html, $name, $diagnostics);
         $children = self::domChildrenToFragmentNodes($node, $html, $diagnostics);
 
-        return new AstNode('dom_element', [
+        return [new AstNode('dom_element', [
             'name' => $name,
             'attributes' => $attrs,
-        ], $children);
+        ], $children)];
     }
 
     /**

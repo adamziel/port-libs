@@ -68,6 +68,28 @@ return [
         $t->same(['p', 'hr'], $fragment->elementNames());
         $t->same('<p>Before</p><!--source marker--><hr>', $fragment->serializeHtml());
     },
+    'unwraps inert template content while preserving sanitized html children' => static function (TestRunner $t): void {
+        $fragment = XmlHtmlDomFragment::parseHtml(
+            '<template data-source="review"><p data-review="yes">Template <a href="/note">note</a><script>bad()</script></p></template><p>after</p>'
+        );
+
+        $children = $fragment->children();
+        $templateParagraph = $children[0];
+        $afterParagraph = $children[1];
+
+        $t->same(['p', 'a', 'p'], $fragment->elementNames());
+        $t->same('<p data-review="yes">Template <a href="/note">note</a></p><p>after</p>', $fragment->serializeHtml());
+        $t->same('Template noteafter', $fragment->textContent());
+        $t->same('p', $templateParagraph->attr('name'));
+        $t->same(['data-review' => 'yes'], $templateParagraph->attr('attributes'));
+        $t->same('a', $templateParagraph->children[1]->attr('name'));
+        $t->same(['href' => '/note'], $templateParagraph->children[1]->attr('attributes'));
+        $t->same('p', $afterParagraph->attr('name'));
+        $t->same([
+            ['code' => 'unwrapped-template-element', 'element' => 'template'],
+            ['code' => 'dropped-active-element', 'element' => 'script'],
+        ], $fragment->diagnostics());
+    },
     'parses xml fragments with namespaces and serializes self closing elements' => static function (TestRunner $t): void {
         $fragment = XmlHtmlDomFragment::parseXml('<w:p xmlns:w="urn:word"><w:r w:rsidR="001"><w:t>Imported &amp; reviewed</w:t></w:r><w:br/></w:p>');
         $paragraph = $fragment->children()[0];
