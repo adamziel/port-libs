@@ -238,6 +238,61 @@ return [
         $t->same($expectedMap, $inventoryHero['manifestMediaTypeParameterMap']);
         $t->same(['manifest-declared', 'media-resource'], $inventoryHero['roles']);
     },
+    'preserves compact ODT manifest version and preferred view provenance in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3"/>',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">',
+                '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.4" manifest:preferred-view-mode="edit"/>',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" manifest:version="1.2" manifest:preferred-view-mode="page-preview"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" manifest:version="1.1" manifest:preferred-view-mode="thumbnail"/>',
+            ],
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $root = $odt->manifestEntry('/');
+        $content = $odt->manifestEntry('content.xml');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same('1.4', $odt->manifestVersion());
+        $t->same('1.4', $summary['manifestVersion']);
+        $t->same('1.4', $root['version']);
+        $t->same('edit', $root['preferredViewMode']);
+        $t->same('1.2', $content['version']);
+        $t->same('page-preview', $content['preferredViewMode']);
+        $t->same('1.1', $hero['version']);
+        $t->same('thumbnail', $hero['preferredViewMode']);
+
+        $t->same('1.4', $reviewByPath['/']['version']);
+        $t->same('edit', $reviewByPath['/']['preferredViewMode']);
+        $t->same('1.2', $reviewByPath['content.xml']['version']);
+        $t->same('page-preview', $reviewByPath['content.xml']['preferredViewMode']);
+        $t->same('1.1', $reviewByPath['Pictures/hero.png']['version']);
+        $t->same('thumbnail', $reviewByPath['Pictures/hero.png']['preferredViewMode']);
+
+        $t->same('1.1', $mediaByPath['Pictures/hero.png']['version']);
+        $t->same('thumbnail', $mediaByPath['Pictures/hero.png']['preferredViewMode']);
+        $t->same('1.2', $inventory['content.xml']['manifestVersion']);
+        $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
+        $t->same('thumbnail', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+    },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
