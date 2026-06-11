@@ -702,6 +702,50 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="confirm" open><form id="decision" method="dialog"><p>Replace package?</p><button value="cancel">Cancel</button><button autofocus value="replace">Replace</button></form></dialog>'
+                . '<dialog id="notice"><p>Notice only</p><form id="postback" method="post"><button>Close</button></form></dialog>',
+            'dialog review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $confirm = $summary[0];
+        $decisionForm = $confirm['children'][0];
+        $replaceButton = $decisionForm['children'][2];
+        $notice = $summary[1];
+        $postbackForm = $notice['children'][1];
+
+        $t->same('dialog', $confirm['name']);
+        $t->same('dialog', $confirm['dialog']);
+        $t->same(true, $confirm['open']);
+        $t->same('Replace package?CancelReplace', $confirm['dialogText']);
+        $t->same(1, $confirm['dialogFormCount']);
+        $t->same(1, $confirm['dialogMethodFormCount']);
+        $t->same([
+            'id' => 'decision',
+            'methodRaw' => 'dialog',
+            'method' => 'dialog',
+            'dialogSubmission' => true,
+        ], $confirm['dialogForms'][0]);
+        $t->same('form', $decisionForm['formSubmission']);
+        $t->same('dialog', $decisionForm['method']);
+        $t->same('button', $replaceButton['formControl']);
+        $t->same('submit', $replaceButton['buttonType']);
+        $t->same('replace', $replaceButton['value']);
+        $t->same(false, $notice['open']);
+        $t->same(1, $notice['dialogFormCount']);
+        $t->same(0, $notice['dialogMethodFormCount']);
+        $t->same([
+            'id' => 'postback',
+            'methodRaw' => 'post',
+            'method' => 'post',
+            'dialogSubmission' => false,
+        ], $notice['dialogForms'][0]);
+        $t->same('post', $postbackForm['method']);
+        $t->same('<dialog id="confirm" open><form id="decision" method="dialog"><p>Replace package?</p><button value="cancel">Cancel</button><button autofocus value="replace">Replace</button></form></dialog><dialog id="notice"><p>Notice only</p><form id="postback" method="post"><button>Close</button></form></dialog>', $html);
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'

@@ -852,6 +852,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary += self::dialogSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -1515,6 +1518,45 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dialogSummary(\DOMElement $dialog): array
+    {
+        $forms = self::dialogFormSummaries($dialog);
+
+        return [
+            'dialog' => 'dialog',
+            'open' => $dialog->hasAttribute('open'),
+            'dialogText' => self::normalizedText($dialog),
+            'dialogForms' => $forms,
+            'dialogFormCount' => count($forms),
+            'dialogMethodFormCount' => count(array_filter(
+                $forms,
+                static fn (array $form): bool => (bool) ($form['dialogSubmission'] ?? false)
+            )),
+        ];
+    }
+
+    /**
+     * @return list<array{id:?string, methodRaw:?string, method:string, dialogSubmission:bool}>
+     */
+    private static function dialogFormSummaries(\DOMElement $dialog): array
+    {
+        $forms = [];
+        foreach (self::descendantHtmlElements($dialog, 'form') as $form) {
+            $method = self::formMethod($form, 'method', 'get');
+            $forms[] = [
+                'id' => self::attributeOrNull($form, 'id'),
+                'methodRaw' => self::attributeOrNull($form, 'method'),
+                'method' => $method,
+                'dialogSubmission' => $method === 'dialog',
+            ];
+        }
+
+        return $forms;
     }
 
     /**
