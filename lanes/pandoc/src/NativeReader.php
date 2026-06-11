@@ -22,6 +22,10 @@ final class NativeReader
             throw new \InvalidArgumentException('Pandoc native JSON must decode to an object');
         }
         $native = $this->normalizeDocument($native);
+        $documentConstructor = $native['__documentConstructor'] ?? null;
+        $documentNative = $native['__documentNative'] ?? null;
+        unset($native['__documentConstructor'], $native['__documentNative']);
+
         $rawMeta = $native['meta'] ?? [];
         $normalizedMeta = $this->normalizeMetadataMap($rawMeta);
 
@@ -29,6 +33,10 @@ final class NativeReader
             'meta' => $this->metadata($normalizedMeta),
             'nativeFormat' => 'pandoc-json',
         ];
+        if ($documentConstructor === 'Pandoc' && is_array($documentNative) && !array_is_list($documentNative)) {
+            $attrs['documentConstructor'] = 'Pandoc';
+            $attrs['documentNative'] = $documentNative;
+        }
         $attrs = array_replace($attrs, $this->metadataConstructorAttrs($rawMeta, $normalizedMeta));
 
         if (isset($native['pandoc-api-version'])) {
@@ -49,6 +57,23 @@ final class NativeReader
      */
     private function normalizeDocument(array $native): array
     {
+        if (!array_is_list($native) && ($native['t'] ?? null) === 'Pandoc') {
+            $content = $native['c'] ?? null;
+            if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
+                throw new \InvalidArgumentException('Pandoc native JSON Pandoc constructor must contain metadata and blocks');
+            }
+            $metadata = $this->taggedMetaConstructor($content[0]) === 'MetaMap'
+                ? $content[0]
+                : $this->legacyMetaEnvelopeContent($content[0], 'Pandoc native JSON Pandoc constructor metadata');
+
+            return [
+                'meta' => $metadata,
+                'blocks' => $content[1],
+                '__documentConstructor' => 'Pandoc',
+                '__documentNative' => $native,
+            ];
+        }
+
         if (!array_is_list($native)) {
             return $native;
         }
@@ -62,15 +87,28 @@ final class NativeReader
             throw new \InvalidArgumentException('Legacy Pandoc native JSON metadata must be an object');
         }
 
-        $meta = $metadata['unMeta'] ?? null;
-        if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
-            throw new \InvalidArgumentException('Legacy Pandoc native JSON metadata must contain an unMeta object');
-        }
-
+        $meta = $this->legacyMetaEnvelopeContent($metadata, 'Legacy Pandoc native JSON metadata');
         return [
             'meta' => $meta,
             'blocks' => $native[1],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function legacyMetaEnvelopeContent(mixed $metadata, string $context): array
+    {
+        if (!is_array($metadata) || array_is_list($metadata)) {
+            throw new \InvalidArgumentException("{$context} must be an object");
+        }
+
+        $meta = $metadata['unMeta'] ?? null;
+        if (!is_array($meta) || ($meta !== [] && array_is_list($meta))) {
+            throw new \InvalidArgumentException("{$context} must contain an unMeta object");
+        }
+
+        return $meta;
     }
 
     /**

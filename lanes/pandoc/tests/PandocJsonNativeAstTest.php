@@ -1387,6 +1387,96 @@ return [
         $t->same($packet['meta']['c'], $jsonPacket['meta']);
         $t->same($packet['meta']['c'], $nativePacket['meta']);
     },
+    'accepts top-level pandoc document constructors on json and native readers' => static function (TestRunner $t): void {
+        $pandocConstructor = [
+            't' => 'Pandoc',
+            'c' => [
+                [
+                    'unMeta' => [
+                        'title' => ['t' => 'MetaInlines', 'c' => [
+                            ['t' => 'Str', 'c' => 'Tagged'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'document'],
+                        ]],
+                        'review' => ['t' => 'MetaMap', 'c' => [
+                            'queue' => ['t' => 'MetaString', 'c' => 'constructor-completeness'],
+                            'draft' => ['t' => 'MetaBool', 'c' => false],
+                        ]],
+                    ],
+                ],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Str', 'c' => 'Tagged'],
+                        ['t' => 'Space'],
+                        ['t' => 'Str', 'c' => 'body'],
+                    ]],
+                ],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($pandocConstructor),
+            'native' => (new NativeReader())->read(json_encode($pandocConstructor, JSON_THROW_ON_ERROR)),
+        ];
+        $plainInlineText = static function (array $nodes) use (&$plainInlineText): string {
+            $text = '';
+            foreach ($nodes as $node) {
+                if (!$node instanceof AstNode) {
+                    continue;
+                }
+                $text .= match ($node->type) {
+                    'text', 'code', 'math' => (string) $node->attr('text', ''),
+                    'space', 'softbreak', 'linebreak' => ' ',
+                    default => $plainInlineText($node->children),
+                };
+            }
+
+            return trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        };
+
+        foreach ($documents as $source => $document) {
+            $meta = $document->attr('meta');
+            $review = $meta['review'];
+            $paragraph = $document->children[0];
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same('Pandoc', $document->attr('documentConstructor'), "{$source} document constructor");
+            $t->same($pandocConstructor, $document->attr('documentNative'), "{$source} document native payload");
+            $t->same('Tagged document', $plainInlineText($meta['titleInlines']), "{$source} standard title helper");
+            if ($source === 'native') {
+                $t->same('MetaMap', $review['t'], "{$source} review metadata map");
+                $t->same('constructor-completeness', $review['c']['queue']['c'], "{$source} review queue");
+                $t->same(false, $review['c']['draft']['c'], "{$source} review draft flag");
+            } else {
+                $t->same('map', $review['type'], "{$source} review metadata map");
+                $t->same('constructor-completeness', $review['items']['queue'], "{$source} review queue");
+                $t->same(false, $review['items']['draft'], "{$source} review draft flag");
+            }
+            $t->same('paragraph', $paragraph->type, "{$source} paragraph node");
+            $t->same('Para', $paragraph->attr('constructor'), "{$source} paragraph constructor");
+            $t->same('Tagged body', $plainInlineText($paragraph->children), "{$source} paragraph text");
+            $t->true(!array_key_exists('t', $jsonPacket), "{$source} json writer emits canonical document object");
+            $t->true(!array_key_exists('t', $nativePacket), "{$source} native writer emits canonical document object");
+            $t->same('MetaInlines', $jsonPacket['meta']['title']['t'], "{$source} json writer title metadata");
+            $t->same('MetaMap', $nativePacket['meta']['review']['t'], "{$source} native writer review metadata");
+            $t->same('Para', $jsonPacket['blocks'][0]['t'], "{$source} json writer paragraph block");
+            $t->same('Para', $nativePacket['blocks'][0]['t'], "{$source} native writer paragraph block");
+        }
+
+        $nativeMetaMapDocument = (new NativeReader())->read(json_encode([
+            't' => 'Pandoc',
+            'c' => [
+                ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'tagged-metamap-document'],
+                ]],
+                [],
+            ],
+        ], JSON_THROW_ON_ERROR));
+
+        $t->same('Pandoc', $nativeMetaMapDocument->attr('documentConstructor'), 'native MetaMap document constructor');
+        $t->same('MetaMap', $nativeMetaMapDocument->attr('metaConstructor'), 'native MetaMap document meta constructor');
+        $t->same('tagged-metamap-document', $nativeMetaMapDocument->attr('meta')['source']['c'], 'native MetaMap document metadata');
+    },
     'records pandoc helper constructor provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $tableBlock = [
             't' => 'Table',

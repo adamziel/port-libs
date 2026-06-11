@@ -37,12 +37,21 @@ final class PandocJsonReader
     {
         $legacyTuplePacket = array_is_list($packet);
         $packet = $this->normalizePacket($packet);
+        $documentConstructor = $packet['__documentConstructor'] ?? null;
+        $documentNative = $packet['__documentNative'] ?? null;
+        unset($packet['__documentConstructor'], $packet['__documentNative']);
+
         $blocks = $packet['blocks'] ?? null;
         if (!is_array($blocks) || !array_is_list($blocks)) {
             throw new \InvalidArgumentException('Pandoc JSON packet must contain a blocks array');
         }
 
         $attrs = [];
+        if ($documentConstructor === 'Pandoc' && is_array($documentNative) && !array_is_list($documentNative)) {
+            $attrs['documentConstructor'] = 'Pandoc';
+            $attrs['documentNative'] = $documentNative;
+        }
+
         $apiVersion = null;
         if (isset($packet['pandoc-api-version'])) {
             $apiVersion = $this->readApiVersion($packet['pandoc-api-version']);
@@ -65,6 +74,20 @@ final class PandocJsonReader
      */
     private function normalizePacket(array $packet): array
     {
+        if (!array_is_list($packet) && ($packet['t'] ?? null) === 'Pandoc') {
+            $content = $packet['c'] ?? null;
+            if (!is_array($content) || !array_is_list($content) || count($content) !== 2) {
+                throw new \InvalidArgumentException('Pandoc JSON Pandoc constructor must contain metadata and blocks');
+            }
+
+            return [
+                'meta' => $content[0],
+                'blocks' => $content[1],
+                '__documentConstructor' => 'Pandoc',
+                '__documentNative' => $packet,
+            ];
+        }
+
         if (!array_is_list($packet)) {
             return $packet;
         }
