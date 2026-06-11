@@ -270,6 +270,65 @@ XML, 'package reader XML');
         $t->same(true, $resetButton['disabled']);
         $t->same('<form id="review-form"><input name="title" value="Draft &amp; Source"><input checked disabled name="publish" type="checkbox"><textarea name="notes" readonly>Reviewer &amp; editor' . "\n" . 'note</textarea><button name="action" value="publish">Publish <strong>now</strong></button><button disabled type="reset">Clear</button></form>', $html);
     },
+    'summarizes html form submission state and submitter overrides for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<form id="remote-review" action="https://forms.example.invalid/submit" method="POST" enctype="multipart/form-data" target="_blank" autocomplete="off" accept-charset="UTF-8 ISO-8859-1" novalidate><input name="title" value="Packet"><input type="image" src="submit.png" formaction="/image-submit" formmethod="POST" formenctype="multipart/form-data" formtarget="_parent" formnovalidate><button type="submit" formaction="/local-submit" formmethod="dialog" formenctype="text/plain" formtarget="_self" formnovalidate>Send</button></form>'
+                . '<form id="invalid-method" method="TRACE" enctype="application/json" autocomplete="maybe"><button>Default</button></form>',
+            'form submission review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $form = $summary[0];
+        $imageSubmitter = $form['children'][1];
+        $buttonSubmitter = $form['children'][2];
+        $fallbackForm = $summary[1];
+        $defaultButton = $fallbackForm['children'][0];
+
+        $t->same('form', $form['name']);
+        $t->same('form', $form['formSubmission']);
+        $t->same('https://forms.example.invalid/submit', $form['action']);
+        $t->same('post', $form['method']);
+        $t->same('multipart/form-data', $form['enctype']);
+        $t->same('_blank', $form['target']);
+        $t->same('off', $form['autocomplete']);
+        $t->same(true, $form['novalidate']);
+        $t->same('UTF-8 ISO-8859-1', $form['acceptCharsetRaw']);
+        $t->same(['UTF-8', 'ISO-8859-1'], $form['acceptCharsets']);
+        $t->same('image', $imageSubmitter['inputType']);
+        $t->same([
+            'form' => null,
+            'formAction' => '/image-submit',
+            'formMethod' => 'post',
+            'formEnctype' => 'multipart/form-data',
+            'formTarget' => '_parent',
+            'formNoValidate' => true,
+        ], $imageSubmitter['submitter']);
+        $t->same('submit', $buttonSubmitter['buttonType']);
+        $t->same([
+            'form' => null,
+            'formAction' => '/local-submit',
+            'formMethod' => 'dialog',
+            'formEnctype' => 'text/plain',
+            'formTarget' => '_self',
+            'formNoValidate' => true,
+        ], $buttonSubmitter['submitter']);
+        $t->same('get', $fallbackForm['method']);
+        $t->same('application/x-www-form-urlencoded', $fallbackForm['enctype']);
+        $t->same('on', $fallbackForm['autocomplete']);
+        $t->same(false, $fallbackForm['novalidate']);
+        $t->same(null, $fallbackForm['acceptCharsetRaw']);
+        $t->same([], $fallbackForm['acceptCharsets']);
+        $t->same([
+            'form' => null,
+            'formAction' => null,
+            'formMethod' => null,
+            'formEnctype' => null,
+            'formTarget' => null,
+            'formNoValidate' => false,
+        ], $defaultButton['submitter']);
+        $t->same('<form accept-charset="UTF-8 ISO-8859-1" action="https://forms.example.invalid/submit" autocomplete="off" enctype="multipart/form-data" id="remote-review" method="POST" novalidate target="_blank"><input name="title" value="Packet"><input formaction="/image-submit" formenctype="multipart/form-data" formmethod="POST" formnovalidate formtarget="_parent" src="submit.png" type="image"><button formaction="/local-submit" formenctype="text/plain" formmethod="dialog" formnovalidate formtarget="_self" type="submit">Send</button></form><form autocomplete="maybe" enctype="application/json" id="invalid-method" method="TRACE"><button>Default</button></form>', $html);
+    },
     'summarizes html output control state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<form id="calc-form"><input id="source-a" name="a" value="5"><button id="source-b" type="button">Add</button><label for="checksum">Checksum</label><label>Total <output id="checksum" name="checksum" for="source-a  source-b missing">Ready <strong>hash</strong></output></label></form>',

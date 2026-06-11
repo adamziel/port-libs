@@ -742,6 +742,9 @@ final class XmlHtmlDom
             'children' => $children,
         ];
 
+        if ($name === 'form') {
+            $summary += self::formSubmissionSummary($node);
+        }
         if ($name === 'select') {
             $options = self::selectOptionSummaries($node);
             $summary['formControl'] = 'select';
@@ -756,8 +759,9 @@ final class XmlHtmlDom
             ));
         }
         if ($name === 'input') {
+            $inputType = self::inputType($node);
             $summary['formControl'] = 'input';
-            $summary['inputType'] = self::inputType($node);
+            $summary['inputType'] = $inputType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
@@ -770,6 +774,9 @@ final class XmlHtmlDom
             if ($node->hasAttribute('list')) {
                 $summary['list'] = $node->getAttribute('list');
                 $summary['datalistOptions'] = self::datalistOptionsForControl($node);
+            }
+            if (self::isInputSubmitterType($inputType)) {
+                $summary['submitter'] = self::formSubmitterSummary($node);
             }
         }
         if ($name === 'textarea') {
@@ -785,13 +792,17 @@ final class XmlHtmlDom
             }
         }
         if ($name === 'button') {
+            $buttonType = self::buttonType($node);
             $summary['formControl'] = 'button';
-            $summary['buttonType'] = self::buttonType($node);
+            $summary['buttonType'] = $buttonType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['label'] = self::normalizedText($node);
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
+            if ($buttonType === 'submit') {
+                $summary['submitter'] = self::formSubmitterSummary($node);
+            }
         }
         if ($name === 'output') {
             $forRaw = $node->hasAttribute('for') ? $node->getAttribute('for') : null;
@@ -868,6 +879,77 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formSubmissionSummary(\DOMElement $form): array
+    {
+        $acceptCharsetRaw = self::attributeOrNull($form, 'accept-charset');
+
+        return [
+            'formSubmission' => 'form',
+            'action' => self::attributeOrNull($form, 'action'),
+            'method' => self::formMethod($form, 'method', 'get'),
+            'enctype' => self::formEnctype($form, 'enctype', 'application/x-www-form-urlencoded'),
+            'target' => self::attributeOrNull($form, 'target'),
+            'autocomplete' => self::formAutocomplete($form),
+            'novalidate' => $form->hasAttribute('novalidate'),
+            'acceptCharsetRaw' => $acceptCharsetRaw,
+            'acceptCharsets' => $acceptCharsetRaw === null ? [] : self::spaceSeparatedTokens($acceptCharsetRaw),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formSubmitterSummary(\DOMElement $submitter): array
+    {
+        return [
+            'form' => self::attributeOrNull($submitter, 'form'),
+            'formAction' => self::attributeOrNull($submitter, 'formaction'),
+            'formMethod' => self::formMethod($submitter, 'formmethod', null),
+            'formEnctype' => self::formEnctype($submitter, 'formenctype', null),
+            'formTarget' => self::attributeOrNull($submitter, 'formtarget'),
+            'formNoValidate' => $submitter->hasAttribute('formnovalidate'),
+        ];
+    }
+
+    private static function isInputSubmitterType(string $type): bool
+    {
+        return in_array($type, ['image', 'submit'], true);
+    }
+
+    private static function formMethod(\DOMElement $element, string $attribute, ?string $missing): ?string
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return $missing;
+        }
+
+        $method = strtolower(trim($element->getAttribute($attribute)));
+
+        return in_array($method, ['dialog', 'get', 'post'], true) ? $method : 'get';
+    }
+
+    private static function formEnctype(\DOMElement $element, string $attribute, ?string $missing): ?string
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return $missing;
+        }
+
+        $enctype = strtolower(trim($element->getAttribute($attribute)));
+
+        return in_array($enctype, ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'], true)
+            ? $enctype
+            : 'application/x-www-form-urlencoded';
+    }
+
+    private static function formAutocomplete(\DOMElement $form): string
+    {
+        $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
+
+        return $autocomplete === 'off' ? 'off' : 'on';
     }
 
     /**
