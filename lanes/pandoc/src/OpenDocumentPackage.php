@@ -449,6 +449,9 @@ final class OpenDocumentPackage
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
         }
+        if (self::isSignatureSidecarPackagePartName($entry->name)) {
+            $roles[] = 'odf-signature-sidecar';
+        }
         if (self::isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
@@ -740,6 +743,15 @@ final class OpenDocumentPackage
         }
 
         return self::thumbnailMediaTypeFromPart($normalized) !== null;
+    }
+
+    private static function isSignatureSidecarPackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+
+        return str_starts_with($normalized, 'meta-inf/')
+            && str_ends_with($normalized, 'signatures.xml')
+            && !str_ends_with($normalized, '/');
     }
 
     private static function thumbnailMediaTypeFromPart(string $path): ?string

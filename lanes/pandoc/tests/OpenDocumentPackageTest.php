@@ -879,6 +879,49 @@ XML;
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
     },
+    'classifies compact ODT signature sidecars in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>',
+            '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.digitalsignature" manifest:full-path="META-INF/documentsignatures.xml"/>',
+            $manifestXml
+        );
+        $signatureXml = '<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#"><dsig:Signature/></dsig:document-signatures>';
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+                ['name' => 'META-INF/macrosignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+                ['name' => 'META-INF/signature.xml', 'data' => '<not-signatures/>', 'compressionMethod' => 0],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+
+        $t->same(9, $inventory['entryCount']);
+        $t->same(5, $inventory['manifestDeclaredPartCount']);
+        $t->same(2, $inventory['undeclaredEntryCount']);
+        $t->same(2, $summary['undeclaredPackageEntryCount']);
+
+        $t->same(['odf-signature-sidecar', 'manifest-declared'], $parts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(true, $parts['META-INF/documentsignatures.xml']['declaredInManifest']);
+        $t->same(false, $parts['META-INF/documentsignatures.xml']['undeclared']);
+        $t->same('application/vnd.oasis.opendocument.digitalsignature', $parts['META-INF/documentsignatures.xml']['manifestMediaType']);
+        $t->same(strlen($signatureXml), $parts['META-INF/documentsignatures.xml']['byteLength']);
+        $t->same(0, $parts['META-INF/documentsignatures.xml']['compressionMethod']);
+        $t->same('stored', $parts['META-INF/documentsignatures.xml']['compressionMethodName']);
+
+        $t->same(['odf-signature-sidecar', 'undeclared-package-entry'], $parts['META-INF/macrosignatures.xml']['roles']);
+        $t->same(false, $parts['META-INF/macrosignatures.xml']['declaredInManifest']);
+        $t->same(true, $parts['META-INF/macrosignatures.xml']['undeclared']);
+        $t->same(['undeclared-package-entry'], $parts['META-INF/signature.xml']['roles']);
+        $t->same([
+            'META-INF/macrosignatures.xml',
+            'META-INF/signature.xml',
+        ], array_column($inventory['undeclaredEntries'], 'path'));
+    },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
         $encryptedBytes = 'ENCRYPTEDPNG';
