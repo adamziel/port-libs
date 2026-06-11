@@ -683,6 +683,8 @@ final class EpubPackage
             $partName = (string) ($rootfile['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($rootfile['mediaType'] ?? ''));
             $exists = $partName !== '' && $package->has($partName);
+            $entry = $exists ? $package->entry($partName) : null;
+            $provenance = self::zipEntryProvenance($entry);
             $selected = $selectedIndex === null && $partName === $opfPartName && $mediaType === self::OPF_MEDIA_TYPE;
             if ($selected) {
                 $selectedIndex = $index;
@@ -695,6 +697,13 @@ final class EpubPackage
                 'mediaType' => $mediaType,
                 'exists' => $exists,
                 'selected' => $selected,
+                'byteLength' => $provenance['byteLength'],
+                'compressedByteLength' => $provenance['compressedByteLength'],
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'compressionSupported' => $provenance['compressionSupported'],
+                'crc32' => $provenance['crc32'],
+                'canExposeBytes' => $provenance['canExposeBytes'],
             ];
             $items[] = $item;
 

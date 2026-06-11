@@ -3408,6 +3408,60 @@ XML;
         $t->same('Legacy chapter', $missingTocEpub->navigation()['entries'][0]['label']);
     },
 
+    'preserves EPUB container rootfile ZIP provenance for package handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
+        $containerWithRootfileProvenance = <<<'XML'
+<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
+  <rootfiles>
+    <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
+    <rootfile full-path="EPUB/preview.xhtml" media-type="application/xhtml+xml"/>
+    <rootfile full-path="EPUB/missing-preview.xhtml" media-type="application/xhtml+xml"/>
+  </rootfiles>
+</container>
+XML;
+        $previewXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Preview</h1></body></html>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $containerWithRootfileProvenance],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+            ['name' => 'EPUB/preview.xhtml', 'data' => $previewXhtml, 'compressionMethod' => 0],
+        ]));
+        $rootfiles = $epub->validationReport()['rootfiles'];
+        $summary = $epub->summary();
+
+        $t->same(3, $rootfiles['rootfileCount']);
+        $t->same('/EPUB/package.opf', $rootfiles['items'][0]['partName']);
+        $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);
+        $t->same(strlen(gzdeflate($epub3OpfXml)), $rootfiles['items'][0]['compressedByteLength']);
+        $t->same(8, $rootfiles['items'][0]['compressionMethod']);
+        $t->same('deflated', $rootfiles['items'][0]['compressionMethodName']);
+        $t->same(true, $rootfiles['items'][0]['compressionSupported']);
+        $t->same(hash('crc32b', $epub3OpfXml), $rootfiles['items'][0]['crc32']);
+        $t->same(true, $rootfiles['items'][0]['canExposeBytes']);
+
+        $t->same('/EPUB/preview.xhtml', $rootfiles['items'][1]['partName']);
+        $t->same(strlen($previewXhtml), $rootfiles['items'][1]['byteLength']);
+        $t->same(strlen($previewXhtml), $rootfiles['items'][1]['compressedByteLength']);
+        $t->same(0, $rootfiles['items'][1]['compressionMethod']);
+        $t->same('stored', $rootfiles['items'][1]['compressionMethodName']);
+        $t->same(true, $rootfiles['items'][1]['compressionSupported']);
+        $t->same(hash('crc32b', $previewXhtml), $rootfiles['items'][1]['crc32']);
+        $t->same(true, $rootfiles['items'][1]['canExposeBytes']);
+
+        $t->same('/EPUB/missing-preview.xhtml', $rootfiles['items'][2]['partName']);
+        $t->same(false, $rootfiles['items'][2]['exists']);
+        $t->same(null, $rootfiles['items'][2]['byteLength']);
+        $t->same(null, $rootfiles['items'][2]['compressionSupported']);
+        $t->same(null, $rootfiles['items'][2]['crc32']);
+        $t->same(false, $rootfiles['items'][2]['canExposeBytes']);
+        $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
+    },
+
     'reports compact EPUB container rootfile diagnostics for validation handoff' => static function (TestRunner $t) use ($epub3OpfXml, $epub3NavXml): void {
         $containerWithAlternateRootfiles = <<<'XML'
 <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0">
@@ -3419,6 +3473,7 @@ XML;
   </rootfiles>
 </container>
 XML;
+        $previewXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Preview</h1></body></html>';
 
         $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
@@ -3429,7 +3484,7 @@ XML;
             ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
             ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
             ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
-            ['name' => 'EPUB/preview.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Preview</h1></body></html>'],
+            ['name' => 'EPUB/preview.xhtml', 'data' => $previewXhtml],
         ]));
         $validation = $epub->validationReport();
         $rootfiles = $validation['rootfiles'];
@@ -3453,8 +3508,25 @@ XML;
         $t->same(1, $rootfiles['duplicatePartCount']);
         $t->same(true, $rootfiles['items'][0]['selected']);
         $t->same(false, $rootfiles['items'][3]['selected']);
+        $t->same(strlen($epub3OpfXml), $rootfiles['items'][0]['byteLength']);
+        $t->same(strlen(gzdeflate($epub3OpfXml)), $rootfiles['items'][0]['compressedByteLength']);
+        $t->same(8, $rootfiles['items'][0]['compressionMethod']);
+        $t->same('deflated', $rootfiles['items'][0]['compressionMethodName']);
+        $t->same(true, $rootfiles['items'][0]['compressionSupported']);
+        $t->same(hash('crc32b', $epub3OpfXml), $rootfiles['items'][0]['crc32']);
+        $t->same(true, $rootfiles['items'][0]['canExposeBytes']);
+        $t->same(null, $rootfiles['items'][1]['byteLength']);
+        $t->same(null, $rootfiles['items'][1]['compressedByteLength']);
+        $t->same(null, $rootfiles['items'][1]['compressionMethod']);
+        $t->same(null, $rootfiles['items'][1]['crc32']);
+        $t->same(false, $rootfiles['items'][1]['canExposeBytes']);
+        $t->same(strlen($previewXhtml), $rootfiles['items'][2]['byteLength']);
+        $t->same(hash('crc32b', $previewXhtml), $rootfiles['items'][2]['crc32']);
+        $t->same(true, $rootfiles['items'][2]['canExposeBytes']);
         $t->same('/EPUB/missing-alternate.opf', $rootfiles['missingRootfiles'][0]['partName']);
+        $t->same(false, $rootfiles['missingRootfiles'][0]['canExposeBytes']);
         $t->same('/EPUB/preview.xhtml', $rootfiles['nonOpfRootfiles'][0]['partName']);
+        $t->same(hash('crc32b', $previewXhtml), $rootfiles['nonOpfRootfiles'][0]['crc32']);
         $t->same('/EPUB/package.opf', $rootfiles['duplicatePartItems'][0]['partName']);
         $t->same([0, 3], $rootfiles['duplicatePartItems'][0]['indexes']);
         $t->same($rootfiles, $summary['wordpressImport']['packageValidation']['rootfiles']);
