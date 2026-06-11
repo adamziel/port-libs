@@ -428,6 +428,7 @@ final class PdfEngineHandoff
      *     engineBoundaryRoot: string|null,
      *     engineBoundaryViolations: list<string>,
      *     typstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
+     *     typstWarningProvenance: array{reviewStatus:string, warningCount:int, sourceFiles:list<string>, outsideRootFiles:list<string>, hintCount:int, warnings:list<array{message:string, sourceRaw:string|null, sourceFile:string|null, line:int|null, column:int|null, endColumn:int|null, insideRoot:bool|null, hints:list<string>, issues:list<string>}>, issues:list<string>}|array{},
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
@@ -449,7 +450,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, engineErrors:list<string>, typstWarningProvenance:array{reviewStatus:string, warningCount:int, sourceFiles:list<string>, outsideRootFiles:list<string>, hintCount:int, warnings:list<array{message:string, sourceRaw:string|null, sourceFile:string|null, line:int|null, column:int|null, endColumn:int|null, insideRoot:bool|null, hints:list<string>, issues:list<string>}>, issues:list<string>}|array{}, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -979,6 +980,11 @@ final class PdfEngineHandoff
             $diagnostics[] = 'engine-program-missing:' . $missingProgram['program'];
         }
         $engineMessages = $this->extractEngineMessages($engineTexts);
+        $typstWarningProvenance = $this->extractTypstWarningProvenance(
+            $engine,
+            $engineTexts,
+            $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance)
+        );
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
         $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
@@ -988,6 +994,16 @@ final class PdfEngineHandoff
         }
         if ($engineMessages['errors'] !== []) {
             $diagnostics[] = 'engine-log-errors:' . count($engineMessages['errors']);
+        }
+        if ($typstWarningProvenance !== []) {
+            $diagnostics[] = 'typst-warning-provenance:' . $typstWarningProvenance['reviewStatus'];
+            $diagnostics[] = 'typst-warning-sources:' . count($typstWarningProvenance['sourceFiles']);
+            if ($typstWarningProvenance['outsideRootFiles'] !== []) {
+                $diagnostics[] = 'typst-warning-outside-root:' . count($typstWarningProvenance['outsideRootFiles']);
+            }
+            if ($typstWarningProvenance['hintCount'] > 0) {
+                $diagnostics[] = 'typst-warning-hints:' . $typstWarningProvenance['hintCount'];
+            }
         }
         if ($engineMissingDependencies !== []) {
             $diagnostics[] = 'engine-missing-dependencies:' . count($engineMissingDependencies);
@@ -4134,6 +4150,9 @@ final class PdfEngineHandoff
         if ($engineMessages['errors'] !== []) {
             $artifactProvenanceIssues[] = 'engine-log-errors:' . count($engineMessages['errors']);
         }
+        if (($typstWarningProvenance['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-warning-provenance:' . $typstWarningProvenance['reviewStatus'];
+        }
         if ($engineMissingDependencies !== []) {
             $artifactProvenanceIssues[] = 'engine-missing-dependencies:' . count($engineMissingDependencies);
         }
@@ -4195,6 +4214,7 @@ final class PdfEngineHandoff
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
+            'typstWarningProvenance' => $typstWarningProvenance,
             'bibliographyLogFiles' => $bibliographyLogFiles,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
             'bibliographyErrors' => $bibliographyMessages['errors'],
@@ -4253,6 +4273,7 @@ final class PdfEngineHandoff
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'engineErrors' => $engineMessages['errors'],
+            'typstWarningProvenance' => $typstWarningProvenance,
             'engineMissingDependencies' => $engineMissingDependencies,
             'engineMissingDependencyKinds' => $engineMissingDependencyKinds,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
@@ -4572,6 +4593,7 @@ final class PdfEngineHandoff
      *     finalEngineBoundaryRoot: string|null,
      *     finalEngineBoundaryViolations: list<string>,
      *     finalTypstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
+     *     finalTypstWarningProvenance: array{reviewStatus:string, warningCount:int, sourceFiles:list<string>, outsideRootFiles:list<string>, hintCount:int, warnings:list<array{message:string, sourceRaw:string|null, sourceFile:string|null, line:int|null, column:int|null, endColumn:int|null, insideRoot:bool|null, hints:list<string>, issues:list<string>}>, issues:list<string>}|array{},
      *     finalEngineTranscriptInputFiles: list<string>,
      *     finalEngineTranscriptExternalInputFiles: list<string>,
      *     finalBibliographyArtifactsSha256: array<string, string>,
@@ -4884,6 +4906,7 @@ final class PdfEngineHandoff
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
+            'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
@@ -7117,6 +7140,183 @@ final class PdfEngineHandoff
             'errors' => array_values(array_unique($errors)),
             'rerunNeeded' => $rerunNeeded,
         ];
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return array{reviewStatus:string, warningCount:int, sourceFiles:list<string>, outsideRootFiles:list<string>, hintCount:int, warnings:list<array{message:string, sourceRaw:string|null, sourceFile:string|null, line:int|null, column:int|null, endColumn:int|null, insideRoot:bool|null, hints:list<string>, issues:list<string>}>, issues:list<string>}|array{}
+     */
+    private function extractTypstWarningProvenance(string $engine, array $texts, ?string $typstRoot): array
+    {
+        if ($engine !== 'typst') {
+            return [];
+        }
+
+        $warnings = [];
+        $sourceFiles = [];
+        $outsideRootFiles = [];
+        $hintCount = 0;
+        $issues = [];
+        $current = null;
+
+        $flushCurrent = function () use (&$current, &$warnings, &$sourceFiles, &$outsideRootFiles, &$hintCount, &$issues, $typstRoot): void {
+            if ($current === null) {
+                return;
+            }
+
+            $entryIssues = [];
+            $sourceFile = is_string($current['sourceFile'] ?? null) ? $current['sourceFile'] : null;
+            if ($sourceFile === null || $sourceFile === '') {
+                $entryIssues[] = 'warning-source-missing';
+                $issues[] = 'warning-source-missing';
+            } else {
+                $sourceFiles[$sourceFile] = true;
+                if ($typstRoot !== null) {
+                    $insideRoot = $this->pathIsInsideTypstRoot($sourceFile, $typstRoot);
+                    $current['insideRoot'] = $insideRoot;
+                    if (!$insideRoot) {
+                        $outsideRootFiles[$sourceFile] = true;
+                        $entryIssues[] = 'warning-source-outside-root';
+                        $issues[] = 'warning-source-outside-root:' . $sourceFile;
+                    }
+                }
+            }
+
+            $hints = is_array($current['hints'] ?? null) ? $current['hints'] : [];
+            $hintCount += count($hints);
+            $current['issues'] = array_values(array_unique($entryIssues));
+            $warnings[] = $current;
+            $current = null;
+        };
+
+        foreach ($texts as $text) {
+            foreach (preg_split('/\R/u', $text) ?: [] as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+
+                $warningMessage = $this->typstWarningMessageFromLine($line);
+                if ($warningMessage !== null) {
+                    $flushCurrent();
+                    $current = [
+                        'message' => $warningMessage,
+                        'sourceRaw' => null,
+                        'sourceFile' => null,
+                        'line' => null,
+                        'column' => null,
+                        'endColumn' => null,
+                        'insideRoot' => $typstRoot === null ? null : false,
+                        'hints' => [],
+                        'issues' => [],
+                    ];
+                    continue;
+                }
+
+                if ($current === null) {
+                    continue;
+                }
+
+                $sourceSpan = $this->typstWarningSourceSpanFromLine($line);
+                if ($sourceSpan !== null && ($current['sourceFile'] ?? null) === null) {
+                    $current['sourceRaw'] = $sourceSpan['raw'];
+                    $current['sourceFile'] = $sourceSpan['file'];
+                    $current['line'] = $sourceSpan['line'];
+                    $current['column'] = $sourceSpan['column'];
+                    $current['endColumn'] = $sourceSpan['endColumn'];
+                    continue;
+                }
+
+                $hint = $this->typstWarningHintFromLine($line);
+                if ($hint !== null) {
+                    $current['hints'][] = $hint;
+                }
+            }
+
+            $flushCurrent();
+        }
+
+        if ($warnings === []) {
+            return [];
+        }
+
+        $sourceFileList = array_keys($sourceFiles);
+        sort($sourceFileList);
+        $outsideRootFileList = array_keys($outsideRootFiles);
+        sort($outsideRootFileList);
+
+        return [
+            'reviewStatus' => 'review',
+            'warningCount' => count($warnings),
+            'sourceFiles' => $sourceFileList,
+            'outsideRootFiles' => $outsideRootFileList,
+            'hintCount' => $hintCount,
+            'warnings' => $warnings,
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    private function typstWarningMessageFromLine(string $line): ?string
+    {
+        if (preg_match('/\Awarning(?::|\b)\s*(.*)\z/i', $line, $matches) !== 1) {
+            return null;
+        }
+
+        $message = trim($matches[1]);
+
+        return $message === '' ? $line : $message;
+    }
+
+    /**
+     * @return array{raw:string, file:string, line:int, column:int, endColumn:int|null}|null
+     */
+    private function typstWarningSourceSpanFromLine(string $line): ?array
+    {
+        if (preg_match('/(?:-->|\x{250C}\x{2500})\s+(.+?):([1-9][0-9]*):([1-9][0-9]*)(?:-([1-9][0-9]*))?\z/u', $line, $matches) !== 1) {
+            return null;
+        }
+
+        $raw = trim($matches[1]);
+
+        return [
+            'raw' => $raw,
+            'file' => $this->normalizeTypstWarningSourceFile($raw),
+            'line' => (int) $matches[2],
+            'column' => (int) $matches[3],
+            'endColumn' => isset($matches[4]) && $matches[4] !== '' ? (int) $matches[4] : null,
+        ];
+    }
+
+    private function normalizeTypstWarningSourceFile(string $path): string
+    {
+        $path = str_replace('\\', '/', trim($path, " \t\n\r\0\x0B'\"`"));
+        if ($path === '') {
+            return '';
+        }
+        if (
+            str_starts_with($path, '/')
+            || preg_match('/\A[A-Za-z]:\//', $path) === 1
+            || $this->isUriResourceReference($path)
+        ) {
+            return $this->externalSourceMapInputName($path);
+        }
+
+        try {
+            return $this->normalizeRelativePath($path, 'Typst warning source file');
+        } catch (\InvalidArgumentException) {
+            return $this->externalSourceMapInputName($path);
+        }
+    }
+
+    private function typstWarningHintFromLine(string $line): ?string
+    {
+        if (preg_match('/\A=+\s*hint:\s*(.+)\z/i', $line, $matches) !== 1
+            && preg_match('/\Ahint:\s*(.+)\z/i', $line, $matches) !== 1
+        ) {
+            return null;
+        }
+
+        return trim($matches[1]);
     }
 
     /**

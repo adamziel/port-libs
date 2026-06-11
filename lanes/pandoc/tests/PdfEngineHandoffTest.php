@@ -1886,6 +1886,89 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
     },
 
+    'fake runner preserves typst warning source provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/warnings.pdf',
+            'sourcePath' => 'project/main.typ',
+            'source' => '= Typst Warning Provenance Packet',
+            'engineOptions' => ['--root=project'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst warning provenance packet\n%%EOF\n";
+        $stderr = implode("\n", [
+            'warning: label "missing" does not exist in the document',
+            '  --> project/main.typ:4:12',
+            '   |',
+            '4  | #ref(<missing>)',
+            '   |       ^^^^^^^',
+            '   = hint: check the spelling or define the label before export',
+            'warning: package may read outside root',
+            '  --> shared/macros.typ:1:1-7',
+            '   = hint: import the macro through the configured project root',
+            '',
+        ]);
+        $expectedWarnings = [
+            'reviewStatus' => 'review',
+            'warningCount' => 2,
+            'sourceFiles' => ['project/main.typ', 'shared/macros.typ'],
+            'outsideRootFiles' => ['shared/macros.typ'],
+            'hintCount' => 2,
+            'warnings' => [
+                [
+                    'message' => 'label "missing" does not exist in the document',
+                    'sourceRaw' => 'project/main.typ',
+                    'sourceFile' => 'project/main.typ',
+                    'line' => 4,
+                    'column' => 12,
+                    'endColumn' => null,
+                    'insideRoot' => true,
+                    'hints' => ['check the spelling or define the label before export'],
+                    'issues' => [],
+                ],
+                [
+                    'message' => 'package may read outside root',
+                    'sourceRaw' => 'shared/macros.typ',
+                    'sourceFile' => 'shared/macros.typ',
+                    'line' => 1,
+                    'column' => 1,
+                    'endColumn' => 7,
+                    'insideRoot' => false,
+                    'hints' => ['import the macro through the configured project root'],
+                    'issues' => ['warning-source-outside-root'],
+                ],
+            ],
+            'issues' => ['warning-source-outside-root:shared/macros.typ'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'stderr' => $stderr,
+            'files' => [
+                'build/warnings.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'stderr' => $stderr,
+            'files' => [
+                'build/warnings.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same('project', $plan['typstBoundaryProvenance']['root']['path']);
+        $t->same(true, $result['ok']);
+        $t->same(['warning: label "missing" does not exist in the document', 'warning: package may read outside root'], $result['engineWarnings']);
+        $t->same($expectedWarnings, $result['typstWarningProvenance']);
+        $t->same($expectedWarnings, $result['artifactProvenanceReview']['typstWarningProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('engine-log-warnings:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-provenance:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-sources:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-outside-root:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-hints:2', implode(',', $result['diagnostics']));
+        $t->contains('typst-warning-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedWarnings, $sequence['finalTypstWarningProvenance']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
