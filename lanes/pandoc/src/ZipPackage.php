@@ -368,6 +368,55 @@ final class ZipPackage
         return $package;
     }
 
+    public static function fromStrictString(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): self {
+        self::assertRawStrictImportable(
+            $bytes,
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+
+        return self::fromString($bytes);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function assertRawStrictImportable(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        $summary = self::rawStrictImportPreflight(
+            $bytes,
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+        if ($summary['isValid']) {
+            return $summary;
+        }
+
+        $diagnostics = array_values(array_filter(
+            $summary['diagnostics'],
+            static fn (mixed $diagnostic): bool => is_string($diagnostic) && $diagnostic !== ''
+        ));
+        if ($diagnostics === []) {
+            $diagnostics[] = 'zip-package-instantiation-failed';
+        }
+
+        throw new \RuntimeException(
+            'ZIP package failed raw strict native pandoc import preflight: '
+            . implode(', ', $diagnostics)
+        );
+    }
+
     /**
      * @param list<array{name:string, data?:string, compressionMethod?:int, comment?:string, modifiedAt?:int, modifiedDosTime?:int, modifiedDosDate?:int, externalAttributes?:int, internalAttributes?:int, extraFieldData?:string}> $parts
      */

@@ -8567,6 +8567,81 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
     },
 
+    'constructs zip packages only after raw strict import preflight passes' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:p>strict raw constructor</w:p></w:document>';
+        $mediaBytes = "strict media bytes\n";
+        $safePackage = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'externalAttributes' => 0x81a40000,
+            ],
+            [
+                'name' => 'word/media/',
+                'externalAttributes' => 0x41ed0000,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'compressionMethod' => 0,
+                'externalAttributes' => 0x81a40000,
+            ],
+        ]);
+
+        $strictSummary = ZipPackage::assertRawStrictImportable($safePackage->bytes(), 512, 20.0, 512);
+        $strictPackage = ZipPackage::fromStrictString($safePackage->bytes(), 512, 20.0, 512);
+
+        $t->same(true, $strictSummary['isValid']);
+        $t->same(true, $strictSummary['canInstantiate']);
+        $t->same([], $strictSummary['diagnostics']);
+        $t->same(3, $strictSummary['entryCount']);
+        $t->same(['word/document.xml', 'word/media/', 'word/media/review.txt'], $strictPackage->names());
+        $t->same($documentXml, $strictPackage->read('word/document.xml'));
+        $t->same($mediaBytes, $strictPackage->read('word/media/review.txt'));
+
+        $commentedBytes = ZipPackage::build([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>commented package</w:p></w:document>',
+                'externalAttributes' => 0x81a40000,
+            ],
+        ], 'review comment');
+        $commentedRaw = ZipPackage::rawStrictImportPreflight($commentedBytes, 512, 20.0, 512);
+
+        $t->same(false, $commentedRaw['isValid']);
+        $t->same(true, $commentedRaw['canInstantiate']);
+        $t->contains('package-or-entry-comments', implode(',', $commentedRaw['diagnostics']));
+        try {
+            ZipPackage::assertRawStrictImportable($commentedBytes, 512, 20.0, 512);
+            throw new RuntimeException('Expected raw strict assertion to reject commented ZIP bytes');
+        } catch (RuntimeException $exception) {
+            $t->contains('package-or-entry-comments', $exception->getMessage());
+        }
+
+        $spoofedBytes = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'localName' => 'word/spoofed.xml',
+                'data' => '<w:document><w:p>spoofed local header</w:p></w:document>',
+                'method' => 8,
+            ],
+        ]);
+        $spoofedRaw = ZipPackage::rawStrictImportPreflight($spoofedBytes, 512, 20.0, 512);
+
+        $t->same(false, $spoofedRaw['isValid']);
+        $t->same(false, $spoofedRaw['canInstantiate']);
+        $t->same(null, $spoofedRaw['strictImport']);
+        $t->contains('local-header-name-issues', implode(',', $spoofedRaw['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $spoofedRaw['diagnostics']));
+        try {
+            ZipPackage::fromStrictString($spoofedBytes, 512, 20.0, 512);
+            throw new RuntimeException('Expected strict constructor to reject spoofed ZIP bytes');
+        } catch (RuntimeException $exception) {
+            $t->contains('local-header-name-issues', $exception->getMessage());
+            $t->contains('zip-package-instantiation-failed', $exception->getMessage());
+        }
+    },
+
     'preflights central directory fixed headers before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $contentTypes = '<Types><Default Extension="xml" ContentType="application/xml"/></Types>';
         $documentXml = '<w:document><w:p>central fixed header accounting</w:p></w:document>';
