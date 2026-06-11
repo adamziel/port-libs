@@ -15303,7 +15303,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array<string, mixed>>> $numbering
-     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationshipIssueCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBulletIssueCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, external:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationshipIssueCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBulletIssueCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -15330,9 +15330,13 @@ final class DocxReader
         $numberingInventory = $this->emptyNumberingImportInventory();
         $issues = count($numberingRelationships) > 1 ? ['multiple-numbering-relationships'] : [];
         $relationshipIssues = [];
+        $externalTarget = null;
 
         if ($relationship->isExternal()) {
+            $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
+            $externalTarget = $relationship->externalTargetPreflight();
             $relationshipIssues[] = 'external-numbering-relationship';
+            $relationshipIssues = array_merge($relationshipIssues, $externalTarget['issues']);
         } else {
             $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
             $targetPart = OpcPackagePath::stripQueryAndFragment(
@@ -15398,6 +15402,10 @@ final class DocxReader
                 'targetFragment' => $targetSuffix['fragment'],
                 'exists' => $exists,
                 'contentType' => $contentType,
+                'external' => $relationship->isExternal(),
+                'externalTargetKind' => is_array($externalTarget) ? $externalTarget['kind'] : null,
+                'externalTargetScheme' => is_array($externalTarget) ? $externalTarget['scheme'] : null,
+                'externalTargetAllowed' => is_array($externalTarget) ? $externalTarget['allowed'] : null,
                 'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
                 'issues' => $relationshipIssues,
             ],
@@ -15819,6 +15827,14 @@ final class DocxReader
 
     private function numberingPartName(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart): ?string
     {
+        $relationships = $graph->relationshipsForSource($documentPart);
+        $relationship = $relationships instanceof OpcRelationships
+            ? $relationships->firstOfType(self::REL_TYPE_NUMBERING)
+            : null;
+        if ($relationship instanceof OpcRelationship && $relationship->isExternal()) {
+            return null;
+        }
+
         $relationshipTarget = $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart);
         if ($relationshipTarget !== null) {
             return OpcPackagePath::stripQueryAndFragment($relationshipTarget);

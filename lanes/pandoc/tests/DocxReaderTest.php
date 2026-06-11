@@ -938,6 +938,13 @@ $numberingRelationshipQueryFragmentDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$numberingRelationshipExternalDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdExternalNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="https://cdn.example.test/word/review-numbering.xml?packet=42#defs" TargetMode="External"/>
+</Relationships>
+XML;
+
 $stylesXml = <<<'XML'
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:styleId="Heading2">
@@ -4872,6 +4879,22 @@ $buildNumberingRelationshipWrongContentTypePackage = static function () use (
     ]);
 };
 
+$buildNumberingRelationshipExternalPackage = static function () use (
+    $stylesNumberingContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $numberingRelationshipExternalDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $stylesNumberingContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingRelationshipExternalDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+    ]);
+};
+
 $buildConventionalNumberingFallbackPackage = static function () use (
     $stylesNumberingContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -7417,6 +7440,51 @@ return [
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['expectedContentType']);
         $t->same(['invalid-numbering-content-type'], $relationship['issues']);
         $t->same($result['metadata']['docxNumbering'], $result['importReport']['numbering']);
+    },
+    'reports external DOCX numbering relationships without loading remote list definitions' => static function (TestRunner $t) use ($buildNumberingRelationshipExternalPackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingRelationshipExternalPackage());
+        $document = $result['document'];
+
+        $t->same(3, count($document->children));
+        $checklist = $document->children[1];
+        $t->same('ordered_list', $checklist->type);
+        $t->same('11', $checklist->attr('numId'));
+        $t->same('decimal', $checklist->attr('style'));
+        $t->same(1, $checklist->attr('start'));
+        $t->same('Confirm media map', $checklist->children[0]->children[0]->children[0]->attr('text'));
+        $direct = $document->children[2];
+        $t->same('ordered_list', $direct->type);
+        $t->same('12', $direct->attr('numId'));
+        $t->same('decimal', $direct->attr('style'));
+        $t->same(1, $direct->attr('start'));
+        $t->same('Legal review', $direct->children[0]->children[0]->children[0]->attr('text'));
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $t->same(null, $numbering['part']);
+        $t->same(null, $numbering['contentType']);
+        $t->same(1, $numbering['relationshipCount']);
+        $t->same(['external-numbering-relationship'], $numbering['issues']);
+        $relationship = $numbering['relationship'];
+        $t->same('rIdExternalNumbering', $relationship['id']);
+        $t->same(DocxReader::REL_TYPE_NUMBERING, $relationship['type']);
+        $t->same('https://cdn.example.test/word/review-numbering.xml?packet=42#defs', $relationship['target']);
+        $t->same('External', $relationship['targetMode']);
+        $t->same('https://cdn.example.test/word/review-numbering.xml?packet=42#defs', $relationship['resolvedTarget']);
+        $t->same(null, $relationship['targetPart']);
+        $t->same('packet=42', $relationship['targetQuery']);
+        $t->same('defs', $relationship['targetFragment']);
+        $t->same(null, $relationship['exists']);
+        $t->same(null, $relationship['contentType']);
+        $t->same(true, $relationship['external']);
+        $t->same('absolute-uri', $relationship['externalTargetKind']);
+        $t->same('https', $relationship['externalTargetScheme']);
+        $t->same(true, $relationship['externalTargetAllowed']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $relationship['expectedContentType']);
+        $t->same(['external-numbering-relationship'], $relationship['issues']);
+        $t->same(0, $numbering['definitionCount']);
+        $t->same(0, $numbering['abstractNumCount']);
+        $t->same(0, $numbering['levelCount']);
+        $t->same($numbering, $result['importReport']['numbering']);
     },
     'preserves DOCX numbering picture-bullet relationships in list metadata' => static function (TestRunner $t) use ($buildNumberingPictureBulletPackage): void {
         $result = (new DocxReader())->readPackage($buildNumberingPictureBulletPackage());
