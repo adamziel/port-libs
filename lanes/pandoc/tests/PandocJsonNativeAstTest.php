@@ -1697,6 +1697,96 @@ return [
         $t->same($rowAttr, $nativeTableRow[0]);
         $t->same($cellAttr, $nativeTableCell[0]);
     },
+    'preserves compatible pandoc attr native tuples through json and native writers' => static function (TestRunner $t): void {
+        $headerAttr = ['dup-heading', ['review', 'source'], [
+            ['data-key', 'first'],
+            ['data-key', 'second'],
+            ['aria-label', 'Heading'],
+        ]];
+        $codeAttr = ['dup-code', ['php'], [
+            ['data-code', 'before'],
+            ['data-code', 'after'],
+        ]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headerAttr,
+                    [['t' => 'Str', 'c' => 'Heading']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Code', 'c' => [$codeAttr, 'echo 1;']],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $code = $document->children[1]->children[0];
+
+            $t->same($headerAttr, $heading->attr('attrNative'), "{$source} duplicate heading attr native tuple");
+            $t->same(['data-key' => 'second', 'aria-label' => 'Heading'], $heading->attr('attributes'), "{$source} duplicate heading attrs normalize with last key");
+            $t->same($codeAttr, $code->attr('attrNative'), "{$source} duplicate code attr native tuple");
+            $t->same(['data-code' => 'after'], $code->attr('attributes'), "{$source} duplicate code attrs normalize with last key");
+        }
+
+        $manualDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'dup-heading',
+                'classes' => ['review', 'source'],
+                'attributes' => ['data-key' => 'second', 'aria-label' => 'Heading'],
+                'attrNative' => $headerAttr,
+            ], [
+                new AstNode('text', ['text' => 'Heading']),
+            ]),
+            new AstNode('paragraph', [], [
+                new AstNode('code', [
+                    'id' => 'dup-code',
+                    'classes' => ['php'],
+                    'attributes' => ['data-code' => 'after'],
+                    'attrNative' => $codeAttr,
+                    'text' => 'echo 1;',
+                ]),
+            ]),
+        ]);
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($manualDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($manualDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($headerAttr, $jsonPacket['blocks'][0]['c'][1]);
+        $t->same($codeAttr, $jsonPacket['blocks'][1]['c'][0]['c'][0]);
+        $t->same($headerAttr, $nativePacket['blocks'][0]['c'][1]);
+        $t->same($codeAttr, $nativePacket['blocks'][1]['c'][0]['c'][0]);
+
+        $editedDocument = new AstNode('document', ['pandocApiVersion' => [1, 23, 1]], [
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'dup-heading',
+                'classes' => ['review', 'source'],
+                'attributes' => ['data-key' => 'edited', 'aria-label' => 'Heading'],
+                'attrNative' => $headerAttr,
+            ], [
+                new AstNode('text', ['text' => 'Heading']),
+            ]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $regeneratedAttr = ['dup-heading', ['review', 'source'], [
+            ['data-key', 'edited'],
+            ['aria-label', 'Heading'],
+        ]];
+
+        $t->same($regeneratedAttr, $editedJson['blocks'][0]['c'][1]);
+        $t->same($regeneratedAttr, $editedNative['blocks'][0]['c'][1]);
+    },
     'records pandoc target tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $linkAttr = ['source-link', ['review-link'], [['data-origin', 'json']]];
         $imageAttr = ['cover-image', ['review-image'], [['data-origin', 'asset']]];

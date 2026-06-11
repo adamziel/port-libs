@@ -1212,6 +1212,16 @@ final class NativeWriter
      */
     private function attrTuple(AstNode $node): array
     {
+        $native = $this->reusableAttrNative($node);
+
+        return $native ?? $this->generatedAttrTuple($node);
+    }
+
+    /**
+     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}
+     */
+    private function generatedAttrTuple(AstNode $node): array
+    {
         $id = (string) $node->attr('id', '');
         $classes = [];
         $rawClasses = $node->attr('classes', []);
@@ -1234,6 +1244,75 @@ final class NativeWriter
         }
 
         return [$id, $classes, $attributes];
+    }
+
+    /**
+     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}|null
+     */
+    private function reusableAttrNative(AstNode $node): ?array
+    {
+        $native = $this->validAttrTuple($node->attr('attrNative'));
+        if ($native === null) {
+            return null;
+        }
+
+        return $this->normalizedAttrTuple($native) === $this->normalizedAttrTuple($this->generatedAttrTuple($node))
+            ? $native
+            : null;
+    }
+
+    /**
+     * @return array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}|null
+     */
+    private function validAttrTuple(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 3 || !is_string($value[0])) {
+            return null;
+        }
+
+        if (!is_array($value[1]) || !array_is_list($value[1])) {
+            return null;
+        }
+
+        $classes = [];
+        foreach ($value[1] as $class) {
+            if (!is_string($class)) {
+                return null;
+            }
+            $classes[] = $class;
+        }
+
+        if (!is_array($value[2]) || !array_is_list($value[2])) {
+            return null;
+        }
+
+        $attributes = [];
+        foreach ($value[2] as $pair) {
+            if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2 || !is_string($pair[0]) || !is_string($pair[1])) {
+                return null;
+            }
+            $attributes[] = [$pair[0], $pair[1]];
+        }
+
+        return [$value[0], $classes, $attributes];
+    }
+
+    /**
+     * @param array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>} $tuple
+     * @return array{id:string, classes:list<string>, attributes:array<string, string>}
+     */
+    private function normalizedAttrTuple(array $tuple): array
+    {
+        $attributes = [];
+        foreach ($tuple[2] as $pair) {
+            $attributes[$pair[0]] = $pair[1];
+        }
+
+        return [
+            'id' => $tuple[0],
+            'classes' => $tuple[1],
+            'attributes' => $attributes,
+        ];
     }
 
     private function listStyleConstructor(string $style): string
