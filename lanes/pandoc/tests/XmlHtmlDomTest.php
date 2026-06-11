@@ -313,6 +313,55 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html data values and ruby annotations for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>Release <data value=" 42 ">v42</data> and <data>fallback</data>.</p>'
+                . '<ruby id="pkg-ruby">API<rp>(</rp><rt>application programming interface</rt><rp>)</rp><span> v2</span><rt>version two</rt></ruby>',
+            'data ruby review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/data-ruby-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $valuedData = $paragraph['children'][1];
+        $fallbackData = $paragraph['children'][3];
+        $ruby = $summary[1];
+        $openFallback = $ruby['children'][1];
+        $firstAnnotation = $ruby['children'][2];
+        $closeFallback = $ruby['children'][3];
+        $secondAnnotation = $ruby['children'][5];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('Release v42 and fallback.', $paragraph['text']);
+        $t->same('data', $valuedData['name']);
+        $t->same('data', $valuedData['dataElement']);
+        $t->same(' 42 ', $valuedData['dataValueRaw']);
+        $t->same('42', $valuedData['dataValue']);
+        $t->same('v42', $valuedData['dataText']);
+        $t->same(null, $fallbackData['dataValueRaw']);
+        $t->same(null, $fallbackData['dataValue']);
+        $t->same('fallback', $fallbackData['dataText']);
+        $t->same('ruby', $ruby['name']);
+        $t->same('ruby', $ruby['ruby']);
+        $t->same('API(application programming interface) v2version two', $ruby['rubyText']);
+        $t->same('API v2', $ruby['rubyBaseText']);
+        $t->same(['application programming interface', 'version two'], $ruby['rubyAnnotationTexts']);
+        $t->same(2, $ruby['rubyAnnotationCount']);
+        $t->same(['(', ')'], $ruby['rubyFallbackTexts']);
+        $t->same('fallback-parenthesis', $openFallback['rubyPart']);
+        $t->same('(', $openFallback['rubyFallbackText']);
+        $t->same('annotation', $firstAnnotation['rubyPart']);
+        $t->same('application programming interface', $firstAnnotation['rubyAnnotationText']);
+        $t->same(')', $closeFallback['rubyFallbackText']);
+        $t->same('version two', $secondAnnotation['rubyAnnotationText']);
+        $t->same('<p>Release <data value=" 42 ">v42</data> and <data>fallback</data>.</p><ruby id="pkg-ruby">API<rp>(</rp><rt>application programming interface</rt><rp>)</rp><span> v2</span><rt>version two</rt></ruby>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/data-ruby-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<article><time datetime=" 2026-06-11 ">June 11</time>'

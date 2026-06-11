@@ -694,7 +694,12 @@ final class XmlHtmlDom
 
     public static function normalizedText(\DOMNode $node): string
     {
-        $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $node->textContent) ?? $node->textContent;
+        return self::normalizedTextValue($node->textContent);
+    }
+
+    private static function normalizedTextValue(string $text): string
+    {
+        $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $text) ?? $text;
 
         return trim($text);
     }
@@ -897,6 +902,12 @@ final class XmlHtmlDom
         if (in_array($name, ['base', 'link', 'meta'], true)) {
             $summary += self::documentMetadataSummary($node, $name);
         }
+        if ($name === 'data') {
+            $summary += self::dataElementSummary($node);
+        }
+        if (in_array($name, ['ruby', 'rt', 'rp'], true)) {
+            $summary += self::rubySummary($node, $name);
+        }
         if ($name === 'time') {
             $summary += self::timeSummary($node);
         }
@@ -1073,6 +1084,73 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dataElementSummary(\DOMElement $element): array
+    {
+        $value = self::attributeOrNull($element, 'value');
+
+        return [
+            'dataElement' => 'data',
+            'dataValueRaw' => $value,
+            'dataValue' => $value === null ? null : trim($value),
+            'dataText' => self::normalizedText($element),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rubySummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'rt') {
+            return [
+                'rubyPart' => 'annotation',
+                'rubyAnnotationText' => self::normalizedText($element),
+            ];
+        }
+
+        if ($name === 'rp') {
+            return [
+                'rubyPart' => 'fallback-parenthesis',
+                'rubyFallbackText' => self::normalizedText($element),
+            ];
+        }
+
+        $annotations = array_map(
+            static fn (\DOMElement $annotation): string => self::normalizedText($annotation),
+            self::descendantHtmlElements($element, 'rt'),
+        );
+        $fallback = array_map(
+            static fn (\DOMElement $parenthesis): string => self::normalizedText($parenthesis),
+            self::descendantHtmlElements($element, 'rp'),
+        );
+
+        return [
+            'ruby' => 'ruby',
+            'rubyText' => self::normalizedText($element),
+            'rubyBaseText' => self::rubyBaseText($element),
+            'rubyAnnotationTexts' => $annotations,
+            'rubyAnnotationCount' => count($annotations),
+            'rubyFallbackTexts' => $fallback,
+        ];
+    }
+
+    private static function rubyBaseText(\DOMElement $ruby): string
+    {
+        $text = '';
+        foreach ($ruby->childNodes as $child) {
+            if ($child instanceof \DOMElement && in_array(strtolower(self::htmlElementName($child)), ['rt', 'rp'], true)) {
+                continue;
+            }
+
+            $text .= $child->textContent ?? '';
+        }
+
+        return self::normalizedTextValue($text);
     }
 
     /**
