@@ -601,7 +601,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array<string, mixed>|array{0:list<array<string, mixed>>|null, 1:list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     private function writeTableCaption(AstNode $node): array
     {
@@ -610,7 +610,32 @@ final class PandocJsonWriter
             $this->writeLongCaptionBlocks($node),
         ];
 
-        return $this->reusableCaptionNative($node, $caption) ?? $caption;
+        return $this->reusableCaptionNative($node, $caption) ?? [
+            't' => 'Caption',
+            'c' => [
+                $this->writeShortCaptionMaybe($caption[0]),
+                $caption[1],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>>|null $shortCaption
+     * @return array<string, mixed>
+     */
+    private function writeShortCaptionMaybe(?array $shortCaption): array
+    {
+        if ($shortCaption === null) {
+            return ['t' => 'Nothing'];
+        }
+
+        return [
+            't' => 'Just',
+            'c' => [
+                't' => 'ShortCaption',
+                'c' => [$shortCaption],
+            ],
+        ];
     }
 
     /**
