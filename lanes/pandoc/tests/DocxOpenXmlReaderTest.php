@@ -161,6 +161,7 @@ XML;
         $t->same(3, count($package['relationshipParts']));
         $t->same('word/_rels/header1.xml.rels', $headerRelationshipsPart['partName']);
         $t->same('word/header1.xml', $headerRelationshipsPart['sourcePart']);
+        $t->same(true, $headerRelationshipsPart['sourceExists']);
         $t->same(true, $headerRelationshipsPart['exists']);
         $t->same(2, $headerRelationshipsPart['relationshipCount']);
         $t->same('media/header.png?slot=header#logo', $headerImage['target']);
@@ -176,8 +177,33 @@ XML;
         $t->same(null, $headerRemote['targetPart']);
         $t->same(false, $headerRemote['exists']);
         $t->same('word/header1.xml', $inventory['word/_rels/header1.xml.rels']['relationshipSourcePart']);
+        $t->same(true, $inventory['word/_rels/header1.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-part', $inventory['word/_rels/header1.xml.rels']['roles'], true), 'header relationship part role missing');
         $t->true(in_array('relationship-target', $inventory['word/media/header.png']['roles'], true), 'header image relationship target role missing');
+    },
+    'flags docx relationship sidecars whose source part is missing' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/missing-header.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/orphan.png"/>
+</Relationships>
+XML;
+        $parts['word/media/orphan.png'] = 'orphan image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/missing-header.xml.rels'];
+        $inventory = $package['parts'];
+
+        $t->same('word/missing-header.xml', $relationshipPart['sourcePart']);
+        $t->same(false, $relationshipPart['sourceExists']);
+        $t->same(true, $relationshipPart['exists']);
+        $t->same('word/media/orphan.png', $relationshipPart['relationships']['rOrphanImage']['targetPart']);
+        $t->same(true, $relationshipPart['relationships']['rOrphanImage']['exists']);
+        $t->same('word/missing-header.xml', $inventory['word/_rels/missing-header.xml.rels']['relationshipSourcePart']);
+        $t->same(false, $inventory['word/_rels/missing-header.xml.rels']['relationshipSourceExists']);
+        $t->true(in_array('relationship-target', $inventory['word/media/orphan.png']['roles'], true), 'orphan relationship target role missing');
     },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

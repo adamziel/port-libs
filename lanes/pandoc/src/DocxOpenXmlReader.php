@@ -746,6 +746,7 @@ final class DocxOpenXmlReader
         return [
             'partName' => $relationshipsPart,
             'sourcePart' => $sourcePart,
+            'sourceExists' => $this->relationshipSourceExists($parts, $sourcePart),
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
             'relationshipCount' => count($relationshipSummaries),
@@ -868,7 +869,9 @@ final class DocxOpenXmlReader
                 'roles' => $roles,
             ];
             if ($entry['isRelationshipPart']) {
-                $entry['relationshipSourcePart'] = $this->relationshipSourcePartForInventory($partName);
+                $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
+                $entry['relationshipSourcePart'] = $relationshipSourcePart;
+                $entry['relationshipSourceExists'] = $this->relationshipSourceExists($parts, $relationshipSourcePart);
             }
             $inventory[$partName] = $entry;
         }
@@ -886,6 +889,14 @@ final class DocxOpenXmlReader
         }
 
         $rolesByPart[$partName][$role] = true;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     */
+    private function relationshipSourceExists(array $parts, string $sourcePart): bool
+    {
+        return $sourcePart === '/' || ($sourcePart !== '' && isset($parts[$sourcePart]));
     }
 
     /**
