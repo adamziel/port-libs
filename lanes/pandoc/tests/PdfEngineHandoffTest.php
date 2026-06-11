@@ -365,6 +365,69 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst input variable override provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/input-override-boundary.pdf',
+            'source' => '= Typst Input Override Boundary Packet',
+            'engineOptions' => [
+                '--input=audience=reviewer',
+                '--input',
+                'audience=editor',
+                '--input=draft=true',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst input override boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [
+                ['raw' => 'audience=reviewer', 'name' => 'audience', 'value' => 'reviewer', 'safe' => true, 'issues' => []],
+                ['raw' => 'audience=editor', 'name' => 'audience', 'value' => 'editor', 'safe' => true, 'issues' => []],
+                ['raw' => 'draft=true', 'name' => 'draft', 'value' => 'true', 'safe' => true, 'issues' => []],
+            ],
+            'issues' => ['input-variable-boundary-overridden'],
+            'inputVariableOverrides' => [
+                [
+                    'name' => 'audience',
+                    'count' => 2,
+                    'values' => ['reviewer', 'editor'],
+                    'selected' => 'editor',
+                    'issue' => 'input-variable-boundary-overridden',
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/input-override-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'build/input-override-boundary.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-inputs:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-input-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans missing typst boundary option values as review provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

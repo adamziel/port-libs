@@ -271,6 +271,9 @@ final class PdfEngineHandoff
             if (($typstBoundaryProvenance['inputVariables'] ?? []) !== []) {
                 $diagnostics[] = 'typst-boundary-inputs:' . count($typstBoundaryProvenance['inputVariables']);
             }
+            if (($typstBoundaryProvenance['inputVariableOverrides'] ?? []) !== []) {
+                $diagnostics[] = 'typst-boundary-input-overrides:' . count($typstBoundaryProvenance['inputVariableOverrides']);
+            }
             if (($typstBoundaryProvenance['creationTimestamp'] ?? null) !== null) {
                 $timestamp = $typstBoundaryProvenance['creationTimestamp']['timestamp'];
                 $diagnostics[] = 'typst-creation-timestamp:' . (is_int($timestamp) ? (string) $timestamp : 'invalid');
@@ -5586,6 +5589,7 @@ final class PdfEngineHandoff
             $creationTimestampValues
         );
         $creationTimestamp = $creationTimestampHistory === [] ? null : $creationTimestampHistory[count($creationTimestampHistory) - 1];
+        $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
             'packagePath' => $packagePathValues,
@@ -5604,6 +5608,9 @@ final class PdfEngineHandoff
         foreach ($overrides as $override) {
             $issues[] = $override['issue'];
         }
+        foreach ($inputVariableOverrides as $override) {
+            $issues[] = $override['issue'];
+        }
         $issues = array_values(array_unique($issues));
 
         $provenance = [
@@ -5620,6 +5627,9 @@ final class PdfEngineHandoff
         }
         if ($creationTimestamp !== null) {
             $provenance['creationTimestamp'] = $creationTimestamp;
+        }
+        if ($inputVariableOverrides !== []) {
+            $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
         if ($overrides !== []) {
             $provenance['overrides'] = $overrides;
@@ -5808,6 +5818,38 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    /**
+     * @param list<array{raw:string, name:string, value:string, safe:bool, issues:list<string>}> $inputVariables
+     * @return list<array{name:string, count:int, values:list<string>, selected:string, issue:string}>
+     */
+    private function typstInputVariableOverrideEntries(array $inputVariables): array
+    {
+        $valuesByName = [];
+        foreach ($inputVariables as $entry) {
+            if (($entry['safe'] ?? false) !== true || $entry['name'] === '') {
+                continue;
+            }
+            $valuesByName[$entry['name']][] = $entry['value'];
+        }
+
+        $entries = [];
+        foreach ($valuesByName as $name => $values) {
+            if (count($values) < 2) {
+                continue;
+            }
+            $values = array_values($values);
+            $entries[] = [
+                'name' => $name,
+                'count' => count($values),
+                'values' => $values,
+                'selected' => $values[count($values) - 1],
+                'issue' => 'input-variable-boundary-overridden',
+            ];
+        }
+
+        return $entries;
     }
 
     /**
