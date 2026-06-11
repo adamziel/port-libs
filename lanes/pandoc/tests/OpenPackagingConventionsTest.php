@@ -243,6 +243,136 @@ return [
         $t->same(['missing-content-types-item'], $missingContentTypes['issues']);
         $t->same(['missing-content-types-item' => 1], $missingContentTypes['issueCounts']);
     },
+    'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships/>';
+        $imageBytes = 'PNG';
+        $embeddedPackageBytes = 'DOCX';
+        $orphanRelationshipsXml = '<Relationships/>';
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/orphan.xml.rels', 'data' => $orphanRelationshipsXml, 'compressionMethod' => 0],
+        ]);
+
+        $centralDirectory = ZipPackage::centralDirectorySizePreflight($zip);
+        $documentEntry = null;
+        foreach ($centralDirectory['entries'] as $entry) {
+            if ($entry['name'] === 'word/document.xml') {
+                $documentEntry = $entry;
+                break;
+            }
+        }
+        $t->true(is_array($documentEntry));
+        $zip = substr_replace(
+            $zip,
+            'word/otherdoc.xml',
+            $documentEntry['localHeaderOffset'] + 30,
+            strlen('word/document.xml')
+        );
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $relationshipParts = [];
+        foreach ($summary['relationshipParts'] as $relationshipPart) {
+            $relationshipParts[$relationshipPart['partName']] = $relationshipPart;
+        }
+
+        $totalBytes = strlen($contentTypesXml)
+            + strlen($rootRelationshipsXml)
+            + strlen($documentXml)
+            + strlen($documentRelationshipsXml)
+            + strlen($imageBytes)
+            + strlen($embeddedPackageBytes)
+            + strlen($orphanRelationshipsXml);
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->same([], $summary['centralDirectoryIssues']);
+        $t->same(8, $summary['declaredEntryCount']);
+        $t->same(8, $summary['entryCount']);
+        $t->same(7, $summary['fileEntryCount']);
+        $t->same(1, $summary['directoryEntryCount']);
+        $t->same(7, $summary['packagePartCount']);
+        $t->same($totalBytes, $summary['compressedPayloadBytes']);
+        $t->same($totalBytes, $summary['uncompressedPayloadBytes']);
+        $t->same(1, $summary['contentTypesItemCount']);
+        $t->same(3, $summary['relationshipPartCount']);
+        $t->same(1, $summary['rootRelationshipPartCount']);
+        $t->same(2, $summary['partRelationshipPartCount']);
+        $t->same(1, $summary['orphanRelationshipPartCount']);
+        $t->same(1, $summary['embeddedPackageCandidateCount']);
+        $t->same(1, $summary['mediaPartCandidateCount']);
+        $t->same(5, $summary['xmlPayloadPartCount']);
+        $t->same(2, $summary['binaryPayloadPartCount']);
+        $t->same(['orphan-relationship-part' => 1], $summary['issueCounts']);
+        $t->same(['orphan-relationship-part'], $summary['issues']);
+        $t->same([
+            'content-types' => 1,
+            'directory' => 1,
+            'embedded-package-candidate' => 1,
+            'media' => 1,
+            'package-relationships' => 1,
+            'part-relationships' => 2,
+            'xml-part' => 1,
+        ], $summary['roleCounts']);
+        $t->same([
+            'content-types+xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($contentTypesXml),
+                'uncompressedBytes' => strlen($contentTypesXml),
+            ],
+            'directory' => [
+                'entryCount' => 1,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+            ],
+            'embedded-package' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($embeddedPackageBytes),
+                'uncompressedBytes' => strlen($embeddedPackageBytes),
+            ],
+            'media' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+            ],
+            'relationships+xml' => [
+                'entryCount' => 3,
+                'compressedBytes' => strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml) + strlen($orphanRelationshipsXml),
+                'uncompressedBytes' => strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml) + strlen($orphanRelationshipsXml),
+            ],
+            'xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+            ],
+        ], $summary['byteCountsByHandoffKind']);
+
+        $t->same('content-types', $entries['[Content_Types].xml']['role']);
+        $t->same('content-types+xml', $entries['[Content_Types].xml']['handoffKind']);
+        $t->same('package-relationships', $entries['_rels/.rels']['role']);
+        $t->same('/', $entries['_rels/.rels']['relationshipSource']);
+        $t->same('part-relationships', $entries['word/_rels/document.xml.rels']['role']);
+        $t->same('/word/document.xml', $entries['word/_rels/document.xml.rels']['relationshipSource']);
+        $t->same(true, $entries['word/_rels/document.xml.rels']['relationshipSourceExists']);
+        $t->same(false, $entries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+        $t->same(['orphan-relationship-part'], $entries['word/_rels/orphan.xml.rels']['issues']);
+        $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
+        $t->same(false, $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSourceExists']);
+    },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

@@ -701,6 +701,371 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * Classify OPC package parts directly from the ZIP central directory,
+     * before local-header validation or package construction has succeeded.
+     *
+     * @return array<string, mixed>
+     */
+    public static function preflightZipCentralDirectoryManifest(string $bytes): array
+    {
+        $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $entries = [];
+        $contentTypesItems = [];
+        $contentTypesEntryIndexes = [];
+        $packagePartNamesByEquivalenceKey = [];
+        $packagePartEntryIndexesByEquivalenceKey = [];
+
+        foreach ($centralDirectory['entries'] as $entryIndex => $centralEntry) {
+            $isDirectory = $centralEntry['isDirectory'];
+            $partName = null;
+            $equivalenceKey = null;
+            $parseError = null;
+            $issues = [];
+            $contentTypesItem = false;
+
+            if (!$isDirectory) {
+                try {
+                    $partName = OpcPackagePath::canonicalPartName($centralEntry['name']);
+                    $equivalenceKey = self::partNameEquivalenceKey($partName);
+                    $packagePartNamesByEquivalenceKey[$equivalenceKey] = $partName;
+                    $packagePartEntryIndexesByEquivalenceKey[$equivalenceKey][] = $entryIndex;
+                    if (self::isContentTypesItemName($partName)) {
+                        $contentTypesItem = true;
+                        $contentTypesItems[] = $partName;
+                        $contentTypesEntryIndexes[] = $entryIndex;
+                    }
+                } catch (\InvalidArgumentException $exception) {
+                    $parseError = $exception->getMessage();
+                    $issues = self::packagePartNameIssuesForParseError($parseError);
+                }
+            }
+
+            $entries[] = [
+                'entryIndex' => $entryIndex,
+                'entryName' => $centralEntry['name'],
+                'partName' => $partName,
+                'equivalenceKey' => $equivalenceKey,
+                'equivalentPartNames' => [],
+                'isDirectory' => $isDirectory,
+                'isPackagePart' => !$isDirectory,
+                'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
+                'centralDirectoryOffset' => $centralEntry['centralDirectoryOffset'],
+                'centralDirectoryRecordEnd' => $centralEntry['recordEnd'],
+                'localHeaderOffset' => $centralEntry['localHeaderOffset'],
+                'compressionMethod' => $centralEntry['compressionMethod'],
+                'compressionMethodName' => $centralEntry['compressionMethodName'],
+                'compressedSize' => $centralEntry['compressedSize'],
+                'uncompressedSize' => $centralEntry['uncompressedSize'],
+                'role' => $isDirectory ? 'directory' : 'package-part',
+                'handoffKind' => $isDirectory ? 'directory' : 'binary',
+                'contentTypesItem' => $contentTypesItem,
+                'relationshipPart' => false,
+                'relationshipPartCandidate' => false,
+                'relationshipSource' => null,
+                'relationshipSourceExists' => null,
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'parseError' => $parseError,
+            ];
+        }
+
+        $equivalentPackagePartNameGroups = [];
+        $equivalentPackagePartNameEntryCount = 0;
+        foreach ($packagePartEntryIndexesByEquivalenceKey as $equivalenceKey => $entryIndexes) {
+            if (count($entryIndexes) < 2) {
+                continue;
+            }
+
+            $partNames = [];
+            $entryNames = [];
+            foreach ($entryIndexes as $entryIndex) {
+                $partName = $entries[$entryIndex]['partName'];
+                if ($partName !== null) {
+                    $partNames[] = $partName;
+                    $entryNames[] = $entries[$entryIndex]['entryName'];
+                }
+            }
+
+            sort($partNames, SORT_STRING);
+            sort($entryNames, SORT_STRING);
+            $equivalentPackagePartNameEntryCount += count($entryIndexes);
+            $equivalentPackagePartNameGroups[] = [
+                'equivalenceKey' => $equivalenceKey,
+                'partNames' => $partNames,
+                'entryNames' => $entryNames,
+            ];
+
+            foreach ($entryIndexes as $entryIndex) {
+                $entries[$entryIndex]['equivalentPartNames'] = $partNames;
+                $entries[$entryIndex]['issues'][] = 'equivalent-part-name-case-collision';
+            }
+        }
+
+        usort(
+            $equivalentPackagePartNameGroups,
+            static fn (array $left, array $right): int => $left['equivalenceKey'] <=> $right['equivalenceKey'],
+        );
+
+        if (count($contentTypesEntryIndexes) > 1) {
+            foreach ($contentTypesEntryIndexes as $entryIndex) {
+                $entries[$entryIndex]['issues'][] = 'duplicate-content-types-item';
+            }
+        }
+
+        foreach ($entries as &$entry) {
+            if ($entry['partName'] === null) {
+                $entry['role'] = $entry['isDirectory'] ? 'directory' : 'invalid-opc-part';
+                $entry['handoffKind'] = $entry['isDirectory'] ? 'directory' : 'blocked';
+                $entry['valid'] = $entry['issues'] === [];
+                continue;
+            }
+
+            $partName = $entry['partName'];
+            $relationshipPartCandidate = self::isRelationshipPartNameCandidate($partName);
+            $relationshipPart = false;
+            $relationshipSource = null;
+            $relationshipSourceExists = null;
+
+            if ($relationshipPartCandidate) {
+                if (OpcRelationships::isRelationshipPartName($partName)) {
+                    try {
+                        $relationshipSource = OpcRelationships::sourcePartNameForRelationshipPart($partName);
+                        $relationshipPart = true;
+                        $relationshipSourceExists = $relationshipSource === '/'
+                            || isset($packagePartNamesByEquivalenceKey[self::partNameEquivalenceKey($relationshipSource)]);
+
+                        if ($relationshipSource !== '/' && OpcRelationships::isRelationshipPartName($relationshipSource)) {
+                            $entry['issues'][] = 'relationship-part-source';
+                        }
+
+                        if ($relationshipSource !== '/' && self::isContentTypesItemName($relationshipSource)) {
+                            $entry['issues'][] = 'content-types-item-source';
+                        }
+
+                        if (!$relationshipSourceExists) {
+                            $entry['issues'][] = 'orphan-relationship-part';
+                        }
+                    } catch (\InvalidArgumentException $exception) {
+                        $entry['parseError'] ??= $exception->getMessage();
+                        $entry['issues'][] = 'invalid-relationship-part-name';
+                    }
+                } else {
+                    $entry['issues'][] = 'invalid-relationship-part-name';
+                }
+            } elseif (self::isReservedRelationshipDirectoryPartName($partName)) {
+                $entry['issues'][] = 'reserved-relationship-directory-part';
+            }
+
+            $entry['relationshipPart'] = $relationshipPart;
+            $entry['relationshipPartCandidate'] = $relationshipPartCandidate;
+            $entry['relationshipSource'] = $relationshipSource;
+            $entry['relationshipSourceExists'] = $relationshipSourceExists;
+            $entry['role'] = self::zipEntryManifestRole(
+                $partName,
+                $entry['isDirectory'],
+                $entry['contentTypesItem'],
+                $relationshipPart,
+                $relationshipPartCandidate,
+                $relationshipSource
+            );
+            $entry['handoffKind'] = self::zipEntryManifestHandoffKind($entry['role'], $partName);
+            $entry['issues'] = array_values(array_unique($entry['issues']));
+            $entry['valid'] = $entry['issues'] === [];
+        }
+        unset($entry);
+
+        $issues = $centralDirectory['issues'];
+        $issueCounts = [];
+        foreach ($issues as $issue) {
+            $issueCounts[$issue] = 1;
+        }
+        $roleCounts = [];
+        $byteCountsByRole = [];
+        $byteCountsByHandoffKind = [];
+        $relationshipParts = [];
+        $fileEntryCount = 0;
+        $directoryEntryCount = 0;
+        $packagePartCount = 0;
+        $fileCompressedBytes = 0;
+        $fileUncompressedBytes = 0;
+        $directoryCompressedBytes = 0;
+        $directoryUncompressedBytes = 0;
+        $relationshipPartCount = 0;
+        $rootRelationshipPartCount = 0;
+        $partRelationshipPartCount = 0;
+        $invalidRelationshipPartCount = 0;
+        $reservedRelationshipDirectoryPartCount = 0;
+        $orphanRelationshipPartCount = 0;
+        $relationshipPartSourceCount = 0;
+        $contentTypesItemRelationshipSourceCount = 0;
+        $documentPropertyPartCount = 0;
+        $digitalSignaturePartCount = 0;
+        $embeddedPackageCandidateCount = 0;
+        $mediaPartCandidateCount = 0;
+        $xmlPayloadPartCount = 0;
+        $binaryPayloadPartCount = 0;
+        $largestPayloadEntry = null;
+
+        if ($contentTypesItems === []) {
+            $issueCounts['missing-content-types-item'] = ($issueCounts['missing-content-types-item'] ?? 0) + 1;
+            self::appendUniqueString($issues, 'missing-content-types-item');
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry['isDirectory']) {
+                $directoryEntryCount++;
+                $directoryCompressedBytes += $entry['compressedSize'];
+                $directoryUncompressedBytes += $entry['uncompressedSize'];
+            } else {
+                $fileEntryCount++;
+                $fileCompressedBytes += $entry['compressedSize'];
+                $fileUncompressedBytes += $entry['uncompressedSize'];
+            }
+            if ($entry['isPackagePart']) {
+                $packagePartCount++;
+            }
+
+            $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
+            self::incrementZipEntryManifestByteBucket(
+                $byteCountsByRole,
+                $entry['role'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize'],
+            );
+            self::incrementZipEntryManifestByteBucket(
+                $byteCountsByHandoffKind,
+                $entry['handoffKind'],
+                $entry['compressedSize'],
+                $entry['uncompressedSize'],
+            );
+
+            if (
+                $largestPayloadEntry === null
+                || $entry['uncompressedSize'] > $largestPayloadEntry['uncompressedSize']
+            ) {
+                $largestPayloadEntry = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'role' => $entry['role'],
+                    'handoffKind' => $entry['handoffKind'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                ];
+            }
+
+            foreach ($entry['issues'] as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                self::appendUniqueString($issues, $issue);
+            }
+
+            if ($entry['relationshipPart']) {
+                $relationshipPartCount++;
+                if ($entry['relationshipSource'] === '/') {
+                    $rootRelationshipPartCount++;
+                } else {
+                    $partRelationshipPartCount++;
+                }
+
+                $relationshipParts[] = [
+                    'entryName' => $entry['entryName'],
+                    'partName' => $entry['partName'],
+                    'relationshipSource' => $entry['relationshipSource'],
+                    'relationshipSourceExists' => $entry['relationshipSourceExists'],
+                    'issues' => $entry['issues'],
+                ];
+            }
+
+            if (in_array('invalid-relationship-part-name', $entry['issues'], true)) {
+                $invalidRelationshipPartCount++;
+            }
+            if (in_array('reserved-relationship-directory-part', $entry['issues'], true)) {
+                $reservedRelationshipDirectoryPartCount++;
+            }
+            if (in_array('orphan-relationship-part', $entry['issues'], true)) {
+                $orphanRelationshipPartCount++;
+            }
+            if (in_array('relationship-part-source', $entry['issues'], true)) {
+                $relationshipPartSourceCount++;
+            }
+            if (in_array('content-types-item-source', $entry['issues'], true)) {
+                $contentTypesItemRelationshipSourceCount++;
+            }
+
+            if ($entry['role'] === 'document-properties') {
+                $documentPropertyPartCount++;
+            } elseif ($entry['role'] === 'digital-signature') {
+                $digitalSignaturePartCount++;
+            } elseif ($entry['role'] === 'embedded-package-candidate') {
+                $embeddedPackageCandidateCount++;
+            } elseif ($entry['role'] === 'media') {
+                $mediaPartCandidateCount++;
+            }
+
+            if (in_array($entry['handoffKind'], ['content-types+xml', 'relationships+xml', 'xml'], true)) {
+                $xmlPayloadPartCount++;
+            } elseif (!$entry['isDirectory'] && $entry['handoffKind'] !== 'blocked') {
+                $binaryPayloadPartCount++;
+            }
+        }
+
+        ksort($issueCounts);
+        ksort($roleCounts);
+        ksort($byteCountsByRole);
+        ksort($byteCountsByHandoffKind);
+        sort($contentTypesItems, SORT_STRING);
+        usort(
+            $relationshipParts,
+            static fn (array $left, array $right): int => $left['partName'] <=> $right['partName'],
+        );
+
+        return [
+            'valid' => $issues === [],
+            'isSupportedByBoundedReader' => $issues === [],
+            'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader'],
+            'centralDirectoryIssues' => $centralDirectory['issues'],
+            'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
+            'entryCount' => count($entries),
+            'fileEntryCount' => $fileEntryCount,
+            'directoryEntryCount' => $directoryEntryCount,
+            'packagePartCount' => $packagePartCount,
+            'compressedPayloadBytes' => $fileCompressedBytes + $directoryCompressedBytes,
+            'uncompressedPayloadBytes' => $fileUncompressedBytes + $directoryUncompressedBytes,
+            'fileCompressedBytes' => $fileCompressedBytes,
+            'fileUncompressedBytes' => $fileUncompressedBytes,
+            'directoryCompressedBytes' => $directoryCompressedBytes,
+            'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'contentTypesItemCount' => count($contentTypesItems),
+            'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
+            'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
+            'relationshipPartCount' => $relationshipPartCount,
+            'rootRelationshipPartCount' => $rootRelationshipPartCount,
+            'partRelationshipPartCount' => $partRelationshipPartCount,
+            'invalidRelationshipPartCount' => $invalidRelationshipPartCount,
+            'reservedRelationshipDirectoryPartCount' => $reservedRelationshipDirectoryPartCount,
+            'orphanRelationshipPartCount' => $orphanRelationshipPartCount,
+            'relationshipPartSourceCount' => $relationshipPartSourceCount,
+            'contentTypesItemRelationshipSourceCount' => $contentTypesItemRelationshipSourceCount,
+            'documentPropertyPartCount' => $documentPropertyPartCount,
+            'digitalSignaturePartCount' => $digitalSignaturePartCount,
+            'embeddedPackageCandidateCount' => $embeddedPackageCandidateCount,
+            'mediaPartCandidateCount' => $mediaPartCandidateCount,
+            'xmlPayloadPartCount' => $xmlPayloadPartCount,
+            'binaryPayloadPartCount' => $binaryPayloadPartCount,
+            'issueCounts' => $issueCounts,
+            'issues' => $issues,
+            'roleCounts' => $roleCounts,
+            'byteCountsByRole' => $byteCountsByRole,
+            'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'largestPayloadEntry' => $largestPayloadEntry,
+            'contentTypesItems' => $contentTypesItems,
+            'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
+            'relationshipParts' => $relationshipParts,
+            'entries' => $entries,
+            'centralDirectory' => $centralDirectory,
+        ];
+    }
+
+    /**
      * @return list<array{partName:string, equivalenceKey:string, equivalentPartNames:list<string>, valid:bool, issues:list<string>}>
      */
     public static function preflightPackagePartNameEquivalence(ZipPackage $package): array
