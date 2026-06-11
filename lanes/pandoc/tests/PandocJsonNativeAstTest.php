@@ -1303,6 +1303,126 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
+        $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
+        $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];
+        $linkAttr = ['link-id', ['source-link'], [['data-link', 'source']]];
+        $imageAttr = ['image-id', ['asset'], [['data-media', 'diagram']]];
+        $spanAttr = ['span-id', ['review-span'], [['data-span', 'meta']]];
+        $divAttr = ['div-id', ['wrapper'], [['data-div', 'true']]];
+        $tableAttr = ['table-id', ['review-table'], [['data-table', 'summary']]];
+        $bodyAttr = ['body-id', ['tbody'], [['data-body', 'review']]];
+        $rowAttr = ['row-id', ['source-row'], [['data-row', '1']]];
+        $cellAttr = ['cell-id', ['metric-cell'], [['data-cell', 'metric']]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headerAttr,
+                    [['t' => 'Str', 'c' => 'Heading']],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Code', 'c' => [$codeAttr, 'echo 1;']],
+                    ['t' => 'Space'],
+                    ['t' => 'Link', 'c' => [$linkAttr, [['t' => 'Str', 'c' => 'source']], ['https://example.test/source', 'Source']]],
+                    ['t' => 'Space'],
+                    ['t' => 'Image', 'c' => [$imageAttr, [['t' => 'Str', 'c' => 'diagram']], ['media/diagram.png', 'Diagram']]],
+                    ['t' => 'Space'],
+                    ['t' => 'Span', 'c' => [$spanAttr, [['t' => 'Str', 'c' => 'span']]]],
+                ]],
+                ['t' => 'Div', 'c' => [
+                    $divAttr,
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Wrapped']]]],
+                ]],
+                ['t' => 'Table', 'c' => [
+                    $tableAttr,
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                    ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                    [
+                        ['t' => 'TableBody', 'c' => [
+                            $bodyAttr,
+                            ['t' => 'RowHeadColumns', 'c' => 1],
+                            [],
+                            [
+                                ['t' => 'Row', 'c' => [
+                                    $rowAttr,
+                                    [
+                                        ['t' => 'Cell', 'c' => [
+                                            $cellAttr,
+                                            ['t' => 'AlignRight'],
+                                            ['t' => 'RowSpan', 'c' => 1],
+                                            ['t' => 'ColSpan', 'c' => 2],
+                                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Metric']]]],
+                                        ]],
+                                    ],
+                                ]],
+                            ],
+                        ]],
+                    ],
+                    ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $heading = $document->children[0];
+            $paragraph = $document->children[1];
+            $div = $document->children[2];
+            $table = $document->children[3];
+            $body = $table->children[0];
+            $row = $body->children[0];
+            $cell = $row->children[0];
+
+            $t->same('Attr', $heading->attr('attrConstructor'), "{$source} heading attr constructor");
+            $t->same($headerAttr, $heading->attr('attrNative'), "{$source} heading attr native tuple");
+            $t->same($codeAttr, $paragraph->children[0]->attr('attrNative'), "{$source} code attr native tuple");
+            $t->same($linkAttr, $paragraph->children[2]->attr('attrNative'), "{$source} link attr native tuple");
+            $t->same($imageAttr, $paragraph->children[4]->attr('attrNative'), "{$source} image attr native tuple");
+            $t->same($spanAttr, $paragraph->children[6]->attr('attrNative'), "{$source} span attr native tuple");
+            $t->same($divAttr, $div->attr('attrNative'), "{$source} div attr native tuple");
+            $t->same($tableAttr, $table->attr('attrNative'), "{$source} table attr native tuple");
+            $t->same($bodyAttr, $body->attr('attrNative'), "{$source} table body attr native tuple");
+            $t->same($rowAttr, $row->attr('attrNative'), "{$source} table row attr native tuple");
+            $t->same($cellAttr, $cell->attr('attrNative'), "{$source} table cell attr native tuple");
+            $t->same(['data-cell' => 'metric'], $cell->attr('attributes'), "{$source} table cell attributes");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+        $jsonTableBody = $jsonPacket['blocks'][3]['c'][4][0];
+        $jsonTableRow = $jsonTableBody[3][0];
+        $jsonTableCell = $jsonTableRow[1][0];
+        $nativeTableBody = $nativePacket['blocks'][3]['c'][4][0]['c'];
+        $nativeTableRow = $nativeTableBody[3][0]['c'];
+        $nativeTableCell = $nativeTableRow[1][0]['c'];
+
+        $t->same($jsonPacket['blocks'][0], $nativePacket['blocks'][0]);
+        $t->same($jsonPacket['blocks'][1], $nativePacket['blocks'][1]);
+        $t->same($jsonPacket['blocks'][2], $nativePacket['blocks'][2]);
+        $t->same($headerAttr, $jsonPacket['blocks'][0]['c'][1]);
+        $t->same($codeAttr, $jsonPacket['blocks'][1]['c'][0]['c'][0]);
+        $t->same($linkAttr, $jsonPacket['blocks'][1]['c'][2]['c'][0]);
+        $t->same($imageAttr, $jsonPacket['blocks'][1]['c'][4]['c'][0]);
+        $t->same($spanAttr, $jsonPacket['blocks'][1]['c'][6]['c'][0]);
+        $t->same($divAttr, $jsonPacket['blocks'][2]['c'][0]);
+        $t->same($tableAttr, $jsonPacket['blocks'][3]['c'][0]);
+        $t->same($bodyAttr, $jsonTableBody[0]);
+        $t->same($rowAttr, $jsonTableRow[0]);
+        $t->same($cellAttr, $jsonTableCell[0]);
+        $t->same('TableBody', $nativePacket['blocks'][3]['c'][4][0]['t']);
+        $t->same($tableAttr, $nativePacket['blocks'][3]['c'][0]);
+        $t->same($bodyAttr, $nativeTableBody[0]);
+        $t->same($rowAttr, $nativeTableRow[0]);
+        $t->same($cellAttr, $nativeTableCell[0]);
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],

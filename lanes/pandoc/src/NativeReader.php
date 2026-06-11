@@ -733,7 +733,7 @@ final class NativeReader
     private function hasContentAttrs(AstNode $node): bool
     {
         foreach ($node->attrs as $key => $_value) {
-            if (!in_array($key, ['constructor', 'native'], true)) {
+            if (!in_array($key, ['constructor', 'native', 'attrConstructor', 'attrNative'], true)) {
                 return true;
             }
         }
@@ -1360,6 +1360,11 @@ final class NativeReader
         }
 
         $attrs = [];
+        if (array_is_list($attr) && count($attr) >= 3) {
+            $attrs['attrConstructor'] = 'Attr';
+            $attrs['attrNative'] = array_slice($attr, 0, 3);
+        }
+
         if (is_string($attr[0] ?? null) && $attr[0] !== '') {
             $attrs['id'] = $attr[0];
         }

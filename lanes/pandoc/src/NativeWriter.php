@@ -790,7 +790,7 @@ final class NativeWriter
     {
         $attrs = [];
         foreach ($node->attrs as $key => $value) {
-            if ($key === 'native' || $key === 'constructor') {
+            if (in_array($key, ['native', 'constructor', 'attrConstructor', 'attrNative'], true)) {
                 continue;
             }
             $attrs[$key] = $this->comparisonValue($value);

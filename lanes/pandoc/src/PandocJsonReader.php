@@ -773,7 +773,7 @@ final class PandocJsonReader
     private function hasContentAttrs(AstNode $node): bool
     {
         foreach ($node->attrs as $key => $_value) {
-            if (!in_array($key, ['constructor', 'native'], true)) {
+            if (!in_array($key, ['constructor', 'native', 'attrConstructor', 'attrNative'], true)) {
                 return true;
             }
         }
@@ -1145,7 +1145,10 @@ final class PandocJsonReader
             $mappedAttributes[$keyValue[0]] = $keyValue[1];
         }
 
-        $attrs = [];
+        $attrs = [
+            'attrConstructor' => 'Attr',
+            'attrNative' => $tuple,
+        ];
         if ($tuple[0] !== '') {
             $attrs['id'] = $tuple[0];
         }
