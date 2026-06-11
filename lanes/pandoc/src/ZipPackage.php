@@ -733,6 +733,94 @@ final class ZipPackage
     }
 
     /**
+     * Summarize central-directory order against local-header order before
+     * instantiating a package, so suspicious ordering remains visible when a
+     * separate raw policy gate blocks object construction.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectoryOrderNames:list<string>,
+     *     localHeaderOrderNames:list<string>,
+     *     hasCentralDirectoryOrderMismatch:bool,
+     *     mismatchedEntryCount:int,
+     *     mismatchedEntries:list<array{
+     *         name:string,
+     *         centralDirectoryIndex:int,
+     *         localHeaderOrder:int,
+     *         localHeaderOffset:int,
+     *         localHeaderNameAtCentralDirectoryIndex:?string,
+     *         centralDirectoryNameAtLocalHeaderOrder:?string,
+     *         matchesCentralDirectoryOrder:bool
+     *     }>,
+     *     entries:list<array{
+     *         name:string,
+     *         centralDirectoryIndex:int,
+     *         localHeaderOrder:int,
+     *         localHeaderOffset:int,
+     *         localHeaderNameAtCentralDirectoryIndex:?string,
+     *         centralDirectoryNameAtLocalHeaderOrder:?string,
+     *         matchesCentralDirectoryOrder:bool
+     *     }>
+     * }
+     */
+    public static function centralDirectoryLocalHeaderOrderPreflight(string $bytes): array
+    {
+        $inventory = self::centralDirectoryInventoryPreflight($bytes);
+        $centralEntries = $inventory['entries'];
+        $localEntries = $centralEntries;
+        usort(
+            $localEntries,
+            static fn (array $left, array $right): int => [
+                $left['localHeaderOffset'],
+                $left['centralDirectoryIndex'],
+            ] <=> [
+                $right['localHeaderOffset'],
+                $right['centralDirectoryIndex'],
+            ]
+        );
+
+        $centralDirectoryOrderNames = array_map(static fn (array $entry): string => $entry['name'], $centralEntries);
+        $localHeaderOrderNames = array_map(static fn (array $entry): string => $entry['name'], $localEntries);
+        $localOrderByCentralDirectoryIndex = [];
+        foreach ($localEntries as $localOrder => $entry) {
+            $localOrderByCentralDirectoryIndex[$entry['centralDirectoryIndex']] = $localOrder;
+        }
+
+        $entries = [];
+        $mismatchedEntries = [];
+        foreach ($centralEntries as $entry) {
+            $centralDirectoryIndex = $entry['centralDirectoryIndex'];
+            $localHeaderOrder = $localOrderByCentralDirectoryIndex[$centralDirectoryIndex];
+            $matchesCentralDirectoryOrder = $localHeaderOrder === $centralDirectoryIndex;
+            $summary = [
+                'name' => $entry['name'],
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+                'localHeaderOrder' => $localHeaderOrder,
+                'localHeaderOffset' => $entry['localHeaderOffset'],
+                'localHeaderNameAtCentralDirectoryIndex' => $localHeaderOrderNames[$centralDirectoryIndex] ?? null,
+                'centralDirectoryNameAtLocalHeaderOrder' => $centralDirectoryOrderNames[$localHeaderOrder] ?? null,
+                'matchesCentralDirectoryOrder' => $matchesCentralDirectoryOrder,
+            ];
+            $entries[] = $summary;
+            if (!$matchesCentralDirectoryOrder) {
+                $mismatchedEntries[] = $summary;
+            }
+        }
+
+        return [
+            'entryCount' => count($centralEntries),
+            'centralDirectoryOffset' => $inventory['centralDirectoryOffset'],
+            'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
+            'localHeaderOrderNames' => $localHeaderOrderNames,
+            'hasCentralDirectoryOrderMismatch' => $mismatchedEntries !== [],
+            'mismatchedEntryCount' => count($mismatchedEntries),
+            'mismatchedEntries' => $mismatchedEntries,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{
      *     entryCount:int,
      *     totalEntryCount:int,
@@ -8010,6 +8098,7 @@ final class ZipPackage
      *     localHeaderNames:?array<string, mixed>,
      *     localHeaderMetadata:?array<string, mixed>,
      *     localHeaderSpans:?array<string, mixed>,
+     *     localHeaderOrder:?array<string, mixed>,
      *     packagePrefix:?array<string, mixed>,
      *     archiveExtraDataRecords:?array<string, mixed>,
      *     encryption:?array<string, mixed>,
@@ -8123,6 +8212,7 @@ final class ZipPackage
                 'localHeaderNames' => null,
                 'localHeaderMetadata' => null,
                 'localHeaderSpans' => null,
+                'localHeaderOrder' => null,
                 'packagePrefix' => null,
                 'archiveExtraDataRecords' => null,
                 'encryption' => null,
@@ -8159,6 +8249,7 @@ final class ZipPackage
         $localHeaderNames = null;
         $localHeaderMetadata = null;
         $localHeaderSpans = null;
+        $localHeaderOrder = null;
         $packagePrefix = null;
         $archiveExtraDataRecords = null;
         $encryption = null;
@@ -8232,6 +8323,11 @@ final class ZipPackage
                 $addDiagnostic('local-header-span-issues');
                 $addDiagnostics($localHeaderSpans['issues']);
             }
+
+            $localHeaderOrder = $runPreflight(
+                'local-header-order',
+                static fn (): array => self::centralDirectoryLocalHeaderOrderPreflight($bytes)
+            );
 
             $packagePrefix = $runPreflight(
                 'package-prefix',
@@ -8437,6 +8533,7 @@ final class ZipPackage
             ?? $localHeaderNames['entryCount']
             ?? $localHeaderMetadata['entryCount']
             ?? $localHeaderSpans['entryCount']
+            ?? $localHeaderOrder['entryCount']
             ?? $packagePrefix['entryCount']
             ?? $splitArchive['entryCount']
             ?? $encryption['entryCount']
@@ -8481,6 +8578,7 @@ final class ZipPackage
             'localHeaderNames' => $localHeaderNames,
             'localHeaderMetadata' => $localHeaderMetadata,
             'localHeaderSpans' => $localHeaderSpans,
+            'localHeaderOrder' => $localHeaderOrder,
             'packagePrefix' => $packagePrefix,
             'archiveExtraDataRecords' => $archiveExtraDataRecords,
             'encryption' => $encryption,

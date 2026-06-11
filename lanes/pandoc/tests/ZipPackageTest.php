@@ -939,6 +939,8 @@ return [
 
         $package = ZipPackage::fromString($zip);
         $summary = $package->localHeaderOrderPreflight();
+        $rawSummary = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
         $entries = $summary['entries'];
 
         $t->same(3, $summary['entryCount']);
@@ -957,7 +959,12 @@ return [
         $t->same('mimetype', $entries[2]['name']);
         $t->same(0, $entries[2]['localHeaderOrder']);
         $t->same($summary, $package->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
+        $t->same($summary, $rawSummary);
+        $t->same($summary, $rawStrict['localHeaderOrder']);
+        $t->same($summary, $rawStrict['strictImport']['localHeaderOrder']);
         $t->same(true, $package->strictImportPreflight(2048, 100.0, 2048)['isValid']);
+        $t->same(true, $rawStrict['isValid']);
+        $t->same([], $rawStrict['diagnostics']);
         $t->same($mimetype, $package->read('/mimetype'));
 
         $matchingPackage = ZipPackage::fromString($buildZipPackage([
@@ -973,6 +980,7 @@ return [
             ],
         ]));
         $matchingSummary = $matchingPackage->localHeaderOrderPreflight();
+        $matchingRaw = ZipPackage::rawStrictImportPreflight($matchingPackage->bytes(), 2048, 100.0, 2048);
 
         $t->same(2, $matchingSummary['entryCount']);
         $t->same(['mimetype', 'content.xml'], $matchingSummary['centralDirectoryOrderNames']);
@@ -982,7 +990,10 @@ return [
         $t->same(true, $matchingSummary['entries'][0]['matchesCentralDirectoryOrder']);
         $t->same(0, $matchingSummary['entries'][0]['localHeaderOrder']);
         $t->same($matchingSummary, $matchingPackage->strictImportPreflight(2048, 100.0, 2048)['localHeaderOrder']);
+        $t->same($matchingSummary, ZipPackage::centralDirectoryLocalHeaderOrderPreflight($matchingPackage->bytes()));
+        $t->same($matchingSummary, $matchingRaw['localHeaderOrder']);
         $t->same(true, $matchingPackage->strictImportPreflight(2048, 100.0, 2048)['isValid']);
+        $t->same(true, $matchingRaw['isValid']);
     },
 
     'preflights zip central and local header name provenance before entry exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildUnicodeExtra): void {
