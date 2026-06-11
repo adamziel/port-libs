@@ -3209,6 +3209,11 @@ final class OpcRelationshipGraph
 
             foreach ($this->preflightTargetsForSource($source, $filter) as $target) {
                 $targetPart = self::targetPartFromPreflightTarget($target);
+                $targetSuffix = $targetPart === null
+                    ? ['query' => null, 'fragment' => null]
+                    : self::targetQueryAndFragment($target['target']);
+                $sameSourceReference = $targetPart !== null
+                    && self::partNameEquivalenceKey($targetPart) === self::partNameEquivalenceKey($source);
                 $stopReason = null;
                 $targetSource = null;
 
@@ -3249,6 +3254,9 @@ final class OpcRelationshipGraph
                     'type' => $target['type'],
                     'target' => $target['target'],
                     'targetPart' => $targetPart,
+                    'targetQuery' => $targetSuffix['query'],
+                    'targetFragment' => $targetSuffix['fragment'],
+                    'sameSourceReference' => $sameSourceReference,
                     'targetSource' => $targetSource,
                     'contentType' => $target['contentType'],
                     'external' => $target['external'],
@@ -3326,7 +3334,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{source:string, relationshipType:?string, valid:bool, issues:list<string>, sourceCount:int, expandedSourceCount:int, outsideSourceCount:int, stopCount:int, expandedSourceNames:list<string>, outsideSourceNames:list<string>, sourceDepths:array<string,int>, stopReasonCounts:array<string,int>, stopIdsByReason:array<string,list<string>>, stopTargetsByReason:array<string,list<string>>, invalidStopCount:int, invalidStopIds:list<string>, missingTargetParts:list<string>, relationshipPartTargetParts:list<string>, unloadedTargetSources:list<string>, externalTargets:list<string>}
+     * @return array{source:string, relationshipType:?string, valid:bool, issues:list<string>, sourceCount:int, expandedSourceCount:int, outsideSourceCount:int, stopCount:int, expandedSourceNames:list<string>, outsideSourceNames:list<string>, sourceDepths:array<string,int>, stopReasonCounts:array<string,int>, stopIdsByReason:array<string,list<string>>, stopTargetsByReason:array<string,list<string>>, stopQueryTargetCount:int, stopFragmentTargetCount:int, stopSameSourceReferenceCount:int, invalidStopCount:int, invalidStopIds:list<string>, missingTargetParts:list<string>, relationshipPartTargetParts:list<string>, unloadedTargetSources:list<string>, externalTargets:list<string>}
      */
     public function relationshipSourceClosureCoverageSummary(string $sourcePartName = '/', ?string $relationshipType = null): array
     {
@@ -3346,6 +3354,9 @@ final class OpcRelationshipGraph
             'stopReasonCounts' => [],
             'stopIdsByReason' => [],
             'stopTargetsByReason' => [],
+            'stopQueryTargetCount' => 0,
+            'stopFragmentTargetCount' => 0,
+            'stopSameSourceReferenceCount' => 0,
             'invalidStopCount' => 0,
             'invalidStopIds' => [],
             'missingTargetParts' => [],
@@ -3376,6 +3387,16 @@ final class OpcRelationshipGraph
             $stopTarget = $stop['targetPart'] ?? $stop['target'] ?? null;
             if (is_string($stopTarget) && $stopTarget !== '') {
                 self::appendUniqueString($summary['stopTargetsByReason'][$reason], $stopTarget);
+            }
+
+            if (($stop['targetQuery'] ?? null) !== null) {
+                $summary['stopQueryTargetCount']++;
+            }
+            if (($stop['targetFragment'] ?? null) !== null) {
+                $summary['stopFragmentTargetCount']++;
+            }
+            if (($stop['sameSourceReference'] ?? false) === true) {
+                $summary['stopSameSourceReferenceCount']++;
             }
 
             if (!$stop['valid']) {
