@@ -985,6 +985,69 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html base link and meta metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<base href="https://example.test/docs/" target="_blank">'
+                . '<link rel="preload stylesheet modulepreload" href="review.css" as="style" type="text/css" media="screen and (min-width: 40em)" hreflang="en" crossorigin="anonymous" integrity="sha384-review" referrerpolicy="no-referrer" sizes="any" imagesrcset="cover.avif 1x, cover@2x.avif 2x" imagesizes="100vw" fetchpriority="high">'
+                . '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta property="og:title" content="Review Packet"><meta http-equiv="refresh" content="5; url=https://example.test/next?stage=review"><p>Body</p>',
+            'document metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/document-metadata-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $base = $summary[0];
+        $link = $summary[1];
+        $charsetMeta = $summary[2];
+        $viewportMeta = $summary[3];
+        $propertyMeta = $summary[4];
+        $refreshMeta = $summary[5];
+        $paragraph = $summary[6];
+
+        $t->same('base', $base['documentMetadata']);
+        $t->same('https://example.test/docs/', $base['href']);
+        $t->same('_blank', $base['target']);
+        $t->same('link', $link['documentMetadata']);
+        $t->same('review.css', $link['href']);
+        $t->same('preload stylesheet modulepreload', $link['relRaw']);
+        $t->same(['preload', 'stylesheet', 'modulepreload'], $link['relTokens']);
+        $t->same('style', $link['as']);
+        $t->same('screen and (min-width: 40em)', $link['media']);
+        $t->same('en', $link['hreflang']);
+        $t->same('text/css', $link['mimeType']);
+        $t->same('anonymous', $link['crossorigin']);
+        $t->same('sha384-review', $link['integrity']);
+        $t->same('no-referrer', $link['referrerpolicy']);
+        $t->same('any', $link['sizes']);
+        $t->same('cover.avif 1x, cover@2x.avif 2x', $link['imageSrcset']);
+        $t->same('cover.avif', $link['imageSrcsetCandidates'][0]['url']);
+        $t->same(['2x'], $link['imageSrcsetCandidates'][1]['descriptors']);
+        $t->same('100vw', $link['imageSizes']);
+        $t->same('high', $link['fetchpriority']);
+        $t->same('meta', $charsetMeta['documentMetadata']);
+        $t->same('UTF-8', $charsetMeta['charset']);
+        $t->same('viewport', $viewportMeta['nameAttribute']);
+        $t->same('width=device-width, initial-scale=1', $viewportMeta['content']);
+        $t->same('og:title', $propertyMeta['property']);
+        $t->same('Review Packet', $propertyMeta['content']);
+        $t->same('refresh', $refreshMeta['httpEquivRaw']);
+        $t->same('refresh', $refreshMeta['httpEquiv']);
+        $t->same('5; url=https://example.test/next?stage=review', $refreshMeta['content']);
+        $t->same([
+            'contentRaw' => '5; url=https://example.test/next?stage=review',
+            'delayRaw' => '5',
+            'delay' => 5.0,
+            'urlRaw' => 'https://example.test/next?stage=review',
+            'url' => 'https://example.test/next?stage=review',
+        ], $refreshMeta['refresh']);
+        $t->same('Body', $paragraph['text']);
+        $t->same('<base href="https://example.test/docs/" target="_blank"><link as="style" crossorigin="anonymous" fetchpriority="high" href="review.css" hreflang="en" imagesizes="100vw" imagesrcset="cover.avif 1x, cover@2x.avif 2x" integrity="sha384-review" media="screen and (min-width: 40em)" referrerpolicy="no-referrer" rel="preload stylesheet modulepreload" sizes="any" type="text/css"><meta charset="UTF-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="Review Packet" property="og:title"><meta content="5; url=https://example.test/next?stage=review" http-equiv="refresh"><p>Body</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/document-metadata-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'

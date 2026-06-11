@@ -894,6 +894,9 @@ final class XmlHtmlDom
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
+        if (in_array($name, ['base', 'link', 'meta'], true)) {
+            $summary += self::documentMetadataSummary($node, $name);
+        }
         if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
@@ -902,6 +905,102 @@ final class XmlHtmlDom
         }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function documentMetadataSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'base') {
+            return [
+                'documentMetadata' => 'base',
+                'href' => self::attributeOrNull($element, 'href'),
+                'target' => self::attributeOrNull($element, 'target'),
+            ];
+        }
+
+        if ($name === 'link') {
+            $relRaw = self::attributeOrNull($element, 'rel');
+            $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
+
+            return [
+                'documentMetadata' => 'link',
+                'href' => self::attributeOrNull($element, 'href'),
+                'relRaw' => $relRaw,
+                'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+                'as' => self::attributeOrNull($element, 'as'),
+                'media' => self::attributeOrNull($element, 'media'),
+                'hreflang' => self::attributeOrNull($element, 'hreflang'),
+                'mimeType' => self::attributeOrNull($element, 'type'),
+                'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
+                'integrity' => self::attributeOrNull($element, 'integrity'),
+                'referrerpolicy' => self::attributeOrNull($element, 'referrerpolicy'),
+                'sizes' => self::attributeOrNull($element, 'sizes'),
+                'imageSrcset' => $imageSrcset,
+                'imageSrcsetCandidates' => self::srcsetCandidateSummaries($imageSrcset),
+                'imageSizes' => self::attributeOrNull($element, 'imagesizes'),
+                'fetchpriority' => self::attributeOrNull($element, 'fetchpriority'),
+            ];
+        }
+
+        $content = self::attributeOrNull($element, 'content');
+        $httpEquivRaw = self::attributeOrNull($element, 'http-equiv');
+        $httpEquiv = $httpEquivRaw === null ? null : strtolower(trim($httpEquivRaw));
+        $summary = [
+            'documentMetadata' => 'meta',
+            'charset' => self::attributeOrNull($element, 'charset'),
+            'nameAttribute' => self::attributeOrNull($element, 'name'),
+            'property' => self::attributeOrNull($element, 'property'),
+            'itemprop' => self::attributeOrNull($element, 'itemprop'),
+            'httpEquivRaw' => $httpEquivRaw,
+            'httpEquiv' => $httpEquiv,
+            'content' => $content,
+        ];
+
+        if ($httpEquiv === 'refresh') {
+            $summary['refresh'] = self::metaRefreshSummary($content);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @return array{contentRaw:?string, delayRaw:?string, delay:?float, urlRaw:?string, url:?string}
+     */
+    private static function metaRefreshSummary(?string $content): array
+    {
+        if ($content === null) {
+            return [
+                'contentRaw' => null,
+                'delayRaw' => null,
+                'delay' => null,
+                'urlRaw' => null,
+                'url' => null,
+            ];
+        }
+
+        $parts = explode(';', $content, 2);
+        $delayRaw = trim($parts[0]);
+        $delay = is_numeric($delayRaw) ? (float) $delayRaw : null;
+        if ($delay !== null && (!is_finite($delay) || $delay < 0.0)) {
+            $delay = null;
+        }
+
+        $urlRaw = null;
+        $url = null;
+        if (isset($parts[1]) && preg_match('/^\s*url\s*=\s*(.*)\s*$/i', $parts[1], $matches) === 1) {
+            $urlRaw = trim((string) $matches[1]);
+            $url = trim($urlRaw, " \t\r\n\f\"'");
+        }
+
+        return [
+            'contentRaw' => $content,
+            'delayRaw' => $delayRaw === '' ? null : $delayRaw,
+            'delay' => $delay,
+            'urlRaw' => $urlRaw,
+            'url' => $url,
+        ];
     }
 
     /**
