@@ -1209,7 +1209,7 @@ final class CitationCslProcessor
             'chapterNumber' => self::firstStringField($item, ['chapter-number', 'chapterNumber', 'chapternumber', 'chapter']),
             'division' => self::stringField($item, 'division'),
             'section' => self::stringField($item, 'section'),
-            'part' => self::stringField($item, 'part'),
+            'part' => self::firstStringField($item, ['part', 'part-number', 'partNumber', 'partnumber']),
             'printingNumber' => self::firstStringField($item, ['printing-number', 'printingNumber', 'printingnumber', 'printing']),
             'supplement' => self::stringField($item, 'supplement'),
             'supplementNumber' => self::firstStringField($item, ['supplement-number', 'supplementNumber', 'supplementnumber']) ?: self::stringField($item, 'supplement'),

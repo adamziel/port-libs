@@ -22012,6 +22012,123 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Migration Part Packet. part 2nd.</dd>', $blocks);
         $t->contains('<dt>Doe 2025</dt><dd>Doe, Jane. Range Part Packet. parts 3rd-4th.</dd>', $blocks);
     },
+    'normalizes bounded csl part-number field aliases into part metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@report{hyphen-part-alias,
+  author      = {Alias, Ari},
+  title       = {Hyphen Part Alias Packet},
+  date        = {2026},
+  part-number = {5}
+}
+
+@report{compact-part-alias,
+  author     = {Ng, Nia},
+  title      = {Compact Part Alias Packet},
+  date       = {2025},
+  partnumber = {6}
+}
+BIB;
+
+        $bibtexItems = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same('5', $bibtexItems[0]['part'] ?? null);
+        $t->same('6', $bibtexItems[1]['part'] ?? null);
+        $t->same('5', $bibtexItems[0]['rawBibtex']['fields']['part-number'] ?? null);
+        $t->same('6', $bibtexItems[1]['rawBibtex']['fields']['partnumber'] ?? null);
+
+        $bibtexProcessor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('5', $bibtexProcessor->item('hyphen-part-alias')['part'] ?? null);
+        $t->same('6', $bibtexProcessor->item('compact-part-alias')['part'] ?? null);
+        $t->same('Alias, Ari. Hyphen Part Alias Packet. Part 5. 2026.', $bibtexProcessor->renderBibliographyEntry('hyphen-part-alias'));
+        $t->same('Ng, Nia. Compact Part Alias Packet. Part 6. 2025.', $bibtexProcessor->renderBibliographyEntry('compact-part-alias'));
+
+        $directJson = json_encode([
+            [
+                'id' => 'direct-part-hyphen',
+                'type' => 'report',
+                'title' => 'Direct Part Hyphen Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'part-number' => '4',
+            ],
+            [
+                'id' => 'direct-part-camel',
+                'type' => 'report',
+                'title' => 'Direct Part Camel Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'partNumber' => '5',
+            ],
+            [
+                'id' => 'direct-part-compact',
+                'type' => 'report',
+                'title' => 'Direct Part Compact Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'partnumber' => '6',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($directJson);
+        $t->same('4', $processor->item('direct-part-hyphen')['part'] ?? null);
+        $t->same('5', $processor->item('direct-part-camel')['part'] ?? null);
+        $t->same('6', $processor->item('direct-part-compact')['part'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Part Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-part-alias-review</id>
+    <updated>2026-06-11T22:46:25+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="part-number" form="roman"/>
+        <text variable="part-number" form="ordinal"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="part"/>
+      <number variable="part-number" form="roman"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Part Alias Review', $summary['title'] ?? null);
+        $t->same('part-number', $citationChildren[1]['variable'] ?? null);
+        $t->same('roman', $citationChildren[1]['form'] ?? null);
+        $t->same('part-number', $citationChildren[2]['variable'] ?? null);
+        $t->same('ordinal', $citationChildren[2]['form'] ?? null);
+        $t->same('[Ames | iv | 4th; Bell | v | 5th; Chen | vi | 6th]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-part-hyphen', 'text' => '[@direct-part-hyphen]']),
+            new AstNode('citation', ['id' => 'direct-part-camel', 'text' => '[@direct-part-camel]']),
+            new AstNode('citation', ['id' => 'direct-part-compact', 'text' => '[@direct-part-compact]']),
+        ]));
+        $t->same('Direct Part Hyphen Packet :: 4 :: iv', $styled->renderBibliographyEntry('direct-part-hyphen'));
+        $t->same('Direct Part Camel Packet :: 5 :: v', $styled->renderBibliographyEntry('direct-part-camel'));
+        $t->same('Direct Part Compact Packet :: 6 :: vi', $styled->renderBibliographyEntry('direct-part-compact'));
+
+        $document = (new MarkdownReader())->read('Part aliases [@direct-part-hyphen; @direct-part-camel; @direct-part-compact] keep CSL part numbering visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Part aliases [Ames | iv | 4th; Bell | v | 5th; Chen | vi | 6th] keep CSL part numbering visible.</p>', $blocks);
+        $t->contains('<dt>Ames 2026</dt><dd>Direct Part Hyphen Packet :: 4 :: iv</dd>', $blocks);
+        $t->contains('<dt>Bell 2025</dt><dd>Direct Part Camel Packet :: 5 :: v</dd>', $blocks);
+        $t->contains('<dt>Chen 2024</dt><dd>Direct Part Compact Packet :: 6 :: vi</dd>', $blocks);
+    },
     'renders bounded csl audiovisual creator variables for bibliography handoff' => static function (TestRunner $t): void {
         $bibtex = <<<'BIB'
 @video{migration-film,
