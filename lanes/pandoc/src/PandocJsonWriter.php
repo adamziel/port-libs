@@ -524,6 +524,8 @@ final class PandocJsonWriter
     {
         $alignments = $node->attr('alignments', []);
         $widths = $node->attr('widths', []);
+        $alignmentNatives = $node->attr('alignmentNatives', []);
+        $columnWidthNatives = $node->attr('columnWidthNatives', []);
         $columnCount = max(
             is_array($alignments) ? count($alignments) : 0,
             is_array($widths) ? count($widths) : 0,
@@ -533,9 +535,13 @@ final class PandocJsonWriter
         for ($index = 0; $index < $columnCount; $index++) {
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
             $width = is_array($widths) ? ($widths[$index] ?? null) : null;
+            $alignmentConstructor = $this->tableAlignmentConstructor($alignment);
+            $alignmentNative = is_array($alignmentNatives) && array_key_exists($index, $alignmentNatives) ? $alignmentNatives[$index] : null;
+            $columnWidthNative = is_array($columnWidthNatives) && array_key_exists($index, $columnWidthNatives) ? $columnWidthNatives[$index] : null;
+            $columnWidthPayload = $this->nativeColumnWidthPayload($columnWidthNative, $width);
             $specs[] = [
-                $this->enum($this->tableAlignmentConstructor($alignment)),
-                is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault'],
+                $this->nativeEnumPayload($alignmentNative, $alignmentConstructor) ?? $this->enum($alignmentConstructor),
+                $columnWidthPayload ?? (is_int($width) || is_float($width) ? ['t' => 'ColWidth', 'c' => (float) $width] : ['t' => 'ColWidthDefault']),
             ];
         }
 
@@ -559,10 +565,12 @@ final class PandocJsonWriter
     private function writeTableBody(AstNode $body): array
     {
         $headRows = $body->attr('headRows', []);
+        $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
+        $rowHeadColumnsPayload = $this->nativeIntegerPayload($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', $rowHeadColumns);
 
         return [
             $this->attrTuple($body),
-            ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
+            $rowHeadColumnsPayload ?? ['t' => 'RowHeadColumns', 'c' => $rowHeadColumns],
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
@@ -603,9 +611,12 @@ final class PandocJsonWriter
 
             $encoded[] = [
                 $this->attrTuple($cell),
-                $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
-                ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
-                ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
+                $this->nativeEnumPayload($cell->attr('alignmentNative'), $this->tableAlignmentConstructor((string) $cell->attr('align', 'default')))
+                    ?? $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
+                $this->nativeIntegerPayload($cell->attr('rowSpanNative'), 'RowSpan', max(1, (int) $cell->attr('rowspan', 1)))
+                    ?? ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
+                $this->nativeIntegerPayload($cell->attr('colSpanNative'), 'ColSpan', max(1, (int) $cell->attr('colspan', 1)))
+                    ?? ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
                 $this->childrenAsBlocks($cell),
             ];
         }
@@ -979,6 +990,63 @@ final class PandocJsonWriter
     private function enum(string $constructor): array
     {
         return ['t' => $constructor];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function nativeEnumPayload(mixed $native, string $constructor): ?array
+    {
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        return $native;
+    }
+
+    private function nativeColumnWidthPayload(mixed $native, mixed $width): mixed
+    {
+        if (is_int($width) || is_float($width)) {
+            $expected = (float) $width;
+            if ((is_int($native) || is_float($native)) && (float) $native === $expected) {
+                return $native;
+            }
+
+            if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== 'ColWidth') {
+                return null;
+            }
+
+            $content = $native['c'] ?? null;
+            if (is_array($content) && array_is_list($content) && count($content) === 1) {
+                $content = $content[0];
+            }
+
+            return (is_int($content) || is_float($content)) && (float) $content === $expected ? $native : null;
+        }
+
+        return $this->nativeEnumPayload($native, 'ColWidthDefault');
+    }
+
+    private function nativeIntegerPayload(mixed $native, string $constructor, int $value): mixed
+    {
+        if (is_int($native) && $native === $value) {
+            return $native;
+        }
+
+        if (is_array($native) && array_is_list($native) && count($native) === 1 && is_int($native[0]) && $native[0] === $value) {
+            return $native;
+        }
+
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return is_int($content) && $content === $value ? $native : null;
     }
 
     private function listStyleConstructor(string $style): string
