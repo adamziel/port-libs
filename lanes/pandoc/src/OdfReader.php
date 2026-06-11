@@ -114,6 +114,7 @@ final class OdfReader
         $media = $this->mediaReport($package, $manifest);
         $scriptMetadata = $this->readScriptMetadata($package, $manifest, $content['blocks']);
         $encryptedItems = $this->encryptedManifestItems($manifest);
+        $manifestEncryptionSummary = $this->manifestEncryptionSummary($encryptedItems);
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
         $directoryItems = $this->manifestDirectoryItems($manifest);
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
@@ -134,6 +135,7 @@ final class OdfReader
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
+                'encryptionSummary' => $manifestEncryptionSummary,
                 'packageProvenance' => $packageProvenance,
             ],
             'styles' => [
@@ -206,6 +208,7 @@ final class OdfReader
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
+                    'encryptionSummary' => $manifestEncryptionSummary,
                     'packageProvenance' => $packageProvenance,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
@@ -272,6 +275,7 @@ final class OdfReader
                         array_map(static fn (array $item): ?string => is_string($item['part'] ?? null) ? $item['part'] : null, $encryptedItems),
                         static fn (?string $part): bool => $part !== null && $part !== ''
                     )),
+                    'summary' => $manifestEncryptionSummary,
                     'items' => $encryptedItems,
                 ],
                 'content' => [
@@ -12149,6 +12153,147 @@ final class OdfReader
             $manifest,
             static fn (array $item): bool => ($item['encrypted'] ?? false) === true
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $encryptedItems
+     * @return array<string, mixed>
+     */
+    private function manifestEncryptionSummary(array $encryptedItems): array
+    {
+        $appendUniqueString = static function (array &$values, ?string $value): void {
+            if ($value === null || $value === '' || in_array($value, $values, true)) {
+                return;
+            }
+
+            $values[] = $value;
+        };
+
+        $summary = [
+            'count' => count($encryptedItems),
+            'partCount' => 0,
+            'parts' => [],
+            'missingPartCount' => 0,
+            'declaredSize' => 0,
+            'storedByteLength' => 0,
+            'compressedByteLength' => 0,
+            'checksumTypeCount' => 0,
+            'checksumTypes' => [],
+            'algorithmNameCount' => 0,
+            'algorithmNames' => [],
+            'keyDerivationNameCount' => 0,
+            'keyDerivationNames' => [],
+            'startKeyGenerationNameCount' => 0,
+            'startKeyGenerationNames' => [],
+            'mediaTypeCount' => 0,
+            'mediaTypes' => [],
+            'items' => [],
+        ];
+        $mediaTypes = [];
+        $mediaTypeOrder = [];
+
+        foreach ($encryptedItems as $item) {
+            $part = self::manifestItemPartLabel($item);
+            $exists = ($item['exists'] ?? false) === true;
+            $declaredSize = $item['declaredSize'] ?? null;
+            $storedByteLength = $item['storedByteLength'] ?? null;
+            $compressedByteLength = $item['compressedByteLength'] ?? null;
+            $encryption = is_array($item['encryption'] ?? null) ? $item['encryption'] : [];
+            $algorithm = is_array($encryption['algorithm'] ?? null) ? $encryption['algorithm'] : [];
+            $keyDerivation = is_array($encryption['keyDerivation'] ?? null) ? $encryption['keyDerivation'] : [];
+            $startKeyGeneration = is_array($encryption['startKeyGeneration'] ?? null) ? $encryption['startKeyGeneration'] : [];
+            $checksumType = is_string($encryption['checksumType'] ?? null) ? $encryption['checksumType'] : null;
+            $algorithmName = is_string($algorithm['name'] ?? null) ? $algorithm['name'] : null;
+            $keyDerivationName = is_string($keyDerivation['name'] ?? null) ? $keyDerivation['name'] : null;
+            $startKeyGenerationName = is_string($startKeyGeneration['name'] ?? null) ? $startKeyGeneration['name'] : null;
+            $mediaType = trim((string) ($item['mediaTypeBase'] ?? $item['mediaType'] ?? ''));
+
+            $summary['parts'][] = $part;
+            if (!$exists) {
+                ++$summary['missingPartCount'];
+            }
+            if (is_int($declaredSize)) {
+                $summary['declaredSize'] += $declaredSize;
+            }
+            if (is_int($storedByteLength)) {
+                $summary['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($compressedByteLength)) {
+                $summary['compressedByteLength'] += $compressedByteLength;
+            }
+
+            $appendUniqueString($summary['checksumTypes'], $checksumType);
+            $appendUniqueString($summary['algorithmNames'], $algorithmName);
+            $appendUniqueString($summary['keyDerivationNames'], $keyDerivationName);
+            $appendUniqueString($summary['startKeyGenerationNames'], $startKeyGenerationName);
+
+            $summary['items'][] = self::withoutEmpty([
+                'fullPath' => $item['fullPath'] ?? null,
+                'part' => $item['part'] ?? null,
+                'mediaType' => $item['mediaType'] ?? null,
+                'checksumType' => $checksumType,
+                'algorithmName' => $algorithmName,
+                'keyDerivationName' => $keyDerivationName,
+                'startKeyGenerationName' => $startKeyGenerationName,
+                'exists' => $exists,
+                'declaredSize' => $declaredSize,
+                'storedByteLength' => $storedByteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'canExposeBytes' => false,
+            ]);
+
+            if ($mediaType === '') {
+                continue;
+            }
+            if (!isset($mediaTypes[$mediaType])) {
+                $mediaTypes[$mediaType] = [
+                    'mediaType' => $mediaType,
+                    'count' => 0,
+                    'parts' => [],
+                    'missingPartCount' => 0,
+                    'declaredSize' => 0,
+                    'storedByteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'checksumTypeCount' => 0,
+                    'checksumTypes' => [],
+                    'algorithmNameCount' => 0,
+                    'algorithmNames' => [],
+                ];
+                $mediaTypeOrder[] = $mediaType;
+            }
+
+            ++$mediaTypes[$mediaType]['count'];
+            $mediaTypes[$mediaType]['parts'][] = $part;
+            if (!$exists) {
+                ++$mediaTypes[$mediaType]['missingPartCount'];
+            }
+            if (is_int($declaredSize)) {
+                $mediaTypes[$mediaType]['declaredSize'] += $declaredSize;
+            }
+            if (is_int($storedByteLength)) {
+                $mediaTypes[$mediaType]['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($compressedByteLength)) {
+                $mediaTypes[$mediaType]['compressedByteLength'] += $compressedByteLength;
+            }
+            $appendUniqueString($mediaTypes[$mediaType]['checksumTypes'], $checksumType);
+            $appendUniqueString($mediaTypes[$mediaType]['algorithmNames'], $algorithmName);
+        }
+
+        foreach ($mediaTypeOrder as $mediaType) {
+            $mediaTypes[$mediaType]['checksumTypeCount'] = count($mediaTypes[$mediaType]['checksumTypes']);
+            $mediaTypes[$mediaType]['algorithmNameCount'] = count($mediaTypes[$mediaType]['algorithmNames']);
+            $summary['mediaTypes'][] = $mediaTypes[$mediaType];
+        }
+
+        $summary['partCount'] = count($summary['parts']);
+        $summary['checksumTypeCount'] = count($summary['checksumTypes']);
+        $summary['algorithmNameCount'] = count($summary['algorithmNames']);
+        $summary['keyDerivationNameCount'] = count($summary['keyDerivationNames']);
+        $summary['startKeyGenerationNameCount'] = count($summary['startKeyGenerationNames']);
+        $summary['mediaTypeCount'] = count($summary['mediaTypes']);
+
+        return $summary;
     }
 
     /**

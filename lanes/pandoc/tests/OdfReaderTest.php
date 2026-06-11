@@ -9532,6 +9532,88 @@ XML;
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<img src="Pictures/hero.png" alt="Hero alt text" title="Hero title"/>', $blocks);
     },
+    'summarizes ODT manifest encryption provenance for package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $objectBytes = 'FORMULA-ENCRYPTED';
+        $encryptedHero = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="hero-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="hero-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="hero-salt"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $encryptedObject = '<manifest:file-entry manifest:full-path="Object 1/content.xml" manifest:media-type="text/xml" manifest:size="' . strlen($objectBytes) . '">'
+            . '<manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="object-checksum">'
+            . '<manifest:algorithm manifest:algorithm-name="AES256-CBC" manifest:initialization-vector="object-iv"/>'
+            . '<manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="4096" manifest:salt="object-salt"/>'
+            . '<manifest:start-key-generation manifest:start-key-generation-name="SHA256" manifest:key-size="32"/>'
+            . '</manifest:encryption-data></manifest:file-entry>';
+        $manifestWithEncryptionSummary = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedHero . $encryptedObject,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithEncryptionSummary, null, null, [
+            ['name' => 'Object 1/content.xml', 'data' => $objectBytes, 'compressionMethod' => 0],
+        ]));
+        $summary = $result['importReport']['manifest']['encryptionSummary'];
+        $summaryByMediaType = [];
+        foreach ($summary['mediaTypes'] as $item) {
+            $summaryByMediaType[$item['mediaType']] = $item;
+        }
+
+        $t->same($summary, $result['document']->attr('manifest')['encryptionSummary']);
+        $t->same($summary, $result['importReport']['encryption']['summary']);
+        $t->same(2, $summary['count']);
+        $t->same(2, $summary['partCount']);
+        $t->same(['Pictures/hero.png', 'Object 1/content.xml'], $summary['parts']);
+        $t->same(0, $summary['missingPartCount']);
+        $t->same(2048 + strlen($objectBytes), $summary['declaredSize']);
+        $t->same(7 + strlen($objectBytes), $summary['storedByteLength']);
+        $t->same(7 + strlen($objectBytes), $summary['compressedByteLength']);
+        $t->same(2, $summary['checksumTypeCount']);
+        $t->same(['SHA1/1K', 'SHA256/1K'], $summary['checksumTypes']);
+        $t->same(2, $summary['algorithmNameCount']);
+        $t->same(['Blowfish CFB', 'AES256-CBC'], $summary['algorithmNames']);
+        $t->same(1, $summary['keyDerivationNameCount']);
+        $t->same(['PBKDF2'], $summary['keyDerivationNames']);
+        $t->same(2, $summary['startKeyGenerationNameCount']);
+        $t->same(['SHA1', 'SHA256'], $summary['startKeyGenerationNames']);
+        $t->same(2, $summary['mediaTypeCount']);
+
+        $heroSummary = $summary['items'][0];
+        $t->same('Pictures/hero.png', $heroSummary['fullPath']);
+        $t->same('image/png', $heroSummary['mediaType']);
+        $t->same('SHA1/1K', $heroSummary['checksumType']);
+        $t->same('Blowfish CFB', $heroSummary['algorithmName']);
+        $t->same(false, $heroSummary['canExposeBytes']);
+
+        $objectSummary = $summary['items'][1];
+        $t->same('Object 1/content.xml', $objectSummary['part']);
+        $t->same('SHA256/1K', $objectSummary['checksumType']);
+        $t->same('AES256-CBC', $objectSummary['algorithmName']);
+        $t->same('PBKDF2', $objectSummary['keyDerivationName']);
+        $t->same('SHA256', $objectSummary['startKeyGenerationName']);
+        $t->same(strlen($objectBytes), $objectSummary['storedByteLength']);
+
+        $t->same(2, $result['importReport']['manifest']['encryptedCount']);
+        $t->same(['Pictures/hero.png', 'Object 1/content.xml'], $result['importReport']['encryption']['encryptedParts']);
+
+        $imagePng = $summaryByMediaType['image/png'];
+        $t->same(1, $imagePng['count']);
+        $t->same(['Pictures/hero.png'], $imagePng['parts']);
+        $t->same(2048, $imagePng['declaredSize']);
+        $t->same(['SHA1/1K'], $imagePng['checksumTypes']);
+        $t->same(['Blowfish CFB'], $imagePng['algorithmNames']);
+
+        $textXml = $summaryByMediaType['text/xml'];
+        $t->same(1, $textXml['count']);
+        $t->same(['Object 1/content.xml'], $textXml['parts']);
+        $t->same(strlen($objectBytes), $textXml['storedByteLength']);
+        $t->same(['AES256-CBC'], $textXml['algorithmNames']);
+    },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
