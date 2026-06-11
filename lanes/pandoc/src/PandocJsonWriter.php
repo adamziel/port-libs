@@ -956,12 +956,24 @@ final class PandocJsonWriter
     private function isCurrentNativeBlockPayload(array $native): bool
     {
         $tag = $native['t'];
-        return in_array($tag, [
+        $content = $native['c'] ?? null;
+
+        return match ($tag) {
+            'Plain',
+            'Para' => $this->isCurrentNativeInlineList($content),
+            'BlockQuote' => $this->isCurrentNativeBlockList($content),
+            'BulletList' => $this->isCurrentNativeBlockListList($content),
+            'DefinitionList' => $this->isCurrentNativeDefinitionList($content),
+            'LineBlock' => $this->isCurrentNativeInlineListList($content),
+            'Header' => $this->isCurrentNativeTuple($content, 3) && $this->isCurrentNativeInlineList($content[2]),
             'CodeBlock',
-            'RawBlock',
+            'RawBlock' => $this->isCurrentNativeTuple($content, 2),
+            'OrderedList' => $this->isCurrentNativeOrderedList($content),
+            'Div' => $this->isCurrentNativeTuple($content, 2) && $this->isCurrentNativeBlockList($content[1]),
             'HorizontalRule',
-            'Null',
-        ], true);
+            'Null' => true,
+            default => false,
+        };
     }
 
     /**
@@ -973,19 +985,124 @@ final class PandocJsonWriter
         if ($tag === 'Link' || $tag === 'Image') {
             $content = $native['c'] ?? null;
 
-            return is_array($content) && array_is_list($content) && count($content) === 3;
+            return $this->isCurrentNativeTuple($content, 3) && $this->isCurrentNativeInlineList($content[1]);
         }
 
-        return in_array($tag, [
+        $content = $native['c'] ?? null;
+
+        return match ($tag) {
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps' => $this->isCurrentNativeInlineList($content),
+            'Note' => $this->isCurrentNativeBlockList($content),
+            'Quoted',
+            'Span' => $this->isCurrentNativeTuple($content, 2) && $this->isCurrentNativeInlineList($content[1]),
+            'Code',
+            'Math',
+            'RawInline' => $this->isCurrentNativeTuple($content, 2),
+            'Cite' => $this->isCurrentNativeTuple($content, 2) && $this->isCurrentNativeInlineList($content[1]),
             'Str',
             'Space',
             'SoftBreak',
-            'LineBreak',
-            'Code',
-            'Math',
-            'RawInline',
-            'Cite',
-        ], true);
+            'LineBreak' => true,
+            default => false,
+        };
+    }
+
+    private function isCurrentNativeList(mixed $content): bool
+    {
+        return is_array($content) && array_is_list($content);
+    }
+
+    private function isCurrentNativeTuple(mixed $content, int $size): bool
+    {
+        return is_array($content) && array_is_list($content) && count($content) === $size;
+    }
+
+    private function isCurrentNativeBlockList(mixed $blocks): bool
+    {
+        if (!$this->isCurrentNativeList($blocks)) {
+            return false;
+        }
+
+        foreach ($blocks as $block) {
+            if (!is_array($block) || array_is_list($block) || !is_string($block['t'] ?? null) || !$this->isCurrentNativeBlockPayload($block)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isCurrentNativeBlockListList(mixed $items): bool
+    {
+        if (!$this->isCurrentNativeList($items)) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (!$this->isCurrentNativeBlockList($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isCurrentNativeDefinitionList(mixed $items): bool
+    {
+        if (!$this->isCurrentNativeList($items)) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (!$this->isCurrentNativeTuple($item, 2) || !$this->isCurrentNativeInlineList($item[0]) || !$this->isCurrentNativeBlockListList($item[1])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isCurrentNativeInlineList(mixed $inlines): bool
+    {
+        if (!$this->isCurrentNativeList($inlines)) {
+            return false;
+        }
+
+        foreach ($inlines as $inline) {
+            if (!is_array($inline) || array_is_list($inline) || !is_string($inline['t'] ?? null) || !$this->isCurrentNativeInlinePayload($inline)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isCurrentNativeInlineListList(mixed $items): bool
+    {
+        if (!$this->isCurrentNativeList($items)) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (!$this->isCurrentNativeInlineList($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isCurrentNativeOrderedList(mixed $content): bool
+    {
+        return $this->isCurrentNativeTuple($content, 2)
+            && $this->isCurrentNativeTuple($content[0], 3)
+            && $this->isCurrentNativeBlockListList($content[1]);
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool

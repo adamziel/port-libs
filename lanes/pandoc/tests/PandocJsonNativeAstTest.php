@@ -2132,6 +2132,86 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves recursive current native constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $headerBlock = [
+            't' => 'Header',
+            'c' => [
+                2,
+                ['review-heading', ['native-current'], [['data-review', 'recursive']]],
+                [
+                    ['t' => 'Str', 'c' => 'Constructor'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'payloads'],
+                ],
+            ],
+            'reviewPayload' => ['source' => 'header-provenance'],
+        ];
+        $emphInline = [
+            't' => 'Emph',
+            'c' => [
+                ['t' => 'Str', 'c' => 'recursive'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'inline'],
+            ],
+            'reviewPayload' => ['source' => 'emph-provenance'],
+        ];
+        $spanInline = [
+            't' => 'Span',
+            'c' => [
+                ['review-span', ['native-current'], [['data-review', 'span']]],
+                [
+                    ['t' => 'Str', 'c' => 'span'],
+                ],
+            ],
+            'reviewPayload' => ['source' => 'span-provenance'],
+        ];
+        $paragraphBlock = [
+            't' => 'Para',
+            'c' => [
+                ['t' => 'Str', 'c' => 'Before'],
+                ['t' => 'Space'],
+                $emphInline,
+                ['t' => 'Space'],
+                $spanInline,
+            ],
+            'reviewPayload' => ['source' => 'paragraph-provenance'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$headerBlock, $paragraphBlock],
+        ];
+
+        $document = (new PandocJsonReader())->readPacket($packet);
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $paragraph = $document->children[1];
+        $emph = $paragraph->children[2];
+        $standaloneInlinePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [$emph]),
+        ]));
+
+        $t->same($headerBlock, $encoded['blocks'][0], 'unchanged current header payload is reused');
+        $t->same($paragraphBlock, $encoded['blocks'][1], 'unchanged current paragraph payload is reused');
+        $t->same($emphInline, $standaloneInlinePacket['blocks'][0]['c'][0], 'standalone current recursive inline payload is reusable');
+
+        $editedHeader = new AstNode('heading', array_replace($document->children[0]->attrs, [
+            'level' => 3,
+        ]), $document->children[0]->children);
+        $editedEmph = new AstNode('emph', $emph->attrs, [
+            new AstNode('text', ['text' => 'edited']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'inline']),
+        ]);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            $editedHeader,
+            new AstNode('paragraph', [], [$editedEmph]),
+        ]));
+
+        $t->same(3, $editedPacket['blocks'][0]['c'][0], 'edited header regenerates rather than reusing stale native payload');
+        $t->same(false, array_key_exists('reviewPayload', $editedPacket['blocks'][0]), 'edited header drops stale inert payload');
+        $t->same('edited', $editedPacket['blocks'][1]['c'][0]['c'][0]['c'], 'edited recursive inline regenerates child content');
+        $t->same(false, array_key_exists('reviewPayload', $editedPacket['blocks'][1]['c'][0]), 'edited recursive inline drops stale inert payload');
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
