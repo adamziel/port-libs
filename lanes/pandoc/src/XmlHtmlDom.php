@@ -1445,6 +1445,31 @@ final class XmlHtmlDom
             $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
         }
 
+        if (array_key_exists('popover', $attributes)) {
+            $popover = self::popoverStateSummary($attributes['popover']);
+            $summary['popoverRaw'] = $attributes['popover'];
+            $summary['popoverState'] = $popover['state'];
+            $summary['popoverStateSource'] = $popover['source'];
+            $summary['popoverStateValid'] = $popover['valid'];
+        }
+
+        if (array_key_exists('popovertarget', $attributes) || array_key_exists('popovertargetaction', $attributes)) {
+            $actionRaw = $attributes['popovertargetaction'] ?? null;
+            $action = self::popoverTargetActionSummary($actionRaw);
+            $summary['popoverTarget'] = $attributes['popovertarget'] ?? null;
+            $summary['popoverTargetActionRaw'] = $actionRaw;
+            $summary['popoverTargetAction'] = $action['action'];
+            $summary['popoverTargetActionSource'] = $action['source'];
+            $summary['popoverTargetActionValid'] = $action['valid'];
+            $summary['popoverCommand'] = [
+                'target' => $summary['popoverTarget'],
+                'actionRaw' => $actionRaw,
+                'action' => $action['action'],
+                'actionSource' => $action['source'],
+                'actionValid' => $action['valid'],
+            ];
+        }
+
         if (array_key_exists('translate', $attributes)) {
             $translate = strtolower(trim($attributes['translate']));
             $summary['translateRaw'] = $attributes['translate'];
@@ -1492,6 +1517,64 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array{state:string, source:string, valid:bool}
+     */
+    private static function popoverStateSummary(string $value): array
+    {
+        $state = strtolower(trim($value));
+        if ($state === '') {
+            return [
+                'state' => 'auto',
+                'source' => 'empty-default',
+                'valid' => true,
+            ];
+        }
+
+        if (in_array($state, ['auto', 'manual', 'hint'], true)) {
+            return [
+                'state' => $state,
+                'source' => 'attribute',
+                'valid' => true,
+            ];
+        }
+
+        return [
+            'state' => 'manual',
+            'source' => 'invalid-default',
+            'valid' => false,
+        ];
+    }
+
+    /**
+     * @return array{action:string, source:string, valid:bool}
+     */
+    private static function popoverTargetActionSummary(?string $value): array
+    {
+        if ($value === null) {
+            return [
+                'action' => 'toggle',
+                'source' => 'missing-default',
+                'valid' => true,
+            ];
+        }
+
+        $action = strtolower(trim($value));
+        if (in_array($action, ['toggle', 'show', 'hide'], true)) {
+            return [
+                'action' => $action,
+                'source' => 'attribute',
+                'valid' => true,
+            ];
+        }
+
+        return [
+            'action' => 'toggle',
+            'source' => 'invalid-default',
+            'valid' => false,
+        ];
     }
 
     /**

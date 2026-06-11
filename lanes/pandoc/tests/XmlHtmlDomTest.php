@@ -206,6 +206,81 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html popover state and target command provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<button id="open-help" popovertarget="help-pop" popovertargetaction="show">Open</button>'
+                . '<div id="help-pop" popover="auto">Help <strong>packet</strong></div>'
+                . '<input id="toggle-manual" type="button" value="Toggle" popovertarget="manual-pop">'
+                . '<aside id="manual-pop" popover="manual">Manual</aside>'
+                . '<button id="bad-action" popovertarget="hint-pop" popovertargetaction="dismiss">Bad</button>'
+                . '<p id="hint-pop" popover="hint">Hint</p>'
+                . '<section id="invalid-pop" popover="bad state">Invalid</section>',
+            'popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/popover-summary-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $open = $summary[0];
+        $help = $summary[1];
+        $toggleManual = $summary[2];
+        $manual = $summary[3];
+        $badAction = $summary[4];
+        $hint = $summary[5];
+        $invalid = $summary[6];
+
+        $t->same('button', $open['name']);
+        $t->same('help-pop', $open['popoverTarget']);
+        $t->same('show', $open['popoverTargetActionRaw']);
+        $t->same('show', $open['popoverTargetAction']);
+        $t->same('attribute', $open['popoverTargetActionSource']);
+        $t->same(true, $open['popoverTargetActionValid']);
+        $t->same([
+            'target' => 'help-pop',
+            'actionRaw' => 'show',
+            'action' => 'show',
+            'actionSource' => 'attribute',
+            'actionValid' => true,
+        ], $open['popoverCommand']);
+        $t->same('auto', $help['popoverRaw']);
+        $t->same('auto', $help['popoverState']);
+        $t->same('attribute', $help['popoverStateSource']);
+        $t->same(true, $help['popoverStateValid']);
+        $t->same('strong', $help['children'][1]['name']);
+        $t->same('input', $toggleManual['name']);
+        $t->same('button', $toggleManual['inputType']);
+        $t->same('manual-pop', $toggleManual['popoverTarget']);
+        $t->same(null, $toggleManual['popoverTargetActionRaw']);
+        $t->same('toggle', $toggleManual['popoverTargetAction']);
+        $t->same('missing-default', $toggleManual['popoverTargetActionSource']);
+        $t->same(true, $toggleManual['popoverTargetActionValid']);
+        $t->same('toggle', $toggleManual['popoverCommand']['action']);
+        $t->same('manual', $manual['popoverState']);
+        $t->same('dismiss', $badAction['popoverTargetActionRaw']);
+        $t->same('toggle', $badAction['popoverTargetAction']);
+        $t->same('invalid-default', $badAction['popoverTargetActionSource']);
+        $t->same(false, $badAction['popoverTargetActionValid']);
+        $t->same('hint', $hint['popoverState']);
+        $t->same('bad state', $invalid['popoverRaw']);
+        $t->same('manual', $invalid['popoverState']);
+        $t->same('invalid-default', $invalid['popoverStateSource']);
+        $t->same(false, $invalid['popoverStateValid']);
+        $t->same(
+            '<button id="open-help" popovertarget="help-pop" popovertargetaction="show">Open</button>'
+                . '<div id="help-pop" popover="auto">Help <strong>packet</strong></div>'
+                . '<input id="toggle-manual" popovertarget="manual-pop" type="button" value="Toggle">'
+                . '<aside id="manual-pop" popover="manual">Manual</aside>'
+                . '<button id="bad-action" popovertarget="hint-pop" popovertargetaction="dismiss">Bad</button>'
+                . '<p id="hint-pop" popover="hint">Hint</p>'
+                . '<section id="invalid-pop" popover="bad state">Invalid</section>',
+            $html
+        );
+        $t->contains($html, $blocks);
+        $t->same('/migration/popover-summary-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'
