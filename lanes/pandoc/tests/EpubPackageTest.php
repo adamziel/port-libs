@@ -357,6 +357,54 @@ return [
         $t->same($link, $summary['packageLinks'][0]);
     },
 
+    'preserves OCF metadata link ZIP provenance for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml, $buildZipPackage): void {
+        $containerMetadataXml = <<<'XML'
+<metadata xmlns="http://www.idpf.org/2013/metadata">
+  <link id="container-review-record" rel="record" href="EPUB/meta/container-review.json" media-type="application/ld+json" properties="schema-org"/>
+</metadata>
+XML;
+        $opfWithContainerRecord = str_replace(
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>
+    <item id="container-review-record" href="meta/container-review.json" media-type="application/ld+json"/>',
+            $epub3OpfXml
+        );
+        $recordBytes = '{"name":"container review"}';
+
+        $epub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml, 'method' => 8],
+            ['name' => 'META-INF/metadata.xml', 'data' => $containerMetadataXml, 'method' => 8],
+            ['name' => 'EPUB/package.opf', 'data' => $opfWithContainerRecord, 'method' => 8],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml, 'method' => 8],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>', 'method' => 8],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }', 'method' => 8],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG', 'method' => 0],
+            ['name' => 'EPUB/meta/container-review.json', 'data' => $recordBytes, 'method' => 12],
+        ]));
+
+        $link = $epub->containerLinks()[0];
+        $manifestItem = $epub->manifestItem('container-review-record');
+        $summary = $epub->summary();
+
+        $t->same('container-review-record', $link['id']);
+        $t->same('/EPUB/meta/container-review.json', $link['partName']);
+        $t->same('container-review-record', $link['manifestId']);
+        $t->same(true, $link['exists']);
+        $t->same(strlen($recordBytes), $link['byteLength']);
+        $t->same(strlen($recordBytes), $link['compressedByteLength']);
+        $t->same(12, $link['compressionMethod']);
+        $t->same('unsupported', $link['compressionMethodName']);
+        $t->same(false, $link['compressionSupported']);
+        $t->same(hash('crc32b', $recordBytes), $link['crc32']);
+        $t->same(false, $link['canExposeBytes']);
+        $t->same(false, $manifestItem['canExposeBytes']);
+        $t->same($link, $summary['containerLinks'][0]);
+        $t->same($link, $summary['wordpressImport']['containerLinks'][0]);
+        $t->same('/EPUB/meta/container-review.json', $summary['wordpressImport']['containerLinkTargets'][0]);
+    },
+
     'preserves compact OPF package root identity and direction for package handoff' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $opfWithPackageAttributes = str_replace(
             '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="en">',

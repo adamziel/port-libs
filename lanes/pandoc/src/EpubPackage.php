@@ -1748,6 +1748,11 @@ final class EpubPackage
             }
         }
 
+        $provenance = self::zipEntryProvenance($entry);
+        if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
+
         return [
             'index' => $index,
             'id' => self::emptyToNull($linkElement->getAttribute('id')),
@@ -1769,10 +1774,8 @@ final class EpubPackage
             'hrefQuery' => $hrefSuffix['query'],
             'hrefHasFragment' => $hrefSuffix['hasFragment'],
             'hrefFragment' => $hrefSuffix['fragment'],
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'diagnostics' => $diagnostics,
-        ];
+        ] + $provenance;
     }
 
     /**
