@@ -230,7 +230,12 @@ final class EpubReader
      * @return array{
      *     opfPart:string,
      *     selectedRootfileIndex:int,
+     *     rootfileCount:int,
      *     rootfiles:list<array<string, mixed>>,
+     *     duplicateRootfilePartCount:int,
+     *     duplicateRootfileParts:list<string>,
+     *     duplicateRootfilePartItems:list<array<string, mixed>>,
+     *     rootfileDiagnostics:list<array<string, mixed>>,
      *     linkCount:int,
      *     links:list<array<string, mixed>>,
      *     linksByRel:array<string, list<array<string, mixed>>>,
@@ -310,6 +315,9 @@ final class EpubReader
         foreach ($rootfiles as $index => $rootfile) {
             $rootfiles[$index]['selected'] = $index === $selectedIndex;
         }
+        $rootfiles = self::attachDuplicateRootfilePartDiagnostics($rootfiles);
+        $rootfileDiagnostics = self::rootfileDiagnostics($rootfiles);
+        $duplicateRootfilePartItems = self::duplicateRootfilePartItems($rootfiles);
 
         $links = $this->readContainerLinks(
             $package,
@@ -319,12 +327,147 @@ final class EpubReader
         return [
             'opfPart' => $selected['path'],
             'selectedRootfileIndex' => $selectedIndex,
+            'rootfileCount' => count($rootfiles),
             'rootfiles' => $rootfiles,
+            'duplicateRootfilePartCount' => count($duplicateRootfilePartItems),
+            'duplicateRootfileParts' => array_values(array_map(
+                static fn (array $item): string => (string) $item['path'],
+                $duplicateRootfilePartItems,
+            )),
+            'duplicateRootfilePartItems' => $duplicateRootfilePartItems,
+            'rootfileDiagnostics' => $rootfileDiagnostics,
             'linkCount' => count($links['items']),
             'links' => $links['items'],
             'linksByRel' => self::linksByRel($links['items']),
             'linkDiagnostics' => $links['diagnostics'],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function attachDuplicateRootfilePartDiagnostics(array $rootfiles): array
+    {
+        $indexesByPath = [];
+        foreach ($rootfiles as $index => $rootfile) {
+            $path = is_string($rootfile['path'] ?? null) ? $rootfile['path'] : '';
+            if ($path === '') {
+                continue;
+            }
+
+            $indexesByPath[$path][] = $index;
+            $rootfiles[$index]['duplicatePackagePart'] = false;
+            $rootfiles[$index]['duplicatePackagePartIndexes'] = [];
+            $rootfiles[$index]['duplicatePackagePartMediaTypes'] = [];
+            $rootfiles[$index]['diagnostics'] = is_array($rootfile['diagnostics'] ?? null)
+                ? array_values($rootfile['diagnostics'])
+                : [];
+        }
+
+        ksort($indexesByPath, SORT_STRING);
+        foreach ($indexesByPath as $path => $indexes) {
+            if (count($indexes) < 2) {
+                continue;
+            }
+
+            $mediaTypes = [];
+            foreach ($indexes as $index) {
+                $mediaType = is_string($rootfiles[$index]['mediaType'] ?? null) ? $rootfiles[$index]['mediaType'] : '';
+                if ($mediaType !== '') {
+                    $mediaTypes[$mediaType] = true;
+                }
+            }
+
+            $diagnostic = [
+                'type' => 'duplicate-rootfile-package-part',
+                'path' => $path,
+                'indexes' => array_values($indexes),
+                'selectedIndexes' => array_values(array_filter(
+                    $indexes,
+                    static fn (int $index): bool => ($rootfiles[$index]['selected'] ?? false) === true,
+                )),
+                'mediaTypes' => array_keys($mediaTypes),
+                'message' => 'EPUB container declares the same rootfile package part more than once; compact package ingestion keeps the first selected OPF rootfile and exposes duplicates for review',
+            ];
+
+            foreach ($indexes as $index) {
+                $rootfiles[$index]['duplicatePackagePart'] = true;
+                $rootfiles[$index]['duplicatePackagePartIndexes'] = array_values($indexes);
+                $rootfiles[$index]['duplicatePackagePartMediaTypes'] = array_keys($mediaTypes);
+                $rootfiles[$index]['diagnostics'][] = $diagnostic;
+            }
+        }
+
+        return $rootfiles;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function duplicateRootfilePartItems(array $rootfiles): array
+    {
+        $groups = [];
+        foreach ($rootfiles as $rootfile) {
+            if (($rootfile['duplicatePackagePart'] ?? false) !== true) {
+                continue;
+            }
+
+            $path = is_string($rootfile['path'] ?? null) ? $rootfile['path'] : '';
+            if ($path === '' || isset($groups[$path])) {
+                continue;
+            }
+
+            $indexes = is_array($rootfile['duplicatePackagePartIndexes'] ?? null)
+                ? array_values($rootfile['duplicatePackagePartIndexes'])
+                : [];
+            $groups[$path] = [
+                'path' => $path,
+                'indexes' => $indexes,
+                'selectedIndexes' => array_values(array_filter(
+                    $indexes,
+                    static fn (int $index): bool => ($rootfiles[$index]['selected'] ?? false) === true,
+                )),
+                'mediaTypes' => is_array($rootfile['duplicatePackagePartMediaTypes'] ?? null)
+                    ? array_values($rootfile['duplicatePackagePartMediaTypes'])
+                    : [],
+            ];
+        }
+
+        ksort($groups, SORT_STRING);
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $rootfiles
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function rootfileDiagnostics(array $rootfiles): array
+    {
+        $diagnostics = [];
+        $seen = [];
+        foreach ($rootfiles as $rootfile) {
+            foreach (is_array($rootfile['diagnostics'] ?? null) ? $rootfile['diagnostics'] : [] as $diagnostic) {
+                if (!is_array($diagnostic)) {
+                    continue;
+                }
+
+                $key = json_encode($diagnostic, JSON_UNESCAPED_SLASHES);
+                if (!is_string($key) || isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $diagnostics[] = $diagnostic;
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**
@@ -688,7 +831,9 @@ final class EpubReader
                 continue;
             }
 
-            $selected = (bool) ($rootfile['selected'] ?? false) || (string) $rootfile['path'] === $selectedOpfPart;
+            $selected = array_key_exists('selected', $rootfile)
+                ? (bool) $rootfile['selected']
+                : ((string) $rootfile['path'] === $selectedOpfPart && $selectedIndex === null);
             $item = $selected
                 ? $this->renditionSummaryFromOpf($rootfile, $selectedOpf)
                 : $this->readAlternateRenditionSummary($package, $rootfile);

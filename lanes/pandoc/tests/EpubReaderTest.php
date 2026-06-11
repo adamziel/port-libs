@@ -1540,6 +1540,74 @@ XML;
         $t->same($renditions, $result['importReport']['renditions']);
         $t->same($renditions, $result['document']->attr('renditions'));
     },
+    'preserves duplicate EPUB container rootfile package part provenance' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $duplicateRootfileContainer = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml; profile=&quot;duplicate-audit&quot;"/>' . "\n"
+            . '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml"/>' . "\n"
+            . '  </rootfiles>',
+            $containerXml
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $duplicateRootfileContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $container = $result['container'];
+        $rootfiles = $container['rootfiles'];
+        $duplicate = $container['duplicateRootfilePartItems'][0];
+        $diagnostic = $container['rootfileDiagnostics'][0];
+
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same(0, $container['selectedRootfileIndex']);
+        $t->same(3, $container['rootfileCount']);
+        $t->same(3, count($rootfiles));
+        $t->same(1, $container['duplicateRootfilePartCount']);
+        $t->same(['/OEBPS/package.opf'], $container['duplicateRootfileParts']);
+        $t->same('/OEBPS/package.opf', $duplicate['path']);
+        $t->same([0, 1], $duplicate['indexes']);
+        $t->same([0], $duplicate['selectedIndexes']);
+        $t->same([
+            'application/oebps-package+xml',
+            'application/oebps-package+xml; profile="duplicate-audit"',
+        ], $duplicate['mediaTypes']);
+        $t->same('duplicate-rootfile-package-part', $diagnostic['type']);
+        $t->same('/OEBPS/package.opf', $diagnostic['path']);
+        $t->same([0, 1], $diagnostic['indexes']);
+        $t->same([0], $diagnostic['selectedIndexes']);
+
+        $t->same(true, $rootfiles[0]['selected']);
+        $t->same(true, $rootfiles[0]['duplicatePackagePart']);
+        $t->same([0, 1], $rootfiles[0]['duplicatePackagePartIndexes']);
+        $t->same('duplicate-rootfile-package-part', $rootfiles[0]['diagnostics'][0]['type']);
+        $t->same(false, $rootfiles[1]['selected']);
+        $t->same(true, $rootfiles[1]['duplicatePackagePart']);
+        $t->same(['profile' => 'duplicate-audit'], $rootfiles[1]['mediaTypeParameters']);
+        $t->same('duplicate-rootfile-package-part', $rootfiles[1]['diagnostics'][0]['type']);
+        $t->same(false, $rootfiles[2]['duplicatePackagePart']);
+        $t->same('/OEBPS/fixed/package.opf', $rootfiles[2]['path']);
+        $t->same([], $rootfiles[2]['diagnostics']);
+        $t->same($container, $result['importReport']['container']);
+
+        $renditions = $result['renditions'];
+        $t->same(3, $renditions['count']);
+        $t->same(2, $renditions['alternateCount']);
+        $t->same(0, $renditions['selectedIndex']);
+        $t->same(true, $renditions['items'][0]['selected']);
+        $t->same(false, $renditions['items'][1]['selected']);
+        $t->same('/OEBPS/package.opf', $renditions['items'][1]['path']);
+        $t->same('application/oebps-package+xml; profile="duplicate-audit"', $renditions['items'][1]['mediaType']);
+        $t->same('WordPress Import EPUB', $renditions['items'][1]['metadata']['title']);
+        $t->same(false, $renditions['items'][2]['selected']);
+        $t->same('/OEBPS/fixed/package.opf', $renditions['items'][2]['path']);
+        $t->same('Fixed layout reviewer edition', $renditions['items'][2]['metadata']['title']);
+        $t->same([], $renditions['diagnostics']);
+        $t->same($renditions, $result['importReport']['renditions']);
+    },
     'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithFixedLayout = str_replace(
             '<meta name="cover" content="cover-image"/>',
