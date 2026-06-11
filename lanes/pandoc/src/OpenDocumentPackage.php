@@ -47,11 +47,24 @@ final class OpenDocumentPackage
         $manifest = self::parseManifest($package->read('META-INF/manifest.xml'));
         $manifestEntries = self::withPackageEntryMetadata($manifest['entries'], $package);
         $manifestEntriesByPath = [];
+        $manifestEntriesByPackagePath = [];
         foreach ($manifestEntries as $entry) {
             if (isset($manifestEntriesByPath[$entry['path']])) {
                 throw new \InvalidArgumentException('Duplicate ODF manifest full-path: ' . $entry['path']);
             }
+
+            if (is_string($entry['packagePath'] ?? null) && $entry['packagePath'] !== '') {
+                if (isset($manifestEntriesByPackagePath[$entry['packagePath']])) {
+                    throw new \InvalidArgumentException('Duplicate ODF manifest package part: ' . $entry['packagePath']);
+                }
+
+                $manifestEntriesByPackagePath[$entry['packagePath']] = true;
+            }
+
             $manifestEntriesByPath[$entry['path']] = $entry;
+            if (is_string($entry['packagePath'] ?? null) && !isset($manifestEntriesByPath[$entry['packagePath']])) {
+                $manifestEntriesByPath[$entry['packagePath']] = $entry;
+            }
         }
 
         $root = $manifestEntriesByPath['/'] ?? null;
@@ -208,6 +221,7 @@ final class OpenDocumentPackage
             if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
                     'path' => $entry['path'],
+                    'packagePath' => $entry['packagePath'],
                     'mediaType' => $entry['mediaType'],
                     'exists' => $entry['exists'],
                     'byteLength' => $entry['byteLength'],
@@ -269,9 +283,10 @@ final class OpenDocumentPackage
         $hydrated = [];
         foreach ($entries as $entry) {
             $isRoot = $entry['path'] === '/';
-            $isDirectory = !$isRoot && str_ends_with($entry['path'], '/');
-            $zipEntry = (!$isRoot && $package->has($entry['path']))
-                ? $package->entry($entry['path'])
+            $packagePath = $entry['packagePath'];
+            $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
+            $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
+                ? $package->entry($packagePath)
                 : null;
             $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = is_array($entry['encryption']);
@@ -446,6 +461,7 @@ final class OpenDocumentPackage
     {
         return [
             'path' => $entry['path'],
+            'packagePath' => $entry['packagePath'] ?? null,
             'mediaType' => $entry['mediaType'],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
@@ -492,7 +508,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
-     *     entries:list<array{path:string, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array{path:string, packagePath:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -514,6 +530,7 @@ final class OpenDocumentPackage
             }
 
             $path = self::normalizeManifestPath(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'full-path') ?? '');
+            $packagePath = self::manifestPackagePath($path);
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
             if ($mediaType === '' && !str_ends_with($path, '/')) {
                 throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
@@ -526,6 +543,7 @@ final class OpenDocumentPackage
             $encryption = self::manifestEncryption($child);
             $entries[] = [
                 'path' => $path,
+                'packagePath' => $packagePath,
                 'mediaType' => $mediaType,
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size,
@@ -991,6 +1009,36 @@ final class OpenDocumentPackage
         }
 
         return $path;
+    }
+
+    private static function manifestPackagePath(string $path): ?string
+    {
+        if ($path === '/') {
+            return null;
+        }
+
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $path) === 1) {
+            throw new \InvalidArgumentException('Malformed percent escape in ODF manifest full-path: ' . $path);
+        }
+
+        $decodedPath = rawurldecode($path);
+        if ($decodedPath === '' || str_starts_with($decodedPath, '/') || str_contains($decodedPath, '\\') || str_contains($decodedPath, "\0")) {
+            throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+        }
+
+        $segments = explode('/', $decodedPath);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('Unsafe ODF manifest full-path: ' . $path);
+            }
+        }
+
+        return $decodedPath;
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

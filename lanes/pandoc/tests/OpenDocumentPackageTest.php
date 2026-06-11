@@ -470,6 +470,59 @@ XML;
         $t->same(strlen($settingsBytes), $settings['storedByteLength']);
         $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
     },
+    'resolves compact ODT URI encoded manifest paths to ZIP package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SRCIMAGE';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0]],
+        ));
+        $encoded = $odt->manifestEntry('Pictures/source%20hero.png');
+        $decoded = $odt->manifestEntry('Pictures/source hero.png');
+        $summary = $odt->summarize();
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+
+        $t->same($encoded, $decoded);
+        $t->same('Pictures/source%20hero.png', $encoded['path']);
+        $t->same('Pictures/source hero.png', $encoded['packagePath']);
+        $t->same(true, $encoded['exists']);
+        $t->same(strlen($sourceBytes), $encoded['byteLength']);
+        $t->same(strlen($sourceBytes), $encoded['storedByteLength']);
+        $t->same(sprintf('%08x', crc32($sourceBytes)), $encoded['crc32']);
+        $t->same(true, $encoded['canExposeBytes']);
+        $t->same('package-bytes-exposable', $encoded['byteExposurePolicy']);
+
+        $t->same(2, count($summary['mediaParts']));
+        $t->same('Pictures/source hero.png', $mediaByPath['Pictures/source%20hero.png']['packagePath']);
+        $t->same(strlen($sourceBytes), $mediaByPath['Pictures/source%20hero.png']['byteLength']);
+        $t->same(0, $summary['undeclaredPackageEntryCount']);
+        $t->same(0, $summary['manifestReview']['undeclaredPackageEntryCount']);
+        $t->same('Pictures/source hero.png', $summary['manifestReview']['items'][5]['packagePath']);
+
+        $duplicateDecodedManifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source hero.png"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $duplicateDecodedManifest)));
+
+        $encodedDotSegmentManifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/%2e%2e/evil.png"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
+    },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
         $leadingZero = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $leadingZeroSize));
