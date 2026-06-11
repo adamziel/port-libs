@@ -7307,6 +7307,208 @@ final class ZipPackage
     }
 
     /**
+     * Summarize central-directory fixed-header field provenance before package
+     * construction. Variable fields already expose raw name, extra-field, and
+     * comment offsets; this companion packet keeps the fixed metadata bytes
+     * visible when raw ZIP policy blocks object construction.
+     *
+     * @return array{
+     *     entryCount:int,
+     *     declaredEntryCount:int,
+     *     centralDirectoryOffset:int,
+     *     centralDirectorySize:int,
+     *     centralDirectoryEnd:int,
+     *     eocdOffset:int,
+     *     centralDirectoryFixedHeaderBytes:int,
+     *     fixedHeaderLength:int,
+     *     scanStoppedOffset:int,
+     *     hasUnexpectedCentralDirectoryTail:bool,
+     *     unexpectedRecordOffset:?int,
+     *     unexpectedRecordSignatureHex:?string,
+     *     isSupportedByBoundedReader:bool,
+     *     issues:list<string>,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    public static function centralDirectoryFixedHeaderPreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before central directory fixed headers can be scanned');
+        }
+
+        self::assertRange(
+            $bytes,
+            $archive['centralDirectoryOffset'],
+            $archive['centralDirectorySize'],
+            'central directory'
+        );
+        if ($archive['centralDirectoryEnd'] > $archive['eocdOffset']) {
+            throw new \RuntimeException('Central directory overlaps the end-of-central-directory record');
+        }
+
+        $entries = [];
+        $issues = [];
+        $cursor = $archive['centralDirectoryOffset'];
+        $unexpectedRecordOffset = null;
+        $unexpectedRecordSignatureHex = null;
+
+        for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
+            while ($cursor < $archive['centralDirectoryEnd']) {
+                $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+                if ($archiveExtraDataRecord === null) {
+                    break;
+                }
+
+                $cursor = $archiveExtraDataRecord['endOffset'];
+            }
+
+            if ($cursor >= $archive['centralDirectoryEnd']) {
+                $issues[] = 'central-directory-fixed-header-missing-entry';
+                break;
+            }
+
+            if (substr($bytes, $cursor, 4) !== self::CENTRAL_DIRECTORY_SIGNATURE) {
+                $issues[] = 'central-directory-fixed-header-unexpected-record';
+                $unexpectedRecordOffset = $cursor;
+                $unexpectedRecordSignatureHex = bin2hex(substr($bytes, $cursor, min(4, strlen($bytes) - $cursor)));
+                break;
+            }
+
+            self::assertRange($bytes, $cursor, 46, 'central directory entry');
+            $versionMadeBy = self::readUInt16($bytes, $cursor + 4);
+            $versionNeededToExtract = self::readUInt16($bytes, $cursor + 6);
+            $flags = self::readUInt16($bytes, $cursor + 8);
+            $method = self::readUInt16($bytes, $cursor + 10);
+            $modifiedTime = self::readUInt16($bytes, $cursor + 12);
+            $modifiedDate = self::readUInt16($bytes, $cursor + 14);
+            $crc32 = self::readUInt32($bytes, $cursor + 16);
+            $compressedSize = self::readUInt32($bytes, $cursor + 20);
+            $uncompressedSize = self::readUInt32($bytes, $cursor + 24);
+            $nameLength = self::readUInt16($bytes, $cursor + 28);
+            $extraLength = self::readUInt16($bytes, $cursor + 30);
+            $commentLength = self::readUInt16($bytes, $cursor + 32);
+            $diskStart = self::readUInt16($bytes, $cursor + 34);
+            $internalAttributes = self::readUInt16($bytes, $cursor + 36);
+            $externalAttributes = self::readUInt32($bytes, $cursor + 38);
+            $localHeaderOffset = self::readUInt32($bytes, $cursor + 42);
+            $variableStart = $cursor + 46;
+            $variableLength = $nameLength + $extraLength + $commentLength;
+            self::assertRange($bytes, $variableStart, $variableLength, 'central directory entry variable fields');
+
+            $rawName = substr($bytes, $variableStart, $nameLength);
+            $centralExtraFieldData = substr($bytes, $variableStart + $nameLength, $extraLength);
+            self::assertSafePartName($rawName);
+            $decodedName = self::decodeZipText(
+                $rawName,
+                $flags,
+                $centralExtraFieldData,
+                self::INFOZIP_UNICODE_PATH_EXTRA_ID,
+                'info-zip-unicode-path',
+                "central directory entry {$index} name"
+            );
+            self::assertSafePartName($decodedName['text']);
+
+            $entries[] = [
+                'name' => $decodedName['text'],
+                'rawName' => $rawName,
+                'nameEncoding' => $decodedName['encoding'],
+                'centralDirectoryIndex' => $index,
+                'recordOffset' => $cursor,
+                'fixedHeaderOffset' => $cursor,
+                'fixedHeaderLength' => 46,
+                'signatureOffset' => $cursor,
+                'signatureLength' => 4,
+                'versionMadeByOffset' => $cursor + 4,
+                'versionMadeBy' => $versionMadeBy,
+                'creatorHostSystem' => ($versionMadeBy >> 8) & 0xff,
+                'creatorVersion' => $versionMadeBy & 0xff,
+                'versionNeededToExtractOffset' => $cursor + 6,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'generalPurposeFlagsOffset' => $cursor + 8,
+                'generalPurposeFlags' => $flags,
+                'compressionMethodOffset' => $cursor + 10,
+                'compressionMethod' => $method,
+                'compressionMethodName' => self::compressionMethodName($method),
+                'modifiedDosTimeOffset' => $cursor + 12,
+                'modifiedDosTime' => $modifiedTime,
+                'modifiedDosDateOffset' => $cursor + 14,
+                'modifiedDosDate' => $modifiedDate,
+                'crc32Offset' => $cursor + 16,
+                'crc32' => $crc32,
+                'crc32Hex' => sprintf('%08x', $crc32),
+                'compressedSizeOffset' => $cursor + 20,
+                'compressedSize' => $compressedSize,
+                'uncompressedSizeOffset' => $cursor + 24,
+                'uncompressedSize' => $uncompressedSize,
+                'nameLengthOffset' => $cursor + 28,
+                'nameLength' => $nameLength,
+                'extraFieldLengthOffset' => $cursor + 30,
+                'extraFieldLength' => $extraLength,
+                'commentLengthOffset' => $cursor + 32,
+                'commentLength' => $commentLength,
+                'diskStartOffset' => $cursor + 34,
+                'diskStart' => $diskStart,
+                'internalAttributesOffset' => $cursor + 36,
+                'internalAttributes' => $internalAttributes,
+                'externalAttributesOffset' => $cursor + 38,
+                'externalAttributes' => $externalAttributes,
+                'localHeaderOffsetFieldOffset' => $cursor + 42,
+                'localHeaderOffset' => $localHeaderOffset,
+                'fixedHeaderEnd' => $cursor + 46,
+                'variableFieldsOffset' => $variableStart,
+                'variableFieldsLength' => $variableLength,
+                'recordEnd' => $cursor + 46 + $variableLength,
+            ];
+
+            $cursor += 46 + $variableLength;
+        }
+
+        while ($cursor < $archive['centralDirectoryEnd']) {
+            $archiveExtraDataRecord = self::archiveExtraDataRecordAt($bytes, $cursor);
+            if ($archiveExtraDataRecord !== null) {
+                $cursor = $archiveExtraDataRecord['endOffset'];
+                continue;
+            }
+
+            $signature = self::centralDirectoryDigitalSignatureRecordAt($bytes, $cursor);
+            if ($signature !== null) {
+                $cursor = $signature['endOffset'];
+                continue;
+            }
+
+            $unexpectedRecordOffset ??= $cursor;
+            $unexpectedRecordSignatureHex ??= bin2hex(substr($bytes, $cursor, min(4, strlen($bytes) - $cursor)));
+            $issues[] = 'central-directory-fixed-header-unexpected-tail';
+            break;
+        }
+
+        if (!$archive['isSingleDisk']) {
+            $issues[] = 'split-archive-eocd';
+        }
+
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'entryCount' => count($entries),
+            'declaredEntryCount' => $archive['totalEntryCount'],
+            'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
+            'centralDirectorySize' => $archive['centralDirectorySize'],
+            'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
+            'eocdOffset' => $archive['eocdOffset'],
+            'centralDirectoryFixedHeaderBytes' => count($entries) * 46,
+            'fixedHeaderLength' => 46,
+            'scanStoppedOffset' => $cursor,
+            'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,
+            'unexpectedRecordOffset' => $unexpectedRecordOffset,
+            'unexpectedRecordSignatureHex' => $unexpectedRecordSignatureHex,
+            'isSupportedByBoundedReader' => $issues === [],
+            'issues' => $issues,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * Summarize central-directory byte counts without reading local headers or
      * entry payloads, so size policy remains visible even when another raw ZIP
      * gate blocks package construction first.
@@ -8976,6 +9178,7 @@ final class ZipPackage
      *     centralDirectoryInventory:?array<string, mixed>,
      *     centralDirectorySignature:?array<string, mixed>,
      *     centralDirectorySize:?array<string, mixed>,
+     *     centralDirectoryFixedHeaders:?array<string, mixed>,
      *     centralDirectoryVariableFields:?array<string, mixed>,
      *     centralDirectoryRepairPlan:?array<string, mixed>,
      *     localHeaderNames:?array<string, mixed>,
@@ -9094,6 +9297,7 @@ final class ZipPackage
                 'centralDirectoryInventory' => null,
                 'centralDirectorySignature' => null,
                 'centralDirectorySize' => null,
+                'centralDirectoryFixedHeaders' => null,
                 'centralDirectoryVariableFields' => null,
                 'centralDirectoryRepairPlan' => null,
                 'localHeaderNames' => null,
@@ -9135,6 +9339,7 @@ final class ZipPackage
         $centralDirectoryInventory = null;
         $centralDirectorySignature = null;
         $centralDirectorySize = null;
+        $centralDirectoryFixedHeaders = null;
         $centralDirectoryVariableFields = null;
         $centralDirectoryRepairPlan = null;
         $localHeaderNames = null;
@@ -9199,6 +9404,18 @@ final class ZipPackage
             );
             if ($centralDirectorySize !== null && !$centralDirectorySize['isSupportedByBoundedReader']) {
                 $addDiagnostics($centralDirectorySize['issues']);
+            }
+
+            $centralDirectoryFixedHeaders = $runPreflight(
+                'central-directory-fixed-headers',
+                static fn (): array => self::centralDirectoryFixedHeaderPreflight($bytes)
+            );
+            if (
+                $centralDirectoryFixedHeaders !== null
+                && !$centralDirectoryFixedHeaders['isSupportedByBoundedReader']
+            ) {
+                $addDiagnostic('central-directory-fixed-header-issues');
+                $addDiagnostics($centralDirectoryFixedHeaders['issues']);
             }
 
             $centralDirectoryVariableFields = $runPreflight(
@@ -9472,6 +9689,7 @@ final class ZipPackage
             ?? $packagePrefix['entryCount']
             ?? $splitArchive['entryCount']
             ?? $centralDirectorySignature['entryCount']
+            ?? $centralDirectoryFixedHeaders['entryCount']
             ?? $encryption['entryCount']
             ?? $generalPurposeFlags['entryCount']
             ?? $compressionMethods['entryCount']
@@ -9514,6 +9732,7 @@ final class ZipPackage
             'centralDirectoryInventory' => $centralDirectoryInventory,
             'centralDirectorySignature' => $centralDirectorySignature,
             'centralDirectorySize' => $centralDirectorySize,
+            'centralDirectoryFixedHeaders' => $centralDirectoryFixedHeaders,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'centralDirectoryRepairPlan' => $centralDirectoryRepairPlan,
             'localHeaderNames' => $localHeaderNames,
@@ -9574,6 +9793,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
+     *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,
@@ -9615,6 +9835,7 @@ final class ZipPackage
 
         $archive = $this->archivePreflight();
         $centralDirectoryInventory = self::centralDirectoryInventoryPreflight($this->bytes);
+        $centralDirectoryFixedHeaders = self::centralDirectoryFixedHeaderPreflight($this->bytes);
         $centralDirectoryVariableFields = self::centralDirectoryVariableFieldsPreflight($this->bytes);
         $contentPresence = $this->contentPresencePreflight();
         $size = $this->sizePreflight();
@@ -9649,6 +9870,11 @@ final class ZipPackage
 
         if (!$centralDirectoryInventory['isSupportedByBoundedReader']) {
             $diagnostics[] = 'central-directory-inventory-issues';
+        }
+
+        if (!$centralDirectoryFixedHeaders['isSupportedByBoundedReader']) {
+            $diagnostics[] = 'central-directory-fixed-header-issues';
+            array_push($diagnostics, ...$centralDirectoryFixedHeaders['issues']);
         }
 
         if (!$contentPresence['isSupportedByBoundedReader']) {
@@ -9789,6 +10015,7 @@ final class ZipPackage
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'archive' => $archive,
             'centralDirectoryInventory' => $centralDirectoryInventory,
+            'centralDirectoryFixedHeaders' => $centralDirectoryFixedHeaders,
             'centralDirectoryVariableFields' => $centralDirectoryVariableFields,
             'contentPresence' => $contentPresence,
             'size' => $size,
@@ -9824,6 +10051,7 @@ final class ZipPackage
      *     maxEntryUncompressedBytes:?int,
      *     archive:array<string, mixed>,
      *     centralDirectoryInventory:array<string, mixed>,
+     *     centralDirectoryFixedHeaders:array<string, mixed>,
      *     centralDirectoryVariableFields:array<string, mixed>,
      *     contentPresence:array<string, mixed>,
      *     size:array<string, mixed>,

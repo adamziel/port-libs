@@ -8261,6 +8261,111 @@ return [
         $t->contains('zip-package-instantiation-failed', implode(',', $encryptedRaw['diagnostics']));
     },
 
+    'preflights central directory fixed headers before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $contentTypes = '<Types><Default Extension="xml" ContentType="application/xml"/></Types>';
+        $documentXml = '<w:document><w:p>central fixed header accounting</w:p></w:document>';
+        $deflatedDocumentXml = gzdeflate($documentXml);
+        if ($deflatedDocumentXml === false) {
+            throw new RuntimeException('Unable to deflate central fixed header fixture');
+        }
+
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypes,
+                'method' => 0,
+                'modifiedTime' => 0x4a21,
+                'modifiedDate' => 0x579b,
+                'externalAttributes' => 0x20,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'modifiedTime' => 0x4a22,
+                'modifiedDate' => 0x579c,
+                'externalAttributes' => 0x20,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+
+        $summary = ZipPackage::centralDirectoryFixedHeaderPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same(92, $summary['centralDirectoryFixedHeaderBytes']);
+        $t->same(46, $summary['fixedHeaderLength']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+        $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(null, $summary['unexpectedRecordOffset']);
+        $t->same(null, $summary['unexpectedRecordSignatureHex']);
+
+        $first = $summary['entries'][0];
+        $t->same('[Content_Types].xml', $first['name']);
+        $t->same($summary['centralDirectoryOffset'], $first['recordOffset']);
+        $t->same($first['recordOffset'], $first['fixedHeaderOffset']);
+        $t->same($first['recordOffset'], $first['signatureOffset']);
+        $t->same(4, $first['signatureLength']);
+        $t->same($first['recordOffset'] + 4, $first['versionMadeByOffset']);
+        $t->same(0x0314, $first['versionMadeBy']);
+        $t->same(3, $first['creatorHostSystem']);
+        $t->same(20, $first['creatorVersion']);
+        $t->same($first['recordOffset'] + 6, $first['versionNeededToExtractOffset']);
+        $t->same(20, $first['versionNeededToExtract']);
+        $t->same($first['recordOffset'] + 8, $first['generalPurposeFlagsOffset']);
+        $t->same(0x0800, $first['generalPurposeFlags']);
+        $t->same($first['recordOffset'] + 10, $first['compressionMethodOffset']);
+        $t->same(0, $first['compressionMethod']);
+        $t->same('stored', $first['compressionMethodName']);
+        $t->same($first['recordOffset'] + 12, $first['modifiedDosTimeOffset']);
+        $t->same(0x4a21, $first['modifiedDosTime']);
+        $t->same($first['recordOffset'] + 14, $first['modifiedDosDateOffset']);
+        $t->same(0x579b, $first['modifiedDosDate']);
+        $t->same($first['recordOffset'] + 16, $first['crc32Offset']);
+        $t->same($crc32($contentTypes), $first['crc32']);
+        $t->same(sprintf('%08x', $crc32($contentTypes)), $first['crc32Hex']);
+        $t->same($first['recordOffset'] + 20, $first['compressedSizeOffset']);
+        $t->same(strlen($contentTypes), $first['compressedSize']);
+        $t->same($first['recordOffset'] + 24, $first['uncompressedSizeOffset']);
+        $t->same(strlen($contentTypes), $first['uncompressedSize']);
+        $t->same($first['recordOffset'] + 28, $first['nameLengthOffset']);
+        $t->same(strlen('[Content_Types].xml'), $first['nameLength']);
+        $t->same($first['recordOffset'] + 30, $first['extraFieldLengthOffset']);
+        $t->same(0, $first['extraFieldLength']);
+        $t->same($first['recordOffset'] + 32, $first['commentLengthOffset']);
+        $t->same(0, $first['commentLength']);
+        $t->same($first['recordOffset'] + 34, $first['diskStartOffset']);
+        $t->same(0, $first['diskStart']);
+        $t->same($first['recordOffset'] + 36, $first['internalAttributesOffset']);
+        $t->same(0, $first['internalAttributes']);
+        $t->same($first['recordOffset'] + 38, $first['externalAttributesOffset']);
+        $t->same(0x20, $first['externalAttributes']);
+        $t->same($first['recordOffset'] + 42, $first['localHeaderOffsetFieldOffset']);
+        $t->same(0, $first['localHeaderOffset']);
+        $t->same($first['recordOffset'] + 46, $first['fixedHeaderEnd']);
+        $t->same($first['recordOffset'] + 46, $first['variableFieldsOffset']);
+        $t->same(strlen('[Content_Types].xml'), $first['variableFieldsLength']);
+        $t->same($first['variableFieldsOffset'] + strlen('[Content_Types].xml'), $first['recordEnd']);
+
+        $second = $summary['entries'][1];
+        $t->same('word/document.xml', $second['name']);
+        $t->same(8, $second['compressionMethod']);
+        $t->same('deflated', $second['compressionMethodName']);
+        $t->same($crc32($documentXml), $second['crc32']);
+        $t->same(strlen($deflatedDocumentXml), $second['compressedSize']);
+        $t->same(strlen($documentXml), $second['uncompressedSize']);
+        $t->same($second['recordOffset'] + 46, $second['variableFieldsOffset']);
+        $t->same(strlen('word/document.xml'), $second['variableFieldsLength']);
+
+        $t->same($summary, $rawStrict['centralDirectoryFixedHeaders']);
+        $t->same($summary, $strict['centralDirectoryFixedHeaders']);
+        $t->same(true, $rawStrict['isValid']);
+        $t->same(true, $strict['isValid']);
+    },
+
     'preflights central directory variable fields before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage, $rewriteEndOfCentralDirectory): void {
         $extra = pack('vva*', 0xcafe, strlen('field'), 'field');
         $entryComment = 'content types review';
