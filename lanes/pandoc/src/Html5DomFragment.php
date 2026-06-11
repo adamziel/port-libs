@@ -248,7 +248,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review', 'attribution-source-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -6203,6 +6203,20 @@ final class Html5DomFragment
                 continue;
             }
 
+            if ($mode === 'html' && strtolower($name) === 'attributionsrc') {
+                $attributionMetadata = self::normalizeHtmlAttributionSourceAttribute(
+                    $value,
+                    $tagName,
+                    $element,
+                    $diagnostics,
+                    $baseUrl
+                );
+                foreach ($attributionMetadata as $metadataName => $metadataValue) {
+                    $attrs[$metadataName] = $metadataValue;
+                }
+                continue;
+            }
+
             if ($mode === 'html' && self::isHtmlRevisionMetadataAttribute($tagName, $name)) {
                 $revisionMetadata = self::normalizeHtmlRevisionMetadataAttribute(
                     $name,
@@ -9331,6 +9345,93 @@ final class Html5DomFragment
     private static function isHtmlAnchorBrowsingMetadataAttribute(string $name): bool
     {
         return in_array(strtolower($name), ['download', 'target'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, string>
+     */
+    private static function normalizeHtmlAttributionSourceAttribute(
+        string $value,
+        string $tagName,
+        \DOMElement $element,
+        array &$diagnostics,
+        ?string $baseUrl
+    ): array {
+        $tag = strtolower($tagName);
+        if (!in_array($tag, ['a', 'img'], true)) {
+            $diagnostics[] = self::diagnosticWithSourceLine([
+                'code' => 'unsafe-attribute',
+                'tag' => $tagName,
+                'attribute' => 'attributionsrc',
+                'reason' => 'unsupported-attribution-source-element',
+            ], $element);
+
+            return [];
+        }
+
+        $cleaned = self::cleanHtmlMetadataAttribute($value);
+        if ($cleaned === '') {
+            self::addHtmlAttributionSourceReviewDiagnostic($diagnostics, $tagName, $element, 0);
+
+            return ['data-pandoc-attribution-src' => 'true'];
+        }
+
+        $urls = [];
+        $tokens = preg_split('/[\x00-\x20]+/', $cleaned);
+        if (!is_array($tokens)) {
+            $tokens = [];
+        }
+        foreach ($tokens as $token) {
+            $token = trim((string) $token);
+            if ($token === '') {
+                continue;
+            }
+
+            $normalized = self::normalizeUrlAttributeValue($token);
+            if ($normalized === '' || !self::isSafeFetchUrl($normalized)) {
+                $diagnostics[] = self::diagnosticWithSourceLine([
+                    'code' => 'unsafe-url',
+                    'tag' => $tagName,
+                    'attribute' => 'attributionsrc',
+                    'token' => $token,
+                    'reason' => 'invalid-attribution-source-url',
+                ], $element);
+                continue;
+            }
+
+            $url = $baseUrl === null ? $normalized : self::resolveRelativeUrl($baseUrl, $normalized);
+            if (!in_array($url, $urls, true)) {
+                $urls[] = $url;
+            }
+        }
+
+        if ($urls === []) {
+            return [];
+        }
+
+        self::addHtmlAttributionSourceReviewDiagnostic($diagnostics, $tagName, $element, count($urls));
+
+        return ['data-pandoc-attribution-src' => implode(' ', $urls)];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addHtmlAttributionSourceReviewDiagnostic(
+        array &$diagnostics,
+        string $tagName,
+        \DOMElement $element,
+        int $endpointCount
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'attribution-source-review',
+            'tag' => $tagName,
+            'attribute' => 'attributionsrc',
+            'metadataAttribute' => 'data-pandoc-attribution-src',
+            'endpointCount' => $endpointCount,
+            'reason' => 'attribution-source-preserved-as-review-metadata',
+        ], $element);
     }
 
     /**

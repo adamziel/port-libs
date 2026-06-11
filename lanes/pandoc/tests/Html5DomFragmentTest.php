@@ -360,6 +360,79 @@ return [
             $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit anchor side-effect source: ' . $blocked);
         }
     },
+    'converts attribution reporting sources into inert reviewer metadata' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            '<base href="https://source.example.test/import/posts/post.html">'
+            . '<p>'
+            . '<a href="./review.html" attributionsrc="./report https://metrics.example.test/conv javascript:alert(1)">Tracked source</a>'
+            . '<img src="./cover.png" attributionsrc alt="Cover">'
+            . '<img src="./bad.png" attributionsrc="mailto:metrics@example.test ./image-report" alt="Bad metrics">'
+            . '<div attributionsrc="./div-report">Unsupported attribution</div>'
+            . '</p>'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/attribution-source-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') !== 'libxml-repair'
+        ));
+
+        $expected = '<p>'
+            . '<a href="https://source.example.test/import/posts/review.html" data-pandoc-attribution-src="https://source.example.test/import/posts/report https://metrics.example.test/conv">Tracked source</a>'
+            . '<img src="https://source.example.test/import/posts/cover.png" data-pandoc-attribution-src="true" alt="Cover">'
+            . '<img src="https://source.example.test/import/posts/bad.png" data-pandoc-attribution-src="https://source.example.test/import/posts/image-report" alt="Bad metrics">'
+            . '</p>'
+            . '<div>Unsupported attribution</div>';
+
+        $t->same($expected, $html);
+        $t->contains($expected, $blocks);
+        $t->same('https://source.example.test/import/posts/post.html', $fragment->baseUrl());
+        $t->same('Tracked sourceUnsupported attribution', $fragment->textContent());
+        $t->same(['a', 'div', 'img', 'p'], $summary['elementNames']);
+        $t->same(['base'], $summary['blockedTags']);
+        $t->same(['attributionsrc'], $summary['filteredAttributes']);
+        $t->same([
+            'blocked-tag',
+            'unsafe-url',
+            'attribution-source-review',
+            'attribution-source-review',
+            'unsafe-url',
+            'attribution-source-review',
+            'unsafe-attribute',
+        ], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $policyDiagnostics));
+        $attributionDiagnostics = array_values(array_filter(
+            $policyDiagnostics,
+            static fn (array $diagnostic): bool => ($diagnostic['code'] ?? '') === 'attribution-source-review'
+        ));
+        $t->same(['a', 'img', 'img'], array_map(static fn (array $diagnostic): string => (string) ($diagnostic['tag'] ?? ''), $attributionDiagnostics));
+        $t->same([2, 0, 1], array_map(static fn (array $diagnostic): int => (int) ($diagnostic['endpointCount'] ?? -1), $attributionDiagnostics));
+        $t->same([
+            'href' => 'https://source.example.test/import/posts/review.html',
+            'data-pandoc-attribution-src' => 'https://source.example.test/import/posts/report https://metrics.example.test/conv',
+        ], $nodes[0]['children'][0]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/cover.png',
+            'data-pandoc-attribution-src' => 'true',
+            'alt' => 'Cover',
+        ], $nodes[0]['children'][1]['attrs']);
+        $t->same([
+            'src' => 'https://source.example.test/import/posts/bad.png',
+            'data-pandoc-attribution-src' => 'https://source.example.test/import/posts/image-report',
+            'alt' => 'Bad metrics',
+        ], $nodes[0]['children'][2]['attrs']);
+        $t->same([], $nodes[1]['attrs']);
+        $t->same('/migration/attribution-source-review.html', $document->children[0]->attr('part'));
+        $t->same('https://source.example.test/import/posts/post.html', $document->children[0]->attr('baseUrl'));
+        foreach ([' attributionsrc=', 'javascript:', 'mailto:metrics@example.test', 'div-report'] as $blocked) {
+            $t->true(!str_contains($html, $blocked), 'Expected attribution source side effects to stay out of review HTML: ' . $blocked);
+            $t->true(!str_contains($blocks, $blocked), 'Expected WordPress blocks to omit attribution source side effects: ' . $blocked);
+        }
+    },
     'normalizes control-separated URL attributes before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href=" https://source.example.test/import/posts/post.html ">'
