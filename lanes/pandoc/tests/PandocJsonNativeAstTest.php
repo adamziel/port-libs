@@ -1434,6 +1434,122 @@ return [
             $t->same('ColSpan', $cell->attr('colSpanConstructor'), "{$source} cell column span constructor");
         }
     },
+    'preserves table helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $rowHeadColumnsNative = ['t' => 'RowHeadColumns', 'c' => [2]];
+        $alignmentNative = ['t' => 'AlignRight'];
+        $rowSpanNative = ['t' => 'RowSpan', 'c' => [3]];
+        $colSpanNative = ['t' => 'ColSpan', 'c' => [2]];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['helper-native-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        $rowHeadColumnsNative,
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        $alignmentNative,
+                                        $rowSpanNative,
+                                        $colSpanNative,
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Payload']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $body = $document->children[0]->children[0];
+            $cell = $body->children[0]->children[0];
+
+            $t->same(2, $body->attr('rowHeadColumns'), "{$source} row head columns value");
+            $t->same($rowHeadColumnsNative, $body->attr('rowHeadColumnsNative'), "{$source} row head columns native payload");
+            $t->same('right', $cell->attr('align'), "{$source} cell alignment value");
+            $t->same($alignmentNative, $cell->attr('alignmentNative'), "{$source} cell alignment native payload");
+            $t->same(3, $cell->attr('rowspan'), "{$source} row span value");
+            $t->same($rowSpanNative, $cell->attr('rowSpanNative'), "{$source} row span native payload");
+            $t->same(2, $cell->attr('colspan'), "{$source} column span value");
+            $t->same($colSpanNative, $cell->attr('colSpanNative'), "{$source} column span native payload");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+        $unwrapTuple = static function (array $value, string $constructor): array {
+            if (!array_is_list($value) && ($value['t'] ?? null) === $constructor && is_array($value['c'] ?? null)) {
+                return $value['c'];
+            }
+
+            return $value;
+        };
+        $firstBodyAndCell = static function (array $outputPacket) use ($unwrapTuple): array {
+            $body = $unwrapTuple($outputPacket['blocks'][0]['c'][4][0], 'TableBody');
+            $row = $unwrapTuple($body[3][0], 'Row');
+            $cell = $unwrapTuple($row[1][0], 'Cell');
+
+            return [$body, $cell];
+        };
+
+        foreach (['json' => $jsonPacket, 'native' => $nativePacket] as $source => $outputPacket) {
+            [$body, $cell] = $firstBodyAndCell($outputPacket);
+
+            $t->same($rowHeadColumnsNative, $body[1], "{$source} writer preserves row head columns payload");
+            $t->same($alignmentNative, $cell[1], "{$source} writer preserves cell alignment payload");
+            $t->same($rowSpanNative, $cell[2], "{$source} writer preserves row span payload");
+            $t->same($colSpanNative, $cell[3], "{$source} writer preserves column span payload");
+        }
+
+        $sourceTable = $documents['json']->children[0];
+        $sourceBody = $sourceTable->children[0];
+        $sourceRow = $sourceBody->children[0];
+        $sourceCell = $sourceRow->children[0];
+        $editedCell = new AstNode('table_cell', array_replace($sourceCell->attrs, [
+            'align' => 'center',
+            'rowspan' => 1,
+            'colspan' => 1,
+        ]), $sourceCell->children);
+        $editedBody = new AstNode('table_body', array_replace($sourceBody->attrs, [
+            'rowHeadColumns' => 1,
+        ]), [
+            new AstNode('table_row', $sourceRow->attrs, [$editedCell]),
+        ]);
+        $editedDocument = new AstNode('document', $documents['json']->attrs, [
+            new AstNode('table', $sourceTable->attrs, [$editedBody]),
+        ]);
+        $editedJsonPacket = (new PandocJsonWriter())->toArray($editedDocument);
+        $editedNativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['json' => $editedJsonPacket, 'native' => $editedNativePacket] as $source => $outputPacket) {
+            [$body, $cell] = $firstBodyAndCell($outputPacket);
+
+            $t->same(['t' => 'RowHeadColumns', 'c' => 1], $body[1], "{$source} writer regenerates edited row head columns");
+            $t->same(['t' => 'AlignCenter'], $cell[1], "{$source} writer regenerates edited cell alignment");
+            $t->same(['t' => 'RowSpan', 'c' => 1], $cell[2], "{$source} writer regenerates edited row span");
+            $t->same(['t' => 'ColSpan', 'c' => 1], $cell[3], "{$source} writer regenerates edited column span");
+        }
+    },
     'records pandoc attr tuple provenance on json and native ast nodes' => static function (TestRunner $t): void {
         $headerAttr = ['heading-id', ['level'], [['data-source', 'json-native']]];
         $codeAttr = ['code-id', ['php'], [['data-token', 'code']]];

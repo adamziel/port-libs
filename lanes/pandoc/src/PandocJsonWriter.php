@@ -611,7 +611,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string, c:int}, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
+     * @return array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array<string, mixed>, 2:list<array<int, mixed>>, 3:list<array<int, mixed>>}
      */
     private function writeTableBody(AstNode $body): array
     {
@@ -619,10 +619,21 @@ final class PandocJsonWriter
 
         return [
             $this->attrTuple($body),
-            ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
+            $this->writeRowHeadColumns($body),
             is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
             $this->writeTableRows($body->children),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeRowHeadColumns(AstNode $body): array
+    {
+        $value = max(0, (int) $body->attr('rowHeadColumns', 0));
+
+        return $this->matchingTaggedIntegerNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', $value)
+            ?? ['t' => 'RowHeadColumns', 'c' => $value];
     }
 
     /**
@@ -648,7 +659,7 @@ final class PandocJsonWriter
 
     /**
      * @param list<AstNode> $cells
-     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
+     * @return list<array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array<string, mixed>, 2:array<string, mixed>, 3:array<string, mixed>, 4:list<array<string, mixed>>}>
      */
     private function writeTableCells(array $cells): array
     {
@@ -660,14 +671,59 @@ final class PandocJsonWriter
 
             $encoded[] = [
                 $this->attrTuple($cell),
-                $this->enum($this->tableAlignmentConstructor((string) $cell->attr('align', 'default'))),
-                ['t' => 'RowSpan', 'c' => max(1, (int) $cell->attr('rowspan', 1))],
-                ['t' => 'ColSpan', 'c' => max(1, (int) $cell->attr('colspan', 1))],
+                $this->writeTableCellAlignment($cell),
+                $this->writeTableCellSpan($cell, 'rowspan', 'RowSpan'),
+                $this->writeTableCellSpan($cell, 'colspan', 'ColSpan'),
                 $this->childrenAsBlocks($cell),
             ];
         }
 
         return $encoded;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeTableCellAlignment(AstNode $cell): array
+    {
+        $constructor = $this->tableAlignmentConstructor((string) $cell->attr('align', 'default'));
+        $native = $cell->attr('alignmentNative');
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return $this->enum($constructor);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function writeTableCellSpan(AstNode $cell, string $attr, string $constructor): array
+    {
+        $value = max(1, (int) $cell->attr($attr, 1));
+
+        return $this->matchingTaggedIntegerNative(
+            $cell->attr($constructor === 'RowSpan' ? 'rowSpanNative' : 'colSpanNative'),
+            $constructor,
+            $value
+        ) ?? ['t' => $constructor, 'c' => $value];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function matchingTaggedIntegerNative(mixed $native, string $constructor, int $value): ?array
+    {
+        if (!is_array($native) || array_is_list($native) || ($native['t'] ?? null) !== $constructor) {
+            return null;
+        }
+
+        $content = $native['c'] ?? null;
+        if (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return $content === $value ? $native : null;
     }
 
     /**

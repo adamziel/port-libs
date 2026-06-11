@@ -928,6 +928,7 @@ final class PandocJsonReader
             $attrs['rowHeadColumns'] = $rowHeadColumns;
         }
         $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
+        $attrs['rowHeadColumnsNative'] = $tuple[1];
 
         $headRows = $this->readTableRows($tuple[2]);
         if ($headRows !== []) {
@@ -1012,18 +1013,21 @@ final class PandocJsonReader
             $attrs['align'] = $alignment;
         }
         $attrs['alignmentConstructor'] = $alignmentConstructor;
+        $attrs['alignmentNative'] = $tuple[1];
 
         $rowspan = $this->readTaggedInteger($tuple[2], 'RowSpan', 'Table cell rowspan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
         $attrs['rowSpanConstructor'] = 'RowSpan';
+        $attrs['rowSpanNative'] = $tuple[2];
 
         $colspan = $this->readTaggedInteger($tuple[3], 'ColSpan', 'Table cell colspan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
         $attrs['colSpanConstructor'] = 'ColSpan';
+        $attrs['colSpanNative'] = $tuple[3];
 
         $blocks = $this->readBlocks($this->listContent($tuple[4], 'Table cell blocks'));
         $text = $this->plainTextFromBlocks($blocks);
