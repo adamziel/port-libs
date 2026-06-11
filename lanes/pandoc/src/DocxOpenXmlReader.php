@@ -21,6 +21,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
+    private const NS_V = 'urn:schemas-microsoft-com:vml';
     private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
@@ -34,6 +35,7 @@ final class DocxOpenXmlReader
     private const FONT_TABLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     private const THEME_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     private const GLOSSARY_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+    private const IMAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     private const FOOTNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     private const ENDNOTES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
@@ -251,6 +253,14 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $documentBackground = $this->readDocumentBackground(
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationshipsPart,
+            $documentRelationships,
+            $parts,
+            $contentTypes,
+        );
         $selectedXmlParts = $this->selectedXmlPartProvenance($parts, $contentTypes, [
             $this->selectedXmlPartDefinition(
                 'document',
@@ -295,6 +305,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateCount'] = $attachedTemplates['count'];
         $packageProvenance['summary']['attachedTemplateExternalCount'] = $attachedTemplates['externalCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
+        $packageProvenance['documentBackground'] = $documentBackground;
+        $packageProvenance['summary']['documentBackgroundPresent'] = $documentBackground !== [];
+        $packageProvenance['summary']['documentBackgroundRelationshipId'] = $documentBackground['relationshipId'] ?? null;
+        $packageProvenance['summary']['documentBackgroundImageExists'] = (bool) ($documentBackground['relationship']['exists'] ?? false);
+        $packageProvenance['summary']['documentBackgroundIssueCount'] = count($documentBackground['issues'] ?? []);
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -339,6 +354,7 @@ final class DocxOpenXmlReader
                 'embeddedObjects' => $embeddedObjects,
                 'customXmlParts' => $customXmlParts,
                 'packageThumbnails' => $packageThumbnails,
+                'documentBackground' => $documentBackground,
                 'media' => $media,
             ],
         ];
@@ -632,6 +648,94 @@ final class DocxOpenXmlReader
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readDocumentBackground(
+        string $documentXml,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        array $documentRelationships,
+        array $parts,
+        array $contentTypes,
+    ): array {
+        if ($documentXml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXml($documentXml, $documentPart);
+        $xpath = $this->xpath($dom);
+        $background = $this->firstElement($xpath, '/w:document/w:background', $dom);
+        if (!$background instanceof \DOMElement) {
+            return [];
+        }
+
+        $record = [
+            'present' => true,
+            'documentPart' => $documentPart,
+            'color' => $this->emptyStringToNull($background->getAttributeNS(self::NS_W, 'color')),
+            'themeColor' => $this->emptyStringToNull($background->getAttributeNS(self::NS_W, 'themeColor')),
+            'themeTint' => $this->emptyStringToNull($background->getAttributeNS(self::NS_W, 'themeTint')),
+            'themeShade' => $this->emptyStringToNull($background->getAttributeNS(self::NS_W, 'themeShade')),
+        ];
+        $issues = [];
+
+        $vmlBackground = $this->firstElement($xpath, 'v:background', $background);
+        if ($vmlBackground instanceof \DOMElement) {
+            $record['vmlShapeId'] = $this->emptyStringToNull($vmlBackground->getAttribute('id'));
+            $record['vmlBlackWhiteMode'] = $this->emptyStringToNull($vmlBackground->getAttributeNS(self::NS_O, 'bwmode'));
+            $record['targetScreenSize'] = $this->emptyStringToNull($vmlBackground->getAttributeNS(self::NS_O, 'targetscreensize'));
+        }
+
+        $fill = $this->firstElement($xpath, './/v:fill', $background);
+        if ($fill instanceof \DOMElement) {
+            $record['fillType'] = $this->emptyStringToNull($fill->getAttribute('type'));
+            $record['fillTitle'] = $this->emptyStringToNull($fill->getAttributeNS(self::NS_O, 'title'));
+            $record['fillRecolor'] = $this->emptyStringToNull($fill->getAttribute('recolor'));
+
+            $relationshipId = $this->emptyStringToNull($fill->getAttributeNS(self::NS_R, 'id'))
+                ?? $this->emptyStringToNull($fill->getAttributeNS(self::NS_R, 'embed'))
+                ?? $this->emptyStringToNull($fill->getAttributeNS(self::NS_R, 'link'));
+            if ($relationshipId !== null) {
+                $record['relationshipId'] = $relationshipId;
+                $relationship = $documentRelationships[$relationshipId] ?? null;
+                if (!is_array($relationship)) {
+                    $issues[] = 'unknown-relationship';
+                } else {
+                    $summary = $this->relationshipInventorySummary(
+                        $parts,
+                        $relationship,
+                        $documentPart,
+                        $documentRelationshipsPart,
+                        $contentTypes,
+                    );
+                    $record['relationship'] = $summary;
+                    $record['targetPart'] = $summary['targetPart'];
+                    $record['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+                    $record['exists'] = $summary['exists'];
+                    $record['contentType'] = $summary['contentType'];
+                    $record['contentTypeBase'] = $summary['contentTypeBase'];
+                    if ($relationship['type'] !== self::IMAGE_REL) {
+                        $issues[] = 'unexpected-relationship-type';
+                    }
+                    if (($summary['external'] ?? false) !== true && ($summary['exists'] ?? false) !== true) {
+                        $issues[] = 'missing-relationship-target';
+                    }
+                    if (($summary['external'] ?? false) !== true && ($summary['contentTypeSource'] ?? '') === 'missing') {
+                        $issues[] = 'missing-content-type';
+                    }
+                }
+            }
+        }
+
+        $record['issues'] = array_values(array_unique($issues));
+
+        return array_filter($record, static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 
     /**
@@ -5278,6 +5382,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('o', self::NS_O);
+        $xpath->registerNamespace('v', self::NS_V);
         $xpath->registerNamespace('ds', self::NS_DS);
 
         return $xpath;

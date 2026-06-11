@@ -2088,6 +2088,91 @@ XML;
         $t->same('scheme', $theme['colors']['items'][5]['kind']);
         $t->same('accent1', $theme['colors']['items'][5]['value']);
     },
+    'tracks docx document background image relationship provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="jpg" ContentType="image/jpeg; profile=background"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rBackground" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/background.jpg?bg=cover#tile"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  <w:body>',
+            '  <w:background w:color="F2F2F2" w:themeColor="background1" w:themeTint="99" w:themeShade="33">' . "\n" .
+            '    <v:background id="_x0000_s1025" o:bwmode="white" o:targetscreensize="1024,768">' . "\n" .
+            '      <v:fill r:id="rBackground" o:title="Review background" type="frame" recolor="t"/>' . "\n" .
+            '    </v:background>' . "\n" .
+            '  </w:background>' . "\n" .
+            '  <w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/media/background.jpg'] = 'background jpeg bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $background = $docx['documentBackground'];
+        $relationship = $background['relationship'];
+        $package = $docx['packageProvenance'];
+        $imageType = $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/image'];
+        $inventory = $package['parts']['word/media/background.jpg'];
+
+        $t->same(true, $background['present']);
+        $t->same('word/document.xml', $background['documentPart']);
+        $t->same('F2F2F2', $background['color']);
+        $t->same('background1', $background['themeColor']);
+        $t->same('99', $background['themeTint']);
+        $t->same('33', $background['themeShade']);
+        $t->same('_x0000_s1025', $background['vmlShapeId']);
+        $t->same('white', $background['vmlBlackWhiteMode']);
+        $t->same('1024,768', $background['targetScreenSize']);
+        $t->same('frame', $background['fillType']);
+        $t->same('Review background', $background['fillTitle']);
+        $t->same('t', $background['fillRecolor']);
+        $t->same('rBackground', $background['relationshipId']);
+        $t->same([], $background['issues']);
+
+        $t->same('rBackground', $relationship['id']);
+        $t->same('word/document.xml', $relationship['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $relationship['relationshipsPart']);
+        $t->same('media/background.jpg?bg=cover#tile', $relationship['target']);
+        $t->same('word/media/background.jpg?bg=cover#tile', $relationship['resolvedTarget']);
+        $t->same('word/media/background.jpg', $relationship['targetPart']);
+        $t->same('bg=cover', $relationship['targetQuery']);
+        $t->same('tile', $relationship['targetFragment']);
+        $t->same('?bg=cover#tile', $relationship['targetReferenceSuffix']);
+        $t->same(true, $relationship['exists']);
+        $t->same('image/jpeg; profile=background', $relationship['contentType']);
+        $t->same('image/jpeg', $relationship['contentTypeBase']);
+        $t->same(['profile' => 'background'], $relationship['contentTypeParameterMap']);
+        $t->same('default', $relationship['contentTypeSource']);
+        $t->same('jpg', $relationship['defaultExtension']);
+
+        $t->same(true, $package['summary']['documentBackgroundPresent']);
+        $t->same('rBackground', $package['summary']['documentBackgroundRelationshipId']);
+        $t->same(true, $package['summary']['documentBackgroundImageExists']);
+        $t->same(0, $package['summary']['documentBackgroundIssueCount']);
+        $t->same($background, $package['documentBackground']);
+        $t->true(in_array('document-relationship-target', $inventory['roles'], true), 'background image inventory role missing');
+        $t->same('image/jpeg', $inventory['contentTypeBase']);
+        $t->same(['profile' => 'background'], $inventory['contentTypeParameterMap']);
+        $t->same('image', $imageType['label']);
+        $t->true(in_array('word/media/background.jpg', $imageType['targetParts'], true), 'background image relationship type target missing');
+        $t->true(
+            in_array('?bg=cover#tile', array_column($imageType['relationships'], 'targetReferenceSuffix'), true),
+            'background relationship target suffix missing',
+        );
+    },
     'resolves docx footnotes and endnotes from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
