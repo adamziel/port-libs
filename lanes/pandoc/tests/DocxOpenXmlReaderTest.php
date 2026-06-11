@@ -904,6 +904,97 @@ XML;
         $t->same('customXmlProps', $relationshipTypes[$customXmlPropsRel]['label']);
         $t->same(['customXml/itemProps1.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
     },
+    'summarizes duplicate docx custom xml store item ids for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $duplicateItemId = '{22222222-3333-4444-5555-666666666666}';
+        $uniqueItemId = '{33333333-4444-5555-6666-777777777777}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/customXml/item2.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/customXml/item3.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps2.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps3.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXmlA" Type="' . $customXmlRel . '" Target="../customXml/item1.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlB" Type="' . $customXmlRel . '" Target="../customXml/item2.xml"/>' . "\n" .
+            '  <Relationship Id="rCustomXmlC" Type="' . $customXmlRel . '" Target="../customXml/item3.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = '<review><title>Duplicate A</title></review>';
+        $parts['customXml/item2.xml'] = '<review><title>Duplicate B</title></review>';
+        $parts['customXml/item3.xml'] = '<review><title>Unique C</title></review>';
+        $parts['customXml/_rels/item1.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPropsA" Type="{$customXmlPropsRel}" Target="itemProps1.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/item2.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPropsB" Type="{$customXmlPropsRel}" Target="itemProps2.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/_rels/item3.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPropsC" Type="{$customXmlPropsRel}" Target="itemProps3.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps1.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$duplicateItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>
+XML;
+        $parts['customXml/itemProps2.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$duplicateItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>
+XML;
+        $parts['customXml/itemProps3.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$uniqueItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml"/>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $duplicateRefs = $customXml['duplicateStoreItemIdReferences'][$duplicateItemId];
+        $first = $customXml['byRelationshipId']['rCustomXmlA'];
+        $second = $customXml['byRelationshipId']['rCustomXmlB'];
+        $third = $customXml['byRelationshipId']['rCustomXmlC'];
+
+        $t->same($customXml, $docx['packageProvenance']['customXmlParts']);
+        $t->same(3, $customXml['count']);
+        $t->same(3, $customXml['propertiesPartCount']);
+        $t->same([$duplicateItemId, $uniqueItemId], $customXml['storeItemIds']);
+        $t->same(1, $customXml['duplicateStoreItemIdCount']);
+        $t->same([$duplicateItemId], $customXml['duplicateStoreItemIds']);
+        $t->same(4, $customXml['issueCount']);
+        $t->same(1, $summary['customXmlDuplicateStoreItemIdCount']);
+        $t->same([$duplicateItemId], $summary['customXmlDuplicateStoreItemIds']);
+
+        $t->same(2, count($duplicateRefs));
+        $t->same(['rCustomXmlA', 'rCustomXmlB'], array_column($duplicateRefs, 'customXmlRelationshipId'));
+        $t->same(['customXml/item1.xml', 'customXml/item2.xml'], array_column($duplicateRefs, 'customXmlPartName'));
+        $t->same(['rPropsA', 'rPropsB'], array_column($duplicateRefs, 'propertiesRelationshipId'));
+        $t->same(['customXml/itemProps1.xml', 'customXml/itemProps2.xml'], array_column($duplicateRefs, 'propertiesPartName'));
+
+        $t->same(['duplicate-store-item-id'], $first['issues']);
+        $t->same(['duplicate-store-item-id'], $second['issues']);
+        $t->same([], $third['issues']);
+        $t->same(['duplicate-store-item-id'], $first['propertiesParts']['byRelationshipId']['rPropsA']['issues']);
+        $t->same(['duplicate-store-item-id'], $second['propertiesParts']['byRelationshipId']['rPropsB']['issues']);
+        $t->same([], $third['propertiesParts']['byRelationshipId']['rPropsC']['issues']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
