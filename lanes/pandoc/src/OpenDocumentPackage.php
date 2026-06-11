@@ -399,6 +399,12 @@ final class OpenDocumentPackage
                     : [],
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => is_array($manifestEntry)
+                    ? ($manifestEntry['byteExposurePolicy'] ?? null)
+                    : ($isUndeclared ? 'undeclared-package-entry-no-bytes' : null),
+                'diagnostics' => is_array($manifestEntry)
+                    ? ($manifestEntry['diagnostics'] ?? [])
+                    : ($isUndeclared ? ['odf-manifest-undeclared-package-entry'] : []),
                 'undeclared' => $isUndeclared,
             ];
 
@@ -446,6 +452,9 @@ final class OpenDocumentPackage
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
         }
+        if (self::isThumbnailPackagePartName($entry->name)) {
+            $roles[] = 'package-thumbnail';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -453,6 +462,10 @@ final class OpenDocumentPackage
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
                 $roles[] = 'media-resource';
+            }
+            $packagePath = (string) ($manifestEntry['packagePath'] ?? $manifestEntry['pathReference'] ?? $manifestEntry['path'] ?? $entry->name);
+            if (self::isScriptPackagePartName($packagePath)) {
+                $roles[] = 'script-package';
             }
         }
         if ($undeclared) {
@@ -462,11 +475,34 @@ final class OpenDocumentPackage
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
     }
 
+    private static function isThumbnailPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+        if (!str_starts_with($normalized, 'thumbnails/') || str_ends_with($normalized, '/')) {
+            return false;
+        }
+
+        return in_array(pathinfo($normalized, PATHINFO_EXTENSION), ['png', 'jpg', 'jpeg', 'gif', 'webp'], true);
+    }
+
+    private static function isScriptPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'basic/')
+            || str_starts_with($normalized, 'scripts/');
+    }
+
     /**
      * @param array<string, mixed> $entry
      */
     private static function isMediaResourceManifestEntry(array $entry): bool
     {
+        $packagePath = (string) ($entry['packagePath'] ?? $entry['pathReference'] ?? $entry['path'] ?? '');
+        if (self::isThumbnailPackagePartName($packagePath)) {
+            return false;
+        }
+
         $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
         if (
             str_starts_with($mediaTypeBase, 'image/')
@@ -490,6 +526,7 @@ final class OpenDocumentPackage
             $isRoot = $entry['path'] === '/';
             $packagePath = $entry['packagePath'];
             $isDirectory = is_string($packagePath) && str_ends_with($packagePath, '/');
+            $isScriptPackagePart = is_string($packagePath) && !$isDirectory && self::isScriptPackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -498,7 +535,7 @@ final class OpenDocumentPackage
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
             $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
             $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && $hasSupportedCompression;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && !$isScriptPackagePart && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -541,7 +578,9 @@ final class OpenDocumentPackage
                         ? 'directory-entry-no-bytes'
                         : ($encrypted
                             ? 'encrypted-resource-bytes-blocked'
-                            : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part')))),
+                            : ($isScriptPackagePart
+                                ? 'script-package-bytes-blocked'
+                                : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part'))))),
                 'diagnostics' => $diagnostics,
             ];
         }

@@ -872,12 +872,81 @@ XML;
         $t->same(['odf-content', 'manifest-declared'], $parts['content.xml']['roles']);
         $t->same(['zip-directory', 'manifest-declared'], $parts['Pictures/']['roles']);
         $t->same(['manifest-declared', 'media-resource'], $parts['Pictures/hero.png']['roles']);
-        $t->same(['undeclared-package-entry'], $parts['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $parts['Thumbnails/thumbnail.png']['roles']);
         $t->same(false, $parts['Thumbnails/thumbnail.png']['declaredInManifest']);
         $t->same(true, $parts['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(0, $parts['Thumbnails/thumbnail.png']['compressionMethod']);
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'classifies compact ODT thumbnail and script package inventory roles' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $thumbnailBytes = 'THUMBNAIL';
+        $basicLibraryXml = '<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard"/>';
+        $basicModuleXml = '<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Review" script:language="StarBasic">Sub Review</script:module>';
+        $javaScript = 'function ReviewLinkClick() { return false; }';
+        $manifestWithSidecars = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Thumbnails/thumbnail.png" manifest:size="' . strlen($thumbnailBytes) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Basic/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/script-lb.xml" manifest:size="' . strlen($basicLibraryXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Review.xml" manifest:size="' . strlen($basicModuleXml) . '"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="" manifest:full-path="Scripts/"/>' . "\n"
+            . '  <manifest:file-entry manifest:media-type="application/javascript" manifest:full-path="Scripts/review-link.js" manifest:size="' . strlen($javaScript) . '"/>' . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifestWithSidecars,
+            extraParts: [
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+                ['name' => 'Basic/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/script-lb.xml', 'data' => $basicLibraryXml, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Review.xml', 'data' => $basicModuleXml, 'compressionMethod' => 0],
+                ['name' => 'Scripts/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Scripts/review-link.js', 'data' => $javaScript, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $parts = $summary['packageInventory']['parts'];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+
+        $t->same(12, $summary['packageInventory']['entryCount']);
+        $t->same(10, $summary['packageInventory']['manifestDeclaredPartCount']);
+        $t->same(0, $summary['undeclaredPackageEntryCount']);
+        $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
+        $t->same(1, $summary['exposableMediaPartCount']);
+
+        $thumbnail = $parts['Thumbnails/thumbnail.png'];
+        $t->same(['package-thumbnail', 'manifest-declared'], $thumbnail['roles']);
+        $t->same(true, $thumbnail['declaredInManifest']);
+        $t->same(false, $thumbnail['undeclared']);
+        $t->same('image/png', $thumbnail['manifestMediaType']);
+        $t->same('image/png', $thumbnail['manifestMediaTypeBase']);
+        $t->same(strlen($thumbnailBytes), $thumbnail['byteLength']);
+        $t->same('package-bytes-exposable', $thumbnail['byteExposurePolicy']);
+        $t->same(true, $thumbnail['canExposeBytes']);
+        $t->same(false, in_array('media-resource', $thumbnail['roles'], true), 'package thumbnails must stay out of media-resource handoff');
+
+        $t->same(true, $reviewByPath['Thumbnails/thumbnail.png']['exists']);
+        $t->same('image/png', $reviewByPath['Thumbnails/thumbnail.png']['mediaTypeBase']);
+        $t->same(strlen($thumbnailBytes), $reviewByPath['Thumbnails/thumbnail.png']['storedByteLength']);
+
+        $t->same(['zip-directory', 'manifest-declared', 'script-package'], $parts['Basic/']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $parts['Basic/Standard/script-lb.xml']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $parts['Basic/Standard/Review.xml']['roles']);
+        $t->same(['zip-directory', 'manifest-declared', 'script-package'], $parts['Scripts/']['roles']);
+        $t->same(['manifest-declared', 'script-package'], $parts['Scripts/review-link.js']['roles']);
+        $t->same(false, $parts['Basic/Standard/Review.xml']['canExposeBytes']);
+        $t->same(strlen($basicModuleXml), $parts['Basic/Standard/Review.xml']['byteLength']);
+        $t->same(strlen($basicModuleXml), $parts['Basic/Standard/Review.xml']['compressedByteLength']);
+        $t->same('script-package-bytes-blocked', $parts['Basic/Standard/Review.xml']['byteExposurePolicy']);
+        $t->same(false, $reviewByPath['Scripts/review-link.js']['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $reviewByPath['Scripts/review-link.js']['byteExposurePolicy']);
+        $t->same(null, $reviewByPath['Scripts/review-link.js']['byteLength']);
+        $t->same(strlen($javaScript), $reviewByPath['Scripts/review-link.js']['storedByteLength']);
     },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);
