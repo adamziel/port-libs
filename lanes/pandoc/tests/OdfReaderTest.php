@@ -648,6 +648,50 @@ XML;
         $t->same('presentation-slide-show', $result['media'][0]['preferredViewMode']);
         $t->same('presentation-slide-show', $result['importReport']['media']['items'][0]['preferredViewMode']);
     },
+    'preserves ODT manifest version and preferred view mode package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithPackageModes = str_replace(
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:version="1.2" manifest:preferred-view-mode="page-preview"/>',
+                '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:version="1.1" manifest:preferred-view-mode="presentation-slide-show"/>',
+            ],
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithPackageModes));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $orderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $orderByPath[$item['fullPath']] = $item;
+        }
+        $inventory = $provenance['parts'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(5, $provenance['manifestFileEntryCount']);
+        $t->same(3, $provenance['manifestVersionEntryCount']);
+        $t->same(['1.1' => 1, '1.2' => 1, '1.3' => 1], $provenance['manifestVersionCounts']);
+        $t->same(3, $provenance['manifestPreferredViewModeEntryCount']);
+        $t->same([
+            'edit' => 1,
+            'page-preview' => 1,
+            'presentation-slide-show' => 1,
+        ], $provenance['manifestPreferredViewModeCounts']);
+        $t->same('1.3', $orderByPath['/']['version']);
+        $t->same('edit', $orderByPath['/']['preferredViewMode']);
+        $t->same('1.2', $orderByPath['content.xml']['version']);
+        $t->same('page-preview', $orderByPath['content.xml']['preferredViewMode']);
+        $t->same('1.1', $orderByPath['Pictures/hero.png']['version']);
+        $t->same('presentation-slide-show', $orderByPath['Pictures/hero.png']['preferredViewMode']);
+        $t->same(null, $orderByPath['styles.xml']['version']);
+        $t->same(null, $orderByPath['styles.xml']['preferredViewMode']);
+        $t->same('1.2', $inventory['content.xml']['manifestVersion']);
+        $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
+        $t->same('presentation-slide-show', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+    },
     'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithTypedUserDefined = <<<'XML'
 <office:document-meta

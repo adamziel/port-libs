@@ -2015,10 +2015,20 @@ final class OdfReader
         $unicodePathExtraEntryCount = 0;
         $decodedNameDiffersFromRawNameEntryCount = 0;
         $rawNameProvenanceEntries = [];
+        $manifestVersionCounts = [];
+        $manifestPreferredViewModeCounts = [];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
             $manifestIndex = $item['manifestIndex'] ?? count($manifestFileEntryOrder);
+            $manifestVersion = $item['version'] ?? null;
+            $manifestPreferredViewMode = $item['preferredViewMode'] ?? null;
+            if (is_string($manifestVersion) && $manifestVersion !== '') {
+                $manifestVersionCounts[$manifestVersion] = ($manifestVersionCounts[$manifestVersion] ?? 0) + 1;
+            }
+            if (is_string($manifestPreferredViewMode) && $manifestPreferredViewMode !== '') {
+                $manifestPreferredViewModeCounts[$manifestPreferredViewMode] = ($manifestPreferredViewModeCounts[$manifestPreferredViewMode] ?? 0) + 1;
+            }
             $manifestFileEntryOrder[] = [
                 'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder),
                 'fullPath' => $item['fullPath'] ?? null,
@@ -2157,6 +2167,8 @@ final class OdfReader
                     'partQuery' => $item['partQuery'] ?? null,
                     'partFragment' => $item['partFragment'] ?? null,
                     'mediaType' => $item['mediaType'] ?? null,
+                    'version' => $manifestVersion,
+                    'preferredViewMode' => $manifestPreferredViewMode,
                     'exists' => ($item['exists'] ?? false) === true,
                     'isDirectory' => ($item['isDirectory'] ?? false) === true,
                     'encrypted' => ($item['encrypted'] ?? false) === true,
@@ -2445,6 +2457,8 @@ final class OdfReader
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
+        ksort($manifestVersionCounts, SORT_STRING);
+        ksort($manifestPreferredViewModeCounts, SORT_STRING);
 
         $provenance = [
             'mimetypeEntry' => $mimetypeEntry,
@@ -2482,6 +2496,10 @@ final class OdfReader
             'manifestCustomChildElementCount' => $manifestCustomChildElementCount,
             'manifestCustomChildElementNames' => $manifestCustomChildElementNames,
             'manifestCustomChildElementItems' => $manifestCustomChildElementItems,
+            'manifestVersionEntryCount' => array_sum($manifestVersionCounts),
+            'manifestVersionCounts' => $manifestVersionCounts,
+            'manifestPreferredViewModeEntryCount' => array_sum($manifestPreferredViewModeCounts),
+            'manifestPreferredViewModeCounts' => $manifestPreferredViewModeCounts,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
