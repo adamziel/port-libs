@@ -78,6 +78,7 @@ final class EpubPackage
      * @param list<array<string, mixed>> $rootfiles
      * @param array<string, mixed> $metadata
      * @param list<array<string, mixed>> $containerLinks
+     * @param array<string, mixed> $containerMetadata
      * @param array<string, mixed> $ocfSidecars
      * @param list<array<string, mixed>> $packageLinks
      * @param array<string, array{id:string, href:string, target:string, partName:?string, external:bool, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}> $manifestById
@@ -98,6 +99,7 @@ final class EpubPackage
         private readonly ZipPackage $package,
         private readonly array $rootfiles,
         private readonly array $containerLinks,
+        private readonly array $containerMetadata,
         private readonly array $ocfSidecars,
         private readonly string $opfPartName,
         private readonly array $metadata,
@@ -152,7 +154,10 @@ final class EpubPackage
         }
 
         $opf = self::parseOpfXml($package->read($opfPartName), $opfPartName, $package);
-        $containerLinks = self::parseContainerLinks($package, self::manifestByPart($opf['manifestById']));
+        $containerMetadata = self::parseContainerMetadata($package, self::manifestByPart($opf['manifestById']));
+        $containerLinks = is_array($containerMetadata['links'] ?? null)
+            ? array_values($containerMetadata['links'])
+            : [];
         $ocfSidecars = self::summarizeOcfSidecars($package);
         $navigation = self::loadNavigation($package, $opfPartName, $opf['manifestById'], $opf['spineTocId']);
 
@@ -160,6 +165,7 @@ final class EpubPackage
             $package,
             $rootfiles,
             $containerLinks,
+            $containerMetadata,
             $ocfSidecars,
             $opfPartName,
             $opf['metadata'],
@@ -199,6 +205,14 @@ final class EpubPackage
     public function containerLinks(): array
     {
         return $this->containerLinks;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function containerMetadata(): array
+    {
+        return $this->containerMetadata;
     }
 
     /**
@@ -458,7 +472,12 @@ final class EpubPackage
     {
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
+        $containerMetadata = $this->containerMetadata();
         $containerLinkReport = self::collectionLinkReport($this->containerLinks);
+        $containerMetadataDiagnostics = is_array($containerMetadata['diagnostics'] ?? null)
+            ? array_values($containerMetadata['diagnostics'])
+            : [];
+        $containerLinkDiagnostics = array_merge($containerMetadataDiagnostics, $containerLinkReport['diagnostics']);
         $containerLinkVocabulary = self::metadataLinkVocabularySummary($this->containerLinks);
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
         $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
@@ -477,10 +496,12 @@ final class EpubPackage
         return [
             'opfPart' => $this->opfPartName,
             'rootfiles' => $this->rootfiles,
+            'containerMetadata' => $containerMetadata,
+            'containerMetadataDiagnostics' => $containerMetadataDiagnostics,
             'containerLinks' => $this->containerLinks,
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
             'containerLinkRelCounts' => $containerLinkReport['relCounts'],
-            'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+            'containerLinkDiagnostics' => $containerLinkDiagnostics,
             'containerLinkVocabulary' => $containerLinkVocabulary,
             'ocfSidecars' => $ocfSidecars,
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
@@ -568,10 +589,12 @@ final class EpubPackage
                 'guideReferenceManifestMediaTypeParameterNames' => $guideReport['manifestMediaTypeParameterNames'],
                 'guideReferenceManifestMediaTypeDiagnostics' => $guideReport['manifestMediaTypeDiagnostics'],
                 'collections' => $this->collections,
+                'containerMetadata' => $containerMetadata,
+                'containerMetadataDiagnostics' => $containerMetadataDiagnostics,
                 'containerLinks' => $this->containerLinks,
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
-                'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+                'containerLinkDiagnostics' => $containerLinkDiagnostics,
                 'containerLinkVocabulary' => $containerLinkVocabulary,
                 'containerLinkVocabularyDiagnostics' => $containerLinkVocabulary['diagnostics'],
                 'ocfSidecars' => $ocfSidecars,
@@ -2047,18 +2070,84 @@ final class EpubPackage
      *
      * @return list<array<string, mixed>>
      */
-    private static function parseContainerLinks(ZipPackage $package, array $manifestByPart): array
+    private static function parseContainerMetadata(ZipPackage $package, array $manifestByPart): array
     {
         $metadataPart = '/META-INF/metadata.xml';
         if (!$package->has($metadataPart)) {
-            return [];
+            return self::emptyContainerMetadataReport();
         }
 
-        $dom = self::loadXml($package->read($metadataPart), 'EPUB OCF metadata.xml');
+        $entry = $package->entry($metadataPart);
+        $provenance = self::zipEntryProvenance($entry);
+        $report = array_replace(self::emptyContainerMetadataReport(), $provenance);
+        $report['present'] = true;
+        $report['exists'] = true;
+
+        if (($provenance['compressionSupported'] ?? false) !== true) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'ocf-metadata-unsupported-compression-method',
+                'part' => $metadataPart,
+                'partName' => $metadataPart,
+                'compressionMethod' => $provenance['compressionMethod'],
+                'compressionMethodName' => $provenance['compressionMethodName'],
+                'message' => 'EPUB OCF metadata.xml uses a ZIP compression method that native package ingestion cannot expose as bytes',
+            ];
+            $report['diagnosticCount'] = count($report['diagnostics']);
+
+            return $report;
+        }
+
+        try {
+            $dom = self::loadXml($package->read($metadataPart), 'EPUB OCF metadata.xml');
+        } catch (\RuntimeException | \InvalidArgumentException $exception) {
+            $report['valid'] = false;
+            $report['xmlRootChecked'] = true;
+            $report['xmlWellFormed'] = false;
+            $report['rootValid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-metadata-xml',
+                'part' => $metadataPart,
+                'partName' => $metadataPart,
+                'error' => $exception->getMessage(),
+                'message' => 'EPUB OCF metadata.xml could not be parsed for bounded package review',
+            ];
+            $report['diagnosticCount'] = count($report['diagnostics']);
+
+            return $report;
+        }
+
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement || $root->localName !== 'metadata' || $root->namespaceURI !== self::EPUB_METADATA_NAMESPACE) {
-            throw new \InvalidArgumentException('EPUB metadata.xml must use the EPUB metadata namespace');
+            $report['valid'] = false;
+            $report['xmlRootChecked'] = true;
+            $report['xmlWellFormed'] = $root instanceof \DOMElement;
+            $report['rootName'] = $root instanceof \DOMElement ? $root->localName : null;
+            $report['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+            $report['rootValid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'unexpected-ocf-metadata-root',
+                'part' => $metadataPart,
+                'partName' => $metadataPart,
+                'expectedRootName' => 'metadata',
+                'expectedRootNamespace' => self::EPUB_METADATA_NAMESPACE,
+                'rootName' => $report['rootName'],
+                'rootNamespace' => $report['rootNamespace'],
+                'message' => 'EPUB OCF metadata.xml root element does not match the expected container metadata element',
+            ];
+            $report['diagnosticCount'] = count($report['diagnostics']);
+
+            return $report;
         }
+
+        $report['valid'] = true;
+        $report['xmlRootChecked'] = true;
+        $report['xmlWellFormed'] = true;
+        $report['rootName'] = $root->localName;
+        $report['rootNamespace'] = $root->namespaceURI;
+        $report['rootValid'] = true;
+        $report['language'] = self::metadataElementLanguage($root);
+        $report['direction'] = self::metadataElementDirection($root);
 
         $prefixReport = self::packagePrefixReport($root->hasAttribute('prefix') ? $root->getAttribute('prefix') : '');
         $prefixBindings = $prefixReport['bindingsByPrefix'];
@@ -2067,7 +2156,45 @@ final class EpubPackage
             $links[] = self::parseContainerLink($linkElement, $index, $package, $manifestByPart, $prefixBindings);
         }
 
-        return $links;
+        $linkReport = self::collectionLinkReport($links);
+        $report['prefixBindings'] = $prefixBindings;
+        $report['linkCount'] = count($links);
+        $report['links'] = $links;
+        $report['linkDiagnostics'] = $linkReport['diagnostics'];
+        $report['linkDiagnosticCount'] = count($linkReport['diagnostics']);
+
+        return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyContainerMetadataReport(): array
+    {
+        return [
+            'present' => false,
+            'part' => '/META-INF/metadata.xml',
+            'partName' => '/META-INF/metadata.xml',
+            'packagePath' => 'META-INF/metadata.xml',
+            'exists' => false,
+            'valid' => null,
+            'expectedRootName' => 'metadata',
+            'expectedRootNamespace' => self::EPUB_METADATA_NAMESPACE,
+            'xmlRootChecked' => false,
+            'xmlWellFormed' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'rootValid' => null,
+            'language' => null,
+            'direction' => null,
+            'prefixBindings' => [],
+            'linkCount' => 0,
+            'links' => [],
+            'linkDiagnosticCount' => 0,
+            'linkDiagnostics' => [],
+            'diagnosticCount' => 0,
+            'diagnostics' => [],
+        ] + self::zipEntryProvenance(null);
     }
 
     /**

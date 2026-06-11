@@ -1857,6 +1857,93 @@ XML;
         $t->same($vocabulary['diagnostics'], $summary['wordpressImport']['containerLinkVocabularyDiagnostics']);
     },
 
+    'reports OCF metadata sidecar diagnostics without aborting package ingestion' => static function (TestRunner $t) use ($buildZipPackage, $epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $wrongRootMetadataXml = <<<'XML'
+<metadata xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <link id="container-review" rel="record" href="EPUB/meta/container-review.json" media-type="application/ld+json"/>
+</metadata>
+XML;
+
+        $wrongRootEpub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $wrongRootMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $wrongRootMetadata = $wrongRootEpub->containerMetadata();
+        $wrongRootSummary = $wrongRootEpub->summary();
+
+        $t->same('/EPUB/package.opf', $wrongRootEpub->opfPartName());
+        $t->same('WordPress Migration Guide', $wrongRootSummary['wordpressImport']['title']);
+        $t->same([], $wrongRootEpub->containerLinks());
+        $t->same(true, $wrongRootMetadata['present']);
+        $t->same(true, $wrongRootMetadata['xmlRootChecked']);
+        $t->same(true, $wrongRootMetadata['xmlWellFormed']);
+        $t->same('metadata', $wrongRootMetadata['rootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $wrongRootMetadata['rootNamespace']);
+        $t->same(false, $wrongRootMetadata['rootValid']);
+        $t->same(false, $wrongRootMetadata['valid']);
+        $t->same(['unexpected-ocf-metadata-root'], array_column($wrongRootMetadata['diagnostics'], 'type'));
+        $t->same($wrongRootMetadata, $wrongRootSummary['containerMetadata']);
+        $t->same($wrongRootMetadata['diagnostics'], $wrongRootSummary['containerMetadataDiagnostics']);
+        $t->same($wrongRootMetadata['diagnostics'], $wrongRootSummary['containerLinkDiagnostics']);
+        $t->same($wrongRootMetadata, $wrongRootSummary['wordpressImport']['containerMetadata']);
+        $t->same($wrongRootMetadata['diagnostics'], $wrongRootSummary['wordpressImport']['containerMetadataDiagnostics']);
+        $t->same($wrongRootMetadata['diagnostics'], $wrongRootSummary['wordpressImport']['containerLinkDiagnostics']);
+
+        $malformedMetadataXml = '<metadata xmlns="http://www.idpf.org/2013/metadata"><link></metadata>';
+        $malformedEpub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => $malformedMetadataXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $malformedMetadata = $malformedEpub->containerMetadata();
+
+        $t->same('/EPUB/package.opf', $malformedEpub->opfPartName());
+        $t->same(true, $malformedMetadata['present']);
+        $t->same(true, $malformedMetadata['xmlRootChecked']);
+        $t->same(false, $malformedMetadata['xmlWellFormed']);
+        $t->same(false, $malformedMetadata['rootValid']);
+        $t->same(false, $malformedMetadata['valid']);
+        $t->same(['invalid-ocf-metadata-xml'], array_column($malformedMetadata['diagnostics'], 'type'));
+
+        $unsupportedEpub = EpubPackage::fromPackage($buildZipPackage([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'method' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/metadata.xml', 'data' => '<metadata xmlns="http://www.idpf.org/2013/metadata"/>', 'method' => 12],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+        $unsupportedMetadata = $unsupportedEpub->containerMetadata();
+        $unsupportedSummary = $unsupportedEpub->summary();
+
+        $t->same('/EPUB/package.opf', $unsupportedEpub->opfPartName());
+        $t->same(true, $unsupportedMetadata['present']);
+        $t->same(12, $unsupportedMetadata['compressionMethod']);
+        $t->same('unsupported', $unsupportedMetadata['compressionMethodName']);
+        $t->same(false, $unsupportedMetadata['compressionSupported']);
+        $t->same(false, $unsupportedMetadata['canExposeBytes']);
+        $t->same(false, $unsupportedMetadata['xmlRootChecked']);
+        $t->same(false, $unsupportedMetadata['valid']);
+        $t->same(['ocf-metadata-unsupported-compression-method'], array_column($unsupportedMetadata['diagnostics'], 'type'));
+        $t->same($unsupportedMetadata['diagnostics'], $unsupportedSummary['containerLinkDiagnostics']);
+    },
+
     'summarizes OCF rights and signatures sidecar ZIP provenance for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
         $rightsXml = '<rights xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><license href="../EPUB/meta/license.xml">Review license</license></rights>';
         $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"/></signatures>';
