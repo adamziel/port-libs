@@ -2132,6 +2132,73 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current styled inline native constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'citationId' => 'styled-source',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationNoteNum' => 0,
+            'citationHash' => 42,
+        ];
+        $styledInlines = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'sourceOrdinal' => 1],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'sourceOrdinal' => 2],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']], 'sourceOrdinal' => 3],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'old']], 'sourceOrdinal' => 4],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => '2']], 'sourceOrdinal' => 5],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'n']], 'sourceOrdinal' => 6],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'sourceOrdinal' => 7],
+            ['t' => 'Quoted', 'c' => [['t' => 'SingleQuote', 'c' => []], [['t' => 'Str', 'c' => 'quote']]], 'sourceOrdinal' => 8],
+            ['t' => 'Cite', 'c' => [[$citationRecord], [['t' => 'Str', 'c' => '@styled-source']]], 'sourceOrdinal' => 9],
+            ['t' => 'Note', 'c' => [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]]], 'sourceOrdinal' => 10],
+            ['t' => 'Span', 'c' => [
+                ['styled-span', ['review'], [['data-source', 'first'], ['data-source', 'second']]],
+                [['t' => 'Str', 'c' => 'span']],
+            ], 'sourceOrdinal' => 11],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $styledInlines],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $paragraph = $document->children[0];
+            $encoded = (new PandocJsonWriter())->toArray($document);
+            $nativeEncoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same($styledInlines, $encoded['blocks'][0]['c'], "{$source} pandoc json writer preserves styled inline native payloads");
+            $t->same($styledInlines, $nativeEncoded['blocks'][0]['c'], "{$source} native writer preserves styled inline native payloads");
+            $t->same('Emph', $paragraph->children[0]->attr('constructor'), "{$source} emph constructor");
+            $t->same($styledInlines[0], $paragraph->children[0]->attr('native'), "{$source} emph native payload");
+            $t->same('Span', $paragraph->children[10]->attr('constructor'), "{$source} span constructor");
+            $t->same($styledInlines[10], $paragraph->children[10]->attr('native'), "{$source} span native payload");
+        }
+
+        $jsonDocument = $documents['json'];
+        $editedChildren = $jsonDocument->children[0]->children;
+        $editedChildren[0] = new AstNode(
+            'emph',
+            $jsonDocument->children[0]->children[0]->attrs,
+            [new AstNode('text', ['text' => 'edited'])]
+        );
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], $editedChildren),
+        ]));
+
+        $t->same('Emph', $editedPacket['blocks'][0]['c'][0]['t']);
+        $t->same('edited', $editedPacket['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->true(!array_key_exists('sourceOrdinal', $editedPacket['blocks'][0]['c'][0]), 'edited styled inline regenerates stale native payload');
+        $t->same(2, $editedPacket['blocks'][0]['c'][1]['sourceOrdinal'], 'unchanged sibling styled payload remains reusable');
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];

@@ -876,14 +876,24 @@ final class NativeWriter
      */
     private function canReuseNativeInlinePayload(AstNode $node, array $native): bool
     {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Plain', 'c' => [$native]],
+            ],
+        ];
+
         try {
-            $packet = [
-                'pandoc-api-version' => [1, 23, 1],
-                'meta' => [],
-                'blocks' => [
-                    ['t' => 'Plain', 'c' => [$native]],
-                ],
-            ];
+            $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+            $freshNode = $jsonDocument->children[0]->children[0] ?? null;
+            if ($freshNode instanceof AstNode && $this->nodesMatchForNativeReuse($node, $freshNode)) {
+                return true;
+            }
+        } catch (\Throwable) {
+        }
+
+        try {
             $document = (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR));
         } catch (\Throwable) {
             return false;
