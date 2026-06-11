@@ -334,7 +334,7 @@ final class EpubPackage
     {
         return array_values(array_filter(
             $this->manifestItems,
-            static fn (array $item): bool => $item['mediaType'] === self::XHTML_MEDIA_TYPE,
+            static fn (array $item): bool => self::mediaTypeBase((string) ($item['mediaType'] ?? '')) === self::XHTML_MEDIA_TYPE,
         ));
     }
 
@@ -352,15 +352,16 @@ final class EpubPackage
         $navigationPart = $this->navigation['partName'] ?? null;
 
         foreach ($this->manifestItems as $item) {
-            if ($item['mediaType'] === self::XHTML_MEDIA_TYPE) {
+            $mediaTypeBase = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            if ($mediaTypeBase === self::XHTML_MEDIA_TYPE) {
                 $xhtmlParts[] = $item['partName'];
             }
 
-            if ($item['mediaType'] === 'text/css') {
+            if ($mediaTypeBase === 'text/css') {
                 $stylesheetParts[] = $item['partName'];
             }
 
-            if (str_starts_with($item['mediaType'], 'image/')) {
+            if (str_starts_with($mediaTypeBase, 'image/')) {
                 $imageParts[] = $item['partName'];
             }
 
@@ -799,6 +800,7 @@ final class EpubPackage
         $usableNavItems = [];
         $invalidNavItems = [];
         $hrefSuffixItems = [];
+        $mediaTypeParameterItems = [];
         $missingItems = [];
         $parts = [];
         $ids = [];
@@ -808,6 +810,7 @@ final class EpubPackage
             $id = (string) ($item['id'] ?? '');
             $partName = (string) ($item['partName'] ?? '');
             $mediaType = self::mediaTypeBase((string) ($item['mediaType'] ?? ''));
+            $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null) ? array_values($item['mediaTypeParameters']) : [];
             $properties = is_array($item['properties'] ?? null) ? array_values($item['properties']) : [];
             if ($id !== '') {
                 $ids[$id][] = [
@@ -817,6 +820,28 @@ final class EpubPackage
                     'target' => (string) ($item['target'] ?? ''),
                     'partName' => $partName,
                     'mediaType' => $mediaType,
+                ];
+            }
+
+            if ($mediaTypeParameters !== []) {
+                $parameterItem = [
+                    'id' => $id,
+                    'href' => (string) ($item['href'] ?? ''),
+                    'target' => (string) ($item['target'] ?? ''),
+                    'partName' => $partName,
+                    'mediaType' => (string) ($item['mediaType'] ?? ''),
+                    'mediaTypeBase' => $mediaType,
+                    'parameters' => $mediaTypeParameters,
+                ];
+                $mediaTypeParameterItems[] = $parameterItem;
+                $diagnostics[] = [
+                    'type' => 'manifest-media-type-parameters',
+                    'id' => $id,
+                    'partName' => $partName,
+                    'mediaType' => $parameterItem['mediaType'],
+                    'mediaTypeBase' => $mediaType,
+                    'parameters' => $mediaTypeParameters,
+                    'message' => 'EPUB OPF manifest media-type includes MIME parameters; compact package ingestion classifies by the base media type and preserves parameters for review',
                 ];
             }
 
@@ -984,6 +1009,7 @@ final class EpubPackage
             'duplicatePartCount' => count($duplicatePartItems),
             'duplicateHrefTargetCount' => count($duplicatePartItems),
             'hrefSuffixCount' => count($hrefSuffixItems),
+            'mediaTypeParameterItemCount' => count($mediaTypeParameterItems),
             'navItems' => $navItems,
             'usableNavItems' => $usableNavItems,
             'invalidNavItems' => $invalidNavItems,
@@ -993,6 +1019,7 @@ final class EpubPackage
             'duplicatePartItems' => $duplicatePartItems,
             'duplicateHrefTargetItems' => $duplicatePartItems,
             'hrefSuffixItems' => $hrefSuffixItems,
+            'mediaTypeParameterItems' => $mediaTypeParameterItems,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
         ];
@@ -3696,6 +3723,7 @@ final class EpubPackage
             $hrefSuffix = self::packageHrefSuffixReport($target);
             $exists = $package->has($partName);
             $entry = $exists ? $package->entry($partName) : null;
+            $mediaTypeReport = self::manifestMediaTypeReport($mediaType);
 
             $item = [
                 'id' => $id,
@@ -3703,6 +3731,11 @@ final class EpubPackage
                 'target' => $target,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['base'],
+                'mediaTypeHasParameters' => $mediaTypeReport['hasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['parameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['parameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['parameterMap'],
                 'exists' => $exists,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
@@ -3874,7 +3907,7 @@ final class EpubPackage
     private static function loadNavigation(ZipPackage $package, string $opfPartName, array $manifestById, ?string $spineTocId): array
     {
         foreach ($manifestById as $item) {
-            if ($item['mediaType'] === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
+            if (self::mediaTypeBase((string) ($item['mediaType'] ?? '')) === self::XHTML_MEDIA_TYPE && in_array('nav', $item['properties'], true)) {
                 if (($item['exists'] ?? false) !== true || !$package->has($item['partName'])) {
                     continue;
                 }
@@ -6413,6 +6446,57 @@ final class EpubPackage
     private static function mediaTypeBase(string $mediaType): string
     {
         return strtolower(trim(explode(';', $mediaType, 2)[0]));
+    }
+
+    /**
+     * @return array{
+     *     raw:string,
+     *     base:string,
+     *     hasParameters:bool,
+     *     parameterCount:int,
+     *     parameters:list<array{index:int, raw:string, name:string, value:?string}>,
+     *     parameterMap:array<string, list<?string>>
+     * }
+     */
+    private static function manifestMediaTypeReport(string $mediaType): array
+    {
+        $segments = explode(';', $mediaType);
+        $parameters = [];
+        $parameterMap = [];
+
+        foreach (array_slice($segments, 1) as $index => $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $equals = strpos($raw, '=');
+            $name = $equals === false ? $raw : substr($raw, 0, $equals);
+            $value = $equals === false ? null : substr($raw, $equals + 1);
+            $name = strtolower(trim($name));
+            if ($name === '') {
+                continue;
+            }
+
+            $value = $value === null ? null : trim($value, " \t\r\n\"");
+            $entry = [
+                'index' => $index,
+                'raw' => $raw,
+                'name' => $name,
+                'value' => $value,
+            ];
+            $parameters[] = $entry;
+            $parameterMap[$name][] = $value;
+        }
+
+        return [
+            'raw' => $mediaType,
+            'base' => self::mediaTypeBase($mediaType),
+            'hasParameters' => $parameters !== [],
+            'parameterCount' => count($parameters),
+            'parameters' => $parameters,
+            'parameterMap' => $parameterMap,
+        ];
     }
 
     /**
