@@ -1470,7 +1470,7 @@ final class CslStyle
     {
         $variable = trim($text->getAttribute('variable'));
         $term = trim($text->getAttribute('term'));
-        $value = trim($text->getAttribute('value'));
+        $value = $text->getAttribute('value');
         $macro = trim($text->getAttribute('macro'));
         $declared = array_filter([$variable, $term, $value, $macro], static fn (string $attribute): bool => $attribute !== '');
         if (count($declared) !== 1) {

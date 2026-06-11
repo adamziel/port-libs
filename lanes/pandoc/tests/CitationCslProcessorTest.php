@@ -24985,6 +24985,53 @@ XML);
         ]));
         $t->same('Hyphenated Event Proceedings :: Hyphen Review Clinic :: source track :: clinic :: Remote Hall; Review Room :: 2026-07-08/2026-07-09 :: CC0 :: iv', $styled->renderBibliographyEntry('hyphen-event-metadata'));
     },
+    'preserves significant spaces in csl literal text values' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'literal-spacing',
+                'type' => 'book',
+                'title' => 'Spacing Packet',
+                'author' => [
+                    ['family' => 'Smith', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Literal Spacing Review</title>
+    <id>https://example.test/styles/bounded-literal-spacing-review</id>
+    <updated>2026-06-11T12:12:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter="">
+        <names variable="author"/>
+        <text value=" "/>
+        <date variable="issued"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter="">
+      <text variable="title"/>
+      <text value=" :: "/>
+      <text variable="publisher"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $t->same(' ', $summary['citationRendering'][0]['children'][1]['value'] ?? null);
+        $t->same(' :: ', $summary['bibliographyRendering'][1]['value'] ?? null);
+        $t->same('[Smith 2026]', $processor->renderCitationCluster([
+            $citation('literal-spacing', '[@literal-spacing]'),
+        ]));
+        $t->same('Spacing Packet :: Review Press', $processor->renderBibliographyEntry('literal-spacing'));
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
