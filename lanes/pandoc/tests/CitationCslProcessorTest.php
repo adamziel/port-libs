@@ -25127,6 +25127,110 @@ XML);
         ]));
         $t->same('Hyphenated Event Proceedings :: Hyphen Review Clinic :: source track :: clinic :: Remote Hall; Review Room :: 2026-07-08/2026-07-09 :: CC0 :: iv', $styled->renderBibliographyEntry('hyphen-event-metadata'));
     },
+    'maps bounded biblatex hyphenated title metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-title-alias,
+  author      = {Alias, Ari},
+  title       = {Migration Manual},
+  date        = {2026},
+  short-title = {Manual Alias},
+  title-addon = {source addendum}
+}
+
+@article{hyphen-issue-alias,
+  author                = {Ng, Nia},
+  title                 = {Issue Alias Packet},
+  container-title       = {Journal of Alias Imports},
+  container-title-short = {J. Alias Import.},
+  container-title-addon = {review annex},
+  issue-title           = {Special Alias Issue},
+  issue-subtitle        = {Source Reports},
+  issue-title-addon     = {editorial packet},
+  date                  = {2025},
+  pages                 = {4--6}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Manual Alias', $items[0]['short-title'] ?? null);
+        $t->same('source addendum', $items[0]['title-addon'] ?? null);
+        $t->same('Journal of Alias Imports', $items[1]['container-title'] ?? null);
+        $t->same('J. Alias Import.', $items[1]['container-title-short'] ?? null);
+        $t->same('J. Alias Import.', $items[1]['journalAbbreviation'] ?? null);
+        $t->same('review annex', $items[1]['container-title-addon'] ?? null);
+        $t->same('Special Alias Issue: Source Reports', $items[1]['issue-title'] ?? null);
+        $t->same('editorial packet', $items[1]['issue-title-addon'] ?? null);
+        $t->same('Manual Alias', $items[0]['rawBibtex']['fields']['short-title'] ?? null);
+        $t->same('review annex', $items[1]['rawBibtex']['fields']['container-title-addon'] ?? null);
+        $t->same('Special Alias Issue', $items[1]['rawBibtex']['fields']['issue-title'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('hyphen-title-alias');
+        $issue = $processor->item('hyphen-issue-alias');
+        $t->same('Manual Alias', $manual['shortTitle'] ?? null);
+        $t->same('source addendum', $manual['titleAddon'] ?? null);
+        $t->same('Journal of Alias Imports', $issue['containerTitle'] ?? null);
+        $t->same('J. Alias Import.', $issue['containerTitleShort'] ?? null);
+        $t->same('review annex', $issue['containerTitleAddon'] ?? null);
+        $t->same('Special Alias Issue: Source Reports', $issue['issueTitle'] ?? null);
+        $t->same('editorial packet', $issue['issueTitleAddon'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Hyphen Title Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-hyphen-title-alias-review</id>
+    <updated>2026-06-11T11:46:15+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title" form="short"/>
+        <text variable="title-addon"/>
+        <text variable="container-title" form="short"/>
+        <text variable="container-title-addon"/>
+        <text variable="issue-title"/>
+        <text variable="issue-title-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="title-short"/>
+      <text variable="title-addon"/>
+      <text variable="container-title" form="short"/>
+      <text variable="container-title-addon"/>
+      <text variable="issue-title"/>
+      <text variable="issue-title-addon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Hyphen Title Alias Review', $summary['title'] ?? null);
+        $t->same('short', $citationChildren[1]['form'] ?? null);
+        $t->same('title-addon', $citationChildren[2]['variable'] ?? null);
+        $t->same('short', $citationChildren[3]['form'] ?? null);
+        $t->same('issue-title', $citationChildren[5]['variable'] ?? null);
+        $t->same('[Alias | Manual Alias | source addendum; Ng | Issue Alias Packet | J. Alias Import. | review annex | Special Alias Issue: Source Reports | editorial packet]', $styled->renderCitationCluster([
+            $citation('hyphen-title-alias', '[@hyphen-title-alias]'),
+            $citation('hyphen-issue-alias', '[@hyphen-issue-alias]'),
+        ]));
+        $t->same('Migration Manual :: Manual Alias :: source addendum', $styled->renderBibliographyEntry('hyphen-title-alias'));
+        $t->same('Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet', $styled->renderBibliographyEntry('hyphen-issue-alias'));
+
+        $document = (new MarkdownReader())->read('Hyphen title aliases [@hyphen-title-alias; @hyphen-issue-alias] keep CSL title metadata visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Hyphen title aliases [Alias | Manual Alias | source addendum; Ng | Issue Alias Packet | J. Alias Import. | review annex | Special Alias Issue: Source Reports | editorial packet] keep CSL title metadata visible.</p>', $blocks);
+        $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
