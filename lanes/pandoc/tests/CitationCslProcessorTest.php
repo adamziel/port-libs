@@ -20557,6 +20557,87 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Keyword Review Manual. Review Press, 2026. Keywords: wordpress; data liberation; source audit.</dd>', $blocks);
         $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Keyword Snapshot. 2025. Keywords: media audit; block imports; needs review. https://example.test/keyword-snapshot.</dd>', $blocks);
     },
+    'maps bounded biblatex category lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{category-manual,
+  author     = {Smith, Ada},
+  title      = {Category Review Manual},
+  date       = {2026},
+  publisher  = {Review Press},
+  categories = {migration review, source audit}
+}
+
+@online{category-snapshot,
+  author   = {{Archive Desk}},
+  title    = {Category Snapshot},
+  date     = {2025},
+  category = {media audit; block imports; needs review},
+  url      = {https://example.test/category-snapshot}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['migration review', 'source audit'], $items[0]['categories'] ?? null);
+        $t->same(['media audit', 'block imports', 'needs review'], $items[1]['categories'] ?? null);
+        $t->same('migration review, source audit', $items[0]['rawBibtex']['fields']['categories'] ?? null);
+        $t->same('media audit; block imports; needs review', $items[1]['rawBibtex']['fields']['category'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('category-manual');
+        $snapshot = $processor->item('category-snapshot');
+        $t->same(['migration review', 'source audit'], $manual['categories'] ?? null);
+        $t->same('migration review; source audit', $manual['categorySummary'] ?? null);
+        $t->same(['media audit', 'block imports', 'needs review'], $snapshot['categories'] ?? null);
+        $t->same('media audit; block imports; needs review', $snapshot['categorySummary'] ?? null);
+        $t->same(
+            'Smith, Ada. Category Review Manual. Review Press, 2026. Categories: migration review; source audit.',
+            $processor->renderBibliographyEntry('category-manual')
+        );
+        $t->same(
+            'Archive Desk. Category Snapshot. 2025. Categories: media audit; block imports; needs review. https://example.test/category-snapshot.',
+            $processor->renderBibliographyEntry('category-snapshot')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Category Review</title>
+    <id>https://example.test/styles/bounded-biblatex-category-review</id>
+    <updated>2026-06-11T17:46:59+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="category"/>
+        <text variable="categories"/>
+        <text variable="category-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="categories"/>
+      <text variable="categories-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Smith | migration review, source audit | migration review, source audit | migration review; source audit; Archive Desk | media audit, block imports, needs review | media audit, block imports, needs review | media audit; block imports; needs review]', $styled->renderCitationCluster([
+            $citation('category-manual', '[@category-manual]'),
+            $citation('category-snapshot', '[@category-snapshot]'),
+        ]));
+        $t->same('Category Review Manual :: migration review, source audit :: migration review; source audit', $styled->renderBibliographyEntry('category-manual'));
+
+        $document = (new MarkdownReader())->read('Category source @category-manual and snapshot [@category-snapshot] keep review buckets visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Category source Smith (2026) and snapshot (Archive Desk 2025) keep review buckets visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Category Review Manual. Review Press, 2026. Categories: migration review; source audit.</dd>', $blocks);
+        $t->contains('<dt>Archive Desk 2025</dt><dd>Archive Desk. Category Snapshot. 2025. Categories: media audit; block imports; needs review. https://example.test/category-snapshot.</dd>', $blocks);
+    },
     'applies bounded csl choose match semantics across multiple condition values' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [

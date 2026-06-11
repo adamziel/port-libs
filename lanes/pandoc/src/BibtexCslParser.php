@@ -920,6 +920,11 @@ final class BibtexCslParser
             $item['keyword'] = $keywords;
         }
 
+        $categories = self::keywordList(self::firstField($fields, ['categories', 'category']));
+        if ($categories !== []) {
+            $item['categories'] = $categories;
+        }
+
         $sourceFileField = self::firstField($fields, ['file', 'pdf']);
         $sourceFiles = self::sourceFilesFromField($sourceFileField);
         if ($sourceFiles !== []) {

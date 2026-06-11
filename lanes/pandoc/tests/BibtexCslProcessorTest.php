@@ -65,6 +65,7 @@ BIB;
   issn           = {2049-3630},
   langid         = {en-US},
   keywords       = {pandoc, wordpress; archive},
+  categories     = {review queue; source package},
   abstract       = {Bounded CSL handoff for reviewer archives.},
   addendum       = {Import note attached}
 }
@@ -87,6 +88,7 @@ BIB;
         $t->same('2049-3630', $item['ISSN']);
         $t->same('en-US', $item['language']);
         $t->same(['pandoc', 'wordpress', 'archive'], $item['keyword']);
+        $t->same(['review queue', 'source package'], $item['categories']);
         $t->same('Bounded CSL handoff for reviewer archives.', $item['abstract']);
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);

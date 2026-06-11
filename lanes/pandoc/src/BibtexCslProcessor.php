@@ -525,6 +525,11 @@ final class BibtexCslProcessor
             $item['keyword'] = $keywords;
         }
 
+        $categories = $this->keywordList($this->firstField($fields, ['categories', 'category']));
+        if ($categories !== []) {
+            $item['categories'] = $categories;
+        }
+
         if (($item['archive'] ?? '') !== '' || ($item['archive_location'] ?? '') !== '') {
             $summaryParts = [];
             foreach (['archive', 'archive-place', 'archive_location'] as $field) {
