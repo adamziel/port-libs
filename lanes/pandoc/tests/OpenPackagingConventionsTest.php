@@ -8621,6 +8621,13 @@ XML;
         ], $summary['contentTypes']);
         $t->same(['default' => 5, 'override' => 2], $summary['contentTypeSourceCounts']);
         $t->same([
+            OpcRelationshipGraph::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE,
+        ], $summary['relationshipTypes']);
+        $t->same([
             'external-target-unsafe-scheme' => 1,
             'missing-in-package' => 2,
             'targets-content-types-item' => 1,
@@ -8634,6 +8641,74 @@ XML;
             'targets-relationship-part',
             'targets-reserved-relationship-directory-part',
         ], $summary['issues']);
+
+        $summariesByType = [];
+        foreach ($summary['relationshipTypeTargetSummaries'] as $targetSummary) {
+            $summariesByType[$targetSummary['type']] = $targetSummary;
+        }
+        $t->same([
+            OpcRelationshipGraph::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE,
+            OpcRelationshipGraph::OFFICE_DOCUMENT_RELATIONSHIP_TYPE,
+        ], array_keys($summariesByType));
+
+        $commentsTargets = $summariesByType[OpcRelationshipGraph::WORDPROCESSING_COMMENTS_RELATIONSHIP_TYPE];
+        $t->same(false, $commentsTargets['valid']);
+        $t->same(1, $commentsTargets['relationshipCount']);
+        $t->same(1, $commentsTargets['missingInternalTargetCount']);
+        $t->same(['/word/comments.xml'], $commentsTargets['missingTargetParts']);
+        $t->same(['default' => 1], $commentsTargets['contentTypeSourceCounts']);
+        $t->same(['missing-in-package' => 1], $commentsTargets['issueCounts']);
+
+        $customXmlTargets = $summariesByType[OpcRelationshipGraph::WORDPROCESSING_CUSTOM_XML_RELATIONSHIP_TYPE];
+        $t->same(false, $customXmlTargets['valid']);
+        $t->same(4, $customXmlTargets['relationshipCount']);
+        $t->same(1, $customXmlTargets['validTargetCount']);
+        $t->same(3, $customXmlTargets['invalidTargetCount']);
+        $t->same(4, $customXmlTargets['internalTargetCount']);
+        $t->same(3, $customXmlTargets['existingInternalTargetCount']);
+        $t->same(1, $customXmlTargets['missingInternalTargetCount']);
+        $t->same(1, $customXmlTargets['fragmentTargetCount']);
+        $t->same(1, $customXmlTargets['sameSourceReferenceCount']);
+        $t->same(1, $customXmlTargets['relationshipPartTargetCount']);
+        $t->same(1, $customXmlTargets['contentTypesItemTargetCount']);
+        $t->same(1, $customXmlTargets['reservedRelationshipDirectoryTargetCount']);
+        $t->same([
+            '/[Content_Types].xml',
+            '/_rels/.rels',
+            '/word/_rels/orphan.xml',
+            '/word/document.xml',
+        ], $customXmlTargets['targetParts']);
+        $t->same(['/word/_rels/orphan.xml'], $customXmlTargets['missingTargetParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+            'application/vnd.openxmlformats-package.relationships+xml',
+            'application/xml',
+        ], $customXmlTargets['contentTypes']);
+        $t->same(['default' => 3, 'override' => 1], $customXmlTargets['contentTypeSourceCounts']);
+        $t->same([
+            'missing-in-package' => 1,
+            'targets-content-types-item' => 1,
+            'targets-relationship-part' => 1,
+            'targets-reserved-relationship-directory-part' => 1,
+        ], $customXmlTargets['issueCounts']);
+
+        $hyperlinkTargets = $summariesByType[OpcRelationshipGraph::WORDPROCESSING_HYPERLINK_RELATIONSHIP_TYPE];
+        $t->same(false, $hyperlinkTargets['valid']);
+        $t->same(1, $hyperlinkTargets['externalTargetCount']);
+        $t->same(1, $hyperlinkTargets['unsafeExternalTargetCount']);
+        $t->same(['file:///tmp/source.docx'], $hyperlinkTargets['externalTargets']);
+        $t->same(['external-target-unsafe-scheme' => 1], $hyperlinkTargets['issueCounts']);
+
+        $imageTargets = $summariesByType[OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE];
+        $t->same(true, $imageTargets['valid']);
+        $t->same(1, $imageTargets['relationshipCount']);
+        $t->same(1, $imageTargets['queryTargetCount']);
+        $t->same(1, $imageTargets['fragmentTargetCount']);
+        $t->same(['/word/media/hero.png'], $imageTargets['targetParts']);
+        $t->same(['image/png'], $imageTargets['contentTypes']);
 
         $t->same('/word/media/hero.png', $targets['rIdImage']['targetPart']);
         $t->same('slot=cover', $targets['rIdImage']['targetQuery']);
@@ -8659,6 +8734,9 @@ XML;
         $t->same(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE, $imageSummary['relationshipType']);
         $t->same(true, $imageSummary['valid']);
         $t->same(1, $imageSummary['relationshipCount']);
+        $t->same([OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE], $imageSummary['relationshipTypes']);
+        $t->same(1, count($imageSummary['relationshipTypeTargetSummaries']));
+        $t->same(OpcRelationshipGraph::WORDPROCESSING_IMAGE_RELATIONSHIP_TYPE, $imageSummary['relationshipTypeTargetSummaries'][0]['type']);
         $t->same(['/word/media/hero.png'], $imageSummary['targetParts']);
     },
     'summarizes package-wide OPC content type inventory for import review' => static function (TestRunner $t): void {

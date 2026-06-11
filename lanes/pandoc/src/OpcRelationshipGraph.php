@@ -1516,49 +1516,20 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, targetPartCount:int, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
+     * @return array{relationshipType:?string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, targetPartCount:int, relationshipTypes:list<string>, relationshipTypeTargetSummaries:list<array{type:string, valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, targetPartCount:int, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>}>, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, targets:list<array{source:string, id:string, type:string, target:string, targetPart:?string, targetQuery:?string, targetFragment:?string, sameSourceReference:bool, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, externalTargetRewriteBasePart:?string, externalTargetRewriteReason:?string, valid:bool, issues:list<string>}>}
      */
     public function relationshipTargetSummary(?string $relationshipType = null): array
     {
         $summary = [
             'relationshipType' => $relationshipType,
-            'valid' => true,
-            'relationshipCount' => 0,
-            'validTargetCount' => 0,
-            'invalidTargetCount' => 0,
-            'internalTargetCount' => 0,
-            'externalTargetCount' => 0,
-            'existingInternalTargetCount' => 0,
-            'missingInternalTargetCount' => 0,
-            'queryTargetCount' => 0,
-            'fragmentTargetCount' => 0,
-            'sameSourceReferenceCount' => 0,
-            'relationshipPartTargetCount' => 0,
-            'contentTypesItemTargetCount' => 0,
-            'reservedRelationshipDirectoryTargetCount' => 0,
-            'unsafeExternalTargetCount' => 0,
-            'relativeExternalTargetCount' => 0,
-            'rewriteRequiredExternalTargetCount' => 0,
-            'targetPartCount' => 0,
-            'targetParts' => [],
-            'missingTargetParts' => [],
-            'externalTargets' => [],
-            'contentTypes' => [],
-            'contentTypeSourceCounts' => [],
-            'issueCounts' => [],
-            'issues' => [],
+            ...self::relationshipTargetSummaryCounters(),
+            'relationshipTypes' => [],
+            'relationshipTypeTargetSummaries' => [],
             'targets' => [],
         ];
+        $relationshipTypeSummaries = [];
 
         foreach ($this->preflightAllRelationshipTargets($relationshipType) as $target) {
-            $summary['relationshipCount']++;
-            if ($target['valid']) {
-                $summary['validTargetCount']++;
-            } else {
-                $summary['invalidTargetCount']++;
-                $summary['valid'] = false;
-            }
-
             $targetPart = $target['targetPart'];
             $suffix = ['query' => null, 'fragment' => null];
             $sameSourceReference = false;
@@ -1568,68 +1539,16 @@ final class OpcRelationshipGraph
                     === self::partNameEquivalenceKey($target['source']);
             }
 
-            if ($target['external']) {
-                $summary['externalTargetCount']++;
-                self::appendUniqueString($summary['externalTargets'], $target['target']);
-                if ($target['externalTargetAllowed'] === false) {
-                    $summary['unsafeExternalTargetCount']++;
-                }
-                if (
-                    $target['externalTargetKind'] === 'relative-reference'
-                    || $target['externalTargetKind'] === 'fragment-reference'
-                ) {
-                    $summary['relativeExternalTargetCount']++;
-                }
-                if ($target['externalTargetRequiresBaseUri'] === true) {
-                    $summary['rewriteRequiredExternalTargetCount']++;
-                }
-            } else {
-                $summary['internalTargetCount']++;
-                if ($target['exists'] === true) {
-                    $summary['existingInternalTargetCount']++;
-                } elseif ($target['exists'] === false) {
-                    $summary['missingInternalTargetCount']++;
-                }
-
-                if ($targetPart !== null) {
-                    self::appendUniqueString($summary['targetParts'], $targetPart);
-                    if ($target['exists'] === false) {
-                        self::appendUniqueString($summary['missingTargetParts'], $targetPart);
-                    }
-                }
-
-                if ($suffix['query'] !== null) {
-                    $summary['queryTargetCount']++;
-                }
-                if ($suffix['fragment'] !== null) {
-                    $summary['fragmentTargetCount']++;
-                }
-                if ($sameSourceReference) {
-                    $summary['sameSourceReferenceCount']++;
-                }
-                if ($target['relationshipPartTarget']) {
-                    $summary['relationshipPartTargetCount']++;
-                }
-                if (in_array('targets-content-types-item', $target['issues'], true)) {
-                    $summary['contentTypesItemTargetCount']++;
-                }
-                if (in_array('targets-reserved-relationship-directory-part', $target['issues'], true)) {
-                    $summary['reservedRelationshipDirectoryTargetCount']++;
-                }
+            self::appendUniqueString($summary['relationshipTypes'], $target['type']);
+            if (!isset($relationshipTypeSummaries[$target['type']])) {
+                $relationshipTypeSummaries[$target['type']] = [
+                    'type' => $target['type'],
+                    ...self::relationshipTargetSummaryCounters(),
+                ];
             }
 
-            if ($target['contentType'] !== null) {
-                self::appendUniqueString($summary['contentTypes'], $target['contentType']);
-            }
-            if ($target['contentTypeSource'] !== null) {
-                $summary['contentTypeSourceCounts'][$target['contentTypeSource']]
-                    = ($summary['contentTypeSourceCounts'][$target['contentTypeSource']] ?? 0) + 1;
-            }
-
-            foreach ($target['issues'] as $issue) {
-                $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
-                self::appendUniqueString($summary['issues'], $issue);
-            }
+            self::accumulateRelationshipTargetSummary($summary, $target, $suffix, $sameSourceReference);
+            self::accumulateRelationshipTargetSummary($relationshipTypeSummaries[$target['type']], $target, $suffix, $sameSourceReference);
 
             $summary['targets'][] = [
                 'source' => $target['source'],
@@ -1656,18 +1575,14 @@ final class OpcRelationshipGraph
             ];
         }
 
-        foreach ([
-            'targetParts',
-            'missingTargetParts',
-            'externalTargets',
-            'contentTypes',
-            'issues',
-        ] as $listKey) {
-            sort($summary[$listKey], SORT_STRING);
+        self::finalizeRelationshipTargetSummary($summary);
+        ksort($relationshipTypeSummaries, SORT_STRING);
+        foreach ($relationshipTypeSummaries as &$typeSummary) {
+            self::finalizeRelationshipTargetSummary($typeSummary);
         }
-        $summary['targetPartCount'] = count($summary['targetParts']);
-        ksort($summary['contentTypeSourceCounts'], SORT_STRING);
-        ksort($summary['issueCounts'], SORT_STRING);
+        unset($typeSummary);
+        $summary['relationshipTypeTargetSummaries'] = array_values($relationshipTypeSummaries);
+
         usort(
             $summary['targets'],
             static fn (array $left, array $right): int => [$left['source'], $left['id']]
@@ -7696,6 +7611,147 @@ final class OpcRelationshipGraph
         }
 
         return $inventory[$partName];
+    }
+
+    /**
+     * @return array{valid:bool, relationshipCount:int, validTargetCount:int, invalidTargetCount:int, internalTargetCount:int, externalTargetCount:int, existingInternalTargetCount:int, missingInternalTargetCount:int, queryTargetCount:int, fragmentTargetCount:int, sameSourceReferenceCount:int, relationshipPartTargetCount:int, contentTypesItemTargetCount:int, reservedRelationshipDirectoryTargetCount:int, unsafeExternalTargetCount:int, relativeExternalTargetCount:int, rewriteRequiredExternalTargetCount:int, targetPartCount:int, targetParts:list<string>, missingTargetParts:list<string>, externalTargets:list<string>, contentTypes:list<string>, contentTypeSourceCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>}
+     */
+    private static function relationshipTargetSummaryCounters(): array
+    {
+        return [
+            'valid' => true,
+            'relationshipCount' => 0,
+            'validTargetCount' => 0,
+            'invalidTargetCount' => 0,
+            'internalTargetCount' => 0,
+            'externalTargetCount' => 0,
+            'existingInternalTargetCount' => 0,
+            'missingInternalTargetCount' => 0,
+            'queryTargetCount' => 0,
+            'fragmentTargetCount' => 0,
+            'sameSourceReferenceCount' => 0,
+            'relationshipPartTargetCount' => 0,
+            'contentTypesItemTargetCount' => 0,
+            'reservedRelationshipDirectoryTargetCount' => 0,
+            'unsafeExternalTargetCount' => 0,
+            'relativeExternalTargetCount' => 0,
+            'rewriteRequiredExternalTargetCount' => 0,
+            'targetPartCount' => 0,
+            'targetParts' => [],
+            'missingTargetParts' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'contentTypeSourceCounts' => [],
+            'issueCounts' => [],
+            'issues' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array{source:string, type:string, target:string, targetPart:?string, contentType:?string, contentTypeSource:?string, external:bool, exists:?bool, relationshipPartTarget:bool, externalTargetKind:?string, externalTargetAllowed:?bool, externalTargetRequiresBaseUri:?bool, valid:bool, issues:list<string>} $target
+     * @param array{query:?string, fragment:?string} $suffix
+     */
+    private static function accumulateRelationshipTargetSummary(
+        array &$summary,
+        array $target,
+        array $suffix,
+        bool $sameSourceReference,
+    ): void {
+        $summary['relationshipCount']++;
+        if ($target['valid']) {
+            $summary['validTargetCount']++;
+        } else {
+            $summary['invalidTargetCount']++;
+            $summary['valid'] = false;
+        }
+
+        $targetPart = $target['targetPart'];
+        if ($target['external']) {
+            $summary['externalTargetCount']++;
+            self::appendUniqueString($summary['externalTargets'], $target['target']);
+            if ($target['externalTargetAllowed'] === false) {
+                $summary['unsafeExternalTargetCount']++;
+            }
+            if (
+                $target['externalTargetKind'] === 'relative-reference'
+                || $target['externalTargetKind'] === 'fragment-reference'
+            ) {
+                $summary['relativeExternalTargetCount']++;
+            }
+            if ($target['externalTargetRequiresBaseUri'] === true) {
+                $summary['rewriteRequiredExternalTargetCount']++;
+            }
+        } else {
+            $summary['internalTargetCount']++;
+            if ($target['exists'] === true) {
+                $summary['existingInternalTargetCount']++;
+            } elseif ($target['exists'] === false) {
+                $summary['missingInternalTargetCount']++;
+            }
+
+            if ($targetPart !== null) {
+                self::appendUniqueString($summary['targetParts'], $targetPart);
+                if ($target['exists'] === false) {
+                    self::appendUniqueString($summary['missingTargetParts'], $targetPart);
+                }
+            }
+
+            if ($suffix['query'] !== null) {
+                $summary['queryTargetCount']++;
+            }
+            if ($suffix['fragment'] !== null) {
+                $summary['fragmentTargetCount']++;
+            }
+            if ($sameSourceReference) {
+                $summary['sameSourceReferenceCount']++;
+            }
+            if ($target['relationshipPartTarget']) {
+                $summary['relationshipPartTargetCount']++;
+            }
+            if (in_array('targets-content-types-item', $target['issues'], true)) {
+                $summary['contentTypesItemTargetCount']++;
+            }
+            if (in_array('targets-reserved-relationship-directory-part', $target['issues'], true)) {
+                $summary['reservedRelationshipDirectoryTargetCount']++;
+            }
+        }
+
+        if ($target['contentType'] !== null) {
+            self::appendUniqueString($summary['contentTypes'], $target['contentType']);
+        }
+        if ($target['contentTypeSource'] !== null) {
+            $summary['contentTypeSourceCounts'][$target['contentTypeSource']]
+                = ($summary['contentTypeSourceCounts'][$target['contentTypeSource']] ?? 0) + 1;
+        }
+
+        foreach ($target['issues'] as $issue) {
+            $summary['issueCounts'][$issue] = ($summary['issueCounts'][$issue] ?? 0) + 1;
+            self::appendUniqueString($summary['issues'], $issue);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     */
+    private static function finalizeRelationshipTargetSummary(array &$summary): void
+    {
+        foreach ([
+            'relationshipTypes',
+            'targetParts',
+            'missingTargetParts',
+            'externalTargets',
+            'contentTypes',
+            'issues',
+        ] as $listKey) {
+            if (isset($summary[$listKey])) {
+                sort($summary[$listKey], SORT_STRING);
+            }
+        }
+
+        $summary['targetPartCount'] = count($summary['targetParts']);
+        ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+        ksort($summary['issueCounts'], SORT_STRING);
     }
 
     /**
