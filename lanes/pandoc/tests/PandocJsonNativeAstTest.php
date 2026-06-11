@@ -2132,6 +2132,75 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current nested inline constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'citationId' => 'source-inline',
+            'citationPrefix' => [],
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '5'],
+            ],
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationNoteNum' => 0,
+            'citationHash' => 55,
+        ];
+        $inlines = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'em']], 'sourcepos' => ['inline' => 1]],
+            ['t' => 'Space'],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'sourcepos' => ['inline' => 2]],
+            ['t' => 'Space'],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'under']], 'sourcepos' => ['inline' => 3]],
+            ['t' => 'Space'],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'old']], 'sourcepos' => ['inline' => 4]],
+            ['t' => 'Space'],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => '2']], 'sourcepos' => ['inline' => 5]],
+            ['t' => 'Space'],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'n']], 'sourcepos' => ['inline' => 6]],
+            ['t' => 'Space'],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'sourcepos' => ['inline' => 7]],
+            ['t' => 'Space'],
+            ['t' => 'Quoted', 'c' => [['t' => 'DoubleQuote', 'c' => []], [['t' => 'Str', 'c' => 'quote']]], 'sourcepos' => ['inline' => 8]],
+            ['t' => 'Space'],
+            ['t' => 'Cite', 'c' => [[$citationRecord], [['t' => 'Str', 'c' => '[@source-inline,'], ['t' => 'Space'], ['t' => 'Str', 'c' => 'p.'], ['t' => 'Space'], ['t' => 'Str', 'c' => '5]']]], 'sourcepos' => ['inline' => 9]],
+            ['t' => 'Space'],
+            ['t' => 'Note', 'c' => [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'note']]]], 'sourcepos' => ['inline' => 10]],
+            ['t' => 'Space'],
+            ['t' => 'Span', 'c' => [['inline-span', ['native'], [['data-source', 'payload']]], [['t' => 'Str', 'c' => 'span']]], 'sourcepos' => ['inline' => 11]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $inlines],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same($inlines, $encoded['blocks'][0]['c'], "{$source} unchanged current nested inline payloads");
+        }
+
+        $jsonDocument = $documents['json'];
+        $paragraph = $jsonDocument->children[0];
+        $editedEmph = new AstNode('emph', $paragraph->children[0]->attrs, [
+            new AstNode('text', ['text' => 'edited']),
+        ]);
+        $editedDocument = new AstNode('document', $jsonDocument->attrs, [
+            new AstNode('paragraph', $paragraph->attrs, [$editedEmph, ...array_slice($paragraph->children, 1)]),
+        ]);
+        $editedPacket = (new PandocJsonWriter())->toArray($editedDocument);
+
+        $t->same('edited', $editedPacket['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('sourcepos', $editedPacket['blocks'][0]['c'][0]));
+        $t->same($inlines[2], $editedPacket['blocks'][0]['c'][2]);
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];

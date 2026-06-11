@@ -970,21 +970,39 @@ final class PandocJsonWriter
     private function isCurrentNativeInlinePayload(array $native): bool
     {
         $tag = $native['t'];
-        if ($tag === 'Link' || $tag === 'Image') {
-            $content = $native['c'] ?? null;
 
-            return is_array($content) && array_is_list($content) && count($content) === 3;
+        if (in_array($tag, ['Space', 'SoftBreak', 'LineBreak'], true)) {
+            return true;
         }
 
-        return in_array($tag, [
-            'Str',
-            'Space',
-            'SoftBreak',
-            'LineBreak',
+        if ($tag === 'Str') {
+            return is_string($native['c'] ?? null);
+        }
+
+        $content = $native['c'] ?? null;
+        if (!is_array($content) || !array_is_list($content)) {
+            return false;
+        }
+
+        return match ($tag) {
+            'Emph',
+            'Strong',
+            'Underline',
+            'Strikeout',
+            'Superscript',
+            'Subscript',
+            'SmallCaps',
+            'Note' => true,
+            'Quoted',
             'Code',
             'Math',
             'RawInline',
-        ], true);
+            'Cite',
+            'Span' => count($content) === 2,
+            'Link',
+            'Image' => count($content) === 3,
+            default => false,
+        };
     }
 
     private function nodesMatchForNativeReuse(AstNode $left, AstNode $right): bool
