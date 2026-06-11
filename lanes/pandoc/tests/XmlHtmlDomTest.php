@@ -688,6 +688,49 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html quote attribution and cite text rollups for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<blockquote id="packet-quote" cite=" https://example.test/review#source "><p>Imported <q cite=" ./inline.html ">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote>'
+                . '<p>Standalone <cite data-review="work">Packet Guide</cite></p>',
+            'quote attribution review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $blockquote = $summary[0];
+        $inlineQuote = $blockquote['children'][0]['children'][1];
+        $inlineCitation = $inlineQuote['children'][1];
+        $footer = $blockquote['children'][1];
+        $footerCitation = $footer['children'][1];
+        $standaloneCitation = $summary[1]['children'][1];
+
+        $t->same('block', $blockquote['quote']);
+        $t->same(' https://example.test/review#source ', $blockquote['quoteCite']);
+        $t->same(' https://example.test/review#source ', $blockquote['quoteCiteRaw']);
+        $t->same('https://example.test/review#source', $blockquote['quoteCiteNormalized']);
+        $t->same('Imported inline Manual note.Source Reviewer Handbook', $blockquote['quoteText']);
+        $t->same('Source Reviewer Handbook', $blockquote['attributionText']);
+        $t->same(['Manual', 'Reviewer Handbook'], $blockquote['citationTexts']);
+        $t->same(2, $blockquote['citationCount']);
+        $t->same('footer', $footer['name']);
+
+        $t->same('inline', $inlineQuote['quote']);
+        $t->same(' ./inline.html ', $inlineQuote['quoteCiteRaw']);
+        $t->same('./inline.html', $inlineQuote['quoteCiteNormalized']);
+        $t->same('inline Manual', $inlineQuote['quoteText']);
+        $t->same(null, $inlineQuote['attributionText']);
+        $t->same(['Manual'], $inlineQuote['citationTexts']);
+        $t->same(1, $inlineQuote['citationCount']);
+
+        $t->same('cite', $inlineCitation['citedWork']);
+        $t->same('Manual', $inlineCitation['citedWorkText']);
+        $t->same('cite', $inlineCitation['citation']);
+        $t->same('Manual', $inlineCitation['citationText']);
+        $t->same('Reviewer Handbook', $footerCitation['citationText']);
+        $t->same('Packet Guide', $standaloneCitation['citationText']);
+        $t->same(['review' => 'work'], $standaloneCitation['dataset']);
+        $t->same('<blockquote cite=" https://example.test/review#source " id="packet-quote"><p>Imported <q cite=" ./inline.html ">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote><p>Standalone <cite data-review="work">Packet Guide</cite></p>', $html);
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
