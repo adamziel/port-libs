@@ -481,6 +481,7 @@ final class BibtexCslProcessor
             'editorial-director' => ['editorialdirector', 'editorial-director'],
             'illustrator' => ['illustrator'],
             'collection-editor' => ['serieseditor', 'series-editor', 'collectioneditor', 'collection-editor'],
+            'series-creator' => ['seriescreator', 'series-creator'],
             'redactor' => ['redactor'],
             'commentator' => ['commentator'],
             'annotator' => ['annotator'],

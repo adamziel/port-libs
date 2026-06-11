@@ -25533,6 +25533,99 @@ XML);
         $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'maps bounded biblatex series creator aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{series-creator-alias,
+  editor        = {Editor, Erin},
+  title         = {Series Creator Packet},
+  seriescreator = {Series, Sam and Curator, Cora},
+  series        = {Migration Series},
+  series-number = {12},
+  date          = {2026}
+}
+
+@collection{hyphen-series-creator,
+  editor           = {Editor, Eli},
+  title            = {Hyphen Series Creator Packet},
+  series-creator   = {Hyphen, Hana},
+  collection-title = {Hyphen Series},
+  collection-number = {7},
+  date             = {2025}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Series', $items[0]['series-creator'][0]['family'] ?? null);
+        $t->same('Sam', $items[0]['series-creator'][0]['given'] ?? null);
+        $t->same('Curator', $items[0]['series-creator'][1]['family'] ?? null);
+        $t->same('Migration Series', $items[0]['collection-title'] ?? null);
+        $t->same('12', $items[0]['collection-number'] ?? null);
+        $t->same('Series, Sam and Curator, Cora', $items[0]['rawBibtex']['fields']['seriescreator'] ?? null);
+        $t->same('Hyphen', $items[1]['series-creator'][0]['family'] ?? null);
+        $t->same('Hana', $items[1]['series-creator'][0]['given'] ?? null);
+        $t->same('Hyphen Series', $items[1]['collection-title'] ?? null);
+        $t->same('7', $items[1]['collection-number'] ?? null);
+        $t->same('Hyphen, Hana', $items[1]['rawBibtex']['fields']['series-creator'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $series = $processor->item('series-creator-alias');
+        $hyphen = $processor->item('hyphen-series-creator');
+        $t->same('Series', $series['seriesCreators'][0]['family'] ?? null);
+        $t->same('Sam', $series['seriesCreators'][0]['given'] ?? null);
+        $t->same('Curator', $series['seriesCreators'][1]['family'] ?? null);
+        $t->same('Migration Series', $series['collectionTitle'] ?? null);
+        $t->same('12', $series['collectionNumber'] ?? null);
+        $t->same('Hyphen', $hyphen['seriesCreators'][0]['family'] ?? null);
+        $t->same('Hana', $hyphen['seriesCreators'][0]['given'] ?? null);
+        $t->same('Hyphen Series', $hyphen['collectionTitle'] ?? null);
+        $t->same('7', $hyphen['collectionNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Series Creator Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-creator-alias-review</id>
+    <updated>2026-06-11T17:33:14+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="series-creator"/>
+        <text variable="collection-title"/>
+        <text variable="collection-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="series-creator"/>
+      <text variable="collection-title"/>
+      <text variable="collection-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Series Creator Alias Review', $summary['title'] ?? null);
+        $t->same('series-creator', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('[Series and Curator | Migration Series | 12; Hyphen | Hyphen Series | 7]', $styled->renderCitationCluster([
+            $citation('series-creator-alias', '[@series-creator-alias]'),
+            $citation('hyphen-series-creator', '[@hyphen-series-creator]'),
+        ]));
+        $t->same('Series Creator Packet :: Series, Sam; Curator, Cora :: Migration Series :: 12', $styled->renderBibliographyEntry('series-creator-alias'));
+        $t->same('Hyphen Series Creator Packet :: Hyphen, Hana :: Hyphen Series :: 7', $styled->renderBibliographyEntry('hyphen-series-creator'));
+
+        $document = (new MarkdownReader())->read('Series creators [@series-creator-alias; @hyphen-series-creator] keep collection provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creators [Series and Curator | Migration Series | 12; Hyphen | Hyphen Series | 7] keep collection provenance visible.</p>', $blocks);
+        $t->contains('<dt>Editor 2026</dt><dd>Series Creator Packet :: Series, Sam; Curator, Cora :: Migration Series :: 12</dd>', $blocks);
+        $t->contains('<dt>Editor 2025</dt><dd>Hyphen Series Creator Packet :: Hyphen, Hana :: Hyphen Series :: 7</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
