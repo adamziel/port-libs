@@ -389,6 +389,78 @@ XML,
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/secret.png'], $summary['encryptedParts']);
     },
+    'reports compact ODT audio and video manifest media resources' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'AUDIODATA';
+        $videoBytes = 'VIDEODATA!';
+        $manifest = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:media-type="audio/ogg; codecs=&quot;opus&quot;" manifest:full-path="Media/narration.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:media-type="video/mp4" manifest:full-path="Media/clip.mp4" manifest:size="' . strlen($videoBytes) . '"/>'
+            . "\n"
+            . '</manifest:manifest>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+                ['name' => 'Media/clip.mp4', 'data' => $videoBytes, 'compressionMethod' => 0],
+            ],
+        ));
+        $summary = $odt->summarize();
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same(3, count($summary['mediaParts']));
+        $t->same(['Pictures/hero.png', 'Media/narration.ogg', 'Media/clip.mp4'], array_column($summary['mediaParts'], 'path'));
+        $t->same(0, $summary['missingMediaPartCount']);
+        $t->same(3, $summary['exposableMediaPartCount']);
+
+        $audio = $mediaByPath['Media/narration.ogg'];
+        $t->same('audio/ogg; codecs="opus"', $audio['mediaType']);
+        $t->same('audio/ogg', $audio['mediaTypeBase']);
+        $t->same(true, $audio['mediaTypeHasParameters']);
+        $t->same(['codecs' => 'opus'], $audio['mediaTypeParameterMap']);
+        $t->same(true, $audio['exists']);
+        $t->same(strlen($audioBytes), $audio['byteLength']);
+        $t->same(strlen($audioBytes), $audio['declaredSize']);
+        $t->same(0, $audio['compressionMethod']);
+        $t->same('stored', $audio['compressionMethodName']);
+        $t->same(sprintf('%08x', crc32($audioBytes)), $audio['crc32']);
+        $t->same(true, $audio['canExposeBytes']);
+        $t->same('package-bytes-exposable', $audio['byteExposurePolicy']);
+        $t->same([], $audio['diagnostics']);
+
+        $video = $mediaByPath['Media/clip.mp4'];
+        $t->same('video/mp4', $video['mediaType']);
+        $t->same('video/mp4', $video['mediaTypeBase']);
+        $t->same(strlen($videoBytes), $video['byteLength']);
+        $t->same(sprintf('%08x', crc32($videoBytes)), $video['crc32']);
+        $t->same(true, $video['canExposeBytes']);
+
+        $t->same('audio/ogg', $reviewByPath['Media/narration.ogg']['mediaTypeBase']);
+        $t->same(['codecs' => 'opus'], $reviewByPath['Media/narration.ogg']['mediaTypeParameterMap']);
+        $t->same(true, $reviewByPath['Media/narration.ogg']['canExposeBytes']);
+        $t->same('video/mp4', $reviewByPath['Media/clip.mp4']['mediaTypeBase']);
+        $t->same(true, $reviewByPath['Media/clip.mp4']['canExposeBytes']);
+
+        $t->same(['manifest-declared', 'media-resource'], $inventory['Media/narration.ogg']['roles']);
+        $t->same('audio/ogg', $inventory['Media/narration.ogg']['manifestMediaTypeBase']);
+        $t->same(['codecs' => 'opus'], $inventory['Media/narration.ogg']['manifestMediaTypeParameterMap']);
+        $t->same(true, $inventory['Media/narration.ogg']['canExposeBytes']);
+        $t->same(['manifest-declared', 'media-resource'], $inventory['Media/clip.mp4']['roles']);
+        $t->same('video/mp4', $inventory['Media/clip.mp4']['manifestMediaTypeBase']);
+        $t->same(true, $inventory['Media/clip.mp4']['canExposeBytes']);
+    },
     'reports compact ODT manifest entry byte exposure provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $encryptedHero = <<<'XML'
 <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048">

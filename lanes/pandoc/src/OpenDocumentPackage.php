@@ -238,7 +238,7 @@ final class OpenDocumentPackage
         $encryptedParts = [];
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         foreach ($this->manifestEntries as $entry) {
-            if (str_starts_with($entry['mediaTypeBase'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
+            if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
                     'path' => $entry['path'],
                     'packagePath' => $entry['packagePath'],
@@ -448,8 +448,7 @@ final class OpenDocumentPackage
         }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
-            $mediaTypeBase = (string) ($manifestEntry['mediaTypeBase'] ?? $manifestEntry['mediaType'] ?? '');
-            if (!$entry->isDirectory() && (str_starts_with($mediaTypeBase, 'image/') || str_starts_with($entry->name, 'Pictures/'))) {
+            if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
                 $roles[] = 'media-resource';
             }
         }
@@ -458,6 +457,23 @@ final class OpenDocumentPackage
         }
 
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function isMediaResourceManifestEntry(array $entry): bool
+    {
+        $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
+        if (
+            str_starts_with($mediaTypeBase, 'image/')
+            || str_starts_with($mediaTypeBase, 'audio/')
+            || str_starts_with($mediaTypeBase, 'video/')
+        ) {
+            return true;
+        }
+
+        return str_starts_with((string) ($entry['path'] ?? ''), 'Pictures/');
     }
 
     /**
