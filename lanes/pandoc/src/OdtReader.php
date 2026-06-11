@@ -20,9 +20,10 @@ final class OdtReader
     public const META_NS = 'urn:oasis:names:tc:opendocument:xmlns:meta:1.0';
     public const DC_NS = 'http://purl.org/dc/elements/1.1/';
     public const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
+    public const CONFIG_NS = 'urn:oasis:names:tc:opendocument:xmlns:config:1.0';
 
     /**
-     * @return array{document:AstNode, metadata:array<string, string>, importReport:array<string, mixed>, manifest:list<array{path:string, mediaType:string, encrypted:bool, size:?int}>}
+     * @return array{document:AstNode, metadata:array<string, string>, settings:array<string, mixed>, importReport:array<string, mixed>, manifest:list<array{path:string, mediaType:string, encrypted:bool, size:?int}>}
      */
     public function readPackage(ZipPackage $package): array
     {
@@ -44,6 +45,7 @@ final class OdtReader
         }
 
         $this->mergeAutomaticStyles($styleCatalog, $contentRoot);
+        $settings = $this->readSettings($package);
         $body = $this->firstChildElement($contentRoot, self::OFFICE_NS, 'body');
         $text = $body instanceof \DOMElement ? $this->firstChildElement($body, self::OFFICE_NS, 'text') : null;
         if (!$text instanceof \DOMElement) {
@@ -53,13 +55,15 @@ final class OdtReader
         $document = new AstNode('document', [
             'sourceFormat' => 'odt',
             'mimetype' => $mimetype === '' ? self::ODT_MIMETYPE : $mimetype,
+            'settings' => $settings,
         ], $this->bodyBlocks($text, $package, $styleCatalog));
         $metadata = $this->readMetadata($package, $contentRoot);
 
         return [
             'document' => $document,
             'metadata' => $metadata,
-            'importReport' => $this->importReport($package, $manifest, $document, $styleCatalog, $mimetype),
+            'settings' => $settings,
+            'importReport' => $this->importReport($package, $manifest, $document, $styleCatalog, $settings, $mimetype),
             'manifest' => $manifest,
         ];
     }
@@ -105,6 +109,189 @@ final class OdtReader
         }
 
         return $entries;
+    }
+
+    /**
+     * @return array{count:int,itemCount:int,mapEntryCount:int,sets:list<array<string, mixed>>,setsByName:array<string, array<string, mixed>>}
+     */
+    private function readSettings(ZipPackage $package): array
+    {
+        $empty = [
+            'count' => 0,
+            'itemCount' => 0,
+            'mapEntryCount' => 0,
+            'sets' => [],
+            'setsByName' => [],
+        ];
+        if (!$package->has('settings.xml')) {
+            return $empty;
+        }
+
+        $dom = self::loadXml($package->read('settings.xml'), 'ODT settings.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || !$this->isElement($root, self::OFFICE_NS, 'document-settings')) {
+            throw new \InvalidArgumentException('ODT settings.xml must use office:document-settings as its root element');
+        }
+
+        $settingsElement = $this->firstChildElement($root, self::OFFICE_NS, 'settings');
+        if (!$settingsElement instanceof \DOMElement) {
+            throw new \RuntimeException('ODT settings.xml is missing office:settings');
+        }
+
+        $sets = [];
+        $setsByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+        foreach ($this->childElements($settingsElement, self::CONFIG_NS, 'config-item-set') as $setElement) {
+            $name = $this->configAttr($setElement, 'name');
+            if ($name === null || $name === '') {
+                continue;
+            }
+
+            $set = $this->settingsContainerDefinition($setElement) + ['name' => $name];
+            $sets[] = $set;
+            $setsByName[$name] = $set;
+            $itemCount += (int) ($set['itemCount'] ?? 0);
+            $mapEntryCount += (int) ($set['mapEntryCount'] ?? 0);
+        }
+
+        return [
+            'count' => count($sets),
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'sets' => $sets,
+            'setsByName' => $setsByName,
+        ];
+    }
+
+    /**
+     * @return array{itemCount:int,mapEntryCount:int,items:list<array<string, mixed>>,itemsByName:array<string, array<string, mixed>>,maps:list<array<string, mixed>>,mapsByName:array<string, array<string, mixed>>}
+     */
+    private function settingsContainerDefinition(\DOMElement $container): array
+    {
+        $items = [];
+        $itemsByName = [];
+        $maps = [];
+        $mapsByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+
+        foreach ($this->childElements($container) as $child) {
+            if ($this->isElement($child, self::CONFIG_NS, 'config-item')) {
+                $item = $this->settingsConfigItemDefinition($child);
+                if ($item === []) {
+                    continue;
+                }
+
+                $items[] = $item;
+                $itemsByName[$item['name']] = $item;
+                ++$itemCount;
+                continue;
+            }
+
+            if ($this->isElement($child, self::CONFIG_NS, 'config-item-map-indexed')
+                || $this->isElement($child, self::CONFIG_NS, 'config-item-map-named')
+            ) {
+                $map = $this->settingsConfigMapDefinition($child);
+                if ($map === []) {
+                    continue;
+                }
+
+                $maps[] = $map;
+                $mapsByName[$map['name']] = $map;
+                $itemCount += (int) ($map['itemCount'] ?? 0);
+                $mapEntryCount += (int) ($map['mapEntryCount'] ?? 0);
+            }
+        }
+
+        return [
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'items' => $items,
+            'itemsByName' => $itemsByName,
+            'maps' => $maps,
+            'mapsByName' => $mapsByName,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function settingsConfigItemDefinition(\DOMElement $item): array
+    {
+        $name = $this->configAttr($item, 'name');
+        if ($name === null || $name === '') {
+            return [];
+        }
+
+        $type = $this->configAttr($item, 'type') ?? '';
+        $value = $this->normalizedText($item);
+
+        return self::withoutEmpty([
+            'name' => $name,
+            'type' => $type === '' ? null : $type,
+            'value' => $value,
+            'typedValue' => $this->settingsConfigTypedValue($value, $type),
+        ]);
+    }
+
+    private function settingsConfigTypedValue(string $value, string $type): mixed
+    {
+        $type = strtolower(trim($type));
+        if (in_array($type, ['boolean', 'bool'], true)) {
+            return $this->nullableBool($value);
+        }
+        if (in_array($type, ['int', 'integer', 'long', 'short'], true)) {
+            return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : $value;
+        }
+        if (in_array($type, ['float', 'double'], true)) {
+            return is_numeric($value) ? (float) $value : $value;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function settingsConfigMapDefinition(\DOMElement $map): array
+    {
+        $name = $this->configAttr($map, 'name');
+        if ($name === null || $name === '') {
+            return [];
+        }
+
+        $entries = [];
+        $entriesByName = [];
+        $itemCount = 0;
+        $mapEntryCount = 0;
+        foreach ($this->childElements($map, self::CONFIG_NS, 'config-item-map-entry') as $entryElement) {
+            $entry = $this->settingsContainerDefinition($entryElement);
+            $entry['index'] = count($entries);
+            $entryName = $this->configAttr($entryElement, 'name');
+            if ($entryName !== null && $entryName !== '') {
+                $entry['name'] = $entryName;
+                $entriesByName[$entryName] = $entry;
+            }
+
+            $entries[] = $entry;
+            $itemCount += (int) ($entry['itemCount'] ?? 0);
+            $mapEntryCount += 1 + (int) ($entry['mapEntryCount'] ?? 0);
+        }
+
+        $definition = [
+            'name' => $name,
+            'type' => $map->localName === 'config-item-map-named' ? 'named' : 'indexed',
+            'entryCount' => count($entries),
+            'itemCount' => $itemCount,
+            'mapEntryCount' => $mapEntryCount,
+            'entries' => $entries,
+        ];
+        if ($entriesByName !== []) {
+            $definition['entriesByName'] = $entriesByName;
+        }
+
+        return $definition;
     }
 
     /**
@@ -1048,7 +1235,7 @@ final class OdtReader
      * @param array{paragraphStyles:array<string, array<string, mixed>>, textStyles:array<string, array<string, mixed>>, listStyles:array<string, array<int, array<string, mixed>>>, fontFaces:array<string, array<string, mixed>>} $styleCatalog
      * @return array<string, mixed>
      */
-    private function importReport(ZipPackage $package, array $manifest, AstNode $document, array $styleCatalog, string $mimetype): array
+    private function importReport(ZipPackage $package, array $manifest, AstNode $document, array $styleCatalog, array $settings, string $mimetype): array
     {
         $manifestByPath = [];
         foreach ($manifest as $entry) {
@@ -1068,6 +1255,7 @@ final class OdtReader
             'encryptedEntryCount' => count($encrypted),
             'encryptedEntries' => array_map(static fn (array $entry): string => $entry['path'], $encrypted),
             'media' => $images,
+            'settings' => $settings,
             'styles' => [
                 'count' => count($styleCatalog['styles']),
                 'styleCount' => count($styleCatalog['styles']),
@@ -1667,6 +1855,13 @@ final class OdtReader
         return $this->namespacedAttr($element, self::MANIFEST_NS, $localName);
     }
 
+    private function configAttr(\DOMElement $element, string $localName): ?string
+    {
+        $value = $this->namespacedAttr($element, self::CONFIG_NS, $localName);
+
+        return $value === null ? null : trim($value);
+    }
+
     private function namespacedAttr(\DOMElement $element, string $namespace, string $localName): ?string
     {
         if ($element->hasAttributeNS($namespace, $localName)) {
@@ -1679,6 +1874,28 @@ final class OdtReader
     private function isElement(\DOMElement $element, string $namespace, string $localName): bool
     {
         return $element->namespaceURI === $namespace && $element->localName === $localName;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElements(\DOMElement $element, ?string $namespace = null, ?string $localName = null): array
+    {
+        $elements = [];
+        foreach ($element->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+            if ($namespace !== null && $child->namespaceURI !== $namespace) {
+                continue;
+            }
+            if ($localName !== null && $child->localName !== $localName) {
+                continue;
+            }
+            $elements[] = $child;
+        }
+
+        return $elements;
     }
 
     private function firstChildElement(\DOMElement $element, string $namespace, string $localName): ?\DOMElement
@@ -1701,6 +1918,23 @@ final class OdtReader
         }
 
         return null;
+    }
+
+    private function nullableBool(string $value): ?bool
+    {
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return null;
+        }
+
+        return in_array($value, ['true', '1', 'yes', 'checked'], true);
+    }
+
+    private function normalizedText(\DOMElement $element): string
+    {
+        $text = preg_replace('/\s+/u', ' ', $element->textContent) ?? $element->textContent;
+
+        return trim($text);
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument
