@@ -776,6 +776,59 @@ return [
         $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
     },
 
+    'fake runner canonicalizes typst dependency paths before root boundary review' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'project/main.typ',
+            'outputPath' => 'build/canonical.pdf',
+            'source' => '= Typst Canonical Boundary Packet',
+            'engineOptions' => ['--root=project', '--deps=build/canonical.d'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst canonical dependency packet\n%%EOF\n";
+        $depfile = implode("\n", [
+            'build/canonical.pdf: ./project/main.typ project/chapters/../assets/chart.svg \\',
+            '  project/./data/../data/input.csv',
+            '',
+        ]);
+        $expectedPolicy = [
+            'reviewStatus' => 'ok',
+            'root' => 'project',
+            'sourceFile' => 'project/main.typ',
+            'inputFiles' => ['project/assets/chart.svg', 'project/data/input.csv', 'project/main.typ'],
+            'insideRootFiles' => ['project/assets/chart.svg', 'project/data/input.csv', 'project/main.typ'],
+            'outsideRootFiles' => [],
+            'issues' => [],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/canonical.d' => $depfile,
+                'build/canonical.pdf' => $pdfBytes,
+                'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'project/data/input.csv' => "series,value\nA,12\n",
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/canonical.d' => $depfile,
+                'build/canonical.pdf' => $pdfBytes,
+                'project/assets/chart.svg' => '<svg viewBox="0 0 4 3"/>',
+                'project/data/input.csv' => "series,value\nA,12\n",
+            ],
+        ]]);
+
+        $t->same(true, $result['ok']);
+        $t->same(['project/assets/chart.svg', 'project/data/input.csv', 'project/main.typ'], $result['engineInputFiles']);
+        $t->same([], $result['engineExternalInputFiles']);
+        $t->same([], $result['engineBoundaryViolations']);
+        $t->same($expectedPolicy, $result['typstReadBoundaryPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstReadBoundaryPolicy']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-root-boundary-policy:ok', implode(',', $result['diagnostics']));
+        $t->same($expectedPolicy, $sequence['finalTypstReadBoundaryPolicy']);
+    },
+
     'plans pdf template variables headers and resource paths for source handoff' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

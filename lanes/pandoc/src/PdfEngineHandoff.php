@@ -6168,10 +6168,35 @@ final class PdfEngineHandoff
         }
 
         try {
-            return ['path' => $this->normalizeRelativePath($path, 'PDF engine dependency path'), 'local' => true];
+            return ['path' => $this->normalizeEngineLocalDependencyPath($path), 'local' => true];
         } catch (\InvalidArgumentException) {
             return ['path' => $this->externalSourceMapInputName($path), 'local' => false];
         }
+    }
+
+    private function normalizeEngineLocalDependencyPath(string $path): string
+    {
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                if ($parts === []) {
+                    throw new \InvalidArgumentException('PDF engine dependency path must not escape the handoff workspace');
+                }
+                array_pop($parts);
+                continue;
+            }
+
+            $parts[] = $part;
+        }
+
+        if ($parts === []) {
+            throw new \InvalidArgumentException('PDF engine dependency path must name a file');
+        }
+
+        return implode('/', $parts);
     }
 
     private function isTypstPackageReference(string $path): bool
