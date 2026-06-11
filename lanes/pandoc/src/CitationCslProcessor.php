@@ -1002,11 +1002,11 @@ final class CitationCslProcessor
         $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origaddress']);
-        $archive = self::stringField($item, 'archive');
-        $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection']);
-        $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace']);
-        $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation']);
-        $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'eprint-summary', 'eprintSummary'])
+        $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'eprinttype', 'eprint-type']);
+        $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
+        $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class']);
+        $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
+        $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, ['publisher-list', 'publisherList']);
         $publisherPlaceList = self::stringListFromFirstField($item, ['publisher-place-list', 'publisherPlaceList']);
