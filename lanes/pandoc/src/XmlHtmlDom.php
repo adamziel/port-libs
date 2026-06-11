@@ -33,6 +33,7 @@ final class XmlHtmlDom
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disabled' => true,
@@ -52,6 +53,36 @@ final class XmlHtmlDom
         'required' => true,
         'reversed' => true,
         'selected' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML5_IFRAME_SANDBOX_TOKENS = [
+        'allow-downloads' => true,
+        'allow-forms' => true,
+        'allow-modals' => true,
+        'allow-orientation-lock' => true,
+        'allow-pointer-lock' => true,
+        'allow-popups' => true,
+        'allow-popups-to-escape-sandbox' => true,
+        'allow-presentation' => true,
+        'allow-same-origin' => true,
+        'allow-scripts' => true,
+        'allow-storage-access-by-user-activation' => true,
+        'allow-top-navigation' => true,
+        'allow-top-navigation-by-user-activation' => true,
+        'allow-top-navigation-to-custom-protocols' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML5_REFERRER_POLICIES = [
+        'no-referrer' => true,
+        'no-referrer-when-downgrade' => true,
+        'origin' => true,
+        'origin-when-cross-origin' => true,
+        'same-origin' => true,
+        'strict-origin' => true,
+        'strict-origin-when-cross-origin' => true,
+        'unsafe-url' => true,
     ];
 
     /** @var array<string, true> */
@@ -2060,6 +2091,12 @@ final class XmlHtmlDom
      */
     private static function iframeSummary(\DOMElement $iframe): array
     {
+        $allowRaw = self::attributeOrNull($iframe, 'allow');
+        $loadingRaw = self::attributeOrNull($iframe, 'loading');
+        $referrerPolicyRaw = self::attributeOrNull($iframe, 'referrerpolicy');
+        $sandboxRaw = self::attributeOrNull($iframe, 'sandbox');
+        $sandbox = self::iframeSandboxSummary($sandboxRaw);
+
         $summary = [
             'embeddedResource' => 'iframe',
             'src' => self::attributeOrNull($iframe, 'src'),
@@ -2067,11 +2104,22 @@ final class XmlHtmlDom
             'nameAttribute' => self::attributeOrNull($iframe, 'name'),
             'width' => self::attributeOrNull($iframe, 'width'),
             'height' => self::attributeOrNull($iframe, 'height'),
-            'loading' => self::attributeOrNull($iframe, 'loading'),
-            'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
-            'allow' => self::attributeOrNull($iframe, 'allow'),
-            'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
+            'loadingRaw' => $loadingRaw,
+            'loading' => self::iframeLoading($loadingRaw),
+            'referrerpolicyRaw' => $referrerPolicyRaw,
+            'referrerpolicy' => self::iframeReferrerPolicy($referrerPolicyRaw),
+            'allow' => $allowRaw,
+            'allowPolicyDirectives' => self::iframeAllowPolicyDirectives($allowRaw),
+            'sandboxed' => $iframe->hasAttribute('sandbox'),
+            'sandboxRaw' => $sandboxRaw,
+            'sandboxTokens' => $sandbox['tokens'],
+            'sandboxAllows' => $sandbox['allows'],
+            'invalidSandboxTokens' => $sandbox['invalid'],
+            'sandboxValid' => $sandbox['invalid'] === [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
+            'credentiallessRaw' => self::attributeOrNull($iframe, 'credentialless'),
+            'credentialless' => $iframe->hasAttribute('credentialless'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
         ];
 
         $fallbackText = self::normalizedText($iframe);
@@ -2080,6 +2128,88 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    private static function iframeLoading(?string $loading): ?string
+    {
+        if ($loading === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($loading));
+
+        return in_array($normalized, ['eager', 'lazy'], true) ? $normalized : null;
+    }
+
+    private static function iframeReferrerPolicy(?string $policy): ?string
+    {
+        if ($policy === null) {
+            return null;
+        }
+
+        $normalized = strtolower(trim($policy));
+
+        return isset(self::HTML5_REFERRER_POLICIES[$normalized]) ? $normalized : null;
+    }
+
+    /**
+     * @return array{tokens:list<string>, allows:list<string>, invalid:list<string>}
+     */
+    private static function iframeSandboxSummary(?string $sandbox): array
+    {
+        $tokens = $sandbox === null ? [] : self::spaceSeparatedTokens($sandbox);
+        $allows = [];
+        $invalid = [];
+
+        foreach ($tokens as $token) {
+            $normalized = strtolower($token);
+            if (isset(self::HTML5_IFRAME_SANDBOX_TOKENS[$normalized])) {
+                if (!in_array($normalized, $allows, true)) {
+                    $allows[] = $normalized;
+                }
+                continue;
+            }
+
+            $invalid[] = $token;
+        }
+
+        return [
+            'tokens' => $tokens,
+            'allows' => $allows,
+            'invalid' => $invalid,
+        ];
+    }
+
+    /**
+     * @return list<array{raw:string, feature:string, allowlist:list<string>}>
+     */
+    private static function iframeAllowPolicyDirectives(?string $allow): array
+    {
+        if ($allow === null || trim($allow) === '') {
+            return [];
+        }
+
+        $directives = [];
+        foreach (explode(';', $allow) as $directive) {
+            $raw = trim($directive);
+            if ($raw === '') {
+                continue;
+            }
+
+            $parts = preg_split('/\s+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+            if (!is_array($parts) || $parts === []) {
+                continue;
+            }
+
+            $feature = strtolower((string) array_shift($parts));
+            $directives[] = [
+                'raw' => $raw,
+                'feature' => $feature,
+                'allowlist' => array_values($parts),
+            ];
+        }
+
+        return $directives;
     }
 
     /**

@@ -1144,6 +1144,67 @@ XML, 'package reader XML');
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html iframe sandbox policy state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<iframe id="embed-audit" src="https://player.example.invalid/embed?post=42#start" name="player" loading="LAZY" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-popups Allow-Forms invalid-token allow-same-origin" allow="fullscreen *; geolocation https://maps.example.invalid; clipboard-write" allowfullscreen credentialless csp="script-src none" width="640" height="360">Fallback <strong>not parsed</strong></iframe>'
+                . '<iframe src="legacy.html" loading="immediate" referrerpolicy="bogus" sandbox=""></iframe>',
+            'iframe policy review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', ['source' => 'xml-html5-dom'], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/iframe-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $iframe = $summary[0];
+        $invalid = $summary[1];
+        $expectedHtml = '<iframe allow="fullscreen *; geolocation https://maps.example.invalid; clipboard-write" allowfullscreen credentialless csp="script-src none" height="360" id="embed-audit" loading="LAZY" name="player" referrerpolicy="strict-origin-when-cross-origin" sandbox="allow-scripts allow-popups Allow-Forms invalid-token allow-same-origin" src="https://player.example.invalid/embed?post=42#start" width="640">Fallback &lt;strong&gt;not parsed&lt;/strong&gt;</iframe><iframe loading="immediate" referrerpolicy="bogus" sandbox="" src="legacy.html"></iframe>';
+
+        $t->same(2, count($summary));
+        $t->same('iframe', $iframe['name']);
+        $t->same('iframe', $iframe['embeddedResource']);
+        $t->same('embed-audit', $iframe['elementId']);
+        $t->same('https://player.example.invalid/embed?post=42#start', $iframe['src']);
+        $t->same('player', $iframe['nameAttribute']);
+        $t->same('LAZY', $iframe['loadingRaw']);
+        $t->same('lazy', $iframe['loading']);
+        $t->same('strict-origin-when-cross-origin', $iframe['referrerpolicyRaw']);
+        $t->same('strict-origin-when-cross-origin', $iframe['referrerpolicy']);
+        $t->same('allow-scripts allow-popups Allow-Forms invalid-token allow-same-origin', $iframe['sandboxRaw']);
+        $t->same(['allow-scripts', 'allow-popups', 'Allow-Forms', 'invalid-token', 'allow-same-origin'], $iframe['sandboxTokens']);
+        $t->same(['allow-scripts', 'allow-popups', 'allow-forms', 'allow-same-origin'], $iframe['sandboxAllows']);
+        $t->same(['invalid-token'], $iframe['invalidSandboxTokens']);
+        $t->same(false, $iframe['sandboxValid']);
+        $t->same(true, $iframe['sandboxed']);
+        $t->same('fullscreen *; geolocation https://maps.example.invalid; clipboard-write', $iframe['allow']);
+        $t->same([
+            ['raw' => 'fullscreen *', 'feature' => 'fullscreen', 'allowlist' => ['*']],
+            ['raw' => 'geolocation https://maps.example.invalid', 'feature' => 'geolocation', 'allowlist' => ['https://maps.example.invalid']],
+            ['raw' => 'clipboard-write', 'feature' => 'clipboard-write', 'allowlist' => []],
+        ], $iframe['allowPolicyDirectives']);
+        $t->same(true, $iframe['allowFullscreen']);
+        $t->same(true, $iframe['credentialless']);
+        $t->same('script-src none', $iframe['csp']);
+        $t->same('640', $iframe['width']);
+        $t->same('360', $iframe['height']);
+        $t->same('Fallback <strong>not parsed</strong>', $iframe['fallbackText']);
+        $t->same('immediate', $invalid['loadingRaw']);
+        $t->same(null, $invalid['loading']);
+        $t->same('bogus', $invalid['referrerpolicyRaw']);
+        $t->same(null, $invalid['referrerpolicy']);
+        $t->same('', $invalid['sandboxRaw']);
+        $t->same([], $invalid['sandboxTokens']);
+        $t->same([], $invalid['sandboxAllows']);
+        $t->same([], $invalid['invalidSandboxTokens']);
+        $t->same(true, $invalid['sandboxValid']);
+        $t->same(true, $invalid['sandboxed']);
+        $t->same(false, $invalid['credentialless']);
+        $t->same([], $invalid['allowPolicyDirectives']);
+        $t->same($expectedHtml, $html);
+        $t->contains($expectedHtml, $blocks);
+        $t->same('/migration/iframe-policy-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html hyperlinks and image-map areas for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>See <a href="chapter.html#intro" target="_blank" rel="noopener noreferrer tag" download="packet.html" hreflang="en" type="text/html" ping="/audit /log" referrerpolicy="no-referrer">Chapter <span>one</span></a></p>'
