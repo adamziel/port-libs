@@ -4578,6 +4578,102 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'preflights zip central directory fixed header field provenance before package import' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentData = '<w:document><w:p>central fixed header fields</w:p></w:document>';
+        $mediaData = "central fixed header media\n";
+        $modifiedTime = 0x4a21;
+        $modifiedDate = 0x5a47;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentData,
+                'method' => 8,
+                'versionMadeBy' => 0x0a14,
+                'versionNeededToExtract' => 20,
+                'modifiedTime' => $modifiedTime,
+                'modifiedDate' => $modifiedDate,
+                'externalAttributes' => 0x20,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaData,
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::centralDirectoryFixedHeaderPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $package = ZipPackage::fromString($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $first = $summary['entries'][0];
+        $second = $summary['entries'][1];
+        $deflatedDocumentData = gzdeflate($documentData);
+        if (!is_string($deflatedDocumentData)) {
+            throw new RuntimeException('Unable to deflate central fixed header fixture');
+        }
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(2, $summary['declaredEntryCount']);
+        $t->same($package->centralDirectoryOffset(), $summary['centralDirectoryOffset']);
+        $t->same(92, $summary['centralDirectoryFixedHeaderBytes']);
+        $t->same(1, $summary['storedEntryCount']);
+        $t->same(1, $summary['deflatedEntryCount']);
+        $t->same(0, $summary['unsupportedCompressionMethodEntryCount']);
+        $t->same(0, $summary['dataDescriptorFlagEntryCount']);
+        $t->same(2, $summary['utf8FlagEntryCount']);
+        $t->same(0, $summary['zip64SizeSentinelEntryCount']);
+        $t->same($summary['centralDirectoryEnd'], $summary['scanStoppedOffset']);
+        $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
+        $t->same(null, $summary['unexpectedRecordOffset']);
+        $t->same(null, $summary['unexpectedRecordSignatureHex']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $t->same('word/document.xml', $first['name']);
+        $t->same(0, $first['centralDirectoryIndex']);
+        $t->same($summary['centralDirectoryOffset'], $first['recordOffset']);
+        $t->same($first['recordOffset'], $first['fixedHeaderOffset']);
+        $t->same(46, $first['fixedHeaderLength']);
+        $t->same($first['recordOffset'] + 46, $first['fixedHeaderEnd']);
+        $t->same($first['fixedHeaderEnd'], $first['variableFieldsOffset']);
+        $t->same(0x0a14, $first['versionMadeBy']);
+        $t->same(10, $first['madeByHostSystem']);
+        $t->same('windows-ntfs', $first['madeByHostSystemName']);
+        $t->same(20, $first['madeByVersion']);
+        $t->same(20, $first['versionNeededToExtract']);
+        $t->same(0x0800, $first['generalPurposeFlags']);
+        $t->same(8, $first['compressionMethod']);
+        $t->same($modifiedTime, $first['modifiedDosTime']);
+        $t->same($modifiedDate, $first['modifiedDosDate']);
+        $t->same($crc32($documentData), $first['crc32']);
+        $t->same(sprintf('%08x', $crc32($documentData)), $first['crc32Hex']);
+        $t->same(strlen($deflatedDocumentData), $first['compressedSize']);
+        $t->same(strlen($documentData), $first['uncompressedSize']);
+        $t->same(strlen('word/document.xml'), $first['rawNameLength']);
+        $t->same(0, $first['centralExtraFieldLength']);
+        $t->same(0, $first['rawCommentLength']);
+        $t->same(0, $first['diskStart']);
+        $t->same(0, $first['internalFileAttributes']);
+        $t->same(0x20, $first['externalFileAttributes']);
+        $t->same(0, $first['localHeaderOffset']);
+        $t->same(false, $first['usesDataDescriptor']);
+        $t->same(true, $first['usesUtf8Names']);
+        $t->same(false, $first['hasZip64SizeSentinel']);
+
+        $t->same('word/media/review.bin', $second['name']);
+        $t->same($first['recordEnd'], $second['recordOffset']);
+        $t->same(0, $second['compressionMethod']);
+        $t->same(strlen($mediaData), $second['compressedSize']);
+        $t->same(strlen($mediaData), $second['uncompressedSize']);
+        $t->same(false, $second['usesDataDescriptor']);
+        $t->same(true, $second['usesUtf8Names']);
+        $t->same(false, $second['hasZip64SizeSentinel']);
+
+        $t->same($summary, $rawStrict['centralDirectoryFixedHeaders']);
+        $t->same($summary, $strict['centralDirectoryFixedHeaders']);
+        $t->same(true, $strict['isValid']);
+    },
+
     'preflights zip central directory variable field byte provenance before package import' => static function (TestRunner $t) use ($buildZipPackage): void {
         $centralExtra = pack('vva*', 0xcafe, strlen('review-extra'), 'review-extra');
         $entryComment = 'central entry review';
