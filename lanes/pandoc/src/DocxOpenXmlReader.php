@@ -1911,7 +1911,9 @@ final class DocxOpenXmlReader
         $externalRelationshipTargets = [];
         $relationshipPartsWithMissingTargets = [];
         $relationshipPartsWithMissingContentTypes = [];
+        $relationshipPartsWithDuplicateTargets = [];
         $relationshipTargetsWithoutContentType = [];
+        $relationshipTargetReferences = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -1947,6 +1949,19 @@ final class DocxOpenXmlReader
                 $targetPart = $relationship['targetPart'] ?? null;
                 if (is_string($targetPart) && $targetPart !== '') {
                     $targetParts[$targetPart] = true;
+                    $referenceKey = (string) $relationshipsPart . "\0" . $targetPart;
+                    if (!isset($relationshipTargetReferences[$referenceKey])) {
+                        $relationshipTargetReferences[$referenceKey] = [
+                            'relationshipsPart' => (string) $relationshipsPart,
+                            'sourcePart' => is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : '',
+                            'targetPart' => $targetPart,
+                            'contentType' => is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null,
+                            'contentTypeSource' => is_string($relationship['contentTypeSource'] ?? null) ? $relationship['contentTypeSource'] : 'missing',
+                            'exists' => ($relationship['exists'] ?? false) === true,
+                            'relationships' => [],
+                        ];
+                    }
+                    $relationshipTargetReferences[$referenceKey]['relationships'][] = $relationship;
                 }
 
                 if (($relationship['exists'] ?? false) === true) {
@@ -1964,6 +1979,62 @@ final class DocxOpenXmlReader
             }
         }
 
+        $duplicateRelationshipTargets = [];
+        foreach ($relationshipTargetReferences as $targetReference) {
+            $relationships = $targetReference['relationships'];
+            if (!is_array($relationships) || count($relationships) < 2) {
+                continue;
+            }
+
+            $relationshipIds = [];
+            $relationshipTypes = [];
+            $targets = [];
+            foreach ($relationships as $relationship) {
+                if (!is_array($relationship)) {
+                    continue;
+                }
+
+                $id = $relationship['id'] ?? null;
+                if (is_string($id) && $id !== '') {
+                    $relationshipIds[] = $id;
+                }
+
+                $type = $relationship['type'] ?? null;
+                if (is_string($type) && $type !== '') {
+                    $relationshipTypes[$type] = true;
+                }
+
+                $target = $relationship['target'] ?? null;
+                if (is_string($target) && $target !== '') {
+                    $targets[] = $target;
+                }
+            }
+
+            ksort($relationshipTypes);
+            $relationshipPartsWithDuplicateTargets[(string) $targetReference['relationshipsPart']] = true;
+            $duplicateRelationshipTargets[] = [
+                'sourcePart' => (string) $targetReference['sourcePart'],
+                'relationshipsPart' => (string) $targetReference['relationshipsPart'],
+                'targetPart' => (string) $targetReference['targetPart'],
+                'exists' => (bool) $targetReference['exists'],
+                'contentType' => $targetReference['contentType'],
+                'contentTypeSource' => (string) $targetReference['contentTypeSource'],
+                'count' => count($relationships),
+                'relationshipIds' => $relationshipIds,
+                'relationshipTypes' => array_keys($relationshipTypes),
+                'targets' => $targets,
+            ];
+        }
+
+        usort($duplicateRelationshipTargets, static function (array $left, array $right): int {
+            $relationshipPartComparison = strcmp((string) $left['relationshipsPart'], (string) $right['relationshipsPart']);
+            if ($relationshipPartComparison !== 0) {
+                return $relationshipPartComparison;
+            }
+
+            return strcmp((string) $left['targetPart'], (string) $right['targetPart']);
+        });
+        ksort($relationshipPartsWithDuplicateTargets);
         ksort($relationshipTypeCounts);
 
         return [
@@ -1976,6 +2047,7 @@ final class DocxOpenXmlReader
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'duplicateRelationshipTargetGroupCount' => count($duplicateRelationshipTargets),
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
@@ -1985,9 +2057,11 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
+            'relationshipPartsWithDuplicateTargets' => array_keys($relationshipPartsWithDuplicateTargets),
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
+            'duplicateRelationshipTargets' => $duplicateRelationshipTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
     }

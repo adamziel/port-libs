@@ -578,6 +578,43 @@ XML;
         $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
         $t->same('https://example.test/templates/review.dotx', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
     },
+    'summarizes docx duplicate relationship targets for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rLogoAlias" Type="' . $imageRel . '" Target="media/review.png?reuse=logo#alias"/>' . "\n" .
+            '  <Relationship Id="rLogoCopy" Type="' . $imageRel . '" Target="media/review.png"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $duplicate = $summary['duplicateRelationshipTargets'][0];
+        $imageType = $package['relationshipTypes'][$imageRel];
+
+        $t->same(6, $summary['relationshipCount']);
+        $t->same(5, $summary['internalRelationshipCount']);
+        $t->same(1, $summary['externalRelationshipCount']);
+        $t->same(5, $summary['existingRelationshipTargetCount']);
+        $t->same(3, $summary['uniqueRelationshipTargetPartCount']);
+        $t->same(1, $summary['duplicateRelationshipTargetGroupCount']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithDuplicateTargets']);
+        $t->same('word/document.xml', $duplicate['sourcePart']);
+        $t->same('word/_rels/document.xml.rels', $duplicate['relationshipsPart']);
+        $t->same('word/media/review.png', $duplicate['targetPart']);
+        $t->same(true, $duplicate['exists']);
+        $t->same('image/png', $duplicate['contentType']);
+        $t->same('default', $duplicate['contentTypeSource']);
+        $t->same(3, $duplicate['count']);
+        $t->same(['rImage', 'rLogoAlias', 'rLogoCopy'], $duplicate['relationshipIds']);
+        $t->same([$imageRel], $duplicate['relationshipTypes']);
+        $t->same(['media/review.png', 'media/review.png?reuse=logo#alias', 'media/review.png'], $duplicate['targets']);
+        $t->same(3, $imageType['count']);
+        $t->same(['word/media/review.png'], $imageType['targetParts']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
