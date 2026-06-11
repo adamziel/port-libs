@@ -715,6 +715,11 @@ final class DocxOpenXmlReader
         ksort($contentTypeSourceCounts);
 
         $relationshipCount = 0;
+        $validRelationshipPartCount = 0;
+        $invalidRelationshipPartCount = 0;
+        $relationshipXmlRecordCount = 0;
+        $invalidRelationshipXmlRecordCount = 0;
+        $relationshipXmlIssueRecordCount = 0;
         $internalRelationshipCount = 0;
         $externalRelationshipCount = 0;
         $existingRelationshipTargetCount = 0;
@@ -723,9 +728,37 @@ final class DocxOpenXmlReader
         $missingRelationshipTargets = [];
         $externalRelationshipTargets = [];
         $relationshipPartsWithMissingTargets = [];
+        $relationshipPartsWithRelationshipXmlIssues = [];
+        $relationshipXmlIssueCounts = [];
+        $relationshipXmlIssueRecords = [];
         $targetParts = [];
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            if (($relationshipPart['exists'] ?? false) === true) {
+                if (($relationshipPart['valid'] ?? true) === true) {
+                    ++$validRelationshipPartCount;
+                } else {
+                    ++$invalidRelationshipPartCount;
+                }
+            }
+            $relationshipXmlRecordCount += (int) ($relationshipPart['relationshipRecordCount'] ?? 0);
+            $invalidRelationshipXmlRecordCount += (int) ($relationshipPart['invalidRelationshipRecordCount'] ?? 0);
+            foreach (($relationshipPart['issueCounts'] ?? []) as $issue => $count) {
+                $issue = (string) $issue;
+                $relationshipXmlIssueCounts[$issue] = ($relationshipXmlIssueCounts[$issue] ?? 0) + (int) $count;
+            }
+            foreach (($relationshipPart['relationshipXmlIssueRecords'] ?? []) as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+                ++$relationshipXmlIssueRecordCount;
+                $relationshipPartsWithRelationshipXmlIssues[(string) $relationshipsPart] = true;
+                $relationshipXmlIssueRecords[] = [
+                    'partName' => (string) $relationshipsPart,
+                    'sourcePart' => (string) ($relationshipPart['sourcePart'] ?? ''),
+                ] + $record;
+            }
+
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
                 ++$relationshipCount;
                 $type = (string) ($relationship['type'] ?? '');
@@ -757,12 +790,18 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipXmlIssueCounts);
 
         return [
             'partCount' => count($partInventory),
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
+            'validRelationshipPartCount' => $validRelationshipPartCount,
+            'invalidRelationshipPartCount' => $invalidRelationshipPartCount,
             'relationshipCount' => $relationshipCount,
+            'relationshipXmlRecordCount' => $relationshipXmlRecordCount,
+            'invalidRelationshipXmlRecordCount' => $invalidRelationshipXmlRecordCount,
+            'relationshipXmlIssueRecordCount' => $relationshipXmlIssueRecordCount,
             'internalRelationshipCount' => $internalRelationshipCount,
             'externalRelationshipCount' => $externalRelationshipCount,
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
@@ -774,6 +813,9 @@ final class DocxOpenXmlReader
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
+            'relationshipXmlIssueCounts' => $relationshipXmlIssueCounts,
+            'relationshipPartsWithRelationshipXmlIssues' => array_keys($relationshipPartsWithRelationshipXmlIssues),
+            'relationshipXmlIssueRecords' => $relationshipXmlIssueRecords,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
@@ -1021,6 +1063,9 @@ final class DocxOpenXmlReader
         array $relationships,
         array $contentTypes,
     ): array {
+        $preflight = isset($parts[$relationshipsPart])
+            ? $this->relationshipXmlPreflight($parts[$relationshipsPart])
+            : $this->emptyRelationshipXmlPreflight();
         $relationshipSummaries = [];
         foreach ($relationships as $id => $relationship) {
             $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
@@ -1033,8 +1078,164 @@ final class DocxOpenXmlReader
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
             'relationshipCount' => count($relationshipSummaries),
+            'relationshipRecordCount' => $preflight['recordCount'],
+            'invalidRelationshipRecordCount' => $preflight['invalidRecordCount'],
+            'valid' => $preflight['valid'],
+            'issues' => $preflight['issues'],
+            'issueCounts' => $preflight['issueCounts'],
+            'duplicateRelationshipIdCount' => $preflight['duplicateRelationshipIdCount'],
+            'duplicateRelationshipIds' => $preflight['duplicateRelationshipIds'],
+            'duplicateRelationshipIdGroups' => $preflight['duplicateRelationshipIdGroups'],
+            'relationshipXmlIssueRecords' => $preflight['records'],
             'relationships' => $relationshipSummaries,
         ];
+    }
+
+    /**
+     * @return array{valid:bool, recordCount:int, invalidRecordCount:int, duplicateRelationshipIdCount:int, duplicateRelationshipIds:list<string>, duplicateRelationshipIdGroups:array<string, list<int>>, issueCounts:array<string, int>, issues:list<string>, records:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}
+     */
+    private function emptyRelationshipXmlPreflight(): array
+    {
+        return [
+            'valid' => true,
+            'recordCount' => 0,
+            'invalidRecordCount' => 0,
+            'duplicateRelationshipIdCount' => 0,
+            'duplicateRelationshipIds' => [],
+            'duplicateRelationshipIdGroups' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'records' => [],
+        ];
+    }
+
+    /**
+     * @return array{valid:bool, recordCount:int, invalidRecordCount:int, duplicateRelationshipIdCount:int, duplicateRelationshipIds:list<string>, duplicateRelationshipIdGroups:array<string, list<int>>, issueCounts:array<string, int>, issues:list<string>, records:list<array{relationshipOrdinal:int, id:?string, type:?string, target:?string, targetMode:?string, duplicateOfOrdinal:?int, issues:list<string>}>}
+     */
+    private function relationshipXmlPreflight(string $xml): array
+    {
+        $preflight = $this->emptyRelationshipXmlPreflight();
+        if ($xml === '') {
+            return $preflight;
+        }
+
+        try {
+            $dom = $this->loadXml($xml, 'OPC relationships XML');
+        } catch (\Throwable) {
+            $this->recordRelationshipXmlIssue($preflight, 'relationship-xml-parse-error');
+            $preflight['valid'] = false;
+
+            return $preflight;
+        }
+
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'Relationships' || $root->namespaceURI !== self::NS_REL) {
+            $this->recordRelationshipXmlIssue($preflight, 'invalid-relationships-root');
+            $preflight['valid'] = false;
+
+            return $preflight;
+        }
+
+        $seenIds = [];
+        $idOrdinals = [];
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_REL || $child->localName !== 'Relationship') {
+                continue;
+            }
+
+            $preflight['recordCount']++;
+            $relationshipOrdinal = $preflight['recordCount'];
+            $recordIssues = [];
+            $duplicateOfOrdinal = null;
+
+            if (!$child->hasAttribute('Id') || $child->getAttribute('Id') === '') {
+                $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'missing-relationship-id');
+            } else {
+                $id = $child->getAttribute('Id');
+                if (preg_match('/^[A-Za-z_][A-Za-z0-9._-]*$/D', $id) !== 1) {
+                    $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'invalid-relationship-id');
+                } elseif (isset($seenIds[$id])) {
+                    $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'duplicate-relationship-id');
+                    $duplicateOfOrdinal = $seenIds[$id];
+                    $idOrdinals[$id][] = $relationshipOrdinal;
+                } else {
+                    $seenIds[$id] = $relationshipOrdinal;
+                    $idOrdinals[$id] = [$relationshipOrdinal];
+                }
+            }
+
+            if (!$child->hasAttribute('Type') || $child->getAttribute('Type') === '') {
+                $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'missing-relationship-type');
+            }
+
+            if (!$child->hasAttribute('Target') || $child->getAttribute('Target') === '') {
+                $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'missing-relationship-target');
+            }
+
+            if ($child->hasAttribute('TargetMode')) {
+                $targetMode = $child->getAttribute('TargetMode');
+                if (!in_array($targetMode, ['Internal', 'External'], true)) {
+                    $this->appendRelationshipRecordIssue($preflight, $recordIssues, 'invalid-relationship-target-mode');
+                }
+            }
+
+            if ($recordIssues === []) {
+                continue;
+            }
+
+            $preflight['invalidRecordCount']++;
+            $preflight['records'][] = [
+                'relationshipOrdinal' => $relationshipOrdinal,
+                'id' => $child->hasAttribute('Id') && $child->getAttribute('Id') !== '' ? $child->getAttribute('Id') : null,
+                'type' => $child->hasAttribute('Type') && $child->getAttribute('Type') !== '' ? $child->getAttribute('Type') : null,
+                'target' => $child->hasAttribute('Target') && $child->getAttribute('Target') !== '' ? $child->getAttribute('Target') : null,
+                'targetMode' => $child->hasAttribute('TargetMode') ? $child->getAttribute('TargetMode') : null,
+                'duplicateOfOrdinal' => $duplicateOfOrdinal,
+                'issues' => $recordIssues,
+            ];
+        }
+
+        $duplicateIds = [];
+        foreach ($idOrdinals as $id => $ordinals) {
+            if (count($ordinals) < 2) {
+                continue;
+            }
+            $duplicateIds[] = $id;
+            $preflight['duplicateRelationshipIdGroups'][$id] = $ordinals;
+        }
+        sort($duplicateIds, SORT_STRING);
+        ksort($preflight['duplicateRelationshipIdGroups'], SORT_STRING);
+        ksort($preflight['issueCounts'], SORT_STRING);
+        sort($preflight['issues'], SORT_STRING);
+
+        $preflight['duplicateRelationshipIds'] = $duplicateIds;
+        $preflight['duplicateRelationshipIdCount'] = count($duplicateIds);
+        $preflight['valid'] = $preflight['invalidRecordCount'] === 0;
+
+        return $preflight;
+    }
+
+    /**
+     * @param array{issueCounts:array<string, int>, issues:list<string>} $preflight
+     */
+    private function recordRelationshipXmlIssue(array &$preflight, string $issue): void
+    {
+        $preflight['issueCounts'][$issue] = ($preflight['issueCounts'][$issue] ?? 0) + 1;
+        if (!in_array($issue, $preflight['issues'], true)) {
+            $preflight['issues'][] = $issue;
+        }
+    }
+
+    /**
+     * @param array{issueCounts:array<string, int>, issues:list<string>} $preflight
+     * @param list<string> $recordIssues
+     */
+    private function appendRelationshipRecordIssue(array &$preflight, array &$recordIssues, string $issue): void
+    {
+        $this->recordRelationshipXmlIssue($preflight, $issue);
+        if (!in_array($issue, $recordIssues, true)) {
+            $recordIssues[] = $issue;
+        }
     }
 
     /**

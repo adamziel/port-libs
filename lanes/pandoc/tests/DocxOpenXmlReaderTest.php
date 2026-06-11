@@ -246,6 +246,62 @@ XML;
         $t->same(false, $inventory['word/_rels/missing-header.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-target', $inventory['word/media/orphan.png']['roles'], true), 'orphan relationship target role missing');
     },
+    'reports docx relationship XML record diagnostics without aborting package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-a.png"/>
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header-b.png" TargetMode="Sideways"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+  <Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header-review" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/header-b.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/header1.xml.rels'];
+        $summary = $package['summary'];
+
+        $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
+        $t->same(false, $relationshipPart['valid']);
+        $t->same(4, $relationshipPart['relationshipRecordCount']);
+        $t->same(3, $relationshipPart['invalidRelationshipRecordCount']);
+        $t->same(2, $relationshipPart['relationshipCount']);
+        $t->same(1, $relationshipPart['duplicateRelationshipIdCount']);
+        $t->same(['rHeaderImage'], $relationshipPart['duplicateRelationshipIds']);
+        $t->same([1, 2], $relationshipPart['duplicateRelationshipIdGroups']['rHeaderImage']);
+        $t->same(1, $relationshipPart['issueCounts']['duplicate-relationship-id']);
+        $t->same(1, $relationshipPart['issueCounts']['invalid-relationship-target-mode']);
+        $t->same(1, $relationshipPart['issueCounts']['missing-relationship-id']);
+        $t->same(1, $relationshipPart['issueCounts']['missing-relationship-target']);
+        $t->same([
+            'duplicate-relationship-id',
+            'invalid-relationship-target-mode',
+        ], $relationshipPart['relationshipXmlIssueRecords'][0]['issues']);
+        $t->same(2, $relationshipPart['relationshipXmlIssueRecords'][0]['relationshipOrdinal']);
+        $t->same(1, $relationshipPart['relationshipXmlIssueRecords'][0]['duplicateOfOrdinal']);
+        $t->same('Sideways', $relationshipPart['relationshipXmlIssueRecords'][0]['targetMode']);
+        $t->same('rMissingTarget', $relationshipPart['relationshipXmlIssueRecords'][1]['id']);
+        $t->same(['missing-relationship-target'], $relationshipPart['relationshipXmlIssueRecords'][1]['issues']);
+        $t->same(null, $relationshipPart['relationshipXmlIssueRecords'][2]['id']);
+        $t->same(['missing-relationship-id'], $relationshipPart['relationshipXmlIssueRecords'][2]['issues']);
+
+        $t->same(2, $summary['validRelationshipPartCount']);
+        $t->same(1, $summary['invalidRelationshipPartCount']);
+        $t->same(8, $summary['relationshipXmlRecordCount']);
+        $t->same(3, $summary['invalidRelationshipXmlRecordCount']);
+        $t->same(3, $summary['relationshipXmlIssueRecordCount']);
+        $t->same(['word/_rels/header1.xml.rels'], $summary['relationshipPartsWithRelationshipXmlIssues']);
+        $t->same(1, $summary['relationshipXmlIssueCounts']['duplicate-relationship-id']);
+        $t->same(1, $summary['relationshipXmlIssueCounts']['invalid-relationship-target-mode']);
+        $t->same('word/_rels/header1.xml.rels', $summary['relationshipXmlIssueRecords'][0]['partName']);
+        $t->same('word/header1.xml', $summary['relationshipXmlIssueRecords'][0]['sourcePart']);
+        $t->same(2, $summary['relationshipXmlIssueRecords'][0]['relationshipOrdinal']);
+        $t->same(['duplicate-relationship-id', 'invalid-relationship-target-mode'], $summary['relationshipXmlIssueRecords'][0]['issues']);
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
