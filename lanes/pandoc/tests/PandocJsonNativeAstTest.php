@@ -869,7 +869,11 @@ return [
             $t->same($legacyTable, $table->attr('native'), "{$source} legacy table native payload");
             $t->same('Legacy caption', $table->attr('caption'), "{$source} legacy caption text");
             $t->same(['left', 'right'], $table->attr('alignments'), "{$source} legacy alignments");
+            $t->same(['AlignLeft', 'AlignRight'], $table->attr('alignmentConstructors'), "{$source} legacy alignment constructors");
+            $t->same($legacyTable['c'][1], $table->attr('alignmentNatives'), "{$source} legacy alignment native payloads");
             $t->same([0.4, null], $table->attr('widths'), "{$source} legacy widths");
+            $t->same(['ColWidth', 'ColWidthDefault'], $table->attr('columnWidthConstructors'), "{$source} legacy width constructors");
+            $t->same($legacyTable['c'][2], $table->attr('columnWidthNatives'), "{$source} legacy width native payloads");
             $t->same(['table_head', 'table_body'], array_map(static fn (AstNode $node): string => $node->type, $table->children), "{$source} legacy table sections");
             $t->same('Metric', $table->children[0]->children[0]->children[0]->attr('text'), "{$source} legacy header cell text");
             $t->same('Ready', $table->children[1]->children[0]->children[1]->attr('text'), "{$source} legacy body cell text");
@@ -887,6 +891,57 @@ return [
         $t->same(6, count($jsonEncoded['blocks'][0]['c']));
         $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][0]['c'][0]);
         $t->same(['', [], []], $jsonEncoded['blocks'][1]['c'][2]['c'][0]);
+    },
+    'records legacy table column helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $legacyTable = [
+            't' => 'Table',
+            'c' => [
+                [],
+                [['t' => 'AlignDefault'], ['t' => 'AlignCenter'], ['t' => 'AlignRight']],
+                [0, 0.75, 0.25],
+                [
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Default']]]],
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Center']]]],
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Right']]]],
+                ],
+                [],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 17, 5, 1],
+            'meta' => [],
+            'blocks' => [$legacyTable],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+
+            $t->same('table', $table->type, "{$source} legacy table node");
+            $t->same($legacyTable, $table->attr('native'), "{$source} legacy table native payload");
+            $t->same(['default', 'center', 'right'], $table->attr('alignments'), "{$source} legacy alignment values");
+            $t->same(['AlignDefault', 'AlignCenter', 'AlignRight'], $table->attr('alignmentConstructors'), "{$source} legacy alignment constructors");
+            $t->same($legacyTable['c'][1], $table->attr('alignmentNatives'), "{$source} legacy alignment native payloads");
+            $t->same([null, 0.75, 0.25], $table->attr('widths'), "{$source} legacy widths");
+            $t->same(['ColWidthDefault', 'ColWidth', 'ColWidth'], $table->attr('columnWidthConstructors'), "{$source} legacy width constructors");
+            $t->same($legacyTable['c'][2], $table->attr('columnWidthNatives'), "{$source} legacy width native payloads");
+        }
+
+        $nativeRoundTrip = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+        $jsonEncoded = (new PandocJsonWriter())->toArray($documents['json']);
+
+        $t->same($legacyTable, $nativeRoundTrip['blocks'][0]);
+        $t->same('Table', $jsonEncoded['blocks'][0]['t']);
+        $t->same(['t' => 'AlignDefault'], $jsonEncoded['blocks'][0]['c'][2][0][0]);
+        $t->same(['t' => 'ColWidthDefault'], $jsonEncoded['blocks'][0]['c'][2][0][1]);
+        $t->same(['t' => 'AlignCenter'], $jsonEncoded['blocks'][0]['c'][2][1][0]);
+        $t->same(['t' => 'ColWidth', 'c' => 0.75], $jsonEncoded['blocks'][0]['c'][2][1][1]);
+        $t->same(['t' => 'AlignRight'], $jsonEncoded['blocks'][0]['c'][2][2][0]);
+        $t->same(['t' => 'ColWidth', 'c' => 0.25], $jsonEncoded['blocks'][0]['c'][2][2][1]);
     },
     'emits native fallback constructors through pandoc json writer' => static function (TestRunner $t): void {
         $nativePacket = [

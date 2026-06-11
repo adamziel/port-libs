@@ -481,28 +481,37 @@ final class NativeReader
         $alignmentValues = $this->listContent($alignments, 'Pandoc native JSON legacy Table alignments');
         $widthValues = $this->listContent($widths, 'Pandoc native JSON legacy Table widths');
         $alignmentConstructors = [];
+        $alignmentNatives = [];
         $mappedAlignments = [];
         foreach ($alignmentValues as $alignment) {
             $constructor = $this->constructorTag($alignment, 'Pandoc native JSON legacy Table alignment');
             $alignmentConstructors[] = $constructor;
+            $alignmentNatives[] = $alignment;
             $mappedAlignments[] = $this->tableAlignmentFromConstructor($constructor);
         }
 
         $mappedWidths = [];
+        $columnWidthConstructors = [];
+        $columnWidthNatives = [];
         foreach ($widthValues as $width) {
             if (!is_int($width) && !is_float($width)) {
                 throw new \InvalidArgumentException('Pandoc native JSON legacy Table widths must be numeric');
             }
             $mappedWidths[] = ((float) $width) === 0.0 ? null : (float) $width;
+            $columnWidthConstructors[] = ((float) $width) === 0.0 ? 'ColWidthDefault' : 'ColWidth';
+            $columnWidthNatives[] = $width;
         }
 
         $attrs = [];
         if ($mappedAlignments !== []) {
             $attrs['alignments'] = $mappedAlignments;
             $attrs['alignmentConstructors'] = $alignmentConstructors;
+            $attrs['alignmentNatives'] = $alignmentNatives;
         }
         if ($mappedWidths !== []) {
             $attrs['widths'] = $mappedWidths;
+            $attrs['columnWidthConstructors'] = $columnWidthConstructors;
+            $attrs['columnWidthNatives'] = $columnWidthNatives;
         }
 
         return $attrs;
