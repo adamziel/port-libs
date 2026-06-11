@@ -2248,8 +2248,128 @@ return [
         $editedJson = (new PandocJsonWriter())->toArray($editedDocument);
         $editedNative = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
 
-        $t->same('Edited', $editedJson['blocks'][0]['c'][1][0][0]['c']);
-        $t->same('Edited', $editedNative['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Caption', $editedJson['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $editedJson['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $editedJson['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Edited', $editedJson['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+        $t->same('Caption', $editedNative['blocks'][0]['c'][1]['t']);
+        $t->same('Just', $editedNative['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $editedNative['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Edited', $editedNative['blocks'][0]['c'][1]['c'][0]['c']['c'][0][0]['c']);
+    },
+    'preserves tagged pandoc caption helper constructors after caption edits' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['caption-table', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Short'],
+                    ]]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Original'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'table'],
+                        ]],
+                    ],
+                ]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [['t' => 'TableBody', 'c' => [
+                    ['', [], []],
+                    ['t' => 'RowHeadColumns', 'c' => 0],
+                    [],
+                    [['t' => 'Row', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Cell', 'c' => [
+                            ['', [], []],
+                            ['t' => 'AlignDefault'],
+                            ['t' => 'RowSpan', 'c' => 1],
+                            ['t' => 'ColSpan', 'c' => 1],
+                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Cell']]]],
+                        ]]],
+                    ]]],
+                ]]],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['caption-figure', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Original'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'figure'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Figure']],
+                            ['media/caption.png', 'Caption title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $figure = $document->children[1];
+            $editedTable = new AstNode('table', array_replace($table->attrs, [
+                'caption' => 'Edited table',
+                'captionBlocks' => [new AstNode('plain', [], [
+                    new AstNode('text', ['text' => 'Edited']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'table']),
+                ])],
+            ]), $table->children);
+            $editedFigure = new AstNode('figure', array_replace($figure->attrs, [
+                'shortCaption' => 'Figure short',
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Figure']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'short']),
+                ],
+            ]), $figure->children);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedTable, $editedFigure]);
+            $packets = [
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($editedDocument),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ];
+
+            foreach ($packets as $label => $encoded) {
+                $tableCaption = $encoded['blocks'][0]['c'][1];
+                $figureCaption = $encoded['blocks'][1]['c'][1];
+
+                $t->same('Caption', $tableCaption['t'], "{$label} table caption constructor");
+                $t->same('Just', $tableCaption['c'][0]['t'], "{$label} table short maybe constructor");
+                $t->same('ShortCaption', $tableCaption['c'][0]['c']['t'], "{$label} table short caption constructor");
+                $t->same('Short', $tableCaption['c'][0]['c']['c'][0][0]['c'], "{$label} table preserved short caption text");
+                $t->same('Edited', $tableCaption['c'][1][0]['c'][0]['c'], "{$label} table edited long caption text");
+                $t->same('Caption', $figureCaption['t'], "{$label} figure caption constructor");
+                $t->same('Just', $figureCaption['c'][0]['t'], "{$label} figure short maybe constructor");
+                $t->same('ShortCaption', $figureCaption['c'][0]['c']['t'], "{$label} figure short caption constructor");
+                $t->same('Figure', $figureCaption['c'][0]['c']['c'][0][0]['c'], "{$label} figure new short caption text");
+                $t->same('Original', $figureCaption['c'][1][0]['c'][0]['c'], "{$label} figure preserved long caption text");
+            }
+        }
     },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
