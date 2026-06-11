@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if ($name === 'time') {
+            $summary += self::timeSummary($node);
+        }
         if (in_array($name, ['blockquote', 'q', 'cite'], true)) {
             $summary += self::quoteSummary($node, $name);
         }
@@ -1422,6 +1425,114 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function timeSummary(\DOMElement $element): array
+    {
+        $datetimeRaw = self::attributeOrNull($element, 'datetime');
+        $datetimeSource = $datetimeRaw === null ? null : 'datetime-attribute';
+        if ($datetimeRaw === null) {
+            $textValue = self::normalizedText($element);
+            if ($textValue !== '') {
+                $datetimeRaw = $textValue;
+                $datetimeSource = 'text';
+            }
+        }
+
+        $summary = [
+            'timeElement' => 'time',
+            'timeText' => self::normalizedText($element),
+            'timeDatetimeRaw' => $datetimeRaw,
+            'timeDatetimeSource' => $datetimeSource,
+            'timeDatetime' => null,
+            'timeDatetimeKind' => null,
+            'timeDatetimeValid' => false,
+        ];
+
+        if ($datetimeRaw === null) {
+            return $summary;
+        }
+
+        $datetime = self::timeValueSummary($datetimeRaw);
+        if ($datetime === null) {
+            $summary['timeDatetimeKind'] = 'invalid';
+
+            return $summary;
+        }
+
+        $summary['timeDatetime'] = $datetime['value'];
+        $summary['timeDatetimeKind'] = $datetime['kind'];
+        $summary['timeDatetimeValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array{kind:string, value:string}|null
+     */
+    private static function timeValueSummary(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
+            return null;
+        }
+
+        $datetime = self::revisionDatetimeSummary($value);
+        if ($datetime !== null) {
+            return $datetime;
+        }
+
+        if (preg_match('/^([0-9]{4,})-(0[1-9]|1[0-2])$/', $value, $matches) === 1) {
+            if ((int) $matches[1] <= 0) {
+                return null;
+            }
+
+            return [
+                'kind' => 'month',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2],
+            ];
+        }
+
+        if (preg_match('/^([0-9]{4,})-W(0[1-9]|[1-4][0-9]|5[0-3])$/', $value, $matches) === 1) {
+            if (!self::isValidIsoWeek((string) $matches[1], (string) $matches[2])) {
+                return null;
+            }
+
+            return [
+                'kind' => 'week',
+                'value' => (string) $matches[1] . '-W' . (string) $matches[2],
+            ];
+        }
+
+        if (preg_match('/^[0-9]{4,}$/', $value) === 1) {
+            if ((int) $value <= 0) {
+                return null;
+            }
+
+            return [
+                'kind' => 'year',
+                'value' => $value,
+            ];
+        }
+
+        if (preg_match('/^((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'time',
+                'value' => (string) $matches[1],
+            ];
+        }
+
+        if (self::isValidDurationValue($value)) {
+            return [
+                'kind' => 'duration',
+                'value' => strtoupper($value),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
      * @return array{kind:string, value:string}|null
      */
     private static function revisionDatetimeSummary(string $value): ?array
@@ -1509,6 +1620,31 @@ final class XmlHtmlDom
     private static function isValidDateParts(string $year, string $month, string $day): bool
     {
         return checkdate((int) $month, (int) $day, (int) $year);
+    }
+
+    private static function isValidIsoWeek(string $year, string $week): bool
+    {
+        if ((int) $year <= 0 || (int) $week <= 0 || (int) $week > 53) {
+            return false;
+        }
+
+        try {
+            $date = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+                ->setISODate((int) $year, (int) $week, 1);
+        } catch (\Exception) {
+            return false;
+        }
+
+        return $date->format('o') === $year && $date->format('W') === $week;
+    }
+
+    private static function isValidDurationValue(string $value): bool
+    {
+        if (preg_match('/^P(?:[0-9]+W|(?=[0-9T])(?:[0-9]+D)?(?:T(?=[0-9])(?:[0-9]+H)?(?:[0-9]+M)?(?:[0-9]+(?:\.[0-9]{1,3})?S)?)?)$/i', $value) !== 1) {
+            return false;
+        }
+
+        return preg_match('/[0-9]/', $value) === 1;
     }
 
     private static function normalizeTimezone(string $timezone): string
