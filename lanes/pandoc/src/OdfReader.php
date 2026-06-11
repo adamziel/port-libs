@@ -117,6 +117,7 @@ final class OdfReader
         $declaredSizeMismatches = $this->manifestDeclaredSizeMismatches($manifest);
         $directoryItems = $this->manifestDirectoryItems($manifest);
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
+        $packageReferenceSuffixSummary = $this->manifestPackageReferenceSuffixSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
@@ -134,6 +135,7 @@ final class OdfReader
                 'mimetypeEntry' => $mimetypeEntry,
                 'items' => $manifest,
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
+                'packageReferenceSuffixSummary' => $packageReferenceSuffixSummary,
                 'packageProvenance' => $packageProvenance,
             ],
             'styles' => [
@@ -206,6 +208,7 @@ final class OdfReader
                     'mimetypeEntry' => $mimetypeEntry,
                     'items' => $manifest,
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
+                    'packageReferenceSuffixSummary' => $packageReferenceSuffixSummary,
                     'packageProvenance' => $packageProvenance,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
@@ -12138,6 +12141,55 @@ final class OdfReader
         $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
         $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
         $summary['items'] = $items;
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array{manifestItemCount:int,suffixedItemCount:int,queryItemCount:int,fragmentItemCount:int,parts:list<string>,items:list<array<string, mixed>>}
+     */
+    private function manifestPackageReferenceSuffixSummary(array $manifest): array
+    {
+        $summary = [
+            'manifestItemCount' => count($manifest),
+            'suffixedItemCount' => 0,
+            'queryItemCount' => 0,
+            'fragmentItemCount' => 0,
+            'parts' => [],
+            'items' => [],
+        ];
+
+        foreach ($manifest as $item) {
+            $partSuffix = $item['partSuffix'] ?? null;
+            if (!is_string($partSuffix) || $partSuffix === '') {
+                continue;
+            }
+
+            $part = self::manifestItemPartLabel($item);
+            $partQuery = $item['partQuery'] ?? null;
+            $partFragment = $item['partFragment'] ?? null;
+            ++$summary['suffixedItemCount'];
+            if (is_string($partQuery)) {
+                ++$summary['queryItemCount'];
+            }
+            if (is_string($partFragment)) {
+                ++$summary['fragmentItemCount'];
+            }
+            $summary['parts'][] = $part;
+            $summary['items'][] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'partReference' => $item['partReference'] ?? null,
+                'partSuffix' => $partSuffix,
+                'partQuery' => $partQuery,
+                'partFragment' => $partFragment,
+                'mediaType' => $item['mediaType'] ?? null,
+                'exists' => ($item['exists'] ?? false) === true,
+                'encrypted' => ($item['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+            ];
+        }
 
         return $summary;
     }

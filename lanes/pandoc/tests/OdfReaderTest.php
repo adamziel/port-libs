@@ -9223,6 +9223,40 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'summarizes ODT manifest package reference suffix provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSuffixedReferences = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png?rendition=screen#frame-hero" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/cover.png#cover" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSuffixedReferences, null, null, [
+            ['name' => 'Pictures/cover.png', 'data' => 'COVERPNG', 'compressionMethod' => 0],
+        ]));
+        $summary = $result['importReport']['manifest']['packageReferenceSuffixSummary'];
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+
+        $t->same($summary, $result['document']->attr('manifest')['packageReferenceSuffixSummary']);
+        $t->same(6, $summary['manifestItemCount']);
+        $t->same(2, $summary['suffixedItemCount']);
+        $t->same(1, $summary['queryItemCount']);
+        $t->same(2, $summary['fragmentItemCount']);
+        $t->same(['Pictures/hero.png', 'Pictures/cover.png'], $summary['parts']);
+        $t->same('Pictures/hero.png?rendition=screen#frame-hero', $summary['items'][0]['fullPath']);
+        $t->same('Pictures/hero.png', $summary['items'][0]['part']);
+        $t->same('?rendition=screen#frame-hero', $summary['items'][0]['partSuffix']);
+        $t->same('rendition=screen', $summary['items'][0]['partQuery']);
+        $t->same('frame-hero', $summary['items'][0]['partFragment']);
+        $t->same('#cover', $summary['items'][1]['partSuffix']);
+        $t->same(true, $summary['items'][1]['exists']);
+        $t->same(['Pictures/hero.png', 'Pictures/cover.png'], array_column($result['media'], 'part'));
+        $t->same('?rendition=screen#frame-hero', $mediaByPart['Pictures/hero.png']['partSuffix']);
+        $t->same('cover', $mediaByPart['Pictures/cover.png']['partFragment']);
+    },
     'reports ODT manifest ZIP compression provenance for package media' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $sourceBytes = 'SIDECAR-RAW';
         $manifestWithCompression = str_replace(
