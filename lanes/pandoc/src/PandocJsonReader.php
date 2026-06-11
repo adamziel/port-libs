@@ -505,6 +505,7 @@ final class PandocJsonReader
             'start' => $listAttributes[0],
             'style' => $this->listStyleFromConstructor($listStyleConstructor),
             'delimiter' => $this->listDelimiterFromConstructor($listDelimiterConstructor),
+            'listAttributesNative' => $listAttributes,
             'listStyleConstructor' => $listStyleConstructor,
             'listStyleNative' => $listAttributes[1],
             'listDelimiterConstructor' => $listDelimiterConstructor,

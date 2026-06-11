@@ -286,11 +286,7 @@ final class NativeWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->blocks($node->children)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [
-                    (int) $node->attr('start', 1),
-                    $this->enumFromNative($node, 'listStyleNative', $this->listStyleConstructor((string) $node->attr('style', 'default'))),
-                    $this->enumFromNative($node, 'listDelimiterNative', $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))),
-                ],
+                $this->orderedListAttributes($node),
                 $this->listItems($node->children),
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->listItems($node->children)],
@@ -1354,6 +1350,53 @@ final class NativeWriter
     private function enumFromNative(AstNode $node, string $nativeAttr, string $constructor): array
     {
         return $this->taggedNative($node->attr($nativeAttr), $constructor) ?? ['t' => $constructor];
+    }
+
+    /**
+     * @return array{0:int, 1:array<string, mixed>, 2:array<string, mixed>}
+     */
+    private function orderedListAttributes(AstNode $node): array
+    {
+        $start = (int) $node->attr('start', 1);
+        $styleConstructor = $this->listStyleConstructor((string) $node->attr('style', 'default'));
+        $delimiterConstructor = $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'));
+        $generated = [
+            $start,
+            $this->enumFromNative($node, 'listStyleNative', $styleConstructor),
+            $this->enumFromNative($node, 'listDelimiterNative', $delimiterConstructor),
+        ];
+        $native = $this->validOrderedListAttributes($node->attr('listAttributesNative'));
+
+        if (
+            $native !== null
+            && $native[0] === $start
+            && $this->taggedNative($native[1], $styleConstructor) !== null
+            && $this->taggedNative($native[2], $delimiterConstructor) !== null
+        ) {
+            return $native;
+        }
+
+        return $generated;
+    }
+
+    /**
+     * @return array{0:int, 1:array<string, mixed>, 2:array<string, mixed>}|null
+     */
+    private function validOrderedListAttributes(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value) || count($value) !== 3 || !is_int($value[0])) {
+            return null;
+        }
+
+        if (!is_array($value[1]) || array_is_list($value[1]) || !is_string($value[1]['t'] ?? null)) {
+            return null;
+        }
+
+        if (!is_array($value[2]) || array_is_list($value[2]) || !is_string($value[2]['t'] ?? null)) {
+            return null;
+        }
+
+        return [$value[0], $value[1], $value[2]];
     }
 
     /**

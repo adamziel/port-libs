@@ -1946,6 +1946,7 @@ return [
                 $t->same($blocks[$index], $list->attr('native'), "{$source} ordered list native payload {$index}");
                 $t->same($index + 1, $list->attr('start'), "{$source} ordered list start {$index}");
                 $t->same($style, $list->attr('style'), "{$source} ordered list style {$index}");
+                $t->same($blocks[$index]['c'][0], $list->attr('listAttributesNative'), "{$source} ordered list attributes native {$index}");
                 $t->same($styleConstructor, $list->attr('listStyleConstructor'), "{$source} ordered list style constructor {$index}");
                 $t->same(['t' => $styleConstructor], $list->attr('listStyleNative'), "{$source} ordered list style native {$index}");
                 $t->same($delimiter, $list->attr('delimiter'), "{$source} ordered list delimiter {$index}");
@@ -1959,6 +1960,46 @@ return [
 
         $t->same($blocks, $jsonPacket['blocks']);
         $t->same($blocks, $nativePacket['blocks']);
+    },
+    'preserves ordered list attribute tuple provenance on json and native ast' => static function (TestRunner $t): void {
+        $styleNative = ['t' => 'UpperAlpha', 'c' => []];
+        $delimiterNative = ['t' => 'TwoParens', 'c' => []];
+        $listAttributes = [4, $styleNative, $delimiterNative];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    $listAttributes,
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Item']]]]],
+                ]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $list = $document->children[0];
+            $editedList = new AstNode('ordered_list', $list->attrs, [
+                new AstNode('list_item', [], [
+                    new AstNode('plain', [], [
+                        new AstNode('text', ['text' => 'Changed']),
+                    ]),
+                ]),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [$editedList]);
+            $jsonPacket = (new PandocJsonWriter())->toArray($editedDocument);
+            $nativePacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same($listAttributes, $list->attr('listAttributesNative'), "{$source} ordered list attributes native tuple");
+            $t->same($listAttributes, $jsonPacket['blocks'][0]['c'][0], "{$source} json writer keeps current ordered-list attribute tuple");
+            $t->same($listAttributes, $nativePacket['blocks'][0]['c'][0], "{$source} native writer keeps current ordered-list attribute tuple");
+            $t->same('Changed', $jsonPacket['blocks'][0]['c'][1][0][0]['c'][0]['c'], "{$source} json writer regenerated edited list item");
+            $t->same('Changed', $nativePacket['blocks'][0]['c'][1][0][0]['c'][0]['c'], "{$source} native writer regenerated edited list item");
+        }
     },
     'preserves current tagged helper payload shapes through pandoc json writer' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
@@ -2062,6 +2103,7 @@ return [
         ]);
         $editedPacket = (new PandocJsonWriter())->toArray($editedDocument);
 
+        $t->same([4, ['t' => 'Decimal'], $delimiterNative], $editedPacket['blocks'][0]['c'][0], 'json writer regenerates stale ordered-list attribute tuple');
         $t->same(['t' => 'Decimal'], $editedPacket['blocks'][0]['c'][0][1], 'json writer regenerates stale list style helper payloads');
     },
     'preserves current native constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
@@ -2225,6 +2267,7 @@ return [
             $cell = $body[3][0][1][0];
 
             $t->same(5, $nativePacket['blocks'][0]['c'][0][0], "{$source} native writer regenerates edited list start");
+            $t->same([5, $styleNative, $delimiterNative], $nativePacket['blocks'][0]['c'][0], "{$source} native writer regenerates stale ordered-list attribute tuple");
             $t->same($styleNative, $nativePacket['blocks'][0]['c'][0][1], "{$source} native writer list style native payload");
             $t->same($delimiterNative, $nativePacket['blocks'][0]['c'][0][2], "{$source} native writer list delimiter native payload");
             $t->same($quoteTypeNative, $nativePacket['blocks'][1]['c'][0]['c'][0], "{$source} native writer quote native payload");
