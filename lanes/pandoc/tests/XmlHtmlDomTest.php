@@ -120,6 +120,36 @@ XML, 'package reader XML');
         $t->same(['checked' => 'checked'], $summary[3]['attributes']);
         $t->same("Text\u{00A0}<span title=\"A &quot;quote&quot; &amp; source\">source &lt;em&gt;</span><!--review--><input checked>", $html);
     },
+    'summarizes html global state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article lang="ar-EG" xml:lang="ar-EG" dir="RTL" translate="no" hidden="until-found" inert contenteditable="" draggable="auto" spellcheck="false">'
+                . '<p dir="sideways" translate="maybe" contenteditable="plaintext-only" draggable="maybe" spellcheck="default">Editable</p>'
+                . '</article>',
+            'global state review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $article = $summary[0];
+        $paragraph = $article['children'][0];
+
+        $t->same('article', $article['name']);
+        $t->same('ar-EG', $article['globalState']['language']);
+        $t->same('ar-EG', $article['globalState']['xmlLanguage']);
+        $t->same(['raw' => 'RTL', 'value' => 'rtl', 'valid' => true], $article['globalState']['direction']);
+        $t->same(['raw' => 'no', 'value' => 'no', 'valid' => true], $article['globalState']['translate']);
+        $t->same(['raw' => 'until-found', 'state' => 'until-found'], $article['globalState']['hidden']);
+        $t->same(true, $article['globalState']['inert']);
+        $t->same(['raw' => '', 'value' => 'true', 'valid' => true], $article['globalState']['contentEditable']);
+        $t->same(['raw' => 'auto', 'value' => 'auto', 'valid' => true], $article['globalState']['draggable']);
+        $t->same(['raw' => 'false', 'value' => 'false', 'valid' => true], $article['globalState']['spellcheck']);
+        $t->same(['raw' => 'sideways', 'value' => null, 'valid' => false], $paragraph['globalState']['direction']);
+        $t->same(['raw' => 'maybe', 'value' => null, 'valid' => false], $paragraph['globalState']['translate']);
+        $t->same(['raw' => 'plaintext-only', 'value' => 'plaintext-only', 'valid' => true], $paragraph['globalState']['contentEditable']);
+        $t->same(['raw' => 'maybe', 'value' => null, 'valid' => false], $paragraph['globalState']['draggable']);
+        $t->same(['raw' => 'default', 'value' => 'default', 'valid' => true], $paragraph['globalState']['spellcheck']);
+        $t->same('<article contenteditable="" dir="RTL" draggable="auto" hidden="until-found" inert lang="ar-EG" spellcheck="false" translate="no" xml:lang="ar-EG"><p contenteditable="plaintext-only" dir="sideways" draggable="maybe" spellcheck="default" translate="maybe">Editable</p></article>', $html);
+    },
     'decodes bounded html5 math spacing references before raw block serialization' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-math="&af;&it;&ic;">f&ApplyFunction;g&InvisibleTimes;h&MediumSpace;comma&InvisibleComma;zero&ZeroWidthSpace;neg&NegativeThinSpace;</p>'

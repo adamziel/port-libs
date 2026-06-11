@@ -749,6 +749,8 @@ final class XmlHtmlDom
             'children' => $children,
         ];
 
+        $summary += self::htmlGlobalStateSummary($node);
+
         if ($name === 'form') {
             $summary += self::formSubmissionSummary($node);
         }
@@ -889,6 +891,78 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    /**
+     * @return array{globalState:array<string, mixed>}|array{}
+     */
+    private static function htmlGlobalStateSummary(\DOMElement $element): array
+    {
+        $state = [];
+        $attributes = self::htmlAttributes($element);
+
+        foreach (['lang' => 'language', 'xml:lang' => 'xmlLanguage'] as $attribute => $key) {
+            if (array_key_exists($attribute, $attributes)) {
+                $state[$key] = $attributes[$attribute];
+            }
+        }
+
+        if (array_key_exists('dir', $attributes)) {
+            $state['direction'] = self::htmlEnumeratedAttributeSummary($attributes['dir'], ['ltr', 'rtl', 'auto']);
+        }
+        if (array_key_exists('translate', $attributes)) {
+            $state['translate'] = self::htmlEnumeratedAttributeSummary($attributes['translate'], ['yes', 'no'], 'yes');
+        }
+        if (array_key_exists('hidden', $attributes)) {
+            $raw = $attributes['hidden'];
+            $state['hidden'] = [
+                'raw' => $raw,
+                'state' => strtolower(trim($raw)) === 'until-found' ? 'until-found' : 'hidden',
+            ];
+        }
+        if (array_key_exists('inert', $attributes)) {
+            $state['inert'] = true;
+        }
+
+        foreach ([
+            'contenteditable' => ['key' => 'contentEditable', 'values' => ['true', 'false', 'plaintext-only']],
+            'draggable' => ['key' => 'draggable', 'values' => ['true', 'false', 'auto']],
+            'spellcheck' => ['key' => 'spellcheck', 'values' => ['true', 'false', 'default']],
+        ] as $attribute => $config) {
+            if (!array_key_exists($attribute, $attributes)) {
+                continue;
+            }
+
+            $state[(string) $config['key']] = self::htmlEnumeratedAttributeSummary(
+                $attributes[$attribute],
+                $config['values'],
+                'true'
+            );
+        }
+
+        return $state === [] ? [] : ['globalState' => $state];
+    }
+
+    /**
+     * @param list<string> $allowedValues
+     * @return array{raw:string, value:?string, valid:bool}
+     */
+    private static function htmlEnumeratedAttributeSummary(
+        string $raw,
+        array $allowedValues,
+        ?string $emptyValue = null
+    ): array {
+        $value = strtolower(trim($raw));
+        if ($value === '' && $emptyValue !== null) {
+            $value = $emptyValue;
+        }
+        $valid = $value !== '' && in_array($value, $allowedValues, true);
+
+        return [
+            'raw' => $raw,
+            'value' => $valid ? $value : null,
+            'valid' => $valid,
+        ];
     }
 
     /**
