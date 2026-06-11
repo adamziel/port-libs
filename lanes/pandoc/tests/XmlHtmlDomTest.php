@@ -693,6 +693,60 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html document metadata elements for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<base href="https://example.test/review/" target="_blank">'
+                . '<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+                . '<meta http-equiv="content-security-policy" content="default-src none">'
+                . '<meta property="og:title" itemprop="name" content="Review Packet" media="screen">'
+                . '<link rel="stylesheet preload" href="style.css" as="style" media="screen" type="text/css" crossorigin="anonymous" integrity="sha256-review" referrerpolicy="no-referrer" title="Review CSS" disabled>'
+                . '<link rel="icon apple-touch-icon" href="icon.png" sizes="180x180" imagesrcset="icon.png 1x, icon@2x.png 2x" imagesizes="180px" hreflang="en">'
+                . '<p>After metadata</p>',
+            'document metadata review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $base = $summary[0];
+        $charset = $summary[1];
+        $viewport = $summary[2];
+        $policy = $summary[3];
+        $social = $summary[4];
+        $stylesheet = $summary[5];
+        $icon = $summary[6];
+
+        $t->same('base', $base['name']);
+        $t->same('base', $base['documentMetadata']);
+        $t->same('https://example.test/review/', $base['href']);
+        $t->same('_blank', $base['target']);
+        $t->same('meta', $charset['documentMetadata']);
+        $t->same('utf-8', $charset['charset']);
+        $t->same('viewport', $viewport['nameAttribute']);
+        $t->same('width=device-width, initial-scale=1', $viewport['content']);
+        $t->same('content-security-policy', $policy['httpEquiv']);
+        $t->same('default-src none', $policy['content']);
+        $t->same('og:title', $social['property']);
+        $t->same('name', $social['itemprop']);
+        $t->same('Review Packet', $social['content']);
+        $t->same('screen', $social['media']);
+        $t->same('link', $stylesheet['documentMetadata']);
+        $t->same('stylesheet preload', $stylesheet['relRaw']);
+        $t->same(['stylesheet', 'preload'], $stylesheet['relTokens']);
+        $t->same('style.css', $stylesheet['href']);
+        $t->same('style', $stylesheet['as']);
+        $t->same('text/css', $stylesheet['mimeType']);
+        $t->same('anonymous', $stylesheet['crossorigin']);
+        $t->same('sha256-review', $stylesheet['integrity']);
+        $t->same('no-referrer', $stylesheet['referrerpolicy']);
+        $t->same('Review CSS', $stylesheet['title']);
+        $t->same(true, $stylesheet['disabled']);
+        $t->same(['icon', 'apple-touch-icon'], $icon['relTokens']);
+        $t->same('180x180', $icon['sizes']);
+        $t->same('icon.png 1x, icon@2x.png 2x', $icon['imagesrcset']);
+        $t->same('180px', $icon['imagesizes']);
+        $t->same('en', $icon['hreflang']);
+        $t->same('<base href="https://example.test/review/" target="_blank"><meta charset="utf-8"><meta content="width=device-width, initial-scale=1" name="viewport"><meta content="default-src none" http-equiv="content-security-policy"><meta content="Review Packet" itemprop="name" media="screen" property="og:title"><link as="style" crossorigin="anonymous" disabled href="style.css" integrity="sha256-review" media="screen" referrerpolicy="no-referrer" rel="stylesheet preload" title="Review CSS" type="text/css"><link href="icon.png" hreflang="en" imagesizes="180px" imagesrcset="icon.png 1x, icon@2x.png 2x" rel="icon apple-touch-icon" sizes="180x180"><p>After metadata</p>', $html);
+    },
     'serializes detached dom nodes and children for reader handoff' => static function (TestRunner $t): void {
         $dom = new DOMDocument('1.0', 'UTF-8');
         $fragment = $dom->createDocumentFragment();

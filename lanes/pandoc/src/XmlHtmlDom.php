@@ -873,6 +873,9 @@ final class XmlHtmlDom
         if (in_array($name, ['a', 'area'], true)) {
             $summary += self::hyperlinkSummary($node, $name);
         }
+        if (in_array($name, ['base', 'link', 'meta'], true)) {
+            $summary += self::htmlMetadataSummary($node, $name);
+        }
 
         return [$summary];
     }
@@ -1093,6 +1096,54 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlMetadataSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'base') {
+            return [
+                'documentMetadata' => 'base',
+                'href' => self::attributeOrNull($element, 'href'),
+                'target' => self::attributeOrNull($element, 'target'),
+            ];
+        }
+
+        if ($name === 'meta') {
+            return [
+                'documentMetadata' => 'meta',
+                'charset' => self::attributeOrNull($element, 'charset'),
+                'nameAttribute' => self::attributeOrNull($element, 'name'),
+                'httpEquiv' => self::attributeOrNull($element, 'http-equiv'),
+                'property' => self::attributeOrNull($element, 'property'),
+                'itemprop' => self::attributeOrNull($element, 'itemprop'),
+                'content' => self::attributeOrNull($element, 'content'),
+                'media' => self::attributeOrNull($element, 'media'),
+            ];
+        }
+
+        $relRaw = self::attributeOrNull($element, 'rel');
+
+        return [
+            'documentMetadata' => 'link',
+            'href' => self::attributeOrNull($element, 'href'),
+            'relRaw' => $relRaw,
+            'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+            'mimeType' => self::attributeOrNull($element, 'type'),
+            'as' => self::attributeOrNull($element, 'as'),
+            'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
+            'media' => self::attributeOrNull($element, 'media'),
+            'hreflang' => self::attributeOrNull($element, 'hreflang'),
+            'title' => self::attributeOrNull($element, 'title'),
+            'sizes' => self::attributeOrNull($element, 'sizes'),
+            'imagesrcset' => self::attributeOrNull($element, 'imagesrcset'),
+            'imagesizes' => self::attributeOrNull($element, 'imagesizes'),
+            'integrity' => self::attributeOrNull($element, 'integrity'),
+            'referrerpolicy' => self::attributeOrNull($element, 'referrerpolicy'),
+            'disabled' => $element->hasAttribute('disabled'),
+        ];
     }
 
     private static function isValidDateParts(string $year, string $month, string $day): bool
