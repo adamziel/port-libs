@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if ($name === 'time') {
+            $summary += self::timeElementSummary($node);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -1342,6 +1345,45 @@ final class XmlHtmlDom
      */
     private static function revisionDatetimeSummary(string $value): ?array
     {
+        return self::htmlTemporalValueSummary($value, allowMonth: false, allowTime: false);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function timeElementSummary(\DOMElement $element): array
+    {
+        $datetimeRaw = self::attributeOrNull($element, 'datetime');
+        $valueRaw = $datetimeRaw ?? self::normalizedText($element);
+        $summary = [
+            'timeElement' => true,
+            'timeText' => self::normalizedText($element),
+            'timeDatetimeRaw' => $datetimeRaw,
+            'timeValueRaw' => $valueRaw,
+            'timeValue' => null,
+            'timeValueKind' => null,
+            'timeValueValid' => false,
+        ];
+
+        $temporal = self::htmlTemporalValueSummary($valueRaw, allowMonth: true, allowTime: true);
+        if ($temporal === null) {
+            $summary['timeValueKind'] = $valueRaw === '' ? null : 'invalid';
+
+            return $summary;
+        }
+
+        $summary['timeValue'] = $temporal['value'];
+        $summary['timeValueKind'] = $temporal['kind'];
+        $summary['timeValueValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array{kind:string, value:string}|null
+     */
+    private static function htmlTemporalValueSummary(string $value, bool $allowMonth, bool $allowTime): ?array
+    {
         $value = trim($value);
         if ($value === '' || strlen($value) > 128 || preg_match('/[<>{}`]/', $value) === 1) {
             return null;
@@ -1350,6 +1392,13 @@ final class XmlHtmlDom
         $datePattern = '([0-9]{4})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])';
         $timePattern = '((?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]{1,3})?)?)';
         $timezonePattern = '([Zz]|[+-](?:[01][0-9]|2[0-3]):?[0-5][0-9])';
+
+        if ($allowMonth && preg_match('/^([0-9]{4})-(0[1-9]|1[0-2])$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'month',
+                'value' => (string) $matches[1] . '-' . (string) $matches[2],
+            ];
+        }
 
         if (preg_match('/^' . $datePattern . '[T ]' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
             if (!self::isValidDateParts((string) $matches[1], (string) $matches[2], (string) $matches[3])) {
@@ -1384,6 +1433,20 @@ final class XmlHtmlDom
             return [
                 'kind' => 'date',
                 'value' => (string) $matches[1] . '-' . (string) $matches[2] . '-' . (string) $matches[3],
+            ];
+        }
+
+        if ($allowTime && preg_match('/^' . $timePattern . $timezonePattern . '$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'global-time',
+                'value' => (string) $matches[1] . self::normalizeTimezone((string) $matches[2]),
+            ];
+        }
+
+        if ($allowTime && preg_match('/^' . $timePattern . '$/', $value, $matches) === 1) {
+            return [
+                'kind' => 'time',
+                'value' => (string) $matches[1],
             ];
         }
 
