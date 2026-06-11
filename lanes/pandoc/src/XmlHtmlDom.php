@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if ($name === 'time') {
+            $summary += self::timeSummary($node);
+        }
         if (in_array($name, ['blockquote', 'q', 'cite'], true)) {
             $summary += self::quoteSummary($node, $name);
         }
@@ -1356,6 +1359,49 @@ final class XmlHtmlDom
         $summary['revisionDatetime'] = $datetime['value'];
         $summary['revisionDatetimeKind'] = $datetime['kind'];
         $summary['revisionDatetimeValid'] = true;
+
+        return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function timeSummary(\DOMElement $element): array
+    {
+        $datetimeRaw = self::attributeOrNull($element, 'datetime');
+        $datetimeSource = $datetimeRaw === null ? null : 'datetime-attribute';
+        if ($datetimeRaw === null) {
+            $textValue = self::normalizedText($element);
+            if ($textValue !== '') {
+                $datetimeRaw = $textValue;
+                $datetimeSource = 'text';
+            }
+        }
+
+        $summary = [
+            'timeElement' => 'time',
+            'timeText' => self::normalizedText($element),
+            'timeDatetimeRaw' => $datetimeRaw,
+            'timeDatetimeSource' => $datetimeSource,
+            'timeDatetime' => null,
+            'timeDatetimeKind' => null,
+            'timeDatetimeValid' => false,
+        ];
+
+        if ($datetimeRaw === null) {
+            return $summary;
+        }
+
+        $datetime = self::revisionDatetimeSummary($datetimeRaw);
+        if ($datetime === null) {
+            $summary['timeDatetimeKind'] = 'invalid';
+
+            return $summary;
+        }
+
+        $summary['timeDatetime'] = $datetime['value'];
+        $summary['timeDatetimeKind'] = $datetime['kind'];
+        $summary['timeDatetimeValid'] = true;
 
         return $summary;
     }
