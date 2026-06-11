@@ -405,6 +405,35 @@ BIB;
         $t->same('320', $item['number-of-pages']);
         $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
     },
+    'carries biblatex name addendum metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{name-review,
+  author    = {Curator, Chris},
+  title     = {Name Review Packet},
+  date      = {2026},
+  nameaddon = {Imported source names verified by review desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['name-review'];
+        $bibliography = $processor->renderBibliographyText($item);
+        $document = (new MarkdownReader())->read('Reviewer cites @name-review.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same('book', $item['type']);
+        $t->same('Imported source names verified by review desk', $item['name-addon']);
+        $t->same('Imported source names verified by review desk', $item['rawBibtex']['fields']['nameaddon']);
+        $t->same(
+            'Chris Curator. Name Review Packet. 2026. Name addendum: Imported source names verified by review desk.',
+            $bibliography
+        );
+        $t->same(['name-review'], $handoff['citedKeys']);
+        $t->same('Imported source names verified by review desk', $handoff['items'][0]['name-addon']);
+        $t->contains('Name addendum: Imported source names verified by review desk', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');

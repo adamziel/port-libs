@@ -242,6 +242,9 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        if (($item['name-addon'] ?? '') !== '') {
+            $parts[] = 'Name addendum: ' . (string) $item['name-addon'];
+        }
         if (($item['rights'] ?? '') !== '') {
             $parts[] = 'Rights: ' . (string) $item['rights'];
         }
@@ -452,6 +455,7 @@ final class BibtexCslProcessor
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'abstract' => ['abstract', 'annotation', 'annote'],
             'note' => ['note', 'addendum'],
+            'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
         ];
 
