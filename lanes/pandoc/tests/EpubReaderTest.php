@@ -3887,6 +3887,78 @@ XML;
         $t->same('epub3-spine-fallback', $result['document']->children[1]->attr('source'));
         $t->contains('Scripted slideshow fallback remains reviewable.', $result['document']->children[1]->attr('html'));
     },
+    'reports remote and encrypted OPF binding handler policy for package review' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
+        $lockedHandlerXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Locked widget handler</h1></body></html>';
+        $opfWithBindingPolicies = str_replace(
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>',
+            '<item id="chapter-2" href="text/chapter2.xhtml" media-type="application/xhtml+xml"/>'
+                . '<item id="remote-widget-handler" href="https://cdn.example.invalid/epub/widgets/remote-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>'
+                . '<item id="locked-widget-handler" href="text/locked-widget-handler.xhtml" media-type="application/xhtml+xml" properties="scripted"/>',
+            $opfXml
+        );
+        $opfWithBindingPolicies = str_replace(
+            '</package>',
+            '<bindings>'
+                . '<mediaType media-type="application/x-remote-widget" handler="remote-widget-handler"/>'
+                . '<mediaType media-type="application/x-locked-widget" handler="locked-widget-handler"/>'
+                . '</bindings></package>',
+            $opfWithBindingPolicies
+        );
+        $bindingEncryptionXml = <<<'XML'
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <EncryptedData xmlns="http://www.w3.org/2001/04/xmlenc#">
+    <EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"/>
+    <CipherData><CipherReference URI="OEBPS/text/locked-widget-handler.xhtml"/></CipherData>
+  </EncryptedData>
+</encryption>
+XML;
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            $opfWithBindingPolicies,
+            null,
+            [
+                ['name' => 'META-INF/encryption.xml', 'data' => $bindingEncryptionXml],
+                ['name' => 'OEBPS/text/locked-widget-handler.xhtml', 'data' => $lockedHandlerXhtml],
+            ]
+        ));
+
+        $bindings = $result['bindings'];
+        $remote = $bindings['items'][0];
+        $locked = $bindings['items'][1];
+
+        $t->same(true, $bindings['present']);
+        $t->same(2, count($bindings['items']));
+        $t->same('application/x-remote-widget', $remote['mediaType']);
+        $t->same('remote-widget-handler', $remote['handlerId']);
+        $t->same('https://cdn.example.invalid/epub/widgets/remote-handler.xhtml', $remote['handlerTarget']);
+        $t->same(null, $remote['handlerPart']);
+        $t->same(false, $remote['handlerExists']);
+        $t->same(true, $remote['handlerExternal']);
+        $t->same(false, $remote['handlerCanExposeBytes']);
+        $t->same(null, $remote['handlerByteLength']);
+        $t->same(null, $remote['handlerEncryption']);
+        $t->same('external-binding-handler', $remote['diagnostics'][0]['type']);
+        $t->same('https://cdn.example.invalid/epub/widgets/remote-handler.xhtml', $remote['diagnostics'][0]['target']);
+
+        $t->same('application/x-locked-widget', $locked['mediaType']);
+        $t->same('locked-widget-handler', $locked['handlerId']);
+        $t->same('/OEBPS/text/locked-widget-handler.xhtml', $locked['handlerPart']);
+        $t->same(true, $locked['handlerExists']);
+        $t->same(false, $locked['handlerExternal']);
+        $t->same(true, $locked['handlerEncrypted']);
+        $t->same(false, $locked['handlerCanExposeBytes']);
+        $t->same(strlen($lockedHandlerXhtml), $locked['handlerByteLength']);
+        $t->same('xhtml', $locked['handlerEncryption']['role']);
+        $t->same('encrypted-resource-review', $locked['handlerEncryption']['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $locked['handlerEncryption']['byteExposurePolicy']);
+        $t->same('encrypted-binding-handler', $locked['diagnostics'][0]['type']);
+        $t->same('encrypted-resource-review', $locked['diagnostics'][0]['reviewPolicy']);
+        $t->same('encrypted-resource-bytes-blocked', $locked['diagnostics'][0]['byteExposurePolicy']);
+
+        $t->same(['external-binding-handler', 'encrypted-binding-handler'], array_column($bindings['diagnostics'], 'type'));
+        $t->same($bindings, $result['importReport']['bindings']);
+        $t->same($bindings, $result['document']->attr('bindings'));
+    },
     'uses OPF bindings as XHTML fallback handlers for custom spine media' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $tourFallbackXhtml = <<<'XML'
 <html xmlns="http://www.w3.org/1999/xhtml">
