@@ -97,6 +97,74 @@ $buildOdtPackage = static function (
     return ZipPackage::fromParts($parts, 'odt package');
 };
 
+$buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
+    $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $offset = strlen($body);
+        $crc = $crc32($data);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0
+        );
+        $body .= $name . $compressed;
+
+        $centralRecords[$name] = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            str_ends_with($name, '/') ? 0x10 : 0,
+            $offset
+        ) . $name;
+    }
+
+    $central = '';
+    foreach ($centralOrder as $name) {
+        if (!isset($centralRecords[$name])) {
+            throw new RuntimeException("Missing central directory record for {$name}");
+        }
+        $central .= $centralRecords[$name];
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($parts), count($parts), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'maps ODT manifest root and package parts from a ZIP package' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $odt = OpenDocumentPackage::fromPackage($buildOdtPackage());
@@ -303,6 +371,64 @@ XML;
         $t->same(false, $missing['canExposeBytes']);
         $t->same('missing-package-part', $missing['byteExposurePolicy']);
         $t->same(['odf-manifest-missing-package-part'], $missing['diagnostics']);
+    },
+    'reports compact ODT ZIP compression provenance without exposing unsupported bytes' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $sourceBytes = 'SIDECAR-RAW';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Pictures/source.raw" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifest],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/source.raw', 'data' => $sourceBytes, 'compressionMethod' => 12],
+        ];
+
+        $odt = OpenDocumentPackage::fromPackage($buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name')));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $raw = $odt->manifestEntry('Pictures/source.raw');
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+
+        $t->same(true, $raw['exists']);
+        $t->same(null, $raw['byteLength']);
+        $t->same(strlen($sourceBytes), $raw['storedByteLength']);
+        $t->same(strlen($sourceBytes), $raw['compressedByteLength']);
+        $t->same(12, $raw['compressionMethod']);
+        $t->same('unsupported', $raw['compressionMethodName']);
+        $t->same(null, $raw['crc32']);
+        $t->same(sprintf('%08x', crc32($sourceBytes)), $raw['storedCrc32']);
+        $t->same(false, $raw['canExposeBytes']);
+        $t->same('unsupported-compression-bytes-blocked', $raw['byteExposurePolicy']);
+        $t->same(['odf-manifest-unsupported-compression-method'], $raw['diagnostics']);
+
+        $t->same(null, $mediaByPath['Pictures/source.raw']['byteLength']);
+        $t->same(strlen($sourceBytes), $mediaByPath['Pictures/source.raw']['storedByteLength']);
+        $t->same(12, $mediaByPath['Pictures/source.raw']['compressionMethod']);
+        $t->same('unsupported', $mediaByPath['Pictures/source.raw']['compressionMethodName']);
+        $t->same(null, $mediaByPath['Pictures/source.raw']['crc32']);
+        $t->same(false, $mediaByPath['Pictures/source.raw']['canExposeBytes']);
+        $t->same('unsupported-compression-bytes-blocked', $mediaByPath['Pictures/source.raw']['byteExposurePolicy']);
+
+        $t->same(6, $review['count']);
+        $t->same(1, $review['storedCompressionMethodCount']);
+        $t->same(3, $review['deflatedCompressionMethodCount']);
+        $t->same(1, $review['unsupportedCompressionMethodCount']);
+        $t->same(strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA') + strlen($sourceBytes), $review['storedByteLength']);
+        $t->same(strlen(gzdeflate($contentXml)) + strlen(gzdeflate($stylesXml)) + strlen(gzdeflate($metaXml)) + strlen('PNGDATA') + strlen($sourceBytes), $review['compressedByteLength']);
+        $t->same(strlen($contentXml) + strlen($stylesXml) + strlen($metaXml) + strlen('PNGDATA'), $review['exposableByteLength']);
+        $t->same('Pictures/source.raw', $review['items'][5]['path']);
+        $t->same(12, $review['items'][5]['compressionMethod']);
+        $t->same('unsupported', $review['items'][5]['compressionMethodName']);
     },
     'rejects malformed ODT manifest size metadata before package exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $leadingZeroSize = str_replace('manifest:size="7"', 'manifest:size="0007"', $manifestXml);

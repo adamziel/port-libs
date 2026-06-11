@@ -210,6 +210,8 @@ final class OpenDocumentPackage
                     'byteLength' => $entry['byteLength'],
                     'storedByteLength' => $entry['storedByteLength'],
                     'compressedByteLength' => $entry['compressedByteLength'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'compressionMethodName' => $entry['compressionMethodName'],
                     'crc32' => $entry['crc32'],
                     'storedCrc32' => $entry['storedCrc32'],
                     'declaredSize' => $entry['size'],
@@ -269,7 +271,9 @@ final class OpenDocumentPackage
             $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = is_array($entry['encryption']);
             $storedByteLength = $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null;
-            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted;
+            $compressionMethod = $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressionMethod : null;
+            $hasSupportedCompression = $compressionMethod === null || $compressionMethod === 0 || $compressionMethod === 8;
+            $canExposeBytes = !$isRoot && $exists && !$isDirectory && !$encrypted && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
             $declaredSizeMismatch = $declaredSize !== null
                 && $storedByteLength !== null
@@ -289,6 +293,9 @@ final class OpenDocumentPackage
             if ($declaredSizeMismatch) {
                 $diagnostics[] = 'odf-manifest-declared-size-mismatch';
             }
+            if (!$hasSupportedCompression) {
+                $diagnostics[] = 'odf-manifest-unsupported-compression-method';
+            }
 
             $hydrated[] = $entry + [
                 'exists' => $exists,
@@ -296,6 +303,8 @@ final class OpenDocumentPackage
                 'byteLength' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedByteLength' => $storedByteLength,
                 'compressedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null,
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
                 'crc32' => $canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $declaredSize,
@@ -305,7 +314,9 @@ final class OpenDocumentPackage
                     ? 'package-root-no-bytes'
                     : ($isDirectory
                         ? 'directory-entry-no-bytes'
-                        : ($encrypted ? 'encrypted-resource-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part'))),
+                        : ($encrypted
+                            ? 'encrypted-resource-bytes-blocked'
+                            : (!$hasSupportedCompression ? 'unsupported-compression-bytes-blocked' : ($exists ? 'package-bytes-exposable' : 'missing-package-part')))),
                 'diagnostics' => $diagnostics,
             ];
         }
@@ -327,8 +338,12 @@ final class OpenDocumentPackage
             'encryptedCount' => 0,
             'declaredSizeMismatchCount' => 0,
             'storedByteLength' => 0,
+            'compressedByteLength' => 0,
             'exposableByteLength' => 0,
             'declaredSize' => 0,
+            'storedCompressionMethodCount' => 0,
+            'deflatedCompressionMethodCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
             'items' => [],
             'missingItems' => [],
             'directoryItems' => [],
@@ -360,11 +375,21 @@ final class OpenDocumentPackage
             if (is_int($entry['storedByteLength'] ?? null)) {
                 $summary['storedByteLength'] += $entry['storedByteLength'];
             }
+            if (is_int($entry['compressedByteLength'] ?? null)) {
+                $summary['compressedByteLength'] += $entry['compressedByteLength'];
+            }
             if (($entry['canExposeBytes'] ?? false) === true && is_int($entry['byteLength'] ?? null)) {
                 $summary['exposableByteLength'] += $entry['byteLength'];
             }
             if (is_int($entry['declaredSize'] ?? null)) {
                 $summary['declaredSize'] += $entry['declaredSize'];
+            }
+            if (($entry['compressionMethod'] ?? null) === 0) {
+                ++$summary['storedCompressionMethodCount'];
+            } elseif (($entry['compressionMethod'] ?? null) === 8) {
+                ++$summary['deflatedCompressionMethodCount'];
+            } elseif (is_int($entry['compressionMethod'] ?? null)) {
+                ++$summary['unsupportedCompressionMethodCount'];
             }
         }
 
@@ -386,11 +411,23 @@ final class OpenDocumentPackage
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
+            'compressedByteLength' => $entry['compressedByteLength'] ?? null,
+            'compressionMethod' => $entry['compressionMethod'] ?? null,
+            'compressionMethodName' => $entry['compressionMethodName'] ?? null,
             'declaredSize' => $entry['declaredSize'] ?? null,
             'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
             'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
             'diagnostics' => $entry['diagnostics'] ?? [],
         ];
+    }
+
+    private static function compressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
