@@ -1912,6 +1912,9 @@ final class DocxOpenXmlReader
         $relationshipPartsWithMissingTargets = [];
         $relationshipPartsWithMissingContentTypes = [];
         $relationshipTargetsWithoutContentType = [];
+        $relationshipPartMissingSourceCount = 0;
+        $relationshipPartsWithMissingSources = [];
+        $relationshipsFromMissingSources = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -1930,6 +1933,16 @@ final class DocxOpenXmlReader
         }
 
         foreach ($relationshipParts as $relationshipsPart => $relationshipPart) {
+            if (($relationshipPart['sourceExists'] ?? true) === false) {
+                ++$relationshipPartMissingSourceCount;
+                $relationshipPartsWithMissingSources[] = (string) $relationshipsPart;
+                $relationshipsFromMissingSources[] = [
+                    'relationshipsPart' => (string) $relationshipsPart,
+                    'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null) ? $relationshipPart['sourcePart'] : '',
+                    'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
+                ];
+            }
+
             foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
                 ++$relationshipCount;
                 $type = (string) ($relationship['type'] ?? '');
@@ -1978,6 +1991,7 @@ final class DocxOpenXmlReader
             'uniqueRelationshipTargetPartCount' => count($targetParts),
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
+            'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -1985,9 +1999,11 @@ final class DocxOpenXmlReader
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
+            'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
+            'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'externalRelationshipTargets' => $externalRelationshipTargets,
         ];
     }

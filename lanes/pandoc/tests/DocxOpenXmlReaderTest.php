@@ -417,6 +417,39 @@ XML;
         $t->same(false, $inventory['word/_rels/missing-header.xml.rels']['relationshipSourceExists']);
         $t->true(in_array('relationship-target', $inventory['word/media/orphan.png']['roles'], true), 'orphan relationship target role missing');
     },
+    'summarizes docx orphan relationship sidecars for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/missing-review.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/orphan.png?source=sidecar#img"/>
+  <Relationship Id="rOrphanLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/orphan-sidecar" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/orphan.png'] = 'orphan sidecar image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/missing-review.xml.rels'];
+        $orphanImage = $relationshipPart['relationships']['rOrphanImage'];
+        $orphanLink = $relationshipPart['relationships']['rOrphanLink'];
+
+        $t->same(1, $summary['relationshipPartMissingSourceCount']);
+        $t->same(['word/_rels/missing-review.xml.rels'], $summary['relationshipPartsWithMissingSources']);
+        $t->same('word/_rels/missing-review.xml.rels', $summary['relationshipsFromMissingSources'][0]['relationshipsPart']);
+        $t->same('word/missing-review.xml', $summary['relationshipsFromMissingSources'][0]['sourcePart']);
+        $t->same(2, $summary['relationshipsFromMissingSources'][0]['relationshipCount']);
+        $t->same('word/missing-review.xml', $relationshipPart['sourcePart']);
+        $t->same(false, $relationshipPart['sourceExists']);
+        $t->same(2, $relationshipPart['relationshipCount']);
+        $t->same('word/media/orphan.png', $orphanImage['targetPart']);
+        $t->same('source=sidecar', $orphanImage['targetQuery']);
+        $t->same('img', $orphanImage['targetFragment']);
+        $t->same(true, $orphanImage['exists']);
+        $t->same(true, $orphanLink['external']);
+        $t->same(null, $orphanLink['targetPart']);
+    },
     'summarizes docx relationships by type for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
