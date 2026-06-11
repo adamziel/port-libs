@@ -24920,7 +24920,7 @@ XML);
   title        = {Invariant Review Packet},
   journaltitle = {Migration Mathematics Review},
   date         = {2026},
-  mrnumber     = {MR1234567},
+  mathscinet   = {MR1234567},
   mrclass      = {13A50},
   zbl          = {1234.56789},
   jstor        = {10.2307/9999999}
@@ -24940,6 +24940,7 @@ BIB;
         $items = CitationCslProcessor::bibtexItems($bibtex);
         $t->same(2, count($items));
         $t->same('MR1234567', $items[0]['MRNumber'] ?? null);
+        $t->same('MR1234567', $items[0]['rawBibtex']['fields']['mathscinet'] ?? null);
         $t->same('13A50', $items[0]['MRClass'] ?? null);
         $t->same('1234.56789', $items[0]['Zbl'] ?? null);
         $t->same('10.2307/9999999', $items[0]['JSTOR'] ?? null);
@@ -25009,12 +25010,25 @@ XML);
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'direct-registry',
             'title' => 'Direct Registry Packet',
-            'mr-number' => 'MR7654321',
+            'mathscinet' => 'MR7654321',
             'zbl' => '7654.32109',
             'handle' => '20.500/direct',
         ]]);
         $t->same('MR7654321', $direct->item('direct-registry')['mrNumber'] ?? null);
         $t->same('20.500/direct', $direct->item('direct-registry')['hdl'] ?? null);
+        $directStyled = $direct->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <text variable="mathscinet"/>
+    </layout>
+  </citation>
+</style>
+XML);
+        $t->same('[MR7654321]', $directStyled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-registry', 'text' => '[@direct-registry]']),
+        ]));
 
         $document = (new MarkdownReader())->read('Registry identifiers [@math-review; @library-review] stay visible for review.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
