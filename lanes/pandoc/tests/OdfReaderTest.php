@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\OdfReader;
+use PortLibs\Pandoc\OpenDocumentPackage;
 use PortLibs\Pandoc\WordPressBlockWriter;
 use PortLibs\Pandoc\ZipPackage;
 
@@ -9531,6 +9532,75 @@ XML;
 
         $blocks = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('<img src="Pictures/hero.png" alt="Hero alt text" title="Hero title"/>', $blocks);
+    },
+    'preserves ODT manifest encryption child multiplicity provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="multi-checksum" xmlns:review="urn:example:review">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialization-vector="iv-a"/>
+      <manifest:algorithm manifest:algorithm-name="AES256" manifest:initialisation-vector="iv-b"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-a"/>
+      <manifest:key-derivation manifest:key-derivation-name="Argon2id" manifest:iteration-count="3" manifest:salt="salt-b"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA256" manifest:key-size="32"/>
+      <review:extension review:mode="strict"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithRepeatedEncryptionChildren = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithRepeatedEncryptionChildren));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $encryption = $manifestByPath['Pictures/hero.png']['encryption'];
+        $t->same('SHA256/1K', $encryption['checksumType']);
+        $t->same('multi-checksum', $encryption['checksum']);
+        $t->same('Blowfish CFB', $encryption['algorithm']['name']);
+        $t->same('iv-a', $encryption['algorithm']['initialisationVector']);
+        $t->same(2, $encryption['algorithmCount']);
+        $t->same(['Blowfish CFB', 'AES256'], array_column($encryption['algorithms'], 'name'));
+        $t->same(['iv-a', 'iv-b'], array_column($encryption['algorithms'], 'initialisationVector'));
+        $t->same('PBKDF2', $encryption['keyDerivation']['name']);
+        $t->same(2, $encryption['keyDerivationCount']);
+        $t->same(['PBKDF2', 'Argon2id'], array_column($encryption['keyDerivations'], 'name'));
+        $t->same([1024, 3], array_column($encryption['keyDerivations'], 'iterationCount'));
+        $t->same('SHA1', $encryption['startKeyGeneration']['name']);
+        $t->same(2, $encryption['startKeyGenerationCount']);
+        $t->same(['SHA1', 'SHA256'], array_column($encryption['startKeyGenerations'], 'name'));
+        $t->same([20, 32], array_column($encryption['startKeyGenerations'], 'keySize'));
+        $t->same(1, $encryption['unknownChildCount']);
+        $t->same('review:extension', $encryption['unknownChildren'][0]['name']);
+        $t->same('urn:example:review', $encryption['unknownChildren'][0]['namespaceUri']);
+        $t->same('extension', $encryption['unknownChildren'][0]['localName']);
+        $t->same(4, $encryption['issueCount']);
+        $t->same([
+            'odf-manifest-encryption-multiple-algorithms',
+            'odf-manifest-encryption-multiple-key-derivations',
+            'odf-manifest-encryption-multiple-start-key-generations',
+            'odf-manifest-encryption-unknown-child',
+        ], $encryption['issueCodes']);
+
+        $mediaEncryption = $result['media'][0]['encryption'];
+        $imageEncryption = $result['document']->children[5]->children[0]->attr('encryption');
+        $reportEncryption = $result['importReport']['manifest']['encryptedItems'][0]['encryption'];
+        $t->same($encryption, $mediaEncryption);
+        $t->same($encryption['issueCodes'], $imageEncryption['issueCodes']);
+        $t->same($encryption['algorithms'], $reportEncryption['algorithms']);
+        $t->same(false, $result['media'][0]['canExposeBytes']);
+        $t->same(1, $result['importReport']['encryption']['count']);
+
+        $compactPackage = OpenDocumentPackage::fromPackage($buildOdtPackage(null, $manifestWithRepeatedEncryptionChildren));
+        $compactEncryption = $compactPackage->manifestEntry('Pictures/hero.png')['encryption'];
+        $t->same($encryption['issueCodes'], $compactEncryption['issueCodes']);
+        $t->same($encryption['algorithms'], $compactEncryption['algorithms']);
+        $t->same($encryption['unknownChildren'], $compactEncryption['unknownChildren']);
     },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(

@@ -520,36 +520,129 @@ final class OdfReader
             'checksum' => self::nullable(self::attr($element, self::MANIFEST_NS, 'checksum')),
         ]);
 
-        $algorithm = self::firstChildElement($element, 'algorithm', self::MANIFEST_NS);
-        if ($algorithm instanceof \DOMElement) {
-            $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialisation-vector');
-            if ($initialisationVector === '') {
-                $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialization-vector');
-            }
-            $data['algorithm'] = self::withoutEmpty([
-                'name' => self::nullable(self::attr($algorithm, self::MANIFEST_NS, 'algorithm-name')),
-                'initialisationVector' => self::nullable($initialisationVector),
-            ]);
+        $algorithms = array_map(
+            fn (\DOMElement $algorithm): array => $this->encryptionAlgorithmData($algorithm),
+            self::childElements($element, 'algorithm', self::MANIFEST_NS)
+        );
+        if ($algorithms !== []) {
+            $data['algorithm'] = $algorithms[0];
+            $data['algorithms'] = $algorithms;
+            $data['algorithmCount'] = count($algorithms);
         }
 
-        $keyDerivation = self::firstChildElement($element, 'key-derivation', self::MANIFEST_NS);
-        if ($keyDerivation instanceof \DOMElement) {
-            $data['keyDerivation'] = self::withoutEmpty([
-                'name' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'key-derivation-name')),
-                'iterationCount' => self::nullableInt(self::attr($keyDerivation, self::MANIFEST_NS, 'iteration-count')),
-                'salt' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'salt')),
-            ]);
+        $keyDerivations = array_map(
+            fn (\DOMElement $keyDerivation): array => $this->encryptionKeyDerivationData($keyDerivation),
+            self::childElements($element, 'key-derivation', self::MANIFEST_NS)
+        );
+        if ($keyDerivations !== []) {
+            $data['keyDerivation'] = $keyDerivations[0];
+            $data['keyDerivations'] = $keyDerivations;
+            $data['keyDerivationCount'] = count($keyDerivations);
         }
 
-        $startKeyGeneration = self::firstChildElement($element, 'start-key-generation', self::MANIFEST_NS);
-        if ($startKeyGeneration instanceof \DOMElement) {
-            $data['startKeyGeneration'] = self::withoutEmpty([
-                'name' => self::nullable(self::attr($startKeyGeneration, self::MANIFEST_NS, 'start-key-generation-name')),
-                'keySize' => self::nullableInt(self::attr($startKeyGeneration, self::MANIFEST_NS, 'key-size')),
-            ]);
+        $startKeyGenerations = array_map(
+            fn (\DOMElement $startKeyGeneration): array => $this->encryptionStartKeyGenerationData($startKeyGeneration),
+            self::childElements($element, 'start-key-generation', self::MANIFEST_NS)
+        );
+        if ($startKeyGenerations !== []) {
+            $data['startKeyGeneration'] = $startKeyGenerations[0];
+            $data['startKeyGenerations'] = $startKeyGenerations;
+            $data['startKeyGenerationCount'] = count($startKeyGenerations);
+        }
+
+        $unknownChildren = $this->encryptionUnknownChildren($element);
+        if ($unknownChildren !== []) {
+            $data['unknownChildCount'] = count($unknownChildren);
+            $data['unknownChildren'] = $unknownChildren;
+        }
+
+        $issueCodes = [];
+        if (count($algorithms) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-algorithms';
+        }
+        if (count($keyDerivations) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-key-derivations';
+        }
+        if (count($startKeyGenerations) > 1) {
+            $issueCodes[] = 'odf-manifest-encryption-multiple-start-key-generations';
+        }
+        if ($unknownChildren !== []) {
+            $issueCodes[] = 'odf-manifest-encryption-unknown-child';
+        }
+        if ($issueCodes !== []) {
+            $data['issueCount'] = count($issueCodes);
+            $data['issueCodes'] = $issueCodes;
         }
 
         return self::withoutEmpty($data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function encryptionAlgorithmData(\DOMElement $algorithm): array
+    {
+        $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialisation-vector');
+        if ($initialisationVector === '') {
+            $initialisationVector = self::attr($algorithm, self::MANIFEST_NS, 'initialization-vector');
+        }
+
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($algorithm, self::MANIFEST_NS, 'algorithm-name')),
+            'initialisationVector' => self::nullable($initialisationVector),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function encryptionKeyDerivationData(\DOMElement $keyDerivation): array
+    {
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'key-derivation-name')),
+            'iterationCount' => self::nullableInt(self::attr($keyDerivation, self::MANIFEST_NS, 'iteration-count')),
+            'salt' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'salt')),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function encryptionStartKeyGenerationData(\DOMElement $startKeyGeneration): array
+    {
+        return self::withoutEmpty([
+            'name' => self::nullable(self::attr($startKeyGeneration, self::MANIFEST_NS, 'start-key-generation-name')),
+            'keySize' => self::nullableInt(self::attr($startKeyGeneration, self::MANIFEST_NS, 'key-size')),
+        ]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function encryptionUnknownChildren(\DOMElement $element): array
+    {
+        $unknownChildren = [];
+        foreach (self::childElements($element) as $child) {
+            if (
+                $child->namespaceURI === self::MANIFEST_NS
+                && in_array($child->localName, ['algorithm', 'key-derivation', 'start-key-generation'], true)
+            ) {
+                continue;
+            }
+
+            $unknownChildren[] = self::withoutEmpty([
+                'name' => $this->qualifiedElementName($child),
+                'namespaceUri' => self::nullable((string) $child->namespaceURI),
+                'localName' => $child->localName,
+            ]);
+        }
+
+        return $unknownChildren;
+    }
+
+    private function qualifiedElementName(\DOMElement $element): string
+    {
+        return $element->prefix === '' ? $element->localName : $element->prefix . ':' . $element->localName;
     }
 
     private static function compressionMethodName(int $method): string
