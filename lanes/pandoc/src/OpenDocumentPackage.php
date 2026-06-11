@@ -238,7 +238,7 @@ final class OpenDocumentPackage
         $encryptedParts = [];
         $undeclaredPackageEntries = $this->undeclaredPackageEntries();
         foreach ($this->manifestEntries as $entry) {
-            if (str_starts_with($entry['mediaType'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
+            if (str_starts_with($entry['mediaTypeBase'], 'image/') || str_starts_with($entry['path'], 'Pictures/')) {
                 $mediaParts[] = [
                     'path' => $entry['path'],
                     'packagePath' => $entry['packagePath'],
@@ -247,6 +247,11 @@ final class OpenDocumentPackage
                     'pathQuery' => $entry['pathQuery'],
                     'pathFragment' => $entry['pathFragment'],
                     'mediaType' => $entry['mediaType'],
+                    'mediaTypeBase' => $entry['mediaTypeBase'],
+                    'mediaTypeHasParameters' => $entry['mediaTypeHasParameters'],
+                    'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'],
+                    'mediaTypeParameters' => $entry['mediaTypeParameters'],
+                    'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'],
                     'exists' => $entry['exists'],
                     'byteLength' => $entry['byteLength'],
                     'storedByteLength' => $entry['storedByteLength'],
@@ -364,6 +369,11 @@ final class OpenDocumentPackage
                 'manifestPathQuery' => is_array($manifestEntry) ? $manifestEntry['pathQuery'] : null,
                 'manifestPathFragment' => is_array($manifestEntry) ? $manifestEntry['pathFragment'] : null,
                 'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
+                'manifestMediaTypeBase' => is_array($manifestEntry) ? $manifestEntry['mediaTypeBase'] : null,
+                'manifestMediaTypeHasParameters' => is_array($manifestEntry) ? $manifestEntry['mediaTypeHasParameters'] : false,
+                'manifestMediaTypeParameterCount' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterCount'] : 0,
+                'manifestMediaTypeParameters' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameters'] : [],
+                'manifestMediaTypeParameterMap' => is_array($manifestEntry) ? $manifestEntry['mediaTypeParameterMap'] : [],
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -415,8 +425,8 @@ final class OpenDocumentPackage
         }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
-            $mediaType = (string) ($manifestEntry['mediaType'] ?? '');
-            if (!$entry->isDirectory() && (str_starts_with($mediaType, 'image/') || str_starts_with($entry->name, 'Pictures/'))) {
+            $mediaTypeBase = (string) ($manifestEntry['mediaTypeBase'] ?? $manifestEntry['mediaType'] ?? '');
+            if (!$entry->isDirectory() && (str_starts_with($mediaTypeBase, 'image/') || str_starts_with($entry->name, 'Pictures/'))) {
                 $roles[] = 'media-resource';
             }
         }
@@ -620,6 +630,11 @@ final class OpenDocumentPackage
             'pathQuery' => $entry['pathQuery'] ?? null,
             'pathFragment' => $entry['pathFragment'] ?? null,
             'mediaType' => $entry['mediaType'],
+            'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+            'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'] ?? 0,
+            'mediaTypeParameters' => $entry['mediaTypeParameters'] ?? [],
+            'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
             'encrypted' => ($entry['encrypted'] ?? false) === true,
@@ -694,6 +709,7 @@ final class OpenDocumentPackage
             if ($mediaType === '' && !str_ends_with($pathReference ?? $path, '/')) {
                 throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
             }
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
 
             $size = self::manifestSize(
                 self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'size'),
@@ -708,6 +724,11 @@ final class OpenDocumentPackage
                 'pathQuery' => $packageReference['pathQuery'],
                 'pathFragment' => $packageReference['pathFragment'],
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size,
                 'preferredViewMode' => self::optionalString(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'preferred-view-mode')),
@@ -1359,6 +1380,96 @@ final class OpenDocumentPackage
         }
 
         return (int) $normalized;
+    }
+
+    /**
+     * @return array{mediaTypeBase:string, mediaTypeHasParameters:bool, mediaTypeParameterCount:int, mediaTypeParameters:list<array{name:string, value:string, raw:string}>, mediaTypeParameterMap:array<string, string>}
+     */
+    private static function mediaTypeReport(string $mediaType): array
+    {
+        $segments = self::mediaTypeSegments($mediaType);
+        $base = strtolower(trim((string) array_shift($segments)));
+        $parameters = [];
+        $parameterMap = [];
+
+        foreach ($segments as $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $equals = strpos($raw, '=');
+            $name = $equals === false ? strtolower(trim($raw)) : strtolower(trim(substr($raw, 0, $equals)));
+            if ($name === '') {
+                continue;
+            }
+
+            $value = $equals === false ? '' : trim(substr($raw, $equals + 1));
+            if (strlen($value) >= 2 && $value[0] === '"' && substr($value, -1) === '"') {
+                $value = substr($value, 1, -1);
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $value) ?? $value;
+            }
+
+            $parameters[] = [
+                'name' => $name,
+                'value' => $value,
+                'raw' => $raw,
+            ];
+            $parameterMap[$name] = $value;
+        }
+
+        return [
+            'mediaTypeBase' => $base,
+            'mediaTypeHasParameters' => $parameters !== [],
+            'mediaTypeParameterCount' => count($parameters),
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterMap' => $parameterMap,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function mediaTypeSegments(string $mediaType): array
+    {
+        $segments = [];
+        $current = '';
+        $inQuote = false;
+        $escaped = false;
+        $length = strlen($mediaType);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $mediaType[$index];
+            if ($escaped) {
+                $current .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $current .= $char;
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === ';' && !$inQuote) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $segments[] = $current;
+
+        return $segments;
     }
 
     /**

@@ -198,6 +198,46 @@ return [
         $t->same([], $summary['encryptedParts']);
         $t->same(3, $summary['contentBlocks']);
     },
+    'preserves compact ODT manifest media type parameter provenance for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/jpeg; charset=UTF-8; profile=&quot;review cover&quot;" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $summary = $odt->summarize();
+        $media = $summary['mediaParts'][0];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventoryHero = $summary['packageInventory']['parts']['Pictures/hero.png'];
+
+        $expectedParameters = [
+            ['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8'],
+            ['name' => 'profile', 'value' => 'review cover', 'raw' => 'profile="review cover"'],
+        ];
+        $expectedMap = ['charset' => 'UTF-8', 'profile' => 'review cover'];
+
+        $t->same('image/jpeg; charset=UTF-8; profile="review cover"', $hero['mediaType']);
+        $t->same('image/jpeg', $hero['mediaTypeBase']);
+        $t->same(true, $hero['mediaTypeHasParameters']);
+        $t->same(2, $hero['mediaTypeParameterCount']);
+        $t->same($expectedParameters, $hero['mediaTypeParameters']);
+        $t->same($expectedMap, $hero['mediaTypeParameterMap']);
+
+        $t->same('image/jpeg', $media['mediaTypeBase']);
+        $t->same(true, $media['mediaTypeHasParameters']);
+        $t->same($expectedMap, $media['mediaTypeParameterMap']);
+        $t->same('image/jpeg', $reviewByPath['Pictures/hero.png']['mediaTypeBase']);
+        $t->same($expectedParameters, $reviewByPath['Pictures/hero.png']['mediaTypeParameters']);
+        $t->same('image/jpeg', $inventoryHero['manifestMediaTypeBase']);
+        $t->same(2, $inventoryHero['manifestMediaTypeParameterCount']);
+        $t->same($expectedMap, $inventoryHero['manifestMediaTypeParameterMap']);
+        $t->same(['manifest-declared', 'media-resource'], $inventoryHero['roles']);
+    },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
