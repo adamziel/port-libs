@@ -1483,6 +1483,63 @@ XML;
         $t->same('/OEBPS/text/chapter1.xhtml', $result['spine'][0]['part']);
         $t->same(2, count($result['document']->children));
     },
+    'preserves EPUB container rootfile media-type parameters in reader rendition handoff' => static function (TestRunner $t) use ($buildEpubPackage, $containerXml, $alternateOpfXml): void {
+        $parameterizedContainer = str_replace(
+            'media-type="application/oebps-package+xml"/>',
+            'media-type="application/oebps-package+xml; profile=&quot;primary-opf&quot;"/>',
+            $containerXml
+        );
+        $multiRootContainer = str_replace(
+            '</rootfiles>',
+            '    <rootfile full-path="OEBPS/fixed/package.opf" media-type="application/oebps-package+xml; rendition=&quot;fixed-layout&quot;"/>' . "\n" . '  </rootfiles>',
+            $parameterizedContainer
+        );
+
+        $result = (new EpubReader())->readPackage($buildEpubPackage(
+            null,
+            $multiRootContainer,
+            [
+                ['name' => 'OEBPS/fixed/package.opf', 'data' => $alternateOpfXml],
+            ]
+        ));
+
+        $rootfiles = $result['container']['rootfiles'];
+        $t->same('/OEBPS/package.opf', $result['opfPart']);
+        $t->same(0, $result['container']['selectedRootfileIndex']);
+        $t->same(2, count($rootfiles));
+        $t->same('application/oebps-package+xml; profile="primary-opf"', $rootfiles[0]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles[0]['baseMediaType']);
+        $t->same('application/oebps-package+xml; profile=primary-opf', $rootfiles[0]['normalizedMediaType']);
+        $t->same(true, $rootfiles[0]['mediaTypeHasParameters']);
+        $t->same(['profile' => 'primary-opf'], $rootfiles[0]['mediaTypeParameters']);
+        $t->same(['profile'], $rootfiles[0]['mediaTypeParameterNames']);
+        $t->same(1, $rootfiles[0]['mediaTypeParameterCount']);
+        $t->same(true, $rootfiles[0]['mediaTypeSyntaxValid']);
+        $t->same([], $rootfiles[0]['mediaTypeDiagnostics']);
+        $t->same(true, $rootfiles[0]['selected']);
+        $t->same('application/oebps-package+xml; rendition="fixed-layout"', $rootfiles[1]['mediaType']);
+        $t->same('application/oebps-package+xml', $rootfiles[1]['baseMediaType']);
+        $t->same(['rendition' => 'fixed-layout'], $rootfiles[1]['mediaTypeParameters']);
+        $t->same(['rendition'], $rootfiles[1]['mediaTypeParameterNames']);
+        $t->same(false, $rootfiles[1]['selected']);
+
+        $renditions = $result['renditions'];
+        $t->same(2, $renditions['count']);
+        $t->same(1, $renditions['alternateCount']);
+        $t->same(0, $renditions['selectedIndex']);
+        $t->same([], $renditions['diagnostics']);
+        $t->same('application/oebps-package+xml; profile="primary-opf"', $renditions['items'][0]['mediaType']);
+        $t->same('application/oebps-package+xml', $renditions['items'][0]['baseMediaType']);
+        $t->same(['profile' => 'primary-opf'], $renditions['items'][0]['mediaTypeParameters']);
+        $t->same('WordPress Import EPUB', $renditions['items'][0]['metadata']['title']);
+        $t->same('application/oebps-package+xml; rendition="fixed-layout"', $renditions['items'][1]['mediaType']);
+        $t->same('application/oebps-package+xml', $renditions['items'][1]['baseMediaType']);
+        $t->same(['rendition' => 'fixed-layout'], $renditions['items'][1]['mediaTypeParameters']);
+        $t->same('Fixed layout reviewer edition', $renditions['items'][1]['metadata']['title']);
+        $t->same($result['container'], $result['importReport']['container']);
+        $t->same($renditions, $result['importReport']['renditions']);
+        $t->same($renditions, $result['document']->attr('renditions'));
+    },
     'summarizes OPF fixed layout viewport metadata for package review handoff' => static function (TestRunner $t) use ($buildEpubPackage, $opfXml): void {
         $opfWithFixedLayout = str_replace(
             '<meta name="cover" content="cover-image"/>',
