@@ -206,6 +206,61 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html focus navigation attributes for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<section id="focus-region" accesskey="s x s" autofocus="autofocus" tabindex="3"><button id="save" accesskey="k Enter" tabindex="-2">Save</button></section>'
+                . '<p id="invalid-focus" accesskey="wide key" tabindex="bogus">No focus</p>',
+            'focus navigation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/focus-navigation-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $section = $summary[0];
+        $button = $section['children'][0];
+        $invalid = $summary[1];
+
+        $t->same('focus-region', $section['elementId']);
+        $t->same('s x s', $section['accessKeyRaw']);
+        $t->same(['s', 'x', 's'], $section['accessKeyTokens']);
+        $t->same(['s', 'x'], $section['accessKeys']);
+        $t->same([], $section['invalidAccessKeyTokens']);
+        $t->same(true, $section['accessKeyValid']);
+        $t->same('autofocus', $section['autofocusRaw']);
+        $t->same(true, $section['autofocus']);
+        $t->same('3', $section['tabIndexRaw']);
+        $t->same(3, $section['tabIndex']);
+        $t->same(true, $section['tabIndexValid']);
+
+        $t->same('button', $button['name']);
+        $t->same('button', $button['formControl']);
+        $t->same('save', $button['elementId']);
+        $t->same('k Enter', $button['accessKeyRaw']);
+        $t->same(['k', 'Enter'], $button['accessKeyTokens']);
+        $t->same(['k'], $button['accessKeys']);
+        $t->same(['Enter'], $button['invalidAccessKeyTokens']);
+        $t->same(false, $button['accessKeyValid']);
+        $t->same('-2', $button['tabIndexRaw']);
+        $t->same(-2, $button['tabIndex']);
+        $t->same(true, $button['tabIndexValid']);
+
+        $t->same('invalid-focus', $invalid['elementId']);
+        $t->same('wide key', $invalid['accessKeyRaw']);
+        $t->same(['wide', 'key'], $invalid['accessKeyTokens']);
+        $t->same([], $invalid['accessKeys']);
+        $t->same(['wide', 'key'], $invalid['invalidAccessKeyTokens']);
+        $t->same(false, $invalid['accessKeyValid']);
+        $t->same('bogus', $invalid['tabIndexRaw']);
+        $t->same(null, $invalid['tabIndex']);
+        $t->same(false, $invalid['tabIndexValid']);
+
+        $t->same('<section accesskey="s x s" autofocus id="focus-region" tabindex="3"><button accesskey="k Enter" id="save" tabindex="-2">Save</button></section><p accesskey="wide key" id="invalid-focus" tabindex="bogus">No focus</p>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/focus-navigation-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'

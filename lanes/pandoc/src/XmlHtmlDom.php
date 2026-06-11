@@ -1486,12 +1486,66 @@ final class XmlHtmlDom
             };
         }
 
+        if (array_key_exists('accesskey', $attributes)) {
+            $accessKey = self::accessKeySummary($attributes['accesskey']);
+            $summary['accessKeyRaw'] = $attributes['accesskey'];
+            $summary['accessKeyTokens'] = $accessKey['tokens'];
+            $summary['accessKeys'] = $accessKey['keys'];
+            $summary['invalidAccessKeyTokens'] = $accessKey['invalid'];
+            $summary['accessKeyValid'] = $accessKey['valid'];
+        }
+
+        if (array_key_exists('autofocus', $attributes)) {
+            $summary['autofocusRaw'] = $attributes['autofocus'];
+            $summary['autofocus'] = true;
+        }
+
         if (array_key_exists('tabindex', $attributes)) {
             $summary['tabIndexRaw'] = $attributes['tabindex'];
             $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
+            $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array{tokens:list<string>, keys:list<string>, invalid:list<string>, valid:bool}
+     */
+    private static function accessKeySummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $keys = [];
+        $invalid = [];
+        foreach ($tokens as $token) {
+            if (!self::isAccessKeyToken($token)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            if (!in_array($token, $keys, true)) {
+                $keys[] = $token;
+            }
+        }
+
+        return [
+            'tokens' => $tokens,
+            'keys' => $keys,
+            'invalid' => $invalid,
+            'valid' => $tokens !== [] && $keys !== [] && $invalid === [],
+        ];
+    }
+
+    private static function isAccessKeyToken(string $token): bool
+    {
+        if ($token === '' || preg_match('/[<>"\'`{}]/u', $token) === 1) {
+            return false;
+        }
+        if (preg_match('/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 1) {
+            return false;
+        }
+
+        return preg_match_all('/./us', $token) === 1;
     }
 
     /**
