@@ -1109,6 +1109,99 @@ return [
         $t->same('Generated short', $generatedRoundTrip->children[0]->attr('shortCaption'));
         $t->same('Generated alt', $generatedRoundTrip->children[0]->children[0]->attr('alt'));
     },
+    'reads table just and figure nothing short caption constructors' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['maybe-table', ['json-native'], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [[
+                        ['t' => 'Str', 'c' => 'Review'],
+                        ['t' => 'Space'],
+                        ['t' => 'Code', 'c' => [['', ['short-code'], [['data-kind', 'caption']]], 'Q1']],
+                    ]]]],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Long'],
+                            ['t' => 'Space'],
+                            ['t' => 'Strong', 'c' => [
+                                ['t' => 'Str', 'c' => 'caption'],
+                            ]],
+                        ]],
+                    ],
+                ]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [['t' => 'TableBody', 'c' => [
+                    ['', [], []],
+                    ['t' => 'RowHeadColumns', 'c' => 0],
+                    [],
+                    [['t' => 'Row', 'c' => [
+                        ['', [], []],
+                        [['t' => 'Cell', 'c' => [
+                            ['', [], []],
+                            ['t' => 'AlignDefault'],
+                            ['t' => 'RowSpan', 'c' => 1],
+                            ['t' => 'ColSpan', 'c' => 1],
+                            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Ready']]]],
+                        ]]],
+                    ]]],
+                ]]],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $figureBlock = [
+            't' => 'Figure',
+            'c' => [
+                ['maybe-figure', [], []],
+                ['t' => 'Caption', 'c' => [
+                    ['t' => 'Nothing'],
+                    [
+                        ['t' => 'Plain', 'c' => [
+                            ['t' => 'Str', 'c' => 'Figure'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'caption'],
+                        ]],
+                    ],
+                ]],
+                [
+                    ['t' => 'Para', 'c' => [
+                        ['t' => 'Image', 'c' => [
+                            ['', [], []],
+                            [['t' => 'Str', 'c' => 'Maybe'], ['t' => 'Space'], ['t' => 'Str', 'c' => 'image']],
+                            ['media/maybe.png', 'Maybe title'],
+                        ]],
+                    ]],
+                ],
+            ],
+        ];
+        $document = (new PandocJsonReader())->readPacket([
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock, $figureBlock],
+        ]);
+        $encoded = (new PandocJsonWriter())->toArray($document);
+        $table = $document->children[0];
+        $figure = $document->children[1];
+        $tableShortCaptionInlines = $table->attr('shortCaptionInlines');
+
+        $t->same('table', $table->type);
+        $t->same('Review Q1', $table->attr('shortCaption'));
+        $t->same('Long caption', $table->attr('caption'));
+        $t->same(['text', 'space', 'code'], array_map(static fn (AstNode $node): string => $node->type, $tableShortCaptionInlines));
+        $t->same(['short-code'], $tableShortCaptionInlines[2]->attr('classes'));
+        $t->same(['data-kind' => 'caption'], $tableShortCaptionInlines[2]->attr('attributes'));
+        $t->same('figure', $figure->type);
+        $t->same('Figure caption', $figure->attr('caption'));
+        $t->same('', $figure->attr('shortCaption', ''));
+        $t->same('image', $figure->children[0]->type);
+        $t->same('Maybe image', $figure->children[0]->attr('alt'));
+        $t->same('Table', $encoded['blocks'][0]['t']);
+        $t->same('Review', $encoded['blocks'][0]['c'][1][0][0]['c']);
+        $t->same('Code', $encoded['blocks'][0]['c'][1][0][2]['t']);
+        $t->same(null, $encoded['blocks'][1]['c'][1][0]);
+        $t->same('Figure caption', (new PandocJsonReader())->readPacket($encoded)->children[1]->attr('caption'));
+    },
     'renders pandoc inline attributes through wordpress html writer sanitizer' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [

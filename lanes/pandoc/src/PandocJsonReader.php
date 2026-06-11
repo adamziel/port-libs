@@ -580,12 +580,8 @@ final class PandocJsonReader
      */
     private function readShortCaptionInlines(mixed $shortCaption, string $context): array
     {
-        if ($shortCaption === null || $shortCaption === []) {
-            return [];
-        }
-
         $shortCaption = $this->unwrapMaybeConstructor($shortCaption);
-        if ($shortCaption === []) {
+        if ($shortCaption === null || $shortCaption === []) {
             return [];
         }
 
