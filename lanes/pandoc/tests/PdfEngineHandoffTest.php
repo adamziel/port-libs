@@ -1027,6 +1027,133 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $externalResult['artifactProvenanceReview']['issues']));
     },
 
+    'plans typst diagnostic output boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/diagnostic-output-boundary.pdf',
+            'source' => '= Typst Diagnostic Output Boundary Packet',
+            'engineOptions' => [
+                '--diagnostic-format=xml',
+                '--diagnostic-format',
+                'json',
+                '--color=rainbow',
+                '--color',
+                'never',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst diagnostic output boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'diagnostic-format-invalid-boundary',
+                'diagnostic-color-invalid-boundary',
+                'diagnostic-format-boundary-overridden',
+                'diagnostic-color-boundary-overridden',
+            ],
+            'diagnosticOutput' => [
+                'format' => [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'color' => [
+                    'raw' => 'never',
+                    'value' => 'never',
+                    'color' => 'never',
+                    'ansiColor' => 'disabled',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'diagnosticFormat',
+                    'count' => 2,
+                    'values' => ['xml', 'json'],
+                    'selected' => 'json',
+                    'issue' => 'diagnostic-format-boundary-overridden',
+                ],
+                [
+                    'option' => 'diagnosticColor',
+                    'count' => 2,
+                    'values' => ['rainbow', 'never'],
+                    'selected' => 'never',
+                    'issue' => 'diagnostic-color-boundary-overridden',
+                ],
+            ],
+            'diagnosticFormatHistory' => [
+                [
+                    'raw' => 'xml',
+                    'value' => 'xml',
+                    'format' => null,
+                    'machineReadable' => false,
+                    'safe' => false,
+                    'issues' => ['diagnostic-format-invalid-boundary'],
+                ],
+                [
+                    'raw' => 'json',
+                    'value' => 'json',
+                    'format' => 'json',
+                    'machineReadable' => true,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+            'diagnosticColorHistory' => [
+                [
+                    'raw' => 'rainbow',
+                    'value' => 'rainbow',
+                    'color' => null,
+                    'ansiColor' => 'unknown',
+                    'safe' => false,
+                    'issues' => ['diagnostic-color-invalid-boundary'],
+                ],
+                [
+                    'raw' => 'never',
+                    'value' => 'never',
+                    'color' => 'never',
+                    'ansiColor' => 'disabled',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/diagnostic-output-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/diagnostic-output-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostics-format:json', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostics-color:never', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst input variable boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
