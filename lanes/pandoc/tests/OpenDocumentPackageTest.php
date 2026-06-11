@@ -286,6 +286,57 @@ XML;
         $t->same(1, $summary['encryptedCount']);
         $t->same(['Pictures/hero.png'], $summary['encryptedParts']);
     },
+    'propagates compact ODT manifest entry attributes into package review summaries' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifest = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.4" manifest:preferred-view-mode="edit"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" manifest:version="1.2"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:version="1.2" manifest:size="7" manifest:preferred-view-mode="presentation-slide-show">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="review-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="review-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+</manifest:manifest>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $summary = $odt->summarize();
+        $media = $summary['mediaParts'][0];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+        $encryptedReview = $summary['manifestReview']['encryptedItems'][0];
+
+        $t->same('1.4', $summary['manifestVersion']);
+        $t->same('1.4', $reviewByPath['/']['version']);
+        $t->same('edit', $reviewByPath['/']['preferredViewMode']);
+        $t->same(null, $reviewByPath['/']['encryption']);
+        $t->same('1.2', $reviewByPath['content.xml']['version']);
+        $t->same('1.2', $inventory['content.xml']['manifestVersion']);
+
+        $t->same('1.2', $hero['version']);
+        $t->same('presentation-slide-show', $hero['preferredViewMode']);
+        $t->same('1.2', $media['version']);
+        $t->same('presentation-slide-show', $media['preferredViewMode']);
+        $t->same($hero['encryption'], $media['encryption']);
+        $t->same('SHA256/1K', $media['encryption']['checksumType']);
+
+        $t->same('1.2', $reviewByPath['Pictures/hero.png']['version']);
+        $t->same($hero['encryption'], $reviewByPath['Pictures/hero.png']['encryption']);
+        $t->same('1.2', $encryptedReview['version']);
+        $t->same('presentation-slide-show', $encryptedReview['preferredViewMode']);
+        $t->same('Blowfish CFB', $encryptedReview['encryption']['algorithm']['name']);
+
+        $t->same('1.2', $inventory['Pictures/hero.png']['manifestVersion']);
+        $t->same('presentation-slide-show', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same($hero['encryption'], $inventory['Pictures/hero.png']['manifestEncryption']);
+        $t->same(true, $inventory['Pictures/hero.png']['encrypted']);
+    },
     'reports compact ODT manifest media package exposure and missing parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '</manifest:manifest>',
