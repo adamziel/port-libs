@@ -818,6 +818,101 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst ppi rasterization boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/rasterization-boundary.pdf',
+            'source' => '= Typst Rasterization Boundary Packet',
+            'engineOptions' => [
+                '--ppi=fast',
+                '--ppi',
+                '300',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst rasterization boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'ppi-invalid-boundary',
+                'ppi-boundary-overridden',
+            ],
+            'rasterization' => [
+                'ppi' => [
+                    'raw' => '300',
+                    'value' => '300',
+                    'kind' => 'fixed',
+                    'ppi' => 300,
+                    'unit' => 'pixels-per-inch',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [
+                    'ppi-invalid-boundary',
+                    'ppi-boundary-overridden',
+                ],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'ppi',
+                    'count' => 2,
+                    'values' => ['fast', '300'],
+                    'selected' => '300',
+                    'issue' => 'ppi-boundary-overridden',
+                ],
+            ],
+            'ppiHistory' => [
+                [
+                    'raw' => 'fast',
+                    'value' => 'fast',
+                    'kind' => 'invalid',
+                    'ppi' => null,
+                    'unit' => 'pixels-per-inch',
+                    'safe' => false,
+                    'issues' => ['ppi-invalid-boundary'],
+                ],
+                [
+                    'raw' => '300',
+                    'value' => '300',
+                    'kind' => 'fixed',
+                    'ppi' => 300,
+                    'unit' => 'pixels-per-inch',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/rasterization-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/rasterization-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
+        $t->contains('typst-ppi:300', implode(',', $plan['diagnostics']));
+        $t->contains('typst-rasterization-issues:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
     'plans typst feature gate boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
