@@ -623,6 +623,60 @@ XML;
         $t->same('version=2026', $summary['externalRelationshipTargets'][1]['targetQuery']);
         $t->same('template', $summary['externalRelationshipTargets'][1]['targetFragment']);
     },
+    'summarizes docx package relationship target suffixes for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml?revision=3#body"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rMissingComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments/review.xml?thread=editor#c1"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/template.dotx?version=2026#template" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png#logo"/>
+  <Relationship Id="rHeaderRemote" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/header?slot=review" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/header.png'] = 'header image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $targets = $summary['relationshipTargetsWithReferenceSuffix'];
+
+        $t->same(6, $summary['relationshipTargetReferenceSuffixCount']);
+        $t->same(5, $summary['relationshipTargetQueryCount']);
+        $t->same(4, $summary['relationshipTargetFragmentCount']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $summary['relationshipPartsWithTargetReferenceSuffixes']);
+        $t->same([
+            '#logo' => 1,
+            '?post=42' => 1,
+            '?revision=3#body' => 1,
+            '?slot=review' => 1,
+            '?thread=editor#c1' => 1,
+            '?version=2026#template' => 1,
+        ], $summary['relationshipTargetReferenceSuffixCounts']);
+        $t->same(['rDoc', 'rLink', 'rMissingComments', 'rRemoteTemplate', 'rHeaderImage', 'rHeaderRemote'], array_column($targets, 'id'));
+        $t->same(['?revision=3#body', '?post=42', '?thread=editor#c1', '?version=2026#template', '#logo', '?slot=review'], array_column($targets, 'targetReferenceSuffix'));
+        $t->same('revision=3', $targets[0]['targetQuery']);
+        $t->same('body', $targets[0]['targetFragment']);
+        $t->same(false, $targets[0]['external']);
+        $t->same(true, $targets[0]['exists']);
+        $t->same('word/comments/review.xml', $targets[2]['targetPart']);
+        $t->same(false, $targets[2]['exists']);
+        $t->same(true, $targets[3]['external']);
+        $t->same(null, $targets[3]['targetPart']);
+        $t->same('word/_rels/header1.xml.rels', $targets[4]['relationshipsPart']);
+        $t->same('logo', $targets[4]['targetFragment']);
+        $t->same('slot=review', $targets[5]['targetQuery']);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

@@ -2244,6 +2244,12 @@ final class DocxOpenXmlReader
         $relationshipPartsWithMissingTargets = [];
         $relationshipPartsWithMissingContentTypes = [];
         $relationshipTargetsWithoutContentType = [];
+        $relationshipTargetReferenceSuffixCount = 0;
+        $relationshipTargetQueryCount = 0;
+        $relationshipTargetFragmentCount = 0;
+        $relationshipPartsWithTargetReferenceSuffixes = [];
+        $relationshipTargetReferenceSuffixCounts = [];
+        $relationshipTargetsWithReferenceSuffix = [];
         $relationshipPartMissingSourceCount = 0;
         $relationshipPartsWithMissingSources = [];
         $relationshipsFromMissingSources = [];
@@ -2282,6 +2288,20 @@ final class DocxOpenXmlReader
                     $relationshipTypeCounts[$type] = ($relationshipTypeCounts[$type] ?? 0) + 1;
                 }
 
+                $targetReferenceSuffix = is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : '';
+                if ($targetReferenceSuffix !== '') {
+                    ++$relationshipTargetReferenceSuffixCount;
+                    $relationshipPartsWithTargetReferenceSuffixes[(string) $relationshipsPart] = true;
+                    $relationshipTargetReferenceSuffixCounts[$targetReferenceSuffix] = ($relationshipTargetReferenceSuffixCounts[$targetReferenceSuffix] ?? 0) + 1;
+                    $relationshipTargetsWithReferenceSuffix[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    if (is_string($relationship['targetQuery'] ?? null)) {
+                        ++$relationshipTargetQueryCount;
+                    }
+                    if (is_string($relationship['targetFragment'] ?? null)) {
+                        ++$relationshipTargetFragmentCount;
+                    }
+                }
+
                 if (($relationship['external'] ?? false) === true) {
                     ++$externalRelationshipCount;
                     $externalRelationshipTargets[] = $this->relationshipProvenanceSummaryItem($relationship);
@@ -2310,6 +2330,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($relationshipTypeCounts);
+        ksort($relationshipTargetReferenceSuffixCounts);
 
         return [
             'partCount' => count($partInventory),
@@ -2321,6 +2342,9 @@ final class DocxOpenXmlReader
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
+            'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
+            'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
@@ -2329,10 +2353,13 @@ final class DocxOpenXmlReader
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
+            'relationshipTargetReferenceSuffixCounts' => $relationshipTargetReferenceSuffixCounts,
+            'relationshipPartsWithTargetReferenceSuffixes' => array_keys($relationshipPartsWithTargetReferenceSuffixes),
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'partsWithoutContentType' => $partsWithoutContentType,
+            'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
@@ -2548,6 +2575,8 @@ final class DocxOpenXmlReader
             'targetMode' => $relationship['targetMode'] ?? '',
             'resolvedTarget' => $relationship['resolvedTarget'] ?? '',
             'targetPart' => $relationship['targetPart'] ?? null,
+            'external' => (bool) ($relationship['external'] ?? false),
+            'exists' => (bool) ($relationship['exists'] ?? false),
             'targetReferenceSuffix' => $relationship['targetReferenceSuffix'] ?? '',
             'targetQuery' => $relationship['targetQuery'] ?? null,
             'targetFragment' => $relationship['targetFragment'] ?? null,
