@@ -660,6 +660,7 @@ XML;
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rFootLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/footnote-source" TargetMode="External"/>
+  <Relationship Id="rFootImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/footnote.png?asset=1#pic"/>
 </Relationships>
 XML;
         $parts['word/annotations/review-endnotes.xml'] = <<<'XML'
@@ -671,9 +672,23 @@ XML;
   </w:endnote>
 </w:endnotes>
 XML;
+        $parts['word/annotations/_rels/review-endnotes.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rEndImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/endnote.png"/>
+</Relationships>
+XML;
+        $parts['notes/media/footnote.png'] = 'fake footnote png bytes';
+        $parts['word/media/endnote.png'] = 'fake endnote png bytes';
 
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $footnoteRelationshipsPart = $package['relationshipParts']['notes/_rels/review-footnotes.xml.rels'];
+        $footnoteImageRelationship = $footnoteRelationshipsPart['relationships']['rFootImage'];
+        $endnoteRelationshipsPart = $package['relationshipParts']['word/annotations/_rels/review-endnotes.xml.rels'];
+        $endnoteImageRelationship = $endnoteRelationshipsPart['relationships']['rEndImage'];
+        $inventory = $package['parts'];
         $paragraph = $document->children[1];
         $notes = array_values(array_filter($paragraph->children, static fn (AstNode $node): bool => $node->type === 'note'));
         $footnote = $notes[0];
@@ -702,6 +717,33 @@ XML;
         $t->same(1, $docx['endnotes']['count']);
         $t->same(['7'], $docx['endnotes']['ids']);
         $t->same('Endnote package audit.', $docx['endnotes']['byId']['7']['text']);
+
+        $t->same('notes/review-footnotes.xml', $footnoteRelationshipsPart['sourcePart']);
+        $t->same(true, $footnoteRelationshipsPart['exists']);
+        $t->same(strlen($parts['notes/_rels/review-footnotes.xml.rels']), $footnoteRelationshipsPart['bytes']);
+        $t->same(2, $footnoteRelationshipsPart['relationshipCount']);
+        $t->same(true, $footnoteRelationshipsPart['relationships']['rFootLink']['external']);
+        $t->same(null, $footnoteRelationshipsPart['relationships']['rFootLink']['targetPart']);
+        $t->same('notes/media/footnote.png?asset=1#pic', $footnoteImageRelationship['resolvedTarget']);
+        $t->same('notes/media/footnote.png', $footnoteImageRelationship['targetPart']);
+        $t->same('?asset=1#pic', $footnoteImageRelationship['targetReferenceSuffix']);
+        $t->same(true, $footnoteImageRelationship['exists']);
+        $t->same('default', $footnoteImageRelationship['contentTypeSource']);
+
+        $t->same('word/annotations/review-endnotes.xml', $endnoteRelationshipsPart['sourcePart']);
+        $t->same(true, $endnoteRelationshipsPart['exists']);
+        $t->same(1, $endnoteRelationshipsPart['relationshipCount']);
+        $t->same('../media/endnote.png', $endnoteImageRelationship['target']);
+        $t->same('word/media/endnote.png', $endnoteImageRelationship['resolvedTarget']);
+        $t->same('word/media/endnote.png', $endnoteImageRelationship['targetPart']);
+        $t->same(true, $endnoteImageRelationship['exists']);
+
+        $t->same('notes/review-footnotes.xml', $inventory['notes/_rels/review-footnotes.xml.rels']['relationshipSourcePart']);
+        $t->true(in_array('footnotes-relationships', $inventory['notes/_rels/review-footnotes.xml.rels']['roles'], true), 'footnote relationship part role missing');
+        $t->true(in_array('footnotes-relationship-target', $inventory['notes/media/footnote.png']['roles'], true), 'footnote relationship target role missing');
+        $t->same('word/annotations/review-endnotes.xml', $inventory['word/annotations/_rels/review-endnotes.xml.rels']['relationshipSourcePart']);
+        $t->true(in_array('endnotes-relationships', $inventory['word/annotations/_rels/review-endnotes.xml.rels']['roles'], true), 'endnote relationship part role missing');
+        $t->true(in_array('endnotes-relationship-target', $inventory['word/media/endnote.png']['roles'], true), 'endnote relationship target role missing');
 
         $t->same(3, count($notes));
         $t->same('42', $footnote->attr('id'));
