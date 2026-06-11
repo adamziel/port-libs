@@ -938,6 +938,14 @@ $numberingRelationshipQueryFragmentDocumentRelationshipsXml = <<<'XML'
 </Relationships>
 XML;
 
+$numberingRelationshipMultipleDocumentRelationshipsXml = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdReviewNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="lists/review-numbering.xml"/>
+  <Relationship Id="rIdMissingNumbering" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="lists/missing-numbering.xml#stale"/>
+</Relationships>
+XML;
+
 $numberingRelationshipExternalDocumentRelationshipsXml = <<<'XML'
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
@@ -4854,6 +4862,24 @@ $buildNumberingRelationshipQueryFragmentPackage = static function () use (
     ]);
 };
 
+$buildNumberingRelationshipMultiplePackage = static function () use (
+    $numberingRelationshipContentTypesXml,
+    $stylesNumberingRelationshipsXml,
+    $numberingRelationshipMultipleDocumentRelationshipsXml,
+    $stylesNumberingDocumentXml,
+    $stylesXml,
+    $relationshipNumberingXml
+): ZipPackage {
+    return ZipPackage::fromParts([
+        ['name' => '[Content_Types].xml', 'data' => $numberingRelationshipContentTypesXml],
+        ['name' => '_rels/.rels', 'data' => $stylesNumberingRelationshipsXml],
+        ['name' => 'word/document.xml', 'data' => $stylesNumberingDocumentXml],
+        ['name' => 'word/_rels/document.xml.rels', 'data' => $numberingRelationshipMultipleDocumentRelationshipsXml],
+        ['name' => 'word/styles.xml', 'data' => $stylesXml],
+        ['name' => 'word/lists/review-numbering.xml', 'data' => $relationshipNumberingXml],
+    ]);
+};
+
 $buildNumberingRelationshipWrongContentTypePackage = static function () use (
     $numberingRelationshipContentTypesXml,
     $stylesNumberingRelationshipsXml,
@@ -7416,6 +7442,47 @@ return [
         $t->same($numbering, $result['importReport']['numbering']);
 
         $t->contains('<ol start="6" type="i"><li>Legal review</li><li>Publish packet</li></ol>', $blocks);
+    },
+    'reports duplicate DOCX numbering relationship targets without abandoning the primary definitions' => static function (TestRunner $t) use ($buildNumberingRelationshipMultiplePackage): void {
+        $result = (new DocxReader())->readPackage($buildNumberingRelationshipMultiplePackage());
+        $document = $result['document'];
+
+        $t->same(3, count($document->children));
+        $t->same('bullet_list', $document->children[1]->type);
+        $t->same('ordered_list', $document->children[2]->type);
+        $t->same('lower_roman', $document->children[2]->attr('style'));
+        $t->same(6, $document->children[2]->attr('start'));
+
+        $numbering = $result['metadata']['docxNumbering'];
+        $t->same('/word/lists/review-numbering.xml', $numbering['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $numbering['contentType']);
+        $t->same(2, $numbering['relationshipCount']);
+        $t->same(['multiple-numbering-relationships', 'missing-in-package'], $numbering['issues']);
+        $t->same(1, $numbering['documentNumberingRelationshipIssueCount']);
+        $t->same(2, count($numbering['documentNumberingRelationships']));
+        $t->same($numbering['relationship'], $numbering['documentNumberingRelationships'][0]);
+
+        $primary = $numbering['documentNumberingRelationships'][0];
+        $t->same('rIdReviewNumbering', $primary['id']);
+        $t->same('/word/lists/review-numbering.xml', $primary['targetPart']);
+        $t->same(true, $primary['exists']);
+        $t->same([], $primary['issues']);
+
+        $duplicate = $numbering['documentNumberingRelationships'][1];
+        $t->same('rIdMissingNumbering', $duplicate['id']);
+        $t->same(DocxReader::REL_TYPE_NUMBERING, $duplicate['type']);
+        $t->same('lists/missing-numbering.xml#stale', $duplicate['target']);
+        $t->same('/word/lists/missing-numbering.xml#stale', $duplicate['resolvedTarget']);
+        $t->same('/word/lists/missing-numbering.xml', $duplicate['targetPart']);
+        $t->same(null, $duplicate['targetQuery']);
+        $t->same('stale', $duplicate['targetFragment']);
+        $t->same(false, $duplicate['exists']);
+        $t->same('application/xml', $duplicate['contentType']);
+        $t->same(false, $duplicate['external']);
+        $t->same(['missing-in-package'], $duplicate['issues']);
+        $t->same(2, $numbering['definitionCount']);
+        $t->same(2, $numbering['levelCount']);
+        $t->same($numbering, $result['importReport']['numbering']);
     },
     'reports DOCX numbering relationship content type mismatches for review' => static function (TestRunner $t) use ($buildNumberingRelationshipWrongContentTypePackage): void {
         $result = (new DocxReader())->readPackage($buildNumberingRelationshipWrongContentTypePackage());

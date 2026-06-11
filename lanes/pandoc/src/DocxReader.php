@@ -15303,7 +15303,7 @@ final class DocxReader
 
     /**
      * @param array<string, array<int, array<string, mixed>>> $numbering
-     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, external:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, expectedContentType:string, issues:list<string>}, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationshipIssueCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBulletIssueCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
+     * @return array{part:?string, contentType:?string, relationshipCount:int, relationship:array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, external:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, expectedContentType:string, issues:list<string>}, documentNumberingRelationshipIssueCount:int, documentNumberingRelationships:list<array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, external:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, expectedContentType:string, issues:list<string>}>, relationshipsPart:?string, numberingRelationshipCount:int, numberingRelationshipIssueCount:int, numberingRelationships:list<array<string, mixed>>, definitionCount:int, abstractNumCount:int, numCount:int, levelCount:int, styleLinkedLevelCount:int, overrideCount:int, startOverrideCount:int, styleLinks:list<array<string, mixed>>, instances:list<array<string, mixed>>, pictureBulletCount:int, pictureBulletIssueCount:int, pictureBullets:list<array<string, mixed>>, issues:list<string>}|array{}
      */
     private function numberingImportSummary(ZipPackage $package, OpcRelationshipGraph $graph, string $documentPart, array $numbering): array
     {
@@ -15318,9 +15318,21 @@ final class DocxReader
             return [];
         }
 
-        $resolvedTarget = $relationships->resolveTarget($relationship);
+        $documentNumberingRelationshipItems = [];
+        foreach ($numberingRelationships as $numberingRelationship) {
+            if (!$numberingRelationship instanceof OpcRelationship) {
+                continue;
+            }
+
+            $documentNumberingRelationshipItems[] = $this->documentNumberingRelationshipSummary(
+                $package,
+                $documentPart,
+                $relationships,
+                $numberingRelationship,
+            );
+        }
+        $primaryRelationship = $documentNumberingRelationshipItems[0];
         $targetPart = null;
-        $targetSuffix = ['query' => null, 'fragment' => null];
         $exists = null;
         $contentType = null;
         $numberingRelationshipsPart = null;
@@ -15329,50 +15341,35 @@ final class DocxReader
         $pictureBullets = [];
         $numberingInventory = $this->emptyNumberingImportInventory();
         $issues = count($numberingRelationships) > 1 ? ['multiple-numbering-relationships'] : [];
-        $relationshipIssues = [];
-        $externalTarget = null;
-
-        if ($relationship->isExternal()) {
-            $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
-            $externalTarget = $relationship->externalTargetPreflight();
-            $relationshipIssues[] = 'external-numbering-relationship';
-            $relationshipIssues = array_merge($relationshipIssues, $externalTarget['issues']);
-        } else {
-            $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
-            $targetPart = OpcPackagePath::stripQueryAndFragment(
-                $graph->firstTargetOfType(self::REL_TYPE_NUMBERING, $documentPart) ?? $resolvedTarget
-            );
-            $exists = $package->has($targetPart);
-            $contentType = $this->contentTypeForPackagePart($package, $targetPart);
-            if (!$exists) {
-                $relationshipIssues[] = 'missing-in-package';
-            } elseif ($contentType === null) {
-                $relationshipIssues[] = 'missing-content-type';
-            } elseif (strcasecmp($contentType, self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE) !== 0) {
-                $relationshipIssues[] = 'invalid-numbering-content-type';
-            }
-
-            if ($exists) {
-                $numberingPartRelationships = $graph->relationshipsForSource($targetPart);
-                if ($numberingPartRelationships instanceof OpcRelationships) {
-                    $numberingRelationshipsPart = $numberingPartRelationships->relationshipPartName();
-                    $numberingRelationshipItems = $graph->preflightTargetsForSource($targetPart);
-                    $numberingRelationshipCount = count($numberingRelationshipItems);
-                }
-
-                $dom = self::loadXml($package->read($targetPart), 'DOCX numbering XML');
-                $root = $dom->documentElement;
-                if ($root instanceof \DOMElement && $this->isWordElement($root, 'numbering')) {
-                    $pictureBullets = array_values($this->numberingPictureBullets(
-                        $root,
-                        $package,
-                        $numberingPartRelationships instanceof OpcRelationships ? $numberingPartRelationships : null
-                    ));
-                    $numberingInventory = $this->numberingImportInventory($root);
-                }
+        foreach ($documentNumberingRelationshipItems as $item) {
+            foreach ($item['issues'] as $issue) {
+                $issues[] = $issue;
             }
         }
-        $issues = array_values(array_unique(array_merge($issues, $relationshipIssues)));
+
+        $targetPart = $primaryRelationship['targetPart'];
+        $exists = $primaryRelationship['exists'];
+        $contentType = $primaryRelationship['contentType'];
+        if ($targetPart !== null && $exists === true) {
+            $numberingPartRelationships = $graph->relationshipsForSource($targetPart);
+            if ($numberingPartRelationships instanceof OpcRelationships) {
+                $numberingRelationshipsPart = $numberingPartRelationships->relationshipPartName();
+                $numberingRelationshipItems = $graph->preflightTargetsForSource($targetPart);
+                $numberingRelationshipCount = count($numberingRelationshipItems);
+            }
+
+            $dom = self::loadXml($package->read($targetPart), 'DOCX numbering XML');
+            $root = $dom->documentElement;
+            if ($root instanceof \DOMElement && $this->isWordElement($root, 'numbering')) {
+                $pictureBullets = array_values($this->numberingPictureBullets(
+                    $root,
+                    $package,
+                    $numberingPartRelationships instanceof OpcRelationships ? $numberingPartRelationships : null
+                ));
+                $numberingInventory = $this->numberingImportInventory($root);
+            }
+        }
+        $issues = array_values(array_unique($issues));
 
         $levelCount = 0;
         $styleLinkedLevelCount = 0;
@@ -15389,26 +15386,12 @@ final class DocxReader
             'part' => $targetPart,
             'contentType' => $contentType,
             'relationshipCount' => count($numberingRelationships),
-            'relationship' => [
-                'id' => $relationship->id,
-                'type' => $relationship->type,
-                'sourcePart' => $documentPart,
-                'relationshipsPart' => $relationships->relationshipPartName(),
-                'target' => $relationship->target,
-                'targetMode' => $relationship->targetMode,
-                'resolvedTarget' => $resolvedTarget,
-                'targetPart' => $targetPart,
-                'targetQuery' => $targetSuffix['query'],
-                'targetFragment' => $targetSuffix['fragment'],
-                'exists' => $exists,
-                'contentType' => $contentType,
-                'external' => $relationship->isExternal(),
-                'externalTargetKind' => is_array($externalTarget) ? $externalTarget['kind'] : null,
-                'externalTargetScheme' => is_array($externalTarget) ? $externalTarget['scheme'] : null,
-                'externalTargetAllowed' => is_array($externalTarget) ? $externalTarget['allowed'] : null,
-                'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
-                'issues' => $relationshipIssues,
-            ],
+            'relationship' => $primaryRelationship,
+            'documentNumberingRelationshipIssueCount' => count(array_filter(
+                $documentNumberingRelationshipItems,
+                static fn (array $item): bool => ($item['issues'] ?? []) !== [],
+            )),
+            'documentNumberingRelationships' => $documentNumberingRelationshipItems,
             'relationshipsPart' => $numberingRelationshipsPart,
             'numberingRelationshipCount' => $numberingRelationshipCount,
             'numberingRelationshipIssueCount' => count(array_filter(
@@ -15432,6 +15415,62 @@ final class DocxReader
             )),
             'pictureBullets' => $pictureBullets,
             'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{id:string, type:string, sourcePart:string, relationshipsPart:string, target:string, targetMode:string, resolvedTarget:string, targetPart:?string, targetQuery:?string, targetFragment:?string, exists:?bool, contentType:?string, external:bool, externalTargetKind:?string, externalTargetScheme:?string, externalTargetAllowed:?bool, expectedContentType:string, issues:list<string>}
+     */
+    private function documentNumberingRelationshipSummary(
+        ZipPackage $package,
+        string $documentPart,
+        OpcRelationships $relationships,
+        OpcRelationship $relationship
+    ): array {
+        $resolvedTarget = $relationships->resolveTarget($relationship);
+        $targetSuffix = self::relationshipTargetQueryAndFragment($resolvedTarget);
+        $targetPart = null;
+        $exists = null;
+        $contentType = null;
+        $issues = [];
+        $externalTarget = null;
+
+        if ($relationship->isExternal()) {
+            $externalTarget = $relationship->externalTargetPreflight();
+            $issues[] = 'external-numbering-relationship';
+            $issues = array_merge($issues, $externalTarget['issues']);
+        } else {
+            $targetPart = OpcPackagePath::stripQueryAndFragment($resolvedTarget);
+            $exists = $package->has($targetPart);
+            $contentType = $this->contentTypeForPackagePart($package, $targetPart);
+            if (!$exists) {
+                $issues[] = 'missing-in-package';
+            } elseif ($contentType === null) {
+                $issues[] = 'missing-content-type';
+            } elseif (strcasecmp($contentType, self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE) !== 0) {
+                $issues[] = 'invalid-numbering-content-type';
+            }
+        }
+
+        return [
+            'id' => $relationship->id,
+            'type' => $relationship->type,
+            'sourcePart' => $documentPart,
+            'relationshipsPart' => $relationships->relationshipPartName(),
+            'target' => $relationship->target,
+            'targetMode' => $relationship->targetMode,
+            'resolvedTarget' => $resolvedTarget,
+            'targetPart' => $targetPart,
+            'targetQuery' => $targetSuffix['query'],
+            'targetFragment' => $targetSuffix['fragment'],
+            'exists' => $exists,
+            'contentType' => $contentType,
+            'external' => $relationship->isExternal(),
+            'externalTargetKind' => is_array($externalTarget) ? $externalTarget['kind'] : null,
+            'externalTargetScheme' => is_array($externalTarget) ? $externalTarget['scheme'] : null,
+            'externalTargetAllowed' => is_array($externalTarget) ? $externalTarget['allowed'] : null,
+            'expectedContentType' => self::WORDPROCESSINGML_NUMBERING_CONTENT_TYPE,
+            'issues' => array_values(array_unique($issues)),
         ];
     }
 
