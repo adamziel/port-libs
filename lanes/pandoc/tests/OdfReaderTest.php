@@ -8387,6 +8387,135 @@ XML;
         $t->contains('<div class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Linked chart</p></div>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'OLEBYTES!'), 'Opaque OLE bytes must not render in WordPress output');
     },
+    'reports ODT embedded object package inventory for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifestWithEmbeddedObjects = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Embedded/" manifest:media-type="application/vnd.oasis.opendocument.chart; review=&quot;embedded&quot;"/>
+  <manifest:file-entry manifest:full-path="Object%20Embedded/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20Hidden/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="object-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="object-iv"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+  <manifest:file-entry manifest:full-path="Object%20Hidden/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject"/>
+  <manifest:file-entry manifest:full-path="Object%20Missing/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="Object%20Orphan/" manifest:media-type="application/vnd.oasis.opendocument.graphics"/>
+  <manifest:file-entry manifest:full-path="Object%20Orphan/content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $contentWithEmbeddedObjects = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline chart <draw:frame draw:name="Chart object"><draw:object xlink:href="./Object%20Embedded"/></draw:frame> ready.</text:p>
+      <draw:frame draw:name="Encrypted sheet"><svg:title>Encrypted object</svg:title><draw:object-ole xlink:href="./Object%20Hidden"/></draw:frame>
+      <draw:frame draw:name="Missing chart"><svg:title>Missing object</svg:title><draw:object xlink:href="Object%20Missing"/></draw:frame>
+      <draw:frame draw:name="Loose object"><svg:title>Loose object</svg:title><draw:object-ole xlink:href="./Object%20Loose"/></draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $embeddedChartXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body><office:chart/></office:body></office:document-content>';
+        $orphanObjectXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body><office:drawing/></office:body></office:document-content>';
+        $looseObjectXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body><office:spreadsheet/></office:body></office:document-content>';
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithEmbeddedObjects,
+            $manifestWithEmbeddedObjects,
+            null,
+            null,
+            [
+                ['name' => 'Object Embedded/content.xml', 'data' => $embeddedChartXml],
+                ['name' => 'Object Hidden/oleObject.bin', 'data' => 'HIDDEN-OLE'],
+                ['name' => 'Object Orphan/content.xml', 'data' => $orphanObjectXml],
+                ['name' => 'Object Loose/content.xml', 'data' => $looseObjectXml],
+            ]
+        ));
+
+        $inventory = $result['embeddedObjects'];
+        $byPath = $inventory['byObjectPath'];
+        $expectedReadableBytes = strlen($embeddedChartXml) + strlen($orphanObjectXml) + strlen($looseObjectXml);
+
+        $t->same($inventory, $result['document']->attr('embeddedObjects'));
+        $t->same($inventory, $result['document']->attr('manifest')['embeddedObjects']);
+        $t->same($inventory, $result['document']->attr('metadata')['odfEmbeddedObjects']);
+        $t->same($inventory, $result['importReport']['manifest']['embeddedObjects']);
+        $t->same(5, $inventory['count']);
+        $t->same(4, $inventory['referencedCount']);
+        $t->same(1, $inventory['unreferencedCount']);
+        $t->same(4, $inventory['declaredCount']);
+        $t->same(1, $inventory['undeclaredCount']);
+        $t->same(4, $inventory['existingCount']);
+        $t->same(1, $inventory['missingCount']);
+        $t->same(1, $inventory['encryptedCount']);
+        $t->same(4, $inventory['containedPartCount']);
+        $t->same($expectedReadableBytes, $inventory['containedByteLength']);
+        $t->same(4, $inventory['issueCount']);
+        $t->same([
+            'odf-embedded-object-encrypted-package-part',
+            'odf-embedded-object-missing-package-part',
+            'odf-embedded-object-undeclared-package-part',
+            'odf-embedded-object-unreferenced-package',
+        ], $inventory['issueCodes']);
+        $t->same(['Object Embedded', 'Object Hidden', 'Object Loose', 'Object Missing', 'Object Orphan'], $inventory['objectPaths']);
+        $t->same(['Object Embedded', 'Object Hidden', 'Object Loose', 'Object Missing'], $inventory['referencedObjectPaths']);
+        $t->same(['Object Orphan'], $inventory['unreferencedObjectPaths']);
+
+        $embedded = $byPath['Object Embedded'];
+        $t->same('chart', $embedded['objectType']);
+        $t->same('application/vnd.oasis.opendocument.chart; review="embedded"', $embedded['mediaType']);
+        $t->same('application/vnd.oasis.opendocument.chart', $embedded['mediaTypeBase']);
+        $t->same(['review' => 'embedded'], $embedded['mediaTypeParameterMap']);
+        $t->same(true, $embedded['referenced']);
+        $t->same(['./Object%20Embedded'], $embedded['hrefs']);
+        $t->same(['Object Embedded/content.xml'], $embedded['containedParts']);
+        $t->same(strlen($embeddedChartXml), $embedded['containedByteLength']);
+        $t->same(true, $embedded['containedItems'][0]['declared']);
+        $t->same(false, $embedded['containedItems'][0]['canExposeBytes']);
+        $t->same(strlen($embeddedChartXml), $embedded['containedItems'][0]['storedByteLength']);
+        $t->same(null, $embedded['containedItems'][0]['crc32']);
+
+        $hidden = $byPath['Object Hidden'];
+        $t->same('spreadsheet', $hidden['objectType']);
+        $t->same(true, $hidden['encrypted']);
+        $t->same(null, $hidden['containedByteLength']);
+        $t->same(['odf-embedded-object-encrypted-package-part'], $hidden['issues']);
+        $t->same(true, $hidden['containedItems'][0]['encrypted']);
+        $t->same(null, $hidden['containedItems'][0]['byteLength']);
+        $t->same(10, $hidden['containedItems'][0]['storedByteLength']);
+        $t->same(false, $hidden['canExposeBytes']);
+
+        $loose = $byPath['Object Loose'];
+        $t->same('ole', $loose['objectType']);
+        $t->same(false, $loose['declared']);
+        $t->same(true, $loose['undeclared']);
+        $t->same(true, $loose['exists']);
+        $t->same(['odf-embedded-object-undeclared-package-part'], $loose['issues']);
+        $t->same(['Object Loose/content.xml'], $loose['containedParts']);
+        $t->same(false, $loose['containedItems'][0]['declared']);
+        $t->same(strlen($looseObjectXml), $loose['containedItems'][0]['storedByteLength']);
+
+        $missing = $byPath['Object Missing'];
+        $t->same(false, $missing['exists']);
+        $t->same(true, $missing['declared']);
+        $t->same(['odf-embedded-object-missing-package-part'], $missing['issues']);
+        $t->same([], $missing['containedItems']);
+
+        $orphan = $byPath['Object Orphan'];
+        $t->same(false, $orphan['referenced']);
+        $t->same('graphics', $orphan['objectType']);
+        $t->same(['odf-embedded-object-unreferenced-package'], $orphan['issues']);
+        $t->same(strlen($orphanObjectXml), $orphan['containedByteLength']);
+    },
     'normalizes ODT URI encoded package part references for media and objects' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithEncodedParts = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
