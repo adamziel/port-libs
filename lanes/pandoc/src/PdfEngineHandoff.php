@@ -296,6 +296,15 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-ignore-embedded-fonts:' . $embeddedFonts['flagCount'];
                 }
             }
+            if (($typstBoundaryProvenance['openOutput'] ?? []) !== []) {
+                $openOutput = $typstBoundaryProvenance['openOutput'];
+                if (is_array($openOutput) && ($openOutput['enabled'] ?? false) === true) {
+                    $diagnostics[] = 'typst-open-output:enabled';
+                }
+                if (is_array($openOutput) && is_int($openOutput['flagCount'] ?? null) && $openOutput['flagCount'] > 0) {
+                    $diagnostics[] = 'typst-open-output-flags:' . $openOutput['flagCount'];
+                }
+            }
             if (($typstBoundaryProvenance['featureGates'] ?? null) !== null) {
                 $featureGates = $typstBoundaryProvenance['featureGates'];
                 if (is_array($featureGates) && is_int($featureGates['featureCount'] ?? null)) {
@@ -5693,7 +5702,8 @@ final class PdfEngineHandoff
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $timingsOutputValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0) {
+        $openOutputCount = $this->engineOptionFlagCount($engineOptions, '--open');
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $timingsOutputValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0 && $openOutputCount === 0) {
             return [];
         }
 
@@ -5766,6 +5776,7 @@ final class PdfEngineHandoff
         if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
         }
+        $openOutputIssues = $openOutputCount > 0 ? ['open-output-side-effect-boundary'] : [];
 
         foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $timingsOutputHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
@@ -5776,6 +5787,9 @@ final class PdfEngineHandoff
             }
         }
         foreach ($pdfTagIssues as $issue) {
+            $issues[] = $issue;
+        }
+        foreach ($openOutputIssues as $issue) {
             $issues[] = $issue;
         }
         foreach ($overrides as $override) {
@@ -5828,6 +5842,13 @@ final class PdfEngineHandoff
                 'embeddedFontAccess' => 'disabled',
                 'flagCount' => $ignoreEmbeddedFontCount,
                 'issues' => [],
+            ];
+        }
+        if ($openOutputCount > 0) {
+            $provenance['openOutput'] = [
+                'enabled' => true,
+                'flagCount' => $openOutputCount,
+                'issues' => $openOutputIssues,
             ];
         }
         if ($pageSelection !== null || $noPdfTagsCount > 0) {
