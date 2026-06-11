@@ -7550,6 +7550,100 @@ XML);
         $t->contains('<dt>Participant Fields Packet 2026</dt><dd>Participant Fields Packet :: Program Committee :: Curator, Eli :: Morton, Mia :: Migration Contributors :: Garcia, Gia :: Reader, Rhea :: Chair 1: agenda verified; Recipient 1 family: recipient family verified</dd>', $blocks);
         $t->contains('<dt>Editorial Fields Packet 2025</dt><dd>Editorial Fields Packet :: Roe, Pat; Migration Desk :: Curator, Eli :: Editorial, Eden :: Illustrator, Iris :: Interviewer, Inez :: Reviewed, Riley :: Reviewed author 1: review context verified</dd>', $blocks);
     },
+    'maps bounded biblatex series creator aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{series-creator-source,
+  author = {Curator, Vera},
+  title = {Series Creator Source Packet},
+  date = {2026},
+  series = {Migration Review Series},
+  seriesnumber = {12},
+  seriescreator = {{Series Desk}},
+  seriescreator+an = {1=series office verified}
+}
+
+@book{hyphen-series-creator,
+  author = {Ng, Nia},
+  title = {Hyphen Series Creator Packet},
+  date = {2025},
+  collection-title = {Hyphenated Source Series},
+  collection-number = {A7},
+  series-creator = {{Collective Review Office}},
+  series-creator+an:name = {1=hyphenated office verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Series Desk', $items[0]['series-creator'][0]['literal'] ?? null);
+        $t->same('series office verified', $items[0]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same('{Series Desk}', $items[0]['rawBibtex']['fields']['seriescreator'] ?? null);
+        $t->true(!isset($items[0]['biblatex-field-annotations']['seriescreator']));
+        $t->same('Collective Review Office', $items[1]['series-creator'][0]['literal'] ?? null);
+        $t->same('name', $items[1]['series-creator'][0]['annotations'][0]['part'] ?? null);
+        $t->same('hyphenated office verified', $items[1]['series-creator'][0]['annotations'][0]['value'] ?? null);
+        $t->same('{Collective Review Office}', $items[1]['rawBibtex']['fields']['series-creator'] ?? null);
+        $t->true(!isset($items[1]['biblatex-field-annotations']['series-creator']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $source = $processor->item('series-creator-source');
+        $hyphen = $processor->item('hyphen-series-creator');
+        $t->same('Series Desk', $source['seriesCreators'][0]['literal'] ?? null);
+        $t->same('series office verified', $source['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('', $source['biblatexFieldAnnotationSummary'] ?? null);
+        $t->same('Collective Review Office', $hyphen['seriesCreators'][0]['literal'] ?? null);
+        $t->same('hyphenated office verified', $hyphen['seriesCreators'][0]['annotations'][0]['value'] ?? null);
+        $t->same('', $hyphen['biblatexFieldAnnotationSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded BibLaTeX Series Creator Review</title>
+    <id>https://example.test/styles/bounded-biblatex-series-creator-review</id>
+    <updated>2026-06-11T16:53:16+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="collection-title"/>
+        <text variable="collection-number"/>
+        <names variable="series-creator"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="collection-title"/>
+      <text variable="collection-number"/>
+      <names variable="series-creator"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded BibLaTeX Series Creator Review', $summary['title'] ?? null);
+        $t->same('series-creator', $citationChildren[3]['variable'] ?? null);
+        $t->same('series-creator', $bibliographyChildren[3]['variable'] ?? null);
+        $t->same('[Curator | Migration Review Series | 12 | Series Desk; Ng | Hyphenated Source Series | A7 | Collective Review Office]', $styled->renderCitationCluster([
+            $citation('series-creator-source', '[@series-creator-source]'),
+            $citation('hyphen-series-creator', '[@hyphen-series-creator]'),
+        ]));
+        $t->same('Series Creator Source Packet :: Migration Review Series :: 12 :: Series Desk :: Series creator 1: series office verified', $styled->renderBibliographyEntry('series-creator-source'));
+        $t->same('Hyphen Series Creator Packet :: Hyphenated Source Series :: A7 :: Collective Review Office :: Series creator 1: hyphenated office verified', $styled->renderBibliographyEntry('hyphen-series-creator'));
+
+        $document = (new MarkdownReader())->read('Series creator sources [@series-creator-source; @hyphen-series-creator] keep series offices visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Series creator sources [Curator | Migration Review Series | 12 | Series Desk; Ng | Hyphenated Source Series | A7 | Collective Review Office] keep series offices visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Series Creator Source Packet :: Migration Review Series :: 12 :: Series Desk :: Series creator 1: series office verified</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Hyphen Series Creator Packet :: Hyphenated Source Series :: A7 :: Collective Review Office :: Series creator 1: hyphenated office verified</dd>', $blocks);
+    },
     'maps bounded biblatex direct extended creator fields into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @collection{direct-extended-roles,

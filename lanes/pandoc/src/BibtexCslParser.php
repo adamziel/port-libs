@@ -20,6 +20,8 @@ final class BibtexCslParser
         'chair',
         'collection-editor',
         'collectioneditor',
+        'series-creator',
+        'seriescreator',
         'compiler',
         'composer',
         'contributor',
@@ -970,6 +972,7 @@ final class BibtexCslParser
         foreach ([
             'chair' => ['chair'],
             'collection-editor' => ['collectioneditor', 'collection-editor'],
+            'series-creator' => ['seriescreator', 'series-creator'],
             'compiler' => ['compiler'],
             'composer' => ['composer'],
             'contributor' => ['contributor'],
