@@ -242,6 +242,9 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        if (($item['rights'] ?? '') !== '') {
+            $parts[] = 'Rights: ' . (string) $item['rights'];
+        }
         if (($item['DOI'] ?? '') !== '') {
             $parts[] = 'doi:' . (string) $item['DOI'];
         }
@@ -425,6 +428,7 @@ final class BibtexCslProcessor
             'DOI' => ['doi'],
             'URL' => ['url'],
             'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
+            'rights' => ['rights', 'copyright', 'license', 'licence'],
             'publisher' => ['publisher', 'institution', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
             'collection-title' => ['series', 'collection-title'],

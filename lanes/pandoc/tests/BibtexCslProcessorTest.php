@@ -324,6 +324,61 @@ BIB;
         $t->same('print-on-demand packet', $item['medium']);
         $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
     },
+    'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@dataset{rights-dataset,
+  author = {Ng, Nia},
+  title  = {Rights Review Dataset},
+  date   = {2026},
+  rights = {CC BY-SA 4.0 review required},
+  doi    = {10.5555/rights-data}
+}
+
+@online{copyright-snapshot,
+  author    = {{Archive Desk}},
+  title     = {Copyright Snapshot},
+  date      = {2025},
+  copyright = {Copyright 2025 Source Archive},
+  url       = {https://example.test/copyright-snapshot}
+}
+
+@misc{license-note,
+  author  = {Roe, Pat},
+  title   = {License Note Packet},
+  date    = {2024},
+  license = {Internal migration review only}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $rightsBibliography = $processor->renderBibliographyText($items['rights-dataset']);
+
+        $t->same('CC BY-SA 4.0 review required', $items['rights-dataset']['rights']);
+        $t->same('Copyright 2025 Source Archive', $items['copyright-snapshot']['rights']);
+        $t->same('Internal migration review only', $items['license-note']['rights']);
+        $t->same('Copyright 2025 Source Archive', $items['copyright-snapshot']['rawBibtex']['fields']['copyright']);
+        $t->same('Internal migration review only', $items['license-note']['rawBibtex']['fields']['license']);
+        $t->same(
+            'Nia Ng. Rights Review Dataset. 2026. Rights: CC BY-SA 4.0 review required. doi:10.5555/rights-data.',
+            $rightsBibliography
+        );
+
+        $document = (new MarkdownReader())->read('Rights source @rights-dataset and copyright snapshot [@copyright-snapshot] keep compact notices with license @license-note.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $markdown = (new MarkdownWriter())->write($bibliographyDocument);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['rights-dataset', 'copyright-snapshot', 'license-note'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('CC BY-SA 4.0 review required', $handoff['items'][0]['rights']);
+        $t->same('Copyright 2025 Source Archive', $handoff['items'][1]['rights']);
+        $t->same('Internal migration review only', $handoff['items'][2]['rights']);
+        $t->contains('Rights: CC BY-SA 4.0 review required', $markdown);
+        $t->contains('Rights: Copyright 2025 Source Archive', $blocks);
+        $t->contains('Rights: Internal migration review only', $blocks);
+    },
     'collects cited keys in document order with missing bibliography diagnostics' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('Review @fielding2000 before @missing and [@lovelace1843]. Repeat @fielding2000.');
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-bibtex-csl-review.bib');
