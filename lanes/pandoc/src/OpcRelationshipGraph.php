@@ -271,7 +271,7 @@ final class OpcRelationshipGraph
     }
 
     /**
-     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
+     * @return array{valid:bool, isSupportedByBoundedReader:bool, entryCount:int, fileEntryCount:int, directoryEntryCount:int, packagePartCount:int, contentTypesItemCount:int, contentTypeDeclarationAvailable:bool, contentTypesParseError:?string, contentTypeResolvedPartCount:int, contentTypeDefaultResolvedPartCount:int, contentTypeOverrideResolvedPartCount:int, missingContentTypePartCount:int, missingContentTypeDefaultCount:int, missingContentTypeExtensionlessCount:int, missingContentTypeParts:list<string>, missingContentTypeExtensions:list<string>, equivalentPackagePartNameGroupCount:int, equivalentPackagePartNameEntryCount:int, relationshipPartCount:int, rootRelationshipPartCount:int, partRelationshipPartCount:int, invalidRelationshipPartCount:int, reservedRelationshipDirectoryPartCount:int, orphanRelationshipPartCount:int, relationshipPartSourceCount:int, contentTypesItemRelationshipSourceCount:int, documentPropertyPartCount:int, digitalSignaturePartCount:int, embeddedPackageCandidateCount:int, mediaPartCandidateCount:int, xmlPayloadPartCount:int, binaryPayloadPartCount:int, issueCounts:array<string, int>, issues:list<string>, roleCounts:array<string, int>, byteCountsByContentType:array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int, contentTypeSourceCounts:array<string, int>, roles:list<string>, handoffKinds:list<string>, partNames:list<string>}>, contentTypesItems:list<string>, equivalentPackagePartNameGroups:list<array{equivalenceKey:string, partNames:list<string>, entryNames:list<string>}>, relationshipParts:list<array{entryName:string, partName:string, relationshipSource:?string, relationshipSourceExists:?bool, issues:list<string>}>, entries:list<array{entryIndex:int, entryName:string, partName:?string, equivalenceKey:?string, equivalentPartNames:list<string>, isDirectory:bool, isPackagePart:bool, compressionMethod:int, compressedSize:int, uncompressedSize:int, crc32Hex:string, role:string, handoffKind:string, contentTypesItem:bool, contentType:?string, contentTypeSource:?string, contentTypeDefaultExtension:?string, contentTypeOverridePartName:?string, contentTypeOverridePartNameExactMatch:?bool, contentTypeOverridePartNameEquivalentMatch:?bool, relationshipPart:bool, relationshipPartCandidate:bool, relationshipSource:?string, relationshipSourceExists:?bool, valid:bool, issues:list<string>, parseError:?string}>}
      */
     public static function preflightZipEntryManifest(ZipPackage $package): array
     {
@@ -477,6 +477,7 @@ final class OpcRelationshipGraph
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
+        $byteCountsByContentType = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -561,6 +562,18 @@ final class OpcRelationshipGraph
                 $entry['compressedSize'],
                 $entry['uncompressedSize'],
             );
+            if ($entry['contentType'] !== null && $entry['partName'] !== null) {
+                self::incrementZipEntryManifestContentTypeByteBucket(
+                    $byteCountsByContentType,
+                    $entry['contentType'],
+                    $entry['partName'],
+                    $entry['role'],
+                    $entry['handoffKind'],
+                    $entry['contentTypeSource'] ?? 'unknown',
+                    $entry['compressedSize'],
+                    $entry['uncompressedSize'],
+                );
+            }
 
             if (
                 $largestPayloadEntry === null
@@ -639,6 +652,7 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        self::sortZipEntryManifestContentTypeByteBuckets($byteCountsByContentType);
         sort($contentTypesItems, SORT_STRING);
         sort($missingContentTypeParts, SORT_STRING);
         sort($missingContentTypeExtensions, SORT_STRING);
@@ -692,6 +706,7 @@ final class OpcRelationshipGraph
             'roleCounts' => $roleCounts,
             'byteCountsByRole' => $byteCountsByRole,
             'byteCountsByHandoffKind' => $byteCountsByHandoffKind,
+            'byteCountsByContentType' => $byteCountsByContentType,
             'largestPayloadEntry' => $largestPayloadEntry,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
@@ -6922,6 +6937,54 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['entryCount']++;
         $buckets[$bucket]['compressedBytes'] += $compressedSize;
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
+    }
+
+    /**
+     * @param array<string, array{entryCount:int, compressedBytes:int, uncompressedBytes:int, contentTypeSourceCounts:array<string, int>, roles:list<string>, handoffKinds:list<string>, partNames:list<string>}> $buckets
+     */
+    private static function incrementZipEntryManifestContentTypeByteBucket(
+        array &$buckets,
+        string $contentType,
+        string $partName,
+        string $role,
+        string $handoffKind,
+        string $contentTypeSource,
+        int $compressedSize,
+        int $uncompressedSize
+    ): void {
+        $buckets[$contentType] ??= [
+            'entryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'contentTypeSourceCounts' => [],
+            'roles' => [],
+            'handoffKinds' => [],
+            'partNames' => [],
+        ];
+
+        $buckets[$contentType]['entryCount']++;
+        $buckets[$contentType]['compressedBytes'] += $compressedSize;
+        $buckets[$contentType]['uncompressedBytes'] += $uncompressedSize;
+        $buckets[$contentType]['contentTypeSourceCounts'][$contentTypeSource]
+            = ($buckets[$contentType]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+        self::appendUniqueString($buckets[$contentType]['roles'], $role);
+        self::appendUniqueString($buckets[$contentType]['handoffKinds'], $handoffKind);
+        self::appendUniqueString($buckets[$contentType]['partNames'], $partName);
+    }
+
+    /**
+     * @param array<string, array{contentTypeSourceCounts:array<string, int>, roles:list<string>, handoffKinds:list<string>, partNames:list<string>}> $buckets
+     */
+    private static function sortZipEntryManifestContentTypeByteBuckets(array &$buckets): void
+    {
+        ksort($buckets, SORT_STRING);
+        foreach ($buckets as &$bucket) {
+            ksort($bucket['contentTypeSourceCounts'], SORT_STRING);
+            sort($bucket['roles'], SORT_STRING);
+            sort($bucket['handoffKinds'], SORT_STRING);
+            sort($bucket['partNames'], SORT_STRING);
+        }
+        unset($bucket);
     }
 
     private static function isEmbeddedPackageCandidate(string $partName): bool

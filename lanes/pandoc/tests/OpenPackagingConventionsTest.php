@@ -432,6 +432,104 @@ XML;
         $t->same(['invalid-relationship-part-name'], $entries['word/_rels/media/document.xml.rels']['issues']);
         $t->same('directory', $entries['word/media/']['handoffKind']);
     },
+    'summarizes OPC ZIP entry manifest byte buckets by content type before package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="docx" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships><Relationship Id="rIdStyles" Type="t" Target="styles.xml"/></Relationships>';
+        $stylesXml = '<w:styles/>';
+        $customXml = '<audit/>';
+        $imageBytes = 'PNGDATA';
+        $embeddedBytes = 'DOCXDATA';
+        $missingBytes = 'BIN';
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedBytes, 'compressionMethod' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $missingBytes, 'compressionMethod' => 0],
+        ]));
+
+        $relationshipsBytes = strlen($rootRelationshipsXml) + strlen($documentRelationshipsXml);
+
+        $t->same(false, $summary['valid']);
+        $t->same(7, $summary['contentTypeResolvedPartCount']);
+        $t->same(5, $summary['contentTypeDefaultResolvedPartCount']);
+        $t->same(2, $summary['contentTypeOverrideResolvedPartCount']);
+        $t->same(1, $summary['missingContentTypePartCount']);
+        $t->same(['/word/media/raw.bin'], $summary['missingContentTypeParts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.package' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($embeddedBytes),
+                'uncompressedBytes' => strlen($embeddedBytes),
+                'contentTypeSourceCounts' => ['default' => 1],
+                'roles' => ['embedded-package-candidate'],
+                'handoffKinds' => ['embedded-package'],
+                'partNames' => ['/word/embeddings/package1.docx'],
+            ],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+                'contentTypeSourceCounts' => ['override' => 1],
+                'roles' => ['xml-part'],
+                'handoffKinds' => ['xml'],
+                'partNames' => ['/word/document.xml'],
+            ],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($stylesXml),
+                'uncompressedBytes' => strlen($stylesXml),
+                'contentTypeSourceCounts' => ['override' => 1],
+                'roles' => ['xml-part'],
+                'handoffKinds' => ['xml'],
+                'partNames' => ['/word/styles.xml'],
+            ],
+            'application/vnd.openxmlformats-package.relationships+xml' => [
+                'entryCount' => 2,
+                'compressedBytes' => $relationshipsBytes,
+                'uncompressedBytes' => $relationshipsBytes,
+                'contentTypeSourceCounts' => ['default' => 2],
+                'roles' => ['package-relationships', 'part-relationships'],
+                'handoffKinds' => ['relationships+xml'],
+                'partNames' => ['/_rels/.rels', '/word/_rels/document.xml.rels'],
+            ],
+            'application/xml' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($customXml),
+                'uncompressedBytes' => strlen($customXml),
+                'contentTypeSourceCounts' => ['default' => 1],
+                'roles' => ['xml-part'],
+                'handoffKinds' => ['xml'],
+                'partNames' => ['/customXml/item1.xml'],
+            ],
+            'image/png' => [
+                'entryCount' => 1,
+                'compressedBytes' => strlen($imageBytes),
+                'uncompressedBytes' => strlen($imageBytes),
+                'contentTypeSourceCounts' => ['default' => 1],
+                'roles' => ['media'],
+                'handoffKinds' => ['media'],
+                'partNames' => ['/word/media/image.png'],
+            ],
+        ], $summary['byteCountsByContentType']);
+        $t->same(false, isset($summary['byteCountsByContentType']['application/octet-stream']));
+    },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
