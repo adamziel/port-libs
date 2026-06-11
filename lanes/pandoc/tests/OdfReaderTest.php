@@ -9470,12 +9470,60 @@ XML;
         $t->same(0, $result['importReport']['manifest']['encryptedCount']);
         $t->same(8, count($result['document']->children));
     },
+    'preserves ODT manifest key derivation size for encrypted package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="sha256-checksum">
+      <manifest:algorithm manifest:algorithm-name="AES-256-CBC" manifest:initialisation-vector="iv-256"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:key-size="32" manifest:iteration-count="600000" manifest:salt="salt-256"/>
+      <manifest:start-key-generation manifest:start-key-generation-name="SHA256" manifest:key-size="32"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithEncryptedMedia = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithEncryptedMedia));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+
+        $heroManifest = $manifestByPath['Pictures/hero.png'];
+        $manifestEncryption = $heroManifest['encryption'];
+        $mediaEncryption = $result['media'][0]['encryption'];
+        $reportEncryption = $result['importReport']['encryption']['items'][0]['encryption'];
+        $documentManifestItems = $result['document']->attr('manifest')['items'];
+        $documentManifestByPath = [];
+        foreach ($documentManifestItems as $item) {
+            $documentManifestByPath[$item['fullPath']] = $item;
+        }
+        $image = $result['document']->children[5]->children[0];
+        $imageEncryption = $image->attr('encryption');
+
+        $t->same(true, $heroManifest['encrypted']);
+        $t->same(false, $heroManifest['canExposeBytes']);
+        $t->same('AES-256-CBC', $manifestEncryption['algorithm']['name']);
+        $t->same('PBKDF2', $manifestEncryption['keyDerivation']['name']);
+        $t->same(32, $manifestEncryption['keyDerivation']['keySize']);
+        $t->same(600000, $manifestEncryption['keyDerivation']['iterationCount']);
+        $t->same('salt-256', $manifestEncryption['keyDerivation']['salt']);
+        $t->same(32, $manifestEncryption['startKeyGeneration']['keySize']);
+        $t->same(32, $mediaEncryption['keyDerivation']['keySize']);
+        $t->same(32, $reportEncryption['keyDerivation']['keySize']);
+        $t->same(32, $documentManifestByPath['Pictures/hero.png']['encryption']['keyDerivation']['keySize']);
+        $t->same(32, $imageEncryption['keyDerivation']['keySize']);
+        $t->same(null, $image->attr('bytes'), 'encrypted media bytes must remain blocked');
+    },
     'reports encrypted ODT manifest resources without exposing media bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $encryptedEntry = <<<'XML'
 <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="2048">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
       <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
-      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:key-size="16" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
       <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
     </manifest:encryption-data>
   </manifest:file-entry>
@@ -9505,6 +9553,7 @@ XML;
         $t->same('Blowfish CFB', $heroManifest['encryption']['algorithm']['name']);
         $t->same('iv-base64', $heroManifest['encryption']['algorithm']['initialisationVector']);
         $t->same('PBKDF2', $heroManifest['encryption']['keyDerivation']['name']);
+        $t->same(16, $heroManifest['encryption']['keyDerivation']['keySize']);
         $t->same(1024, $heroManifest['encryption']['keyDerivation']['iterationCount']);
         $t->same('salt-base64', $heroManifest['encryption']['keyDerivation']['salt']);
         $t->same('SHA1', $heroManifest['encryption']['startKeyGeneration']['name']);

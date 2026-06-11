@@ -303,7 +303,7 @@ return [
   <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="2048" manifest:preferred-view-mode="presentation-slide-show">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="checksum-base64">
       <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="iv-base64"/>
-      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:key-size="16" manifest:iteration-count="1024" manifest:salt="salt-base64"/>
       <manifest:start-key-generation manifest:start-key-generation-name="SHA1" manifest:key-size="20"/>
     </manifest:encryption-data>
   </manifest:file-entry>
@@ -334,6 +334,7 @@ XML;
         $t->same('Blowfish CFB', $hero['encryption']['algorithm']['name']);
         $t->same('iv-base64', $hero['encryption']['algorithm']['initialisationVector']);
         $t->same('PBKDF2', $hero['encryption']['keyDerivation']['name']);
+        $t->same(16, $hero['encryption']['keyDerivation']['keySize']);
         $t->same(1024, $hero['encryption']['keyDerivation']['iterationCount']);
         $t->same('salt-base64', $hero['encryption']['keyDerivation']['salt']);
         $t->same('SHA1', $hero['encryption']['startKeyGeneration']['name']);

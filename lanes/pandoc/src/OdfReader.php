@@ -628,6 +628,7 @@ final class OdfReader
     {
         return self::withoutEmpty([
             'name' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'key-derivation-name')),
+            'keySize' => self::nullableInt(self::attr($keyDerivation, self::MANIFEST_NS, 'key-size')),
             'iterationCount' => self::nullableInt(self::attr($keyDerivation, self::MANIFEST_NS, 'iteration-count')),
             'salt' => self::nullable(self::attr($keyDerivation, self::MANIFEST_NS, 'salt')),
         ]);
