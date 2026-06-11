@@ -733,6 +733,72 @@ XML;
         $t->same('Heading', $styles['Heading_20_2']['parent']);
         $t->same('Heading 2', $styles['Heading_20_2']['displayName']);
     },
+    'preserves ODT meta link policy metadata and repeated keywords' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $meta = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  office:version="1.3">
+  <office:meta>
+    <dc:title>Linked Metadata Packet</dc:title>
+    <meta:keyword>import, odt</meta:keyword>
+    <meta:keyword>review queue</meta:keyword>
+    <meta:template
+      xlink:type="simple"
+      xlink:href="../Templates/source-template.ott"
+      xlink:title="Source Template"
+      xlink:actuate="onRequest"
+      xlink:show="replace"
+      meta:date="2026-06-09T10:00:00Z"
+      meta:name="source-template"/>
+    <meta:auto-reload
+      xlink:type="simple"
+      xlink:href="https://example.test/reload.odt"
+      xlink:actuate="onLoad"
+      xlink:show="replace"
+      meta:delay="PT5M"/>
+    <meta:hyperlink-behaviour
+      office:target-frame-name="_blank"
+      xlink:show="new"/>
+  </office:meta>
+</office:document-meta>
+XML;
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(meta: $meta));
+        $metadata = $odt->metadata();
+        $summary = $odt->summarize();
+        $documentMetadata = $odt->readContentDocument()->attr('metadata');
+
+        $t->same('Linked Metadata Packet', $metadata['title']);
+        $t->same(['import', 'odt', 'review queue'], $metadata['keywords']);
+
+        $t->same('../Templates/source-template.ott', $metadata['template']['href']);
+        $t->same('Source Template', $metadata['template']['title']);
+        $t->same('simple', $metadata['template']['type']);
+        $t->same('onRequest', $metadata['template']['actuate']);
+        $t->same('replace', $metadata['template']['show']);
+        $t->same('2026-06-09T10:00:00Z', $metadata['template']['date']);
+        $t->same('source-template', $metadata['template']['name']);
+
+        $t->same('https://example.test/reload.odt', $metadata['autoReload']['href']);
+        $t->same('simple', $metadata['autoReload']['type']);
+        $t->same('onLoad', $metadata['autoReload']['actuate']);
+        $t->same('replace', $metadata['autoReload']['show']);
+        $t->same('PT5M', $metadata['autoReload']['delay']);
+
+        $t->same('_blank', $metadata['hyperlinkBehaviour']['targetFrameName']);
+        $t->same('new', $metadata['hyperlinkBehaviour']['show']);
+
+        $t->same($metadata['keywords'], $summary['metadata']['keywords']);
+        $t->same($metadata['template'], $summary['metadata']['template']);
+        $t->same($metadata['autoReload'], $summary['metadata']['autoReload']);
+        $t->same($metadata['hyperlinkBehaviour'], $summary['metadata']['hyperlinkBehaviour']);
+        $t->same($metadata['template'], $documentMetadata['template']);
+        $t->same($metadata['autoReload'], $documentMetadata['autoReload']);
+        $t->same($metadata['hyperlinkBehaviour'], $documentMetadata['hyperlinkBehaviour']);
+    },
     'maps ODT editing metadata and document statistics from meta xml' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $meta = <<<'XML'
 <office:document-meta

@@ -953,12 +953,54 @@ final class OpenDocumentPackage
             }
         }
 
-        $keywordText = self::firstChildElementText($meta, self::META_NAMESPACE, 'keyword');
-        if ($keywordText !== null && $keywordText !== '') {
-            $metadata['keywords'] = array_values(array_filter(
-                array_map(static fn (string $keyword): string => trim($keyword), explode(',', $keywordText)),
-                static fn (string $keyword): bool => $keyword !== ''
-            ));
+        $keywords = [];
+        foreach (self::childElements($meta, self::META_NAMESPACE, 'keyword') as $keywordElement) {
+            $keywordText = trim($keywordElement->textContent);
+            if ($keywordText === '') {
+                continue;
+            }
+
+            foreach (explode(',', $keywordText) as $keyword) {
+                $keyword = trim($keyword);
+                if ($keyword !== '') {
+                    $keywords[] = $keyword;
+                }
+            }
+        }
+        if ($keywords !== []) {
+            $metadata['keywords'] = $keywords;
+        }
+
+        $template = self::metadataChildAttributes($meta, 'template', [
+            'href' => [self::XLINK_NAMESPACE, 'href'],
+            'title' => [self::XLINK_NAMESPACE, 'title'],
+            'type' => [self::XLINK_NAMESPACE, 'type'],
+            'actuate' => [self::XLINK_NAMESPACE, 'actuate'],
+            'show' => [self::XLINK_NAMESPACE, 'show'],
+            'date' => [self::META_NAMESPACE, 'date'],
+            'name' => [self::META_NAMESPACE, 'name'],
+        ]);
+        if ($template !== []) {
+            $metadata['template'] = $template;
+        }
+
+        $autoReload = self::metadataChildAttributes($meta, 'auto-reload', [
+            'href' => [self::XLINK_NAMESPACE, 'href'],
+            'type' => [self::XLINK_NAMESPACE, 'type'],
+            'actuate' => [self::XLINK_NAMESPACE, 'actuate'],
+            'show' => [self::XLINK_NAMESPACE, 'show'],
+            'delay' => [self::META_NAMESPACE, 'delay'],
+        ]);
+        if ($autoReload !== []) {
+            $metadata['autoReload'] = $autoReload;
+        }
+
+        $hyperlinkBehaviour = self::metadataChildAttributes($meta, 'hyperlink-behaviour', [
+            'targetFrameName' => [self::OFFICE_NAMESPACE, 'target-frame-name'],
+            'show' => [self::XLINK_NAMESPACE, 'show'],
+        ]);
+        if ($hyperlinkBehaviour !== []) {
+            $metadata['hyperlinkBehaviour'] = $hyperlinkBehaviour;
         }
 
         $userDefined = [];
@@ -987,6 +1029,29 @@ final class OpenDocumentPackage
         }
 
         return $metadata;
+    }
+
+    /**
+     * @param array<string, array{0:string, 1:string}> $attributes
+     *
+     * @return array<string, string>
+     */
+    private static function metadataChildAttributes(\DOMElement $meta, string $localName, array $attributes): array
+    {
+        $element = self::firstDirectChildElement($meta, self::META_NAMESPACE, $localName);
+        if (!$element instanceof \DOMElement) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($attributes as $key => [$namespace, $attributeName]) {
+            $value = self::optionalString(self::namespacedAttribute($element, $namespace, $attributeName));
+            if ($value !== null) {
+                $values[$key] = $value;
+            }
+        }
+
+        return $values;
     }
 
     /**
