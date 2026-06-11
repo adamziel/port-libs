@@ -22625,6 +22625,89 @@ XML);
         $latePos = strpos($blocks, '<dt>Zed 2026</dt>');
         $t->true(is_int($earlyPos) && is_int($middlePos) && is_int($latePos) && $earlyPos < $middlePos && $middlePos < $latePos, 'WordPress bibliography entries should follow CSL source sort order');
     },
+    'renders bounded csl source title aliases for direct csl json' => static function (TestRunner $t): void {
+        $json = json_encode([
+            [
+                'id' => 'zeta-source-title',
+                'type' => 'report',
+                'title' => 'Zeta Source Title Packet',
+                'sourceTitle' => 'Alpha Import Queue',
+                'author' => [
+                    ['family' => 'Zed', 'given' => 'Zia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+            ],
+            [
+                'id' => 'alpha-source-title',
+                'type' => 'report',
+                'title' => 'Alpha Source Title Packet',
+                'source-title' => 'Zeta Import Queue',
+                'author' => [
+                    ['family' => 'Adams', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $t->same('Alpha Import Queue', $processor->item('zeta-source-title')['source'] ?? null);
+        $t->same('Zeta Import Queue', $processor->item('alpha-source-title')['source'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Source Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-source-title-alias-review</id>
+    <updated>2026-06-11T11:40:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="source-title"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <number variable="citation-number"/>
+        <names variable="author"/>
+        <text variable="source-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="sourcetitle"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <number variable="citation-number"/>
+      <text variable="title"/>
+      <text variable="sourcetitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Direct CSL Source Title Alias Review', $summary['title'] ?? null);
+        $t->same('source-title', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('sourcetitle', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('source-title', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('sourcetitle', $summary['bibliographyRendering'][2]['variable'] ?? null);
+        $t->same('[1 | Zed | Alpha Import Queue; 2 | Adams | Zeta Import Queue]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'alpha-source-title', 'text' => '[@alpha-source-title]']),
+            new AstNode('citation', ['id' => 'zeta-source-title', 'text' => '[@zeta-source-title]']),
+        ]));
+        $t->same('1 :: Zeta Source Title Packet :: Alpha Import Queue', $styled->renderBibliographyEntry('zeta-source-title'));
+        $t->same('2 :: Alpha Source Title Packet :: Zeta Import Queue', $styled->renderBibliographyEntry('alpha-source-title'));
+
+        $document = (new MarkdownReader())->read('Source-title aliases [@alpha-source-title; @zeta-source-title] keep import queues sortable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Source-title aliases [1 | Zed | Alpha Import Queue; 2 | Adams | Zeta Import Queue] keep import queues sortable.</p>', $blocks);
+        $t->contains('<dt>Zed 2026</dt><dd>1 :: Zeta Source Title Packet :: Alpha Import Queue</dd>', $blocks);
+        $t->contains('<dt>Adams 2025</dt><dd>2 :: Alpha Source Title Packet :: Zeta Import Queue</dd>', $blocks);
+        $zetaPosition = strpos($blocks, '<dt>Zed 2026</dt>');
+        $alphaPosition = strpos($blocks, '<dt>Adams 2025</dt>');
+        $t->true(is_int($zetaPosition) && is_int($alphaPosition) && $zetaPosition < $alphaPosition, 'Source-title aliases should sort bibliography entries by normalized source metadata');
+    },
     'applies bounded csl date variable sort keys to citation and bibliography order' => static function (TestRunner $t): void {
         $processor = CitationCslProcessor::fromItems([
             [
