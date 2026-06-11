@@ -275,8 +275,15 @@ final class XmlHtmlDom
         'zoomandpan' => 'zoomAndPan',
     ];
 
-    public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
-    {
+    /**
+     * @return array{document:\DOMDocument, provenance:array<string, mixed>}
+     */
+    public static function parseXmlDocument(
+        string $xml,
+        string $label = 'XML document',
+        bool $preserveWhiteSpace = true,
+        ?string $sourceName = null
+    ): array {
         self::assertSafeSource($xml, $label);
         self::assertNoDoctype($xml, $label);
 
@@ -296,14 +303,31 @@ final class XmlHtmlDom
 
         self::assertNoProcessingInstructions($dom, $label);
 
-        return $dom;
+        $root = $dom->documentElement;
+        $provenance = $root instanceof \DOMElement
+            ? self::documentProvenance($root, $xml, 'xml', $label, $sourceName, includeRoot: true, preserveWhiteSpace: $preserveWhiteSpace)
+            : self::emptyDocumentProvenance($xml, 'xml', $label, $sourceName, $preserveWhiteSpace);
+
+        return [
+            'document' => $dom,
+            'provenance' => $provenance,
+        ];
     }
 
-    public static function loadHtmlFragment(string $html, string $label = 'HTML fragment'): \DOMDocument
+    public static function loadXmlDocument(string $xml, string $label = 'XML document', bool $preserveWhiteSpace = true): \DOMDocument
+    {
+        return self::parseXmlDocument($xml, $label, $preserveWhiteSpace)['document'];
+    }
+
+    /**
+     * @return array{document:\DOMDocument, fragmentRoot:\DOMElement, provenance:array<string, mixed>}
+     */
+    public static function parseHtmlFragment(string $html, string $label = 'HTML fragment', ?string $sourceName = null): array
     {
         self::assertSafeSource($html, $label);
         self::assertNoDoctype($html, $label);
         self::assertNoHtmlFragmentDeclarations($html, $label);
+        $source = $html;
         $html = self::protectHtmlRcdataElements($html, protectTemplateContent: true, protectIframeContent: true);
 
         $wrapped = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><div '
@@ -319,11 +343,43 @@ final class XmlHtmlDom
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        if (!$loaded || self::fragmentRoot($dom) === null) {
+        $fragmentRoot = self::fragmentRoot($dom);
+        if (!$loaded || !$fragmentRoot instanceof \DOMElement) {
             throw new \InvalidArgumentException(self::parseErrorMessage('Unable to parse ' . $label, $errors));
         }
 
-        return $dom;
+        return [
+            'document' => $dom,
+            'fragmentRoot' => $fragmentRoot,
+            'provenance' => self::documentProvenance($fragmentRoot, $source, 'html', $label, $sourceName, includeRoot: false, preserveWhiteSpace: true),
+        ];
+    }
+
+    public static function loadHtmlFragment(string $html, string $label = 'HTML fragment'): \DOMDocument
+    {
+        return self::parseHtmlFragment($html, $label)['document'];
+    }
+
+    /**
+     * @param array<string, mixed>|null $documentProvenance
+     * @return array<string, mixed>
+     */
+    public static function elementProvenance(\DOMElement $element, ?array $documentProvenance = null): array
+    {
+        if ($documentProvenance !== null) {
+            $format = is_string($documentProvenance['format'] ?? null) ? (string) $documentProvenance['format'] : 'dom';
+            $path = self::elementPath($element, $format);
+            $indexes = $documentProvenance['elementIndexesByPath'] ?? [];
+            if (is_array($indexes) && isset($indexes[$path])) {
+                $elements = $documentProvenance['elements'] ?? [];
+                $offset = $indexes[$path];
+                if (is_int($offset) && is_array($elements) && isset($elements[$offset]) && is_array($elements[$offset])) {
+                    return $elements[$offset];
+                }
+            }
+        }
+
+        return self::fallbackElementProvenance($element, 'dom', 'DOM element', null);
     }
 
     public static function rootElement(\DOMDocument $dom, ?string $localName = null, ?string $namespace = null): ?\DOMElement
@@ -682,6 +738,242 @@ final class XmlHtmlDom
         $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $node->textContent) ?? $node->textContent;
 
         return trim($text);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function documentProvenance(
+        \DOMElement $root,
+        string $source,
+        string $format,
+        string $label,
+        ?string $sourceName,
+        bool $includeRoot,
+        bool $preserveWhiteSpace
+    ): array {
+        $elements = [];
+        self::collectProvenanceElements($root, $includeRoot, $elements);
+
+        $records = [];
+        $indexesByPath = [];
+        $scanOffset = 0;
+        foreach ($elements as $element) {
+            $record = self::fallbackElementProvenance($element, $format, $label, $sourceName);
+            $location = self::nextElementSourceLocation($source, $scanOffset, $element, $format);
+            if ($location !== null) {
+                $record['line'] = $location['line'];
+                $record['column'] = $location['column'];
+                $record['byteOffset'] = $location['byteOffset'];
+                $record['sourceTag'] = $location['sourceTag'];
+            }
+
+            $record['index'] = count($records) + 1;
+            $records[] = $record;
+            $indexesByPath[(string) $record['path']] = count($records) - 1;
+        }
+
+        return [
+            'format' => $format,
+            'label' => $label,
+            'sourceName' => $sourceName,
+            'byteLength' => strlen($source),
+            'lineCount' => self::sourceLineCount($source),
+            'preserveWhiteSpace' => $preserveWhiteSpace,
+            'root' => $records[0] ?? null,
+            'elementCount' => count($records),
+            'elements' => $records,
+            'elementIndexesByPath' => $indexesByPath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyDocumentProvenance(
+        string $source,
+        string $format,
+        string $label,
+        ?string $sourceName,
+        bool $preserveWhiteSpace
+    ): array {
+        return [
+            'format' => $format,
+            'label' => $label,
+            'sourceName' => $sourceName,
+            'byteLength' => strlen($source),
+            'lineCount' => self::sourceLineCount($source),
+            'preserveWhiteSpace' => $preserveWhiteSpace,
+            'root' => null,
+            'elementCount' => 0,
+            'elements' => [],
+            'elementIndexesByPath' => [],
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $elements
+     */
+    private static function collectProvenanceElements(\DOMElement $root, bool $includeSelf, array &$elements): void
+    {
+        if ($includeSelf) {
+            $elements[] = $root;
+        }
+
+        foreach ($root->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                self::collectProvenanceElements($child, true, $elements);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function fallbackElementProvenance(
+        \DOMElement $element,
+        string $format,
+        string $label,
+        ?string $sourceName
+    ): array {
+        $line = $element->getLineNo();
+
+        return [
+            'kind' => 'element',
+            'format' => $format,
+            'label' => $label,
+            'sourceName' => $sourceName,
+            'path' => self::elementPath($element, $format),
+            'name' => self::provenanceElementName($element, $format),
+            'localName' => $element->localName,
+            'namespace' => $element->namespaceURI,
+            'attributes' => self::provenanceAttributes($element, $format),
+            'line' => $line > 0 ? $line : null,
+            'column' => null,
+            'byteOffset' => null,
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function provenanceAttributes(\DOMElement $element, string $format): array
+    {
+        if ($format === 'html') {
+            return self::htmlAttributes($element);
+        }
+
+        $attributes = [];
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+            $name = $attribute->prefix !== '' ? $attribute->prefix . ':' . $attribute->localName : $attribute->name;
+            $attributes[$name] = $attribute->value;
+        }
+        ksort($attributes);
+
+        return $attributes;
+    }
+
+    private static function provenanceElementName(\DOMElement $element, string $format): string
+    {
+        return $format === 'html' ? self::htmlElementName($element) : $element->tagName;
+    }
+
+    private static function elementPath(\DOMElement $element, string $format): string
+    {
+        $segments = [];
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            if ($format === 'html' && $node->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+                break;
+            }
+
+            $segments[] = self::elementPathSegment($node, $format);
+            $parent = $node->parentNode;
+            $node = $parent instanceof \DOMElement ? $parent : null;
+        }
+
+        return '/' . implode('/', array_reverse($segments));
+    }
+
+    private static function elementPathSegment(\DOMElement $element, string $format): string
+    {
+        $name = self::provenanceElementName($element, $format);
+        $index = 1;
+        $previous = $element->previousSibling;
+        while ($previous instanceof \DOMNode) {
+            if ($previous instanceof \DOMElement && self::provenanceElementName($previous, $format) === $name) {
+                ++$index;
+            }
+            $previous = $previous->previousSibling;
+        }
+
+        return $name . '[' . $index . ']';
+    }
+
+    /**
+     * @return array{byteOffset:int, line:int, column:int, sourceTag:string}|null
+     */
+    private static function nextElementSourceLocation(
+        string $source,
+        int &$scanOffset,
+        \DOMElement $element,
+        string $format
+    ): ?array {
+        $probeOffset = $scanOffset;
+        while (preg_match('/<\s*([A-Za-z_][A-Za-z0-9_.:-]*)(?=[\s\/>])/', $source, $matches, PREG_OFFSET_CAPTURE, $probeOffset) === 1) {
+            $tagOffset = (int) $matches[0][1];
+            $rawName = (string) $matches[1][0];
+            $probeOffset = $tagOffset + 1;
+            if (!self::sourceTagMatchesElement($rawName, $element, $format)) {
+                continue;
+            }
+
+            $scanOffset = $probeOffset;
+            [$line, $column] = self::sourceLineColumn($source, $tagOffset);
+
+            return [
+                'byteOffset' => $tagOffset,
+                'line' => $line,
+                'column' => $column,
+                'sourceTag' => $rawName,
+            ];
+        }
+
+        return null;
+    }
+
+    private static function sourceTagMatchesElement(string $rawName, \DOMElement $element, string $format): bool
+    {
+        if ($format === 'xml') {
+            return $rawName === $element->tagName || $rawName === $element->localName;
+        }
+
+        $rawName = strtolower($rawName);
+
+        return $rawName === strtolower($element->tagName)
+            || $rawName === strtolower($element->localName)
+            || $rawName === strtolower(self::htmlElementName($element));
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private static function sourceLineColumn(string $source, int $offset): array
+    {
+        $prefix = substr($source, 0, $offset);
+        $line = substr_count($prefix, "\n") + 1;
+        $lastNewline = strrpos($prefix, "\n");
+        $column = $lastNewline === false ? $offset + 1 : $offset - $lastNewline;
+
+        return [$line, $column];
+    }
+
+    private static function sourceLineCount(string $source): int
+    {
+        return $source === '' ? 1 : substr_count($source, "\n") + 1;
     }
 
     private static function requireFragmentRoot(\DOMDocument $dom): \DOMElement

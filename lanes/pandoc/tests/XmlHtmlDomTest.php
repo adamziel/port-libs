@@ -82,6 +82,86 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
+    'parses XML documents through DOM adapter with source provenance for package readers' => static function (TestRunner $t): void {
+        $parsed = XmlHtmlDom::parseXmlDocument(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<pkg:package xmlns:pkg="urn:pkg" xmlns:w="urn:word">
+  <pkg:body>
+    <w:p w:style="Heading">Title</w:p>
+  </pkg:body>
+</pkg:package>
+XML, 'package reader XML', preserveWhiteSpace: false, sourceName: 'word/document.xml');
+        $dom = $parsed['document'];
+        $provenance = $parsed['provenance'];
+        $root = $dom->documentElement;
+        $paragraph = $root instanceof DOMElement ? XmlHtmlDom::firstDescendantElement($root, 'p', 'urn:word') : null;
+        $paragraphProvenance = $paragraph instanceof DOMElement ? XmlHtmlDom::elementProvenance($paragraph, $provenance) : [];
+
+        $t->true($dom instanceof DOMDocument);
+        $t->true($root instanceof DOMElement);
+        $t->true($paragraph instanceof DOMElement);
+        $t->same('xml', $provenance['format']);
+        $t->same('package reader XML', $provenance['label']);
+        $t->same('word/document.xml', $provenance['sourceName']);
+        $t->same(false, $provenance['preserveWhiteSpace']);
+        $t->same(6, $provenance['lineCount']);
+        $t->same(3, $provenance['elementCount']);
+        $t->same('/pkg:package[1]', $provenance['root']['path']);
+        $t->same('pkg:package', $provenance['root']['name']);
+        $t->same('package', $provenance['root']['localName']);
+        $t->same('urn:pkg', $provenance['root']['namespace']);
+        $t->same(2, $provenance['root']['line']);
+        $t->same(1, $provenance['root']['column']);
+        $t->same('/pkg:package[1]/pkg:body[1]/w:p[1]', $paragraphProvenance['path']);
+        $t->same('w:p', $paragraphProvenance['name']);
+        $t->same('p', $paragraphProvenance['localName']);
+        $t->same('urn:word', $paragraphProvenance['namespace']);
+        $t->same(['w:style' => 'Heading'], $paragraphProvenance['attributes']);
+        $t->same(4, $paragraphProvenance['line']);
+        $t->same(5, $paragraphProvenance['column']);
+        $t->same('w:p', $paragraphProvenance['sourceTag']);
+        $t->true(is_int($paragraphProvenance['byteOffset']));
+    },
+    'parses HTML fragments through DOM adapter with source provenance for reader handoff' => static function (TestRunner $t): void {
+        $parsed = XmlHtmlDom::parseHtmlFragment(<<<'HTML'
+<section data-source="opf">
+  <p>Intro<br>Next</p>
+  <img src="cover.png" alt="Cover">
+</section>
+HTML, 'EPUB XHTML body fragment', 'OEBPS/chapter.xhtml');
+        $dom = $parsed['document'];
+        $provenance = $parsed['provenance'];
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $section = $summary[0];
+        $image = $dom->getElementsByTagName('img')->item(0);
+        $imageProvenance = $image instanceof DOMElement ? XmlHtmlDom::elementProvenance($image, $provenance) : [];
+
+        $t->true($dom instanceof DOMDocument);
+        $t->same('html', $provenance['format']);
+        $t->same('EPUB XHTML body fragment', $provenance['label']);
+        $t->same('OEBPS/chapter.xhtml', $provenance['sourceName']);
+        $t->same(4, $provenance['lineCount']);
+        $t->same(4, $provenance['elementCount']);
+        $t->same('/section[1]', $provenance['root']['path']);
+        $t->same('section', $provenance['root']['name']);
+        $t->same(['data-source' => 'opf'], $provenance['root']['attributes']);
+        $t->same(1, $provenance['root']['line']);
+        $t->same(1, $provenance['root']['column']);
+        $t->same('section', $section['name']);
+        $t->same('Cover', $section['children'][3]['alt']);
+        $t->same('/section[1]/img[1]', $imageProvenance['path']);
+        $t->same('img', $imageProvenance['name']);
+        $t->same(['alt' => 'Cover', 'src' => 'cover.png'], $imageProvenance['attributes']);
+        $t->same(3, $imageProvenance['line']);
+        $t->same(3, $imageProvenance['column']);
+        $t->same('img', $imageProvenance['sourceTag']);
+        $t->true(is_int($imageProvenance['byteOffset']));
+        $t->same('<section data-source="opf">
+  <p>Intro<br>Next</p>
+  <img alt="Cover" src="cover.png">
+</section>', $html);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',
