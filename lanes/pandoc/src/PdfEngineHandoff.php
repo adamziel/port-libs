@@ -6260,7 +6260,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{raw:string, value:string, format:string|null, machineReadable:bool, safe:bool, issues:list<string>}
+     * @return array{raw:string, value:string, format:string|null, machineReadable:bool, sourceLocationStyle:string, safe:bool, issues:list<string>}
      */
     private function typstDiagnosticFormatEntry(string $raw): array
     {
@@ -6282,6 +6282,12 @@ final class PdfEngineHandoff
             'value' => $value,
             'format' => $format,
             'machineReadable' => $format === 'json',
+            'sourceLocationStyle' => match ($format) {
+                'human' => 'expanded',
+                'short' => 'compact',
+                'json' => 'structured',
+                default => 'unknown',
+            },
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];

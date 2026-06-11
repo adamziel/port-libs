@@ -1062,6 +1062,7 @@ return [
                     'value' => 'json',
                     'format' => 'json',
                     'machineReadable' => true,
+                    'sourceLocationStyle' => 'structured',
                     'safe' => true,
                     'issues' => [],
                 ],
@@ -1097,6 +1098,7 @@ return [
                     'value' => 'xml',
                     'format' => null,
                     'machineReadable' => false,
+                    'sourceLocationStyle' => 'unknown',
                     'safe' => false,
                     'issues' => ['diagnostic-format-invalid-boundary'],
                 ],
@@ -1105,6 +1107,7 @@ return [
                     'value' => 'json',
                     'format' => 'json',
                     'machineReadable' => true,
+                    'sourceLocationStyle' => 'structured',
                     'safe' => true,
                     'issues' => [],
                 ],
@@ -1151,6 +1154,59 @@ return [
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+
+    },
+
+    'plans typst diagnostic format source style provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $pdfBytes = "%PDF-1.7\n% fake Typst diagnostic format source style packet\n%%EOF\n";
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/diagnostic-output-short.pdf',
+            'source' => '= Typst Diagnostic Output Short Packet',
+            'engineOptions' => ['--diagnostic-format=short'],
+        ]);
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'diagnosticOutput' => [
+                'format' => [
+                    'raw' => 'short',
+                    'value' => 'short',
+                    'format' => 'short',
+                    'machineReadable' => false,
+                    'sourceLocationStyle' => 'compact',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'color' => null,
+                'issues' => [],
+            ],
+        ];
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/diagnostic-output-short.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/diagnostic-output-short.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostics-format:short', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
