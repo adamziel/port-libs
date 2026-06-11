@@ -9773,6 +9773,64 @@ XML;
         $t->same(2, $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionRecordCount']);
         $t->same($encryption['issueCodes'], $compactSummary['packageInventory']['parts']['Pictures/hero.png']['manifestEncryptionIssueCodes']);
     },
+    'preserves ODT package provenance encryption record summaries for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $encryptedEntry = <<<'XML'
+<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="4096" manifest:version="1.2" manifest:preferred-view-mode="preview">
+    <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="first-checksum">
+      <manifest:algorithm manifest:algorithm-name="Blowfish CFB" manifest:initialisation-vector="first-iv"/>
+    </manifest:encryption-data>
+    <manifest:encryption-data manifest:checksum-type="SHA256/1K" manifest:checksum="second-checksum">
+      <manifest:algorithm manifest:algorithm-name="AES256" manifest:initialization-vector="second-iv"/>
+      <manifest:key-derivation manifest:key-derivation-name="PBKDF2" manifest:iteration-count="2048" manifest:salt="second-salt"/>
+    </manifest:encryption-data>
+  </manifest:file-entry>
+XML;
+        $manifestWithRepeatedEncryptionData = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $encryptedEntry,
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithRepeatedEncryptionData));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+
+        $heroManifest = $manifestByPath['Pictures/hero.png'];
+        $encryption = $heroManifest['encryption'];
+        $heroInventory = $provenance['parts']['Pictures/hero.png'];
+        $heroOrder = $manifestOrderByPath['Pictures/hero.png'];
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(true, $heroInventory['encrypted']);
+        $t->same(false, $heroInventory['canExposeBytes']);
+        $t->same('1.2', $heroInventory['manifestVersion']);
+        $t->same('preview', $heroInventory['manifestPreferredViewMode']);
+        $t->same($encryption, $heroInventory['manifestEncryption']);
+        $t->same(2, $heroInventory['manifestEncryptionRecordCount']);
+        $t->same(['odf-manifest-encryption-multiple-encryption-data'], $heroInventory['manifestEncryptionIssueCodes']);
+        $t->same('SHA1/1K', $heroInventory['manifestEncryption']['records'][0]['checksumType']);
+        $t->same('SHA256/1K', $heroInventory['manifestEncryption']['records'][1]['checksumType']);
+        $t->same('second-checksum', $heroInventory['manifestEncryption']['records'][1]['checksum']);
+        $t->same('AES256', $heroInventory['manifestEncryption']['records'][1]['algorithm']['name']);
+        $t->same('PBKDF2', $heroInventory['manifestEncryption']['records'][1]['keyDerivation']['name']);
+        $t->same(2048, $heroInventory['manifestEncryption']['records'][1]['keyDerivation']['iterationCount']);
+        $t->same('second-salt', $heroInventory['manifestEncryption']['records'][1]['keyDerivation']['salt']);
+
+        $t->same('1.2', $heroOrder['version']);
+        $t->same('preview', $heroOrder['preferredViewMode']);
+        $t->same(true, $heroOrder['encrypted']);
+        $t->same(false, $heroOrder['canExposeBytes']);
+        $t->same(2, $heroOrder['encryptionRecordCount']);
+        $t->same($encryption['issueCodes'], $heroOrder['encryptionIssueCodes']);
+        $t->same($encryption, $result['importReport']['manifest']['encryptedItems'][0]['encryption']);
+    },
     'maps ODT RDF metadata sidecars into package review metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithRdf = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',

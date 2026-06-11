@@ -721,9 +721,13 @@ final class OdfReader
                 'partReference' => $item['partReference'] ?? null,
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'mediaType' => $item['mediaType'] ?? null,
+                'version' => $item['version'] ?? null,
+                'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
+                'encryptionRecordCount' => is_array($item['encryption'] ?? null) ? ($item['encryption']['recordCount'] ?? 0) : 0,
+                'encryptionIssueCodes' => is_array($item['encryption'] ?? null) ? ($item['encryption']['issueCodes'] ?? []) : [],
                 'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                 'diagnostics' => $item['diagnostics'] ?? [],
             ];
@@ -802,6 +806,15 @@ final class OdfReader
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
+                'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
+                'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
+                'manifestEncryption' => is_array($manifestItem) ? ($manifestItem['encryption'] ?? null) : null,
+                'manifestEncryptionRecordCount' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
+                    ? ($manifestItem['encryption']['recordCount'] ?? 0)
+                    : 0,
+                'manifestEncryptionIssueCodes' => is_array($manifestItem) && is_array($manifestItem['encryption'] ?? null)
+                    ? ($manifestItem['encryption']['issueCodes'] ?? [])
+                    : [],
                 'manifestDiagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
