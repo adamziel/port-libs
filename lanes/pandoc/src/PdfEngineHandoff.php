@@ -196,6 +196,10 @@ final class PdfEngineHandoff
         if ($engineDependencyFile !== null && !in_array($engineDependencyFile, $expectedEngineArtifacts, true)) {
             $expectedEngineArtifacts[] = $engineDependencyFile;
         }
+        $typstTimingFile = $this->typstTimingOutputFileFor($engine, $profile['family'], $engineOptions);
+        if ($typstTimingFile !== null && !in_array($typstTimingFile, $expectedEngineArtifacts, true)) {
+            $expectedEngineArtifacts[] = $typstTimingFile;
+        }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions);
         $engineBoundaryRoot = $this->engineBoundaryRootFor($engine, $profile['family'], $engineOptions);
         $sourceMapFile = $this->sourceMapFileFor($profile['family'], $engineArtifactStem, $engineOptions);
@@ -296,6 +300,12 @@ final class PdfEngineHandoff
                 $featureGates = $typstBoundaryProvenance['featureGates'];
                 if (is_array($featureGates) && is_int($featureGates['featureCount'] ?? null)) {
                     $diagnostics[] = 'typst-feature-gates:' . $featureGates['featureCount'];
+                }
+            }
+            if (($typstBoundaryProvenance['timingsOutput'] ?? null) !== null) {
+                $timingsOutput = $typstBoundaryProvenance['timingsOutput'];
+                if (is_array($timingsOutput) && is_string($timingsOutput['path'] ?? null)) {
+                    $diagnostics[] = 'typst-timings-output:' . $timingsOutput['path'];
                 }
             }
             if (($typstBoundaryProvenance['pdfExport'] ?? []) !== []) {
@@ -5311,6 +5321,27 @@ final class PdfEngineHandoff
     /**
      * @param list<string> $engineOptions
      */
+    private function typstTimingOutputFileFor(string $engine, string $family, array $engineOptions): ?string
+    {
+        if ($engine !== 'typst' || $family !== 'typst') {
+            return null;
+        }
+
+        $values = $this->engineOptionValues($engineOptions, ['--timings'], true);
+        if ($values === []) {
+            return null;
+        }
+
+        $entry = $this->typstBoundaryFileEntry($values[count($values) - 1], 'timings-output');
+
+        return ($entry['safe'] ?? false) === true && ($entry['kind'] ?? null) === 'relative'
+            ? $entry['path']
+            : null;
+    }
+
+    /**
+     * @param list<string> $engineOptions
+     */
     private function engineBoundaryRootFor(string $engine, string $family, array $engineOptions): ?string
     {
         if ($engine !== 'typst' || $family !== 'typst') {
@@ -5587,6 +5618,7 @@ final class PdfEngineHandoff
             'pages' => 'pages-boundary-overridden',
             'pdfStandard' => 'pdf-standard-boundary-overridden',
             'features' => 'features-boundary-overridden',
+            'timingsOutput' => 'timings-output-boundary-overridden',
             'creationTimestamp' => 'creation-timestamp-boundary-overridden',
         ];
         $entries = [];
@@ -5627,10 +5659,11 @@ final class PdfEngineHandoff
         $pageSelectionValues = $this->engineOptionValues($engineOptions, ['--pages'], true);
         $pdfStandardValues = $this->engineOptionValues($engineOptions, ['--pdf-standard'], true);
         $featureGateValues = $this->engineOptionValues($engineOptions, ['--features'], true);
+        $timingsOutputValues = $this->engineOptionValues($engineOptions, ['--timings'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
-        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0) {
+        if ($rootValues === [] && $fontPathValues === [] && $certificateValues === [] && $packagePathValues === [] && $packageCacheValues === [] && $inputVariableValues === [] && $creationTimestampValues === [] && $pageSelectionValues === [] && $pdfStandardValues === [] && $featureGateValues === [] && $timingsOutputValues === [] && $ignoreSystemFontCount === 0 && $ignoreEmbeddedFontCount === 0 && $noPdfTagsCount === 0) {
             return [];
         }
 
@@ -5682,6 +5715,11 @@ final class PdfEngineHandoff
             $featureGateValues
         );
         $featureGates = $featureGateHistory === [] ? null : $featureGateHistory[count($featureGateHistory) - 1];
+        $timingsOutputHistory = array_map(
+            fn (string $value): array => $this->typstBoundaryFileEntry($value, 'timings-output'),
+            $timingsOutputValues
+        );
+        $timingsOutput = $timingsOutputHistory === [] ? null : $timingsOutputHistory[count($timingsOutputHistory) - 1];
         $inputVariableOverrides = $this->typstInputVariableOverrideEntries($inputVariables);
         $overrides = $this->typstBoundaryOverrideEntries([
             'root' => $rootValues,
@@ -5690,6 +5728,7 @@ final class PdfEngineHandoff
             'pages' => $pageSelectionValues,
             'pdfStandard' => $pdfStandardValues,
             'features' => $featureGateValues,
+            'timingsOutput' => $timingsOutputValues,
             'creationTimestamp' => $creationTimestampValues,
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
@@ -5698,7 +5737,7 @@ final class PdfEngineHandoff
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
         }
 
-        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
+        foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $pdfStandardHistory, $featureGateHistory, $timingsOutputHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
@@ -5737,6 +5776,9 @@ final class PdfEngineHandoff
         }
         if ($featureGates !== null) {
             $provenance['featureGates'] = $featureGates;
+        }
+        if ($timingsOutput !== null) {
+            $provenance['timingsOutput'] = $timingsOutput;
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
@@ -5806,6 +5848,9 @@ final class PdfEngineHandoff
         }
         if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
+        }
+        if ($this->typstBoundaryHistoryHasIssues($timingsOutputHistory)) {
+            $provenance['timingsOutputHistory'] = $timingsOutputHistory;
         }
 
         return $provenance;
@@ -5939,6 +5984,54 @@ final class PdfEngineHandoff
             return [
                 'raw' => $raw,
                 'path' => $this->normalizeRelativePath($value, 'Typst ' . $kind . ' path'),
+                'kind' => 'relative',
+                'safe' => true,
+                'issues' => [],
+            ];
+        } catch (\InvalidArgumentException) {
+            return [
+                'raw' => $raw,
+                'path' => $value,
+                'kind' => 'invalid',
+                'safe' => false,
+                'issues' => [$kind . '-invalid-boundary'],
+            ];
+        }
+    }
+
+    /**
+     * @return array{raw:string, path:string, kind:string, safe:bool, issues:list<string>}
+     */
+    private function typstBoundaryFileEntry(string $raw, string $kind): array
+    {
+        $value = str_replace('\\', '/', trim($raw));
+        if ($value === '') {
+            return [
+                'raw' => $raw,
+                'path' => '',
+                'kind' => 'invalid',
+                'safe' => false,
+                'issues' => [$kind . '-empty'],
+            ];
+        }
+        if (
+            str_starts_with($value, '/')
+            || preg_match('/\A[A-Za-z]:\//', $value) === 1
+            || $this->isUriResourceReference($value)
+        ) {
+            return [
+                'raw' => $raw,
+                'path' => $value,
+                'kind' => $this->isUriResourceReference($value) ? 'uri' : 'absolute',
+                'safe' => false,
+                'issues' => [$kind . '-external-boundary'],
+            ];
+        }
+
+        try {
+            return [
+                'raw' => $raw,
+                'path' => $this->normalizeRelativePath($value, 'Typst ' . $kind . ' file'),
                 'kind' => 'relative',
                 'safe' => true,
                 'issues' => [],
