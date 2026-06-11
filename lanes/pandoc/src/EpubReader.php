@@ -230,7 +230,7 @@ final class EpubReader
      * @return array{
      *     opfPart:string,
      *     selectedRootfileIndex:int,
-     *     rootfiles:list<array{index:int, path:string, mediaType:string, exists:bool, selected:bool}>,
+     *     rootfiles:list<array<string, mixed>>,
      *     linkCount:int,
      *     links:list<array<string, mixed>>,
      *     linksByRel:array<string, list<array<string, mixed>>>,
@@ -263,10 +263,19 @@ final class EpubReader
             }
 
             $part = OpcPackagePath::canonicalPartName($path);
+            $mediaTypeReport = self::rootfileMediaTypeReport($mediaType);
             $rootfiles[] = [
                 'index' => $index,
                 'path' => $part,
                 'mediaType' => $mediaType,
+                'normalizedMediaType' => $mediaTypeReport['normalizedMediaType'],
+                'baseMediaType' => $mediaTypeReport['baseMediaType'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterNames' => $mediaTypeReport['mediaTypeParameterNames'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeSyntaxValid' => $mediaTypeReport['mediaTypeSyntaxValid'],
+                'mediaTypeDiagnostics' => $mediaTypeReport['mediaTypeDiagnostics'],
                 'exists' => $package->has($part),
                 'selected' => false,
             ];
@@ -675,7 +684,7 @@ final class EpubReader
         $selectedIndex = null;
 
         foreach (($container['rootfiles'] ?? []) as $rootfile) {
-            if (!is_array($rootfile) || ($rootfile['mediaType'] ?? null) !== self::OPF_MEDIA_TYPE) {
+            if (!is_array($rootfile) || !self::mediaTypeBaseEquals($rootfile['mediaType'] ?? null, self::OPF_MEDIA_TYPE)) {
                 continue;
             }
 
@@ -712,6 +721,73 @@ final class EpubReader
     }
 
     /**
+     * @return array{
+     *     normalizedMediaType:string,
+     *     baseMediaType:string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameters:array<string, string>,
+     *     mediaTypeParameterNames:list<string>,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function rootfileMediaTypeReport(string $mediaType): array
+    {
+        $parts = self::mediaTypeParts($mediaType);
+        $parameters = is_array($parts['parameters'] ?? null) ? $parts['parameters'] : [];
+
+        return [
+            'normalizedMediaType' => (string) ($parts['normalized'] ?? ''),
+            'baseMediaType' => (string) ($parts['base'] ?? ''),
+            'mediaTypeHasParameters' => $parameters !== [],
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterNames' => array_keys($parameters),
+            'mediaTypeParameterCount' => count($parameters),
+            'mediaTypeSyntaxValid' => (bool) ($parts['valid'] ?? true),
+            'mediaTypeDiagnostics' => is_array($parts['diagnostics'] ?? null)
+                ? array_values($parts['diagnostics'])
+                : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $rootfile
+     *
+     * @return array<string, mixed>
+     */
+    private static function rootfileMediaTypeFields(array $rootfile): array
+    {
+        $fallback = self::rootfileMediaTypeReport((string) ($rootfile['mediaType'] ?? ''));
+        $parameters = is_array($rootfile['mediaTypeParameters'] ?? null)
+            ? $rootfile['mediaTypeParameters']
+            : $fallback['mediaTypeParameters'];
+        $diagnostics = is_array($rootfile['mediaTypeDiagnostics'] ?? null)
+            ? array_values($rootfile['mediaTypeDiagnostics'])
+            : $fallback['mediaTypeDiagnostics'];
+        $parameterNames = is_array($rootfile['mediaTypeParameterNames'] ?? null)
+            ? array_values($rootfile['mediaTypeParameterNames'])
+            : array_keys($parameters);
+
+        return [
+            'normalizedMediaType' => is_string($rootfile['normalizedMediaType'] ?? null)
+                ? $rootfile['normalizedMediaType']
+                : $fallback['normalizedMediaType'],
+            'baseMediaType' => is_string($rootfile['baseMediaType'] ?? null)
+                ? $rootfile['baseMediaType']
+                : $fallback['baseMediaType'],
+            'mediaTypeHasParameters' => (bool) ($rootfile['mediaTypeHasParameters'] ?? ($parameters !== [])),
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterNames' => $parameterNames,
+            'mediaTypeParameterCount' => is_int($rootfile['mediaTypeParameterCount'] ?? null)
+                ? $rootfile['mediaTypeParameterCount']
+                : count($parameters),
+            'mediaTypeSyntaxValid' => (bool) ($rootfile['mediaTypeSyntaxValid'] ?? $fallback['mediaTypeSyntaxValid']),
+            'mediaTypeDiagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $rootfile
      * @param array<string, mixed> $opf
      *
@@ -721,10 +797,11 @@ final class EpubReader
     {
         $metadata = is_array($opf['metadata'] ?? null) ? $opf['metadata'] : [];
 
-        return [
+        return array_merge([
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
+        ], self::rootfileMediaTypeFields($rootfile), [
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => (bool) ($rootfile['selected'] ?? false),
             'package' => is_array($opf['package'] ?? null) ? $opf['package'] : null,
@@ -736,7 +813,7 @@ final class EpubReader
             'renditionLayout' => is_array($metadata['renditionLayout'] ?? null)
                 ? $metadata['renditionLayout']
                 : self::metadataRenditionLayoutReport($metadata),
-        ];
+        ]);
     }
 
     /**
@@ -746,10 +823,11 @@ final class EpubReader
      */
     private function readAlternateRenditionSummary(ZipPackage $package, array $rootfile): array
     {
-        $summary = [
+        $summary = array_merge([
             'index' => (int) ($rootfile['index'] ?? 0),
             'path' => (string) $rootfile['path'],
             'mediaType' => (string) $rootfile['mediaType'],
+        ], self::rootfileMediaTypeFields($rootfile), [
             'exists' => (bool) ($rootfile['exists'] ?? false),
             'selected' => false,
             'package' => null,
@@ -759,7 +837,7 @@ final class EpubReader
             'manifestCount' => null,
             'spineCount' => null,
             'diagnostics' => [],
-        ];
+        ]);
 
         if (($rootfile['exists'] ?? false) !== true) {
             $summary['diagnostics'][] = [
