@@ -25231,6 +25231,115 @@ XML);
         $t->contains('<dt>Alias 2026</dt><dd>Migration Manual :: Manual Alias :: source addendum</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Issue Alias Packet :: J. Alias Import. :: review annex :: Special Alias Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'maps bounded csl count metadata aliases from direct and biblatex items' => static function (TestRunner $t) use ($citation): void {
+        $style = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded CSL Count Metadata Alias Review</title>
+    <id>https://example.test/styles/bounded-csl-count-metadata-alias-review</id>
+    <updated>2026-06-11T16:12:36+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <number variable="number-of-volumes"/>
+        <number variable="chapter-number" form="ordinal"/>
+        <number variable="number-of-pages"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <number variable="number-of-volumes"/>
+      <number variable="chapter-number" form="ordinal"/>
+      <number variable="number-of-pages"/>
+    </layout>
+  </bibliography>
+</style>
+XML;
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-count-alias',
+            'type' => 'book',
+            'title' => 'Direct Count Alias Packet',
+            'author' => [
+                ['family' => 'Smith', 'given' => 'Ada'],
+            ],
+            'issued' => ['date-parts' => [[2026]]],
+            'numberofvolumes' => '3',
+            'chapternumber' => '5',
+            'numberofpages' => '12',
+        ]])->withCslStyle($style);
+        $directItem = $direct->item('direct-count-alias');
+        $directSummary = $direct->cslStyleSummary();
+
+        $t->same('Bounded CSL Count Metadata Alias Review', $directSummary['title'] ?? null);
+        $t->same('3', $directItem['numberOfVolumes'] ?? null);
+        $t->same('5', $directItem['chapterNumber'] ?? null);
+        $t->same('12', $directItem['numberOfPages'] ?? null);
+        $t->same('[Smith | 3 | 5th | 12]', $direct->renderCitationCluster([
+            $citation('direct-count-alias', '[@direct-count-alias]'),
+        ]));
+        $t->same('Direct Count Alias Packet :: 3 :: 5th :: 12', $direct->renderBibliographyEntry('direct-count-alias'));
+
+        $bibtex = <<<'BIB'
+@book{compact-count-alias,
+  author            = {Ng, Nia},
+  title             = {Compact Count Alias Packet},
+  date              = {2026},
+  numberofvolumes   = {6},
+  chapter-number    = {8},
+  number-of-pages   = {240}
+}
+
+@book{hyphen-count-alias,
+  author            = {Roe, Pat},
+  title             = {Hyphen Count Alias Packet},
+  date              = {2025},
+  number-of-volumes = {2},
+  chapternumber     = {3},
+  pagetotal         = {90}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('6', $items[0]['number-of-volumes'] ?? null);
+        $t->same('8', $items[0]['chapter-number'] ?? null);
+        $t->same('240', $items[0]['number-of-pages'] ?? null);
+        $t->same('2', $items[1]['number-of-volumes'] ?? null);
+        $t->same('3', $items[1]['chapter-number'] ?? null);
+        $t->same('90', $items[1]['number-of-pages'] ?? null);
+        $t->same('6', $items[0]['rawBibtex']['fields']['numberofvolumes'] ?? null);
+        $t->same('8', $items[0]['rawBibtex']['fields']['chapter-number'] ?? null);
+        $t->same('2', $items[1]['rawBibtex']['fields']['number-of-volumes'] ?? null);
+        $t->same('3', $items[1]['rawBibtex']['fields']['chapternumber'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle($style);
+        $compact = $processor->item('compact-count-alias');
+        $hyphen = $processor->item('hyphen-count-alias');
+        $t->same('6', $compact['numberOfVolumes'] ?? null);
+        $t->same('8', $compact['chapterNumber'] ?? null);
+        $t->same('240', $compact['numberOfPages'] ?? null);
+        $t->same('2', $hyphen['numberOfVolumes'] ?? null);
+        $t->same('3', $hyphen['chapterNumber'] ?? null);
+        $t->same('90', $hyphen['numberOfPages'] ?? null);
+        $t->same('[Ng | 6 | 8th | 240; Roe | 2 | 3rd | 90]', $processor->renderCitationCluster([
+            $citation('compact-count-alias', '[@compact-count-alias]'),
+            $citation('hyphen-count-alias', '[@hyphen-count-alias]'),
+        ]));
+        $t->same('Compact Count Alias Packet :: 6 :: 8th :: 240', $processor->renderBibliographyEntry('compact-count-alias'));
+        $t->same('Hyphen Count Alias Packet :: 2 :: 3rd :: 90', $processor->renderBibliographyEntry('hyphen-count-alias'));
+
+        $document = (new MarkdownReader())->read('Count aliases [@compact-count-alias; @hyphen-count-alias] preserve count metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Count aliases [Ng | 6 | 8th | 240; Roe | 2 | 3rd | 90] preserve count metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Compact Count Alias Packet :: 6 :: 8th :: 240</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Count Alias Packet :: 2 :: 3rd :: 90</dd>', $blocks);
+    },
     'preserves significant whitespace in csl text value literals' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([[
             'id' => 'literal-spacing',
