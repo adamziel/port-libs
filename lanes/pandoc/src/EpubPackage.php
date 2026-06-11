@@ -1851,6 +1851,8 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport($mediaType, 'container-link');
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -1905,6 +1907,7 @@ final class EpubPackage
             }
         }
 
+        array_push($diagnostics, ...$mediaTypeReport['mediaTypeDiagnostics']);
         $provenance = self::zipEntryProvenance($entry);
         if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
             $provenance['canExposeBytes'] = false;
@@ -1919,7 +1922,6 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => self::splitTokens($linkElement->getAttribute('properties')),
@@ -1932,7 +1934,7 @@ final class EpubPackage
             'hrefHasFragment' => $hrefSuffix['hasFragment'],
             'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
-        ] + $provenance;
+        ] + $mediaTypeReport + $provenance;
     }
 
     /**
@@ -4698,6 +4700,8 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport($mediaType, 'package-link');
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -4752,6 +4756,7 @@ final class EpubPackage
             }
         }
 
+        array_push($diagnostics, ...$mediaTypeReport['mediaTypeDiagnostics']);
         $refines = self::emptyToNull($linkElement->getAttribute('refines'));
         $provenance = self::zipEntryProvenance($entry);
         if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
@@ -4767,7 +4772,6 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => $properties,
@@ -4784,7 +4788,7 @@ final class EpubPackage
             'hrefHasFragment' => $hrefSuffix['hasFragment'],
             'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
-        ] + $provenance;
+        ] + $mediaTypeReport + $provenance;
     }
 
     /**
@@ -4879,6 +4883,8 @@ final class EpubPackage
         $exists = false;
         $entry = null;
         $manifestItem = null;
+        $mediaType = self::emptyToNull($linkElement->getAttribute('media-type'));
+        $mediaTypeReport = self::optionalLinkMediaTypeReport($mediaType, 'collection-link');
         $hrefSuffix = [
             'hasQuery' => false,
             'query' => null,
@@ -4926,6 +4932,7 @@ final class EpubPackage
             }
         }
 
+        array_push($diagnostics, ...$mediaTypeReport['mediaTypeDiagnostics']);
         $provenance = self::zipEntryProvenance($entry);
         if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
             $provenance['canExposeBytes'] = false;
@@ -4940,7 +4947,6 @@ final class EpubPackage
             'partName' => $partName,
             'external' => $external,
             'exists' => $exists,
-            'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
             'properties' => self::splitTokens($linkElement->getAttribute('properties')),
@@ -4951,7 +4957,7 @@ final class EpubPackage
             'hrefHasFragment' => $hrefSuffix['hasFragment'],
             'hrefFragment' => $hrefSuffix['fragment'],
             'diagnostics' => $diagnostics,
-        ] + $provenance;
+        ] + $mediaTypeReport + $provenance;
     }
 
     /**
@@ -6735,6 +6741,58 @@ final class EpubPackage
     private static function mediaTypeBase(string $mediaType): string
     {
         return self::mediaTypeReport($mediaType)['mediaTypeBase'];
+    }
+
+    /**
+     * @return array{
+     *     mediaType:?string,
+     *     normalizedMediaType:?string,
+     *     mediaTypeBase:?string,
+     *     mediaTypeHasParameters:bool,
+     *     mediaTypeParameterCount:int,
+     *     mediaTypeParameters:list<array{name:string, value:string, raw:string}>,
+     *     mediaTypeParameterMap:array<string, string>,
+     *     mediaTypeSyntaxValid:bool,
+     *     mediaTypeDiagnostics:list<array<string, mixed>>
+     * }
+     */
+    private static function optionalLinkMediaTypeReport(?string $mediaType, string $linkKind): array
+    {
+        if ($mediaType === null || trim($mediaType) === '') {
+            return [
+                'mediaType' => $mediaType,
+                'normalizedMediaType' => null,
+                'mediaTypeBase' => null,
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
+                'mediaTypeSyntaxValid' => true,
+                'mediaTypeDiagnostics' => [],
+            ];
+        }
+
+        $report = self::mediaTypeReport($mediaType);
+        $label = str_replace('-', ' ', $linkKind);
+        $report['mediaTypeDiagnostics'] = array_map(
+            static function (array $diagnostic) use ($linkKind, $label): array {
+                $type = is_string($diagnostic['type'] ?? null)
+                    ? str_replace('manifest', $linkKind, $diagnostic['type'])
+                    : 'invalid-' . $linkKind . '-media-type';
+                $message = is_string($diagnostic['message'] ?? null)
+                    ? str_replace('EPUB OPF manifest media-type', 'EPUB OPF ' . $label . ' media-type', $diagnostic['message'])
+                    : 'EPUB OPF ' . $label . ' media-type could not be parsed for package review';
+
+                return [
+                    'type' => $type,
+                    'linkKind' => $linkKind,
+                    'message' => $message,
+                ] + $diagnostic;
+            },
+            $report['mediaTypeDiagnostics']
+        );
+
+        return $report;
     }
 
     /**
