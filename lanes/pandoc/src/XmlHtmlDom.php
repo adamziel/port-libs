@@ -854,6 +854,11 @@ final class XmlHtmlDom
             $summary['summaryText'] = $summaryElements === [] ? null : self::normalizedText($summaryElements[0]);
             $summary['summaryElementCount'] = count($summaryElements);
         }
+        if ($name === 'dialog') {
+            $summary['dialog'] = 'dialog';
+            $summary['dialogOpen'] = $node->hasAttribute('open');
+            $summary['dialogText'] = self::normalizedText($node);
+        }
         if ($name === 'summary') {
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
@@ -1585,7 +1590,56 @@ final class XmlHtmlDom
             $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
         }
 
+        if (array_key_exists('popover', $attributes)) {
+            $popover = self::popoverState($attributes['popover']);
+            $summary['popoverRaw'] = $attributes['popover'];
+            $summary['popoverState'] = $popover;
+            $summary['popoverValid'] = $popover !== null;
+        }
+
+        if (array_key_exists('popovertarget', $attributes)) {
+            $target = self::popoverTarget($attributes['popovertarget']);
+            $summary['popoverTargetRaw'] = $attributes['popovertarget'];
+            $summary['popoverTarget'] = $target;
+            $summary['popoverTargetValid'] = $target !== null;
+        }
+
+        if (array_key_exists('popovertargetaction', $attributes)) {
+            $action = self::popoverTargetAction($attributes['popovertargetaction']);
+            $summary['popoverTargetActionRaw'] = $attributes['popovertargetaction'];
+            $summary['popoverTargetAction'] = $action;
+            $summary['popoverTargetActionValid'] = $action !== null;
+        }
+
         return $summary;
+    }
+
+    private static function popoverState(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return match ($value) {
+            '', 'auto' => 'auto',
+            'manual' => 'manual',
+            default => null,
+        };
+    }
+
+    private static function popoverTarget(string $value): ?string
+    {
+        $target = trim($value);
+        if ($target === '' || preg_match('/[\s<>"\'`]/u', $target) === 1) {
+            return null;
+        }
+
+        return $target;
+    }
+
+    private static function popoverTargetAction(string $value): ?string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['hide', 'show', 'toggle'], true) ? $value : null;
     }
 
     /**

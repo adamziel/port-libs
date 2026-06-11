@@ -898,6 +898,52 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog and popover state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="confirm" open popover="manual" aria-modal="true"><form method="dialog"><button value="ok">OK</button><button popovertarget="details-popover" popovertargetaction="show">More</button></form></dialog>'
+                . '<aside id="details-popover" popover="auto">Extra</aside>'
+                . '<button popovertarget="bad target" popovertargetaction="dismiss">Bad</button>',
+            'dialog popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $dialog = $summary[0];
+        $form = $dialog['children'][0];
+        $okButton = $form['children'][0];
+        $moreButton = $form['children'][1];
+        $popover = $summary[1];
+        $invalidButton = $summary[2];
+
+        $t->same('dialog', $dialog['name']);
+        $t->same('dialog', $dialog['dialog']);
+        $t->same(true, $dialog['dialogOpen']);
+        $t->same('OKMore', $dialog['dialogText']);
+        $t->same('manual', $dialog['popoverRaw']);
+        $t->same('manual', $dialog['popoverState']);
+        $t->same(true, $dialog['popoverValid']);
+        $t->same(['aria-modal' => 'true'], $dialog['ariaAttributes']);
+        $t->same('form', $form['formSubmission']);
+        $t->same('dialog', $form['method']);
+        $t->same('button', $okButton['formControl']);
+        $t->same('button', $moreButton['formControl']);
+        $t->same('details-popover', $moreButton['popoverTargetRaw']);
+        $t->same('details-popover', $moreButton['popoverTarget']);
+        $t->same(true, $moreButton['popoverTargetValid']);
+        $t->same('show', $moreButton['popoverTargetActionRaw']);
+        $t->same('show', $moreButton['popoverTargetAction']);
+        $t->same(true, $moreButton['popoverTargetActionValid']);
+        $t->same('auto', $popover['popoverRaw']);
+        $t->same('auto', $popover['popoverState']);
+        $t->same(true, $popover['popoverValid']);
+        $t->same('bad target', $invalidButton['popoverTargetRaw']);
+        $t->same(null, $invalidButton['popoverTarget']);
+        $t->same(false, $invalidButton['popoverTargetValid']);
+        $t->same('dismiss', $invalidButton['popoverTargetActionRaw']);
+        $t->same(null, $invalidButton['popoverTargetAction']);
+        $t->same(false, $invalidButton['popoverTargetActionValid']);
+        $t->same('<dialog aria-modal="true" id="confirm" open popover="manual"><form method="dialog"><button value="ok">OK</button><button popovertarget="details-popover" popovertargetaction="show">More</button></form></dialog><aside id="details-popover" popover="auto">Extra</aside><button popovertarget="bad target" popovertargetaction="dismiss">Bad</button>', $html);
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
