@@ -184,22 +184,22 @@ XML;
         $parts['[Content_Types].xml'] = str_replace(
             '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
             '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
-            '  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/review-app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>' . "\n" .
             '  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>',
             $parts['[Content_Types].xml']
         );
         $parts['_rels/.rels'] = str_replace(
             '</Relationships>',
-            '  <Relationship Id="rApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml?profile=review#extended"/>' . "\n" .
+            '  <Relationship Id="rApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="customXml/review-app.xml?profile=review#extended"/>' . "\n" .
             '  <Relationship Id="rCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml#custom"/>' . "\n" .
             '</Relationships>',
             $parts['_rels/.rels']
         );
-        $parts['docProps/app.xml'] = <<<'XML'
+        $parts['customXml/review-app.xml'] = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
   xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
-  <Template>Normal.dotm</Template>
+  <Template>Review.dotm</Template>
   <Manager>Migration Lead</Manager>
   <Company>WordPress Migration Desk</Company>
   <Pages>12</Pages>
@@ -208,9 +208,11 @@ XML;
   <CharactersWithSpaces>13025</CharactersWithSpaces>
   <Lines>123</Lines>
   <Paragraphs>48</Paragraphs>
+  <DocSecurity>4</DocSecurity>
   <Application>Microsoft Word</Application>
   <AppVersion>16.0000</AppVersion>
   <HyperlinkBase>https://example.test/review/</HyperlinkBase>
+  <ScaleCrop>false</ScaleCrop>
   <LinksUpToDate>false</LinksUpToDate>
   <SharedDoc>0</SharedDoc>
   <HyperlinksChanged>true</HyperlinksChanged>
@@ -249,20 +251,29 @@ XML;
         $extended = $docx['extendedProperties'];
         $custom = $docx['customProperties'];
 
-        $t->same('docProps/app.xml', $docx['extendedPropertiesPart']);
+        $t->same('customXml/review-app.xml', $docx['extendedPropertiesPart']);
         $t->same('rApp', $docx['extendedPropertiesRelationship']['id']);
         $t->same('/', $docx['extendedPropertiesRelationship']['sourcePart']);
         $t->same('_rels/.rels', $docx['extendedPropertiesRelationship']['relationshipsPart']);
-        $t->same('docProps/app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['target']);
-        $t->same('docProps/app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['resolvedTarget']);
-        $t->same('docProps/app.xml', $docx['extendedPropertiesRelationship']['targetPart']);
+        $t->same('customXml/review-app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['target']);
+        $t->same('customXml/review-app.xml?profile=review#extended', $docx['extendedPropertiesRelationship']['resolvedTarget']);
+        $t->same('customXml/review-app.xml', $docx['extendedPropertiesRelationship']['targetPart']);
         $t->same(true, $docx['extendedPropertiesRelationship']['exists']);
         $t->same('application/vnd.openxmlformats-officedocument.extended-properties+xml', $docx['extendedPropertiesRelationship']['contentType']);
-        $t->same('Normal.dotm', $extended['template']);
+        $t->same('Review.dotm', $extended['template']);
         $t->same('Migration Lead', $extended['manager']);
         $t->same('WordPress Migration Desk', $extended['company']);
+        $t->same(12, $extended['pages']);
         $t->same(3456, $extended['words']);
+        $t->same(12000, $extended['characters']);
         $t->same(13025, $extended['charactersWithSpaces']);
+        $t->same(123, $extended['lines']);
+        $t->same(48, $extended['paragraphs']);
+        $t->same(4, $extended['docSecurity']);
+        $t->same('Microsoft Word', $extended['application']);
+        $t->same('16.0000', $extended['appVersion']);
+        $t->same('https://example.test/review/', $extended['hyperlinkBase']);
+        $t->same(false, $extended['scaleCrop']);
         $t->same(false, $extended['linksUpToDate']);
         $t->same(false, $extended['sharedDoc']);
         $t->same(true, $extended['hyperlinksChanged']);
@@ -271,6 +282,7 @@ XML;
         $t->same('Heading 1', $extended['headingPairs'][1]['name']);
         $t->same(4, $extended['headingPairs'][1]['count']);
         $t->same(['DOCX source packet', 'Reviewer checklist'], $extended['titlesOfParts']);
+        $t->same('Microsoft Word', $meta['docxExtendedProperties']['application']);
 
         $t->same('docProps/custom.xml', $docx['customPropertiesPart']);
         $t->same('rCustom', $docx['customPropertiesRelationship']['id']);
