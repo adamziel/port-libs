@@ -862,8 +862,14 @@ final class OdfReader
         if (is_array($manifestItem)) {
             $roles[] = 'manifest-declared';
             $mediaType = (string) ($manifestItem['mediaType'] ?? '');
+            $mediaTypeBase = (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase']);
             $part = (string) ($manifestItem['part'] ?? '');
-            if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
+            if (
+                str_starts_with($mediaTypeBase, 'image/')
+                || str_starts_with($mediaTypeBase, 'audio/')
+                || str_starts_with($mediaTypeBase, 'video/')
+                || str_starts_with($part, 'Pictures/')
+            ) {
                 $roles[] = 'media-resource';
             }
             if ($this->isScriptPackagePartName($part)) {

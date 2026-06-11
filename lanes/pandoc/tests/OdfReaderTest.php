@@ -9285,6 +9285,76 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'classifies ODT audio and video manifest resources in package provenance roles' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'AUDIO-BYTES';
+        $videoBytes = 'VIDEO-BYTES';
+        $manifestWithAvResources = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Media/narration.ogg" manifest:media-type="audio/ogg; codecs=&quot;opus&quot;" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Media/clip.mp4" manifest:media-type="video/mp4" manifest:size="' . strlen($videoBytes) . '"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithAvResources, null, null, [
+            ['name' => 'Media/narration.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+            ['name' => 'Media/clip.mp4', 'data' => $videoBytes, 'compressionMethod' => 0],
+        ]));
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $provenanceParts = $result['importReport']['manifest']['packageProvenance']['parts'];
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $summaryByType = [];
+        foreach ($summary['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
+
+        $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
+        $t->same(3, count($result['media']));
+        $t->same(['Pictures/hero.png', 'Media/narration.ogg', 'Media/clip.mp4'], array_column($result['media'], 'part'));
+
+        $audio = $mediaByPart['Media/narration.ogg'];
+        $t->same('audio/ogg; codecs="opus"', $audio['mediaType']);
+        $t->same('audio/ogg', $audio['mediaTypeBase']);
+        $t->same(['codecs' => 'opus'], $audio['mediaTypeParameterMap']);
+        $t->same(strlen($audioBytes), $audio['byteLength']);
+        $t->same(true, $audio['canExposeBytes']);
+        $t->same(sprintf('%08x', crc32($audioBytes)), $audio['crc32']);
+
+        $video = $mediaByPart['Media/clip.mp4'];
+        $t->same('video/mp4', $video['mediaType']);
+        $t->same('video/mp4', $video['mediaTypeBase']);
+        $t->same([], $video['mediaTypeParameterMap']);
+        $t->same(strlen($videoBytes), $video['byteLength']);
+        $t->same(true, $video['canExposeBytes']);
+
+        $audioProvenance = $provenanceParts['Media/narration.ogg'];
+        $videoProvenance = $provenanceParts['Media/clip.mp4'];
+        $t->same(['manifest-declared', 'media-resource'], $audioProvenance['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $videoProvenance['roles']);
+        $t->same('audio/ogg', $audioProvenance['manifestMediaTypeBase']);
+        $t->same(1, $audioProvenance['manifestMediaTypeParameterCount']);
+        $t->same(['codecs' => 'opus'], $audioProvenance['manifestMediaTypeParameterMap']);
+        $t->same(true, $audioProvenance['canExposeBytes']);
+        $t->same(strlen($audioBytes), $audioProvenance['byteLength']);
+        $t->same('video/mp4', $videoProvenance['manifestMediaTypeBase']);
+        $t->same(0, $videoProvenance['manifestMediaTypeParameterCount']);
+        $t->same(true, $videoProvenance['canExposeBytes']);
+        $t->same(strlen($videoBytes), $videoProvenance['byteLength']);
+
+        $t->same(1, $summary['parameterizedItemCount']);
+        $t->same(['codecs'], $summary['mediaTypeParameterNames']);
+        $t->same(1, $summaryByType['audio/ogg']['count']);
+        $t->same(['Media/narration.ogg'], $summaryByType['audio/ogg']['parts']);
+        $t->same(['audio/ogg; codecs="opus"'], $summaryByType['audio/ogg']['rawMediaTypes']);
+        $t->same(['codecs'], $summaryByType['audio/ogg']['mediaTypeParameterNames']);
+        $t->same(strlen($audioBytes), $summaryByType['audio/ogg']['exposableByteLength']);
+        $t->same(1, $summaryByType['video/mp4']['count']);
+        $t->same(['Media/clip.mp4'], $summaryByType['video/mp4']['parts']);
+        $t->same(strlen($videoBytes), $summaryByType['video/mp4']['exposableByteLength']);
+    },
     'diagnoses ODT manifest file entries missing media types before byte exposure' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sidecarBytes = 'BINARYPAYLOAD';
         $manifestWithMissingMediaType = str_replace(
