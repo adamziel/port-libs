@@ -686,6 +686,71 @@ XML;
         $t->same('image/png', $suffixTargets[4]['contentType']);
         $t->same(true, $suffixTargets[4]['exists']);
     },
+    'preserves duplicate docx relationship ids for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?copy=one#img"/>' . "\n" .
+            '  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/duplicate?copy=two#link" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationshipPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $duplicate = $relationshipPart['duplicateRelationshipIdItems'][0];
+        $records = array_values(array_filter(
+            $relationshipPart['relationshipRecords'],
+            static fn (array $record): bool => $record['id'] === 'rDuplicate',
+        ));
+
+        $t->same(4, $relationshipPart['relationshipRecordCount']);
+        $t->same(3, $relationshipPart['relationshipCount']);
+        $t->same(1, $relationshipPart['duplicateRelationshipIdCount']);
+        $t->same(2, $relationshipPart['duplicateRelationshipRecordCount']);
+        $t->same(['rDuplicate'], $relationshipPart['duplicateRelationshipIds']);
+        $t->same('rDuplicate', $duplicate['id']);
+        $t->same('word/_rels/document.xml.rels', $duplicate['relationshipsPart']);
+        $t->same('word/document.xml', $duplicate['sourcePart']);
+        $t->same([2, 3], $duplicate['ordinals']);
+        $t->same([
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        ], $duplicate['types']);
+        $t->same([
+            'media/review.png?copy=one#img',
+            'https://example.test/duplicate?copy=two#link',
+        ], $duplicate['targets']);
+        $t->same(['', 'External'], $duplicate['targetModes']);
+        $t->same(['word/media/review.png?copy=one#img', 'https://example.test/duplicate?copy=two#link'], $duplicate['resolvedTargets']);
+        $t->same(['word/media/review.png', null], $duplicate['targetParts']);
+        $t->same(['?copy=one#img', '?copy=two#link'], $duplicate['targetReferenceSuffixes']);
+        $t->same([false, true], $duplicate['externalValues']);
+        $t->same([true, false], $duplicate['existsValues']);
+        $t->same(['image/png', ''], $duplicate['contentTypes']);
+
+        $t->same([true, true], array_column($records, 'duplicateId'));
+        $t->same([2, 3], array_column($records, 'ordinal'));
+        $t->same('word/media/review.png', $records[0]['targetPart']);
+        $t->same('copy=one', $records[0]['targetQuery']);
+        $t->same('img', $records[0]['targetFragment']);
+        $t->same(null, $records[1]['targetPart']);
+        $t->same(true, $records[1]['external']);
+        $t->same('copy=two', $records[1]['targetQuery']);
+        $t->same('link', $records[1]['targetFragment']);
+        $t->same(true, $relationshipPart['relationships']['rDuplicate']['external']);
+        $t->same('https://example.test/duplicate?copy=two#link', $relationshipPart['relationships']['rDuplicate']['resolvedTarget']);
+
+        $t->same(6, $summary['relationshipRecordCount']);
+        $t->same(5, $summary['relationshipCount']);
+        $t->same(1, $summary['duplicateRelationshipIdCount']);
+        $t->same(2, $summary['duplicateRelationshipRecordCount']);
+        $t->same(['rDuplicate'], $summary['duplicateRelationshipIds']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithDuplicateRelationshipIds']);
+        $t->same($duplicate, $summary['duplicateRelationshipIdItems'][0]);
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

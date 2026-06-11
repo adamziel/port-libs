@@ -520,17 +520,45 @@ final class DocxOpenXmlReader
             return [];
         }
 
+        $relationships = [];
+        foreach ($this->readRelationshipRecordsPart($parts, $partName) as $record) {
+            $relationships[$record['id']] = [
+                'id' => $record['id'],
+                'type' => $record['type'],
+                'target' => $record['target'],
+                'targetMode' => $record['targetMode'],
+                'resolvedTarget' => $record['resolvedTarget'],
+            ];
+        }
+
+        return $relationships;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return list<array{ordinal:int, id:string, type:string, target:string, targetMode:string, resolvedTarget:string}>
+     */
+    private function readRelationshipRecordsPart(array $parts, string $partName): array
+    {
+        if (!isset($parts[$partName])) {
+            return [];
+        }
+
         $dom = $this->loadXml($parts[$partName], $partName);
         $xpath = $this->xpath($dom);
-        $relationships = [];
+        $records = [];
+        $ordinal = 0;
         foreach ($this->elements($xpath, '/rel:Relationships/rel:Relationship') as $node) {
+            $recordOrdinal = $ordinal++;
             $id = $node->getAttribute('Id');
             if ($id === '') {
                 continue;
             }
+
             $targetMode = $node->getAttribute('TargetMode');
             $target = $node->getAttribute('Target');
-            $relationships[$id] = [
+            $records[] = [
+                'ordinal' => $recordOrdinal,
                 'id' => $id,
                 'type' => $node->getAttribute('Type'),
                 'target' => $target,
@@ -539,7 +567,7 @@ final class DocxOpenXmlReader
             ];
         }
 
-        return $relationships;
+        return $records;
     }
 
     /**
@@ -2252,6 +2280,12 @@ final class DocxOpenXmlReader
         $relationshipTargetFragmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
         $relationshipTargetsWithReferenceSuffix = [];
+        $relationshipRecordCount = 0;
+        $duplicateRelationshipIdCount = 0;
+        $duplicateRelationshipRecordCount = 0;
+        $relationshipPartsWithDuplicateRelationshipIds = [];
+        $duplicateRelationshipIds = [];
+        $duplicateRelationshipIdItems = [];
         $targetParts = [];
         $partsWithoutContentType = [];
 
@@ -2327,6 +2361,21 @@ final class DocxOpenXmlReader
                     $relationshipTargetsWithoutContentType[] = $this->relationshipProvenanceSummaryItem($relationship);
                 }
             }
+
+            $relationshipRecordCount += (int) ($relationshipPart['relationshipRecordCount'] ?? 0);
+            $duplicateRelationshipIdCount += (int) ($relationshipPart['duplicateRelationshipIdCount'] ?? 0);
+            $duplicateRelationshipRecordCount += (int) ($relationshipPart['duplicateRelationshipRecordCount'] ?? 0);
+            if (($relationshipPart['duplicateRelationshipIdCount'] ?? 0) > 0) {
+                $relationshipPartsWithDuplicateRelationshipIds[] = (string) $relationshipsPart;
+            }
+            foreach (($relationshipPart['duplicateRelationshipIds'] ?? []) as $id) {
+                $this->appendUniqueString($duplicateRelationshipIds, is_string($id) ? $id : null);
+            }
+            foreach (($relationshipPart['duplicateRelationshipIdItems'] ?? []) as $item) {
+                if (is_array($item)) {
+                    $duplicateRelationshipIdItems[] = $item;
+                }
+            }
         }
 
         ksort($relationshipTypeCounts);
@@ -2336,11 +2385,15 @@ final class DocxOpenXmlReader
             'packageByteLength' => $packageByteLength,
             'relationshipPartCount' => $relationshipPartCount,
             'relationshipCount' => $relationshipCount,
+            'relationshipRecordCount' => $relationshipRecordCount,
             'internalRelationshipCount' => $internalRelationshipCount,
             'externalRelationshipCount' => $externalRelationshipCount,
             'existingRelationshipTargetCount' => $existingRelationshipTargetCount,
             'missingRelationshipTargetCount' => $missingRelationshipTargetCount,
             'uniqueRelationshipTargetPartCount' => count($targetParts),
+            'duplicateRelationshipIdCount' => $duplicateRelationshipIdCount,
+            'duplicateRelationshipRecordCount' => $duplicateRelationshipRecordCount,
+            'duplicateRelationshipIds' => $duplicateRelationshipIds,
             'missingContentTypePartCount' => count($partsWithoutContentType),
             'relationshipTargetMissingContentTypeCount' => count($relationshipTargetsWithoutContentType),
             'relationshipPartMissingSourceCount' => $relationshipPartMissingSourceCount,
@@ -2356,12 +2409,14 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
+            'relationshipPartsWithDuplicateRelationshipIds' => $relationshipPartsWithDuplicateRelationshipIds,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
             'externalRelationshipTargets' => $externalRelationshipTargets,
+            'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
         ];
     }
 
@@ -2831,6 +2886,20 @@ final class DocxOpenXmlReader
         foreach ($relationships as $id => $relationship) {
             $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
         }
+        $relationshipRecords = $this->relationshipRecordProvenance(
+            $parts,
+            $relationshipsPart,
+            $sourcePart,
+            $contentTypes,
+        );
+        $duplicateIds = [];
+        foreach ($relationshipRecords as $record) {
+            if (($record['duplicateId'] ?? false) === true) {
+                $duplicateIds[(string) $record['id']] = true;
+            }
+        }
+        $duplicateItems = $this->duplicateRelationshipIdItems($relationshipRecords);
+        $duplicateRecordCount = count(array_filter($relationshipRecords, static fn (array $record): bool => ($record['duplicateId'] ?? false) === true));
 
         return [
             'partName' => $relationshipsPart,
@@ -2839,8 +2908,85 @@ final class DocxOpenXmlReader
             'exists' => isset($parts[$relationshipsPart]),
             'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
             'relationshipCount' => count($relationshipSummaries),
+            'relationshipRecordCount' => count($relationshipRecords),
+            'duplicateRelationshipIdCount' => count($duplicateIds),
+            'duplicateRelationshipRecordCount' => $duplicateRecordCount,
+            'duplicateRelationshipIds' => array_keys($duplicateIds),
+            'duplicateRelationshipIdItems' => $duplicateItems,
             'relationships' => $relationshipSummaries,
+            'relationshipRecords' => $relationshipRecords,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipRecordProvenance(
+        array $parts,
+        string $relationshipsPart,
+        string $sourcePart,
+        array $contentTypes,
+    ): array {
+        $records = $this->readRelationshipRecordsPart($parts, $relationshipsPart);
+        $idCounts = [];
+        foreach ($records as $record) {
+            $idCounts[$record['id']] = ($idCounts[$record['id']] ?? 0) + 1;
+        }
+
+        $items = [];
+        foreach ($records as $record) {
+            $summary = $this->relationshipInventorySummary($parts, $record, $sourcePart, $relationshipsPart, $contentTypes);
+            $summary['ordinal'] = $record['ordinal'];
+            $summary['duplicateId'] = ($idCounts[$record['id']] ?? 0) > 1;
+            $items[] = $summary;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipRecords
+     * @return list<array<string, mixed>>
+     */
+    private function duplicateRelationshipIdItems(array $relationshipRecords): array
+    {
+        $byId = [];
+        foreach ($relationshipRecords as $record) {
+            $id = is_string($record['id'] ?? null) ? $record['id'] : '';
+            if ($id === '') {
+                continue;
+            }
+
+            $byId[$id][] = $record;
+        }
+
+        $items = [];
+        foreach ($byId as $id => $records) {
+            if (count($records) < 2) {
+                continue;
+            }
+
+            $items[] = [
+                'id' => $id,
+                'relationshipsPart' => is_string($records[0]['relationshipsPart'] ?? null) ? $records[0]['relationshipsPart'] : '',
+                'sourcePart' => is_string($records[0]['sourcePart'] ?? null) ? $records[0]['sourcePart'] : '',
+                'ordinals' => array_column($records, 'ordinal'),
+                'types' => array_column($records, 'type'),
+                'targets' => array_column($records, 'target'),
+                'targetModes' => array_column($records, 'targetMode'),
+                'resolvedTargets' => array_column($records, 'resolvedTarget'),
+                'targetParts' => array_column($records, 'targetPart'),
+                'targetReferenceSuffixes' => array_column($records, 'targetReferenceSuffix'),
+                'externalValues' => array_column($records, 'external'),
+                'existsValues' => array_column($records, 'exists'),
+                'contentTypes' => array_column($records, 'contentType'),
+                'relationships' => $records,
+            ];
+        }
+
+        return $items;
     }
 
     /**
