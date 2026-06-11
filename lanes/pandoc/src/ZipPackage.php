@@ -2369,6 +2369,13 @@ final class ZipPackage
      *     mismatchedExtraFieldValueEntryCount:int,
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
+     *     extraFieldIdCount:int,
+     *     centralExtraFieldIdCount:int,
+     *     localExtraFieldIdCount:int,
+     *     sharedExtraFieldIdCount:int,
+     *     centralOnlyExtraFieldIdCount:int,
+     *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdUsage:list<array<string, mixed>>,
      *     duplicateEntries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
      *     valueMismatchedEntries:list<array<string, mixed>>,
@@ -2453,6 +2460,7 @@ final class ZipPackage
                 $valueMismatchedEntries[] = $summary;
             }
         }
+        $idUsage = self::extraFieldIdUsageSummary($entries);
 
         return [
             'entryCount' => count($this->entries),
@@ -2464,6 +2472,13 @@ final class ZipPackage
             'mismatchedExtraFieldValueEntryCount' => count($valueMismatchedEntries),
             'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
             'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
+            'extraFieldIdCount' => $idUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $idUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $idUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'duplicateEntries' => $duplicateEntries,
             'mismatchedEntries' => $mismatchedEntries,
             'valueMismatchedEntries' => $valueMismatchedEntries,
@@ -3611,7 +3626,6 @@ final class ZipPackage
 
             throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
         }
-
         return [
             'entryCount' => count($entries),
             'extraFieldEntryCount' => $extraFieldEntryCount,
@@ -3642,6 +3656,13 @@ final class ZipPackage
      *     centralOnlyExtraFieldEntryCount:int,
      *     localOnlyExtraFieldEntryCount:int,
      *     localHeaderUnavailableEntryCount:int,
+     *     extraFieldIdCount:int,
+     *     centralExtraFieldIdCount:int,
+     *     localExtraFieldIdCount:int,
+     *     sharedExtraFieldIdCount:int,
+     *     centralOnlyExtraFieldIdCount:int,
+     *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdUsage:list<array<string, mixed>>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     issueEntries:list<array<string, mixed>>,
@@ -3821,6 +3842,7 @@ final class ZipPackage
 
             throw new \RuntimeException('Unexpected ZIP bytes inside the central directory');
         }
+        $idUsage = self::extraFieldIdUsageSummary($entries);
 
         return [
             'entryCount' => count($entries),
@@ -3833,6 +3855,13 @@ final class ZipPackage
             'centralOnlyExtraFieldEntryCount' => $centralOnlyExtraFieldEntryCount,
             'localOnlyExtraFieldEntryCount' => $localOnlyExtraFieldEntryCount,
             'localHeaderUnavailableEntryCount' => count($localHeaderUnavailableEntries),
+            'extraFieldIdCount' => $idUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $idUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $idUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'issueEntries' => $issueEntries,
@@ -12463,6 +12492,112 @@ final class ZipPackage
         }
 
         return $only;
+    }
+
+    /**
+     * @param list<array{name:string, centralExtraFieldIds:list<int>, localExtraFieldIds:list<int>}> $entries
+     *
+     * @return array{
+     *     extraFieldIdCount:int,
+     *     centralExtraFieldIdCount:int,
+     *     localExtraFieldIdCount:int,
+     *     sharedExtraFieldIdCount:int,
+     *     centralOnlyExtraFieldIdCount:int,
+     *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdUsage:list<array<string, mixed>>
+     * }
+     */
+    private static function extraFieldIdUsageSummary(array $entries): array
+    {
+        $usage = [];
+        foreach ($entries as $entry) {
+            $name = $entry['name'];
+            $centralSeen = [];
+            foreach ($entry['centralExtraFieldIds'] as $id) {
+                self::addExtraFieldIdUsage($usage, $id, $name, 'central', $centralSeen);
+            }
+
+            $localSeen = [];
+            foreach ($entry['localExtraFieldIds'] as $id) {
+                self::addExtraFieldIdUsage($usage, $id, $name, 'local', $localSeen);
+            }
+        }
+
+        ksort($usage, SORT_NUMERIC);
+
+        $centralIdCount = 0;
+        $localIdCount = 0;
+        $sharedIdCount = 0;
+        $centralOnlyIdCount = 0;
+        $localOnlyIdCount = 0;
+        $rows = [];
+        foreach ($usage as $id => $row) {
+            $appearsInCentral = $row['centralRecordCount'] > 0;
+            $appearsInLocal = $row['localRecordCount'] > 0;
+            if ($appearsInCentral) {
+                $centralIdCount++;
+            }
+            if ($appearsInLocal) {
+                $localIdCount++;
+            }
+            if ($appearsInCentral && $appearsInLocal) {
+                $sharedIdCount++;
+            } elseif ($appearsInCentral) {
+                $centralOnlyIdCount++;
+            } elseif ($appearsInLocal) {
+                $localOnlyIdCount++;
+            }
+
+            $rows[] = [
+                'id' => $id,
+                'idHex' => sprintf('0x%04x', $id),
+                'centralRecordCount' => $row['centralRecordCount'],
+                'localRecordCount' => $row['localRecordCount'],
+                'centralEntryCount' => count($row['centralEntryNames']),
+                'localEntryCount' => count($row['localEntryNames']),
+                'appearsInCentral' => $appearsInCentral,
+                'appearsInLocal' => $appearsInLocal,
+                'appearsInBoth' => $appearsInCentral && $appearsInLocal,
+                'appearsOnlyInCentral' => $appearsInCentral && !$appearsInLocal,
+                'appearsOnlyInLocal' => !$appearsInCentral && $appearsInLocal,
+                'centralEntryNames' => $row['centralEntryNames'],
+                'localEntryNames' => $row['localEntryNames'],
+            ];
+        }
+
+        return [
+            'extraFieldIdCount' => count($rows),
+            'centralExtraFieldIdCount' => $centralIdCount,
+            'localExtraFieldIdCount' => $localIdCount,
+            'sharedExtraFieldIdCount' => $sharedIdCount,
+            'centralOnlyExtraFieldIdCount' => $centralOnlyIdCount,
+            'localOnlyExtraFieldIdCount' => $localOnlyIdCount,
+            'extraFieldIdUsage' => $rows,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $usage
+     * @param array<int, true> $seenForEntry
+     */
+    private static function addExtraFieldIdUsage(array &$usage, int $id, string $entryName, string $header, array &$seenForEntry): void
+    {
+        if (!isset($usage[$id])) {
+            $usage[$id] = [
+                'centralRecordCount' => 0,
+                'localRecordCount' => 0,
+                'centralEntryNames' => [],
+                'localEntryNames' => [],
+            ];
+        }
+
+        $recordCountKey = $header . 'RecordCount';
+        $entryNamesKey = $header . 'EntryNames';
+        $usage[$id][$recordCountKey]++;
+        if (!isset($seenForEntry[$id])) {
+            $usage[$id][$entryNamesKey][] = $entryName;
+            $seenForEntry[$id] = true;
+        }
     }
 
     /**

@@ -6475,6 +6475,94 @@ return [
         $t->same('matching review metadata values', $safePackage->read('word/media/reviewer-note.txt'));
     },
 
+    'summarizes zip extra field id usage across central and local headers' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xcafe, strlen('local-review'), 'local-review');
+        $centralOnlyExtra = pack('vva*', 0x1111, strlen('central-only'), 'central-only');
+        $localOnlyExtra = pack('vva*', 0x2222, strlen('local-only'), 'local-only');
+        $localAuditExtra = pack('vva*', 0x3333, strlen('audit-local'), 'audit-local');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>extra field id usage</w:p></w:document>',
+                'method' => 8,
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/media/reviewer-note.txt',
+                'data' => 'central and local-only extra-field ids',
+                'method' => 0,
+                'centralExtra' => $centralOnlyExtra,
+                'localExtra' => $localOnlyExtra,
+            ],
+            [
+                'name' => 'word/media/local-audit.txt',
+                'data' => 'local-only audit extra-field id',
+                'method' => 0,
+                'centralExtra' => '',
+                'localExtra' => $localAuditExtra,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $summary = $package->extraFieldPreflight();
+        $rawSummary = ZipPackage::extraFieldPolicyPreflight($zip);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $usageById = [];
+        foreach ($summary['extraFieldIdUsage'] as $row) {
+            $usageById[$row['id']] = $row;
+        }
+
+        $t->same(3, $summary['extraFieldEntryCount']);
+        $t->same(5, $summary['extraFieldIdCount']);
+        $t->same(3, $summary['centralExtraFieldIdCount']);
+        $t->same(4, $summary['localExtraFieldIdCount']);
+        $t->same(2, $summary['sharedExtraFieldIdCount']);
+        $t->same(1, $summary['centralOnlyExtraFieldIdCount']);
+        $t->same(2, $summary['localOnlyExtraFieldIdCount']);
+        $t->same([0x1111, 0x2222, 0x3333, 0x5455, 0xcafe], array_column($summary['extraFieldIdUsage'], 'id'));
+        $t->same($summary['extraFieldIdUsage'], $rawSummary['extraFieldIdUsage']);
+        $t->same($summary['extraFieldIdUsage'], $strict['extraFields']['extraFieldIdUsage']);
+        $t->same($summary['extraFieldIdUsage'], $rawStrict['extraFields']['extraFieldIdUsage']);
+
+        $timestampUsage = $usageById[0x5455];
+        $t->same('0x5455', $timestampUsage['idHex']);
+        $t->same(1, $timestampUsage['centralRecordCount']);
+        $t->same(1, $timestampUsage['localRecordCount']);
+        $t->same(1, $timestampUsage['centralEntryCount']);
+        $t->same(1, $timestampUsage['localEntryCount']);
+        $t->same(true, $timestampUsage['appearsInBoth']);
+        $t->same(false, $timestampUsage['appearsOnlyInCentral']);
+        $t->same(false, $timestampUsage['appearsOnlyInLocal']);
+        $t->same(['word/document.xml'], $timestampUsage['centralEntryNames']);
+        $t->same(['word/document.xml'], $timestampUsage['localEntryNames']);
+
+        $centralOnlyUsage = $usageById[0x1111];
+        $t->same(true, $centralOnlyUsage['appearsOnlyInCentral']);
+        $t->same(false, $centralOnlyUsage['appearsInLocal']);
+        $t->same(['word/media/reviewer-note.txt'], $centralOnlyUsage['centralEntryNames']);
+        $t->same([], $centralOnlyUsage['localEntryNames']);
+
+        $localAuditUsage = $usageById[0x3333];
+        $t->same(false, $localAuditUsage['appearsInCentral']);
+        $t->same(true, $localAuditUsage['appearsOnlyInLocal']);
+        $t->same([], $localAuditUsage['centralEntryNames']);
+        $t->same(['word/media/local-audit.txt'], $localAuditUsage['localEntryNames']);
+
+        $reviewUsage = $usageById[0xcafe];
+        $t->same(true, $reviewUsage['appearsInBoth']);
+        $t->same(['word/document.xml'], $reviewUsage['centralEntryNames']);
+        $t->same(['word/document.xml'], $reviewUsage['localEntryNames']);
+        $t->same([0x1111], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIds']);
+        $t->same([0xcafe], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds']);
+        $t->contains('central-local-extra-field-id-mismatch', implode(',', $strict['diagnostics']));
+        $t->contains('central-local-extra-field-value-mismatch', implode(',', $rawStrict['diagnostics']));
+        $t->same('central and local-only extra-field ids', $package->read('word/media/reviewer-note.txt'));
+    },
+
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $modifiedAt = 1780479017;
         $accessedAt = 1780479018;
