@@ -73,7 +73,16 @@ final class DocxOpenXmlReader
             throw new \RuntimeException("DOCX package is missing {$documentPart}");
         }
 
-        $documentRelationships = $this->readRelationshipsPart($parts, $this->relationshipsPartFor($documentPart));
+        $documentRelationshipsPart = $this->relationshipsPartFor($documentPart);
+        $documentRelationships = $this->readRelationshipsPart($parts, $documentRelationshipsPart);
+        $packageProvenance = $this->packageProvenance(
+            $parts,
+            $contentTypes,
+            $rootRelationships,
+            $documentPart,
+            $documentRelationshipsPart,
+            $documentRelationships,
+        );
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
         $numberingPart = $this->numberingPart($parts, $documentRelationships, $documentPart);
@@ -132,6 +141,7 @@ final class DocxOpenXmlReader
                 'contentTypes' => $contentTypes,
                 'rootRelationships' => $rootRelationships,
                 'documentRelationships' => $documentRelationships,
+                'packageProvenance' => $packageProvenance,
                 'stylesPart' => $stylesPart['partName'],
                 'styles' => $styles,
                 'numberingPart' => $numberingPart['partName'],
@@ -367,7 +377,7 @@ final class DocxOpenXmlReader
     {
         foreach ($relationships as $relationship) {
             if ($relationship['type'] === self::OFFICE_DOCUMENT_REL) {
-                return $relationship['resolvedTarget'];
+                return $this->stripQueryAndFragment($relationship['resolvedTarget']);
             }
         }
 
@@ -597,6 +607,318 @@ final class DocxOpenXmlReader
             'exists' => $exists,
             'contentType' => $this->contentTypeFor($targetPart, $contentTypes),
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @return array<string, mixed>
+     */
+    private function packageProvenance(
+        array $parts,
+        array $contentTypes,
+        array $rootRelationships,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        array $documentRelationships,
+    ): array {
+        return [
+            'contentTypesPart' => $this->contentTypesPartProvenance($parts, $contentTypes),
+            'relationshipParts' => [
+                '_rels/.rels' => $this->relationshipPartProvenance($parts, '_rels/.rels', '/', $rootRelationships, $contentTypes),
+                $documentRelationshipsPart => $this->relationshipPartProvenance(
+                    $parts,
+                    $documentRelationshipsPart,
+                    $documentPart,
+                    $documentRelationships,
+                    $contentTypes,
+                ),
+            ],
+            'documentPart' => $documentPart,
+            'documentRelationshipsPart' => $documentRelationshipsPart,
+            'parts' => $this->packagePartInventory(
+                $parts,
+                $contentTypes,
+                $rootRelationships,
+                $documentPart,
+                $documentRelationshipsPart,
+                $documentRelationships,
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function contentTypesPartProvenance(array $parts, array $contentTypes): array
+    {
+        $defaults = [];
+        foreach ($contentTypes['defaults'] as $extension => $contentType) {
+            $defaults[$extension] = [
+                'extension' => $extension,
+                'contentType' => $contentType,
+            ];
+        }
+
+        $overrides = [];
+        foreach ($contentTypes['overrides'] as $partName => $contentType) {
+            $overrides[$partName] = [
+                'partName' => $partName,
+                'contentType' => $contentType,
+                'exists' => isset($parts[$partName]),
+            ];
+        }
+
+        return [
+            'partName' => '[Content_Types].xml',
+            'exists' => isset($parts['[Content_Types].xml']),
+            'bytes' => isset($parts['[Content_Types].xml']) ? strlen($parts['[Content_Types].xml']) : 0,
+            'defaultCount' => count($defaults),
+            'overrideCount' => count($overrides),
+            'defaults' => $defaults,
+            'overrides' => $overrides,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function relationshipPartProvenance(
+        array $parts,
+        string $relationshipsPart,
+        string $sourcePart,
+        array $relationships,
+        array $contentTypes,
+    ): array {
+        $relationshipSummaries = [];
+        foreach ($relationships as $id => $relationship) {
+            $relationshipSummaries[$id] = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        }
+
+        return [
+            'partName' => $relationshipsPart,
+            'sourcePart' => $sourcePart,
+            'exists' => isset($parts[$relationshipsPart]),
+            'bytes' => isset($parts[$relationshipsPart]) ? strlen($parts[$relationshipsPart]) : 0,
+            'relationshipCount' => count($relationshipSummaries),
+            'relationships' => $relationshipSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function relationshipInventorySummary(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+    ): array {
+        $external = $this->isExternalRelationshipTarget($relationship);
+        $targetPart = $external ? null : $this->stripQueryAndFragment($relationship['resolvedTarget']);
+        $suffix = $external ? ['query' => null, 'fragment' => null, 'suffix' => ''] : $this->targetReferenceSuffix($relationship['resolvedTarget']);
+        $contentTypeResolution = $targetPart === null
+            ? $this->missingContentTypeResolution(null)
+            : $this->contentTypeResolutionForPart($targetPart, $contentTypes);
+
+        return [
+            'id' => $relationship['id'],
+            'type' => $relationship['type'],
+            'sourcePart' => $sourcePart,
+            'relationshipsPart' => $relationshipsPart,
+            'target' => $relationship['target'],
+            'targetMode' => $relationship['targetMode'],
+            'external' => $external,
+            'resolvedTarget' => $relationship['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $suffix['query'],
+            'targetFragment' => $suffix['fragment'],
+            'targetReferenceSuffix' => $suffix['suffix'],
+            'exists' => $targetPart !== null && isset($parts[$targetPart]),
+            'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+            'defaultExtension' => $contentTypeResolution['defaultExtension'],
+            'overridePartName' => $contentTypeResolution['overridePartName'],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @return array<string, array<string, mixed>>
+     */
+    private function packagePartInventory(
+        array $parts,
+        array $contentTypes,
+        array $rootRelationships,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        array $documentRelationships,
+    ): array {
+        $rolesByPart = [];
+        $this->addPartRole($rolesByPart, '[Content_Types].xml', 'content-types');
+        $this->addPartRole($rolesByPart, '_rels/.rels', 'package-relationships');
+        $this->addPartRole($rolesByPart, $documentPart, 'office-document');
+        $this->addPartRole($rolesByPart, $documentRelationshipsPart, 'office-document-relationships');
+
+        foreach ($rootRelationships as $relationship) {
+            if ($this->isExternalRelationshipTarget($relationship)) {
+                continue;
+            }
+            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'root-relationship-target');
+        }
+        foreach ($documentRelationships as $relationship) {
+            if ($this->isExternalRelationshipTarget($relationship)) {
+                continue;
+            }
+            $this->addPartRole($rolesByPart, $this->stripQueryAndFragment($relationship['resolvedTarget']), 'document-relationship-target');
+        }
+
+        $inventory = [];
+        foreach ($parts as $partName => $contents) {
+            $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+            $roles = array_keys($rolesByPart[$partName] ?? []);
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+
+            $entry = [
+                'partName' => $partName,
+                'bytes' => strlen($contents),
+                'contentType' => $contentTypeResolution['contentType'],
+                'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+                'defaultExtension' => $contentTypeResolution['defaultExtension'],
+                'overridePartName' => $contentTypeResolution['overridePartName'],
+                'isRelationshipPart' => $this->isRelationshipPartName($partName),
+                'roles' => $roles,
+            ];
+            if ($entry['isRelationshipPart']) {
+                $entry['relationshipSourcePart'] = $this->relationshipSourcePartForInventory($partName);
+            }
+            $inventory[$partName] = $entry;
+        }
+
+        return $inventory;
+    }
+
+    /**
+     * @param array<string, array<string, true>> $rolesByPart
+     */
+    private function addPartRole(array &$rolesByPart, ?string $partName, string $role): void
+    {
+        if ($partName === null || $partName === '') {
+            return;
+        }
+
+        $rolesByPart[$partName][$role] = true;
+    }
+
+    /**
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     */
+    private function isExternalRelationshipTarget(array $relationship): bool
+    {
+        return $relationship['targetMode'] === 'External'
+            || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $relationship['resolvedTarget']) === 1;
+    }
+
+    /**
+     * @return array{query:?string, fragment:?string, suffix:string}
+     */
+    private function targetReferenceSuffix(string $resolvedTarget): array
+    {
+        $fragment = null;
+        $query = null;
+        $suffix = '';
+        $beforeFragment = $resolvedTarget;
+        $fragmentPosition = strpos($resolvedTarget, '#');
+        if ($fragmentPosition !== false) {
+            $fragment = substr($resolvedTarget, $fragmentPosition + 1);
+            $beforeFragment = substr($resolvedTarget, 0, $fragmentPosition);
+            $suffix = '#' . $fragment;
+        }
+
+        $queryPosition = strpos($beforeFragment, '?');
+        if ($queryPosition !== false) {
+            $query = substr($beforeFragment, $queryPosition + 1);
+            $suffix = '?' . $query . ($fragment === null ? '' : '#' . $fragment);
+        }
+
+        return [
+            'query' => $query,
+            'fragment' => $fragment,
+            'suffix' => $suffix,
+        ];
+    }
+
+    /**
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array{contentType:string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string}
+     */
+    private function contentTypeResolutionForPart(string $partName, array $contentTypes): array
+    {
+        $partName = $this->stripQueryAndFragment($partName);
+        if (isset($contentTypes['overrides'][$partName])) {
+            return [
+                'contentType' => $contentTypes['overrides'][$partName],
+                'contentTypeSource' => 'override',
+                'defaultExtension' => null,
+                'overridePartName' => $partName,
+            ];
+        }
+
+        $extension = strtolower(pathinfo($partName, PATHINFO_EXTENSION));
+        if ($extension !== '' && isset($contentTypes['defaults'][$extension])) {
+            return [
+                'contentType' => $contentTypes['defaults'][$extension],
+                'contentTypeSource' => 'default',
+                'defaultExtension' => $extension,
+                'overridePartName' => null,
+            ];
+        }
+
+        return $this->missingContentTypeResolution($extension === '' ? null : $extension);
+    }
+
+    /**
+     * @return array{contentType:string, contentTypeSource:string, defaultExtension:?string, overridePartName:?string}
+     */
+    private function missingContentTypeResolution(?string $defaultExtension): array
+    {
+        return [
+            'contentType' => '',
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => $defaultExtension,
+            'overridePartName' => null,
+        ];
+    }
+
+    private function isRelationshipPartName(string $partName): bool
+    {
+        return $partName === '_rels/.rels'
+            || (str_ends_with($partName, '.rels') && str_contains($partName, '/_rels/'));
+    }
+
+    private function relationshipSourcePartForInventory(string $relationshipPart): string
+    {
+        if ($relationshipPart === '_rels/.rels') {
+            return '/';
+        }
+
+        return $this->sourcePartForRelationshipsPart($relationshipPart);
     }
 
     /**

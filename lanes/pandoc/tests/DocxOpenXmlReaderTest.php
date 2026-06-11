@@ -68,6 +68,77 @@ return [
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'exposes docx package content type relationship and part inventory provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/xml"/>' . "\n" .
+            '  <Override PartName="/word/missing-comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml?doc=main#body"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml?slot=1#payload"/>' . "\n" .
+            '  <Relationship Id="rRemote" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/reference.xml?x=1#frag" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = '<root/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $contentTypesPart = $package['contentTypesPart'];
+        $rootRelationshipsPart = $package['relationshipParts']['_rels/.rels'];
+        $documentRelationshipsPart = $package['relationshipParts']['word/_rels/document.xml.rels'];
+        $customXmlRelationship = $documentRelationshipsPart['relationships']['rCustomXml'];
+        $remoteRelationship = $documentRelationshipsPart['relationships']['rRemote'];
+        $inventory = $package['parts'];
+
+        $t->same('[Content_Types].xml', $contentTypesPart['partName']);
+        $t->same(true, $contentTypesPart['exists']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesPart['bytes']);
+        $t->same('application/xml', $contentTypesPart['defaults']['xml']['contentType']);
+        $t->same('application/xml', $contentTypesPart['overrides']['customXml/item1.xml']['contentType']);
+        $t->same(true, $contentTypesPart['overrides']['customXml/item1.xml']['exists']);
+        $t->same(false, $contentTypesPart['overrides']['word/missing-comments.xml']['exists']);
+
+        $t->same('word/document.xml', $package['documentPart']);
+        $t->same('/', $rootRelationshipsPart['sourcePart']);
+        $t->same(true, $rootRelationshipsPart['exists']);
+        $t->same('word/document.xml?doc=main#body', $rootRelationshipsPart['relationships']['rDoc']['resolvedTarget']);
+        $t->same('word/document.xml', $rootRelationshipsPart['relationships']['rDoc']['targetPart']);
+        $t->same('?doc=main#body', $rootRelationshipsPart['relationships']['rDoc']['targetReferenceSuffix']);
+        $t->same(true, $rootRelationshipsPart['relationships']['rDoc']['exists']);
+        $t->same('override', $rootRelationshipsPart['relationships']['rDoc']['contentTypeSource']);
+        $t->same('word/document.xml', $documentRelationshipsPart['sourcePart']);
+        $t->same(true, $documentRelationshipsPart['exists']);
+        $t->same(4, $documentRelationshipsPart['relationshipCount']);
+        $t->same('customXml/item1.xml?slot=1#payload', $customXmlRelationship['resolvedTarget']);
+        $t->same('customXml/item1.xml', $customXmlRelationship['targetPart']);
+        $t->same('?slot=1#payload', $customXmlRelationship['targetReferenceSuffix']);
+        $t->same('slot=1', $customXmlRelationship['targetQuery']);
+        $t->same('payload', $customXmlRelationship['targetFragment']);
+        $t->same(true, $customXmlRelationship['exists']);
+        $t->same('override', $customXmlRelationship['contentTypeSource']);
+        $t->same(true, $remoteRelationship['external']);
+        $t->same(null, $remoteRelationship['targetPart']);
+        $t->same(false, $remoteRelationship['exists']);
+
+        $t->same('office-document', $inventory['word/document.xml']['roles'][0]);
+        $t->true(in_array('root-relationship-target', $inventory['word/document.xml']['roles'], true), 'document root relationship role missing');
+        $t->same('word/document.xml', $inventory['word/_rels/document.xml.rels']['relationshipSourcePart']);
+        $t->same(true, $inventory['word/_rels/document.xml.rels']['isRelationshipPart']);
+        $t->same('default', $inventory['word/_rels/document.xml.rels']['contentTypeSource']);
+        $t->true(in_array('document-relationship-target', $inventory['customXml/item1.xml']['roles'], true), 'custom XML relationship role missing');
+        $t->same('override', $inventory['customXml/item1.xml']['contentTypeSource']);
+        $t->same('package-part', $inventory['word/styles.xml']['roles'][0]);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
