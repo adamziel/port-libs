@@ -530,6 +530,126 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'plans typst diagnostic format boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/diagnostic-format-boundary.pdf',
+            'source' => '= Typst Diagnostic Format Boundary Packet',
+            'engineOptions' => ['--diagnostic-format=human'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst diagnostic format boundary packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'diagnosticFormat' => [
+                'raw' => 'human',
+                'format' => 'human',
+                'parserProfile' => 'human',
+                'warningProvenance' => 'structured-human',
+                'safe' => true,
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/diagnostic-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/diagnostic-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-diagnostic-format:human', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+
+        $unsupported = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/unsupported-diagnostic-format-boundary.pdf',
+            'source' => '= Typst Unsupported Diagnostic Format Boundary Packet',
+            'engineOptions' => [
+                '--diagnostic-format=short',
+                '--diagnostic-format',
+                'compact',
+            ],
+        ]);
+        $unsupportedExpected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'diagnostic-format-unsupported-boundary:compact',
+                'diagnostic-format-boundary-overridden',
+            ],
+            'diagnosticFormat' => [
+                'raw' => 'compact',
+                'format' => 'compact',
+                'parserProfile' => 'unknown',
+                'warningProvenance' => 'review',
+                'safe' => false,
+                'issues' => ['diagnostic-format-unsupported-boundary:compact'],
+            ],
+            'overrides' => [
+                [
+                    'option' => 'diagnosticFormat',
+                    'count' => 2,
+                    'values' => ['short', 'compact'],
+                    'selected' => 'compact',
+                    'issue' => 'diagnostic-format-boundary-overridden',
+                ],
+            ],
+            'diagnosticFormatHistory' => [
+                [
+                    'raw' => 'short',
+                    'format' => 'short',
+                    'parserProfile' => 'short',
+                    'warningProvenance' => 'line-oriented',
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                [
+                    'raw' => 'compact',
+                    'format' => 'compact',
+                    'parserProfile' => 'unknown',
+                    'warningProvenance' => 'review',
+                    'safe' => false,
+                    'issues' => ['diagnostic-format-unsupported-boundary:compact'],
+                ],
+            ],
+        ];
+        $unsupportedResult = $handoff->fakeRun($unsupported, [
+            'files' => [
+                'build/unsupported-diagnostic-format-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+
+        $t->same($unsupportedExpected, $unsupported['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $unsupported['diagnostics']));
+        $t->contains('typst-diagnostic-format:compact', implode(',', $unsupported['diagnostics']));
+        $t->contains('typst-boundary-overrides:1', implode(',', $unsupported['diagnostics']));
+        $t->contains('typst-boundary-issues:2', implode(',', $unsupported['diagnostics']));
+        $t->same($unsupportedExpected, $unsupportedResult['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $unsupportedResult['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-boundary-provenance:review', implode(',', $unsupportedResult['artifactProvenanceReview']['issues']));
+    },
+
     'plans typst pdf standard boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
