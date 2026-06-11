@@ -9602,6 +9602,57 @@ XML;
         $t->same(2, $result['importReport']['manifest']['undeclaredEntryCount']);
         $t->same(['manifest.rdf', 'metadata/review.rdf'], $undeclaredParts);
     },
+    'labels ODT RDF and signature sidecars in package provenance roles' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSidecars = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml; profile=&quot;review&quot;"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/macrosignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+        $rdfXml = <<<'XML'
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="content.xml">
+    <dc:title>Package provenance RDF</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="sidecar-signature">
+    <dsig:SignedInfo/>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSidecars, null, null, [
+            ['name' => 'manifest.rdf', 'data' => $rdfXml],
+            ['name' => 'metadata/manifest.rdf', 'data' => $rdfXml],
+            ['name' => 'META-INF/macrosignatures.xml', 'data' => $signatureXml],
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $parts = $provenance['parts'];
+        $undeclaredParts = array_column($result['importReport']['manifest']['undeclaredEntries'], 'part');
+
+        $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
+        $t->same(['odf-rdf-metadata', 'manifest-declared'], $parts['manifest.rdf']['roles']);
+        $t->same('application/rdf+xml; profile="review"', $parts['manifest.rdf']['manifestMediaType']);
+        $t->same(true, $parts['manifest.rdf']['manifestMediaTypeHasParameters']);
+        $t->same('review', $parts['manifest.rdf']['manifestMediaTypeParameterMap']['profile']);
+        $t->same(['odf-rdf-metadata', 'undeclared-package-entry'], $parts['metadata/manifest.rdf']['roles']);
+        $t->same(true, $parts['metadata/manifest.rdf']['undeclared']);
+        $t->same(['odf-signature-metadata', 'manifest-declared'], $parts['META-INF/macrosignatures.xml']['roles']);
+        $t->same(['odf-signature-metadata', 'undeclared-package-entry'], $parts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(true, $parts['META-INF/documentsignatures.xml']['undeclared']);
+        $t->same(2, $provenance['undeclaredEntryCount']);
+        $t->same(['metadata/manifest.rdf', 'META-INF/documentsignatures.xml'], $undeclaredParts);
+        $t->same(2, $result['rdfMetadata']['partCount']);
+        $t->same(2, $result['signatureMetadata']['partCount']);
+        $t->same(1, count($result['media']), 'RDF and signature sidecars must stay out of media byte handoff');
+    },
     'maps ODT XML signature sidecars into package review metadata without validation' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSignatures = str_replace(
             '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',

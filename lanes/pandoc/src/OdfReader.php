@@ -680,6 +680,12 @@ final class OdfReader
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
         }
+        if ($this->isRdfPartName($entry->name)) {
+            $roles[] = 'odf-rdf-metadata';
+        }
+        if ($this->isSignaturePartName($entry->name)) {
+            $roles[] = 'odf-signature-metadata';
+        }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
         }
@@ -689,6 +695,9 @@ final class OdfReader
             $part = (string) ($manifestItem['part'] ?? '');
             if (str_starts_with($mediaType, 'image/') || str_starts_with($part, 'Pictures/')) {
                 $roles[] = 'media-resource';
+            }
+            if (strtolower((string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase'])) === 'application/rdf+xml') {
+                $roles[] = 'odf-rdf-metadata';
             }
             if ($this->isScriptPackagePartName($part)) {
                 $roles[] = 'script-package';
