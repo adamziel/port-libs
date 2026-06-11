@@ -7573,12 +7573,17 @@ final class ZipPackage
      *     centralDirectoryNameBytes:int,
      *     centralDirectoryExtraFieldBytes:int,
      *     centralDirectoryCommentBytes:int,
+     *     centralDirectoryReviewFieldBytes:int,
      *     centralExtraFieldEntryCount:int,
      *     entryCommentCount:int,
+     *     centralDirectoryReviewFieldEntryCount:int,
      *     hasCentralDirectoryVariableFields:bool,
      *     hasCentralExtraFields:bool,
      *     hasEntryComments:bool,
      *     hasPackageComment:bool,
+     *     variableFieldByteBuckets:list<array{kind:string, byteCount:int, entryCount:int, hasBytes:bool}>,
+     *     largestVariableFieldEntry:?array<string, mixed>,
+     *     reviewFieldEntries:list<array<string, mixed>>,
      *     scanStoppedOffset:int,
      *     hasUnexpectedCentralDirectoryTail:bool,
      *     unexpectedRecordOffset:?int,
@@ -7601,6 +7606,7 @@ final class ZipPackage
      *         centralExtraFieldLength:int,
      *         rawCommentOffset:int,
      *         rawCommentLength:int,
+     *         variableFieldByteCount:int,
      *         recordEnd:int,
      *         localHeaderOffset:int,
      *         hasCentralExtraFields:bool,
@@ -7633,6 +7639,8 @@ final class ZipPackage
         $commentBytes = 0;
         $centralExtraFieldEntryCount = 0;
         $entryCommentCount = 0;
+        $reviewFieldEntries = [];
+        $largestVariableFieldEntry = null;
 
         for ($index = 0; $index < $archive['totalEntryCount']; $index++) {
             while ($cursor < $archive['centralDirectoryEnd']) {
@@ -7681,7 +7689,7 @@ final class ZipPackage
             );
             self::assertSafePartName($decodedName['text']);
 
-            $entries[] = [
+            $entrySummary = [
                 'name' => $decodedName['text'],
                 'rawName' => $rawName,
                 'nameEncoding' => $decodedName['encoding'],
@@ -7697,11 +7705,22 @@ final class ZipPackage
                 'centralExtraFieldLength' => $extraLength,
                 'rawCommentOffset' => $rawCommentOffset,
                 'rawCommentLength' => $commentLength,
+                'variableFieldByteCount' => $variableLength,
                 'recordEnd' => $recordEnd,
                 'localHeaderOffset' => $localHeaderOffset,
                 'hasCentralExtraFields' => $extraLength > 0,
                 'hasEntryComment' => $commentLength > 0,
             ];
+            $entries[] = $entrySummary;
+            if ($extraLength > 0 || $commentLength > 0) {
+                $reviewFieldEntries[] = $entrySummary;
+            }
+            if (
+                $largestVariableFieldEntry === null
+                || $variableLength > $largestVariableFieldEntry['variableFieldByteCount']
+            ) {
+                $largestVariableFieldEntry = $entrySummary;
+            }
 
             $nameBytes += $nameLength;
             $extraFieldBytes += $extraLength;
@@ -7743,6 +7762,33 @@ final class ZipPackage
 
         $issues = array_values(array_unique($issues));
         $packageCommentOffset = $archive['eocdOffset'] + 22;
+        $packageCommentEntryCount = $archive['packageCommentLength'] > 0 ? 1 : 0;
+        $variableFieldByteBuckets = [
+            [
+                'kind' => 'central-directory-name',
+                'byteCount' => $nameBytes,
+                'entryCount' => count($entries),
+                'hasBytes' => $nameBytes > 0,
+            ],
+            [
+                'kind' => 'central-extra-field',
+                'byteCount' => $extraFieldBytes,
+                'entryCount' => $centralExtraFieldEntryCount,
+                'hasBytes' => $extraFieldBytes > 0,
+            ],
+            [
+                'kind' => 'entry-comment',
+                'byteCount' => $commentBytes,
+                'entryCount' => $entryCommentCount,
+                'hasBytes' => $commentBytes > 0,
+            ],
+            [
+                'kind' => 'package-comment',
+                'byteCount' => $archive['packageCommentLength'],
+                'entryCount' => $packageCommentEntryCount,
+                'hasBytes' => $archive['packageCommentLength'] > 0,
+            ],
+        ];
 
         return [
             'entryCount' => count($entries),
@@ -7758,12 +7804,17 @@ final class ZipPackage
             'centralDirectoryNameBytes' => $nameBytes,
             'centralDirectoryExtraFieldBytes' => $extraFieldBytes,
             'centralDirectoryCommentBytes' => $commentBytes,
+            'centralDirectoryReviewFieldBytes' => $extraFieldBytes + $commentBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
+            'centralDirectoryReviewFieldEntryCount' => count($reviewFieldEntries),
             'hasCentralDirectoryVariableFields' => $nameBytes + $extraFieldBytes + $commentBytes > 0,
             'hasCentralExtraFields' => $centralExtraFieldEntryCount > 0,
             'hasEntryComments' => $entryCommentCount > 0,
             'hasPackageComment' => $archive['packageCommentLength'] > 0,
+            'variableFieldByteBuckets' => $variableFieldByteBuckets,
+            'largestVariableFieldEntry' => $largestVariableFieldEntry,
+            'reviewFieldEntries' => $reviewFieldEntries,
             'scanStoppedOffset' => $cursor,
             'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,
             'unexpectedRecordOffset' => $unexpectedRecordOffset,

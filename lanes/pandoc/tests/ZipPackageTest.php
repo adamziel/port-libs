@@ -645,6 +645,95 @@ return [
         $t->same(true, $rawPreflight['strictImport']['comments']['hasPackageComment']);
     },
 
+    'preflights central directory variable field byte buckets for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $typesExtra = pack('vva*', 0xcafe, strlen('types-review'), 'types-review');
+        $documentExtra = pack('vva*', 0xf00d, strlen('document-review-provenance'), 'document-review-provenance');
+        $typesComment = 'types central comment';
+        $packageComment = 'package variable fields review';
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types/>',
+                'method' => 0,
+                'centralExtra' => $typesExtra,
+                'localExtra' => $typesExtra,
+                'comment' => $typesComment,
+            ],
+            [
+                'name' => '_rels/.rels',
+                'data' => '<Relationships/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>Variable field review</w:p></w:body></w:document>',
+                'method' => 8,
+                'centralExtra' => $documentExtra,
+                'localExtra' => $documentExtra,
+            ],
+        ], $packageComment);
+
+        $summary = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $rawPreflight = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $nameBytes = strlen('[Content_Types].xml') + strlen('_rels/.rels') + strlen('word/document.xml');
+        $extraBytes = strlen($typesExtra) + strlen($documentExtra);
+
+        $t->same(3, $summary['entryCount']);
+        $t->same(3, $summary['declaredEntryCount']);
+        $t->same($nameBytes, $summary['centralDirectoryNameBytes']);
+        $t->same($extraBytes, $summary['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($typesComment), $summary['centralDirectoryCommentBytes']);
+        $t->same($extraBytes + strlen($typesComment), $summary['centralDirectoryReviewFieldBytes']);
+        $t->same(2, $summary['centralExtraFieldEntryCount']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same(2, $summary['centralDirectoryReviewFieldEntryCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same([
+            [
+                'kind' => 'central-directory-name',
+                'byteCount' => $nameBytes,
+                'entryCount' => 3,
+                'hasBytes' => true,
+            ],
+            [
+                'kind' => 'central-extra-field',
+                'byteCount' => $extraBytes,
+                'entryCount' => 2,
+                'hasBytes' => true,
+            ],
+            [
+                'kind' => 'entry-comment',
+                'byteCount' => strlen($typesComment),
+                'entryCount' => 1,
+                'hasBytes' => true,
+            ],
+            [
+                'kind' => 'package-comment',
+                'byteCount' => strlen($packageComment),
+                'entryCount' => 1,
+                'hasBytes' => true,
+            ],
+        ], $summary['variableFieldByteBuckets']);
+        $t->same('[Content_Types].xml', $summary['largestVariableFieldEntry']['name']);
+        $t->same(
+            strlen('[Content_Types].xml') + strlen($typesExtra) + strlen($typesComment),
+            $summary['largestVariableFieldEntry']['variableFieldByteCount']
+        );
+        $t->same('[Content_Types].xml', $summary['reviewFieldEntries'][0]['name']);
+        $t->same('word/document.xml', $summary['reviewFieldEntries'][1]['name']);
+        $t->same(strlen($typesExtra), $summary['reviewFieldEntries'][0]['centralExtraFieldLength']);
+        $t->same(strlen($typesComment), $summary['reviewFieldEntries'][0]['rawCommentLength']);
+        $t->same(strlen($documentExtra), $summary['reviewFieldEntries'][1]['centralExtraFieldLength']);
+        $t->same(0, $summary['reviewFieldEntries'][1]['rawCommentLength']);
+        $t->same(strlen($packageComment), $summary['packageCommentLength']);
+        $t->same($summary, $rawPreflight['centralDirectoryVariableFields']);
+        $t->same(true, $rawPreflight['canInstantiate']);
+        $t->contains('package-or-entry-comments', implode(',', $rawPreflight['diagnostics']));
+    },
+
     'exposes zip package entries in local header order for container preflight' => static function (TestRunner $t) use ($buildZipPackage): void {
         $zip = $buildZipPackage([
             [
