@@ -631,6 +631,71 @@ XML;
         $t->same(0, $rawManifest['missingContentTypePartCount']);
         $t->same(true, $rawManifest['valid']);
     },
+    'classifies generic OPC ZIP payload handoff roles from content types' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="image/png; role=thumbnail"/>
+  <Default Extension="pkg" ContentType="application/vnd.openxmlformats-officedocument.package"/>
+  <Override PartName="/word/payload/extensionless-image" ContentType="image/svg+xml"/>
+  <Override PartName="/word/payload/extensionless-package" ContentType="application/vnd.openxmlformats-package.encrypted-package"/>
+  <Override PartName="/word/payload/extensionless-html" ContentType="text/html; charset=utf-8"/>
+</Types>
+XML;
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'word/media/thumbnail.bin', 'data' => 'PNG'],
+            ['name' => 'word/embeddings/nested.pkg', 'data' => 'ZIP'],
+            ['name' => 'word/payload/extensionless-image', 'data' => '<svg xmlns="http://www.w3.org/2000/svg"/>'],
+            ['name' => 'word/payload/extensionless-package', 'data' => 'encrypted package bytes'],
+            ['name' => 'word/payload/extensionless-html', 'data' => '<html><body>review</body></html>'],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(2, $summary['mediaPartCandidateCount']);
+        $t->same(2, $summary['embeddedPackageCandidateCount']);
+        $t->same(2, $summary['xmlPayloadPartCount']);
+        $t->same(4, $summary['binaryPayloadPartCount']);
+        $t->same([
+            'content-types' => 1,
+            'embedded-package-candidate' => 2,
+            'media' => 2,
+            'xml-part' => 1,
+        ], $summary['roleCounts']);
+
+        $t->same('media', $entries['word/media/thumbnail.bin']['role']);
+        $t->same('media', $entries['word/media/thumbnail.bin']['handoffKind']);
+        $t->same('default', $entries['word/media/thumbnail.bin']['contentTypeSource']);
+        $t->same('bin', $entries['word/media/thumbnail.bin']['contentTypeDefaultExtension']);
+        $t->same('embedded-package-candidate', $entries['word/embeddings/nested.pkg']['role']);
+        $t->same('embedded-package', $entries['word/embeddings/nested.pkg']['handoffKind']);
+        $t->same('media', $entries['word/payload/extensionless-image']['role']);
+        $t->same('override', $entries['word/payload/extensionless-image']['contentTypeSource']);
+        $t->same('embedded-package-candidate', $entries['word/payload/extensionless-package']['role']);
+        $t->same('embedded-package', $entries['word/payload/extensionless-package']['handoffKind']);
+        $t->same('xml-part', $entries['word/payload/extensionless-html']['role']);
+        $t->same('xml', $entries['word/payload/extensionless-html']['handoffKind']);
+
+        $graph = OpcRelationshipGraph::fromPackage($package);
+        $defaultUsage = $graph->contentTypeDefaultUsageSummary();
+        $defaults = [];
+        foreach ($defaultUsage['defaults'] as $default) {
+            $defaults[$default['normalizedExtension']] = $default;
+        }
+
+        $t->same(1, $defaultUsage['mediaDefaultResolvedCount']);
+        $t->same(1, $defaultUsage['embeddedPackageDefaultResolvedCount']);
+        $t->same(1, $defaults['bin']['mediaPartCount']);
+        $t->same(1, $defaults['pkg']['embeddedPackageCandidateCount']);
+    },
     'serializes OPC content types with namespace and round trip lookup' => static function (TestRunner $t): void {
         $types = new OpcContentTypes();
         $types->addDefault('.xml', 'application/xml');

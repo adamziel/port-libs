@@ -464,7 +464,8 @@ final class OpcRelationshipGraph
                 $entry['contentTypesItem'],
                 $relationshipPart,
                 $relationshipPartCandidate,
-                $relationshipSource
+                $relationshipSource,
+                $entry['contentType']
             );
             $entry['handoffKind'] = self::zipEntryManifestHandoffKind($entry['role'], $partName);
             $entry['issues'] = array_values(array_unique($entry['issues']));
@@ -2554,11 +2555,11 @@ final class OpcRelationshipGraph
                         $defaults[$defaultExtension]['relationshipPartCount']++;
                         $summary['relationshipPartDefaultResolvedCount']++;
                     }
-                    if (self::isMediaPartCandidate($partName)) {
+                    if (self::isMediaPartCandidate($partName, $part['contentType'])) {
                         $defaults[$defaultExtension]['mediaPartCount']++;
                         $summary['mediaDefaultResolvedCount']++;
                     }
-                    if (self::isEmbeddedPackageCandidate($partName)) {
+                    if (self::isEmbeddedPackageCandidate($partName, $part['contentType'])) {
                         $defaults[$defaultExtension]['embeddedPackageCandidateCount']++;
                         $summary['embeddedPackageDefaultResolvedCount']++;
                     }
@@ -7207,7 +7208,8 @@ final class OpcRelationshipGraph
         bool $contentTypesItem,
         bool $relationshipPart,
         bool $relationshipPartCandidate,
-        ?string $relationshipSource
+        ?string $relationshipSource,
+        ?string $contentType = null
     ): string {
         if ($isDirectory) {
             return 'directory';
@@ -7241,15 +7243,15 @@ final class OpcRelationshipGraph
             return 'digital-signature';
         }
 
-        if (self::isEmbeddedPackageCandidate($partName)) {
+        if (self::isEmbeddedPackageCandidate($partName, $contentType)) {
             return 'embedded-package-candidate';
         }
 
-        if (self::isMediaPartCandidate($partName)) {
+        if (self::isMediaPartCandidate($partName, $contentType)) {
             return 'media';
         }
 
-        if (self::isXmlLikePartName($partName)) {
+        if (self::isXmlLikePartName($partName, $contentType)) {
             return 'xml-part';
         }
 
@@ -7265,6 +7267,7 @@ final class OpcRelationshipGraph
             'package-relationships', 'part-relationships' => 'relationships+xml',
             'embedded-package-candidate' => 'embedded-package',
             'media' => 'media',
+            'xml-part' => 'xml',
             default => self::isXmlLikePartName($partName) ? 'xml' : 'binary',
         };
     }
@@ -7289,9 +7292,9 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
     }
 
-    private static function isEmbeddedPackageCandidate(string $partName): bool
+    private static function isEmbeddedPackageCandidate(string $partName, ?string $contentType = null): bool
     {
-        return in_array(self::partNameExtension($partName), [
+        if (in_array(self::partNameExtension($partName), [
             'docx',
             'docm',
             'dotx',
@@ -7305,12 +7308,16 @@ final class OpcRelationshipGraph
             'xlsx',
             'xlsm',
             'zip',
-        ], true);
+        ], true)) {
+            return true;
+        }
+
+        return $contentType !== null && self::isEmbeddedPackageContentType($contentType);
     }
 
-    private static function isMediaPartCandidate(string $partName): bool
+    private static function isMediaPartCandidate(string $partName, ?string $contentType = null): bool
     {
-        return in_array(self::partNameExtension($partName), [
+        if (in_array(self::partNameExtension($partName), [
             'avi',
             'bmp',
             'emf',
@@ -7328,12 +7335,58 @@ final class OpcRelationshipGraph
             'wav',
             'webp',
             'wmf',
+        ], true)) {
+            return true;
+        }
+
+        return $contentType !== null && self::isMediaContentType($contentType);
+    }
+
+    private static function isXmlLikePartName(string $partName, ?string $contentType = null): bool
+    {
+        if (in_array(self::partNameExtension($partName), ['html', 'htm', 'ncx', 'opf', 'rels', 'xhtml', 'xml'], true)) {
+            return true;
+        }
+
+        return $contentType !== null && self::isXmlLikeContentType($contentType);
+    }
+
+    private static function isEmbeddedPackageContentType(string $contentType): bool
+    {
+        return in_array(self::contentTypeMediaTypeKey($contentType), [
+            'application/epub+zip',
+            'application/vnd.oasis.opendocument.presentation',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'application/vnd.oasis.opendocument.text',
+            'application/vnd.openxmlformats-officedocument.oleobject',
+            'application/vnd.openxmlformats-officedocument.package',
+            'application/vnd.openxmlformats-package.encrypted-package',
+            'application/x-zip-compressed',
+            'application/zip',
         ], true);
     }
 
-    private static function isXmlLikePartName(string $partName): bool
+    private static function isMediaContentType(string $contentType): bool
     {
-        return in_array(self::partNameExtension($partName), ['html', 'htm', 'ncx', 'opf', 'rels', 'xhtml', 'xml'], true);
+        $mediaType = self::contentTypeMediaTypeKey($contentType);
+
+        return str_starts_with($mediaType, 'image/')
+            || str_starts_with($mediaType, 'audio/')
+            || str_starts_with($mediaType, 'video/');
+    }
+
+    private static function isXmlLikeContentType(string $contentType): bool
+    {
+        $mediaType = self::contentTypeMediaTypeKey($contentType);
+
+        return in_array($mediaType, [
+            'application/oebps-package+xml',
+            'application/xhtml+xml',
+            'application/xml',
+            'text/html',
+            'text/xml',
+        ], true)
+            || str_ends_with($mediaType, '+xml');
     }
 
     private static function partNameExtension(string $partName): string
