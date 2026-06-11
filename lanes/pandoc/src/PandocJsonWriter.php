@@ -301,7 +301,11 @@ final class PandocJsonWriter
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlocks($node->children)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
-                [(int) $node->attr('start', 1), $this->enum($this->listStyleConstructor((string) $node->attr('style', 'default'))), $this->enum($this->listDelimiterConstructor((string) $node->attr('delimiter', 'default')))],
+                [
+                    (int) $node->attr('start', 1),
+                    $this->enum($this->listStyleConstructor((string) $node->attr('style', 'default')), $node->attr('listStyleNative')),
+                    $this->enum($this->listDelimiterConstructor((string) $node->attr('delimiter', 'default')), $node->attr('listDelimiterNative')),
+                ],
                 $this->writeListItems($node->children),
             ]],
             'bullet_list' => ['t' => 'BulletList', 'c' => $this->writeListItems($node->children)],
@@ -784,9 +788,9 @@ final class PandocJsonWriter
             'superscript' => ['t' => 'Superscript', 'c' => $this->writeInlines($node->children)],
             'subscript' => ['t' => 'Subscript', 'c' => $this->writeInlines($node->children)],
             'small_caps' => ['t' => 'SmallCaps', 'c' => $this->writeInlines($node->children)],
-            'quoted' => ['t' => 'Quoted', 'c' => [$this->enum($node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'), $this->writeInlines($node->children)]],
+            'quoted' => ['t' => 'Quoted', 'c' => [$this->enum($node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote', $node->attr('quoteTypeNative')), $this->writeInlines($node->children)]],
             'code' => ['t' => 'Code', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
-            'math' => ['t' => 'Math', 'c' => [$this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath'), (string) $node->attr('text', '')]],
+            'math' => ['t' => 'Math', 'c' => [$this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath', $node->attr('mathTypeNative')), (string) $node->attr('text', '')]],
             'raw_html_inline', 'raw_tex', 'raw_markdown', 'raw_inline' => ['t' => 'RawInline', 'c' => [$this->rawFormat($node), $this->rawText($node)]],
             'citation' => $this->writeCiteInline([$node], $this->citationSourceInlines($node)),
             'citation_group' => $this->writeCiteInline($this->citationGroupChildren($node), $this->citationSourceInlines($node)),
@@ -845,7 +849,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}|string, citationNoteNum:int, citationHash:int}
      */
     private function writeCitationRecord(AstNode $citation): array
     {
@@ -862,7 +866,7 @@ final class PandocJsonWriter
             'citationId' => $id,
             'citationPrefix' => $this->writeInlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->writeInlines($this->citationSuffixInlines($citation)),
-            'citationMode' => $this->enum($this->citationModeConstructor((string) $citation->attr('mode', 'normal'))),
+            'citationMode' => $this->enum($this->citationModeConstructor((string) $citation->attr('mode', 'normal')), $citation->attr('citationModeNative')),
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
@@ -1082,10 +1086,18 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return array{t:string}
+     * @return array{t:string}|string
      */
-    private function enum(string $constructor): array
+    private function enum(string $constructor, mixed $native = null): array|string
     {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
         return ['t' => $constructor];
     }
 

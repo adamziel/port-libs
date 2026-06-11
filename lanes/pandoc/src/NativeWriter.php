@@ -288,8 +288,8 @@ final class NativeWriter
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 [
                     (int) $node->attr('start', 1),
-                    ['t' => $this->listStyleConstructor((string) $node->attr('style', 'default'))],
-                    ['t' => $this->listDelimiterConstructor((string) $node->attr('delimiter', 'default'))],
+                    $this->enum($this->listStyleConstructor((string) $node->attr('style', 'default')), $node->attr('listStyleNative')),
+                    $this->enum($this->listDelimiterConstructor((string) $node->attr('delimiter', 'default')), $node->attr('listDelimiterNative')),
                 ],
                 $this->listItems($node->children),
             ]],
@@ -778,7 +778,7 @@ final class NativeWriter
             'quoted' => [[
                 't' => 'Quoted',
                 'c' => [
-                    ['t' => $node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote'],
+                    $this->enum($node->attr('kind') === 'single' ? 'SingleQuote' : 'DoubleQuote', $node->attr('quoteTypeNative')),
                     $this->inlines($node->children),
                 ],
             ]],
@@ -789,7 +789,7 @@ final class NativeWriter
             'math' => [[
                 't' => 'Math',
                 'c' => [
-                    ['t' => $node->attr('display') === true ? 'DisplayMath' : 'InlineMath'],
+                    $this->enum($node->attr('display') === true ? 'DisplayMath' : 'InlineMath', $node->attr('mathTypeNative')),
                     (string) $node->attr('text', ''),
                 ],
             ]],
@@ -968,7 +968,7 @@ final class NativeWriter
     }
 
     /**
-     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}, citationNoteNum:int, citationHash:int}
+     * @return array{citationId:string, citationPrefix:list<array<string, mixed>>, citationSuffix:list<array<string, mixed>>, citationMode:array{t:string}|string, citationNoteNum:int, citationHash:int}
      */
     private function citationRecord(AstNode $citation): array
     {
@@ -985,7 +985,7 @@ final class NativeWriter
             'citationId' => $id,
             'citationPrefix' => $this->inlines($this->citationAffixInlines($citation, 'prefix')),
             'citationSuffix' => $this->inlines($this->citationSuffixInlines($citation)),
-            'citationMode' => ['t' => $this->citationModeConstructor((string) $citation->attr('mode', 'normal'))],
+            'citationMode' => $this->enum($this->citationModeConstructor((string) $citation->attr('mode', 'normal')), $citation->attr('citationModeNative')),
             'citationNoteNum' => (int) $citation->attr('citationNoteNum', 0),
             'citationHash' => (int) $citation->attr('citationHash', 0),
         ];
@@ -1249,6 +1249,22 @@ final class NativeWriter
             'two_parens' => 'TwoParens',
             default => 'DefaultDelim',
         };
+    }
+
+    /**
+     * @return array{t:string}|string
+     */
+    private function enum(string $constructor, mixed $native = null): array|string
+    {
+        if (is_string($native) && $native === $constructor) {
+            return $native;
+        }
+
+        if (is_array($native) && !array_is_list($native) && ($native['t'] ?? null) === $constructor) {
+            return $native;
+        }
+
+        return ['t' => $constructor];
     }
 
     private function tableAlignmentConstructor(string $alignment): string

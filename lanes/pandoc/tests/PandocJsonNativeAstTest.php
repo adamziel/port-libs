@@ -1870,6 +1870,119 @@ return [
         $t->same($blocks, $jsonPacket['blocks']);
         $t->same($blocks, $nativePacket['blocks']);
     },
+    'preserves scalar enum helper payloads after shared ast edits' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'citationId' => 'source-a',
+            'citationPrefix' => [],
+            'citationSuffix' => [],
+            'citationMode' => 'SuppressAuthor',
+            'citationNoteNum' => 0,
+            'citationHash' => 77,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'OrderedList', 'c' => [
+                    [2, 'UpperRoman', 'TwoParens'],
+                    [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Original']]]]],
+                ]],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Quoted', 'c' => [
+                        'SingleQuote',
+                        [['t' => 'Str', 'c' => 'quoted']],
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Math', 'c' => [
+                        'DisplayMath',
+                        'x = 1',
+                    ]],
+                    ['t' => 'Space'],
+                    ['t' => 'Cite', 'c' => [
+                        [$citationRecord],
+                        [['t' => 'Str', 'c' => '[-@source-a]']],
+                    ]],
+                ]],
+            ],
+        ];
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $orderedList = $document->children[0];
+            $paragraph = $document->children[1];
+            $quoted = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'quoted'
+            ))[0];
+            $math = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'math'
+            ))[0];
+            $citation = array_values(array_filter(
+                $paragraph->children,
+                static fn (AstNode $node): bool => $node->type === 'citation'
+            ))[0];
+
+            $t->same('UpperRoman', $orderedList->attr('listStyleNative'), "{$source} list style scalar native");
+            $t->same('TwoParens', $orderedList->attr('listDelimiterNative'), "{$source} list delimiter scalar native");
+            $t->same('SingleQuote', $quoted->attr('quoteTypeNative'), "{$source} quote scalar native");
+            $t->same('DisplayMath', $math->attr('mathTypeNative'), "{$source} math scalar native");
+            $t->same('SuppressAuthor', $citation->attr('citationModeNative'), "{$source} citation mode scalar native");
+
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('ordered_list', $orderedList->attrs, [
+                    new AstNode('list_item', $orderedList->children[0]->attrs, [
+                        new AstNode('plain', [], [
+                            new AstNode('text', ['text' => 'Edited']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => 'item']),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('paragraph', $paragraph->attrs, [
+                    new AstNode('quoted', $quoted->attrs, [
+                        new AstNode('text', ['text' => 'edited']),
+                        new AstNode('space'),
+                        new AstNode('text', ['text' => 'quote']),
+                    ]),
+                    new AstNode('space'),
+                    new AstNode('math', array_replace($math->attrs, ['text' => 'z = 3'])),
+                    new AstNode('space'),
+                    new AstNode('citation', array_replace($citation->attrs, [
+                        'prefix' => [new AstNode('text', ['text' => 'see'])],
+                        'text' => 'see -@source-a',
+                    ]), [
+                        new AstNode('text', ['text' => '[see -@source-a]']),
+                    ]),
+                ]),
+            ]);
+
+            $packets = [
+                "{$source} json writer" => (new PandocJsonWriter())->toArray($editedDocument),
+                "{$source} native writer" => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ];
+
+            foreach ($packets as $label => $encoded) {
+                $orderedAttrs = $encoded['blocks'][0]['c'][0];
+                $orderedItem = $encoded['blocks'][0]['c'][1][0][0]['c'];
+                $paragraphInlines = $encoded['blocks'][1]['c'];
+                $citationEncoded = $paragraphInlines[4]['c'][0][0];
+
+                $t->same('UpperRoman', $orderedAttrs[1], "{$label} list style scalar payload");
+                $t->same('TwoParens', $orderedAttrs[2], "{$label} list delimiter scalar payload");
+                $t->same('Edited', $orderedItem[0]['c'], "{$label} edited list item text");
+                $t->same('SingleQuote', $paragraphInlines[0]['c'][0], "{$label} quote scalar payload");
+                $t->same('edited', $paragraphInlines[0]['c'][1][0]['c'], "{$label} edited quote text");
+                $t->same('DisplayMath', $paragraphInlines[2]['c'][0], "{$label} math scalar payload");
+                $t->same('z = 3', $paragraphInlines[2]['c'][1], "{$label} edited math text");
+                $t->same('SuppressAuthor', $citationEncoded['citationMode'], "{$label} citation mode scalar payload");
+                $t->same('see', $citationEncoded['citationPrefix'][0]['c'], "{$label} edited citation prefix");
+            }
+        }
+    },
     'writes remaining shared ast constructors through pandoc json and native writers' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
