@@ -459,6 +459,7 @@ final class EpubPackage
         $assetSummary = $this->assetSummary();
         $navigationEntries = $this->navigation['entries'] ?? [];
         $containerLinkReport = self::collectionLinkReport($this->containerLinks);
+        $containerLinkVocabulary = self::metadataLinkVocabularySummary($this->containerLinks);
         $packageLinkReport = self::collectionLinkReport($this->packageLinks);
         $packageLinkVocabulary = is_array($this->metadata['linkVocabulary'] ?? null)
             ? $this->metadata['linkVocabulary']
@@ -480,6 +481,7 @@ final class EpubPackage
             'containerLinksByRel' => $containerLinkReport['linksByRel'],
             'containerLinkRelCounts' => $containerLinkReport['relCounts'],
             'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+            'containerLinkVocabulary' => $containerLinkVocabulary,
             'ocfSidecars' => $ocfSidecars,
             'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
             'metadata' => $this->metadata,
@@ -570,6 +572,8 @@ final class EpubPackage
                 'containerLinksByRel' => $containerLinkReport['linksByRel'],
                 'containerLinkTargets' => self::packageLinkTargets($this->containerLinks),
                 'containerLinkDiagnostics' => $containerLinkReport['diagnostics'],
+                'containerLinkVocabulary' => $containerLinkVocabulary,
+                'containerLinkVocabularyDiagnostics' => $containerLinkVocabulary['diagnostics'],
                 'ocfSidecars' => $ocfSidecars,
                 'ocfSidecarItems' => $ocfSidecars['items'],
                 'ocfSidecarDiagnostics' => $ocfSidecars['diagnostics'],
@@ -2056,9 +2060,11 @@ final class EpubPackage
             throw new \InvalidArgumentException('EPUB metadata.xml must use the EPUB metadata namespace');
         }
 
+        $prefixReport = self::packagePrefixReport($root->hasAttribute('prefix') ? $root->getAttribute('prefix') : '');
+        $prefixBindings = $prefixReport['bindingsByPrefix'];
         $links = [];
         foreach (self::childElements($root, 'link', self::EPUB_METADATA_NAMESPACE) as $index => $linkElement) {
-            $links[] = self::parseContainerLink($linkElement, $index, $package, $manifestByPart);
+            $links[] = self::parseContainerLink($linkElement, $index, $package, $manifestByPart, $prefixBindings);
         }
 
         return $links;
@@ -2073,10 +2079,12 @@ final class EpubPackage
         \DOMElement $linkElement,
         int $index,
         ZipPackage $package,
-        array $manifestByPart
+        array $manifestByPart,
+        array $prefixBindings = []
     ): array {
         $href = self::emptyToNull($linkElement->getAttribute('href'));
         $rel = self::splitTokens($linkElement->getAttribute('rel'));
+        $properties = self::splitTokens($linkElement->getAttribute('properties'));
         $target = null;
         $partName = null;
         $external = false;
@@ -2154,7 +2162,9 @@ final class EpubPackage
             'mediaType' => self::emptyToNull($linkElement->getAttribute('media-type')),
             'manifestId' => is_array($manifestItem) ? $manifestItem['id'] : null,
             'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
-            'properties' => self::splitTokens($linkElement->getAttribute('properties')),
+            'properties' => $properties,
+            'relVocabulary' => self::metadataLinkTokenReport($rel, $prefixBindings, 'rel', $index),
+            'propertyVocabulary' => self::metadataLinkTokenReport($properties, $prefixBindings, 'properties', $index),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'hreflang' => self::emptyToNull($linkElement->getAttribute('hreflang')),
             'language' => self::metadataElementLanguage($linkElement),
