@@ -1423,6 +1423,76 @@ return [
         $t->same($rowAttr, $nativeTableRow[0]);
         $t->same($cellAttr, $nativeTableCell[0]);
     },
+    'records table helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['payload-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [
+                    [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => 0.25]],
+                    [['t' => 'AlignCenter'], ['t' => 'ColWidthDefault']],
+                ],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [
+                    ['t' => 'TableBody', 'c' => [
+                        ['', [], []],
+                        ['t' => 'RowHeadColumns', 'c' => 1],
+                        [],
+                        [
+                            ['t' => 'Row', 'c' => [
+                                ['', [], []],
+                                [
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignRight'],
+                                        ['t' => 'RowSpan', 'c' => 2],
+                                        ['t' => 'ColSpan', 'c' => 3],
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Tagged']]]],
+                                    ]],
+                                    ['t' => 'Cell', 'c' => [
+                                        ['', [], []],
+                                        ['t' => 'AlignDefault'],
+                                        1,
+                                        1,
+                                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Scalar']]]],
+                                    ]],
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $body = $table->children[0];
+            $taggedCell = $body->children[0]->children[0];
+            $scalarCell = $body->children[0]->children[1];
+
+            $t->same([['t' => 'AlignLeft'], ['t' => 'AlignCenter']], $table->attr('alignmentNatives'), "{$source} table alignment native payloads");
+            $t->same([['t' => 'ColWidth', 'c' => 0.25], ['t' => 'ColWidthDefault']], $table->attr('columnWidthNatives'), "{$source} table width native payloads");
+            $t->same(['t' => 'RowHeadColumns', 'c' => 1], $body->attr('rowHeadColumnsNative'), "{$source} row head columns native payload");
+            $t->same(['t' => 'AlignRight'], $taggedCell->attr('alignmentNative'), "{$source} tagged cell alignment native payload");
+            $t->same(['t' => 'RowSpan', 'c' => 2], $taggedCell->attr('rowSpanNative'), "{$source} tagged cell row span native payload");
+            $t->same(['t' => 'ColSpan', 'c' => 3], $taggedCell->attr('colSpanNative'), "{$source} tagged cell column span native payload");
+            $t->same(['t' => 'AlignDefault'], $scalarCell->attr('alignmentNative'), "{$source} scalar cell alignment native payload");
+            $t->same(1, $scalarCell->attr('rowSpanNative'), "{$source} scalar cell row span native payload");
+            $t->same(1, $scalarCell->attr('colSpanNative'), "{$source} scalar cell column span native payload");
+        }
+    },
     'records quote and math native enum payloads on json and native ast nodes' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],

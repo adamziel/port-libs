@@ -656,6 +656,8 @@ final class NativeReader
         $widths = [];
         $alignmentConstructors = [];
         $columnWidthConstructors = [];
+        $alignmentNatives = [];
+        $columnWidthNatives = [];
         foreach ($this->listContent($colSpecs, 'Pandoc native JSON Table column specs') as $colSpec) {
             $tuple = $this->tuple($colSpec, 2, 'Pandoc native JSON Table column spec');
             $alignmentConstructor = $this->constructorTag($tuple[0], 'Pandoc native JSON table alignment');
@@ -664,6 +666,8 @@ final class NativeReader
             $widths[] = $this->tableColumnWidth($tuple[1]);
             $alignmentConstructors[] = $alignmentConstructor;
             $columnWidthConstructors[] = $columnWidthConstructor;
+            $alignmentNatives[] = $tuple[0];
+            $columnWidthNatives[] = $tuple[1];
         }
 
         if ($alignments === []) {
@@ -675,6 +679,8 @@ final class NativeReader
             'widths' => $widths,
             'alignmentConstructors' => $alignmentConstructors,
             'columnWidthConstructors' => $columnWidthConstructors,
+            'alignmentNatives' => $alignmentNatives,
+            'columnWidthNatives' => $columnWidthNatives,
         ];
     }
 
@@ -701,6 +707,7 @@ final class NativeReader
             $attrs['rowHeadColumns'] = $rowHeadColumns;
         }
         $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
+        $attrs['rowHeadColumnsNative'] = $tuple[1];
 
         $headRows = $this->tableRows($tuple[2]);
         if ($headRows !== []) {
@@ -785,18 +792,21 @@ final class NativeReader
             $attrs['align'] = $alignment;
         }
         $attrs['alignmentConstructor'] = $alignmentConstructor;
+        $attrs['alignmentNative'] = $tuple[1];
 
         $rowspan = $this->taggedInteger($tuple[2], 'RowSpan', 'Pandoc native JSON RowSpan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
         $attrs['rowSpanConstructor'] = 'RowSpan';
+        $attrs['rowSpanNative'] = $tuple[2];
 
         $colspan = $this->taggedInteger($tuple[3], 'ColSpan', 'Pandoc native JSON ColSpan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
         $attrs['colSpanConstructor'] = 'ColSpan';
+        $attrs['colSpanNative'] = $tuple[3];
 
         $blocks = $this->blockNodes($tuple[4]);
         $text = $this->plainTextFromBlocks($blocks);
