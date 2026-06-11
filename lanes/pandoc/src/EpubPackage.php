@@ -3195,6 +3195,58 @@ final class EpubPackage
 
     /**
      * @return array{
+     *     byteLength:?int,
+     *     compressedByteLength:?int,
+     *     compressionMethod:?int,
+     *     compressionMethodName:?string,
+     *     compressionSupported:?bool,
+     *     crc32:?string,
+     *     canExposeBytes:bool
+     * }
+     */
+    private static function zipEntryProvenance(?ZipPackageEntry $entry): array
+    {
+        if (!$entry instanceof ZipPackageEntry) {
+            return [
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
+            ];
+        }
+
+        $compressionSupported = self::zipEntryCompressionSupported($entry);
+
+        return [
+            'byteLength' => $entry->uncompressedSize,
+            'compressedByteLength' => $entry->compressedSize,
+            'compressionMethod' => $entry->compressionMethod,
+            'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+            'compressionSupported' => $compressionSupported,
+            'crc32' => $entry->crc32Hex(),
+            'canExposeBytes' => $compressionSupported,
+        ];
+    }
+
+    private static function zipEntryCompressionSupported(ZipPackageEntry $entry): bool
+    {
+        return $entry->compressionMethod === 0 || $entry->compressionMethod === 8;
+    }
+
+    private static function zipCompressionMethodName(int $method): string
+    {
+        return match ($method) {
+            0 => 'stored',
+            8 => 'deflated',
+            default => 'unsupported',
+        };
+    }
+
+    /**
+     * @return array{
      *     0:array<string, array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>,
      *     1:list<array{id:string, href:string, partName:string, mediaType:string, properties:list<string>, fallback:?string, fallbackStyle:?string, mediaOverlay:?string}>
      * }
@@ -3226,6 +3278,7 @@ final class EpubPackage
             if (!$package->has($partName)) {
                 throw new \RuntimeException("EPUB manifest item {$id} references missing package part: {$partName}");
             }
+            $entry = $package->entry($partName);
 
             $item = [
                 'id' => $id,
@@ -3233,6 +3286,7 @@ final class EpubPackage
                 'target' => $target,
                 'partName' => $partName,
                 'mediaType' => $mediaType,
+                'exists' => true,
                 'properties' => self::splitTokens($itemElement->getAttribute('properties')),
                 'fallback' => $itemElement->hasAttribute('fallback') ? $itemElement->getAttribute('fallback') : null,
                 'fallbackStyle' => $itemElement->hasAttribute('fallback-style') ? $itemElement->getAttribute('fallback-style') : null,
@@ -3241,7 +3295,7 @@ final class EpubPackage
                 'hrefQuery' => $hrefSuffix['query'],
                 'hrefHasFragment' => $hrefSuffix['hasFragment'],
                 'hrefFragment' => $hrefSuffix['fragment'],
-            ];
+            ] + self::zipEntryProvenance($entry);
 
             $byId[$id] = $item;
             $items[] = $item;
@@ -3709,6 +3763,10 @@ final class EpubPackage
         }
 
         $refines = self::emptyToNull($linkElement->getAttribute('refines'));
+        $provenance = self::zipEntryProvenance($entry);
+        if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
 
         return [
             'index' => $index,
@@ -3731,10 +3789,8 @@ final class EpubPackage
             'direction' => self::metadataElementDirection($linkElement),
             'refines' => $refines,
             'subjectId' => self::metadataRefinementSubject($refines),
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'diagnostics' => $diagnostics,
-        ];
+        ] + $provenance;
     }
 
     /**
@@ -3869,6 +3925,11 @@ final class EpubPackage
             }
         }
 
+        $provenance = self::zipEntryProvenance($entry);
+        if (is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
+
         return [
             'index' => $index,
             'id' => self::emptyToNull($linkElement->getAttribute('id')),
@@ -3884,10 +3945,8 @@ final class EpubPackage
             'properties' => self::splitTokens($linkElement->getAttribute('properties')),
             'title' => self::emptyToNull($linkElement->getAttribute('title')),
             'refines' => self::emptyToNull($linkElement->getAttribute('refines')),
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'diagnostics' => $diagnostics,
-        ];
+        ] + $provenance;
     }
 
     /**
@@ -4629,6 +4688,10 @@ final class EpubPackage
                 $audioTargets[] = $audioTarget;
             }
         }
+        $provenance = self::zipEntryProvenance($entry);
+        if (($overlay['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
 
         return [
             'id' => (string) ($overlay['id'] ?? ''),
@@ -4636,8 +4699,6 @@ final class EpubPackage
             'partName' => $partName,
             'mediaType' => $mediaType,
             'exists' => $entry instanceof ZipPackageEntry,
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'referencedBy' => $referencedBy,
             'referencedByIds' => array_values(array_map(
                 static fn (array $reference): string => (string) ($reference['id'] ?? ''),
@@ -4650,7 +4711,7 @@ final class EpubPackage
             'textTargets' => array_values(array_unique($textTargets)),
             'audioTargets' => array_values(array_unique($audioTargets)),
             'diagnostics' => $diagnostics,
-        ];
+        ] + $provenance;
     }
 
     /**
@@ -5179,6 +5240,10 @@ final class EpubPackage
         $entry = $partName !== '' && $package->has($partName) ? $package->entry($partName) : null;
         $baseMediaType = self::mediaTypeBase($mediaType);
         $coreKind = self::coreMediaTypeKind($mediaType);
+        $provenance = self::zipEntryProvenance($entry);
+        if (($item['canExposeBytes'] ?? false) !== true) {
+            $provenance['canExposeBytes'] = false;
+        }
 
         return [
             'id' => (string) ($item['id'] ?? ''),
@@ -5188,15 +5253,13 @@ final class EpubPackage
             'baseMediaType' => $baseMediaType,
             'properties' => is_array($item['properties'] ?? null) ? array_values($item['properties']) : [],
             'exists' => $entry instanceof ZipPackageEntry,
-            'byteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-            'crc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
             'coreMediaType' => $coreKind !== null,
             'coreMediaTypeKind' => $coreKind,
             'epubContentDocument' => in_array($baseMediaType, [self::XHTML_MEDIA_TYPE, 'image/svg+xml'], true),
             'cssStyle' => $baseMediaType === 'text/css',
             'fallbackId' => self::nullableManifestId($item['fallback'] ?? null),
             'fallbackStyleId' => self::nullableManifestId($item['fallbackStyle'] ?? null),
-        ];
+        ] + $provenance;
     }
 
     /**
@@ -6082,6 +6145,10 @@ final class EpubPackage
                 ? $package->entry($handlerPartName)
                 : null;
             $handlerEncrypted = is_array($handler) && ($handler['encrypted'] ?? false) === true;
+            $handlerProvenance = self::zipEntryProvenance($entry);
+            if ($handlerEncrypted) {
+                $handlerProvenance['canExposeBytes'] = false;
+            }
 
             $items[] = [
                 'index' => $index,
@@ -6093,10 +6160,14 @@ final class EpubPackage
                 'handlerProperties' => is_array($handler) ? $handler['properties'] : [],
                 'handlerExists' => $entry instanceof ZipPackageEntry,
                 'handlerEncrypted' => $handlerEncrypted,
-                'handlerCanExposeBytes' => $entry instanceof ZipPackageEntry && !$handlerEncrypted,
+                'handlerCanExposeBytes' => $handlerProvenance['canExposeBytes'],
                 'handlerEncryption' => is_array($handler) && is_array($handler['encryption'] ?? null) ? $handler['encryption'] : null,
-                'handlerByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
-                'handlerCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'handlerByteLength' => $handlerProvenance['byteLength'],
+                'handlerCompressedByteLength' => $handlerProvenance['compressedByteLength'],
+                'handlerCompressionMethod' => $handlerProvenance['compressionMethod'],
+                'handlerCompressionMethodName' => $handlerProvenance['compressionMethodName'],
+                'handlerCompressionSupported' => $handlerProvenance['compressionSupported'],
+                'handlerCrc32' => $handlerProvenance['crc32'],
                 'diagnostics' => $itemDiagnostics,
             ];
         }
