@@ -852,6 +852,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary += self::dialogSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -1445,6 +1448,22 @@ final class XmlHtmlDom
             $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
         }
 
+        if (array_key_exists('inert', $attributes)) {
+            $summary['inert'] = true;
+        }
+
+        if (array_key_exists('popover', $attributes)) {
+            $summary['popoverRaw'] = $attributes['popover'];
+            $summary['popover'] = self::popoverState($attributes['popover']);
+        }
+
+        if (array_key_exists('popovertarget', $attributes) || array_key_exists('popovertargetaction', $attributes)) {
+            $popoverTargetActionRaw = $attributes['popovertargetaction'] ?? null;
+            $summary['popoverTarget'] = $attributes['popovertarget'] ?? null;
+            $summary['popoverTargetActionRaw'] = $popoverTargetActionRaw;
+            $summary['popoverTargetAction'] = self::popoverTargetAction($popoverTargetActionRaw);
+        }
+
         if (array_key_exists('translate', $attributes)) {
             $translate = strtolower(trim($attributes['translate']));
             $summary['translateRaw'] = $attributes['translate'];
@@ -1546,6 +1565,45 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dialogSummary(\DOMElement $dialog): array
+    {
+        return [
+            'dialog' => 'dialog',
+            'open' => $dialog->hasAttribute('open'),
+            'dialogText' => self::normalizedText($dialog),
+        ];
+    }
+
+    private static function popoverState(string $value): ?string
+    {
+        $state = strtolower(trim($value));
+
+        return match ($state) {
+            '', 'auto' => 'auto',
+            'manual' => 'manual',
+            default => null,
+        };
+    }
+
+    private static function popoverTargetAction(?string $value): ?string
+    {
+        if ($value === null) {
+            return 'toggle';
+        }
+
+        $action = strtolower(trim($value));
+
+        return match ($action) {
+            '', 'toggle' => 'toggle',
+            'show' => 'show',
+            'hide' => 'hide',
+            default => null,
+        };
     }
 
     /**

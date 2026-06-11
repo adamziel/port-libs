@@ -826,6 +826,49 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog popover and inert state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="review-dialog" open inert aria-modal="true">Confirm <button type="button">OK</button></dialog>'
+                . '<section id="notes" popover="manual">Review notes</section>'
+                . '<button id="show-notes" type="button" popovertarget="notes" popovertargetaction="show">Show</button>'
+                . '<button id="bad-popover" type="button" popover="maybe" popovertarget="missing" popovertargetaction="launch">Bad</button>',
+            'dialog popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $dialog = $summary[0];
+        $notes = $summary[1];
+        $showButton = $summary[2];
+        $badPopover = $summary[3];
+
+        $t->same('dialog', $dialog['name']);
+        $t->same('dialog', $dialog['dialog']);
+        $t->same(true, $dialog['open']);
+        $t->same(true, $dialog['inert']);
+        $t->same('review-dialog', $dialog['elementId']);
+        $t->same(['aria-modal' => 'true'], $dialog['ariaAttributes']);
+        $t->same('Confirm OK', $dialog['dialogText']);
+        $t->same('manual', $notes['popoverRaw']);
+        $t->same('manual', $notes['popover']);
+        $t->same('notes', $notes['elementId']);
+        $t->same('Review notes', $notes['text']);
+        $t->same('notes', $showButton['popoverTarget']);
+        $t->same('show', $showButton['popoverTargetActionRaw']);
+        $t->same('show', $showButton['popoverTargetAction']);
+        $t->same('maybe', $badPopover['popoverRaw']);
+        $t->same(null, $badPopover['popover']);
+        $t->same('missing', $badPopover['popoverTarget']);
+        $t->same('launch', $badPopover['popoverTargetActionRaw']);
+        $t->same(null, $badPopover['popoverTargetAction']);
+        $t->same(
+            '<dialog aria-modal="true" id="review-dialog" inert open>Confirm <button type="button">OK</button></dialog>'
+                . '<section id="notes" popover="manual">Review notes</section>'
+                . '<button id="show-notes" popovertarget="notes" popovertargetaction="show" type="button">Show</button>'
+                . '<button id="bad-popover" popover="maybe" popovertarget="missing" popovertargetaction="launch" type="button">Bad</button>',
+            $html
+        );
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
