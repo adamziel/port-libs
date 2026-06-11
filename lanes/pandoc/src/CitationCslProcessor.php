@@ -1243,7 +1243,7 @@ final class CitationCslProcessor
             'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library']),
             'language' => $language,
             'languageList' => $languageList !== [] ? $languageList : ($language !== '' ? [$language] : []),
-            'abstract' => self::stringField($item, 'abstract'),
+            'abstract' => self::firstStringField($item, ['abstract', 'annotation', 'annote']),
             'annotation' => self::firstStringField($item, ['annotation', 'annote']),
             'medium' => self::stringField($item, 'medium'),
             'note' => self::stringField($item, 'note'),

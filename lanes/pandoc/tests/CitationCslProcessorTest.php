@@ -6871,6 +6871,100 @@ XML);
         $t->contains('<p>Annotated source Roe (2026) keeps private reviewer notes distinct from public abstracts.</p>', $blocks);
         $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Annotated Source Packet. 2026. Annotation: Internal migration reviewer note. https://example.test/annotated-source.</dd>', $blocks);
     },
+    'normalizes direct csl annotation aliases into abstract fallback metadata' => static function (TestRunner $t): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-abstract',
+                'type' => 'webpage',
+                'title' => 'Direct Abstract Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'abstract' => 'Public direct abstract.',
+                'annotation' => 'Private direct review note.',
+                'annote' => 'Legacy direct annote fallback.',
+            ],
+            [
+                'id' => 'direct-annotation-only',
+                'type' => 'document',
+                'title' => 'Direct Annotation Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'annotation' => 'Annotation-only direct fallback.',
+            ],
+            [
+                'id' => 'direct-annote-only',
+                'type' => 'document',
+                'title' => 'Direct Annote Packet',
+                'author' => [
+                    ['literal' => 'Review Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'annote' => 'Annote-only direct fallback.',
+            ],
+        ]);
+
+        $explicit = $processor->item('direct-abstract');
+        $annotationOnly = $processor->item('direct-annotation-only');
+        $annoteOnly = $processor->item('direct-annote-only');
+        $t->same('Public direct abstract.', $explicit['abstract'] ?? null);
+        $t->same('Private direct review note.', $explicit['annotation'] ?? null);
+        $t->same('Annotation-only direct fallback.', $annotationOnly['abstract'] ?? null);
+        $t->same('Annotation-only direct fallback.', $annotationOnly['annotation'] ?? null);
+        $t->same('Annote-only direct fallback.', $annoteOnly['abstract'] ?? null);
+        $t->same('Annote-only direct fallback.', $annoteOnly['annotation'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Annotation Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-annotation-alias-review</id>
+    <updated>2026-06-11T18:17:38+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="abstract"/>
+        <text variable="annote"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="abstract"/>
+      <text variable="annotation"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Annotation Alias Review', $summary['title'] ?? null);
+        $t->same('abstract', $citationChildren[1]['variable'] ?? null);
+        $t->same('annote', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Roe | Public direct abstract. | Private direct review note.; Ng | Annotation-only direct fallback. | Annotation-only direct fallback.; Review Desk | Annote-only direct fallback. | Annote-only direct fallback.]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-abstract', 'text' => '[@direct-abstract]']),
+            new AstNode('citation', ['id' => 'direct-annotation-only', 'text' => '[@direct-annotation-only]']),
+            new AstNode('citation', ['id' => 'direct-annote-only', 'text' => '[@direct-annote-only]']),
+        ]));
+        $t->same('Direct Abstract Packet :: Public direct abstract. :: Private direct review note.', $styled->renderBibliographyEntry('direct-abstract'));
+        $t->same('Direct Annotation Packet :: Annotation-only direct fallback. :: Annotation-only direct fallback.', $styled->renderBibliographyEntry('direct-annotation-only'));
+        $t->same('Direct Annote Packet :: Annote-only direct fallback. :: Annote-only direct fallback.', $styled->renderBibliographyEntry('direct-annote-only'));
+
+        $document = (new MarkdownReader())->read('Direct notes [@direct-abstract; @direct-annotation-only; @direct-annote-only] keep CSL note aliases visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct notes [Roe | Public direct abstract. | Private direct review note.; Ng | Annotation-only direct fallback. | Annotation-only direct fallback.; Review Desk | Annote-only direct fallback. | Annote-only direct fallback.] keep CSL note aliases visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Direct Abstract Packet :: Public direct abstract. :: Private direct review note.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Annotation Packet :: Annotation-only direct fallback. :: Annotation-only direct fallback.</dd>', $blocks);
+        $t->contains('<dt>Review Desk 2024</dt><dd>Direct Annote Packet :: Annote-only direct fallback. :: Annote-only direct fallback.</dd>', $blocks);
+    },
     'maps bounded biblatex gender metadata into csl review handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{gendered-manual,
