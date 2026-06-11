@@ -403,6 +403,47 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog and popover state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="notice" open><p>Migration notice</p></dialog>'
+                . '<dialog id="closed"><form method="dialog"><button value="ok">OK</button></form></dialog>'
+                . '<button id="open-popover" popovertarget="review-popover" popovertargetaction="show">Open note</button>'
+                . '<aside id="review-popover" popover>Auto note</aside>'
+                . '<section id="manual-popover" popover="manual">Manual note</section>'
+                . '<div id="invalid-popover" popover="bad state">Invalid note</div>',
+            'dialog and popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $openDialog = $summary[0];
+        $closedDialog = $summary[1];
+        $invoker = $summary[2];
+        $autoPopover = $summary[3];
+        $manualPopover = $summary[4];
+        $invalidPopover = $summary[5];
+
+        $t->same('dialog', $openDialog['name']);
+        $t->same('dialog', $openDialog['dialog']);
+        $t->same('open', $openDialog['dialogState']);
+        $t->same(true, $openDialog['open']);
+        $t->same('Migration notice', $openDialog['text']);
+        $t->same('dialog', $closedDialog['dialog']);
+        $t->same('closed', $closedDialog['dialogState']);
+        $t->same(false, $closedDialog['open']);
+        $t->same('submit', $closedDialog['children'][0]['children'][0]['buttonType']);
+        $t->same('invoker', $invoker['popoverControl']);
+        $t->same('review-popover', $invoker['popoverTarget']);
+        $t->same('show', $invoker['popoverTargetAction']);
+        $t->same('popover', $autoPopover['popover']);
+        $t->same('auto', $autoPopover['popoverState']);
+        $t->same('', $autoPopover['popoverRawState']);
+        $t->same('manual', $manualPopover['popoverState']);
+        $t->same('manual', $manualPopover['popoverRawState']);
+        $t->same('invalid', $invalidPopover['popoverState']);
+        $t->same('bad state', $invalidPopover['popoverRawState']);
+        $t->same('<dialog id="notice" open><p>Migration notice</p></dialog><dialog id="closed"><form method="dialog"><button value="ok">OK</button></form></dialog><button id="open-popover" popovertarget="review-popover" popovertargetaction="show">Open note</button><aside id="review-popover" popover="">Auto note</aside><section id="manual-popover" popover="manual">Manual note</section><div id="invalid-popover" popover="bad state">Invalid note</div>', $html);
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'

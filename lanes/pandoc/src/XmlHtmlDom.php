@@ -816,6 +816,21 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary['dialog'] = 'dialog';
+            $summary['dialogState'] = $node->hasAttribute('open') ? 'open' : 'closed';
+            $summary['open'] = $node->hasAttribute('open');
+        }
+        if ($node->hasAttribute('popover')) {
+            $summary['popover'] = 'popover';
+            $summary['popoverState'] = self::popoverState($node);
+            $summary['popoverRawState'] = $node->getAttribute('popover');
+        }
+        if ($node->hasAttribute('popovertarget')) {
+            $summary['popoverControl'] = 'invoker';
+            $summary['popoverTarget'] = $node->getAttribute('popovertarget');
+            $summary['popoverTargetAction'] = self::popoverTargetAction($node);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -865,6 +880,26 @@ final class XmlHtmlDom
         $type = strtolower(trim($button->getAttribute('type')));
 
         return in_array($type, ['button', 'reset', 'submit'], true) ? $type : 'submit';
+    }
+
+    private static function popoverState(\DOMElement $element): string
+    {
+        $state = strtolower(trim($element->getAttribute('popover')));
+        if ($state === '' || $state === 'popover') {
+            return 'auto';
+        }
+
+        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : 'invalid';
+    }
+
+    private static function popoverTargetAction(\DOMElement $element): string
+    {
+        $action = strtolower(trim($element->getAttribute('popovertargetaction')));
+        if ($action === '') {
+            return 'toggle';
+        }
+
+        return in_array($action, ['hide', 'show', 'toggle'], true) ? $action : 'invalid';
     }
 
     /**
