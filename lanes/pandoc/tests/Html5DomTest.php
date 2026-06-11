@@ -156,6 +156,23 @@ return [
         $t->same('/edit', Html5Dom::attributes($links[0])['href'] ?? null);
         $t->same('Edit & verify', Html5Dom::attributes($links[0])['title'] ?? null);
     },
+    'ignores declaration looking text inside closed comments during safe source scans' => static function (TestRunner $t): void {
+        $htmlComment = '<!-- <!DOCTYPE html><!ENTITY reviewer SYSTEM "file:///etc/passwd"><?xml-stylesheet href="https://example.invalid/review.xsl"?> -->';
+        $htmlFragment = Html5Dom::parseHtmlFragment($htmlComment . '<p>Safe fragment</p>');
+        $htmlDocument = Html5Dom::parseHtmlDocument('<!doctype html><!-- <!DOCTYPE svg><!ATTLIST html x CDATA #IMPLIED><?review href="file:///etc/passwd"?> --><html><body><main>Safe document</main></body></html>');
+        $htmlDocumentBody = $htmlDocument->getElementsByTagName('body')->item(0);
+        $xmlComment = '<!-- <!DOCTYPE x [<!ENTITY x SYSTEM "file:///etc/passwd">]><?review href="file:///etc/passwd"?> -->';
+        $xmlFragment = Html5Dom::parseXmlFragment($xmlComment . '<root>Safe XML fragment</root>');
+        $xmlDocument = Html5Dom::parseXmlDocument('<pkg><!-- <!ELEMENT pkg ANY><?review href="file:///etc/passwd"?> --><item>Safe XML document</item></pkg>');
+
+        $t->same($htmlComment . '<p>Safe fragment</p>', Html5Dom::serializeHtmlChildren($htmlFragment));
+        $t->same('Safe fragment', Html5Dom::normalizedText($htmlFragment));
+        $t->true($htmlDocumentBody instanceof DOMElement, 'Expected HTML document body to parse');
+        $t->same('<main>Safe document</main>', $htmlDocumentBody instanceof DOMElement ? Html5Dom::serializeHtmlChildren($htmlDocumentBody) : '');
+        $t->same($xmlComment . '<root>Safe XML fragment</root>', Html5Dom::serializeXmlChildren($xmlFragment));
+        $t->same('Safe XML fragment', Html5Dom::normalizedText($xmlFragment));
+        $t->same('Safe XML document', $xmlDocument->documentElement instanceof DOMElement ? Html5Dom::normalizedText($xmlDocument->documentElement) : null);
+    },
     'parses complete HTML documents with safe doctypes and rejects DTD or processing inputs' => static function (TestRunner $t): void {
         $dom = Html5Dom::parseHtmlDocument(
             '<!doctype html><html><head><title>Review</title></head><body><article data-source="export"><h1>Packet</h1><p>Imported<br>line</p></article></body></html>'

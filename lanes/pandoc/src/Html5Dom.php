@@ -246,37 +246,34 @@ final class Html5Dom
     private static function assertSafeXmlSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        if (preg_match('/<\?xml\b/i', $xml) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        if (preg_match('/<\?xml\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include an XML declaration');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $xml) === 1) {
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
-        if (preg_match('/<!\s*DOCTYPE\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException($label . ' must not declare a doctype');
-        }
-        if (preg_match('/<!\s*ENTITY\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException($label . ' must not declare entities');
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
     }
 
     private static function assertSafeXmlDocumentSource(string $xml, string $label): void
     {
         self::assertNoNullByte($xml, $label);
-        if (preg_match('/<!\s*DOCTYPE\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException($label . ' must not declare a doctype');
-        }
-        if (preg_match('/<!\s*ENTITY\b/i', $xml) === 1) {
-            throw new \InvalidArgumentException($label . ' must not declare entities');
+        $declarationScanSource = self::sourceWithoutClosedComments($xml);
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
+            throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
     }
 
     private static function assertNoHtmlFragmentDeclarations(string $html, string $label): void
     {
-        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        if (preg_match('/<!\s*(?:DOCTYPE|ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
     }
@@ -284,16 +281,22 @@ final class Html5Dom
     private static function assertSafeHtmlDocumentSource(string $html, string $label): void
     {
         self::assertNoNullByte($html, $label);
-        self::assertSimpleHtmlDocumentDoctype($html, $label);
-        if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $html) === 1) {
+        $declarationScanSource = self::sourceWithoutClosedComments($html);
+        self::assertSimpleHtmlDocumentDoctype($declarationScanSource, $label);
+        if (preg_match('/<!\s*DOCTYPE\b[^>]*\[/is', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $html) === 1) {
+        if (preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not declare DTDs or entities');
         }
-        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $html) === 1) {
+        if (preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $declarationScanSource) === 1) {
             throw new \InvalidArgumentException($label . ' must not include processing instructions');
         }
+    }
+
+    private static function sourceWithoutClosedComments(string $source): string
+    {
+        return preg_replace('/<!--(?:[^-]|-(?!-))*-->/s', '', $source) ?? $source;
     }
 
     private static function assertSimpleHtmlDocumentDoctype(string $html, string $label): void
