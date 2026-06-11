@@ -2132,6 +2132,70 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current inline wrapper constructor payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $inlineWrappers = [
+            ['t' => 'Emph', 'c' => [['t' => 'Str', 'c' => 'emph']], 'sourceNative' => 'emph-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'strong']], 'sourceNative' => 'strong-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Underline', 'c' => [['t' => 'Str', 'c' => 'underline']], 'sourceNative' => 'underline-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Strikeout', 'c' => [['t' => 'Str', 'c' => 'strike']], 'sourceNative' => 'strike-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Superscript', 'c' => [['t' => 'Str', 'c' => 'super']], 'sourceNative' => 'super-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Subscript', 'c' => [['t' => 'Str', 'c' => 'sub']], 'sourceNative' => 'sub-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'SmallCaps', 'c' => [['t' => 'Str', 'c' => 'caps']], 'sourceNative' => 'caps-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Quoted', 'c' => [['t' => 'SingleQuote'], [['t' => 'Str', 'c' => 'quote']]], 'sourceNative' => 'quote-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Note', 'c' => [
+                ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'note']]],
+            ], 'sourceNative' => 'note-wrapper'],
+            ['t' => 'Space'],
+            ['t' => 'Span', 'c' => [
+                ['span-wrapper', ['source-span'], [['data-wrapper', 'span']]],
+                [['t' => 'Str', 'c' => 'span']],
+            ], 'sourceNative' => 'span-wrapper'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => $inlineWrappers, 'sourceNative' => 'para-wrapper'],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $jsonPacket = (new PandocJsonWriter())->toArray($document);
+            $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+            $standaloneInlinePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+                new AstNode('paragraph', [], $document->children[0]->children),
+            ]));
+
+            $t->same($inlineWrappers, $jsonPacket['blocks'][0]['c'], "{$source} json writer preserves inline wrapper payloads inside regenerated paragraph");
+            $t->same(false, array_key_exists('sourceNative', $jsonPacket['blocks'][0]), "{$source} json writer keeps paragraph block normalization");
+            $t->same($inlineWrappers, $nativePacket['blocks'][0]['c'], "{$source} native writer preserves inline wrapper payloads");
+            $t->same($inlineWrappers, $standaloneInlinePacket['blocks'][0]['c'], "{$source} json writer preserves standalone wrapper inline payloads");
+        }
+
+        $emph = $documents['json']->children[0]->children[0];
+        $editedInlinePacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', $emph->attrs, [
+                    new AstNode('text', ['text' => 'edited emph']),
+                ]),
+            ]),
+        ]));
+        $t->same('edited emph', $editedInlinePacket['blocks'][0]['c'][0]['c'][0]['c']);
+        $t->same(false, array_key_exists('sourceNative', $editedInlinePacket['blocks'][0]['c'][0]), 'edited wrapper inline regenerates instead of reusing source payload');
+    },
     'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
         $citationRecord = [
             'reviewQueue' => 'wp-import',
