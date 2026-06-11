@@ -4780,6 +4780,100 @@ XML);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Migration Manual: Reviewer Packet Guide. Draft source notes. Review Press, 2026.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Checklist: Attachment Review. Migration Handbook: Import Desk Edition. Internal packet supplement. 2025. 7-12.</dd>', $blocks);
     },
+    'maps csl-shaped bibtex short form title aliases into metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-short-title,
+  author      = {Curator, Eli},
+  title       = {Migration Manual},
+  short-title = {Migration Guide},
+  date        = {2026},
+  publisher   = {Review Press}
+}
+
+@book{title-short-alias,
+  author      = {Ng, Nia},
+  title       = {Compact Handbook},
+  title-short = {Compact Handbook},
+  date        = {2025}
+}
+
+@article{container-short-alias,
+  author                = {Doe, Jane},
+  title                 = {Article Packet},
+  journaltitle          = {Journal of Short Sources},
+  container-title-short = {J. Short Sources},
+  date                  = {2024}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(3, count($items));
+        $t->same('Migration Guide', $items[0]['short-title'] ?? null);
+        $t->same('Compact Handbook', $items[1]['short-title'] ?? null);
+        $t->same('J. Short Sources', $items[2]['container-title-short'] ?? null);
+        $t->same('J. Short Sources', $items[2]['journalAbbreviation'] ?? null);
+        $t->same('Migration Guide', $items[0]['rawBibtex']['fields']['short-title'] ?? null);
+        $t->same('Compact Handbook', $items[1]['rawBibtex']['fields']['title-short'] ?? null);
+        $t->same('J. Short Sources', $items[2]['rawBibtex']['fields']['container-title-short'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-short-title');
+        $titleShort = $processor->item('title-short-alias');
+        $container = $processor->item('container-short-alias');
+        $t->same('Migration Guide', $hyphen['shortTitle'] ?? null);
+        $t->same('Compact Handbook', $titleShort['shortTitle'] ?? null);
+        $t->same('J. Short Sources', $container['containerTitleShort'] ?? null);
+        $t->same('J. Short Sources', $container['journalAbbreviation'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibTeX Short Form Alias Review</title>
+    <id>https://example.test/styles/bounded-bibtex-short-form-alias-review</id>
+    <updated>2026-06-11T11:05:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title" form="short"/>
+        <text variable="short-title"/>
+        <text variable="container-title" form="short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="title" form="short"/>
+      <text variable="container-title"/>
+      <text variable="container-title" form="short"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded BibTeX Short Form Alias Review', $summary['title'] ?? null);
+        $t->same('short', $summary['citationRendering'][0]['children'][1]['form'] ?? null);
+        $t->same('short-title', $summary['citationRendering'][0]['children'][2]['variable'] ?? null);
+        $t->same('container-title', $summary['citationRendering'][0]['children'][3]['variable'] ?? null);
+        $t->same('[Curator | Migration Guide | Migration Guide; Ng | Compact Handbook | Compact Handbook; Doe | Article Packet | J. Short Sources]', $styled->renderCitationCluster([
+            $citation('hyphen-short-title', '[@hyphen-short-title]'),
+            $citation('title-short-alias', '[@title-short-alias]'),
+            $citation('container-short-alias', '[@container-short-alias]'),
+        ]));
+        $t->same('Migration Manual :: Migration Guide', $styled->renderBibliographyEntry('hyphen-short-title'));
+        $t->same('Compact Handbook :: Compact Handbook', $styled->renderBibliographyEntry('title-short-alias'));
+        $t->same('Article Packet :: Article Packet :: Journal of Short Sources :: J. Short Sources', $styled->renderBibliographyEntry('container-short-alias'));
+
+        $document = (new MarkdownReader())->read('Alias short forms [@hyphen-short-title; @title-short-alias; @container-short-alias] stay compact.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Alias short forms [Curator | Migration Guide | Migration Guide; Ng | Compact Handbook | Compact Handbook; Doe | Article Packet | J. Short Sources] stay compact.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Migration Manual :: Migration Guide</dd>', $blocks);
+        $t->contains('<dt>Doe 2024</dt><dd>Article Packet :: Article Packet :: Journal of Short Sources :: J. Short Sources</dd>', $blocks);
+    },
     'applies bounded csl short form text variables for titles and containers' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
