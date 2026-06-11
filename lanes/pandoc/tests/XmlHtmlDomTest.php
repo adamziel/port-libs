@@ -206,6 +206,64 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html editing keyboard hints for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<div id="editor" contenteditable inputmode="text" enterkeyhint="send" autocapitalize="words" autocorrect="off" writingsuggestions="false">Draft</div>'
+                . '<input id="url" value="https://example.test" inputmode="URL" enterkeyhint="GO" autocapitalize="off" autocorrect="on" writingsuggestions="true">'
+                . '<textarea id="invalid" inputmode="kana" enterkeyhint="launch" autocapitalize="maybe" autocorrect="maybe" writingsuggestions="maybe">Bad</textarea>',
+            'editing keyboard hint review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/editing-hints-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $editor = $summary[0];
+        $urlInput = $summary[1];
+        $invalid = $summary[2];
+
+        $t->same('editor', $editor['elementId']);
+        $t->same(true, $editor['contentEditable']);
+        $t->same('text', $editor['inputModeRaw']);
+        $t->same('text', $editor['inputMode']);
+        $t->same('send', $editor['enterKeyHintRaw']);
+        $t->same('send', $editor['enterKeyHint']);
+        $t->same('words', $editor['autoCapitalize']);
+        $t->same(false, $editor['autoCorrect']);
+        $t->same(false, $editor['writingSuggestions']);
+
+        $t->same('input', $urlInput['formControl']);
+        $t->same('URL', $urlInput['inputModeRaw']);
+        $t->same('url', $urlInput['inputMode']);
+        $t->same('GO', $urlInput['enterKeyHintRaw']);
+        $t->same('go', $urlInput['enterKeyHint']);
+        $t->same('off', $urlInput['autoCapitalizeRaw']);
+        $t->same('none', $urlInput['autoCapitalize']);
+        $t->same(true, $urlInput['autoCorrect']);
+        $t->same(true, $urlInput['writingSuggestions']);
+
+        $t->same('textarea', $invalid['formControl']);
+        $t->same('kana', $invalid['inputModeRaw']);
+        $t->same(null, $invalid['inputMode']);
+        $t->same('launch', $invalid['enterKeyHintRaw']);
+        $t->same(null, $invalid['enterKeyHint']);
+        $t->same('maybe', $invalid['autoCapitalizeRaw']);
+        $t->same(null, $invalid['autoCapitalize']);
+        $t->same(null, $invalid['autoCorrect']);
+        $t->same(null, $invalid['writingSuggestions']);
+
+        $t->same(
+            '<div autocapitalize="words" autocorrect="off" contenteditable="" enterkeyhint="send" id="editor" inputmode="text" writingsuggestions="false">Draft</div>'
+                . '<input autocapitalize="off" autocorrect="on" enterkeyhint="GO" id="url" inputmode="URL" value="https://example.test" writingsuggestions="true">'
+                . '<textarea autocapitalize="maybe" autocorrect="maybe" enterkeyhint="launch" id="invalid" inputmode="kana" writingsuggestions="maybe">Bad</textarea>',
+            $html
+        );
+        $t->contains('<div autocapitalize="words" autocorrect="off" contenteditable="" enterkeyhint="send" id="editor" inputmode="text" writingsuggestions="false">Draft</div>', $blocks);
+        $t->same('/migration/editing-hints-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html list marker and item ordinal metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<ol id="steps" start="3" reversed type="A"><li value="7">Inspect<li>Repair<ol start="-2" type="i"><li value="-1">Nested</ol></ol>'

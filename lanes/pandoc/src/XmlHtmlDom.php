@@ -1486,12 +1486,75 @@ final class XmlHtmlDom
             };
         }
 
+        if (array_key_exists('inputmode', $attributes)) {
+            $summary['inputModeRaw'] = $attributes['inputmode'];
+            $summary['inputMode'] = self::inputMode($attributes['inputmode']);
+        }
+
+        if (array_key_exists('enterkeyhint', $attributes)) {
+            $summary['enterKeyHintRaw'] = $attributes['enterkeyhint'];
+            $summary['enterKeyHint'] = self::enterKeyHint($attributes['enterkeyhint']);
+        }
+
+        if (array_key_exists('autocapitalize', $attributes)) {
+            $summary['autoCapitalizeRaw'] = $attributes['autocapitalize'];
+            $summary['autoCapitalize'] = self::autoCapitalize($attributes['autocapitalize']);
+        }
+
+        if (array_key_exists('autocorrect', $attributes)) {
+            $summary['autoCorrectRaw'] = $attributes['autocorrect'];
+            $summary['autoCorrect'] = self::booleanLikeGlobalAttribute($attributes['autocorrect']);
+        }
+
+        if (array_key_exists('writingsuggestions', $attributes)) {
+            $summary['writingSuggestionsRaw'] = $attributes['writingsuggestions'];
+            $summary['writingSuggestions'] = self::booleanLikeGlobalAttribute($attributes['writingsuggestions']);
+        }
+
         if (array_key_exists('tabindex', $attributes)) {
             $summary['tabIndexRaw'] = $attributes['tabindex'];
             $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
         }
 
         return $summary;
+    }
+
+    private static function inputMode(string $value): ?string
+    {
+        $inputMode = strtolower(trim($value));
+
+        return in_array($inputMode, ['none', 'text', 'tel', 'url', 'email', 'numeric', 'decimal', 'search'], true)
+            ? $inputMode
+            : null;
+    }
+
+    private static function enterKeyHint(string $value): ?string
+    {
+        $hint = strtolower(trim($value));
+
+        return in_array($hint, ['enter', 'done', 'go', 'next', 'previous', 'search', 'send'], true)
+            ? $hint
+            : null;
+    }
+
+    private static function autoCapitalize(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            '', 'on', 'sentences' => 'sentences',
+            'off', 'none' => 'none',
+            'words' => 'words',
+            'characters' => 'characters',
+            default => null,
+        };
+    }
+
+    private static function booleanLikeGlobalAttribute(string $value): ?bool
+    {
+        return match (strtolower(trim($value))) {
+            '', 'on', 'true' => true,
+            'off', 'false' => false,
+            default => null,
+        };
     }
 
     /**
