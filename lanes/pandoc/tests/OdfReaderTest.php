@@ -8387,6 +8387,106 @@ XML;
         $t->contains('<div class="odf-embedded-object odf-object-ole" data-odf-object-type="ole" data-odf-object-href="Object%20Missing" data-odf-object-path="Object Missing" data-odf-object-source-part="Object Missing/" data-odf-object-media-type="application/vnd.oasis.opendocument.chart" data-odf-object-exists="false" data-odf-object-contained-part-count="0" data-odf-object-can-expose-bytes="false"><p>Linked chart</p></div>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, 'OLEBYTES!'), 'Opaque OLE bytes must not render in WordPress output');
     },
+    'summarizes ODT embedded object packages and replacement previews for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $replacementBytes = 'PREVIEWPNG';
+        $manifestWithObjectInventory = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/oleObject.bin" manifest:media-type="application/vnd.openxmlformats-officedocument.oleObject" manifest:size="9"/>
+  <manifest:file-entry manifest:full-path="Object%20Missing/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>
+  <manifest:file-entry manifest:full-path="ObjectReplacements/Object%20OLE.png" manifest:media-type="image/png" manifest:size="10"/>
+</manifest:manifest>
+XML;
+        $contentWithObjectInventory = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Inline object <draw:frame draw:name="Inline spreadsheet"><draw:object-ole xlink:href="./Object%20OLE"/></draw:frame> queued.</text:p>
+      <draw:frame draw:name="Missing object">
+        <svg:title>Missing chart</svg:title>
+        <draw:object-ole xlink:href="Object%20Missing"/>
+      </draw:frame>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithObjectInventory,
+            $manifestWithObjectInventory,
+            null,
+            null,
+            [
+                ['name' => 'Object OLE/oleObject.bin', 'data' => 'OLEBYTES!'],
+                ['name' => 'ObjectReplacements/Object OLE.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
+            ]
+        ));
+        $embeddedObjects = $result['embeddedObjects'];
+        $objectsByPath = [];
+        foreach ($embeddedObjects['items'] as $item) {
+            $objectsByPath[$item['objectPath']] = $item;
+        }
+        $mediaParts = array_column($result['media'], 'part');
+
+        $t->same($embeddedObjects, $result['document']->attr('embeddedObjects'));
+        $t->same($embeddedObjects, $result['importReport']['embeddedObjects']);
+        $t->same($embeddedObjects, $result['metadata']['odfEmbeddedObjects']);
+        $t->same(2, $embeddedObjects['count']);
+        $t->same(2, $embeddedObjects['referencedCount']);
+        $t->same(2, $embeddedObjects['declaredCount']);
+        $t->same(1, $embeddedObjects['missingCount']);
+        $t->same(1, $embeddedObjects['containedPartCount']);
+        $t->same(1, $embeddedObjects['replacementCount']);
+        $t->same(['odf-embedded-object-missing-package-parts'], $embeddedObjects['issueCodes']);
+
+        $oleObject = $objectsByPath['Object OLE'];
+        $t->same('ole', $oleObject['objectType']);
+        $t->same('Object OLE/', $oleObject['sourcePart']);
+        $t->same('application/vnd.oasis.opendocument.spreadsheet', $oleObject['mediaType']);
+        $t->same(true, $oleObject['declared']);
+        $t->same(true, $oleObject['referenced']);
+        $t->same(true, $oleObject['exists']);
+        $t->same(false, $oleObject['canExposeBytes']);
+        $t->same('embedded-object-package-metadata-only', $oleObject['reviewPolicy']);
+        $t->same(1, $oleObject['containedPartCount']);
+        $t->same(['Object OLE/oleObject.bin'], $oleObject['containedParts']);
+        $t->same(9, $oleObject['containedByteLength']);
+        $t->same('Object OLE/oleObject.bin', $oleObject['containedPartItems'][0]['part']);
+        $t->same('application/vnd.openxmlformats-officedocument.oleObject', $oleObject['containedPartItems'][0]['mediaType']);
+        $t->same(false, $oleObject['containedPartItems'][0]['canExposeBytes']);
+        $t->same(9, $oleObject['containedPartItems'][0]['storedByteLength']);
+        $t->same(sprintf('%08x', crc32('OLEBYTES!')), $oleObject['containedPartItems'][0]['storedCrc32']);
+        $t->same('./Object%20OLE', $oleObject['references'][0]['href']);
+
+        $replacement = $oleObject['replacements'][0];
+        $t->same('ObjectReplacements/Object OLE.png', $replacement['part']);
+        $t->same('Object OLE', $replacement['objectPath']);
+        $t->same('image/png', $replacement['mediaType']);
+        $t->same(true, $replacement['declared']);
+        $t->same(false, $replacement['canExposeAsDocumentMedia']);
+        $t->same('object-replacement-metadata-only', $replacement['reviewPolicy']);
+        $t->same(strlen($replacementBytes), $replacement['byteLength']);
+        $t->same(sprintf('%08x', crc32($replacementBytes)), $replacement['crc32']);
+
+        $missingObject = $objectsByPath['Object Missing'];
+        $t->same('ole', $missingObject['objectType']);
+        $t->same('Object Missing/', $missingObject['sourcePart']);
+        $t->same(false, $missingObject['exists']);
+        $t->same(0, $missingObject['containedPartCount']);
+        $t->same(['odf-embedded-object-missing-package-parts'], $missingObject['issues']);
+
+        $t->true(in_array('Object OLE/oleObject.bin', $mediaParts, true), 'Existing OLE package payload remains visible in package media review');
+        $t->true(!in_array('ObjectReplacements/Object OLE.png', $mediaParts, true), 'Replacement previews must not be exposed as document media');
+    },
     'normalizes ODT URI encoded package part references for media and objects' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifestWithEncodedParts = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">

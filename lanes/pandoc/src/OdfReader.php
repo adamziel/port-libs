@@ -85,6 +85,7 @@ final class OdfReader
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
      *     packageThumbnails:array<string, mixed>,
+     *     embeddedObjects:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
      *     scriptMetadata:array<string, mixed>,
@@ -119,9 +120,13 @@ final class OdfReader
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
         $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
+        $embeddedObjects = $this->embeddedObjectPackageMetadata($package, $manifest, $content['blocks']);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
         if ($packageThumbnails['count'] > 0) {
             $metadata['odfPackageThumbnails'] = $packageThumbnails;
+        }
+        if ($embeddedObjects['count'] > 0) {
+            $metadata['odfEmbeddedObjects'] = $embeddedObjects;
         }
 
         $document = new AstNode('document', [
@@ -173,6 +178,7 @@ final class OdfReader
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
             'packageThumbnails' => $packageThumbnails,
+            'embeddedObjects' => $embeddedObjects,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -194,6 +200,7 @@ final class OdfReader
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
             'packageThumbnails' => $packageThumbnails,
+            'embeddedObjects' => $embeddedObjects,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
@@ -259,6 +266,7 @@ final class OdfReader
                     'items' => $media,
                 ],
                 'packageThumbnails' => $packageThumbnails,
+                'embeddedObjects' => $embeddedObjects,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
@@ -668,6 +676,12 @@ final class OdfReader
         }
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';
+        }
+        if ($this->isObjectReplacementPackagePartName($entry->name)) {
+            $roles[] = 'object-replacement';
+        }
+        if ($this->embeddedObjectRootForPart($entry->name) !== null) {
+            $roles[] = 'embedded-object-package';
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
@@ -11761,6 +11775,9 @@ final class OdfReader
             if ($this->isThumbnailPackagePartName($part)) {
                 continue;
             }
+            if ($this->isObjectReplacementPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -11913,6 +11930,347 @@ final class OdfReader
             'issueCodes' => array_keys($issueCodes),
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<AstNode> $nodes
+     * @return array<string, mixed>
+     */
+    private function embeddedObjectPackageMetadata(ZipPackage $package, array $manifest, array $nodes): array
+    {
+        $manifestByPart = $this->manifestByPart($manifest);
+        $references = $this->embeddedObjectReferencesFromNodes($nodes);
+        $referencesByObjectPath = [];
+        $objectPaths = [];
+
+        foreach ($references as $reference) {
+            $objectPath = $reference['objectPath'] ?? null;
+            if (!is_string($objectPath) || $objectPath === '') {
+                continue;
+            }
+
+            $objectPaths[$objectPath] = true;
+            $referencesByObjectPath[$objectPath] ??= [];
+            $referencesByObjectPath[$objectPath][] = $reference;
+        }
+
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $objectPath = $this->embeddedObjectRootForPart($part);
+            if ($objectPath !== null) {
+                $objectPaths[$objectPath] = true;
+            }
+        }
+
+        $replacementItems = $this->objectReplacementPackageMetadata($package, $manifestByPart);
+        foreach ($replacementItems as $replacement) {
+            $objectPath = $replacement['objectPath'] ?? null;
+            if (is_string($objectPath) && $objectPath !== '') {
+                $objectPaths[$objectPath] = true;
+            }
+        }
+
+        $replacementsByObjectPath = [];
+        foreach ($replacementItems as $replacement) {
+            $objectPath = $replacement['objectPath'] ?? null;
+            if (!is_string($objectPath) || $objectPath === '') {
+                continue;
+            }
+
+            $replacementsByObjectPath[$objectPath] ??= [];
+            $replacementsByObjectPath[$objectPath][] = $replacement;
+        }
+
+        ksort($objectPaths, SORT_STRING);
+        $items = [];
+        foreach (array_keys($objectPaths) as $objectPath) {
+            $referencesForObject = $referencesByObjectPath[$objectPath] ?? [];
+            $manifestItem = $this->objectManifestItem($objectPath . '/', $objectPath);
+            $sourcePart = is_array($manifestItem) && is_string($manifestItem['part'] ?? null)
+                ? (string) $manifestItem['part']
+                : ($referencesForObject[0]['sourcePart'] ?? $objectPath . '/');
+            $mediaType = is_array($manifestItem) ? (string) ($manifestItem['mediaType'] ?? '') : '';
+            if ($mediaType === '' && is_string($referencesForObject[0]['mediaType'] ?? null)) {
+                $mediaType = (string) $referencesForObject[0]['mediaType'];
+            }
+
+            $referenceTypes = [];
+            foreach ($referencesForObject as $reference) {
+                $referenceType = $reference['objectType'] ?? null;
+                if (is_string($referenceType) && $referenceType !== '') {
+                    $referenceTypes[$referenceType] = true;
+                }
+            }
+            $objectType = isset($referenceTypes['ole']) ? 'ole' : $this->objectTypeForMediaType($mediaType);
+            $containedParts = $this->objectContainedParts($package, $objectPath);
+            $containedPartItems = $this->embeddedObjectContainedPartItems($package, $manifestByPart, $containedParts);
+            $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+            $containedByteLength = $this->containedPartsByteLength($package, $containedParts);
+            $containedCompressedByteLength = 0;
+            foreach ($containedPartItems as $containedPartItem) {
+                $compressedByteLength = $containedPartItem['compressedByteLength'] ?? null;
+                if (is_int($compressedByteLength)) {
+                    $containedCompressedByteLength += $compressedByteLength;
+                }
+            }
+
+            $objectReplacements = $replacementsByObjectPath[$objectPath] ?? [];
+            $issues = [];
+            if (!is_array($manifestItem)) {
+                $issues[] = 'odf-embedded-object-undeclared-root';
+            }
+            if ($containedParts === []) {
+                $issues[] = 'odf-embedded-object-missing-package-parts';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-embedded-object-encrypted-root';
+            }
+
+            $items[] = self::withoutEmpty([
+                'objectPath' => $objectPath,
+                'sourcePart' => $sourcePart,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'objectType' => $objectType,
+                'declared' => is_array($manifestItem),
+                'referenced' => $referencesForObject !== [],
+                'referenceCount' => count($referencesForObject),
+                'references' => $referencesForObject,
+                'exists' => $containedParts !== [],
+                'encrypted' => $encrypted,
+                'canExposeBytes' => false,
+                'reviewPolicy' => 'embedded-object-package-metadata-only',
+                'containedPartCount' => count($containedParts),
+                'containedParts' => $containedParts,
+                'containedPartItems' => $containedPartItems,
+                'containedByteLength' => $containedByteLength,
+                'containedCompressedByteLength' => $containedCompressedByteLength,
+                'replacementCount' => count($objectReplacements),
+                'replacements' => $objectReplacements,
+                'manifestFullPath' => is_array($manifestItem) ? $manifestItem['fullPath'] ?? null : null,
+                'manifestExists' => is_array($manifestItem) ? $manifestItem['exists'] ?? null : null,
+                'declaredSize' => is_array($manifestItem) ? $manifestItem['declaredSize'] ?? null : null,
+                'encryption' => is_array($manifestItem) ? $manifestItem['encryption'] ?? null : null,
+                'issues' => $issues,
+            ]);
+        }
+
+        $issueCodes = [];
+        foreach ($items as $item) {
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => ($item['referenced'] ?? false) === true)),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => ($item['declared'] ?? false) === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => ($item['exists'] ?? false) !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => ($item['encrypted'] ?? false) === true)),
+            'containedPartCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['containedPartCount'] ?? 0), $items)),
+            'replacementCount' => count($replacementItems),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+            'replacements' => $replacementItems,
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<array<string, mixed>>
+     */
+    private function embeddedObjectReferencesFromNodes(array $nodes): array
+    {
+        $references = [];
+        foreach ($nodes as $node) {
+            if (($node->type === 'span' || $node->type === 'div') && $this->nodeHasClass($node, 'odf-embedded-object')) {
+                $objectPath = $node->attr('objectPath');
+                if (is_string($objectPath) && $objectPath !== '') {
+                    $references[] = self::withoutEmpty([
+                        'objectPath' => $objectPath,
+                        'sourcePart' => is_string($node->attr('sourcePart')) ? $node->attr('sourcePart') : null,
+                        'href' => is_string($node->attr('href')) ? $node->attr('href') : null,
+                        'objectType' => is_string($node->attr('objectType')) ? $node->attr('objectType') : null,
+                        'mediaType' => is_string($node->attr('mediaType')) ? $node->attr('mediaType') : null,
+                        'exists' => is_bool($node->attr('exists')) ? $node->attr('exists') : null,
+                        'encrypted' => is_bool($node->attr('encrypted')) ? $node->attr('encrypted') : null,
+                    ]);
+                }
+            }
+
+            array_push($references, ...$this->embeddedObjectReferencesFromNodes($node->children));
+        }
+
+        return $references;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param list<string> $parts
+     * @return list<array<string, mixed>>
+     */
+    private function embeddedObjectContainedPartItems(ZipPackage $package, array $manifestByPart, array $parts): array
+    {
+        $items = [];
+        foreach ($parts as $part) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $manifestItem = $manifestByPart[$part] ?? null;
+            $encrypted = is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true;
+            $items[] = self::withoutEmpty([
+                'part' => $part,
+                'mediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] ?? null : null,
+                'declared' => is_array($manifestItem),
+                'encrypted' => $encrypted,
+                'canExposeBytes' => false,
+                'reviewPolicy' => 'embedded-object-contained-part-metadata-only',
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => is_array($manifestItem) ? $manifestItem['declaredSize'] ?? null : null,
+                'declaredSizeMismatch' => is_array($manifestItem) && ($manifestItem['declaredSizeMismatch'] ?? false) === true,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @return list<array<string, mixed>>
+     */
+    private function objectReplacementPackageMetadata(ZipPackage $package, array $manifestByPart): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifestByPart as $part => $item) {
+            if ($this->isObjectReplacementPackagePartName($part)) {
+                $item['declared'] = true;
+                $candidatesByPart[$part] = $item;
+            }
+        }
+
+        foreach ($package->entries() as $entry) {
+            if (!$entry instanceof ZipPackageEntry || $entry->isDirectory() || !$this->isObjectReplacementPackagePartName($entry->name)) {
+                continue;
+            }
+            if (!isset($candidatesByPart[$entry->name])) {
+                $candidatesByPart[$entry->name] = [
+                    'fullPath' => $entry->name,
+                    'part' => $entry->name,
+                    'mediaType' => $this->objectReplacementMediaTypeFromPart($entry->name),
+                    'exists' => true,
+                    'encrypted' => false,
+                    'declared' => false,
+                ];
+            }
+        }
+        ksort($candidatesByPart, SORT_STRING);
+
+        $items = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declared = ($item['declared'] ?? false) === true;
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = (string) ($this->objectReplacementMediaTypeFromPart($part) ?? '');
+            }
+
+            $issues = [];
+            if (!$entry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-object-replacement-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-object-replacement-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-object-replacement-encrypted-package-part';
+            }
+
+            $items[] = self::withoutEmpty([
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'objectPath' => $this->objectReplacementObjectPath($part),
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'exists' => $entry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'object-replacement-metadata-only',
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'issues' => $issues,
+            ]);
+        }
+
+        return $items;
+    }
+
+    private function embeddedObjectRootForPart(string $part): ?string
+    {
+        $part = trim($part, '/');
+        if ($part === '' || $this->isObjectReplacementPackagePartName($part)) {
+            return null;
+        }
+
+        $root = strtok($part, '/');
+        if (!is_string($root) || $root === '') {
+            return null;
+        }
+
+        return preg_match('/^Object(?:$|[\s._-]|\d)/i', $root) === 1 ? $root : null;
+    }
+
+    private function isObjectReplacementPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+
+        return str_starts_with($normalized, 'objectreplacements/') && !str_ends_with($normalized, '/');
+    }
+
+    private function objectReplacementObjectPath(string $part): string
+    {
+        $relative = preg_replace('#^ObjectReplacements/#i', '', ltrim($part, '/')) ?? $part;
+        $extension = pathinfo($relative, PATHINFO_EXTENSION);
+        if ($extension !== '') {
+            $relative = substr($relative, 0, -strlen($extension) - 1);
+        }
+
+        return rawurldecode($relative);
+    }
+
+    private function objectReplacementMediaTypeFromPart(string $part): ?string
+    {
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp',
+            'tif', 'tiff' => 'image/tiff',
+            default => null,
+        };
     }
 
     private function isThumbnailPackagePartName(string $part): bool
