@@ -5573,7 +5573,7 @@ final class PdfEngineHandoff
         $fontPathValues = $this->engineOptionValues($engineOptions, ['--font-path'], true);
         $certificateValues = $this->engineOptionValues($engineOptions, ['--cert'], true);
         $packagePathValues = $this->engineOptionValues($engineOptions, ['--package-path'], true);
-        $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache'], true);
+        $packageCacheValues = $this->engineOptionValues($engineOptions, ['--package-cache', '--package-cache-path'], true);
         $inputVariableValues = $this->engineOptionValues($engineOptions, ['--input'], true);
         $creationTimestampValues = $this->engineOptionValues($engineOptions, ['--creation-timestamp'], true);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
