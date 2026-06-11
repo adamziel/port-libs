@@ -426,6 +426,7 @@ final class OdfReader
             $seenFullPaths[$fullPath] = true;
 
             $mediaType = self::attr($entryElement, self::MANIFEST_NS, 'media-type');
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
             $version = self::attr($entryElement, self::MANIFEST_NS, 'version');
             $preferredViewMode = self::attr($entryElement, self::MANIFEST_NS, 'preferred-view-mode');
             $declaredSize = self::nullableInt(self::attr($entryElement, self::MANIFEST_NS, 'size'));
@@ -469,6 +470,11 @@ final class OdfReader
                 'partQuery' => $packageReference['partQuery'],
                 'partFragment' => $packageReference['partFragment'],
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'version' => $version === '' ? null : $version,
                 'preferredViewMode' => $preferredViewMode === '' ? null : $preferredViewMode,
                 'exists' => $exists,
@@ -622,6 +628,11 @@ final class OdfReader
                 'manifestPartQuery' => is_array($manifestItem) ? $manifestItem['partQuery'] : null,
                 'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
+                'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
+                'manifestMediaTypeHasParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeHasParameters'] : false,
+                'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
+                'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
+                'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
                 'encrypted' => is_array($manifestItem) && ($manifestItem['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
@@ -11779,6 +11790,11 @@ final class OdfReader
                 'partQuery' => $item['partQuery'] ?? null,
                 'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $mediaType,
+                'mediaTypeBase' => $item['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase'],
+                'mediaTypeHasParameters' => $item['mediaTypeHasParameters'] ?? false,
+                'mediaTypeParameterCount' => $item['mediaTypeParameterCount'] ?? 0,
+                'mediaTypeParameters' => $item['mediaTypeParameters'] ?? [],
+                'mediaTypeParameterMap' => $item['mediaTypeParameterMap'] ?? [],
                 'exists' => $entry instanceof ZipPackageEntry,
                 'byteLength' => $canExposeBytes ? $entry->uncompressedSize : null,
                 'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
@@ -11827,6 +11843,11 @@ final class OdfReader
                 'fullPath' => $part,
                 'part' => $part,
                 'mediaType' => $this->thumbnailMediaTypeFromPart($part),
+                'mediaTypeBase' => $this->thumbnailMediaTypeFromPart($part),
+                'mediaTypeHasParameters' => false,
+                'mediaTypeParameterCount' => 0,
+                'mediaTypeParameters' => [],
+                'mediaTypeParameterMap' => [],
                 'exists' => true,
                 'encrypted' => false,
                 'canExposeBytes' => true,
@@ -11845,6 +11866,7 @@ final class OdfReader
             if ($mediaType === '') {
                 $mediaType = (string) ($this->thumbnailMediaTypeFromPart($part) ?? '');
             }
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
             $mediaTypeValid = str_starts_with(strtolower(trim($mediaType)), 'image/');
             $issues = [];
             if (!$entry instanceof ZipPackageEntry) {
@@ -11871,6 +11893,11 @@ final class OdfReader
                 'partQuery' => $item['partQuery'] ?? null,
                 'partFragment' => $item['partFragment'] ?? null,
                 'mediaType' => $mediaType === '' ? null : $mediaType,
+                'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
+                'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
+                'mediaTypeParameterCount' => $mediaTypeReport['mediaTypeParameterCount'],
+                'mediaTypeParameters' => $mediaTypeReport['mediaTypeParameters'],
+                'mediaTypeParameterMap' => $mediaTypeReport['mediaTypeParameterMap'],
                 'expectedMediaTypePrefix' => 'image/',
                 'exists' => $entry instanceof ZipPackageEntry,
                 'declared' => $declared,
@@ -11943,11 +11970,102 @@ final class OdfReader
 
     private function isXmlMediaType(string $mediaType): bool
     {
-        $base = strtolower(trim(explode(';', $mediaType, 2)[0]));
+        $base = self::mediaTypeReport($mediaType)['mediaTypeBase'];
 
         return $base === 'text/xml'
             || $base === 'application/xml'
             || str_ends_with($base, '+xml');
+    }
+
+    /**
+     * @return array{mediaType:string, mediaTypeBase:string, mediaTypeHasParameters:bool, mediaTypeParameterCount:int, mediaTypeParameters:list<array{name:string, value:string, raw:string}>, mediaTypeParameterMap:array<string, string>}
+     */
+    private static function mediaTypeReport(string $mediaType): array
+    {
+        $segments = self::mediaTypeSegments($mediaType);
+        $base = strtolower(trim((string) array_shift($segments)));
+        $parameters = [];
+        $parameterMap = [];
+
+        foreach ($segments as $segment) {
+            $raw = trim($segment);
+            if ($raw === '') {
+                continue;
+            }
+
+            $equals = strpos($raw, '=');
+            $name = $equals === false ? strtolower(trim($raw)) : strtolower(trim(substr($raw, 0, $equals)));
+            if ($name === '') {
+                continue;
+            }
+
+            $value = $equals === false ? '' : trim(substr($raw, $equals + 1));
+            if (strlen($value) >= 2 && $value[0] === '"' && substr($value, -1) === '"') {
+                $value = substr($value, 1, -1);
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $value) ?? $value;
+            }
+
+            $parameters[] = [
+                'name' => $name,
+                'value' => $value,
+                'raw' => $raw,
+            ];
+            $parameterMap[$name] = $value;
+        }
+
+        return [
+            'mediaType' => $mediaType,
+            'mediaTypeBase' => $base,
+            'mediaTypeHasParameters' => $parameters !== [],
+            'mediaTypeParameterCount' => count($parameters),
+            'mediaTypeParameters' => $parameters,
+            'mediaTypeParameterMap' => $parameterMap,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function mediaTypeSegments(string $mediaType): array
+    {
+        $segments = [];
+        $current = '';
+        $inQuote = false;
+        $escaped = false;
+        $length = strlen($mediaType);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $mediaType[$index];
+            if ($escaped) {
+                $current .= $char;
+                $escaped = false;
+                continue;
+            }
+
+            if ($inQuote && $char === '\\') {
+                $current .= $char;
+                $escaped = true;
+                continue;
+            }
+
+            if ($char === '"') {
+                $inQuote = !$inQuote;
+                $current .= $char;
+                continue;
+            }
+
+            if ($char === ';' && !$inQuote) {
+                $segments[] = $current;
+                $current = '';
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        $segments[] = $current;
+
+        return $segments;
     }
 
     /**
@@ -12010,6 +12128,8 @@ final class OdfReader
             'missingCount' => 0,
             'encryptedCount' => 0,
             'declaredSizeMismatchCount' => 0,
+            'parameterizedItemCount' => 0,
+            'mediaTypeParameterNames' => [],
             'storedByteLength' => 0,
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
@@ -12023,6 +12143,11 @@ final class OdfReader
         foreach ($manifest as $item) {
             $part = self::manifestItemPartLabel($item);
             $mediaType = trim((string) ($item['mediaType'] ?? ''));
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeBase = (string) ($item['mediaTypeBase'] ?? $mediaTypeReport['mediaTypeBase']);
+            $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null)
+                ? $item['mediaTypeParameters']
+                : $mediaTypeReport['mediaTypeParameters'];
             $exists = ($item['exists'] ?? false) === true;
             $isDirectory = ($item['isDirectory'] ?? false) === true;
             $encrypted = ($item['encrypted'] ?? false) === true;
@@ -12070,11 +12195,16 @@ final class OdfReader
                 continue;
             }
 
-            if (!isset($groups[$mediaType])) {
-                $groups[$mediaType] = [
-                    'mediaType' => $mediaType,
+            $groupMediaType = $mediaTypeBase === '' ? $mediaType : $mediaTypeBase;
+            if (!isset($groups[$groupMediaType])) {
+                $groups[$groupMediaType] = [
+                    'mediaType' => $groupMediaType,
                     'count' => 0,
                     'parts' => [],
+                    'rawMediaTypes' => [],
+                    'rawMediaTypeCount' => 0,
+                    'parameterizedItemCount' => 0,
+                    'mediaTypeParameterNames' => [],
                     'existsCount' => 0,
                     'missingCount' => 0,
                     'directoryCount' => 0,
@@ -12088,49 +12218,74 @@ final class OdfReader
                     'deflatedCompressionMethodCount' => 0,
                     'unsupportedCompressionMethodCount' => 0,
                 ];
-                $groupOrder[] = $mediaType;
+                $groupOrder[] = $groupMediaType;
             }
 
             ++$summary['typedItemCount'];
-            ++$groups[$mediaType]['count'];
-            $groups[$mediaType]['parts'][] = $part;
+            ++$groups[$groupMediaType]['count'];
+            $groups[$groupMediaType]['parts'][] = $part;
+            if (!in_array($mediaType, $groups[$groupMediaType]['rawMediaTypes'], true)) {
+                $groups[$groupMediaType]['rawMediaTypes'][] = $mediaType;
+            }
+            if (($item['mediaTypeHasParameters'] ?? $mediaTypeReport['mediaTypeHasParameters']) === true) {
+                ++$summary['parameterizedItemCount'];
+                ++$groups[$groupMediaType]['parameterizedItemCount'];
+            }
+            foreach ($mediaTypeParameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+                $name = (string) ($parameter['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+                if (!in_array($name, $summary['mediaTypeParameterNames'], true)) {
+                    $summary['mediaTypeParameterNames'][] = $name;
+                }
+                if (!in_array($name, $groups[$groupMediaType]['mediaTypeParameterNames'], true)) {
+                    $groups[$groupMediaType]['mediaTypeParameterNames'][] = $name;
+                }
+            }
             if ($exists) {
-                ++$groups[$mediaType]['existsCount'];
+                ++$groups[$groupMediaType]['existsCount'];
             } else {
-                ++$groups[$mediaType]['missingCount'];
+                ++$groups[$groupMediaType]['missingCount'];
             }
             if ($isDirectory) {
-                ++$groups[$mediaType]['directoryCount'];
+                ++$groups[$groupMediaType]['directoryCount'];
             }
             if ($encrypted) {
-                ++$groups[$mediaType]['encryptedCount'];
+                ++$groups[$groupMediaType]['encryptedCount'];
             }
             if ($declaredSizeMismatch) {
-                ++$groups[$mediaType]['declaredSizeMismatchCount'];
+                ++$groups[$groupMediaType]['declaredSizeMismatchCount'];
             }
             if (is_int($storedByteLength)) {
-                $groups[$mediaType]['storedByteLength'] += $storedByteLength;
+                $groups[$groupMediaType]['storedByteLength'] += $storedByteLength;
             }
             if (is_int($byteLength) && ($item['canExposeBytes'] ?? false) === true) {
-                $groups[$mediaType]['exposableByteLength'] += $byteLength;
+                $groups[$groupMediaType]['exposableByteLength'] += $byteLength;
             }
             if (is_int($compressedByteLength)) {
-                $groups[$mediaType]['compressedByteLength'] += $compressedByteLength;
+                $groups[$groupMediaType]['compressedByteLength'] += $compressedByteLength;
             }
             if (is_int($declaredSize)) {
-                $groups[$mediaType]['declaredSize'] += $declaredSize;
+                $groups[$groupMediaType]['declaredSize'] += $declaredSize;
             }
             if ($compressionMethod === 0) {
-                ++$groups[$mediaType]['storedCompressionMethodCount'];
+                ++$groups[$groupMediaType]['storedCompressionMethodCount'];
             } elseif ($compressionMethod === 8) {
-                ++$groups[$mediaType]['deflatedCompressionMethodCount'];
+                ++$groups[$groupMediaType]['deflatedCompressionMethodCount'];
             } elseif (is_int($compressionMethod)) {
-                ++$groups[$mediaType]['unsupportedCompressionMethodCount'];
+                ++$groups[$groupMediaType]['unsupportedCompressionMethodCount'];
             }
         }
 
         $items = [];
+        sort($summary['mediaTypeParameterNames'], SORT_STRING);
         foreach ($groupOrder as $mediaType) {
+            sort($groups[$mediaType]['mediaTypeParameterNames'], SORT_STRING);
+            $groups[$mediaType]['rawMediaTypeCount'] = count($groups[$mediaType]['rawMediaTypes']);
             $items[] = $groups[$mediaType];
         }
 

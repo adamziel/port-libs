@@ -9223,6 +9223,80 @@ XML;
         $t->same(['Pictures/missing.jpg'], array_column($result['importReport']['manifest']['missingItems'], 'part'));
         $t->same(['Pictures/hero.png', 'Pictures/cover.png', 'Pictures/missing.jpg'], array_column($result['media'], 'part'));
     },
+    'preserves ODT manifest media-type parameter provenance for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $thumbnailBytes = 'THUMBNAIL';
+        $manifestWithMediaTypeParameters = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/jpeg; charset=UTF-8; profile=&quot;review cover&quot;"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/thumbnail.png" manifest:media-type="image/png; role=&quot;preview&quot;" manifest:size="' . strlen($thumbnailBytes) . '"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithMediaTypeParameters, null, null, [
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $mediaByPart = [];
+        foreach ($result['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $thumbnailsByPart = [];
+        foreach ($result['importReport']['packageThumbnails']['items'] as $item) {
+            $thumbnailsByPart[$item['part']] = $item;
+        }
+        $summaryByType = [];
+        foreach ($result['importReport']['manifest']['mediaTypeSummary']['items'] as $item) {
+            $summaryByType[$item['mediaType']] = $item;
+        }
+        $provenanceParts = $result['importReport']['manifest']['packageProvenance']['parts'];
+
+        $hero = $manifestByPath['Pictures/hero.png'];
+        $t->same('image/jpeg; charset=UTF-8; profile="review cover"', $hero['mediaType']);
+        $t->same('image/jpeg', $hero['mediaTypeBase']);
+        $t->same(true, $hero['mediaTypeHasParameters']);
+        $t->same(2, $hero['mediaTypeParameterCount']);
+        $t->same([
+            ['name' => 'charset', 'value' => 'UTF-8', 'raw' => 'charset=UTF-8'],
+            ['name' => 'profile', 'value' => 'review cover', 'raw' => 'profile="review cover"'],
+        ], $hero['mediaTypeParameters']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'review cover'], $hero['mediaTypeParameterMap']);
+
+        $heroMedia = $mediaByPart['Pictures/hero.png'];
+        $t->same('image/jpeg', $heroMedia['mediaTypeBase']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'review cover'], $heroMedia['mediaTypeParameterMap']);
+        $t->same(1, count($result['media']), 'parameterized ODF package thumbnails must stay out of document media handoff');
+
+        $thumbnail = $thumbnailsByPart['Thumbnails/thumbnail.png'];
+        $t->same('image/png; role="preview"', $thumbnail['mediaType']);
+        $t->same('image/png', $thumbnail['mediaTypeBase']);
+        $t->same(['role' => 'preview'], $thumbnail['mediaTypeParameterMap']);
+        $t->same(false, $thumbnail['canExposeAsDocumentMedia']);
+
+        $heroProvenance = $provenanceParts['Pictures/hero.png'];
+        $t->same('image/jpeg; charset=UTF-8; profile="review cover"', $heroProvenance['manifestMediaType']);
+        $t->same('image/jpeg', $heroProvenance['manifestMediaTypeBase']);
+        $t->same(2, $heroProvenance['manifestMediaTypeParameterCount']);
+        $t->same(['charset' => 'UTF-8', 'profile' => 'review cover'], $heroProvenance['manifestMediaTypeParameterMap']);
+
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
+        $t->same(2, $summary['parameterizedItemCount']);
+        $t->same(['charset', 'profile', 'role'], $summary['mediaTypeParameterNames']);
+        $t->same(4, $summary['mediaTypeCount']);
+        $t->same(1, $summaryByType['image/jpeg']['count']);
+        $t->same(['image/jpeg; charset=UTF-8; profile="review cover"'], $summaryByType['image/jpeg']['rawMediaTypes']);
+        $t->same(1, $summaryByType['image/jpeg']['rawMediaTypeCount']);
+        $t->same(1, $summaryByType['image/jpeg']['parameterizedItemCount']);
+        $t->same(['charset', 'profile'], $summaryByType['image/jpeg']['mediaTypeParameterNames']);
+        $t->same(['Pictures/hero.png'], $summaryByType['image/jpeg']['parts']);
+        $t->same(1, $summaryByType['image/png']['count']);
+        $t->same(['image/png; role="preview"'], $summaryByType['image/png']['rawMediaTypes']);
+        $t->same(['role'], $summaryByType['image/png']['mediaTypeParameterNames']);
+        $t->same(['Thumbnails/thumbnail.png'], $summaryByType['image/png']['parts']);
+    },
     'reports ODT manifest ZIP compression provenance for package media' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $sourceBytes = 'SIDECAR-RAW';
         $manifestWithCompression = str_replace(
