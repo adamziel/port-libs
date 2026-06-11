@@ -580,6 +580,11 @@ final class OdfReader
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
+        $metadataSidecarCount = 0;
+        $rdfMetadataSidecarCount = 0;
+        $signatureMetadataSidecarCount = 0;
+        $declaredMetadataSidecarCount = 0;
+        $undeclaredMetadataSidecarCount = 0;
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -629,10 +634,25 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared);
+            if (in_array('metadata-sidecar', $roles, true)) {
+                $metadataSidecarCount++;
+                if (in_array('odf-rdf-metadata', $roles, true)) {
+                    $rdfMetadataSidecarCount++;
+                }
+                if (in_array('odf-signature-metadata', $roles, true)) {
+                    $signatureMetadataSidecarCount++;
+                }
+                if (is_array($manifestItem)) {
+                    $declaredMetadataSidecarCount++;
+                } else {
+                    $undeclaredMetadataSidecarCount++;
+                }
+            }
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
-                'roles' => $this->packagePartRoles($entry, $manifestItem, $isUndeclared),
+                'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
@@ -673,6 +693,11 @@ final class OdfReader
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
+            'metadataSidecarCount' => $metadataSidecarCount,
+            'rdfMetadataSidecarCount' => $rdfMetadataSidecarCount,
+            'signatureMetadataSidecarCount' => $signatureMetadataSidecarCount,
+            'declaredMetadataSidecarCount' => $declaredMetadataSidecarCount,
+            'undeclaredMetadataSidecarCount' => $undeclaredMetadataSidecarCount,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
@@ -704,6 +729,17 @@ final class OdfReader
         }
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
+        }
+        $manifestMediaTypeBase = is_array($manifestItem)
+            ? (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport((string) ($manifestItem['mediaType'] ?? ''))['mediaTypeBase'])
+            : '';
+        if ($this->isRdfPartName($entry->name) || $manifestMediaTypeBase === 'application/rdf+xml') {
+            $roles[] = 'metadata-sidecar';
+            $roles[] = 'odf-rdf-metadata';
+        }
+        if ($this->isSignaturePartName($entry->name)) {
+            $roles[] = 'metadata-sidecar';
+            $roles[] = 'odf-signature-metadata';
         }
         if ($this->isThumbnailPackagePartName($entry->name)) {
             $roles[] = 'package-thumbnail';

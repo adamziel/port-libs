@@ -10019,6 +10019,75 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'classifies ODT RDF and signature package sidecars in ZIP provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $rdfXml = <<<'XML'
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="content.xml">
+    <dc:title>Package RDF metadata</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+        $objectRdfXml = <<<'XML'
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <rdf:Description rdf:about="Object 1/content.xml">
+    <dc:title>Embedded object RDF metadata</dc:title>
+  </rdf:Description>
+</rdf:RDF>
+XML;
+        $signatureXml = <<<'XML'
+<dsig:document-signatures xmlns:dsig="http://www.w3.org/2000/09/xmldsig#">
+  <dsig:Signature Id="package-signature">
+    <dsig:SignedInfo>
+      <dsig:Reference URI="content.xml"/>
+    </dsig:SignedInfo>
+    <dsig:SignatureValue>signature-bytes</dsig:SignatureValue>
+  </dsig:Signature>
+</dsig:document-signatures>
+XML;
+        $manifestWithSidecars = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml; profile=&quot;package&quot;"/>'
+            . '<manifest:file-entry manifest:full-path="Object 1/manifest.rdf" manifest:media-type="application/rdf+xml"/>'
+            . '<manifest:file-entry manifest:full-path="META-INF/documentsignatures.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSidecars, null, null, [
+            ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
+            ['name' => 'Object 1/manifest.rdf', 'data' => $objectRdfXml, 'compressionMethod' => 0],
+            ['name' => 'META-INF/documentsignatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+            ['name' => 'META-INF/macro-signatures.xml', 'data' => $signatureXml, 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $parts = $provenance['parts'];
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(4, $provenance['metadataSidecarCount']);
+        $t->same(2, $provenance['rdfMetadataSidecarCount']);
+        $t->same(2, $provenance['signatureMetadataSidecarCount']);
+        $t->same(3, $provenance['declaredMetadataSidecarCount']);
+        $t->same(1, $provenance['undeclaredMetadataSidecarCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(['metadata-sidecar', 'odf-rdf-metadata', 'manifest-declared'], $parts['manifest.rdf']['roles']);
+        $t->same('manifest.rdf', $parts['manifest.rdf']['manifestFullPath']);
+        $t->same('application/rdf+xml; profile="package"', $parts['manifest.rdf']['manifestMediaType']);
+        $t->same('application/rdf+xml', $parts['manifest.rdf']['manifestMediaTypeBase']);
+        $t->same(['profile' => 'package'], $parts['manifest.rdf']['manifestMediaTypeParameterMap']);
+        $t->same(['metadata-sidecar', 'odf-rdf-metadata', 'manifest-declared'], $parts['Object 1/manifest.rdf']['roles']);
+        $t->same(['metadata-sidecar', 'odf-signature-metadata', 'manifest-declared'], $parts['META-INF/documentsignatures.xml']['roles']);
+        $t->same(['metadata-sidecar', 'odf-signature-metadata', 'undeclared-package-entry'], $parts['META-INF/macro-signatures.xml']['roles']);
+        $t->same(false, $parts['META-INF/macro-signatures.xml']['declaredInManifest']);
+        $t->same(true, $parts['META-INF/macro-signatures.xml']['undeclared']);
+        $t->same($result['rdfMetadata'], $result['document']->attr('rdfMetadata'));
+        $t->same(2, $result['rdfMetadata']['partCount']);
+        $t->same(2, $result['rdfMetadata']['parsedPartCount']);
+        $t->same(2, $result['signatureMetadata']['partCount']);
+        $t->same(2, $result['signatureMetadata']['parsedPartCount']);
+        $t->same(2, $result['signatureMetadata']['signatureCount']);
+        $t->same(['content.xml'], $result['signatureMetadata']['signedParts']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
