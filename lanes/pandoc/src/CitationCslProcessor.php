@@ -1108,6 +1108,12 @@ final class CitationCslProcessor
         if ($patentTypeLabel === '') {
             $patentTypeLabel = self::patentTypeLabel($patentType);
         }
+        $reviewedTitle = self::composedStringField(
+            $item,
+            ['reviewed-title', 'reviewedTitle', 'reviewedtitle', 'reviewtitle'],
+            ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']
+        );
+        $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'reviewgenre']);
         $orcid = self::firstStringField($item, ['ORCID', 'orcid', 'orcid-id', 'orcidId', 'orcidid']);
         $isni = self::firstStringField($item, ['ISNI', 'isni']);
         $viaf = self::firstStringField($item, ['VIAF', 'viaf']);
@@ -1145,8 +1151,8 @@ final class CitationCslProcessor
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
             'translatedTitle' => self::firstStringField($item, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
-            'reviewedTitle' => self::firstStringField($item, ['reviewed-title', 'reviewedTitle', 'reviewtitle']),
-            'reviewedGenre' => self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre']),
+            'reviewedTitle' => $reviewedTitle,
+            'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::firstStringField($item, ['container-title', 'containerTitle', 'containertitle']),
             'containerTitleShort' => $containerTitleShort,
@@ -1485,6 +1491,28 @@ final class CitationCslProcessor
         }
 
         return '';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $titleKeys
+     * @param list<string> $subtitleKeys
+     */
+    private static function composedStringField(array $item, array $titleKeys, array $subtitleKeys): string
+    {
+        $title = self::firstStringField($item, $titleKeys);
+        $subtitle = self::firstStringField($item, $subtitleKeys);
+        if ($title === '') {
+            return $subtitle;
+        }
+
+        if ($subtitle === '') {
+            return $title;
+        }
+
+        $separator = preg_match('/[.?!:]\z/u', $title) === 1 ? ' ' : ': ';
+
+        return $title . $separator . $subtitle;
     }
 
     /**

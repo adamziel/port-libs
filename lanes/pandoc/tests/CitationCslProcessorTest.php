@@ -19955,6 +19955,83 @@ XML);
         $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Imported Block Patterns. Journal of Source Imports. 2026. 70-72. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
         $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Review Packet. 2025. Reviewed title: Source Atlas. References: Archive ref 42. Dimensions: A4. Scale: 1:2500.</dd>', $blocks);
     },
+    'maps direct csl reviewed work compact aliases into bibliography metadata' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'compact-review-source',
+                'type' => 'article-journal',
+                'author' => [['family' => 'Roe', 'given' => 'Pat']],
+                'title' => 'Review of Block Pattern Archives',
+                'container-title' => 'Journal of Source Imports',
+                'issued' => ['date-parts' => [[2026]]],
+                'reviewtitle' => 'Block Patterns in the Wild',
+                'reviewsubtitle' => 'A Migration Source Atlas',
+                'reviewgenre' => 'source atlas',
+                'references' => 'Smith 2024, pp. 12-18',
+                'dimension' => '24 x 32 cm',
+                'scale' => '1:50000',
+            ],
+            [
+                'id' => 'compact-reviewedtitle-source',
+                'type' => 'book',
+                'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                'title' => 'Direct Reviewed Title Alias',
+                'issued' => ['date-parts' => [[2025]]],
+                'reviewedtitle' => 'Legacy Source Atlas',
+                'reviewedsubtitle' => 'Foldout Plates',
+                'reviewedgenre' => 'facsimile map',
+            ],
+        ]);
+
+        $compact = $processor->item('compact-review-source');
+        $reviewedTitle = $processor->item('compact-reviewedtitle-source');
+        $t->same('Block Patterns in the Wild: A Migration Source Atlas', $compact['reviewedTitle'] ?? null);
+        $t->same('source atlas', $compact['reviewedGenre'] ?? null);
+        $t->same('Smith 2024, pp. 12-18', $compact['references'] ?? null);
+        $t->same('24 x 32 cm', $compact['dimensions'] ?? null);
+        $t->same('1:50000', $compact['scale'] ?? null);
+        $t->same('Legacy Source Atlas: Foldout Plates', $reviewedTitle['reviewedTitle'] ?? null);
+        $t->same('facsimile map', $reviewedTitle['reviewedGenre'] ?? null);
+        $t->same('(Roe 2026; Ng 2025)', $processor->renderCitationCluster([
+            $citation('compact-review-source', '[@compact-review-source]'),
+            $citation('compact-reviewedtitle-source', '[@compact-reviewedtitle-source]'),
+        ]));
+        $t->same('Roe, Pat. Review of Block Pattern Archives. Journal of Source Imports. 2026. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. Reviewed genre: source atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.', $processor->renderBibliographyEntry('compact-review-source'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewed-title"/>
+        <text variable="reviewed-genre"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-genre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Roe | Block Patterns in the Wild: A Migration Source Atlas | source atlas; Ng | Legacy Source Atlas: Foldout Plates | facsimile map]', $styled->renderCitationCluster([
+            $citation('compact-review-source', '[@compact-review-source]'),
+            $citation('compact-reviewedtitle-source', '[@compact-reviewedtitle-source]'),
+        ]));
+        $t->same('Direct Reviewed Title Alias :: Legacy Source Atlas: Foldout Plates :: facsimile map', $styled->renderBibliographyEntry('compact-reviewedtitle-source'));
+
+        $document = (new MarkdownReader())->read('Reviewed compact source @compact-review-source and legacy alias [@compact-reviewedtitle-source] preserve reviewed-work metadata.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Reviewed compact source Roe (2026) and legacy alias (Ng 2025) preserve reviewed-work metadata.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Review of Block Pattern Archives. Journal of Source Imports. 2026. Reviewed title: Block Patterns in the Wild: A Migration Source Atlas. Reviewed genre: source atlas. References: Smith 2024, pp. 12-18. Dimensions: 24 x 32 cm. Scale: 1:50000.</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Direct Reviewed Title Alias. 2025. Reviewed title: Legacy Source Atlas: Foldout Plates. Reviewed genre: facsimile map.</dd>', $blocks);
+    },
     'maps bounded biblatex reprint title metadata into csl review packets' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{reprint-manual,
