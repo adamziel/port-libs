@@ -810,6 +810,51 @@ XML, 'package reader XML');
         $t->same(['help', 'external'], $area['relTokens']);
         $t->same('<p>See <a download="packet.html" href="chapter.html#intro" hreflang="en" ping="/audit /log" referrerpolicy="no-referrer" rel="noopener noreferrer tag" target="_blank" type="text/html">Chapter <span>one</span></a></p><map name="figures"><area alt="Diagram hotspot" coords="0,0,10,10" href="diagram.png#hotspot" rel="help external" shape="rect" target="_self"></map>', $html);
     },
+    'summarizes html quotation and citation metadata for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<blockquote id="quote-review" cite=" https://example.invalid/source#para "><p>Imported <q cite="/inline-source">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote>'
+                . '<p>Standalone <cite data-review="work">Packet Guide</cite></p>',
+            'quotation citation review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $blockquote = $summary[0];
+        $inlineQuote = $blockquote['children'][0]['children'][1];
+        $inlineCitation = $inlineQuote['children'][1];
+        $footer = $blockquote['children'][1];
+        $footerCitation = $footer['children'][1];
+        $standaloneCitation = $summary[1]['children'][1];
+
+        $t->same('blockquote', $blockquote['name']);
+        $t->same('block', $blockquote['quotation']);
+        $t->same('blockquote', $blockquote['quoteTag']);
+        $t->same(' https://example.invalid/source#para ', $blockquote['quoteCiteRaw']);
+        $t->same('https://example.invalid/source#para', $blockquote['quoteCite']);
+        $t->same('Imported inline Manual note.Source Reviewer Handbook', $blockquote['quoteText']);
+        $t->same('Source Reviewer Handbook', $blockquote['attributionText']);
+        $t->same(['Manual', 'Reviewer Handbook'], $blockquote['citationTexts']);
+        $t->same(2, $blockquote['citationCount']);
+
+        $t->same('q', $inlineQuote['name']);
+        $t->same('inline', $inlineQuote['quotation']);
+        $t->same('/inline-source', $inlineQuote['quoteCiteRaw']);
+        $t->same('/inline-source', $inlineQuote['quoteCite']);
+        $t->same('inline Manual', $inlineQuote['quoteText']);
+        $t->same(null, $inlineQuote['attributionText']);
+        $t->same(['Manual'], $inlineQuote['citationTexts']);
+        $t->same(1, $inlineQuote['citationCount']);
+
+        $t->same('cite', $inlineCitation['name']);
+        $t->same('cite', $inlineCitation['citation']);
+        $t->same('Manual', $inlineCitation['citationText']);
+        $t->same('cite', $footerCitation['citation']);
+        $t->same('Reviewer Handbook', $footerCitation['citationText']);
+        $t->same('cite', $standaloneCitation['citation']);
+        $t->same('Packet Guide', $standaloneCitation['citationText']);
+        $t->same(['review' => 'work'], $standaloneCitation['dataset']);
+        $t->same('<blockquote cite=" https://example.invalid/source#para " id="quote-review"><p>Imported <q cite="/inline-source">inline <cite>Manual</cite></q> note.</p><footer>Source <cite>Reviewer Handbook</cite></footer></blockquote><p>Standalone <cite data-review="work">Packet Guide</cite></p>', $html);
+    },
     'summarizes html figure caption state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<figure id="fig-review"><img src="chart.png" alt="Quarterly chart"><figcaption>Figure <strong>one</strong>: imports</figcaption><p>Fallback note</p><figcaption>Extra caption</figcaption></figure>'

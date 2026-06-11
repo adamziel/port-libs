@@ -855,6 +855,9 @@ final class XmlHtmlDom
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
+        if (in_array($name, ['blockquote', 'q', 'cite'], true)) {
+            $summary += self::quotationSummary($node, $name);
+        }
         if ($name === 'progress') {
             $max = self::positiveNumericAttribute($node, 'max', 1.0);
             $value = self::numericAttribute($node, 'value', null);
@@ -1388,6 +1391,37 @@ final class XmlHtmlDom
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function quotationSummary(\DOMElement $element, string $name): array
+    {
+        if ($name === 'cite') {
+            return [
+                'citation' => 'cite',
+                'citationText' => self::normalizedText($element),
+            ];
+        }
+
+        $citeRaw = self::attributeOrNull($element, 'cite');
+        $footer = $name === 'blockquote' ? self::firstChildHtmlElement($element, 'footer') : null;
+        $citationTexts = array_values(array_map(
+            static fn (\DOMElement $citation): string => self::normalizedText($citation),
+            self::descendantHtmlElements($element, 'cite')
+        ));
+
+        return [
+            'quotation' => $name === 'blockquote' ? 'block' : 'inline',
+            'quoteTag' => $name,
+            'quoteCiteRaw' => $citeRaw,
+            'quoteCite' => $citeRaw === null ? null : trim($citeRaw),
+            'quoteText' => self::normalizedText($element),
+            'attributionText' => $footer instanceof \DOMElement ? self::normalizedText($footer) : null,
+            'citationTexts' => $citationTexts,
+            'citationCount' => count($citationTexts),
+        ];
     }
 
     /**
