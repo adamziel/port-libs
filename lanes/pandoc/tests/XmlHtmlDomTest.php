@@ -533,6 +533,65 @@ XML, 'package reader XML');
             $html
         );
     },
+    'summarizes html time and data semantic values for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article>'
+                . '<time datetime="2026-06-08">June 8</time>'
+                . '<time datetime="2026-06-08 09:30:05.120Z">Published</time>'
+                . '<time datetime="2026-W23">Week 23</time>'
+                . '<time datetime="PT2H30M">Two hours</time>'
+                . '<time>09:30</time>'
+                . '<time datetime="2026-13-40">Bad date</time>'
+                . '<data value=" SKU-42 ">Legacy SKU</data>'
+                . '<data value="bad&lt;tag">Bad data</data>'
+                . '</article>',
+            'time data semantic review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+
+        $children = $summary[0]['children'];
+        $date = $children[0];
+        $global = $children[1];
+        $week = $children[2];
+        $duration = $children[3];
+        $textTime = $children[4];
+        $invalid = $children[5];
+        $data = $children[6];
+        $badData = $children[7];
+
+        $t->same('article', $summary[0]['name']);
+        $t->same('time', $date['semanticValue']);
+        $t->same('2026-06-08', $date['timeDatetimeRaw']);
+        $t->same('datetime', $date['timeValueSource']);
+        $t->same('2026-06-08', $date['timeValue']);
+        $t->same('date', $date['timeKind']);
+        $t->same(true, $date['timeValid']);
+        $t->same('June 8', $date['timeText']);
+        $t->same('2026-06-08T09:30:05.120Z', $global['timeValue']);
+        $t->same('global-datetime', $global['timeKind']);
+        $t->same('2026-W23', $week['timeValue']);
+        $t->same('week', $week['timeKind']);
+        $t->same('PT2H30M', $duration['timeValue']);
+        $t->same('duration', $duration['timeKind']);
+        $t->same(null, $textTime['timeDatetimeRaw']);
+        $t->same('text', $textTime['timeValueSource']);
+        $t->same('09:30', $textTime['timeValue']);
+        $t->same('time', $textTime['timeKind']);
+        $t->same('2026-13-40', $invalid['timeDatetimeRaw']);
+        $t->same(null, $invalid['timeValue']);
+        $t->same('invalid', $invalid['timeKind']);
+        $t->same(false, $invalid['timeValid']);
+        $t->same('data', $data['semanticValue']);
+        $t->same('Legacy SKU', $data['dataText']);
+        $t->same(' SKU-42 ', $data['dataValueRaw']);
+        $t->same('SKU-42', $data['dataValue']);
+        $t->same(true, $data['dataValueValid']);
+        $t->same('bad<tag', $badData['dataValueRaw']);
+        $t->same('bad<tag', $badData['dataValue']);
+        $t->same(false, $badData['dataValueValid']);
+        $t->same('<article><time datetime="2026-06-08">June 8</time><time datetime="2026-06-08 09:30:05.120Z">Published</time><time datetime="2026-W23">Week 23</time><time datetime="PT2H30M">Two hours</time><time>09:30</time><time datetime="2026-13-40">Bad date</time><data value=" SKU-42 ">Legacy SKU</data><data value="bad&lt;tag">Bad data</data></article>', $html);
+    },
     'summarizes html media resource state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<video id="preview" controls muted loop poster="cover.jpg" preload="metadata"><source src="movie.webm" type="video/webm"><source src="movie.mp4" type="video/mp4" media="(min-width: 40em)"><track default kind="captions" label="English" srclang="en" src="captions.vtt">Fallback <a href="movie.mp4">download</a></video>'
