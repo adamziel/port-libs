@@ -1840,6 +1840,134 @@ XML;
         $t->true(in_array('relationship-target', $logoInventory['roles'], true), 'glossary local image inventory role missing');
         $t->same(strlen('GLOSSARYPNG'), $logoInventory['bytes']);
     },
+    'summarizes docx glossary document building blocks from relationship target' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/glossary/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml; profile=building-blocks"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rGlossary" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument" Target="glossary/document.xml?slot=review#building-blocks"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/glossary/document.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:glossaryDocument xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docParts>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Reusable Warning"/>
+        <w:style w:val="Heading1"/>
+        <w:category>
+          <w:name w:val="Review Building Blocks"/>
+          <w:gallery w:val="docParts"/>
+        </w:category>
+        <w:types>
+          <w:type w:val="bbPlcHdr"/>
+          <w:type w:val="bbPlcFooter"/>
+        </w:types>
+        <w:description w:val="Reusable import warning"/>
+        <w:guid w:val="{11111111-2222-3333-4444-555555555555}"/>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Reusable Warning</w:t></w:r></w:p>
+        <w:p><w:r><w:t>Check migrated package before publishing.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+    <w:docPart>
+      <w:docPartPr>
+        <w:name w:val="Review Clause"/>
+        <w:category>
+          <w:name w:val="Review Building Blocks"/>
+          <w:gallery w:val="quickParts"/>
+        </w:category>
+        <w:types><w:type w:val="bbPlcTxt"/></w:types>
+      </w:docPartPr>
+      <w:docPartBody>
+        <w:p><w:r><w:t>Imported review clause.</w:t></w:r></w:p>
+      </w:docPartBody>
+    </w:docPart>
+  </w:docParts>
+</w:glossaryDocument>
+XML;
+        $parts['word/glossary/_rels/document.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rGlossaryImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/glossary.png?slot=quick#image"/>
+</Relationships>
+XML;
+        $parts['word/media/glossary.png'] = 'glossary preview image bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $glossary = $docx['glossaryDocument'];
+        $warning = $glossary['items'][0];
+        $clause = $glossary['items'][1];
+        $package = $docx['packageProvenance'];
+        $relationshipType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/glossaryDocument';
+        $glossaryInventory = $package['parts']['word/glossary/document.xml'];
+        $glossaryRelationshipsPart = $package['relationshipParts']['word/glossary/_rels/document.xml.rels'];
+
+        $t->same('word/glossary/document.xml', $docx['glossaryDocumentPart']);
+        $t->same('word/glossary/_rels/document.xml.rels', $docx['glossaryDocumentRelationshipsPart']);
+        $t->same('rGlossary', $docx['glossaryDocumentRelationship']['id']);
+        $t->same('glossary/document.xml?slot=review#building-blocks', $docx['glossaryDocumentRelationship']['target']);
+        $t->same('word/glossary/document.xml?slot=review#building-blocks', $docx['glossaryDocumentRelationship']['resolvedTarget']);
+        $t->same('word/glossary/document.xml', $docx['glossaryDocumentRelationship']['targetPart']);
+        $t->same('slot=review', $docx['glossaryDocumentRelationship']['targetQuery']);
+        $t->same('building-blocks', $docx['glossaryDocumentRelationship']['targetFragment']);
+        $t->same('?slot=review#building-blocks', $docx['glossaryDocumentRelationship']['targetReferenceSuffix']);
+
+        $t->same('relationship', $glossary['selectionSource']);
+        $t->same(true, $glossary['exists']);
+        $t->same(true, $glossary['validRoot']);
+        $t->same('glossaryDocument', $glossary['rootName']);
+        $t->same(2, $glossary['docPartCount']);
+        $t->same(3, $glossary['blockCount']);
+        $t->same(1, $glossary['relationshipCount']);
+        $t->same(['Reusable Warning', 'Review Clause'], $glossary['names']);
+        $t->same(['Review Building Blocks'], $glossary['categories']);
+        $t->same(['docParts', 'quickParts'], $glossary['galleries']);
+        $t->same('Reusable Warning Check migrated package before publishing. Imported review clause.', $glossary['text']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $glossary['contentTypeBase']);
+        $t->same(['profile' => 'building-blocks'], $glossary['contentTypeParameterMap']);
+        $t->same([], $glossary['issues']);
+
+        $t->same(0, $warning['index']);
+        $t->same('Reusable Warning', $warning['name']);
+        $t->same('Heading1', $warning['style']);
+        $t->same(['bbPlcHdr', 'bbPlcFooter'], $warning['types']);
+        $t->same('Reusable import warning', $warning['description']);
+        $t->same('{11111111-2222-3333-4444-555555555555}', $warning['guid']);
+        $t->same(2, $warning['blockCount']);
+        $t->same('Reusable Warning Check migrated package before publishing.', $warning['text']);
+
+        $t->same(1, $clause['index']);
+        $t->same('Review Clause', $clause['name']);
+        $t->same(['bbPlcTxt'], $clause['types']);
+        $t->same(1, $clause['blockCount']);
+        $t->same('Imported review clause.', $clause['text']);
+
+        $t->same(2, $package['summary']['glossaryDocPartCount']);
+        $t->same(3, $package['summary']['glossaryDocumentBlockCount']);
+        $t->same(1, $package['summary']['glossaryDocumentRelationshipCount']);
+        $t->same(0, $package['summary']['glossaryDocumentIssueCount']);
+        $t->same('glossaryDocument', $package['relationshipTypes'][$relationshipType]['label']);
+        $t->same(['word/glossary/document.xml'], $package['relationshipTypes'][$relationshipType]['existingTargetParts']);
+        $t->true(in_array('document-relationship-target', $glossaryInventory['roles'], true), 'glossary inventory relationship role missing');
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml', $glossaryInventory['contentTypeBase']);
+        $t->same(['profile' => 'building-blocks'], $glossaryInventory['contentTypeParameterMap']);
+        $t->same('word/glossary/document.xml', $glossaryRelationshipsPart['sourcePart']);
+        $t->same(true, $glossaryRelationshipsPart['sourceExists']);
+        $t->same('word/media/glossary.png', $glossaryRelationshipsPart['relationships']['rGlossaryImage']['targetPart']);
+        $t->same('?slot=quick#image', $glossaryRelationshipsPart['relationships']['rGlossaryImage']['targetReferenceSuffix']);
+    },
     'resolves docx web settings from relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
