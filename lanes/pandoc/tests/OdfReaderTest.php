@@ -9450,6 +9450,72 @@ XML;
         $t->same(['http://www.w3.org/2000/09/xmldsig#enveloped-signature'], $signature['references'][0]['transforms']);
         $t->same('Pictures/hero.png', $signature['references'][1]['part']);
     },
+    'reports ODT package ZIP order and part role provenance' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL', 'compressionMethod' => 0],
+        ];
+        $centralOrder = [
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Thumbnails/thumbnail.png',
+            'Pictures/',
+            'mimetype',
+        ];
+
+        $result = (new OdfReader())->readPackage($buildZipPackageWithCentralDirectoryOrder($parts, $centralOrder));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $inventory = $provenance['parts'];
+        $order = $provenance['localHeaderOrder'];
+        $compression = $provenance['compressionMethods'];
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(8, $provenance['entryCount']);
+        $t->same(4, $provenance['manifestDeclaredPartCount']);
+        $t->same(1, $provenance['undeclaredEntryCount']);
+        $t->same(1, $provenance['packageDirectoryCount']);
+        $t->same(false, $provenance['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same('mimetype', $provenance['mimetypeEntry']['firstLocalEntryName']);
+        $t->same(true, $provenance['mimetypeEntry']['isValid']);
+
+        $t->same($centralOrder, $order['centralDirectoryOrderNames']);
+        $t->same(array_column($parts, 'name'), $order['localHeaderOrderNames']);
+        $t->same(true, $order['hasCentralDirectoryOrderMismatch']);
+        $t->same(8, $order['mismatchedEntryCount']);
+        $t->same('META-INF/manifest.xml', $order['mismatchedEntries'][0]['name']);
+        $t->same('mimetype', $order['mismatchedEntries'][0]['localHeaderNameAtCentralDirectoryIndex']);
+        $t->same(0, $inventory['mimetype']['localHeaderOrder']);
+        $t->same(7, $inventory['mimetype']['centralDirectoryIndex']);
+        $t->same(false, $inventory['mimetype']['matchesCentralDirectoryOrder']);
+
+        $t->same(8, $compression['entryCount']);
+        $t->same(4, $compression['storedEntryCount']);
+        $t->same(4, $compression['deflatedEntryCount']);
+        $t->same(0, $compression['unsupportedCompressionMethodCount']);
+
+        $t->same(['odf-mimetype'], $inventory['mimetype']['roles']);
+        $t->same(['odf-manifest'], $inventory['META-INF/manifest.xml']['roles']);
+        $t->same(['odf-content', 'manifest-declared'], $inventory['content.xml']['roles']);
+        $t->same(['manifest-declared', 'media-resource'], $inventory['Pictures/hero.png']['roles']);
+        $t->same(['zip-directory'], $inventory['Pictures/']['roles']);
+        $t->same(['undeclared-package-entry'], $inventory['Thumbnails/thumbnail.png']['roles']);
+        $t->same(true, $inventory['content.xml']['declaredInManifest']);
+        $t->same('content.xml', $inventory['content.xml']['manifestFullPath']);
+        $t->same('text/xml', $inventory['content.xml']['manifestMediaType']);
+        $t->same(false, $inventory['Thumbnails/thumbnail.png']['declaredInManifest']);
+        $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
+        $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
