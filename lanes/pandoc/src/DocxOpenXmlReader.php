@@ -19,6 +19,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
+    private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
@@ -34,6 +35,8 @@ final class DocxOpenXmlReader
     private const COMMENTS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+    private const CUSTOM_XML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+    private const CUSTOM_XML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
     private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
@@ -50,6 +53,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_FOOTNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml';
     private const CT_WORD_ENDNOTES = 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml';
     private const CT_WORD_COMMENTS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
+    private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
 
     public function readFile(string $path): AstNode
     {
@@ -204,6 +208,12 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $customXmlParts = $this->readCustomXmlParts(
+            $parts,
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $selectedXmlParts = $this->selectedXmlPartProvenance($parts, $contentTypes, [
             $this->selectedXmlPartDefinition(
                 'document',
@@ -235,6 +245,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
+        $packageProvenance['customXmlParts'] = $customXmlParts;
+        $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
+        $packageProvenance['summary']['customXmlIssueCount'] = $customXmlParts['issueCount'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -271,6 +284,7 @@ final class DocxOpenXmlReader
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
                 'embeddedObjects' => $embeddedObjects,
+                'customXmlParts' => $customXmlParts,
                 'media' => $media,
             ],
         ];
@@ -1290,6 +1304,434 @@ final class DocxOpenXmlReader
     {
         return $relationshipType === self::OLE_OBJECT_REL
             || $relationshipType === self::EMBEDDED_PACKAGE_REL;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readCustomXmlParts(
+        array $parts,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $issueCount = 0;
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::CUSTOM_XML_REL) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            $item = $this->customXmlPartItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+            $relationshipIds[] = $relationshipId;
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $issueCount += count($item['issues']);
+            foreach (($item['propertiesParts']['items'] ?? []) as $propertiesItem) {
+                if (is_array($propertiesItem)) {
+                    $issueCount += count($propertiesItem['issues'] ?? []);
+                }
+            }
+        }
+
+        $propertiesPartCount = 0;
+        $existingPropertiesPartCount = 0;
+        $missingPropertiesPartCount = 0;
+        $invalidPropertiesXmlCount = 0;
+        foreach ($items as $item) {
+            $propertiesParts = $item['propertiesParts'];
+            $propertiesPartCount += (int) $propertiesParts['count'];
+            $existingPropertiesPartCount += (int) $propertiesParts['existingCount'];
+            $missingPropertiesPartCount += (int) $propertiesParts['missingCount'];
+            $invalidPropertiesXmlCount += (int) $propertiesParts['invalidXmlCount'];
+        }
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($relationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-item-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'missingPropertiesRelationshipCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-properties-relationship', $item['issues'], true))),
+            'propertiesPartCount' => $propertiesPartCount,
+            'existingPropertiesPartCount' => $existingPropertiesPartCount,
+            'missingPropertiesPartCount' => $missingPropertiesPartCount,
+            'invalidPropertiesXmlCount' => $invalidPropertiesXmlCount,
+            'issueCount' => $issueCount,
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customXmlPartItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) $summary['external'];
+        $exists = (bool) $summary['exists'];
+        $partRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $partRelationships = $partRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $partRelationshipsPart);
+        $propertiesParts = $this->customXmlPropertiesParts(
+            $parts,
+            $targetPart,
+            $partRelationshipsPart,
+            $partRelationships,
+            $contentTypes,
+        );
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-custom-xml';
+        } elseif (!$exists) {
+            $issues[] = 'missing-item-part';
+        }
+        if (!$external && $summary['contentTypeSource'] === 'missing') {
+            $issues[] = 'missing-content-type';
+        }
+        if ($exists && $propertiesParts['count'] === 0) {
+            $issues[] = 'missing-properties-relationship';
+        }
+
+        $root = ['validXml' => null, 'xmlParseError' => null, 'rootNamespace' => null, 'rootLocalName' => null];
+        if ($exists && $targetPart !== null) {
+            $root = $this->xmlRootPreflight($parts[$targetPart], $targetPart);
+            if ($root['validXml'] === false) {
+                $issues[] = 'invalid-xml';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'relationshipId' => $relationship['id'],
+            'relationshipType' => $relationship['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'external' => $external,
+            'partName' => $targetPart,
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'exists' => $exists,
+            'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'validXml' => $root['validXml'],
+            'xmlParseError' => $root['xmlParseError'],
+            'rootNamespace' => $root['rootNamespace'],
+            'rootLocalName' => $root['rootLocalName'],
+            'relationshipsPart' => $partRelationshipsPart,
+            'relationshipCount' => count($partRelationships),
+            'propertiesParts' => $propertiesParts,
+            'relationship' => $summary,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customXmlPropertiesParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return [
+                'count' => 0,
+                'existingCount' => 0,
+                'missingCount' => 0,
+                'invalidXmlCount' => 0,
+                'invalidRootCount' => 0,
+                'missingContentTypeCount' => 0,
+                'unexpectedContentTypeCount' => 0,
+                'relationshipIds' => [],
+                'partNames' => [],
+                'byRelationshipId' => [],
+                'items' => [],
+            ];
+        }
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::CUSTOM_XML_PROPS_REL) {
+                continue;
+            }
+
+            $item = $this->customXmlPropertiesPartItem(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationship['id']] = $item;
+            $relationshipIds[] = $relationship['id'];
+            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+        }
+
+        return [
+            'count' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-properties-part', $item['issues'], true))),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
+            'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-root', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-content-type', $item['issues'], true))),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customXmlPropertiesPartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) $summary['external'];
+        $exists = (bool) $summary['exists'];
+        $contentTypeMatchesExpected = null;
+        $issues = [];
+
+        if ($targetPart !== null) {
+            $contentTypeMatchesExpected = $summary['contentTypeBase'] === self::CT_CUSTOM_XML_PROPERTIES;
+            if (!$contentTypeMatchesExpected) {
+                $issues[] = $summary['contentTypeSource'] === 'missing'
+                    ? 'missing-content-type'
+                    : 'unexpected-content-type';
+            }
+        }
+        if ($external) {
+            $issues[] = 'external-properties';
+        } elseif (!$exists) {
+            $issues[] = 'missing-properties-part';
+        }
+
+        $metadata = [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'validRoot' => null,
+            'itemId' => null,
+            'schemaRefs' => [],
+        ];
+        if ($exists && $targetPart !== null) {
+            $metadata = $this->customXmlPropertiesMetadata($parts[$targetPart], $targetPart);
+            if ($metadata['validXml'] === false) {
+                $issues[] = 'invalid-xml';
+            } elseif ($metadata['validRoot'] === false) {
+                $issues[] = 'unexpected-root';
+            }
+        }
+
+        return [
+            'index' => $index,
+            'relationshipId' => $relationship['id'],
+            'relationshipType' => $relationship['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'external' => $external,
+            'partName' => $targetPart,
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'exists' => $exists,
+            'bytes' => $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => self::CT_CUSTOM_XML_PROPERTIES,
+            'contentTypeMatchesExpected' => $contentTypeMatchesExpected,
+            'validXml' => $metadata['validXml'],
+            'xmlParseError' => $metadata['xmlParseError'],
+            'rootNamespace' => $metadata['rootNamespace'],
+            'rootLocalName' => $metadata['rootLocalName'],
+            'validRoot' => $metadata['validRoot'],
+            'itemId' => $metadata['itemId'],
+            'schemaRefs' => $metadata['schemaRefs'],
+            'relationship' => $summary,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string}
+     */
+    private function xmlRootPreflight(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'validXml' => false,
+                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                'rootNamespace' => null,
+                'rootLocalName' => null,
+            ];
+        }
+
+        $root = $dom->documentElement;
+
+        return [
+            'validXml' => $root instanceof \DOMElement,
+            'xmlParseError' => null,
+            'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
+            'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
+        ];
+    }
+
+    /**
+     * @return array{validXml:bool, xmlParseError:?string, rootNamespace:?string, rootLocalName:?string, validRoot:bool, itemId:?string, schemaRefs:list<string>}
+     */
+    private function customXmlPropertiesMetadata(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [
+                'validXml' => false,
+                'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
+                'rootNamespace' => null,
+                'rootLocalName' => null,
+                'validRoot' => false,
+                'itemId' => null,
+                'schemaRefs' => [],
+            ];
+        }
+
+        $root = $dom->documentElement;
+        $validRoot = $root instanceof \DOMElement
+            && $root->namespaceURI === self::NS_DS
+            && $root->localName === 'datastoreItem';
+        $schemaRefs = [];
+        if ($validRoot) {
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '/ds:datastoreItem/ds:schemaRefs/ds:schemaRef') as $schemaRef) {
+                $uri = $schemaRef->getAttributeNS(self::NS_DS, 'uri');
+                if ($uri !== '') {
+                    $schemaRefs[] = $uri;
+                }
+            }
+        }
+
+        return [
+            'validXml' => $root instanceof \DOMElement,
+            'xmlParseError' => null,
+            'rootNamespace' => $root instanceof \DOMElement ? $root->namespaceURI : null,
+            'rootLocalName' => $root instanceof \DOMElement ? $root->localName : null,
+            'validRoot' => $validRoot,
+            'itemId' => $validRoot && $root instanceof \DOMElement ? $this->emptyStringToNull($root->getAttributeNS(self::NS_DS, 'itemID')) : null,
+            'schemaRefs' => $schemaRefs,
+        ];
+    }
+
+    private function loadXmlForProvenance(string $xml, string $partName): ?\DOMDocument
+    {
+        if ($xml === '') {
+            return null;
+        }
+
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $ok = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $ok ? $dom : null;
+    }
+
+    private function lastXmlPreflightError(string $xml, string $partName): string
+    {
+        if ($xml === '') {
+            return 'empty XML part';
+        }
+
+        $dom = new \DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $ok = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        if ($ok) {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            return '';
+        }
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $errors === [] ? "Invalid DOCX XML part {$partName}" : trim($errors[0]->message);
     }
 
     /**
@@ -4008,6 +4450,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
         $xpath->registerNamespace('o', self::NS_O);
+        $xpath->registerNamespace('ds', self::NS_DS);
 
         return $xpath;
     }

@@ -647,6 +647,122 @@ XML;
         $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
         $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
     },
+    'summarizes docx custom xml data store package parts for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/item1.xml" ContentType="application/xml; profile=review-data"/>' . "\n" .
+            '  <Override PartName="/customXml/itemProps1.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/missing-item.xml" ContentType="application/xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomXml" Type="' . $customXmlRel . '" Target="../customXml/item1.xml?slot=1#payload"/>' . "\n" .
+            '  <Relationship Id="rMissingCustomXml" Type="' . $customXmlRel . '" Target="../customXml/missing-item.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['customXml/item1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:payload xmlns:review="urn:example:review">
+  <review:title>Editorial review packet</review:title>
+</review:payload>
+XML;
+        $parts['customXml/_rels/item1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rItemProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps" Target="itemProps1.xml#props"/>
+</Relationships>
+XML;
+        $parts['customXml/itemProps1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{11111111-2222-3333-4444-555555555555}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:example:review-schema"/>
+    <ds:schemaRef ds:uri="urn:example:review-extra"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $packageCustomXml = $docx['packageProvenance']['customXmlParts'];
+        $summary = $docx['packageProvenance']['summary'];
+        $item = $customXml['byRelationshipId']['rCustomXml'];
+        $missing = $customXml['byRelationshipId']['rMissingCustomXml'];
+        $properties = $item['propertiesParts']['byRelationshipId']['rItemProps'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+
+        $t->same($customXml, $packageCustomXml);
+        $t->same(2, $customXml['count']);
+        $t->same(2, $customXml['relationshipCount']);
+        $t->same(1, $customXml['existingCount']);
+        $t->same(1, $customXml['missingCount']);
+        $t->same(0, $customXml['externalCount']);
+        $t->same(0, $customXml['invalidXmlCount']);
+        $t->same(0, $customXml['missingContentTypeCount']);
+        $t->same(0, $customXml['missingPropertiesRelationshipCount']);
+        $t->same(1, $customXml['propertiesPartCount']);
+        $t->same(1, $customXml['existingPropertiesPartCount']);
+        $t->same(0, $customXml['missingPropertiesPartCount']);
+        $t->same(1, $customXml['issueCount']);
+        $t->same(['rCustomXml', 'rMissingCustomXml'], $customXml['relationshipIds']);
+        $t->same(['customXml/item1.xml', 'customXml/missing-item.xml'], $customXml['partNames']);
+        $t->same(2, $summary['customXmlPartCount']);
+        $t->same(1, $summary['customXmlIssueCount']);
+
+        $t->same('customXml/item1.xml', $item['partName']);
+        $t->same('../customXml/item1.xml?slot=1#payload', $item['target']);
+        $t->same('customXml/item1.xml?slot=1#payload', $item['resolvedTarget']);
+        $t->same('?slot=1#payload', $item['targetReferenceSuffix']);
+        $t->same(true, $item['exists']);
+        $t->same(strlen($parts['customXml/item1.xml']), $item['bytes']);
+        $t->same('application/xml; profile=review-data', $item['contentType']);
+        $t->same('application/xml', $item['contentTypeBase']);
+        $t->same(['profile' => 'review-data'], $item['contentTypeParameterMap']);
+        $t->same(true, $item['validXml']);
+        $t->same('urn:example:review', $item['rootNamespace']);
+        $t->same('payload', $item['rootLocalName']);
+        $t->same('customXml/_rels/item1.xml.rels', $item['relationshipsPart']);
+        $t->same(1, $item['relationshipCount']);
+        $t->same([], $item['issues']);
+
+        $t->same(1, $item['propertiesParts']['count']);
+        $t->same(['rItemProps'], $item['propertiesParts']['relationshipIds']);
+        $t->same('customXml/itemProps1.xml', $properties['partName']);
+        $t->same('itemProps1.xml#props', $properties['target']);
+        $t->same('customXml/itemProps1.xml#props', $properties['resolvedTarget']);
+        $t->same('#props', $properties['targetReferenceSuffix']);
+        $t->same(true, $properties['exists']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml', $properties['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.customxmlproperties+xml', $properties['contentTypeBase']);
+        $t->same(true, $properties['contentTypeMatchesExpected']);
+        $t->same(true, $properties['validXml']);
+        $t->same(true, $properties['validRoot']);
+        $t->same('datastoreItem', $properties['rootLocalName']);
+        $t->same('{11111111-2222-3333-4444-555555555555}', $properties['itemId']);
+        $t->same(['urn:example:review-schema', 'urn:example:review-extra'], $properties['schemaRefs']);
+        $t->same([], $properties['issues']);
+
+        $t->same('customXml/missing-item.xml', $missing['partName']);
+        $t->same(false, $missing['exists']);
+        $t->same('application/xml', $missing['contentType']);
+        $t->same(null, $missing['validXml']);
+        $t->same(0, $missing['propertiesParts']['count']);
+        $t->same(['missing-item-part'], $missing['issues']);
+
+        $t->same('customXml', $relationshipTypes[$customXmlRel]['label']);
+        $t->same(2, $relationshipTypes[$customXmlRel]['count']);
+        $t->same(['customXml/item1.xml'], $relationshipTypes[$customXmlRel]['existingTargetParts']);
+        $t->same(['customXml/missing-item.xml'], $relationshipTypes[$customXmlRel]['missingTargetParts']);
+        $t->same('customXmlProps', $relationshipTypes[$customXmlPropsRel]['label']);
+        $t->same(['customXml/itemProps1.xml'], $relationshipTypes[$customXmlPropsRel]['existingTargetParts']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
