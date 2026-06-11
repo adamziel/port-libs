@@ -897,8 +897,38 @@ final class XmlHtmlDom
         if (in_array($name, ['abbr', 'bdi', 'bdo', 'code', 'dfn', 'kbd', 'mark', 's', 'samp', 'small', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
+        if (in_array($name, ['br', 'hr', 'wbr'], true)) {
+            $summary += self::breakElementSummary($name);
+        }
 
         return [$summary];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function breakElementSummary(string $name): array
+    {
+        return match ($name) {
+            'br' => [
+                'breakElement' => 'line-break',
+                'breakTag' => 'br',
+                'textEquivalent' => "\n",
+                'hardBreak' => true,
+            ],
+            'wbr' => [
+                'breakElement' => 'word-break-opportunity',
+                'breakTag' => 'wbr',
+                'textEquivalent' => '',
+                'softBreakOpportunity' => true,
+            ],
+            'hr' => [
+                'breakElement' => 'thematic-break',
+                'breakTag' => 'hr',
+                'blockSeparator' => true,
+            ],
+            default => [],
+        };
     }
 
     /**

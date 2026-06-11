@@ -102,6 +102,45 @@ XML, 'package reader XML');
         $t->same('Two', $summary[1]['children'][1]['text']);
         $t->same('<p data-id="42">Intro<br>Next<img alt="Cover" src="cover.png?x=1&amp;y=2"></p><ul><li>One</li><li>Two</li></ul>', $html);
     },
+    'summarizes html break and separator elements for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<p>Alpha<br id="hard">Beta<wbr data-source="wrap">Gamma</p><hr id="rule" class="review-separator">',
+            'break element review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/break-elements-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $paragraph = $summary[0];
+        $hardBreak = $paragraph['children'][1];
+        $wordBreak = $paragraph['children'][3];
+        $rule = $summary[1];
+
+        $t->same('p', $paragraph['name']);
+        $t->same('AlphaBetaGamma', $paragraph['text']);
+        $t->same('br', $hardBreak['name']);
+        $t->same('line-break', $hardBreak['breakElement']);
+        $t->same('br', $hardBreak['breakTag']);
+        $t->same("\n", $hardBreak['textEquivalent']);
+        $t->same(true, $hardBreak['hardBreak']);
+        $t->same('hard', $hardBreak['elementId']);
+        $t->same('wbr', $wordBreak['name']);
+        $t->same('word-break-opportunity', $wordBreak['breakElement']);
+        $t->same('', $wordBreak['textEquivalent']);
+        $t->same(true, $wordBreak['softBreakOpportunity']);
+        $t->same(['source' => 'wrap'], $wordBreak['dataset']);
+        $t->same('hr', $rule['name']);
+        $t->same('thematic-break', $rule['breakElement']);
+        $t->same(true, $rule['blockSeparator']);
+        $t->same(['review-separator'], $rule['classList']);
+        $t->same('<p>Alpha<br id="hard">Beta<wbr data-source="wrap">Gamma</p><hr class="review-separator" id="rule">', $html);
+        $t->contains('<wbr data-source="wrap">', $blocks);
+        $t->contains('<hr class="review-separator" id="rule">', $blocks);
+        $t->same('/migration/break-elements-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html global attributes and dataset state for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<section id="packet" class="alpha  beta alpha" lang="en-US" dir="RTL" title="Review &amp; Source" data-review-id="A-42" data-package-part="word/document.xml" hidden="until-found" translate="no" contenteditable="plaintext-only" draggable="true" spellcheck="false" tabindex="-1" role="doc-chapter region" aria-label="Packet Section"><p class="child">Body</p></section>'
