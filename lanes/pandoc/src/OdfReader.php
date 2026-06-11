@@ -84,6 +84,7 @@ final class OdfReader
      *     settings:array<string, mixed>,
      *     contentDeclarations:array<string, mixed>,
      *     media:list<array<string, mixed>>,
+     *     packageThumbnails:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
      *     scriptMetadata:array<string, mixed>,
@@ -117,7 +118,11 @@ final class OdfReader
         $directoryItems = $this->manifestDirectoryItems($manifest);
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $undeclaredEntries = $this->manifestUndeclaredPackageEntries($package, $manifest);
+        $packageThumbnails = $this->packageThumbnailMetadata($package, $manifest, $undeclaredEntries);
         $packageProvenance = $this->packageProvenance($package, $manifest, $mimetypeEntry, $undeclaredEntries);
+        if ($packageThumbnails['count'] > 0) {
+            $metadata['odfPackageThumbnails'] = $packageThumbnails;
+        }
 
         $document = new AstNode('document', [
             'source' => 'odt',
@@ -167,6 +172,7 @@ final class OdfReader
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
+            'packageThumbnails' => $packageThumbnails,
             'trackedChanges' => [
                 'count' => count($content['trackedChanges']),
                 'items' => $content['trackedChanges'],
@@ -187,6 +193,7 @@ final class OdfReader
             'settings' => $settings,
             'contentDeclarations' => $content['contentDeclarations'],
             'media' => $media,
+            'packageThumbnails' => $packageThumbnails,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
@@ -251,6 +258,7 @@ final class OdfReader
                     'count' => count($media),
                     'items' => $media,
                 ],
+                'packageThumbnails' => $packageThumbnails,
                 'rdfMetadata' => $rdfMetadata,
                 'signatureMetadata' => $signatureMetadata,
                 'scriptMetadata' => $scriptMetadata,
@@ -648,6 +656,9 @@ final class OdfReader
         }
         if ($entry->name === 'settings.xml') {
             $roles[] = 'odf-settings';
+        }
+        if ($this->isThumbnailPackagePartName($entry->name)) {
+            $roles[] = 'package-thumbnail';
         }
         if ($entry->isDirectory()) {
             $roles[] = 'zip-directory';
@@ -11738,6 +11749,9 @@ final class OdfReader
             if ($this->isScriptPackagePartName($part)) {
                 continue;
             }
+            if ($this->isThumbnailPackagePartName($part)) {
+                continue;
+            }
             if (in_array($part, ['content.xml', 'styles.xml', 'meta.xml', 'settings.xml'], true)) {
                 continue;
             }
@@ -11770,6 +11784,144 @@ final class OdfReader
         }
 
         return $media;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param list<array<string, mixed>> $undeclaredEntries
+     * @return array{count:int, readableCount:int, declaredCount:int, undeclaredCount:int, missingCount:int, encryptedCount:int, invalidMediaTypeCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     */
+    private function packageThumbnailMetadata(ZipPackage $package, array $manifest, array $undeclaredEntries): array
+    {
+        $candidatesByPart = [];
+        foreach ($manifest as $item) {
+            $part = $item['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isThumbnailPackagePartName($part)) {
+                continue;
+            }
+
+            $item['declared'] = true;
+            $candidatesByPart[$part] = $item;
+        }
+
+        foreach ($undeclaredEntries as $entry) {
+            $part = $entry['part'] ?? null;
+            if (!is_string($part) || $part === '' || !$this->isThumbnailPackagePartName($part)) {
+                continue;
+            }
+
+            $candidatesByPart[$part] = [
+                'fullPath' => $part,
+                'part' => $part,
+                'mediaType' => $this->thumbnailMediaTypeFromPart($part),
+                'exists' => true,
+                'encrypted' => false,
+                'canExposeBytes' => true,
+                'declared' => false,
+            ];
+        }
+
+        ksort($candidatesByPart);
+        $items = [];
+        $issueCodes = [];
+        foreach ($candidatesByPart as $part => $item) {
+            $entry = $package->has($part) ? $package->entry($part) : null;
+            $encrypted = ($item['encrypted'] ?? false) === true;
+            $declared = ($item['declared'] ?? false) === true;
+            $mediaType = (string) ($item['mediaType'] ?? '');
+            if ($mediaType === '') {
+                $mediaType = (string) ($this->thumbnailMediaTypeFromPart($part) ?? '');
+            }
+            $mediaTypeValid = str_starts_with(strtolower(trim($mediaType)), 'image/');
+            $issues = [];
+            if (!$entry instanceof ZipPackageEntry) {
+                $issues[] = 'odf-thumbnail-missing-package-part';
+            }
+            if (!$declared) {
+                $issues[] = 'odf-thumbnail-undeclared-package-part';
+            }
+            if ($encrypted) {
+                $issues[] = 'odf-thumbnail-encrypted-package-part';
+            }
+            if (!$mediaTypeValid) {
+                $issues[] = 'odf-thumbnail-invalid-media-type';
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $items[] = [
+                'fullPath' => $item['fullPath'] ?? $part,
+                'part' => $part,
+                'mediaType' => $mediaType === '' ? null : $mediaType,
+                'expectedMediaTypePrefix' => 'image/',
+                'exists' => $entry instanceof ZipPackageEntry,
+                'declared' => $declared,
+                'undeclared' => !$declared,
+                'encrypted' => $encrypted,
+                'valid' => $entry instanceof ZipPackageEntry && !$encrypted && $mediaTypeValid,
+                'byteLength' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'compressedByteLength' => $entry instanceof ZipPackageEntry ? $entry->compressedSize : null,
+                'compressionMethod' => $entry instanceof ZipPackageEntry ? $entry->compressionMethod : null,
+                'compressionMethodName' => $entry instanceof ZipPackageEntry ? self::compressionMethodName($entry->compressionMethod) : null,
+                'crc32' => !$encrypted && $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'storedByteLength' => $entry instanceof ZipPackageEntry ? $entry->uncompressedSize : null,
+                'storedCrc32' => $entry instanceof ZipPackageEntry ? $entry->crc32Hex() : null,
+                'declaredSize' => $item['declaredSize'] ?? null,
+                'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
+                'canExposeAsDocumentMedia' => false,
+                'reviewPolicy' => 'package-thumbnail-metadata-only',
+                'issues' => $issues,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'readableCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['exists'] === true && $item['byteLength'] !== null,
+            )),
+            'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
+            'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
+            'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidMediaTypeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['mediaType'] !== null
+                    && !str_starts_with(strtolower((string) $item['mediaType']), 'image/'),
+            )),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'items' => $items,
+        ];
+    }
+
+    private function isThumbnailPackagePartName(string $part): bool
+    {
+        $normalized = strtolower(ltrim($part, '/'));
+        if (!str_starts_with($normalized, 'thumbnails/') || str_ends_with($normalized, '/')) {
+            return false;
+        }
+
+        return $this->thumbnailMediaTypeFromPart($normalized) !== null;
+    }
+
+    private function thumbnailMediaTypeFromPart(string $part): ?string
+    {
+        $extension = strtolower(pathinfo($part, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'png' => 'image/png',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'bmp' => 'image/bmp',
+            'tif', 'tiff' => 'image/tiff',
+            default => null,
+        };
     }
 
     private function isXmlMediaType(string $mediaType): bool

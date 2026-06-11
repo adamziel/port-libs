@@ -8945,6 +8945,72 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(8, count($result['document']->children));
     },
+    'reports ODT package thumbnails as metadata-only previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $thumbnailBytes = 'THUMBNAIL';
+        $orphanThumbnailBytes = 'ORPHAN-THUMBNAIL';
+        $manifestWithThumbnails = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/thumbnail.png" manifest:media-type="image/png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/missing.jpg" manifest:media-type="image/jpeg"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithThumbnails, null, null, [
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/orphan.jpg', 'data' => $orphanThumbnailBytes, 'compressionMethod' => 0],
+        ]));
+        $report = $result['importReport']['packageThumbnails'];
+        $metadata = $result['metadata']['odfPackageThumbnails'];
+        $documentThumbnails = $result['document']->attr('packageThumbnails');
+        $itemsByPart = [];
+        foreach ($report['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($report, $metadata);
+        $t->same($report, $documentThumbnails);
+        $t->same(3, $report['count']);
+        $t->same(2, $report['readableCount']);
+        $t->same(2, $report['declaredCount']);
+        $t->same(1, $report['undeclaredCount']);
+        $t->same(1, $report['missingCount']);
+        $t->same(0, $report['encryptedCount']);
+        $t->same(0, $report['invalidMediaTypeCount']);
+        $t->same(2, $report['issueCount']);
+        $t->same([
+            'odf-thumbnail-missing-package-part',
+            'odf-thumbnail-undeclared-package-part',
+        ], $report['issueCodes']);
+
+        $t->same('Thumbnails/thumbnail.png', $itemsByPart['Thumbnails/thumbnail.png']['part']);
+        $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['mediaType']);
+        $t->same(true, $itemsByPart['Thumbnails/thumbnail.png']['declared']);
+        $t->same(true, $itemsByPart['Thumbnails/thumbnail.png']['exists']);
+        $t->same(true, $itemsByPart['Thumbnails/thumbnail.png']['valid']);
+        $t->same(strlen($thumbnailBytes), $itemsByPart['Thumbnails/thumbnail.png']['byteLength']);
+        $t->same(sprintf('%08x', crc32($thumbnailBytes)), $itemsByPart['Thumbnails/thumbnail.png']['crc32']);
+        $t->same(strlen($thumbnailBytes), $itemsByPart['Thumbnails/thumbnail.png']['storedByteLength']);
+        $t->same(false, $itemsByPart['Thumbnails/thumbnail.png']['canExposeAsDocumentMedia']);
+        $t->same('package-thumbnail-metadata-only', $itemsByPart['Thumbnails/thumbnail.png']['reviewPolicy']);
+        $t->same([], $itemsByPart['Thumbnails/thumbnail.png']['issues']);
+
+        $t->same(false, $itemsByPart['Thumbnails/missing.jpg']['exists']);
+        $t->same(['odf-thumbnail-missing-package-part'], $itemsByPart['Thumbnails/missing.jpg']['issues']);
+        $t->same(null, $itemsByPart['Thumbnails/missing.jpg']['byteLength']);
+        $t->same('image/jpeg', $itemsByPart['Thumbnails/orphan.jpg']['mediaType']);
+        $t->same(false, $itemsByPart['Thumbnails/orphan.jpg']['declared']);
+        $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['undeclared']);
+        $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['exists']);
+        $t->same(strlen($orphanThumbnailBytes), $itemsByPart['Thumbnails/orphan.jpg']['byteLength']);
+        $t->same(['odf-thumbnail-undeclared-package-part'], $itemsByPart['Thumbnails/orphan.jpg']['issues']);
+
+        $mediaParts = array_column($result['media'], 'part');
+        $t->same(['Pictures/hero.png'], $mediaParts, 'ODT package thumbnails must not become document media handoff items');
+        $t->same(1, $result['importReport']['media']['count']);
+        $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
+        $t->same('Thumbnails/orphan.jpg', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
+    },
     'treats ODT manifest directory declarations as logical package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithDirectories = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
@@ -9645,7 +9711,7 @@ XML;
         $t->same(['odf-content', 'manifest-declared'], $inventory['content.xml']['roles']);
         $t->same(['manifest-declared', 'media-resource'], $inventory['Pictures/hero.png']['roles']);
         $t->same(['zip-directory'], $inventory['Pictures/']['roles']);
-        $t->same(['undeclared-package-entry'], $inventory['Thumbnails/thumbnail.png']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['Thumbnails/thumbnail.png']['roles']);
         $t->same(true, $inventory['content.xml']['declaredInManifest']);
         $t->same('content.xml', $inventory['content.xml']['manifestFullPath']);
         $t->same('text/xml', $inventory['content.xml']['manifestMediaType']);
