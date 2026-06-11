@@ -204,6 +204,61 @@ return [
         $t->same('image/png; profile=media-default', $docx['media']['word/media/review.png']['contentType']);
         $t->same('image/png; profile=media-default', $image->attr('contentType'));
     },
+    'summarizes docx package part content type bases and parameters' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            [
+                '<Default Extension="xml" ContentType="application/xml"/>',
+                '<Default Extension="png" ContentType="image/png"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>',
+            ],
+            [
+                '<Default Extension="xml" ContentType="application/xml; profile=xml-parts"/>',
+                '<Default Extension="png" ContentType="image/png; profile=package-media"/>',
+                '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml; profile=main-doc"/>',
+            ],
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml; profile=numbering"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $parameterizedParts = $summary['partsWithContentTypeParameters'];
+
+        $t->same(3, $summary['contentTypeDefaultCount']);
+        $t->same(3, $summary['contentTypeOverrideCount']);
+        $t->same(5, $summary['parameterizedPartCount']);
+        $t->same(2, $summary['contentTypeBaseCounts']['application/xml']);
+        $t->same(1, $summary['contentTypeBaseCounts']['image/png']);
+        $t->same(1, $summary['contentTypeBaseCounts']['application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml']);
+        $t->same(1, $summary['contentTypeBaseCounts']['application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml']);
+        $t->same(2, $summary['contentTypeBaseCounts']['application/vnd.openxmlformats-package.relationships+xml']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/styles.xml',
+            'word/numbering.xml',
+            'word/document.xml',
+            'word/media/review.png',
+        ], array_column($parameterizedParts, 'partName'));
+        $t->same(['default', 'default', 'override', 'override', 'default'], array_column($parameterizedParts, 'contentTypeSource'));
+
+        $t->same('application/xml', $parameterizedParts[0]['contentTypeBase']);
+        $t->same(['profile' => 'xml-parts'], $parameterizedParts[0]['contentTypeParameterMap']);
+        $t->same('xml', $parameterizedParts[1]['defaultExtension']);
+        $t->same(['package-part'], $parameterizedParts[1]['roles']);
+        $t->same('word/numbering.xml', $parameterizedParts[2]['overridePartName']);
+        $t->same(['profile' => 'numbering'], $parameterizedParts[2]['contentTypeParameterMap']);
+        $t->same('word/document.xml', $parameterizedParts[3]['overridePartName']);
+        $t->same(['profile' => 'main-doc'], $parameterizedParts[3]['contentTypeParameterMap']);
+        $t->same('png', $parameterizedParts[4]['defaultExtension']);
+        $t->same(['profile' => 'package-media'], $parameterizedParts[4]['contentTypeParameterMap']);
+        $t->same(false, $parameterizedParts[4]['isRelationshipPart']);
+    },
     'reports docx content type declaration collisions without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -2215,12 +2215,19 @@ final class DocxOpenXmlReader
     {
         $roleCounts = [];
         $contentTypeSourceCounts = [];
+        $contentTypeBaseCounts = [];
         $packageByteLength = 0;
         $relationshipPartCount = 0;
+        $parameterizedPartCount = 0;
+        $partsWithContentTypeParameters = [];
         foreach ($partInventory as $part) {
             $packageByteLength += (int) ($part['bytes'] ?? 0);
             $source = (string) ($part['contentTypeSource'] ?? 'missing');
             $contentTypeSourceCounts[$source] = ($contentTypeSourceCounts[$source] ?? 0) + 1;
+            $contentTypeBase = (string) ($part['contentTypeBase'] ?? '');
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
             foreach (($part['roles'] ?? []) as $role) {
                 $role = (string) $role;
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -2228,10 +2235,27 @@ final class DocxOpenXmlReader
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$relationshipPartCount;
             }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$parameterizedPartCount;
+                $partsWithContentTypeParameters[] = [
+                    'partName' => (string) ($part['partName'] ?? ''),
+                    'contentType' => (string) ($part['contentType'] ?? ''),
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
+                    'contentTypeParameters' => $part['contentTypeParameters'] ?? [],
+                    'contentTypeParameterMap' => $part['contentTypeParameterMap'] ?? [],
+                    'contentTypeSource' => $source,
+                    'defaultExtension' => $part['defaultExtension'] ?? null,
+                    'overridePartName' => $part['overridePartName'] ?? null,
+                    'roles' => $part['roles'] ?? [],
+                    'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                ];
+            }
         }
 
         ksort($roleCounts);
         ksort($contentTypeSourceCounts);
+        ksort($contentTypeBaseCounts);
 
         $relationshipCount = 0;
         $internalRelationshipCount = 0;
@@ -2350,12 +2374,15 @@ final class DocxOpenXmlReader
             'contentTypeDefaultCount' => (int) ($contentTypesPart['defaultCount'] ?? 0),
             'contentTypeOverrideCount' => (int) ($contentTypesPart['overrideCount'] ?? 0),
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'parameterizedPartCount' => $parameterizedPartCount,
             'roleCounts' => $roleCounts,
             'relationshipTypeCounts' => $relationshipTypeCounts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
+            'partsWithContentTypeParameters' => $partsWithContentTypeParameters,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
