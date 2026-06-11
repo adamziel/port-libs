@@ -997,7 +997,26 @@ final class CitationCslProcessor
             ...self::sourceFileDiagnostics($item['sourceFileDiagnostics'] ?? [], $id),
         ];
         $page = self::firstStringField($item, ['page', 'pages']);
-        $containerTitleShort = self::firstStringField($item, ['container-title-short', 'containerTitleShort', 'journalAbbreviation', 'journal-abbreviation']);
+        $containerTitleShort = self::firstStringField($item, [
+            'container-title-short',
+            'containerTitleShort',
+            'containertitleshort',
+            'container-title-abbreviation',
+            'containerTitleAbbreviation',
+            'containertitleabbreviation',
+            'journalAbbreviation',
+            'journal-abbreviation',
+            'journalabbreviation',
+            'shortjournal',
+            'shortJournal',
+            'short-journal',
+            'shortjournaltitle',
+            'shortJournalTitle',
+            'short-journal-title',
+            'journaltitleshort',
+            'journalTitleShort',
+            'journal-title-short',
+        ]);
         $publisher = self::stringField($item, 'publisher');
         $publisherPlace = self::firstStringField($item, ['publisher-place', 'publisherPlace']);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher']);
@@ -9203,8 +9222,8 @@ final class CitationCslProcessor
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'container-title' => (string) $item['containerTitle'],
-            'container-title-short' => (string) $item['containerTitleShort'],
-            'journalabbreviation', 'journal-abbreviation' => (string) $item['journalAbbreviation'],
+            'container-title-short', 'containertitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
+            'journalabbreviation', 'journal-abbreviation', 'shortjournal', 'short-journal', 'shortjournaltitle', 'short-journal-title', 'journaltitleshort', 'journal-title-short' => (string) $item['journalAbbreviation'],
             'container-title-addon' => (string) $item['containerTitleAddon'],
             'main-title' => (string) $item['mainTitle'],
             'main-title-addon' => (string) $item['mainTitleAddon'],

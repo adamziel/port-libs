@@ -6623,6 +6623,94 @@ XML);
         $t->contains('<p>Short journal source Doe (2026) keeps abbreviation metadata for review.</p>', $blocks);
         $t->contains('<dt>Doe 2026</dt><dd>Doe, Jane. Abbreviated Field Notes. Journal of Imported Sources. Journal abbreviation: J. Import. Sources. 2026. 12-18. https://example.test/short-journal. ISSN 2468-1357.</dd>', $blocks);
     },
+    'normalizes bounded direct csl json compact journal abbreviation aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-containertitleshort',
+                'type' => 'article-journal',
+                'title' => 'Compact Journal Alias Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'container-title' => 'Journal of Direct Handoff',
+                'containertitleshort' => 'J. Direct Handoff',
+            ],
+            [
+                'id' => 'direct-shortjournal',
+                'type' => 'article-journal',
+                'title' => 'Short Journal Alias Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'container-title' => 'Migration Direct Quarterly',
+                'shortjournal' => 'Migr. Direct Q.',
+            ],
+            [
+                'id' => 'direct-journalabbreviation',
+                'type' => 'article-journal',
+                'title' => 'Lowercase Journal Abbreviation Packet',
+                'author' => [
+                    ['literal' => 'Repository Desk'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'container-title' => 'Repository Review Notes',
+                'journalabbreviation' => 'Review Notes',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $compact = $processor->item('direct-containertitleshort');
+        $shortJournal = $processor->item('direct-shortjournal');
+        $lowercase = $processor->item('direct-journalabbreviation');
+        $t->same('J. Direct Handoff', $compact['containerTitleShort'] ?? null);
+        $t->same('J. Direct Handoff', $compact['journalAbbreviation'] ?? null);
+        $t->same('containertitleshort', array_key_exists('containertitleshort', $compact['raw'] ?? []) ? 'containertitleshort' : null);
+        $t->same('Migr. Direct Q.', $shortJournal['containerTitleShort'] ?? null);
+        $t->same('Migr. Direct Q.', $shortJournal['journalAbbreviation'] ?? null);
+        $t->same('shortjournal', array_key_exists('shortjournal', $shortJournal['raw'] ?? []) ? 'shortjournal' : null);
+        $t->same('Review Notes', $lowercase['containerTitleShort'] ?? null);
+        $t->same('Review Notes', $lowercase['journalAbbreviation'] ?? null);
+        $t->same('journalabbreviation', array_key_exists('journalabbreviation', $lowercase['raw'] ?? []) ? 'journalabbreviation' : null);
+        $t->same('Ng, Nia. Compact Journal Alias Packet. Journal of Direct Handoff. Journal abbreviation: J. Direct Handoff. 2026.', $processor->renderBibliographyEntry('direct-containertitleshort'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="containertitleshort"/>
+        <text variable="shortjournal"/>
+        <text variable="journal-title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="container-title-abbreviation"/>
+      <text variable="short-journal-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | J. Direct Handoff | J. Direct Handoff | J. Direct Handoff; Roe | Migr. Direct Q. | Migr. Direct Q. | Migr. Direct Q.; Repository Desk | Review Notes | Review Notes | Review Notes]', $styled->renderCitationCluster([
+            $citation('direct-containertitleshort', '[@direct-containertitleshort]'),
+            $citation('direct-shortjournal', '[@direct-shortjournal]'),
+            $citation('direct-journalabbreviation', '[@direct-journalabbreviation]'),
+        ]));
+        $t->same('Compact Journal Alias Packet :: J. Direct Handoff :: J. Direct Handoff', $styled->renderBibliographyEntry('direct-containertitleshort'));
+        $t->same('Lowercase Journal Abbreviation Packet :: Review Notes :: Review Notes', $styled->renderBibliographyEntry('direct-journalabbreviation'));
+
+        $document = (new MarkdownReader())->read('Direct journal abbreviations @direct-containertitleshort, short source [@direct-shortjournal], and lowercase alias [@direct-journalabbreviation] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct journal abbreviations Ng (2026), short source (Roe 2025), and lowercase alias (Repository Desk 2024) remain visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Compact Journal Alias Packet. Journal of Direct Handoff. Journal abbreviation: J. Direct Handoff. 2026.</dd>', $blocks);
+        $t->contains('<dt>Repository Desk 2024</dt><dd>Repository Desk. Lowercase Journal Abbreviation Packet. Repository Review Notes. Journal abbreviation: Review Notes. 2024.</dd>', $blocks);
+    },
     'maps bounded biblatex short series into csl collection title short metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{series-short-detail,
