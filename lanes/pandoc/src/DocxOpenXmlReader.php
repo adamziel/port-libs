@@ -3066,20 +3066,21 @@ final class DocxOpenXmlReader
                 continue;
             }
 
+            $value = $this->docPropsTypedValue($valueElement);
             $duplicate = isset($seenNames[$name]);
             $seenNames[$name] = true;
             if ($duplicate) {
                 $duplicateNames[$name] = true;
             } else {
-                $byName[$name] = $this->docPropsTypedValue($valueElement);
+                $byName[$name] = $value;
             }
 
             $item = [
                 'name' => $name,
                 'valueType' => $valueElement->localName,
-                'value' => $this->docPropsTypedValue($valueElement),
+                'value' => $value,
                 'duplicate' => $duplicate,
-            ];
+            ] + $this->docPropsAggregateValueMetadata($valueElement);
             $pid = $property->getAttribute('pid');
             if ($pid !== '' && is_numeric($pid)) {
                 $item['pid'] = (int) $pid;
@@ -3146,11 +3147,78 @@ final class DocxOpenXmlReader
         $value = trim($valueElement->textContent);
 
         return match ($valueElement->localName) {
+            'array', 'vector' => $this->docPropsVectorValues($valueElement),
             'bool' => $this->openXmlBooleanText($value),
             'i1', 'i2', 'i4', 'i8', 'int', 'ui1', 'ui2', 'ui4', 'ui8', 'uint' => is_numeric($value) ? (int) $value : 0,
             'r4', 'r8', 'decimal' => is_numeric($value) ? (float) $value : 0.0,
             default => $value,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function docPropsAggregateValueMetadata(\DOMElement $valueElement): array
+    {
+        if (!in_array($valueElement->localName, ['array', 'vector'], true)) {
+            return [];
+        }
+
+        $metadata = [
+            'valueCount' => count($this->docPropsVectorValues($valueElement)),
+        ];
+
+        $size = trim($valueElement->getAttribute('size'));
+        if ($size !== '' && is_numeric($size)) {
+            $metadata['declaredValueCount'] = (int) $size;
+        }
+
+        $baseType = trim($valueElement->getAttribute('baseType'));
+        if ($baseType !== '') {
+            $metadata['valueBaseType'] = $baseType;
+        }
+
+        if ($valueElement->localName === 'array') {
+            $lowerBound = trim($valueElement->getAttribute('lBound'));
+            if ($lowerBound === '') {
+                $lowerBound = trim($valueElement->getAttribute('lbound'));
+            }
+            if ($lowerBound !== '' && is_numeric($lowerBound)) {
+                $metadata['lowerBound'] = (int) $lowerBound;
+            }
+        }
+
+        $itemTypes = $this->docPropsVectorValueTypes($valueElement);
+        if ($itemTypes !== []) {
+            $metadata['valueItemTypes'] = $itemTypes;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function docPropsVectorValueTypes(\DOMElement $vector): array
+    {
+        $types = [];
+        foreach ($vector->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_VT) {
+                continue;
+            }
+
+            if ($child->localName === 'variant') {
+                $valueElement = $this->firstDocPropsValueElement($child);
+                if ($valueElement instanceof \DOMElement) {
+                    $types[] = $valueElement->localName;
+                }
+                continue;
+            }
+
+            $types[] = $child->localName;
+        }
+
+        return $types;
     }
 
     private function openXmlBooleanText(string $value): bool
