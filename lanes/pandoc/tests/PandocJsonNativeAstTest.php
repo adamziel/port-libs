@@ -2132,6 +2132,86 @@ return [
         $t->same($codeAttr, $editedInlinePacket['blocks'][0]['c'][0]['c'][0], 'edited code may still preserve compatible attr tuple payloads');
         $t->same('ticket-42', $packet['blocks'][1]['c'][0]['c'][1], 'source code inline payload remains distinct from edited output');
     },
+    'preserves current cite native payloads through pandoc json writer until edited' => static function (TestRunner $t): void {
+        $citationRecord = [
+            'reviewQueue' => 'wp-import',
+            'citationHash' => 3001,
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '7'],
+            ],
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationNoteNum' => 12,
+            'citationMode' => ['t' => 'AuthorInText', 'c' => []],
+            'citationId' => 'source-3001',
+        ];
+        $citeInline = ['t' => 'Cite', 'c' => [
+            [$citationRecord],
+            [
+                ['t' => 'Str', 'c' => 'see'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '@source-3001'],
+                ['t' => 'Str', 'c' => ','],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '7'],
+            ],
+        ]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [$citeInline]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $citation = $document->children[0]->children[0];
+            $encoded = (new PandocJsonWriter())->toArray($document);
+
+            $t->same('citation', $citation->type, "{$source} citation node");
+            $t->same('Cite', $citation->attr('constructor'), "{$source} cite constructor");
+            $t->same($citeInline, $citation->attr('native'), "{$source} cite native payload");
+            $t->same($citationRecord, $citation->attr('citationNative'), "{$source} citation record native payload");
+            $t->same('wp-import', $citation->attr('citationNative')['reviewQueue'], "{$source} inert citation record provenance");
+            $t->same($citeInline, $encoded['blocks'][0]['c'][0], "{$source} unchanged cite payload is reused by JSON writer");
+        }
+
+        $citation = $documents['json']->children[0]->children[0];
+        $editedCitation = new AstNode('citation', array_replace($citation->attrs, [
+            'suffix' => [new AstNode('text', ['text' => 'p. 8'])],
+            'text' => 'see @source-3001, p. 8',
+        ]), [
+            new AstNode('text', ['text' => 'see']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => '@source-3001,']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => 'p.']),
+            new AstNode('space'),
+            new AstNode('text', ['text' => '8']),
+        ]);
+        $editedPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [], [
+            new AstNode('paragraph', [], [$editedCitation]),
+        ]));
+        $editedCite = $editedPacket['blocks'][0]['c'][0];
+
+        $t->same('Cite', $editedCite['t']);
+        $t->same('source-3001', $editedCite['c'][0][0]['citationId']);
+        $t->same('p. 8', $editedCite['c'][0][0]['citationSuffix'][0]['c']);
+        $t->same(false, array_key_exists('reviewQueue', $editedCite['c'][0][0]), 'edited cite regenerates rather than reusing stale inert provenance');
+        $t->same('see @source-3001, p. 8', implode('', array_map(static function (array $inline): string {
+            return ($inline['t'] ?? '') === 'Space' ? ' ' : (string) ($inline['c'] ?? '');
+        }, $editedCite['c'][1])));
+    },
     'preserves current tagged helper payload shapes through native writer after edits' => static function (TestRunner $t): void {
         $styleNative = ['t' => 'UpperAlpha', 'c' => []];
         $delimiterNative = ['t' => 'TwoParens', 'c' => []];

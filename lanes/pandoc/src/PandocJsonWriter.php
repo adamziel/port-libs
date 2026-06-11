@@ -984,6 +984,7 @@ final class PandocJsonWriter
             'Code',
             'Math',
             'RawInline',
+            'Cite',
         ], true);
     }
 
