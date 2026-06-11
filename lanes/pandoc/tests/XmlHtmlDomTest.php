@@ -82,6 +82,72 @@ XML, 'package reader XML');
         $t->same('rId1', $paragraph instanceof DOMElement ? XmlHtmlDom::attribute($paragraph, 'id', 'urn:relationship') : null);
         $t->same('First run', $paragraph instanceof DOMElement ? XmlHtmlDom::normalizedText($paragraph) : null);
     },
+    'tracks XML and HTML DOM node provenance paths for package reader handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadXmlDocument(<<<'XML'
+<pkg:package xmlns:pkg="urn:pkg" xmlns:w="urn:word" xmlns:rel="urn:relationship">
+  <pkg:metadata>
+    <w:title>Review packet</w:title>
+  </pkg:metadata>
+  <pkg:body>
+    <w:p rel:id="rId1">First <w:r>run</w:r></w:p>
+    <w:p rel:id="rId2">Second</w:p>
+  </pkg:body>
+</pkg:package>
+XML, 'package part XML');
+        $root = XmlHtmlDom::rootElement($dom, 'package', 'urn:pkg');
+        $body = $root instanceof DOMElement ? XmlHtmlDom::firstChildElement($root, 'body', 'urn:pkg') : null;
+        $paragraphs = $body instanceof DOMElement ? XmlHtmlDom::childElements($body, 'p', 'urn:word') : [];
+        $run = isset($paragraphs[0]) ? XmlHtmlDom::firstChildElement($paragraphs[0], 'r', 'urn:word') : null;
+        $runText = $run instanceof DOMElement ? $run->firstChild : null;
+
+        $t->same('/', XmlHtmlDom::nodePath($dom));
+        $t->same('/pkg:package[1]', $root instanceof DOMElement ? XmlHtmlDom::nodePath($root) : null);
+        $t->same('/pkg:package[1]/pkg:body[1]', $body instanceof DOMElement ? XmlHtmlDom::nodePath($body) : null);
+        $t->same('/pkg:package[1]/pkg:body[1]/w:p[1]', isset($paragraphs[0]) ? XmlHtmlDom::nodePath($paragraphs[0]) : null);
+        $t->same('/pkg:package[1]/pkg:body[1]/w:p[2]', isset($paragraphs[1]) ? XmlHtmlDom::nodePath($paragraphs[1]) : null);
+        $t->same('/pkg:package[1]/pkg:body[1]/w:p[1]/w:r[1]/text()[1]', $runText instanceof DOMNode ? XmlHtmlDom::nodePath($runText) : null);
+
+        $paragraphProvenance = isset($paragraphs[0]) ? XmlHtmlDom::nodeProvenance($paragraphs[0], 'word/document.xml') : [];
+        $t->same('element', $paragraphProvenance['type'] ?? null);
+        $t->same('word/document.xml', $paragraphProvenance['part'] ?? null);
+        $t->same('/pkg:package[1]/pkg:body[1]/w:p[1]', $paragraphProvenance['path'] ?? null);
+        $t->same('w:p', $paragraphProvenance['name'] ?? null);
+        $t->same('p', $paragraphProvenance['localName'] ?? null);
+        $t->same('w', $paragraphProvenance['prefix'] ?? null);
+        $t->same('urn:word', $paragraphProvenance['namespaceUri'] ?? null);
+        $t->same(6, $paragraphProvenance['line'] ?? null);
+
+        $htmlDom = XmlHtmlDom::loadHtmlFragment(
+            "\n<svg><foreignObject><div><svg><linearGradient id=\"nested\"></linearGradient></svg></div></foreignObject></svg>\n<p>after</p>",
+            'foreign-content provenance HTML fragment'
+        );
+        $fragmentRoot = XmlHtmlDom::fragmentRoot($htmlDom);
+        $foreignObject = null;
+        $linearGradient = null;
+        if ($fragmentRoot instanceof DOMElement) {
+            foreach ($fragmentRoot->getElementsByTagName('*') as $candidate) {
+                if (!$candidate instanceof DOMElement) {
+                    continue;
+                }
+                $provenance = XmlHtmlDom::nodeProvenance($candidate, 'body.xhtml');
+                if (($provenance['name'] ?? null) === 'foreignObject') {
+                    $foreignObject = $candidate;
+                }
+                if (($provenance['name'] ?? null) === 'linearGradient') {
+                    $linearGradient = $candidate;
+                }
+            }
+        }
+
+        $foreignObjectProvenance = $foreignObject instanceof DOMElement ? XmlHtmlDom::nodeProvenance($foreignObject, 'body.xhtml') : [];
+        $linearGradientProvenance = $linearGradient instanceof DOMElement ? XmlHtmlDom::nodeProvenance($linearGradient, 'body.xhtml') : [];
+        $t->same('foreignObject', $foreignObjectProvenance['name'] ?? null);
+        $t->same('/html[1]/body[1]/div[1]/svg[1]/foreignObject[1]', $foreignObjectProvenance['path'] ?? null);
+        $t->same('body.xhtml', $foreignObjectProvenance['part'] ?? null);
+        $t->true(($foreignObjectProvenance['line'] ?? 0) > 0, 'Expected HTML provenance to retain source line metadata');
+        $t->same('linearGradient', $linearGradientProvenance['name'] ?? null);
+        $t->same('/html[1]/body[1]/div[1]/svg[1]/foreignObject[1]/div[1]/svg[1]/linearGradient[1]', $linearGradientProvenance['path'] ?? null);
+    },
     'recovers HTML5 fragments with list autoclose and void elements' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p data-id="42">Intro<br>Next<img src="cover.png?x=1&amp;y=2" alt="Cover"></p><ul><li>One<li>Two</ul>',

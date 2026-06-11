@@ -452,6 +452,62 @@ final class XmlHtmlDom
         return $element->hasAttribute($localName) ? $element->getAttribute($localName) : null;
     }
 
+    public static function nodePath(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMDocument) {
+            return '/';
+        }
+
+        $segments = [];
+        $current = $node;
+        while ($current instanceof \DOMNode && !$current instanceof \DOMDocument) {
+            array_unshift($segments, self::nodePathSegment($current));
+            $current = $current->parentNode;
+        }
+
+        return '/' . implode('/', $segments);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function nodeProvenance(\DOMNode $node, ?string $part = null): array
+    {
+        $provenance = [
+            'type' => self::nodeProvenanceType($node),
+            'path' => self::nodePath($node),
+        ];
+
+        if ($part !== null && $part !== '') {
+            $provenance['part'] = $part;
+        }
+
+        $line = self::nodeSourceLine($node);
+        if ($line !== null) {
+            $provenance['line'] = $line;
+        }
+
+        if ($node instanceof \DOMElement) {
+            $provenance['name'] = self::nodePathName($node);
+            $provenance['localName'] = $node->localName;
+            if ($node->prefix !== '') {
+                $provenance['prefix'] = $node->prefix;
+            }
+            if ($node->namespaceURI !== null && $node->namespaceURI !== '') {
+                $provenance['namespaceUri'] = $node->namespaceURI;
+            }
+        }
+
+        return $provenance;
+    }
+
+    public static function nodeSourceLine(\DOMNode $node): ?int
+    {
+        $line = $node->getLineNo();
+
+        return $line > 0 ? $line : null;
+    }
+
     public static function fragmentRoot(\DOMDocument $dom): ?\DOMElement
     {
         foreach ($dom->getElementsByTagName('div') as $element) {
@@ -1739,6 +1795,70 @@ final class XmlHtmlDom
         foreach ($node->childNodes as $child) {
             self::assertNoProcessingInstructions($child, $label);
         }
+    }
+
+    private static function nodePathSegment(\DOMNode $node): string
+    {
+        $name = self::nodePathName($node);
+        $index = 1;
+        $previous = $node->previousSibling;
+        while ($previous instanceof \DOMNode) {
+            if (self::nodePathName($previous) === $name) {
+                ++$index;
+            }
+            $previous = $previous->previousSibling;
+        }
+
+        return $name . '[' . $index . ']';
+    }
+
+    private static function nodePathName(\DOMNode $node): string
+    {
+        if ($node instanceof \DOMElement) {
+            return self::isHtmlDocumentNode($node) ? self::htmlElementName($node) : $node->nodeName;
+        }
+
+        if ($node instanceof \DOMText || $node instanceof \DOMCdataSection) {
+            return 'text()';
+        }
+
+        if ($node instanceof \DOMComment) {
+            return 'comment()';
+        }
+
+        if ($node instanceof \DOMProcessingInstruction) {
+            return 'processing-instruction(' . $node->target . ')';
+        }
+
+        if ($node instanceof \DOMDocumentFragment) {
+            return 'fragment()';
+        }
+
+        return 'node()';
+    }
+
+    private static function nodeProvenanceType(\DOMNode $node): string
+    {
+        return match (true) {
+            $node instanceof \DOMDocument => 'document',
+            $node instanceof \DOMDocumentFragment => 'fragment',
+            $node instanceof \DOMElement => 'element',
+            $node instanceof \DOMCdataSection => 'cdata',
+            $node instanceof \DOMText => 'text',
+            $node instanceof \DOMComment => 'comment',
+            $node instanceof \DOMProcessingInstruction => 'processing-instruction',
+            default => 'node',
+        };
+    }
+
+    private static function isHtmlDocumentNode(\DOMNode $node): bool
+    {
+        $document = $node instanceof \DOMDocument ? $node : $node->ownerDocument;
+        $root = $document instanceof \DOMDocument ? $document->documentElement : null;
+
+        return $root instanceof \DOMElement
+            && $root->namespaceURI === null
+            && strtolower($root->localName) === 'html';
     }
 
     private static function isHtmlForeignElement(\DOMElement $element): bool
