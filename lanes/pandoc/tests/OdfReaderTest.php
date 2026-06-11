@@ -261,6 +261,65 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'reports ODT package part inventory for ingestion review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithSettings = str_replace(
+            '</manifest:manifest>',
+            '  <manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>' . "\n" . '</manifest:manifest>',
+            $manifestXml
+        );
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:settings/>
+</office:document-settings>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithSettings, null, null, [
+            ['name' => 'settings.xml', 'data' => $settingsXml],
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG', 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xba', 'data' => 'macro body'],
+        ]));
+        $inventory = $result['importReport']['manifest']['packageParts'];
+        $itemsByPart = $inventory['itemsByPart'];
+
+        $t->same($inventory, $result['packageParts']);
+        $t->same($inventory, $result['document']->attr('manifest')['packageParts']);
+        $t->same(10, $inventory['count']);
+        $t->same(5, $inventory['manifestDeclaredPartCount']);
+        $t->same(2, $inventory['builtinPartCount']);
+        $t->same(2, $inventory['undeclaredPackagePartCount']);
+        $t->same(1, $inventory['directoryCount']);
+        $t->same([
+            'builtin-package-part' => 2,
+            'manifest-declared' => 5,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-media' => 2,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-script' => 1,
+            'odf-settings' => 1,
+            'odf-styles' => 1,
+            'package-directory' => 1,
+            'undeclared-package-entry' => 2,
+        ], $inventory['roleCounts']);
+
+        $t->same(['builtin-package-part', 'odf-mimetype'], $itemsByPart['mimetype']['roles']);
+        $t->same(['builtin-package-part', 'odf-manifest'], $itemsByPart['META-INF/manifest.xml']['roles']);
+        $t->same(['manifest-declared', 'odf-content'], $itemsByPart['content.xml']['roles']);
+        $t->same(['manifest-declared', 'odf-settings'], $itemsByPart['settings.xml']['roles']);
+        $t->same('settings.xml', $itemsByPart['settings.xml']['manifestFullPath']);
+        $t->same('text/xml', $itemsByPart['settings.xml']['mediaType']);
+        $t->same(['odf-media', 'undeclared-package-entry'], $itemsByPart['Pictures/orphan.png']['roles']);
+        $t->same(9, $itemsByPart['Pictures/orphan.png']['storedByteLength']);
+        $t->same('stored', $itemsByPart['Pictures/orphan.png']['compressionMethodName']);
+        $t->same(false, $itemsByPart['Pictures/orphan.png']['canExposeBytes']);
+        $t->same('inventory-only-no-byte-handoff', $itemsByPart['Pictures/orphan.png']['byteExposurePolicy']);
+        $t->same(['odf-script', 'undeclared-package-entry'], $itemsByPart['Basic/Standard/Module1.xba']['roles']);
+        $t->same(['package-directory'], $itemsByPart['Pictures/']['roles']);
+        $t->same(false, $itemsByPart['Pictures/']['undeclaredPackagePart']);
+    },
     'reports ODT style reference diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlainParagraph = <<<'XML'
 <office:document-content
