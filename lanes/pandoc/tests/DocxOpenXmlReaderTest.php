@@ -545,6 +545,108 @@ XML;
         $t->same(null, $summary['externalRelationshipTargets'][1]['targetPart']);
         $t->same('https://example.test/templates/review.dotx', $summary['externalRelationshipTargets'][1]['resolvedTarget']);
     },
+    'summarizes docx embedded object package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $oleRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review.xlsx" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; profile=embedded-workbook"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedWorkbook" Type="' . $packageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
+            '  <Relationship Id="rMissingOle" Type="' . $oleRel . '" Target="embeddings/missing.bin"/>' . "\n" .
+            '  <Relationship Id="rRemoteOle" Type="' . $oleRel . '" Target="https://example.test/ole.bin?remote=1#object" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"',
+            'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:o="urn:schemas-microsoft-com:office:office"',
+            $parts['word/document.xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:tbl>',
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rEmbeddedWorkbook" ProgID="Excel.Sheet.12" ShapeID="_x0000_i1025" DrawAspect="Content" ObjectID="_review1" UpdateMode="OnCall"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rMissingOle" ProgID="Package" ShapeID="_x0000_i1026" DrawAspect="Icon" ObjectID="_missing1"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:p><w:r><w:object><o:OLEObject r:id="rUnknownOle" ProgID="Package"/></w:object></w:r></w:p>' . "\n" .
+            '    <w:tbl>',
+            $parts['word/document.xml']
+        );
+        $parts['word/embeddings/review.xlsx'] = 'fake embedded workbook bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $embedded = $docx['embeddedObjects'];
+        $workbook = $embedded['byRelationshipId']['rEmbeddedWorkbook'];
+        $missing = $embedded['byRelationshipId']['rMissingOle'];
+        $unknown = $embedded['byRelationshipId']['rUnknownOle'];
+        $remote = $embedded['byRelationshipId']['rRemoteOle'];
+        $relationshipTypes = $docx['packageProvenance']['relationshipTypes'];
+
+        $t->same(4, $embedded['count']);
+        $t->same(3, $embedded['relationshipCount']);
+        $t->same(3, $embedded['referencedCount']);
+        $t->same(1, $embedded['unreferencedRelationshipCount']);
+        $t->same(1, $embedded['existingCount']);
+        $t->same(1, $embedded['missingCount']);
+        $t->same(1, $embedded['externalCount']);
+        $t->same(1, $embedded['unresolvedCount']);
+        $t->same(1, $embedded['missingContentTypeCount']);
+        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle', 'rRemoteOle'], $embedded['relationshipIds']);
+        $t->same(['rEmbeddedWorkbook', 'rMissingOle', 'rUnknownOle'], $embedded['referencedRelationshipIds']);
+        $t->same(['rRemoteOle'], $embedded['unreferencedRelationshipIds']);
+        $t->same(['word/embeddings/review.xlsx', 'word/embeddings/missing.bin'], $embedded['partNames']);
+
+        $t->same('Excel.Sheet.12', $workbook['progId']);
+        $t->same('_x0000_i1025', $workbook['shapeId']);
+        $t->same('Content', $workbook['drawAspect']);
+        $t->same('_review1', $workbook['objectId']);
+        $t->same('OnCall', $workbook['updateMode']);
+        $t->same($packageRel, $workbook['relationshipType']);
+        $t->same('word/embeddings/review.xlsx?sheet=1#ole', $workbook['resolvedTarget']);
+        $t->same('word/embeddings/review.xlsx', $workbook['targetPart']);
+        $t->same('sheet=1', $workbook['targetQuery']);
+        $t->same('ole', $workbook['targetFragment']);
+        $t->same('?sheet=1#ole', $workbook['targetReferenceSuffix']);
+        $t->same(true, $workbook['exists']);
+        $t->same(strlen('fake embedded workbook bytes'), $workbook['bytes']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; profile=embedded-workbook', $workbook['contentType']);
+        $t->same('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $workbook['contentTypeBase']);
+        $t->same(['profile' => 'embedded-workbook'], $workbook['contentTypeParameterMap']);
+        $t->same('override', $workbook['contentTypeSource']);
+        $t->same('word/embeddings/_rels/review.xlsx.rels', $workbook['relationshipsPart']);
+        $t->same(0, $workbook['relationshipCount']);
+        $t->same([], $workbook['issues']);
+
+        $t->same('Package', $missing['progId']);
+        $t->same('Icon', $missing['drawAspect']);
+        $t->same($oleRel, $missing['relationshipType']);
+        $t->same('word/embeddings/missing.bin', $missing['targetPart']);
+        $t->same(false, $missing['exists']);
+        $t->same('missing', $missing['contentTypeSource']);
+        $t->same('bin', $missing['defaultExtension']);
+        $t->same(['missing-in-package', 'missing-content-type'], $missing['issues']);
+
+        $t->same(true, $unknown['referenced']);
+        $t->same(null, $unknown['relationshipType']);
+        $t->same(['unknown-relationship'], $unknown['issues']);
+
+        $t->same(false, $remote['referenced']);
+        $t->same(true, $remote['external']);
+        $t->same('https://example.test/ole.bin?remote=1#object', $remote['target']);
+        $t->same(null, $remote['targetPart']);
+        $t->same(['external-embedded-object'], $remote['issues']);
+
+        $t->same(1, $relationshipTypes[$packageRel]['existingTargetCount']);
+        $t->same(['word/embeddings/review.xlsx'], $relationshipTypes[$packageRel]['existingTargetParts']);
+        $t->same(2, $relationshipTypes[$oleRel]['count']);
+        $t->same(1, $relationshipTypes[$oleRel]['externalCount']);
+        $t->same(['word/embeddings/missing.bin'], $relationshipTypes[$oleRel]['missingTargetParts']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

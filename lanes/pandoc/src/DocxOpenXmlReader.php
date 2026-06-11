@@ -18,6 +18,7 @@ final class DocxOpenXmlReader
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+    private const NS_O = 'urn:schemas-microsoft-com:office:office';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
@@ -34,6 +35,8 @@ final class DocxOpenXmlReader
     private const HEADER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     private const FOOTER_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     private const ALT_CHUNK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk';
+    private const OLE_OBJECT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject';
+    private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
 
     public function readFile(string $path): AstNode
     {
@@ -181,6 +184,13 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
+        $embeddedObjects = $this->readEmbeddedObjects(
+            $parts,
+            $parts[$documentPart],
+            $documentPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
 
         $attrs = [
@@ -216,6 +226,7 @@ final class DocxOpenXmlReader
                 'headers' => $headers,
                 'footers' => $footers,
                 'alternativeFormats' => $alternativeFormats,
+                'embeddedObjects' => $embeddedObjects,
                 'media' => $media,
             ],
         ];
@@ -975,6 +986,251 @@ final class DocxOpenXmlReader
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readEmbeddedObjects(
+        array $parts,
+        string $xml,
+        string $documentPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $referencedRelationshipIds = [];
+        $referencedEmbeddedRelationshipIds = [];
+        $relationshipsPart = $this->relationshipsPartFor($documentPart);
+
+        if ($xml !== '') {
+            $dom = $this->loadXml($xml, $documentPart);
+            $xpath = $this->xpath($dom);
+            foreach ($this->elements($xpath, '//o:OLEObject') as $object) {
+                $relationshipId = $object->getAttributeNS(self::NS_R, 'id');
+                $item = $this->embeddedObjectItem(
+                    $parts,
+                    $relationships[$relationshipId] ?? null,
+                    $documentPart,
+                    $relationshipsPart,
+                    $contentTypes,
+                    $relationshipId,
+                    count($items),
+                    true,
+                    $this->embeddedObjectDescriptor($object),
+                );
+                $items[] = $item;
+
+                $this->appendUniqueString($relationshipIds, $relationshipId);
+                $this->appendUniqueString($referencedRelationshipIds, $relationshipId);
+                if ($this->isEmbeddedObjectRelationshipType((string) ($item['relationshipType'] ?? ''))) {
+                    $this->appendUniqueString($referencedEmbeddedRelationshipIds, $relationshipId);
+                }
+                if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                    $byRelationshipId[$relationshipId] = $item;
+                }
+            }
+        }
+
+        $unreferencedRelationshipIds = [];
+        foreach ($relationships as $relationship) {
+            if (!$this->isEmbeddedObjectRelationshipType($relationship['type'])) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            if (in_array($relationshipId, $referencedEmbeddedRelationshipIds, true)) {
+                continue;
+            }
+
+            $item = $this->embeddedObjectItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                $relationshipId,
+                count($items),
+                false,
+                null,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($unreferencedRelationshipIds, $relationshipId);
+            if (!isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+        }
+
+        $partNames = [];
+        foreach ($items as $item) {
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $this->appendUniqueString($partNames, $partName);
+        }
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, fn (array $relationship): bool => $this->isEmbeddedObjectRelationshipType($relationship['type']))),
+            'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
+            'unreferencedRelationshipCount' => count($unreferencedRelationshipIds),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-in-package', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unresolvedCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => in_array('missing-relationship-id', $item['issues'], true) || in_array('unknown-relationship', $item['issues'], true),
+            )),
+            'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'relationshipIds' => $relationshipIds,
+            'referencedRelationshipIds' => $referencedRelationshipIds,
+            'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
+            'partNames' => $partNames,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{progId:?string, shapeId:?string, drawAspect:?string, objectId:?string, updateMode:?string}
+     */
+    private function embeddedObjectDescriptor(\DOMElement $object): array
+    {
+        return [
+            'progId' => $this->emptyStringToNull($object->getAttribute('ProgID')),
+            'shapeId' => $this->emptyStringToNull($object->getAttribute('ShapeID')),
+            'drawAspect' => $this->emptyStringToNull($object->getAttribute('DrawAspect')),
+            'objectId' => $this->emptyStringToNull($object->getAttribute('ObjectID')),
+            'updateMode' => $this->emptyStringToNull($object->getAttribute('UpdateMode')),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array{progId:?string, shapeId:?string, drawAspect:?string, objectId:?string, updateMode:?string}|null $descriptor
+     * @return array<string, mixed>
+     */
+    private function embeddedObjectItem(
+        array $parts,
+        ?array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        string $relationshipId,
+        int $index,
+        bool $referenced,
+        ?array $descriptor
+    ): array {
+        $item = [
+            'index' => $index,
+            'relationshipId' => $relationshipId,
+            'referenced' => $referenced,
+            'progId' => $descriptor['progId'] ?? null,
+            'shapeId' => $descriptor['shapeId'] ?? null,
+            'drawAspect' => $descriptor['drawAspect'] ?? null,
+            'objectId' => $descriptor['objectId'] ?? null,
+            'updateMode' => $descriptor['updateMode'] ?? null,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'exists' => false,
+            'bytes' => 0,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'relationshipsPart' => null,
+            'relationshipCount' => 0,
+            'relationship' => null,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === '') {
+            $item['issues'][] = 'missing-relationship-id';
+            return $item;
+        }
+
+        if (!is_array($relationship)) {
+            $item['issues'][] = 'unknown-relationship';
+            return $item;
+        }
+
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) $summary['exists'];
+        $partRelationshipsPart = $targetPart === null ? null : $this->relationshipsPartFor($targetPart);
+        $partRelationships = $partRelationshipsPart === null ? [] : $this->readRelationshipsPart($parts, $partRelationshipsPart);
+
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) $summary['external'];
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationshipsPart'] = $partRelationshipsPart;
+        $item['relationshipCount'] = count($partRelationships);
+        $item['relationship'] = $summary;
+
+        if (!$this->isEmbeddedObjectRelationshipType($relationship['type'])) {
+            $item['issues'][] = 'unexpected-relationship-type';
+            return $item;
+        }
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-embedded-object';
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-in-package';
+        }
+
+        if ($item['contentTypeSource'] === 'missing') {
+            $item['issues'][] = 'missing-content-type';
+        }
+
+        return $item;
+    }
+
+    private function isEmbeddedObjectRelationshipType(string $relationshipType): bool
+    {
+        return $relationshipType === self::OLE_OBJECT_REL
+            || $relationshipType === self::EMBEDDED_PACKAGE_REL;
     }
 
     /**
@@ -3499,6 +3755,7 @@ final class DocxOpenXmlReader
         $xpath->registerNamespace('vt', self::NS_VT);
         $xpath->registerNamespace('a', self::NS_A);
         $xpath->registerNamespace('wp', self::NS_WP);
+        $xpath->registerNamespace('o', self::NS_O);
 
         return $xpath;
     }
