@@ -65,6 +65,9 @@ final class OpenDocumentPackage
             }
 
             $manifestEntriesByPath[$entry['path']] = $entry;
+            if (is_string($entry['pathReference'] ?? null) && $entry['pathReference'] !== '' && !isset($manifestEntriesByPath[$entry['pathReference']])) {
+                $manifestEntriesByPath[$entry['pathReference']] = $entry;
+            }
             if (is_string($entry['packagePath'] ?? null) && !isset($manifestEntriesByPath[$entry['packagePath']])) {
                 $manifestEntriesByPath[$entry['packagePath']] = $entry;
             }
@@ -239,6 +242,10 @@ final class OpenDocumentPackage
                 $mediaParts[] = [
                     'path' => $entry['path'],
                     'packagePath' => $entry['packagePath'],
+                    'pathReference' => $entry['pathReference'],
+                    'pathSuffix' => $entry['pathSuffix'],
+                    'pathQuery' => $entry['pathQuery'],
+                    'pathFragment' => $entry['pathFragment'],
                     'mediaType' => $entry['mediaType'],
                     'exists' => $entry['exists'],
                     'byteLength' => $entry['byteLength'],
@@ -352,6 +359,10 @@ final class OpenDocumentPackage
                 'isDirectory' => $entry->isDirectory(),
                 'declaredInManifest' => is_array($manifestEntry),
                 'manifestPath' => is_array($manifestEntry) ? $manifestEntry['path'] : null,
+                'manifestPathReference' => is_array($manifestEntry) ? $manifestEntry['pathReference'] : null,
+                'manifestPathSuffix' => is_array($manifestEntry) ? $manifestEntry['pathSuffix'] : null,
+                'manifestPathQuery' => is_array($manifestEntry) ? $manifestEntry['pathQuery'] : null,
+                'manifestPathFragment' => is_array($manifestEntry) ? $manifestEntry['pathFragment'] : null,
                 'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
@@ -604,6 +615,10 @@ final class OpenDocumentPackage
         return [
             'path' => $entry['path'],
             'packagePath' => $entry['packagePath'] ?? null,
+            'pathReference' => $entry['pathReference'] ?? null,
+            'pathSuffix' => $entry['pathSuffix'] ?? null,
+            'pathQuery' => $entry['pathQuery'] ?? null,
+            'pathFragment' => $entry['pathFragment'] ?? null,
             'mediaType' => $entry['mediaType'],
             'exists' => ($entry['exists'] ?? false) === true,
             'isDirectory' => ($entry['isDirectory'] ?? false) === true,
@@ -650,7 +665,7 @@ final class OpenDocumentPackage
     /**
      * @return array{
      *     version:string|null,
-     *     entries:list<array{path:string, packagePath:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
+     *     entries:list<array{path:string, packagePath:string|null, pathReference:string|null, pathSuffix:string|null, pathQuery:string|null, pathFragment:string|null, mediaType:string, version:string|null, size:int|null, preferredViewMode:string|null, encrypted:bool, encryption:array<string, mixed>|null}>
      * }
      */
     private static function parseManifest(string $xml): array
@@ -672,9 +687,11 @@ final class OpenDocumentPackage
             }
 
             $path = self::normalizeManifestPath(self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'full-path') ?? '');
-            $packagePath = self::manifestPackagePath($path);
+            $packageReference = self::manifestPackageReference($path);
+            $pathReference = $packageReference['pathReference'];
+            $packagePath = $packageReference['packagePath'];
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
-            if ($mediaType === '' && !str_ends_with($path, '/')) {
+            if ($mediaType === '' && !str_ends_with($pathReference ?? $path, '/')) {
                 throw new \InvalidArgumentException('ODF manifest file-entry is missing manifest:media-type for ' . $path);
             }
 
@@ -686,6 +703,10 @@ final class OpenDocumentPackage
             $entries[] = [
                 'path' => $path,
                 'packagePath' => $packagePath,
+                'pathReference' => $pathReference,
+                'pathSuffix' => $packageReference['pathSuffix'],
+                'pathQuery' => $packageReference['pathQuery'],
+                'pathFragment' => $packageReference['pathFragment'],
                 'mediaType' => $mediaType,
                 'version' => self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'version'),
                 'size' => $size,
@@ -1416,6 +1437,52 @@ final class OpenDocumentPackage
         }
 
         return $decodedPath;
+    }
+
+    /**
+     * @return array{packagePath:string|null,pathReference:string|null,pathSuffix:string|null,pathQuery:string|null,pathFragment:string|null}
+     */
+    private static function manifestPackageReference(string $path): array
+    {
+        if ($path === '/') {
+            return [
+                'packagePath' => null,
+                'pathReference' => null,
+                'pathSuffix' => null,
+                'pathQuery' => null,
+                'pathFragment' => null,
+            ];
+        }
+
+        $pathReference = $path;
+        $pathSuffix = null;
+        $pathQuery = null;
+        $pathFragment = null;
+        $suffixOffset = strcspn($path, '?#');
+        if ($suffixOffset < strlen($path)) {
+            $pathReference = substr($path, 0, $suffixOffset);
+            $pathSuffix = substr($path, $suffixOffset);
+            if (str_starts_with($pathSuffix, '?')) {
+                $queryAndFragment = substr($pathSuffix, 1);
+                $fragmentOffset = strpos($queryAndFragment, '#');
+                if ($fragmentOffset === false) {
+                    $pathQuery = $queryAndFragment;
+                } else {
+                    $pathQuery = substr($queryAndFragment, 0, $fragmentOffset);
+                    $pathFragment = substr($queryAndFragment, $fragmentOffset + 1);
+                }
+            } elseif (str_starts_with($pathSuffix, '#')) {
+                $pathFragment = substr($pathSuffix, 1);
+            }
+        }
+
+        return [
+            'packagePath' => self::manifestPackagePath($pathReference),
+            'pathReference' => $pathReference,
+            'pathSuffix' => $pathSuffix,
+            'pathQuery' => $pathQuery,
+            'pathFragment' => $pathFragment,
+        ];
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument

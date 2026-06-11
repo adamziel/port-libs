@@ -523,6 +523,70 @@ XML;
         );
         $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedDotSegmentManifest)));
     },
+    'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SOURCEPNG';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png?cache=1#review" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png?download=true#asset" manifest:size="' . strlen($sourceBytes) . '"/>',
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0]],
+        ));
+        $hero = $odt->manifestEntry('Pictures/hero.png?cache=1#review');
+        $source = $odt->manifestEntry('Pictures/source hero.png');
+        $summary = $odt->summarize();
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $media) {
+            $mediaByPath[$media['path']] = $media;
+        }
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same($hero, $odt->manifestEntry('Pictures/hero.png'));
+        $t->same('Pictures/hero.png?cache=1#review', $hero['path']);
+        $t->same('Pictures/hero.png', $hero['packagePath']);
+        $t->same('Pictures/hero.png', $hero['pathReference']);
+        $t->same('?cache=1#review', $hero['pathSuffix']);
+        $t->same('cache=1', $hero['pathQuery']);
+        $t->same('review', $hero['pathFragment']);
+        $t->same(true, $hero['exists']);
+        $t->same(7, $hero['byteLength']);
+
+        $t->same($source, $odt->manifestEntry('Pictures/source%20hero.png'));
+        $t->same('Pictures/source%20hero.png?download=true#asset', $source['path']);
+        $t->same('Pictures/source hero.png', $source['packagePath']);
+        $t->same('Pictures/source%20hero.png', $source['pathReference']);
+        $t->same('?download=true#asset', $source['pathSuffix']);
+        $t->same('download=true', $source['pathQuery']);
+        $t->same('asset', $source['pathFragment']);
+        $t->same(strlen($sourceBytes), $source['byteLength']);
+
+        $t->same(2, count($summary['mediaParts']));
+        $t->same('Pictures/hero.png', $mediaByPath['Pictures/hero.png?cache=1#review']['packagePath']);
+        $t->same('?cache=1#review', $mediaByPath['Pictures/hero.png?cache=1#review']['pathSuffix']);
+        $t->same('review', $mediaByPath['Pictures/hero.png?cache=1#review']['pathFragment']);
+        $t->same('Pictures/source hero.png', $mediaByPath['Pictures/source%20hero.png?download=true#asset']['packagePath']);
+        $t->same('download=true', $mediaByPath['Pictures/source%20hero.png?download=true#asset']['pathQuery']);
+
+        $t->same('Pictures/hero.png', $reviewByPath['Pictures/hero.png?cache=1#review']['packagePath']);
+        $t->same('Pictures/hero.png', $reviewByPath['Pictures/hero.png?cache=1#review']['pathReference']);
+        $t->same('?cache=1#review', $reviewByPath['Pictures/hero.png?cache=1#review']['pathSuffix']);
+        $t->same('cache=1', $reviewByPath['Pictures/hero.png?cache=1#review']['pathQuery']);
+        $t->same('review', $reviewByPath['Pictures/hero.png?cache=1#review']['pathFragment']);
+
+        $t->same('Pictures/hero.png?cache=1#review', $inventory['Pictures/hero.png']['manifestPath']);
+        $t->same('Pictures/hero.png', $inventory['Pictures/hero.png']['manifestPathReference']);
+        $t->same('?cache=1#review', $inventory['Pictures/hero.png']['manifestPathSuffix']);
+        $t->same('cache=1', $inventory['Pictures/hero.png']['manifestPathQuery']);
+        $t->same('review', $inventory['Pictures/hero.png']['manifestPathFragment']);
+    },
     'reports compact ODT ZIP inventory and undeclared package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
