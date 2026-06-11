@@ -620,7 +620,7 @@ final class NativeReader
         return array_map(
             fn (mixed $item): AstNode => new AstNode(
                 'list_item',
-                [],
+                ['listItemNative' => $item],
                 $this->blockNodes($this->listContent($item, 'Pandoc native JSON list item'))
             ),
             $this->listContent($items, $context)
@@ -639,14 +639,21 @@ final class NativeReader
             foreach ($this->listContent($tuple[1], 'Pandoc native JSON DefinitionList definitions') as $definition) {
                 $definitions[] = new AstNode(
                     'definition',
-                    [],
+                    ['definitionNative' => $definition],
                     $this->blockNodes($this->listContent($definition, 'Pandoc native JSON definition blocks'))
                 );
             }
 
             $termInlines = $this->inlines($tuple[0]);
-            $items[] = new AstNode('definition_item', [], [
-                new AstNode('definition_term', ['text' => $this->plainTextFromInlines($termInlines)], $termInlines),
+            $items[] = new AstNode('definition_item', [
+                'definitionItemNative' => $item,
+                'definitionTermNative' => $tuple[0],
+                'definitionDefinitionsNative' => $tuple[1],
+            ], [
+                new AstNode('definition_term', [
+                    'text' => $this->plainTextFromInlines($termInlines),
+                    'definitionTermNative' => $tuple[0],
+                ], $termInlines),
                 ...$definitions,
             ]);
         }
@@ -662,7 +669,10 @@ final class NativeReader
         $lines = [];
         foreach ($this->listContent($content, 'Pandoc native JSON LineBlock lines') as $line) {
             $inlines = $this->inlines($line);
-            $lines[] = new AstNode('line', ['text' => $this->plainTextFromInlines($inlines)], $inlines);
+            $lines[] = new AstNode('line', [
+                'text' => $this->plainTextFromInlines($inlines),
+                'lineNative' => $line,
+            ], $inlines);
         }
 
         return new AstNode('line_block', $attrs, $lines);

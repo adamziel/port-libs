@@ -524,7 +524,11 @@ final class PandocJsonReader
     private function readListItems(array $items): array
     {
         return array_map(
-            fn (mixed $item): AstNode => new AstNode('list_item', [], $this->readBlocks($this->listContent($item, 'list item'))),
+            fn (mixed $item): AstNode => new AstNode(
+                'list_item',
+                ['listItemNative' => $item],
+                $this->readBlocks($this->listContent($item, 'list item'))
+            ),
             $items
         );
     }
@@ -536,11 +540,23 @@ final class PandocJsonReader
             $tuple = $this->tuple($item, 2, 'DefinitionList item');
             $definitions = [];
             foreach ($this->listContent($tuple[1], 'DefinitionList definitions') as $definition) {
-                $definitions[] = new AstNode('definition', [], $this->readBlocks($this->listContent($definition, 'definition blocks')));
+                $definitions[] = new AstNode(
+                    'definition',
+                    ['definitionNative' => $definition],
+                    $this->readBlocks($this->listContent($definition, 'definition blocks'))
+                );
             }
 
-            $term = new AstNode('definition_term', [], $this->readInlines($this->listContent($tuple[0], 'definition term')));
-            $items[] = new AstNode('definition_item', [], [$term, ...$definitions]);
+            $termInlines = $this->readInlines($this->listContent($tuple[0], 'definition term'));
+            $term = new AstNode('definition_term', [
+                'text' => $this->plainText($termInlines),
+                'definitionTermNative' => $tuple[0],
+            ], $termInlines);
+            $items[] = new AstNode('definition_item', [
+                'definitionItemNative' => $item,
+                'definitionTermNative' => $tuple[0],
+                'definitionDefinitionsNative' => $tuple[1],
+            ], [$term, ...$definitions]);
         }
 
         return new AstNode('definition_list', [], $items);
@@ -551,7 +567,10 @@ final class PandocJsonReader
         $lines = [];
         foreach ($this->listContent($content, 'LineBlock') as $line) {
             $inlines = $this->readInlines($this->listContent($line, 'LineBlock line'));
-            $lines[] = new AstNode('line', ['text' => $this->plainText($inlines)], $inlines);
+            $lines[] = new AstNode('line', [
+                'text' => $this->plainText($inlines),
+                'lineNative' => $line,
+            ], $inlines);
         }
 
         return new AstNode('line_block', [], $lines);

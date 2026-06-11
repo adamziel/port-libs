@@ -3033,6 +3033,100 @@ return [
         $t->same('Para', $encoded['blocks'][0]['c'][0][1][0][0]['t']);
         $t->same('Plain', $encoded['blocks'][0]['c'][0][1][1][0]['t']);
     },
+    'records pandoc list definition and line helper native payloads on json and native ast nodes' => static function (TestRunner $t): void {
+        $bulletItem = [
+            ['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Bullet'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ]],
+        ];
+        $orderedItem = [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Ordered'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'source'],
+            ]],
+        ];
+        $definitionTerm = [
+            ['t' => 'Str', 'c' => 'Source'],
+            ['t' => 'Space'],
+            ['t' => 'Code', 'c' => [['term-code', ['native'], [['data-kind', 'term']]], 'Glossary']],
+        ];
+        $definitionBodies = [
+            [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'Primary'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'definition'],
+                ]],
+            ],
+            [
+                ['t' => 'Plain', 'c' => [
+                    ['t' => 'Str', 'c' => 'Alias'],
+                ]],
+            ],
+        ];
+        $line = [
+            ['t' => 'Str', 'c' => 'Line'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'source'],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'BulletList', 'c' => [$bulletItem]],
+                ['t' => 'OrderedList', 'c' => [
+                    [4, ['t' => 'LowerAlpha'], ['t' => 'Period']],
+                    [$orderedItem],
+                ]],
+                ['t' => 'DefinitionList', 'c' => [
+                    [$definitionTerm, $definitionBodies],
+                ]],
+                ['t' => 'LineBlock', 'c' => [$line]],
+            ],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $bullet = $document->children[0];
+            $ordered = $document->children[1];
+            $definitionList = $document->children[2];
+            $definitionItem = $definitionList->children[0];
+            $term = $definitionItem->children[0];
+            $primaryDefinition = $definitionItem->children[1];
+            $aliasDefinition = $definitionItem->children[2];
+            $lineBlock = $document->children[3];
+
+            $t->same('BulletList', $bullet->attr('constructor'), "{$source} bullet list constructor");
+            $t->same($bulletItem, $bullet->children[0]->attr('listItemNative'), "{$source} bullet list item native payload");
+            $t->same('OrderedList', $ordered->attr('constructor'), "{$source} ordered list constructor");
+            $t->same($orderedItem, $ordered->children[0]->attr('listItemNative'), "{$source} ordered list item native payload");
+            $t->same('DefinitionList', $definitionList->attr('constructor'), "{$source} definition list constructor");
+            $t->same($packet['blocks'][2], $definitionList->attr('native'), "{$source} definition list native payload");
+            $t->same([$definitionTerm, $definitionBodies], $definitionItem->attr('definitionItemNative'), "{$source} definition item native payload");
+            $t->same($definitionTerm, $definitionItem->attr('definitionTermNative'), "{$source} definition item term native payload");
+            $t->same($definitionBodies, $definitionItem->attr('definitionDefinitionsNative'), "{$source} definition bodies native payload");
+            $t->same('Source Glossary', $term->attr('text'), "{$source} definition term text");
+            $t->same($definitionTerm, $term->attr('definitionTermNative'), "{$source} definition term native payload");
+            $t->same($definitionBodies[0], $primaryDefinition->attr('definitionNative'), "{$source} primary definition native payload");
+            $t->same($definitionBodies[1], $aliasDefinition->attr('definitionNative'), "{$source} alias definition native payload");
+            $t->same('LineBlock', $lineBlock->attr('constructor'), "{$source} line block constructor");
+            $t->same('Line source', $lineBlock->children[0]->attr('text'), "{$source} line text");
+            $t->same($line, $lineBlock->children[0]->attr('lineNative'), "{$source} line native payload");
+        }
+
+        $jsonPacket = (new PandocJsonWriter())->toArray($documents['json']);
+        $nativePacket = json_decode((new NativeWriter())->write($documents['native']), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same($packet['blocks'], $jsonPacket['blocks']);
+        $t->same($packet['blocks'], $nativePacket['blocks']);
+    },
     'round trips pandoc json cite inlines with csl metadata for wordpress handoff' => static function (TestRunner $t): void {
         $packet = [
             'blocks' => [
