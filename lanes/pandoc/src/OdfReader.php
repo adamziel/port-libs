@@ -592,6 +592,8 @@ final class OdfReader
         }
 
         $parts = [];
+        $roleCounts = [];
+        $byteCountsByRole = [];
         foreach ($package->entries() as $centralDirectoryIndex => $entry) {
             $manifestItem = $manifestByPart[$entry->name] ?? null;
             $isUndeclared = isset($undeclaredByPart[$entry->name]);
@@ -599,10 +601,11 @@ final class OdfReader
                 $packageDirectoryCount++;
             }
             $localOrder = $localOrderByName[$entry->name] ?? null;
+            $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared);
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
-                'roles' => $this->packagePartRoles($entry, $manifestItem, $isUndeclared),
+                'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
@@ -626,7 +629,22 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'undeclared' => $isUndeclared,
             ];
+
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                self::incrementPackageRoleByteBucket(
+                    $byteCountsByRole,
+                    $role,
+                    $entry->uncompressedSize,
+                    $entry->compressedSize,
+                    is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
+                    is_array($manifestItem),
+                    $isUndeclared
+                );
+            }
         }
+        ksort($roleCounts);
+        ksort($byteCountsByRole);
 
         return [
             'mimetypeEntry' => $mimetypeEntry,
@@ -637,8 +655,47 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'localHeaderOrder' => $localHeaderOrder,
             'compressionMethods' => $compressionMethods,
+            'roleCounts' => $roleCounts,
+            'byteCountsByRole' => $byteCountsByRole,
             'parts' => $parts,
         ];
+    }
+
+    /**
+     * @param array<string, array{entryCount:int, byteLength:int, compressedByteLength:int, exposableByteLength:int, manifestDeclaredEntryCount:int, undeclaredEntryCount:int}> $buckets
+     */
+    private static function incrementPackageRoleByteBucket(
+        array &$buckets,
+        string $role,
+        int $byteLength,
+        int $compressedByteLength,
+        bool $canExposeBytes,
+        bool $declaredInManifest,
+        bool $undeclared
+    ): void {
+        if (!isset($buckets[$role])) {
+            $buckets[$role] = [
+                'entryCount' => 0,
+                'byteLength' => 0,
+                'compressedByteLength' => 0,
+                'exposableByteLength' => 0,
+                'manifestDeclaredEntryCount' => 0,
+                'undeclaredEntryCount' => 0,
+            ];
+        }
+
+        ++$buckets[$role]['entryCount'];
+        $buckets[$role]['byteLength'] += $byteLength;
+        $buckets[$role]['compressedByteLength'] += $compressedByteLength;
+        if ($canExposeBytes) {
+            $buckets[$role]['exposableByteLength'] += $byteLength;
+        }
+        if ($declaredInManifest) {
+            ++$buckets[$role]['manifestDeclaredEntryCount'];
+        }
+        if ($undeclared) {
+            ++$buckets[$role]['undeclaredEntryCount'];
+        }
     }
 
     /**

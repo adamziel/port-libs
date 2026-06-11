@@ -9799,6 +9799,112 @@ XML;
         $t->same(true, $inventory['Thumbnails/thumbnail.png']['undeclared']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $inventory['Thumbnails/thumbnail.png']['crc32']);
     },
+    'summarizes ODT package provenance role byte buckets for review handoff' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $settingsXml = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:configuration-settings"/>
+  </office:settings>
+</office:document-settings>
+XML;
+        $scriptBytes = 'Sub Main' . "\n" . 'End Sub';
+        $thumbnailBytes = 'THUMBNAIL';
+        $orphanBytes = 'ORPHAN';
+        $manifestWithPackageRoles = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Basic/Standard/Module1.xba" manifest:media-type="text/xml"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestWithPackageRoles, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'settings.xml', 'data' => $settingsXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xba', 'data' => $scriptBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Extra/review.bin', 'data' => $orphanBytes, 'compressionMethod' => 0],
+        ];
+
+        $result = (new OdfReader())->readPackage(ZipPackage::fromParts($parts));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $byteCounts = $provenance['byteCountsByRole'];
+        $declaredBytes = strlen($contentXml)
+            + strlen($stylesXml)
+            + strlen($metaXml)
+            + strlen($settingsXml)
+            + strlen('PNGDATA')
+            + strlen($scriptBytes);
+        $declaredExposableBytes = $declaredBytes - strlen($scriptBytes);
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(10, $provenance['entryCount']);
+        $t->same(6, $provenance['manifestDeclaredPartCount']);
+        $t->same(2, $provenance['undeclaredEntryCount']);
+        $t->same([
+            'manifest-declared' => 6,
+            'media-resource' => 1,
+            'odf-content' => 1,
+            'odf-manifest' => 1,
+            'odf-meta' => 1,
+            'odf-mimetype' => 1,
+            'odf-settings' => 1,
+            'odf-styles' => 1,
+            'package-thumbnail' => 1,
+            'script-package' => 1,
+            'undeclared-package-entry' => 2,
+        ], $provenance['roleCounts']);
+
+        $t->same([
+            'entryCount' => 6,
+            'byteLength' => $declaredBytes,
+            'compressedByteLength' => $declaredBytes,
+            'exposableByteLength' => $declaredExposableBytes,
+            'manifestDeclaredEntryCount' => 6,
+            'undeclaredEntryCount' => 0,
+        ], $byteCounts['manifest-declared']);
+        $t->same([
+            'entryCount' => 1,
+            'byteLength' => strlen($contentXml),
+            'compressedByteLength' => strlen($contentXml),
+            'exposableByteLength' => strlen($contentXml),
+            'manifestDeclaredEntryCount' => 1,
+            'undeclaredEntryCount' => 0,
+        ], $byteCounts['odf-content']);
+        $t->same([
+            'entryCount' => 1,
+            'byteLength' => strlen($scriptBytes),
+            'compressedByteLength' => strlen($scriptBytes),
+            'exposableByteLength' => 0,
+            'manifestDeclaredEntryCount' => 1,
+            'undeclaredEntryCount' => 0,
+        ], $byteCounts['script-package']);
+        $t->same([
+            'entryCount' => 1,
+            'byteLength' => strlen($thumbnailBytes),
+            'compressedByteLength' => strlen($thumbnailBytes),
+            'exposableByteLength' => 0,
+            'manifestDeclaredEntryCount' => 0,
+            'undeclaredEntryCount' => 1,
+        ], $byteCounts['package-thumbnail']);
+        $t->same([
+            'entryCount' => 2,
+            'byteLength' => strlen($thumbnailBytes) + strlen($orphanBytes),
+            'compressedByteLength' => strlen($thumbnailBytes) + strlen($orphanBytes),
+            'exposableByteLength' => 0,
+            'manifestDeclaredEntryCount' => 0,
+            'undeclaredEntryCount' => 2,
+        ], $byteCounts['undeclared-package-entry']);
+        $t->same(['manifest-declared', 'script-package'], $provenance['parts']['Basic/Standard/Module1.xba']['roles']);
+        $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
+    },
     'checks ODT mimetype placement by local ZIP header order' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $parts = [
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
