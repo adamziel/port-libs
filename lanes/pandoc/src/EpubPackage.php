@@ -554,6 +554,8 @@ final class EpubPackage
                 'spinePackageDiagnostics' => $spineMetadata['diagnostics'],
                 'spinePageSpreadItems' => $validationReport['spine']['pageSpreadItems'],
                 'spineItemDiagnostics' => $validationReport['spine']['itemDiagnostics'],
+                'spineDuplicateItemrefIds' => $validationReport['spine']['duplicateItemrefIdItems'],
+                'spineRepeatedIdrefs' => $validationReport['spine']['repeatedIdrefItems'],
                 'navigationLabels' => array_values(array_map(
                     static fn (array $entry): string => $entry['label'],
                     $navigationEntries,
@@ -1229,12 +1231,38 @@ final class EpubPackage
             'right' => 0,
             'center' => 0,
         ];
+        $itemrefIds = [];
+        $idrefs = [];
         $itemDiagnostics = [];
         $diagnostics = is_array($spineMetadata['diagnostics'] ?? null)
             ? array_values($spineMetadata['diagnostics'])
             : [];
 
         foreach ($spine as $index => $item) {
+            $itemrefId = is_string($item['id'] ?? null) ? trim($item['id']) : '';
+            $idref = (string) ($item['idref'] ?? '');
+            $partName = (string) ($item['partName'] ?? '');
+            if ($itemrefId !== '') {
+                $itemrefIds[$itemrefId][] = [
+                    'index' => $index,
+                    'id' => $itemrefId,
+                    'idref' => $idref,
+                    'partName' => $partName,
+                    'linear' => ($item['linear'] ?? true) !== false,
+                    'linearRaw' => is_string($item['linearRaw'] ?? null) ? $item['linearRaw'] : null,
+                ];
+            }
+            if ($idref !== '') {
+                $idrefs[$idref][] = [
+                    'index' => $index,
+                    'id' => $itemrefId === '' ? null : $itemrefId,
+                    'idref' => $idref,
+                    'partName' => $partName,
+                    'linear' => ($item['linear'] ?? true) !== false,
+                    'linearRaw' => is_string($item['linearRaw'] ?? null) ? $item['linearRaw'] : null,
+                ];
+            }
+
             if (($item['linear'] ?? true) === false) {
                 ++$nonLinearCount;
             } else {
@@ -1330,6 +1358,50 @@ final class EpubPackage
             ];
         }
 
+        $duplicateItemrefIdItems = [];
+        foreach ($itemrefIds as $id => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $duplicate = [
+                'id' => $id,
+                'indexes' => array_column($items, 'index'),
+                'idrefs' => array_column($items, 'idref'),
+                'partNames' => array_values(array_unique(array_column($items, 'partName'))),
+                'linearValues' => array_column($items, 'linear'),
+                'linearRawValues' => array_column($items, 'linearRaw'),
+            ];
+            $duplicateItemrefIdItems[] = $duplicate;
+            $diagnostics[] = [
+                'type' => 'duplicate-spine-itemref-id',
+                'id' => $id,
+                'indexes' => $duplicate['indexes'],
+                'idrefs' => $duplicate['idrefs'],
+                'partNames' => $duplicate['partNames'],
+                'message' => 'EPUB OPF spine reuses an itemref id; compact package ingestion preserves every occurrence for review',
+            ];
+        }
+
+        $repeatedIdrefItems = [];
+        foreach ($idrefs as $idref => $items) {
+            if (count($items) < 2) {
+                continue;
+            }
+
+            $repeatedIdrefItems[] = [
+                'idref' => $idref,
+                'indexes' => array_column($items, 'index'),
+                'itemrefIds' => array_values(array_filter(
+                    array_column($items, 'id'),
+                    static fn (mixed $id): bool => is_string($id) && $id !== '',
+                )),
+                'partNames' => array_values(array_unique(array_column($items, 'partName'))),
+                'linearValues' => array_column($items, 'linear'),
+                'linearRawValues' => array_column($items, 'linearRaw'),
+            ];
+        }
+
         return [
             'valid' => $diagnostics === [],
             'itemCount' => count($spine),
@@ -1345,6 +1417,10 @@ final class EpubPackage
             'pageSpreadRightCount' => $pageSpreadCounts['right'],
             'pageSpreadCenterCount' => $pageSpreadCounts['center'],
             'pageSpreadItems' => $pageSpreadItems,
+            'duplicateItemrefIdCount' => count($duplicateItemrefIdItems),
+            'duplicateItemrefIdItems' => $duplicateItemrefIdItems,
+            'repeatedIdrefCount' => count($repeatedIdrefItems),
+            'repeatedIdrefItems' => $repeatedIdrefItems,
             'missingManifestItems' => $missingManifestItems,
             'missingPackagePartItems' => $missingPackagePartItems,
             'nonContentDocumentItems' => $nonContentDocumentItems,
