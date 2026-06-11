@@ -794,8 +794,10 @@ XML;
 
         $t->same('content-types', $entries['[Content_Types].xml']['role']);
         $t->same('content-types+xml', $entries['[Content_Types].xml']['handoffKind']);
+        $t->same(hash('crc32b', $contentTypesXml), $entries['[Content_Types].xml']['crc32Hex']);
         $t->same('package-relationships', $entries['_rels/.rels']['role']);
         $t->same('/', $entries['_rels/.rels']['relationshipSource']);
+        $t->same(hash('crc32b', $rootRelationshipsXml), $entries['_rels/.rels']['crc32Hex']);
         $t->same('word/document.xml', $entries['word/document.xml']['centralName']);
         $t->same('word/otherdoc.xml', $entries['word/document.xml']['localHeaderName']);
         $t->same(false, $entries['word/document.xml']['localHeaderNameMatchesCentral']);
@@ -806,6 +808,9 @@ XML;
         $t->same('part-relationships', $entries['word/_rels/document.xml.rels']['role']);
         $t->same('/word/document.xml', $entries['word/_rels/document.xml.rels']['relationshipSource']);
         $t->same(true, $entries['word/_rels/document.xml.rels']['relationshipSourceExists']);
+        $t->same(hash('crc32b', $documentRelationshipsXml), $entries['word/_rels/document.xml.rels']['crc32Hex']);
+        $t->same(hash('crc32b', $imageBytes), $entries['word/media/image.png']['crc32Hex']);
+        $t->same(hash('crc32b', $embeddedPackageBytes), $entries['word/embeddings/package1.docx']['crc32Hex']);
         $t->same(false, $entries['word/_rels/orphan.xml.rels']['relationshipSourceExists']);
         $t->same(['orphan-relationship-part'], $entries['word/_rels/orphan.xml.rels']['issues']);
         $t->same('/word/orphan.xml', $relationshipParts['/word/_rels/orphan.xml.rels']['relationshipSource']);
@@ -1027,6 +1032,57 @@ XML;
         }
 
         $t->same($packageSummary['localHeaderOrder'], $rawSummary['localHeaderOrder']);
+    },
+    'preflights raw OPC central directory CRC provenance before package construction' => static function (TestRunner $t): void {
+        $contentTypesXml = '<Types/>';
+        $rootRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:p>CRC review</w:p></w:document>';
+        $imageBytes = "PNG review bytes\n";
+        $embeddedPackageBytes = "DOCX review bytes\n";
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/review.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/embeddings/package1.docx', 'data' => $embeddedPackageBytes, 'compressionMethod' => 0],
+        ]);
+
+        $centralDirectory = ZipPackage::centralDirectorySizePreflight($zip);
+        $documentEntry = null;
+        foreach ($centralDirectory['entries'] as $entry) {
+            if ($entry['name'] === 'word/document.xml') {
+                $documentEntry = $entry;
+                break;
+            }
+        }
+        $t->true(is_array($documentEntry));
+        $zip = substr_replace(
+            $zip,
+            'word/otherdoc.xml',
+            $documentEntry['localHeaderOffset'] + 30,
+            strlen('word/document.xml')
+        );
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->same([], $summary['centralDirectoryIssues']);
+        $t->same(false, $summary['localHeaderNamesValid']);
+        $t->same(hash('crc32b', $contentTypesXml), $entries['[Content_Types].xml']['crc32Hex']);
+        $t->same(hash('crc32b', $rootRelationshipsXml), $entries['_rels/.rels']['crc32Hex']);
+        $t->same(hash('crc32b', $documentXml), $entries['word/document.xml']['crc32Hex']);
+        $t->same(hash('crc32b', $imageBytes), $entries['word/media/review.png']['crc32Hex']);
+        $t->same(hash('crc32b', $embeddedPackageBytes), $entries['word/embeddings/package1.docx']['crc32Hex']);
+        $t->same('xml', $entries['word/document.xml']['handoffKind']);
+        $t->same('media', $entries['word/media/review.png']['handoffKind']);
+        $t->same('embedded-package', $entries['word/embeddings/package1.docx']['handoffKind']);
     },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
