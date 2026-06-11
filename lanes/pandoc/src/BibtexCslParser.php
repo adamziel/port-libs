@@ -16,7 +16,10 @@ final class BibtexCslParser
         'shorteditor',
         'holder',
         'translator',
+        'book-author',
         'bookauthor',
+        'container-author',
+        'containerauthor',
         'chair',
         'collection-editor',
         'collectioneditor',
@@ -960,7 +963,7 @@ final class BibtexCslParser
             $item['translator'] = $translator;
         }
 
-        $containerAuthor = self::namesFromBibtexField($fields, 'bookauthor');
+        $containerAuthor = self::namesFromFirstBibtexField($fields, ['bookauthor', 'book-author', 'containerauthor', 'container-author']);
         if ($containerAuthor !== []) {
             $item['container-author'] = $containerAuthor;
         }

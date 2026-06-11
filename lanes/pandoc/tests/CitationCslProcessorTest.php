@@ -7139,6 +7139,89 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Chapter Review. Migration Sourcebook. 2026. 44-49. Name annotations: Container author 1: source volume author; Container author 2 family: container family verified. Container author: Smith, Ada; Curator, Eli.</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Literal Container Author. Review Desk Handbook. 2025. Container author: Migration Desk.</dd>', $blocks);
     },
+    'maps bounded biblatex hyphenated container author aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@incollection{container-author-hyphen,
+  author              = {Ng, Nia},
+  title               = {Hyphen Container Author Packet},
+  booktitle           = {Source Volume},
+  date                = {2026},
+  container-author    = {Legacy, Lara and {{Volume Desk}}},
+  container-author+an = {1=hyphen container author verified; 2=literal container author verified}
+}
+
+@inbook{book-author-hyphen,
+  author                = {Roe, Pat},
+  title                 = {Book Author Alias Packet},
+  booktitle             = {Alias Sourcebook},
+  date                  = {2025},
+  book-author           = {Archive, Ari},
+  book-author+an:family = {1=book author family verified}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Legacy', $items[0]['container-author'][0]['family'] ?? null);
+        $t->same('Lara', $items[0]['container-author'][0]['given'] ?? null);
+        $t->same('Volume Desk', $items[0]['container-author'][1]['literal'] ?? null);
+        $t->same('hyphen container author verified', $items[0]['container-author'][0]['annotations'][0]['value'] ?? null);
+        $t->same('literal container author verified', $items[0]['container-author'][1]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[0]['biblatex-field-annotations']['container-author']));
+        $t->same('Archive', $items[1]['container-author'][0]['family'] ?? null);
+        $t->same('family', $items[1]['container-author'][0]['annotations'][0]['part'] ?? null);
+        $t->same('book author family verified', $items[1]['container-author'][0]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($items[1]['biblatex-field-annotations']['book-author']));
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('container-author-hyphen');
+        $bookAuthor = $processor->item('book-author-hyphen');
+        $t->same('Legacy', $hyphen['containerAuthors'][0]['family'] ?? null);
+        $t->same('Volume Desk', $hyphen['containerAuthors'][1]['literal'] ?? null);
+        $t->same('hyphen container author verified', $hyphen['containerAuthors'][0]['annotations'][0]['value'] ?? null);
+        $t->same('Archive', $bookAuthor['containerAuthors'][0]['family'] ?? null);
+        $t->same('book author family verified', $bookAuthor['containerAuthors'][0]['annotations'][0]['value'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <names variable="container-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="container-author"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Ng | Legacy and Volume Desk; Roe | Archive]', $styled->renderCitationCluster([
+            $citation('container-author-hyphen', '[@container-author-hyphen]'),
+            $citation('book-author-hyphen', '[@book-author-hyphen]'),
+        ]));
+        $t->same(
+            'Hyphen Container Author Packet :: Legacy, Lara; Volume Desk :: Container author 1: hyphen container author verified; Container author 2: literal container author verified',
+            $styled->renderBibliographyEntry('container-author-hyphen')
+        );
+        $t->same(
+            'Book Author Alias Packet :: Archive, Ari :: Container author 1 family: book author family verified',
+            $styled->renderBibliographyEntry('book-author-hyphen')
+        );
+
+        $document = (new MarkdownReader())->read('Container-author aliases [@container-author-hyphen; @book-author-hyphen] preserve source volume creators.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Container-author aliases [Ng | Legacy and Volume Desk; Roe | Archive] preserve source volume creators.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Hyphen Container Author Packet :: Legacy, Lara; Volume Desk :: Container author 1: hyphen container author verified; Container author 2: literal container author verified</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Book Author Alias Packet :: Archive, Ari :: Container author 1 family: book author family verified</dd>', $blocks);
+    },
     'maps bounded biblatex author type qualifiers into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{compiled-source-manual,
