@@ -1760,6 +1760,9 @@ final class EpubPackage
             $entry = $package->entry($partName);
             $provenance = self::zipEntryProvenance($entry);
             $itemDiagnostics = [];
+            $rootReport = ($provenance['compressionSupported'] ?? false) === true
+                ? self::ocfSidecarRootReport($package, $kind, $partName, (string) $definition['expectedRootName'])
+                : self::emptyOcfSidecarRootReport();
 
             if (($provenance['compressionSupported'] ?? false) !== true) {
                 $itemDiagnostics[] = [
@@ -1771,6 +1774,7 @@ final class EpubPackage
                     'message' => 'EPUB OCF sidecar uses a ZIP compression method that native package ingestion cannot expose as bytes',
                 ];
             }
+            array_push($itemDiagnostics, ...$rootReport['diagnostics']);
 
             $item = [
                 'kind' => $kind,
@@ -1783,6 +1787,13 @@ final class EpubPackage
                 'reviewPolicy' => (string) $definition['reviewPolicy'],
                 'byteExposurePolicy' => 'ocf-sidecar-metadata-only',
                 'canExposeBytes' => false,
+                'xmlRootChecked' => $rootReport['checked'],
+                'xmlWellFormed' => $rootReport['wellFormed'],
+                'rootName' => $rootReport['rootName'],
+                'rootNamespace' => $rootReport['rootNamespace'],
+                'rootValid' => $rootReport['valid'],
+                'rootReport' => $rootReport,
+                'rootDiagnostics' => $rootReport['diagnostics'],
                 'diagnosticCount' => count($itemDiagnostics),
                 'diagnostics' => $itemDiagnostics,
             ] + $provenance;
@@ -1802,6 +1813,76 @@ final class EpubPackage
             'items' => $items,
             'itemsByKind' => $itemsByKind,
             'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array{checked:bool, wellFormed:?bool, rootName:?string, rootNamespace:?string, valid:?bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function emptyOcfSidecarRootReport(): array
+    {
+        return [
+            'checked' => false,
+            'wellFormed' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'valid' => null,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array{checked:bool, wellFormed:?bool, rootName:?string, rootNamespace:?string, valid:?bool, diagnostics:list<array<string, mixed>>}
+     */
+    private static function ocfSidecarRootReport(
+        ZipPackage $package,
+        string $kind,
+        string $partName,
+        string $expectedRootName
+    ): array {
+        try {
+            $dom = self::loadXml($package->read($partName), "EPUB OCF sidecar {$partName}");
+        } catch (\RuntimeException | \InvalidArgumentException $exception) {
+            return [
+                'checked' => true,
+                'wellFormed' => false,
+                'rootName' => null,
+                'rootNamespace' => null,
+                'valid' => false,
+                'diagnostics' => [[
+                    'type' => 'invalid-ocf-sidecar-xml',
+                    'kind' => $kind,
+                    'partName' => $partName,
+                    'error' => $exception->getMessage(),
+                    'message' => 'EPUB OCF sidecar XML could not be parsed for bounded package review',
+                ]],
+            ];
+        }
+
+        $root = $dom->documentElement;
+        $rootName = $root instanceof \DOMElement ? $root->localName : null;
+        $rootNamespace = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $diagnostics = [];
+        if ($rootName !== $expectedRootName || $rootNamespace !== self::OCF_CONTAINER_NAMESPACE) {
+            $diagnostics[] = [
+                'type' => 'unexpected-ocf-sidecar-root',
+                'kind' => $kind,
+                'partName' => $partName,
+                'expectedRootName' => $expectedRootName,
+                'expectedRootNamespace' => self::OCF_CONTAINER_NAMESPACE,
+                'rootName' => $rootName,
+                'rootNamespace' => $rootNamespace,
+                'message' => 'EPUB OCF sidecar root element does not match the expected container sidecar element',
+            ];
+        }
+
+        return [
+            'checked' => true,
+            'wellFormed' => true,
+            'rootName' => $rootName,
+            'rootNamespace' => $rootNamespace,
+            'valid' => $diagnostics === [],
             'diagnostics' => $diagnostics,
         ];
     }

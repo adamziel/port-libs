@@ -1703,6 +1703,12 @@ XML;
         $t->same('ocf-rights-sidecar-review', $rights['reviewPolicy']);
         $t->same('ocf-sidecar-metadata-only', $rights['byteExposurePolicy']);
         $t->same(false, $rights['canExposeBytes']);
+        $t->same(true, $rights['xmlRootChecked']);
+        $t->same(true, $rights['xmlWellFormed']);
+        $t->same('rights', $rights['rootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $rights['rootNamespace']);
+        $t->same(true, $rights['rootValid']);
+        $t->same([], $rights['rootDiagnostics']);
         $t->same(strlen($rightsXml), $rights['byteLength']);
         $t->same(strlen($rightsXml), $rights['compressedByteLength']);
         $t->same(0, $rights['compressionMethod']);
@@ -1718,6 +1724,12 @@ XML;
         $t->same('ocf-signatures-sidecar-review', $signatures['reviewPolicy']);
         $t->same('ocf-sidecar-metadata-only', $signatures['byteExposurePolicy']);
         $t->same(false, $signatures['canExposeBytes']);
+        $t->same(false, $signatures['xmlRootChecked']);
+        $t->same(null, $signatures['xmlWellFormed']);
+        $t->same(null, $signatures['rootName']);
+        $t->same(null, $signatures['rootNamespace']);
+        $t->same(null, $signatures['rootValid']);
+        $t->same([], $signatures['rootDiagnostics']);
         $t->same(strlen($signaturesXml), $signatures['byteLength']);
         $t->same(strlen($signaturesXml), $signatures['compressedByteLength']);
         $t->same(12, $signatures['compressionMethod']);
@@ -1734,6 +1746,53 @@ XML;
         $t->same($sidecars['diagnostics'], $summary['ocfSidecarDiagnostics']);
         $t->same($sidecars, $summary['wordpressImport']['ocfSidecars']);
         $t->same($sidecars['items'], $summary['wordpressImport']['ocfSidecarItems']);
+        $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
+    },
+
+    'reports OCF sidecar XML root diagnostics without aborting package ingestion' => static function (TestRunner $t) use ($epubContainerXml, $epub3OpfXml, $epub3NavXml): void {
+        $rightsXml = '<license xmlns="urn:oasis:names:tc:opendocument:xmlns:container">Review license</license>';
+        $signaturesXml = '<signatures xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><Signature></signatures>';
+
+        $epub = EpubPackage::fromPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => 'application/epub+zip', 'compressionMethod' => 0],
+            ['name' => 'META-INF/container.xml', 'data' => $epubContainerXml],
+            ['name' => 'META-INF/rights.xml', 'data' => $rightsXml],
+            ['name' => 'META-INF/signatures.xml', 'data' => $signaturesXml],
+            ['name' => 'EPUB/package.opf', 'data' => $epub3OpfXml],
+            ['name' => 'EPUB/nav.xhtml', 'data' => $epub3NavXml],
+            ['name' => 'EPUB/text/chapter1.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Intro</h1></body></html>'],
+            ['name' => 'EPUB/text/chapter2.xhtml', 'data' => '<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>Review</h1></body></html>'],
+            ['name' => 'EPUB/styles/book.css', 'data' => 'body { font-family: serif; }'],
+            ['name' => 'EPUB/images/cover.png', 'data' => 'PNG'],
+        ]));
+
+        $sidecars = $epub->ocfSidecars();
+        $summary = $epub->summary();
+        $rights = $sidecars['itemsByKind']['rights'];
+        $signatures = $sidecars['itemsByKind']['signatures'];
+
+        $t->same(true, $rights['xmlRootChecked']);
+        $t->same(true, $rights['xmlWellFormed']);
+        $t->same('license', $rights['rootName']);
+        $t->same(EpubPackage::OCF_CONTAINER_NAMESPACE, $rights['rootNamespace']);
+        $t->same(false, $rights['rootValid']);
+        $t->same(['unexpected-ocf-sidecar-root'], array_column($rights['rootDiagnostics'], 'type'));
+        $t->same('rights', $rights['rootDiagnostics'][0]['expectedRootName']);
+        $t->same('license', $rights['rootDiagnostics'][0]['rootName']);
+
+        $t->same(true, $signatures['xmlRootChecked']);
+        $t->same(false, $signatures['xmlWellFormed']);
+        $t->same(null, $signatures['rootName']);
+        $t->same(null, $signatures['rootNamespace']);
+        $t->same(false, $signatures['rootValid']);
+        $t->same(['invalid-ocf-sidecar-xml'], array_column($signatures['rootDiagnostics'], 'type'));
+        $t->same('/META-INF/signatures.xml', $signatures['rootDiagnostics'][0]['partName']);
+
+        $t->same(2, $sidecars['diagnosticCount']);
+        $t->same(['unexpected-ocf-sidecar-root', 'invalid-ocf-sidecar-xml'], array_column($sidecars['diagnostics'], 'type'));
+        $t->same($sidecars, $summary['ocfSidecars']);
+        $t->same($sidecars['diagnostics'], $summary['ocfSidecarDiagnostics']);
+        $t->same($sidecars, $summary['wordpressImport']['ocfSidecars']);
         $t->same($sidecars['diagnostics'], $summary['wordpressImport']['ocfSidecarDiagnostics']);
     },
 
