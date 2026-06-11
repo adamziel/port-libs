@@ -852,6 +852,9 @@ final class XmlHtmlDom
             $summary['disclosure'] = 'summary';
             $summary['label'] = self::normalizedText($node);
         }
+        if ($name === 'dialog') {
+            $summary += self::dialogSummary($node);
+        }
         if ($name === 'ins' || $name === 'del') {
             $summary += self::revisionSummary($node, $name);
         }
@@ -1445,6 +1448,11 @@ final class XmlHtmlDom
             $summary['hiddenState'] = $hidden === 'until-found' ? 'until-found' : 'hidden';
         }
 
+        if (array_key_exists('inert', $attributes)) {
+            $summary['inertRaw'] = $attributes['inert'];
+            $summary['inert'] = true;
+        }
+
         if (array_key_exists('translate', $attributes)) {
             $translate = strtolower(trim($attributes['translate']));
             $summary['translateRaw'] = $attributes['translate'];
@@ -1489,6 +1497,32 @@ final class XmlHtmlDom
         if (array_key_exists('tabindex', $attributes)) {
             $summary['tabIndexRaw'] = $attributes['tabindex'];
             $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
+        }
+
+        if (array_key_exists('accesskey', $attributes)) {
+            $summary['accessKeyRaw'] = $attributes['accesskey'];
+            $summary['accessKeys'] = self::spaceSeparatedTokens($attributes['accesskey']);
+        }
+
+        if (array_key_exists('autofocus', $attributes)) {
+            $summary['autofocusRaw'] = $attributes['autofocus'];
+            $summary['autofocus'] = true;
+        }
+
+        if (array_key_exists('popover', $attributes)) {
+            $summary['popoverRaw'] = $attributes['popover'];
+            $summary['popoverState'] = self::popoverState($attributes['popover']);
+        }
+
+        if (array_key_exists('popovertarget', $attributes)) {
+            $summary['popoverTargetRaw'] = $attributes['popovertarget'];
+            $summary['popoverTarget'] = trim($attributes['popovertarget']);
+        }
+
+        if (array_key_exists('popovertarget', $attributes) || array_key_exists('popovertargetaction', $attributes)) {
+            $popoverActionRaw = $attributes['popovertargetaction'] ?? null;
+            $summary['popoverTargetActionRaw'] = $popoverActionRaw;
+            $summary['popoverTargetAction'] = self::popoverTargetAction($popoverActionRaw);
         }
 
         return $summary;
@@ -1664,6 +1698,39 @@ final class XmlHtmlDom
         }
 
         return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function dialogSummary(\DOMElement $dialog): array
+    {
+        $open = $dialog->hasAttribute('open');
+
+        return [
+            'interactiveElement' => 'dialog',
+            'dialog' => 'dialog',
+            'dialogState' => $open ? 'open' : 'closed',
+            'open' => $open,
+            'dialogText' => self::normalizedText($dialog),
+        ];
+    }
+
+    private static function popoverState(string $value): string
+    {
+        $state = strtolower(trim($value));
+        if ($state === '') {
+            return 'auto';
+        }
+
+        return in_array($state, ['auto', 'manual', 'hint'], true) ? $state : 'manual';
+    }
+
+    private static function popoverTargetAction(?string $value): string
+    {
+        $action = $value === null ? '' : strtolower(trim($value));
+
+        return in_array($action, ['hide', 'show', 'toggle'], true) ? $action : 'toggle';
     }
 
     /**

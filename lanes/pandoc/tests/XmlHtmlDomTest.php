@@ -771,6 +771,78 @@ XML, 'package reader XML');
         $t->same(0, $missingSummary['summaryElementCount']);
         $t->same('<details id="packet" open><summary>Package <span>review</span></summary><p>Body</p></details><details id="missing-summary"><p>No summary</p></details>', $html);
     },
+    'summarizes html dialog popover and focus state for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<dialog id="notice" open aria-label="Migration notice"><p>Visible</p></dialog>'
+                . '<dialog id="closed"><p>Closed</p></dialog>'
+                . '<button id="toggle" type="button" popovertarget="review-pop" popovertargetaction="show" accesskey="n r" autofocus>Open note</button>'
+                . '<aside id="review-pop" popover inert><p>Auto note</p></aside>'
+                . '<section id="manual-pop" popover="manual"><p>Manual note</p></section>'
+                . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
+                . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>'
+                . '<button id="fallback" type="button" popovertarget="invalid-pop" popovertargetaction="bad">Fallback</button>',
+            'dialog popover review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/dialog-popover-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $notice = $summary[0];
+        $closed = $summary[1];
+        $toggle = $summary[2];
+        $autoPopover = $summary[3];
+        $manualPopover = $summary[4];
+        $hintPopover = $summary[5];
+        $invalidPopover = $summary[6];
+        $fallback = $summary[7];
+
+        $t->same('dialog', $notice['name']);
+        $t->same('dialog', $notice['interactiveElement']);
+        $t->same('open', $notice['dialogState']);
+        $t->same(true, $notice['open']);
+        $t->same('Visible', $notice['dialogText']);
+        $t->same(['aria-label' => 'Migration notice'], $notice['ariaAttributes']);
+        $t->same('closed', $closed['dialogState']);
+        $t->same(false, $closed['open']);
+        $t->same('Closed', $closed['dialogText']);
+        $t->same('button', $toggle['formControl']);
+        $t->same('button', $toggle['buttonType']);
+        $t->same('n r', $toggle['accessKeyRaw']);
+        $t->same(['n', 'r'], $toggle['accessKeys']);
+        $t->same('', $toggle['autofocusRaw']);
+        $t->same(true, $toggle['autofocus']);
+        $t->same('review-pop', $toggle['popoverTargetRaw']);
+        $t->same('review-pop', $toggle['popoverTarget']);
+        $t->same('show', $toggle['popoverTargetActionRaw']);
+        $t->same('show', $toggle['popoverTargetAction']);
+        $t->same('', $autoPopover['popoverRaw']);
+        $t->same('auto', $autoPopover['popoverState']);
+        $t->same('', $autoPopover['inertRaw']);
+        $t->same(true, $autoPopover['inert']);
+        $t->same('manual', $manualPopover['popoverRaw']);
+        $t->same('manual', $manualPopover['popoverState']);
+        $t->same('hint', $hintPopover['popoverState']);
+        $t->same('bad state', $invalidPopover['popoverRaw']);
+        $t->same('manual', $invalidPopover['popoverState']);
+        $t->same('bad', $fallback['popoverTargetActionRaw']);
+        $t->same('toggle', $fallback['popoverTargetAction']);
+        $t->same(
+            '<dialog aria-label="Migration notice" id="notice" open><p>Visible</p></dialog>'
+                . '<dialog id="closed"><p>Closed</p></dialog>'
+                . '<button accesskey="n r" autofocus id="toggle" popovertarget="review-pop" popovertargetaction="show" type="button">Open note</button>'
+                . '<aside id="review-pop" inert popover=""><p>Auto note</p></aside>'
+                . '<section id="manual-pop" popover="manual"><p>Manual note</p></section>'
+                . '<div id="hint-pop" popover="hint"><p>Hint note</p></div>'
+                . '<div id="invalid-pop" popover="bad state"><p>Invalid note</p></div>'
+                . '<button id="fallback" popovertarget="invalid-pop" popovertargetaction="bad" type="button">Fallback</button>',
+            $html
+        );
+        $t->contains('<dialog aria-label="Migration notice" id="notice" open>', $blocks);
+        $t->same('/migration/dialog-popover-review.html', $document->children[0]->attr('part'));
+    },
     'summarizes html insertion and deletion revision metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p><ins cite="./changes/insert.html" datetime="2026-06-11 12:30Z">Inserted <em>text</em></ins>'
