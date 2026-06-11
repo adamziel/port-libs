@@ -15,6 +15,7 @@ final class EpubPackage
     public const NCX_NAMESPACE = 'http://www.daisy.org/z3986/2005/ncx/';
     public const SMIL_NAMESPACE = 'http://www.w3.org/ns/SMIL';
     public const XMLENC_NAMESPACE = 'http://www.w3.org/2001/04/xmlenc#';
+    public const ODF_MANIFEST_NAMESPACE = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
     public const EPUB_MIMETYPE = 'application/epub+zip';
     public const OPF_MEDIA_TYPE = 'application/oebps-package+xml';
     public const XHTML_MEDIA_TYPE = 'application/xhtml+xml';
@@ -75,6 +76,7 @@ final class EpubPackage
      * @param array<string, mixed> $bindings
      * @param array<string, mixed> $mediaOverlays
      * @param array<string, mixed> $manifestFallbacks
+     * @param array<string, mixed> $ocfManifest
      * @param array<string, mixed> $encryption
      * @param ?string $spineTocId
      * @param array{type:string, partName:string, entries:list<array{label:string, href:?string, target:?string, depth:int, playOrder:?int}>}|null $navigation
@@ -95,6 +97,7 @@ final class EpubPackage
         private readonly array $bindings,
         private readonly array $mediaOverlays,
         private readonly array $manifestFallbacks,
+        private readonly array $ocfManifest,
         private readonly array $encryption,
         private readonly ?string $spineTocId,
         private readonly ?array $navigation,
@@ -134,6 +137,7 @@ final class EpubPackage
 
         $opf = self::parseOpfXml($package->read($opfPartName), $opfPartName, $package);
         $containerLinks = self::parseContainerLinks($package, self::manifestByPart($opf['manifestById']));
+        $ocfManifest = self::parseOcfManifest($package);
         $navigation = self::loadNavigation($package, $opfPartName, $opf['manifestById'], $opf['spineTocId']);
 
         return new self(
@@ -151,6 +155,7 @@ final class EpubPackage
             $opf['bindings'],
             $opf['mediaOverlays'],
             $opf['manifestFallbacks'],
+            $ocfManifest,
             $opf['encryption'],
             $opf['spineTocId'],
             $navigation['navigation'],
@@ -270,6 +275,14 @@ final class EpubPackage
     public function manifestFallbacks(): array
     {
         return $this->manifestFallbacks;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function ocfManifest(): array
+    {
+        return $this->ocfManifest;
     }
 
     /**
@@ -430,6 +443,7 @@ final class EpubPackage
             'bindings' => $this->bindings,
             'mediaOverlays' => $this->mediaOverlays,
             'manifestFallbacks' => $manifestFallbacks,
+            'ocfManifest' => $this->ocfManifest,
             'encryption' => $this->encryption,
             'resourceProperties' => $resourceProperties,
             'navigation' => $this->navigation,
@@ -508,6 +522,9 @@ final class EpubPackage
                 'manifestFallbackItems' => $manifestFallbacks['fallbackItems'],
                 'manifestFallbackStyleItems' => $manifestFallbacks['fallbackStyleItems'],
                 'manifestFallbackDiagnostics' => $manifestFallbacks['diagnostics'],
+                'ocfManifest' => $this->ocfManifest,
+                'ocfManifestItems' => $this->ocfManifest['items'],
+                'ocfManifestDiagnostics' => $this->ocfManifest['diagnostics'],
                 'encryption' => $this->encryption,
                 'encryptedResourceExposure' => $this->encryption['exposure'],
                 'encryptedResourceDiagnostics' => $this->encryption['diagnostics'],
@@ -1509,6 +1526,434 @@ final class EpubPackage
         }
 
         return $rootfiles;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseOcfManifest(ZipPackage $package): array
+    {
+        $part = '/META-INF/manifest.xml';
+        if (!$package->has($part)) {
+            return self::emptyOcfManifestReport($part);
+        }
+
+        $report = self::ocfSidecarMetadata($package, $part) + [
+            'present' => true,
+            'valid' => true,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'format' => 'xml',
+            'odfCompatible' => false,
+            'version' => null,
+            'itemCount' => 0,
+            'items' => [],
+            'itemsByPart' => [],
+            'declaredPartCount' => 0,
+            'missingItemCount' => 0,
+            'sizeMismatchCount' => 0,
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+
+        try {
+            $dom = self::loadXml($package->read($part), 'EPUB OCF manifest.xml');
+        } catch (\Throwable $exception) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'invalid-ocf-manifest-xml',
+                'part' => $part,
+                'message' => $exception->getMessage(),
+            ];
+
+            return $report;
+        }
+
+        $root = $dom->documentElement;
+        $report['rootName'] = $root instanceof \DOMElement ? $root->localName : null;
+        $report['rootNamespace'] = $root instanceof \DOMElement ? $root->namespaceURI : null;
+        $odfCompatible = $root instanceof \DOMElement
+            && $root->localName === 'manifest'
+            && $root->namespaceURI === self::ODF_MANIFEST_NAMESPACE;
+        $report['format'] = $odfCompatible ? 'odf-manifest' : 'xml';
+        $report['odfCompatible'] = $odfCompatible;
+        $report['version'] = $root instanceof \DOMElement
+            ? self::nullableNamespacedAttribute($root, self::ODF_MANIFEST_NAMESPACE, 'version', 'manifest:version')
+            : null;
+
+        if (!$root instanceof \DOMElement) {
+            $report['valid'] = false;
+
+            return $report;
+        }
+
+        if (!$odfCompatible) {
+            $report['valid'] = false;
+            $report['diagnostics'][] = [
+                'type' => 'nonstandard-ocf-manifest-root',
+                'part' => $part,
+                'rootName' => $report['rootName'],
+                'rootNamespace' => $report['rootNamespace'],
+                'message' => 'EPUB OCF manifest.xml does not use the ODF manifest root; compact package ingestion reports it but does not use it as an OPF asset source',
+            ];
+
+            return $report;
+        }
+
+        $items = [];
+        $itemsByPart = [];
+        foreach (self::childElements($root, 'file-entry', self::ODF_MANIFEST_NAMESPACE) as $index => $entryElement) {
+            $item = self::parseOcfManifestFileEntry($package, $entryElement, $index);
+            foreach ($item['diagnostics'] as $diagnostic) {
+                $report['diagnostics'][] = ['index' => $index] + $diagnostic;
+            }
+
+            $items[] = $item;
+            if (is_string($item['part'] ?? null) && $item['part'] !== '') {
+                $itemsByPart[$item['part']] = $item;
+            }
+        }
+
+        $report['items'] = $items;
+        $report['itemsByPart'] = $itemsByPart;
+        $report['itemCount'] = count($items);
+        $report['declaredPartCount'] = count(array_filter(
+            $items,
+            static fn (array $item): bool => is_string($item['part'] ?? null) && $item['part'] !== '',
+        ));
+        $report['missingItemCount'] = count(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['exists'] ?? true) !== true,
+        ));
+        $report['sizeMismatchCount'] = count(array_filter(
+            $items,
+            static fn (array $item): bool => ($item['sizeMatches'] ?? true) === false,
+        ));
+        $referenceCounts = self::ocfReferenceCounts($items);
+        $report['referenceCount'] = $referenceCounts['referenceCount'];
+        $report['localReferenceCount'] = $referenceCounts['localReferenceCount'];
+        $report['externalReferenceCount'] = $referenceCounts['externalReferenceCount'];
+        $report['missingReferenceCount'] = $referenceCounts['missingReferenceCount'];
+        $report['valid'] = $report['diagnostics'] === [];
+
+        return $report;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function emptyOcfManifestReport(string $part): array
+    {
+        return [
+            'present' => false,
+            'valid' => true,
+            'part' => $part,
+            'byteLength' => null,
+            'compressedByteLength' => null,
+            'compressionMethod' => null,
+            'compressionMethodName' => null,
+            'compressionSupported' => null,
+            'crc32' => null,
+            'canExposeBytes' => false,
+            'byteSha256' => null,
+            'rootName' => null,
+            'rootNamespace' => null,
+            'format' => null,
+            'odfCompatible' => null,
+            'version' => null,
+            'itemCount' => 0,
+            'items' => [],
+            'itemsByPart' => [],
+            'declaredPartCount' => 0,
+            'missingItemCount' => 0,
+            'sizeMismatchCount' => 0,
+            'referenceCount' => 0,
+            'localReferenceCount' => 0,
+            'externalReferenceCount' => 0,
+            'missingReferenceCount' => 0,
+            'diagnostics' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ocfSidecarMetadata(ZipPackage $package, string $part): array
+    {
+        $entry = $package->has($part) ? $package->entry($part) : null;
+        $provenance = self::zipEntryProvenance($entry);
+        $byteSha256 = null;
+        if (($provenance['canExposeBytes'] ?? false) === true) {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable) {
+                $byteSha256 = null;
+            }
+        }
+
+        return [
+            'part' => $part,
+            'byteSha256' => $byteSha256,
+        ] + $provenance;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function parseOcfManifestFileEntry(ZipPackage $package, \DOMElement $entryElement, int $index): array
+    {
+        $fullPath = self::nullableNamespacedAttribute($entryElement, self::ODF_MANIFEST_NAMESPACE, 'full-path', 'manifest:full-path');
+        $mediaType = self::nullableNamespacedAttribute($entryElement, self::ODF_MANIFEST_NAMESPACE, 'media-type', 'manifest:media-type');
+        $version = self::nullableNamespacedAttribute($entryElement, self::ODF_MANIFEST_NAMESPACE, 'version', 'manifest:version');
+        $size = self::nullableNamespacedAttribute($entryElement, self::ODF_MANIFEST_NAMESPACE, 'size', 'manifest:size');
+        $encrypted = self::firstChildElement($entryElement, 'encryption-data', self::ODF_MANIFEST_NAMESPACE) instanceof \DOMElement;
+        $reference = null;
+        $diagnostics = [];
+
+        if ($fullPath === null) {
+            $diagnostics[] = [
+                'type' => 'missing-ocf-manifest-full-path',
+                'message' => 'EPUB OCF manifest file-entry is missing manifest:full-path',
+            ];
+        } else {
+            $reference = self::ocfManifestEntryReference($package, $fullPath);
+            foreach ($reference['diagnostics'] as $diagnostic) {
+                $diagnostics[] = $diagnostic;
+            }
+        }
+
+        $declaredSize = null;
+        if ($size !== null) {
+            if (preg_match('/^\d+$/', $size) === 1) {
+                $declaredSize = (int) $size;
+            } else {
+                $diagnostics[] = [
+                    'type' => 'invalid-ocf-manifest-size',
+                    'size' => $size,
+                    'message' => 'EPUB OCF manifest file-entry size must be a non-negative integer',
+                ];
+            }
+        }
+
+        $byteLength = is_array($reference) && is_int($reference['byteLength'] ?? null) ? $reference['byteLength'] : null;
+        $sizeMatches = $declaredSize === null || $byteLength === null || $declaredSize === $byteLength;
+        if (!$sizeMatches) {
+            $diagnostics[] = [
+                'type' => 'ocf-manifest-size-mismatch',
+                'fullPath' => $fullPath,
+                'declaredSize' => $declaredSize,
+                'byteLength' => $byteLength,
+                'message' => 'EPUB OCF manifest file-entry size does not match the ZIP entry byte length',
+            ];
+        }
+
+        $part = is_array($reference) && is_string($reference['part'] ?? null) ? $reference['part'] : null;
+        $directory = $fullPath === '/' || (is_string($fullPath) && str_ends_with($fullPath, '/'));
+        $canExposeBytes = is_array($reference)
+            && ($reference['canExposeBytes'] ?? false) === true
+            && ($reference['exists'] ?? false) === true
+            && $part !== null
+            && !$directory
+            && !$encrypted;
+        $byteSha256 = null;
+        if ($canExposeBytes) {
+            try {
+                $byteSha256 = hash('sha256', $package->read($part));
+            } catch (\Throwable $exception) {
+                $diagnostics[] = [
+                    'type' => 'ocf-manifest-entry-bytes-unavailable',
+                    'fullPath' => $fullPath,
+                    'part' => $part,
+                    'message' => $exception->getMessage(),
+                ];
+            }
+        }
+
+        return [
+            'index' => $index,
+            'fullPath' => $fullPath,
+            'target' => is_array($reference) ? $reference['target'] : null,
+            'part' => $part,
+            'root' => $fullPath === '/',
+            'directory' => $directory,
+            'mediaType' => $mediaType,
+            'version' => $version,
+            'declaredSize' => $declaredSize,
+            'sizeRaw' => $size,
+            'sizeMatches' => $sizeMatches,
+            'exists' => is_array($reference) ? (bool) ($reference['exists'] ?? false) : false,
+            'byteLength' => $byteLength,
+            'compressedByteLength' => is_array($reference) && is_int($reference['compressedByteLength'] ?? null) ? $reference['compressedByteLength'] : null,
+            'compressionMethod' => is_array($reference) && is_int($reference['compressionMethod'] ?? null) ? $reference['compressionMethod'] : null,
+            'compressionMethodName' => is_array($reference) && is_string($reference['compressionMethodName'] ?? null) ? $reference['compressionMethodName'] : null,
+            'compressionSupported' => is_array($reference) && is_bool($reference['compressionSupported'] ?? null) ? $reference['compressionSupported'] : null,
+            'crc32' => is_array($reference) && is_string($reference['crc32'] ?? null) ? $reference['crc32'] : null,
+            'byteSha256' => $byteSha256,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => $canExposeBytes,
+            'reference' => $reference,
+            'diagnostics' => $diagnostics,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ocfManifestEntryReference(ZipPackage $package, string $fullPath): array
+    {
+        $fullPath = trim($fullPath);
+        if ($fullPath === '') {
+            return self::missingOcfManifestReference();
+        }
+
+        if (self::isAbsoluteUri($fullPath)) {
+            return [
+                'target' => $fullPath,
+                'part' => null,
+                'external' => true,
+                'exists' => false,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'ocf-manifest-external-reference',
+                    'fullPath' => $fullPath,
+                    'message' => 'EPUB OCF manifest file-entry points outside the package and was not fetched',
+                ]],
+            ];
+        }
+
+        $directory = $fullPath === '/' || str_ends_with($fullPath, '/');
+        $path = $directory && $fullPath !== '/' ? rtrim($fullPath, '/') : $fullPath;
+        try {
+            $part = OpcPackagePath::canonicalPartNameFromUri($path, true);
+        } catch (\InvalidArgumentException $exception) {
+            return [
+                'target' => null,
+                'part' => null,
+                'external' => false,
+                'exists' => false,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [[
+                    'type' => 'ocf-manifest-invalid-reference',
+                    'fullPath' => $fullPath,
+                    'message' => $exception->getMessage(),
+                ]],
+            ];
+        }
+
+        if ($part === '/') {
+            return [
+                'target' => '/',
+                'part' => null,
+                'external' => false,
+                'exists' => true,
+                'byteLength' => null,
+                'compressedByteLength' => null,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'compressionSupported' => null,
+                'crc32' => null,
+                'canExposeBytes' => false,
+                'diagnostics' => [],
+            ];
+        }
+
+        if ($directory) {
+            $part .= '/';
+        }
+
+        $exists = $package->has($part);
+        $entry = $exists ? $package->entry($part) : null;
+        $diagnostics = $exists ? [] : [[
+            'type' => 'ocf-manifest-missing-reference',
+            'fullPath' => $fullPath,
+            'part' => $part,
+            'message' => 'EPUB OCF manifest file-entry target is missing from the package',
+        ]];
+
+        return [
+            'target' => $part,
+            'part' => $part,
+            'external' => false,
+            'exists' => $exists,
+            'diagnostics' => $diagnostics,
+        ] + self::zipEntryProvenance($entry);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function missingOcfManifestReference(): array
+    {
+        return [
+            'target' => null,
+            'part' => null,
+            'external' => false,
+            'exists' => false,
+            'byteLength' => null,
+            'compressedByteLength' => null,
+            'compressionMethod' => null,
+            'compressionMethodName' => null,
+            'compressionSupported' => null,
+            'crc32' => null,
+            'canExposeBytes' => false,
+            'diagnostics' => [[
+                'type' => 'ocf-manifest-missing-reference',
+                'message' => 'EPUB OCF manifest file-entry target is missing from the package',
+            ]],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     *
+     * @return array{referenceCount:int, localReferenceCount:int, externalReferenceCount:int, missingReferenceCount:int}
+     */
+    private static function ocfReferenceCounts(array $items): array
+    {
+        $referenceCount = 0;
+        $localReferenceCount = 0;
+        $externalReferenceCount = 0;
+        $missingReferenceCount = 0;
+
+        foreach ($items as $item) {
+            $reference = is_array($item['reference'] ?? null) ? $item['reference'] : null;
+            if ($reference === null) {
+                continue;
+            }
+
+            ++$referenceCount;
+            if (($reference['external'] ?? false) === true) {
+                ++$externalReferenceCount;
+            } else {
+                ++$localReferenceCount;
+            }
+
+            if (($reference['exists'] ?? false) !== true) {
+                ++$missingReferenceCount;
+            }
+        }
+
+        return [
+            'referenceCount' => $referenceCount,
+            'localReferenceCount' => $localReferenceCount,
+            'externalReferenceCount' => $externalReferenceCount,
+            'missingReferenceCount' => $missingReferenceCount,
+        ];
     }
 
     /**
@@ -6602,6 +7047,19 @@ final class EpubPackage
             if ($candidate instanceof \DOMElement && $candidate->localName === $localName) {
                 return $candidate;
             }
+        }
+
+        return null;
+    }
+
+    private static function nullableNamespacedAttribute(\DOMElement $element, string $namespaceUri, string $localName, string $prefixedName): ?string
+    {
+        if ($element->hasAttributeNS($namespaceUri, $localName)) {
+            return self::emptyToNull($element->getAttributeNS($namespaceUri, $localName));
+        }
+
+        if ($element->hasAttribute($prefixedName)) {
+            return self::emptyToNull($element->getAttribute($prefixedName));
         }
 
         return null;
