@@ -313,6 +313,75 @@ XML, 'package reader XML');
         $t->contains($html, $blocks);
         $t->same('/migration/text-semantics-review.html', $document->children[0]->attr('part'));
     },
+    'summarizes html time datetime provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<article><time datetime=" 2026-06-11 ">June 11</time>'
+                . '<time datetime="2026-06-11 18:45:30Z">Published</time>'
+                . '<time datetime="2026-06-11T12:30">Local</time>'
+                . '<time datetime="2026-W24">Week 24</time>'
+                . '<time datetime="PT2H30M">Duration</time>'
+                . '<time>2026-06</time>'
+                . '<time datetime="2026-02-30">Bad date</time>'
+                . '<time></time></article>',
+            'time datetime review fragment'
+        );
+        $summary = XmlHtmlDom::summarizeHtmlFragment($dom);
+        $html = XmlHtmlDom::serializeHtmlFragment($dom);
+        $document = new AstNode('document', [], [
+            new AstNode('raw_html', ['format' => 'html', 'html' => $html, 'part' => '/migration/time-datetime-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $article = $summary[0];
+        $date = $article['children'][0];
+        $global = $article['children'][1];
+        $local = $article['children'][2];
+        $week = $article['children'][3];
+        $duration = $article['children'][4];
+        $textFallback = $article['children'][5];
+        $invalid = $article['children'][6];
+        $missing = $article['children'][7];
+
+        $t->same('article', $article['name']);
+        $t->same('June 11PublishedLocalWeek 24Duration2026-06Bad date', $article['text']);
+        $t->same('time', $date['time']);
+        $t->same('June 11', $date['timeText']);
+        $t->same(' 2026-06-11 ', $date['timeDatetimeRaw']);
+        $t->same('datetime-attribute', $date['timeDatetimeSource']);
+        $t->same('2026-06-11', $date['timeDatetime']);
+        $t->same('date', $date['timeDatetimeKind']);
+        $t->same(true, $date['timeDatetimeValid']);
+        $t->same('2026-06-11T18:45:30Z', $global['timeDatetime']);
+        $t->same('global-datetime', $global['timeDatetimeKind']);
+        $t->same(true, $global['timeDatetimeValid']);
+        $t->same('2026-06-11T12:30', $local['timeDatetime']);
+        $t->same('local-datetime', $local['timeDatetimeKind']);
+        $t->same(true, $local['timeDatetimeValid']);
+        $t->same('2026-W24', $week['timeDatetime']);
+        $t->same('week', $week['timeDatetimeKind']);
+        $t->same(true, $week['timeDatetimeValid']);
+        $t->same('PT2H30M', $duration['timeDatetime']);
+        $t->same('duration', $duration['timeDatetimeKind']);
+        $t->same(true, $duration['timeDatetimeValid']);
+        $t->same('2026-06', $textFallback['timeText']);
+        $t->same(null, $textFallback['timeDatetimeRaw']);
+        $t->same('text', $textFallback['timeDatetimeSource']);
+        $t->same('2026-06', $textFallback['timeDatetime']);
+        $t->same('month', $textFallback['timeDatetimeKind']);
+        $t->same(true, $textFallback['timeDatetimeValid']);
+        $t->same('2026-02-30', $invalid['timeDatetimeRaw']);
+        $t->same('datetime-attribute', $invalid['timeDatetimeSource']);
+        $t->same(null, $invalid['timeDatetime']);
+        $t->same('invalid', $invalid['timeDatetimeKind']);
+        $t->same(false, $invalid['timeDatetimeValid']);
+        $t->same('', $missing['timeText']);
+        $t->same('missing', $missing['timeDatetimeSource']);
+        $t->same('missing', $missing['timeDatetimeKind']);
+        $t->same(false, $missing['timeDatetimeValid']);
+        $t->same('<article><time datetime=" 2026-06-11 ">June 11</time><time datetime="2026-06-11 18:45:30Z">Published</time><time datetime="2026-06-11T12:30">Local</time><time datetime="2026-W24">Week 24</time><time datetime="PT2H30M">Duration</time><time>2026-06</time><time datetime="2026-02-30">Bad date</time><time></time></article>', $html);
+        $t->contains($html, $blocks);
+        $t->same('/migration/time-datetime-review.html', $document->children[0]->attr('part'));
+    },
     'serializes entities comments and boolean attributes for HTML blocks' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             'Text&nbsp;<span title="A &quot;quote&quot; &amp; source">source &lt;em&gt;</span><!--review--><input checked>',
